@@ -159,6 +159,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         get => _transportSchemaName;
         set
         {
+            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
             _transportSchemaName = value.ToLowerInvariant();
             _transportSchemaNameIsExplicit = true;
         }
@@ -173,7 +174,11 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     public string? MessageStorageSchemaName
     {
         get => _messageStorageSchemaName;
-        set => _messageStorageSchemaName = value?.ToLowerInvariant();
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(MessageStorageSchemaName));
+            _messageStorageSchemaName = value?.ToLowerInvariant();
+        }
     }
     
     /// <summary>

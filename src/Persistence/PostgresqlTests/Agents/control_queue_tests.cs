@@ -32,6 +32,11 @@ public class control_queue_tests : PostgresqlContext, IAsyncLifetime
         _receiver.Dispose();
     }
 
+    // The schema name deliberately starts with "pg". Weasel's index query used to filter the catalog with
+    // `NOT nspname LIKE 'pg%'` to skip pg_catalog/pg_toast, which also hid every index in a *user* schema
+    // whose name began with "pg" -- so the differences never converged and every startup after the first
+    // re-issued `create index` and failed with 42P07. This suite logged that on every run until Wolverine
+    // stopped swallowing failed migrations (GH-3997) made it visible. Fixed in Weasel 9.26 (weasel#504).
     private static async Task dropControlSchema()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);

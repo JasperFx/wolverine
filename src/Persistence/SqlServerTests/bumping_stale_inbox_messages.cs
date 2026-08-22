@@ -25,7 +25,12 @@ public class bumping_stale_inbox_messages : IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "stale_outbox");
+                // Deliberately NOT the "stale_outbox" schema that bumping_stale_outbox_messages uses. That test
+                // sets OutboxStaleTime, which adds a `timestamp` column to wolverine_outgoing_envelopes and this
+                // one does not, so sharing a schema had the two classes migrating that column in and out of
+                // existence depending on which ran first. Weasel 9.26 (weasel#505) can finally apply that drop
+                // on Sql Server; keeping the schemas apart keeps the two classes independent of run order.
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "stale_inbox");
                 opts.Durability.InboxStaleTime = 1.Hours();
             }).StartAsync();
 
@@ -44,7 +49,7 @@ public class bumping_stale_inbox_messages : IAsyncLifetime
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var table = await new Table(new DbObjectName("stale_outbox", DatabaseConstants.IncomingTable)).FetchExistingAsync(conn, TestContext.Current.CancellationToken);
+        var table = await new Table(new DbObjectName("stale_inbox", DatabaseConstants.IncomingTable)).FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         
         table!.HasColumn(DatabaseConstants.Timestamp).ShouldBeTrue();
         
@@ -77,17 +82,17 @@ public class bumping_stale_inbox_messages : IAsyncLifetime
         
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync(TestContext.Current.CancellationToken);
-        await conn.CreateCommand("update stale_outbox.wolverine_incoming_envelopes set timestamp = @time where id = @id")
+        await conn.CreateCommand("update stale_inbox.wolverine_incoming_envelopes set timestamp = @time where id = @id")
             .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
             .With("id", envelope1.Id)
             .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         
-        await conn.CreateCommand("update stale_outbox.wolverine_incoming_envelopes set timestamp = @time where id = @id")
+        await conn.CreateCommand("update stale_inbox.wolverine_incoming_envelopes set timestamp = @time where id = @id")
             .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
             .With("id", envelope3.Id)
             .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         
-        await conn.CreateCommand("update stale_outbox.wolverine_incoming_envelopes set timestamp = @time where id = @id")
+        await conn.CreateCommand("update stale_inbox.wolverine_incoming_envelopes set timestamp = @time where id = @id")
             .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
             .With("id", envelope5.Id)
             .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
@@ -96,7 +101,7 @@ public class bumping_stale_inbox_messages : IAsyncLifetime
         envelopesBefore.Count(x => x.OwnerId == 0).ShouldBe(0);
 
         var operation = new BumpStaleIncomingEnvelopesOperation(
-            new DbObjectName("stale_outbox", DatabaseConstants.IncomingTable), theHost.GetRuntime().Options.Durability, DateTimeOffset.UtcNow);
+            new DbObjectName("stale_inbox", DatabaseConstants.IncomingTable), theHost.GetRuntime().Options.Durability, DateTimeOffset.UtcNow);
         
         var batch = new DatabaseOperationBatch((IMessageDatabase)messageStore, [operation]);
         await theHost.InvokeAsync(batch);

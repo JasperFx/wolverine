@@ -136,6 +136,7 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
         get => _transportSchemaName;
         set
         {
+            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
             _transportSchemaName = value.ToLowerInvariant();
             _transportSchemaNameIsExplicit = true;
         }
@@ -150,7 +151,11 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
     public string? MessageStorageSchemaName
     {
         get => _messageStorageSchemaName;
-        set => _messageStorageSchemaName = value?.ToLowerInvariant();
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(MessageStorageSchemaName));
+            _messageStorageSchemaName = value?.ToLowerInvariant();
+        }
     }
 
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
