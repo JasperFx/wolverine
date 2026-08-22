@@ -23,7 +23,7 @@ public static class SqlServerConfigurationExtensions
     /// </summary>
     /// <param name="settings"></param>
     /// <param name="connectionString"></param>
-    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo"</param>
+    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo". This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
     public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
         string? schema = null, MessageStoreRole role = MessageStoreRole.Main)
     {
@@ -79,7 +79,7 @@ public static class SqlServerConfigurationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="connectionString"></param>
-    /// <param name="schema"></param>
+    /// <param name="schema">Schema name for the Wolverine envelope storage. A single database identifier, not a multi-part name</param>
     /// <returns></returns>
     public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,
         string connectionString,

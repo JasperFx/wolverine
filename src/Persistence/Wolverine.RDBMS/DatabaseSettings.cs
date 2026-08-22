@@ -10,8 +10,24 @@ public class DatabaseSettings
 {
     public DbDataSource? DataSource { get; set; }
 
+    private string? _schemaName;
+
     public string? ConnectionString { get; set; }
-    public string? SchemaName { get; set; }
+
+    /// <summary>
+    /// The database schema holding Wolverine's tables. This has to be a single database identifier;
+    /// a multi-part name is rejected here rather than at the point where it produces unusable DDL.
+    /// See <see cref="SchemaNameValidation"/> and GH-3997.
+    /// </summary>
+    public string? SchemaName
+    {
+        get => _schemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(SchemaName));
+            _schemaName = value;
+        }
+    }
 
     /// <summary>
     /// Returns the schema name properly quoted for use in SQL statements.

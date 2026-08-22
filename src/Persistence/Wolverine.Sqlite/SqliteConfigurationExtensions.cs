@@ -15,7 +15,7 @@ public static class SqliteConfigurationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="connectionString"></param>
-    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
+    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage. This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
     /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
     public static ISqliteBackedPersistence PersistMessagesWithSqlite(this WolverineOptions options, string connectionString,
         string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
@@ -44,7 +44,7 @@ public static class SqliteConfigurationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="dataSource"></param>
-    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
+    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage. This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
     /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
     public static ISqliteBackedPersistence PersistMessagesWithSqlite(this WolverineOptions options, DbDataSource dataSource,
         string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)

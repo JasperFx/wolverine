@@ -9,6 +9,54 @@ Wolverine uses the [JasperFx "Stateful Resource"](https://github.com/JasperFx/ja
 infrastructure configuration at development or even deployment time for configured items like the database-backed message storage or
 message broker queues.
 
+## Schema Names
+
+Every `PersistMessagesWithXXX()` overload takes an optional schema name for Wolverine's tables, as do the
+database-backed transports. That name has to be a **single database identifier**. Wolverine renders each of its
+tables as `{schema}.{table}`, so a multi-part value like `crm.sales.opportunities` would produce
+`crm.sales.opportunities.wolverine_incoming_envelopes` — a name with more parts than any supported database engine
+accepts. SQL Server reports *"The object name contains more than the maximum number of prefixes. The maximum is 2"*
+and PostgreSQL reports *"improper qualified name (too many dotted names)"*.
+
+The database itself is chosen by the connection string, never by the schema name:
+
+```csharp
+// ✅ the schema "sales", inside whatever database the connection string names
+opts.PersistMessagesWithSqlServer(connectionString, "sales");
+
+// ❌ throws immediately with an ArgumentOutOfRangeException
+opts.PersistMessagesWithSqlServer(connectionString, "crm.sales.opportunities");
+```
+
+Wolverine rejects a multi-part schema name at the point where it is configured rather than letting it fail later as
+unusable DDL. Delimiting the name yourself — `"[crm.sales]"` on SQL Server — is rejected too, and does not work if
+you route around the check: the schema is created, but the `CREATE SCHEMA` guard compares `sys.schemas.name` against
+the spelling it was handed, brackets and all, so it never matches and every restart after the first re-issues the
+`CREATE SCHEMA` against a schema that now exists. Schema difference detection cannot match a delimited name against
+the catalog either, so such a store re-applies its whole DDL on every start and never picks up a later
+column-level change.
+
+## When a Migration Fails <Badge type="tip" text="6.30" />
+
+If a DDL statement in Wolverine's own storage migration fails, startup fails with a `WolverineSchemaException` that
+carries the exact SQL that could not be applied. Before 6.30 those failures were only logged, so a host could start
+up against storage that had never been created and then die much later against an error that named nothing you had
+configured.
+
+Hosts that would rather start up anyway — a replica in a rolling deploy where another node is mid-migration, for
+instance — can keep the older, tolerant behavior by setting the failure mode:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.ResourceMigrationFailureMode = ResourceMigrationFailureMode.ContinueOnFailures;
+});
+```
+
+Note that Wolverine already serializes migrations across processes with a global advisory lock and retries the whole
+migration once after a short delay, so a genuine race between two nodes starting at the same instant is resolved
+without this setting.
+
 ## Disable Automatic Storage Migration
 
 To disable the automatic storage migration, just flip this flag:
