@@ -41,6 +41,8 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public LightweightCache<string, SqlServerQueue> Queues { get; }
 
+    private string _transportSchemaName = "dbo";
+
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
@@ -51,12 +53,30 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     /// The queue/scheduled tables are built lazily per queue, so reassignment before the
     /// runtime initializes the transport is safe.
     /// </remarks>
-    public string TransportSchemaName { get; set; } = "dbo";
+    public string TransportSchemaName
+    {
+        get => _transportSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
+            _transportSchemaName = value;
+        }
+    }
+
+    private string _messageStorageSchemaName = "dbo";
 
     /// <summary>
     /// Schema name for the message storage tables
     /// </summary>
-    public string MessageStorageSchemaName { get; set; } = "dbo";
+    public string MessageStorageSchemaName
+    {
+        get => _messageStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(MessageStorageSchemaName));
+            _messageStorageSchemaName = value;
+        }
+    }
 
     /// <summary>
     /// Opt into the higher-throughput queue table storage layout: queue and scheduled tables are

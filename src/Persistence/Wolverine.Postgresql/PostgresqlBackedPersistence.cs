@@ -154,7 +154,17 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     public NpgsqlDataSource? DataSource { get; set; }
     public string? ConnectionString { get; set; }
     
-    public string EnvelopeStorageSchemaName { get; set; }
+    private string _envelopeStorageSchemaName = null!;
+
+    public string EnvelopeStorageSchemaName
+    {
+        get => _envelopeStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(EnvelopeStorageSchemaName));
+            _envelopeStorageSchemaName = value;
+        }
+    }
     
     // This needs to be an override, and we use JasperFxOptions first!
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;

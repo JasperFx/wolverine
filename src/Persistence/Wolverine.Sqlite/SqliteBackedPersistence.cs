@@ -120,7 +120,17 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
     public DbDataSource? DataSource { get; set; }
     public string? ConnectionString { get; set; }
 
-    public string EnvelopeStorageSchemaName { get; set; }
+    private string _envelopeStorageSchemaName = null!;
+
+    public string EnvelopeStorageSchemaName
+    {
+        get => _envelopeStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(EnvelopeStorageSchemaName));
+            _envelopeStorageSchemaName = value;
+        }
+    }
 
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;
 

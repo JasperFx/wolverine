@@ -4,6 +4,7 @@ using Oracle.ManagedDataAccess.Client;
 using Spectre.Console;
 using Weasel.Oracle;
 using Wolverine.Configuration;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -22,15 +23,35 @@ public class OracleTransport : BrokerTransport<OracleQueue>
 
     public override Uri ResourceUri => new Uri("oracle-transport://");
 
+    private string _transportSchemaName = "WOLVERINE_QUEUES";
+
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
-    public string TransportSchemaName { get; set; } = "WOLVERINE_QUEUES";
+    public string TransportSchemaName
+    {
+        get => _transportSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
+            _transportSchemaName = value;
+        }
+    }
+
+    private string _messageStorageSchemaName = "WOLVERINE";
 
     /// <summary>
     /// Schema name for the message storage tables
     /// </summary>
-    public string MessageStorageSchemaName { get; set; } = "WOLVERINE";
+    public string MessageStorageSchemaName
+    {
+        get => _messageStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(MessageStorageSchemaName));
+            _messageStorageSchemaName = value;
+        }
+    }
 
     public LightweightCache<string, OracleQueue> Queues { get; }
 

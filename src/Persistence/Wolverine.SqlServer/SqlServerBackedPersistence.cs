@@ -131,7 +131,17 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
 
     public string? ConnectionString { get; set; }
     
-    public string EnvelopeStorageSchemaName { get; set; } = "wolverine";
+    private string _envelopeStorageSchemaName = "wolverine";
+
+    public string EnvelopeStorageSchemaName
+    {
+        get => _envelopeStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(EnvelopeStorageSchemaName));
+            _envelopeStorageSchemaName = value;
+        }
+    }
     
     // This needs to be an override, and we use JasperFxOptions first!
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;

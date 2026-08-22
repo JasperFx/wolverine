@@ -62,6 +62,14 @@ internal sealed class DeferredClaimCheckStore : IClaimCheckStore
         }
     }
 
+    /// <summary>
+    /// The concrete store behind this proxy, or null if the service provider has not been attached yet.
+    /// The claim-check sweeper (GH-3509) uses this to unwrap the proxy before testing for
+    /// <see cref="IClaimCheckStoreWithExpiration"/> — a type test against the proxy itself would always say
+    /// "not supported" and silently skip a perfectly sweepable backend.
+    /// </summary>
+    public IClaimCheckStore? TryResolve() => _provider is null ? null : resolve();
+
     public Task<ClaimCheckToken> StoreAsync(ReadOnlyMemory<byte> payload, string contentType,
         CancellationToken cancellationToken = default)
         => resolve().StoreAsync(payload, contentType, cancellationToken);

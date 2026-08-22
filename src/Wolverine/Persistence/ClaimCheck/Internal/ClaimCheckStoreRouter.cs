@@ -66,6 +66,30 @@ internal sealed class ClaimCheckStoreRouter
     public IClaimCheckStore DefaultStore { get; }
     public long? DefaultThreshold { get; }
 
+    /// <summary>
+    /// Every distinct store this router can hand out — the global default plus each keyed route store.
+    /// The claim-check sweeper (GH-3509) walks this so a multi-store configuration has all of its backends
+    /// swept, not just the default one. Deduplicated by reference, since several routes commonly point at
+    /// the same store instance.
+    /// </summary>
+    public IEnumerable<IClaimCheckStore> AllStores()
+    {
+        var seen = new HashSet<IClaimCheckStore>(ReferenceEqualityComparer.Instance);
+
+        if (seen.Add(DefaultStore))
+        {
+            yield return DefaultStore;
+        }
+
+        foreach (var store in _namedStores.Values)
+        {
+            if (seen.Add(store))
+            {
+                yield return store;
+            }
+        }
+    }
+
     public ClaimCheckSelection ResolveForSend(Type? messageType, Envelope? envelope)
     {
         foreach (var route in _routes)

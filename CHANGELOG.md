@@ -99,6 +99,59 @@
   the decline branch and their local retries are unchanged. That is correct: there is no capability-matched
   alternative node to release them to.
 
+### Dependencies
+
+- **Weasel 9.26.0.** Two defects that Wolverine's new fail-fast migrations (below) turned from a logged
+  line into a failed startup: `Table.FetchExisting` filtered the PostgreSQL catalog with
+  `NOT nspname LIKE 'pg%'`, which hid every index in a *user* schema whose name began with "pg", so those
+  schemas re-issued `create index` on every start and answered `42P07`
+  ([weasel#504](https://github.com/JasperFx/weasel/issues/504)); and Sql Server's column drop did not first
+  drop the auto-named default constraint that depends on the column, so a column declared with a default
+  could be added by a migration but never removed by one
+  ([weasel#505](https://github.com/JasperFx/weasel/issues/505)) — reachable from Wolverine configuration by
+  turning `OutboxStaleTime` / `InboxStaleTime` back off.
+
+### WolverineFx.RDBMS (all relational providers)
+
+- **A multi-part schema name is rejected where it is configured.**
+  (closes [#3997](https://github.com/JasperFx/wolverine/issues/3997)) Wolverine renders each of its tables
+  as `{schema}.{table}` with no delimiting, so a "schema name" that is itself multi-part produces a name
+  with more parts than any supported engine accepts:
+
+  ```
+  opts.PersistMessagesWithSqlServer(cnx, "crm.sales.opportunities");
+
+  // The object name 'crm.sales.opportunities.wolverine_node_records' contains more than
+  // the maximum number of prefixes. The maximum is 2.
+  ```
+
+  Weasel's `CREATE SCHEMA` is the one statement that *does* delimit the name, so the schema was created
+  and only the tables failed — and, because those failures were swallowed (below), startup then died a
+  long way from the cause, in `LoadNodeAgentStateAsync`, against `Could not find server 'crm' in
+  sys.servers`: SQL Server reads a four-part name as *server.database.schema.object*. PostgreSQL reaches
+  the same place through `improper qualified name (too many dotted names)`.
+
+  Every schema name Wolverine accepts — `PersistMessagesWithXXX`, the database-backed transports'
+  `TransportSchemaName`, and the `MessageStorageSchemaName` on the Marten, Polecat and Fisher integrations
+  — now throws an `ArgumentOutOfRangeException` naming the offending value the moment it is set. A name you
+  have already delimited (`"[crm.sales]"`) is rejected as well: the schema is created and the first start
+  succeeds, but the `CREATE SCHEMA` guard compares `sys.schemas.name` against the bracketed spelling, so it
+  never matches and every restart re-issues the `CREATE SCHEMA` against a schema that now exists. Schema
+  difference detection cannot match a delimited name against the catalog either, so the store re-applies its
+  whole DDL every start and never picks up a later column-level change.
+
+- **Failed storage migrations are no longer swallowed.**
+  (closes [#3997](https://github.com/JasperFx/wolverine/issues/3997)) Weasel hands a failed DDL statement
+  to the `IMigrationLogger` rather than throwing, on the grounds that a non-default logger means the caller
+  wants to decide — and Wolverine's decision was to log and carry on, so a host could start against storage
+  that had never been created. It now throws a `WolverineSchemaException` carrying the SQL that failed,
+  which is what Marten's equivalent logger has always done.
+
+  Hosts that would rather start up anyway can keep the old behavior with
+  `ResourceMigrationFailureMode.ContinueOnFailures`. Note that Wolverine already serializes migrations
+  across processes with a global advisory lock and retries the whole migration once after a short delay,
+  so a genuine race between two nodes starting at the same instant does not need it.
+
 ### WolverineFx.PostgreSQL / WolverineFx.SqlServer / WolverineFx.Oracle
 
 - **The orphaned-message sweep is now indexable, bounded, and outside the shared recovery transaction.**

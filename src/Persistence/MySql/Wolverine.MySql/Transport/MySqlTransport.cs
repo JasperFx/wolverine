@@ -4,6 +4,7 @@ using MySqlConnector;
 using Spectre.Console;
 using Weasel.MySql;
 using Wolverine.Configuration;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -22,15 +23,35 @@ public class MySqlTransport : BrokerTransport<MySqlQueue>
 
     public override Uri ResourceUri => new Uri("mysql-transport://");
 
+    private string _transportSchemaName = "wolverine_queues";
+
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
-    public string TransportSchemaName { get; set; } = "wolverine_queues";
+    public string TransportSchemaName
+    {
+        get => _transportSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
+            _transportSchemaName = value;
+        }
+    }
+
+    private string _messageStorageSchemaName = "wolverine";
 
     /// <summary>
     /// Schema name for the message storage tables
     /// </summary>
-    public string MessageStorageSchemaName { get; set; } = "wolverine";
+    public string MessageStorageSchemaName
+    {
+        get => _messageStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(MessageStorageSchemaName));
+            _messageStorageSchemaName = value;
+        }
+    }
 
     public LightweightCache<string, MySqlQueue> Queues { get; }
 

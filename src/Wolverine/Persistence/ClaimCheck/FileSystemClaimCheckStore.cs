@@ -12,7 +12,7 @@ namespace Wolverine.Persistence;
 /// span multiple machines should use a shared object-store backend (Azure
 /// Blob, S3, etc.).
 /// </remarks>
-public class FileSystemClaimCheckStore : IClaimCheckStore
+public class FileSystemClaimCheckStore : IClaimCheckStoreWithExpiration
 {
     private const string PayloadExtension = ".bin";
     private const string MetadataExtension = ".meta";
@@ -90,6 +90,62 @@ public class FileSystemClaimCheckStore : IClaimCheckStore
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// GH-3509 sweep support: delete the payload/metadata pairs whose payload file was last written
+    /// before <paramref name="cutoff"/>. The <c>.bin</c> file's last-write time is the age of record —
+    /// it is written first and never touched again, so it is a faithful stand-in for "stored at".
+    /// </summary>
+    public Task<int> DeleteExpiredPayloadsAsync(
+        DateTimeOffset cutoff,
+        int maxCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (maxCount <= 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        var deleted = 0;
+
+        foreach (var payloadPath in System.IO.Directory.EnumerateFiles(Directory, "*" + PayloadExtension))
+        {
+            if (deleted >= maxCount || cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            // Another node's sweeper can delete the same file between the enumeration and this check,
+            // so every filesystem call here has to tolerate the file already being gone.
+            try
+            {
+                if (File.GetLastWriteTimeUtc(payloadPath) >= cutoff.UtcDateTime)
+                {
+                    continue;
+                }
+
+                File.Delete(payloadPath);
+
+                var metadataPath = Path.ChangeExtension(payloadPath, MetadataExtension);
+                if (File.Exists(metadataPath))
+                {
+                    File.Delete(metadataPath);
+                }
+
+                deleted++;
+            }
+            catch (FileNotFoundException)
+            {
+                // Already swept by someone else; not an error.
+            }
+            catch (DirectoryNotFoundException)
+            {
+                break;
+            }
+        }
+
+        return Task.FromResult(deleted);
     }
 
     private string PayloadPathFor(string id) => Path.Combine(Directory, id + PayloadExtension);

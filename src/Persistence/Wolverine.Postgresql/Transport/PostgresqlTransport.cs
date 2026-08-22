@@ -4,6 +4,7 @@ using Npgsql;
 using Spectre.Console;
 using Weasel.Postgresql;
 using Wolverine.Configuration;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -23,15 +24,35 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public override Uri ResourceUri => new Uri("postgresql-transport://");
 
+    private string _transportSchemaName = "wolverine_queues";
+
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
-    public string TransportSchemaName { get; set; } = "wolverine_queues";
+    public string TransportSchemaName
+    {
+        get => _transportSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
+            _transportSchemaName = value;
+        }
+    }
     
+    private string _messageStorageSchemaName = "public";
+
     /// <summary>
     /// Schema name for the message storage tables
     /// </summary>
-    public string MessageStorageSchemaName { get; set; } = "public";
+    public string MessageStorageSchemaName
+    {
+        get => _messageStorageSchemaName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(MessageStorageSchemaName));
+            _messageStorageSchemaName = value;
+        }
+    }
 
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {

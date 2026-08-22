@@ -247,7 +247,7 @@ An overload accepting an existing `NpgsqlDataSource` is also available if you wa
 opts.UseClaimCheck(cc => cc.UsePostgresqlClaimCheck(myDataSource));
 ```
 
-The claim check table is created on first use (`create schema/table if not exists`). Token id maps to the row's primary key; the content type and length are stored alongside the `bytea` body. `DeleteAsync` is naturally idempotent — deleting a missing row is a no-op. Because the payloads live in a table you own, database-native cleanup (a scheduled `delete ... where created < ...`) is straightforward.
+The claim check table is created on first use (`create schema/table if not exists`). Token id maps to the row's primary key; the content type and length are stored alongside the `bytea` body. `DeleteAsync` is naturally idempotent — deleting a missing row is a no-op. This backend supports Wolverine-driven expiration — see [Expiring old payloads](#expiring-old-payloads) — and because the payloads live in a table you own, database-native cleanup (a scheduled `delete ... where created < ...`) works too.
 
 ### File system (built in)
 
@@ -316,15 +316,75 @@ Two limits worth knowing up front:
 
 This is a **read/consume path only** — Wolverine does not produce MassTransit-compatible references, and
 the outbound path is unchanged by enabling it.
+## Expiring old payloads
+
+Nothing about a successful send tells Wolverine when the payload behind it stops being needed — the
+message may still be scheduled, retrying, or parked in a dead-letter queue. So by default Wolverine
+does not delete off-loaded payloads at all, and they accumulate until something else removes them.
+
+There are two ways to close that gap, and for object stores the first is usually the better one:
+
+**1. Native lifecycle rules.** Azure Blob Storage, Amazon S3, and Google Cloud Storage all expire
+objects server-side for free. Point a lifecycle policy at the container/bucket (or prefix) your
+claim-check store writes to and you are done — no Wolverine configuration, no LIST charges, and it
+keeps working even while your application is down. These backends deliberately do **not** implement
+Wolverine-driven sweeping for exactly that reason.
+
+**2. A Wolverine-driven sweep.** For backends with no native lifecycle support — the file system
+store and the database-LOB stores — call `DeletePayloadsOlderThan`:
+
+```csharp
+opts.UseClaimCheck(cc =>
+{
+    cc.UsePostgresqlClaimCheck(connectionString);
+
+    // Delete off-loaded payloads more than seven days old
+    cc.DeletePayloadsOlderThan(7.Days());
+
+    // Optional tuning
+    cc.SweepInterval = 10.Minutes();   // default
+    cc.SweepBatchSize = 1000;          // payloads deleted per store, per pass
+});
+```
+
+::: warning Size the TTL against your slowest delivery, not your fastest
+The sweep deletes purely by age, and it has no idea whether a message that references a payload is
+still in flight. The TTL must comfortably exceed the longest window in which a message could still
+need to re-hydrate — scheduled delivery, retry back-offs, and time spent sitting in a dead-letter
+queue awaiting a replay all count. A payload swept out from under a message that is delivered later
+will fail to load.
+:::
+
+A few properties worth knowing:
+
+- **It runs on every node, not just the leader.** Deleting by age is idempotent, so overlapping
+  sweeps are harmless, and each node jitters its own schedule. This is deliberate: leader election
+  requires message persistence, but claim checks do not, so a leader-pinned sweeper would silently
+  never run for apps using claim checks without a durable message store.
+- **Every configured store is swept**, including any per-message or per-endpoint stores registered
+  with `StoreForMessage<T>` / `StoreWhen` — not just the default one.
+- **Backends that cannot be swept are skipped with a warning** naming the store type, so a TTL that
+  is not actually doing anything is visible in the logs rather than silently ignored.
+- **A full batch triggers an immediate follow-up pass**, so a large backlog drains without waiting
+  out `SweepInterval` between every batch.
+
+### Writing a sweepable backend
+
+A custom `IClaimCheckStore` opts into sweeping by implementing `IClaimCheckStoreWithExpiration`:
+
+<<< @/../src/Wolverine/Persistence/ClaimCheck/IClaimCheckStoreWithExpiration.cs
+
+Implementations must tolerate concurrent sweeps from several nodes, and deleting an already-deleted
+payload must not throw.
 
 ## Operational considerations
 
-- **Lifetime of stored payloads.** The pipeline never auto-deletes blobs. If you let large payloads accumulate, they will eat storage. The recommended pattern is to use the storage system's native lifecycle support (S3 lifecycle rules, Azure Blob Storage lifecycle policies, or a periodic cleanup job for the file system backend) keyed off blob age. A future enhancement may add Wolverine-driven TTL; tracked separately.
+- **Lifetime of stored payloads.** By default the pipeline only deletes a payload when the send that created it fails outright. Everything successfully sent accumulates until something removes it — either a Wolverine-driven TTL (see [Expiring old payloads](#expiring-old-payloads)) or your storage system's own lifecycle rules.
 - **Synchronous serializer hot path.** `IMessageSerializer.Write` and `IMessageSerializer.ReadFromData` are synchronous. When the inner serializer is `IAsyncMessageSerializer` (most are), the pipeline preserves async end-to-end. If your inner serializer is sync-only, the upload/download will block on the hot path; pre-uploading payloads outside the serializer is an option for very high-throughput scenarios.
 - **Backend failures.** If the store is unreachable on send, the publish fails and Wolverine's normal retry/dead-letter machinery applies. If the store is unreachable on receive, the handler chain throws and the message is retried per its failure rules — the same behavior as if the original payload were corrupted in transport.
 - **Tokens are opaque.** Don't parse `ClaimCheckToken.Id`. Backends are free to use whatever id format makes sense (`Guid.ToString("N")` for the bundled stores).
 - **Local queues and in-process routing.** A *durable* local queue serializes the envelope when it persists it, so the off-load fires for it exactly as it would for an external transport. A *buffered* (in-memory) local queue never serializes the local hand-off, so no off-load happens there. Either way the handler receives a fully-populated message: the off-loaded properties are restored on the live message after serialization (see [How it works](#how-it-works)).
-- **Off-loading requires an envelope.** The claim-check token is carried in an envelope header, so the off-load only round-trips through Wolverine's normal `Write(envelope)` / `WriteAsync(envelope)` paths. Serializing a `[Blob]` message outside that path — for example a raw `IMessageSerializer.WriteMessage(object)` call with no envelope — cannot carry the token, so the payload would not be recoverable on the other side.
+- **Off-loading requires an envelope.** The claim-check token is carried in an envelope header, so the off-load only round-trips through Wolverine's normal `Write(envelope)` / `WriteAsync(envelope)` paths. Serializing a `[Blob]` message outside that path — for example a raw `IMessageSerializer.WriteMessage(object)` call with no envelope — cannot carry the token, so the payload would not be recoverable on the other side. That path therefore does not upload anything at all; it clears the `[Blob]` properties so the serialized body stays small, then restores them on the live message.
 
 ## Issue tracking
 
