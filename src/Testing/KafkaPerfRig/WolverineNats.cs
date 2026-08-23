@@ -21,7 +21,16 @@ public static class WolverineNats
         RigHandlerSettings.SequenceByGame = cfg.Sequencing == "semaphore";
 
         var builder = Host.CreateDefaultBuilder()
-            .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
+            .ConfigureLogging(logging =>
+            {
+                logging.SetMinimumLevel(LogLevel.Warning);
+                // RIG_LOG_LISTENER=1: see back-pressure pauses / restarts (logged at Information)
+                if (Environment.GetEnvironmentVariable("RIG_LOG_LISTENER") == "1")
+                {
+                    logging.AddFilter("Wolverine.Transports.ListeningAgent", LogLevel.Information);
+                    logging.AddFilter("Wolverine.Runtime.BackPressureAgent", LogLevel.Information);
+                }
+            })
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
@@ -50,6 +59,11 @@ public static class WolverineNats
 
         await host.WaitForShutdownAsync();
 
+        // The max-throughput cells leave millions of unconsumed messages in the per-run stream (the
+        // publisher is ~100x faster than a durable consumer); without this they accumulate across runs
+        // (67M messages / 101 GB after one afternoon) and slow the server down for every later cell.
+        await deleteRunStreamAsync(cfg);
+
         StageRecorder.Dump(cfg.OutDir, "nats-consumer", new
         {
             harness = "wolverine-nats",
@@ -62,6 +76,21 @@ public static class WolverineNats
             maxParallel = cfg.MaxParallel,
             maxReceive = cfg.MaxReceive
         });
+    }
+
+    private static async Task deleteRunStreamAsync(RigConfig cfg)
+    {
+        try
+        {
+            await using var connection = new NATS.Client.Core.NatsConnection(new NATS.Client.Core.NatsOpts { Url = cfg.NatsUrl });
+            var js = new NATS.Client.JetStream.NatsJSContext(connection);
+            await js.DeleteStreamAsync(cfg.NatsStream);
+            Console.WriteLine($"[rig] deleted JetStream stream {cfg.NatsStream}");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"[rig] could not delete JetStream stream {cfg.NatsStream}: {e.Message}");
+        }
     }
 
     private static void configureListener(NatsListenerConfiguration listener, RigConfig cfg)

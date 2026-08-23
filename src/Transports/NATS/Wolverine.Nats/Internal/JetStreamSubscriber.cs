@@ -20,6 +20,12 @@ internal class JetStreamSubscriber : INatsSubscriber
     private INatsJSConsumer? _consumer;
     private Task? _consumerTask;
 
+    // GH-4026: the ONLY thing that ends an active ConsumeAsync enumeration is cancelling its token --
+    // INatsJSConsumer is a metadata handle, and "disposing" it does not stop the pull. This is the
+    // subscriber's own stop signal so disposal can end consumption while the listener's token (which
+    // gates the ack RetryBlock) stays live long enough to settle everything already persisted.
+    private CancellationTokenSource? _consumeCancellation;
+
     // GH-4026: Durable endpoints coalesce consumed messages for up to 5ms (or MaximumMessagesToReceive)
     // and hand the inbox one Envelope[] per window, the way the RabbitMQ and Kafka listeners do. Null
     // for Buffered/Inline, or when MaximumMessagesToReceive is 1.
@@ -155,11 +161,27 @@ internal class JetStreamSubscriber : INatsSubscriber
                 _endpoint.MaximumMessagesToReceive);
         }
 
+        _consumeCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        var consumeToken = _consumeCancellation.Token;
+
         _consumerTask = Task.Run(
             async () =>
             {
+                // GH-4026 follow-up: for a Durable endpoint, bound the client-side pull batch to
+                // MaximumMessagesToReceive instead of NATS.Net's default of 1,000. Every pre-fetched
+                // message counts against the consumer's MaxAckPending (server default 1,000) until it is
+                // acked -- so when a back-pressure pause disposed this consumer, up to 1,000
+                // buffered-but-unacked messages sat against that cap until AckWait expired, the restarted
+                // listener was starved of deliveries the whole time, and then all of them came back as
+                // duplicate inbox inserts. Measured on the rig as a durable listener freezing for 30s at
+                // a time and ~4,000 duplicate inserts per minute. Buffered/Inline keep the client default:
+                // they ack on receipt, so their in-flight window stays small without help.
+                var consumeOpts = _endpoint.Mode == EndpointMode.Durable
+                    ? new NatsJSConsumeOpts { MaxMsgs = Math.Max(1, _endpoint.MaximumMessagesToReceive) }
+                    : null;
+
                 await foreach (
-                    var msg in _consumer!.ConsumeAsync<byte[]>(cancellationToken: cancellation)
+                    var msg in _consumer!.ConsumeAsync<byte[]>(opts: consumeOpts, cancellationToken: consumeToken)
                 )
                 {
                     try
@@ -256,7 +278,22 @@ internal class JetStreamSubscriber : INatsSubscriber
 
     public async ValueTask DisposeAsync()
     {
-        // Dispose consumer first - this will cause ConsumeAsync to complete
+        // GH-4026: cancelling the consume token is what actually ends the ConsumeAsync enumeration.
+        // Disposing the consumer handle alone does not -- with the listener re-ordered to dispose the
+        // subscriber before cancelling its own token, relying on the handle left the loop running
+        // forever (observed as a "stopped" rig listener happily consuming another 7 million messages).
+        if (_consumeCancellation != null)
+        {
+            try
+            {
+                await _consumeCancellation.CancelAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                // already torn down
+            }
+        }
+
         if (_consumer is IAsyncDisposable disposableConsumer)
         {
             try
@@ -275,12 +312,18 @@ internal class JetStreamSubscriber : INatsSubscriber
             try
             {
 #pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
-                await _consumerTask;
+                // Bounded: the loop can be parked in a back-pressured PostAsync toward a receiver
+                // that is being torn down; disposal must never hang on it
+                await _consumerTask.WaitAsync(TimeSpan.FromSeconds(30));
 #pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
             }
             catch (OperationCanceledException)
             {
                 // Expected during shutdown
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Timed out waiting for the JetStream consume loop for {Subject} to stop during disposal", _endpoint.Subject);
             }
         }
 
