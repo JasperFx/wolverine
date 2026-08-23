@@ -1,6 +1,7 @@
 using JasperFx.Descriptors;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Configuration.EventModeling;
 
 namespace Wolverine.Grpc;
 
@@ -14,12 +15,14 @@ namespace Wolverine.Grpc;
 internal sealed class GrpcEndpointDescriptorSource : IGrpcEndpointDescriptorSource
 {
     private readonly IGrpcEndpointManifest _manifest;
+    private readonly WolverineOptions? _options;
     private readonly object _lock = new();
     private volatile IReadOnlyList<GrpcRpcDescriptor>? _endpoints;
 
-    public GrpcEndpointDescriptorSource(IGrpcEndpointManifest manifest)
+    public GrpcEndpointDescriptorSource(IGrpcEndpointManifest manifest, WolverineOptions? options = null)
     {
         _manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
+        _options = options;
     }
 
     public IReadOnlyList<GrpcRpcDescriptor> Endpoints
@@ -33,12 +36,12 @@ internal sealed class GrpcEndpointDescriptorSource : IGrpcEndpointDescriptorSour
 
             lock (_lock)
             {
-                return _endpoints ??= _manifest.Endpoints.Select(toDescriptor).ToArray();
+                return _endpoints ??= _manifest.Endpoints.Select(entry => toDescriptor(entry, _options)).ToArray();
             }
         }
     }
 
-    private static GrpcRpcDescriptor toDescriptor(GrpcEndpointDescriptor entry)
+    private static GrpcRpcDescriptor toDescriptor(GrpcEndpointDescriptor entry, WolverineOptions? options)
     {
         var descriptor = new GrpcRpcDescriptor
         {
@@ -53,6 +56,18 @@ internal sealed class GrpcEndpointDescriptorSource : IGrpcEndpointDescriptorSour
         };
 
         descriptor.AddTag("grpc");
+
+        // GH-4000: the Event Modeling slice this RPC starts, attached to the RPC itself rather than left
+        // to be found in the assembled model. Diagnostic: an endpoint whose roles cannot be read simply
+        // has no slice, the rest of the descriptor is unaffected.
+        try
+        {
+            descriptor.EventModel = WolverineEventModelSource.ForGrpcEndpoint(entry, options);
+        }
+        catch (Exception)
+        {
+            descriptor.EventModel = null;
+        }
 
         return descriptor;
     }

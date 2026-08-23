@@ -339,6 +339,26 @@ What is deliberately *not* visible here: imperative `session.Events.Append(...)`
 invisible at runtime, so only declarative returns are reported; CritterWatch's source generator covers the
 imperative case.
 
+### The slice next to the route
+
+The assembled model is one picture of the whole service. A monitoring console often wants the other view —
+walking the surface area endpoint by endpoint and asking "what does *this* one do?" — so the derived slice is
+also attached to the descriptor of the thing that starts it:
+
+| Descriptor | Slot | What it carries |
+| --- | --- | --- |
+| `MessageHandlerDescriptor` | `EventModel` | the handler chain's slice (GH-3988) |
+| `GrpcRpcDescriptor` | `EventModel` | the slice of the message the RPC forwards to the bus, with the RPC as its trigger (GH-4000) |
+
+Both slots are nullable and additive on the wire, and both are *the same slice* the assembled model carries —
+derived once, by the same code, so the two cannot drift.
+
+Because an RPC's generated wrapper forwards its request to the bus, the slice on a `GrpcRpcDescriptor` is the
+forwarded message's whole slice — handler, aggregates, emitted events, cascaded messages — not merely a note
+that something was published. When nothing in the process handles that message, the slice is trigger-only: there
+is still a boundary worth rendering. And where two RPCs forward the *same* message, each descriptor names its own
+RPC as the trigger, while the assembled model — which folds a message into one slice — can only name the first.
+
 ### Naming the external system on an endpoint
 
 The *edge* of a translation slice is derived — a listener that receives from, or a subscriber that publishes to,

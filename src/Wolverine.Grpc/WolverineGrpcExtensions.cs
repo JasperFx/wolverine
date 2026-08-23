@@ -80,8 +80,11 @@ public static class WolverineGrpcExtensions
 
         // GH-3267: surface the manifest along the ServiceCapabilities descriptor path (ServiceCapabilities.GrpcEndpoints)
         // so a monitoring console can discover the gRPC services this app exposes, parallel to AspNet/HTTP endpoints.
+        // GH-4000: WolverineOptions comes along so each descriptor can carry the Event Model slice of the
+        // message its RPC forwards to the bus, not just the RPC's own shape.
         services.AddSingleton<IGrpcEndpointDescriptorSource>(sp =>
-            new GrpcEndpointDescriptorSource(sp.GetRequiredService<IGrpcEndpointManifest>()));
+            new GrpcEndpointDescriptorSource(sp.GetRequiredService<IGrpcEndpointManifest>(),
+                sp.GetService<WolverineOptions>()));
 
         services.AddSingleton<WolverineGrpcExceptionInterceptor>();
         services.AddSingleton<WolverineGrpcServicePropagationInterceptor>();

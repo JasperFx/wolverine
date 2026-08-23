@@ -1,4 +1,5 @@
 using JasperFx.Descriptors;
+using JasperFx.Events.EventModeling;
 
 namespace Wolverine.Configuration.Capabilities;
 
@@ -47,4 +48,18 @@ public class GrpcRpcDescriptor : OptionsDescription
     /// <summary>The forwarding origin — the discovered service identity (proto-first stub or code-first contract
     /// interface) whose generated wrapper performs the bus dispatch.</summary>
     public TypeDescriptor? Origin { get; set; }
+
+    /// <summary>
+    /// The Event Modeling slice this RPC starts (GH-4000): the RPC itself as the trigger, and — because the
+    /// generated wrapper forwards the request to the bus — the forwarded message's slice around it, with the
+    /// handler, the aggregate(s) it decides against and the events it emits. A trigger-only slice when nothing
+    /// in this process handles the forwarded message. Null only when the roles could not be read.
+    /// </summary>
+    /// <remarks>
+    /// The sibling of <see cref="MessageHandlerDescriptor.EventModel"/>, and the same slice the assembled
+    /// <see cref="ServiceCapabilities.EventModel"/> carries for this RPC — derived once, by
+    /// <c>WolverineEventModelSource.ForGrpcEndpoint</c>, so the two cannot disagree. Additive and nullable on
+    /// the wire: a payload written before the slot existed reads back as the descriptor it always was.
+    /// </remarks>
+    public EventModelSliceDescriptor? EventModel { get; set; }
 }
