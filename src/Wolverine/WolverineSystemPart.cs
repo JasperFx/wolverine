@@ -171,7 +171,7 @@ internal class WolverineSystemPart : SystemPartBase
                 listener.Uri.ToString(),
                 listener.EndpointName,
                 listener.Mode.ToString(),
-                listener.MaxDegreeOfParallelism.ToString(),
+                listener.DescribeMaxDegreeOfParallelism(),
                 listener.SerializerDescription(_runtime.Options)
             );
         }
