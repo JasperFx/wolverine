@@ -11,7 +11,8 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue
+public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue,
+    IStorageBackedQueue
 {
     private readonly RedisTransport _transport;
 
@@ -331,6 +332,13 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
             var db = _transport.GetDatabase(database: DatabaseId);
             if (await db.KeyDeleteAsync(StreamKey))
                 logger.LogInformation("Purged Redis stream {StreamKey}", StreamKey);
+
+            // GH-4035. The scheduled sorted set is part of this queue's storage just as the
+            // scheduled-message *table* is on the database queues, and PurgeAsync() is expected to
+            // leave a queue completely empty -- IHost.ClearAllWolverineStorageAsync() relies on it.
+            // Leaving it behind meant a scheduled message survived a "reset" and fired into the next test.
+            if (await db.KeyDeleteAsync(ScheduledMessagesKey))
+                logger.LogInformation("Purged scheduled messages for Redis stream {StreamKey}", StreamKey);
         }
         catch (Exception e)
         {

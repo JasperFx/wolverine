@@ -187,6 +187,23 @@ WolverineOptions uses partial classes to organize concerns:
 | GCP Pub/Sub | 8085 |
 | Pulsar | 6650 |
 
+## Performance Rig (`src/Testing/KafkaPerfRig`)
+
+Multi-transport load rig (Kafka, RabbitMQ, NATS JetStream, Pulsar + native twins) used for the
+GH-3490/3492/4026/4039 perf waves. Outside both solutions and CI — build/run standalone via
+`rig.sh` / `cells*.sh` in that folder; see its README for roles, knobs, and required brokers.
+Ground rules when measuring:
+
+- **No perf claim without rig numbers**: interleaved runs, "before" pinned in the same build
+  (`RIG_MAX_RECEIVE=1`-style knobs) or **two independently built worktrees** once the change is
+  committed — `git stash push` of committed paths silently stashes nothing and measures
+  fix-vs-fix.
+- Trust the hygiene in `rig.sh` (per-run schema drop + broker cleanup) and keep it working —
+  leftover inbox rows/stream backlogs have produced multi-x measurement errors and hosts that
+  fail to start. Build with `MSBUILDDISABLENODEREUSE=1`.
+- Negative results go in the ledger too (ack coalescing was measured at −10% on RabbitMQ and
+  is a standing "do not revisit").
+
 ## Additional Documentation
 
 When working on specific areas, consult these files:

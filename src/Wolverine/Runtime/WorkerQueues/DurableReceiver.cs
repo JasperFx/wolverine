@@ -703,17 +703,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
         }
 
+        // Settle the broker delivery BEFORE enqueueing for execution. The envelope is durable the moment
+        // the inbox write committed (or, for a database-backed endpoint, already was), and the worker
+        // queue is bounded: when it is full EnqueueAsync blocks, and acking after it meant a persisted
+        // message sat un-acked behind the queue. On a back-pressure stop every one of those was then
+        // redelivered by the broker -- for JetStream only after AckWait, and counted against
+        // MaxAckPending the whole time, so the restarted consumer was starved for 30s and then hit
+        // ~1,000 duplicate inserts in a row. See GH-4026.
+        if (envelope.Listener != null)
+        {
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+        }
+
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
             await EnqueueAsync(envelope).ConfigureAwait(false);
         }
 
         _logger.IncomingReceived(envelope, Uri);
-
-        if (envelope.Listener != null)
-        {
-            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
-        }
     }
 
     private async Task handleDuplicateIncomingEnvelope(Envelope envelope, DuplicateIncomingEnvelopeException e)
@@ -938,10 +945,18 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (batchSucceeded)
         {
+            // Settle the whole batch with the broker first, then enqueue -- see receiveOneAsync for why.
+            // Acking per envelope AFTER EnqueueAsync meant that once the bounded worker queue filled, the
+            // rest of an already-persisted batch sat un-acked, and a back-pressure stop turned all of it
+            // into redeliveries and duplicate inserts.
+            foreach (var message in envelopes)
+            {
+                await _completeBlock.PostAsync(message).ConfigureAwait(false);
+            }
+
             foreach (var message in envelopes)
             {
                 await EnqueueAsync(message).ConfigureAwait(false);
-                await _completeBlock.PostAsync(message).ConfigureAwait(false);
             }
         }
 

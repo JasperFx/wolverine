@@ -58,8 +58,11 @@ partial class Build : NukeBuild
                 .EnableNoRestore());
         });
 
+    // VerifyCITargetCoverage is here rather than in tests.yml on purpose: it costs under a second, and
+    // dotnet.yml's `./build.sh ci` runs on every push and PR, so a target that runs nowhere is reported
+    // on the cheap workflow instead of behind the 20 minute matrix. GH-3816.
     Target CI => _ => _
-        .DependsOn(CoreTests, CIMessageRouting);
+        .DependsOn(VerifyCITargetCoverage, CoreTests, CIMessageRouting);
 
     Target Test => _ => _
         .DependsOn(CoreTests, TestExtensions, Commands, PolicyTests, HttpTests);

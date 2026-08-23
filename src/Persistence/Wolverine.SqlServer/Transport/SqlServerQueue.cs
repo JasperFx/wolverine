@@ -15,7 +15,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.SqlServer.Transport;
 
-public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
+public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStorageBackedQueue
 {
     internal static Uri ToUri(string name, string? databaseName)
     {

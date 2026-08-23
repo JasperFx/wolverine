@@ -37,6 +37,11 @@ if [[ ! -x "$BIN" ]]; then
 fi
 
 echo "[rig.sh] run $RIG_RUN_ID: harness=$HARNESS warmup=${WARMUP}s duration=${DURATION}s"
+
+# Durable cells write tens of thousands of rows into the rig schema per run and nothing consumes the
+# leftovers of an aborted run; after enough runs Wolverine's startup recovery (update ... set owner_id = 0)
+# times out scanning the table and the consumer host fails to start. Start every run from a clean schema.
+docker exec wolverine-postgresql-1 psql -U postgres -c "drop schema if exists ${RIG_PG_SCHEMA:-kafka_rig} cascade" >/dev/null 2>&1 || true
 env | grep '^RIG_' | sort | tee "$RIG_OUT/config.env"
 
 "$BIN" "${HARNESS}-consumer" >"$RIG_OUT/consumer.log" 2>&1 &
@@ -59,9 +64,8 @@ trap - EXIT
 # and letting them accumulate across runs eventually fills the Docker VM disk and takes every
 # container down (learned the hard way on 2026-07-19).
 if [[ "$HARNESS" == nats* ]]; then
-  # JetStream streams are work queues here; deleting the per-run stream drops its consumers and messages
-  STREAM="RIG_$(echo "$RIG_RUN_ID" | tr '[:lower:]-' '[:upper:]_')"
-  docker exec wolverine-nats-1 nats stream rm -f "$STREAM" >/dev/null 2>&1 || true
+  # The nats consumer deletes its own per-run stream on shutdown (the nats image has no CLI)
+  :
 elif [[ "$HARNESS" == pulsar* ]]; then
   curl -s -X DELETE "http://localhost:8080/admin/v2/persistent/public/default/rig-small-${RIG_RUN_ID}?force=true" >/dev/null 2>&1 || true
   curl -s -X DELETE "http://localhost:8080/admin/v2/persistent/public/default/rig-large-${RIG_RUN_ID}?force=true" >/dev/null 2>&1 || true

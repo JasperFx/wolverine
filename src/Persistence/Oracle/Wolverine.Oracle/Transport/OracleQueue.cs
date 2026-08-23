@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Oracle.Transport;
 
-public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
+public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStorageBackedQueue
 {
     internal static Uri ToUri(string name, string? databaseName)
     {

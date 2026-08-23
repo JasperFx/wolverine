@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Postgresql.Transport;
 
-public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
+public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStorageBackedQueue
 {
     internal static Uri ToUri(string name, string? databaseName)
     {
