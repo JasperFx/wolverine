@@ -73,6 +73,11 @@ public class LocalQueue : Endpoint
             // ListenerConfigurationValidator catches the lazily-configured queues at bootstrap. Kept as a
             // real message rather than a bare throw because this is the last line of defense for anything
             // that assigns Endpoint.Mode directly.
+            EndpointMode.NativeAck => throw new NotSupportedException(
+                $"{this} cannot run in {nameof(EndpointMode)}.{nameof(EndpointMode.NativeAck)}. Native acks settle a "
+                + "delivery back to a message broker, and a local queue has no broker to settle against. Use "
+                + $"{nameof(EndpointMode.BufferedInMemory)} or {nameof(EndpointMode.Durable)}. See GH-3708."),
+
             EndpointMode.Inline => throw new NotSupportedException(
                 $"{this} cannot run in {nameof(EndpointMode)}.{nameof(EndpointMode.Inline)}. Inline means \"execute the message on the transport's own listening callback instead of queueing it\", and a local queue has no transport listener -- the queue itself is Wolverine's local execution block. Use {nameof(EndpointMode.BufferedInMemory)} or {nameof(EndpointMode.Durable)}."),
 

@@ -465,9 +465,20 @@ public class EndpointCollection : IEndpointCollection
                 return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender,
                     endpoint, _runtime.MessageTrackingFor(endpoint),
                     _runtime.DurabilitySettings, _runtime, sendingPolicies);
+
+            case EndpointMode.NativeAck:
+                // GH-3708. Mode is a single property governing BOTH directions, so an endpoint that listens with
+                // native acks and is also used for replies or sending arrives here. NativeAck describes how incoming
+                // deliveries are settled and says nothing about sending; on the outgoing side it means exactly what
+                // BufferedInMemory means -- no outbox. Without this arm such an endpoint hit the throw below, which
+                // carried no message at all.
+                return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
+                    _runtime.MessageTrackingFor(endpoint), sender, _runtime.DurabilitySettings,
+                    endpoint, _runtime, sendingPolicies);
         }
 
-        throw new InvalidOperationException();
+        throw new InvalidOperationException(
+            $"Unknown {nameof(EndpointMode)} '{endpoint.Mode}' for the sending endpoint at {endpoint.Uri}");
     }
 
     private SendingFailurePolicies? resolveSendingFailurePolicies(Endpoint endpoint)

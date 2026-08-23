@@ -13,6 +13,10 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
     {
         try
         {
+            // GH-3708: this silently downgrades a NativeAck endpoint to Inline, which drops its partitioning and
+            // parallelism. Correct for Serverless -- there is no long-running process to hold an execution block --
+            // but it should say so out loud once a transport can actually opt into NativeAck. Tracked with the
+            // fluent API work rather than here, because nothing can reach this state yet.
             endpoint.Mode = EndpointMode.Inline;
         }
         catch (Exception e)
