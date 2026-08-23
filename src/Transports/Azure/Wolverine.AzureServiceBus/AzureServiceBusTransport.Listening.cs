@@ -204,6 +204,15 @@ public partial class AzureServiceBusTransport
         // defer, and dead letter messages, so this cannot be honored from user configuration.
         options.ReceiveMode = ServiceBusReceiveMode.PeekLock;
 
+        // GH-4018: Wolverine settles every inline delivery itself through the ProcessMessageEventArgs
+        // (complete / defer / dead letter, each behind a RetryBlock). The SDK default of true let the
+        // processor ALSO complete any message it had not seen settled successfully when the callback
+        // returned -- and a settle attempt that threw does not count. So a dead-letter whose first
+        // attempt failed transiently was completed by the processor on the way out, and the queued
+        // retry then hit an invalid lock: the message was neither dead lettered nor redelivered.
+        // The session-processor path already forces this off; the two must agree.
+        options.AutoCompleteMessages = false;
+
         return options;
     }
 
