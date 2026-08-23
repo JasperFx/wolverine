@@ -149,6 +149,12 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
+    public T ExternalSystem(string name)
+    {
+        add(e => e.ExternalSystemName = name);
+        return this.As<T>();
+    }
+
 
     /// <summary>
     /// For endpoints that send or receive messages in batches, this governs the maximum

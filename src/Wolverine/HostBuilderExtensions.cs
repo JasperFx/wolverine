@@ -14,12 +14,14 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.ObjectPool;
 using JasperFx;
+using JasperFx.Events.EventModeling;
 using JasperFx.CodeGeneration.Services;
 using JasperFx.CommandLine;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Resources;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Configuration.EventModeling;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -184,6 +186,15 @@ public static class HostBuilderExtensions
         });
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
+
+        // GH-3988: the Wolverine-derived Event Model source. Inserted at the FRONT of the collection
+        // rather than appended, because JasperFx's EventModelDiscovery folds sources in registration
+        // order with the earlier winning on every scalar — and a derived role must never be overwritten
+        // by an overlay the application registered before UseWolverine().
+        if (services.All(x => x.ImplementationType != typeof(WolverineEventModelSource)))
+        {
+            services.Insert(0, ServiceDescriptor.Singleton<IEventModelDefinitionSource, WolverineEventModelSource>());
+        }
 
         services.AddSingleton<IFaultPublisher>(sp =>
         {
