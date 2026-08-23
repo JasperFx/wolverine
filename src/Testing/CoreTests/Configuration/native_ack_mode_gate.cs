@@ -114,8 +114,18 @@ public class native_ack_mode_gate
     {
         var topology = new GlobalPartitionedMessageTopology(new WolverineOptions());
 
-        var ex = Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.NativeAck));
-        ex.Message.ShouldContain("companion local queue");
+        var nativeAck = Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.NativeAck));
+        var inline = Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.Inline));
+
+        nativeAck.ParamName.ShouldBe("mode");
+
+        // Assert on the MODE NAME, not on the prose. The original version of this test asserted the phrase
+        // "companion local queue", which appears in the Inline rejection as well -- so it could not tell the two
+        // branches apart and would have passed even if NativeAck fell through to the Inline guard. Requiring the
+        // two messages to differ is what actually pins "this mode has its own rejection", and it survives any
+        // rewording of either one.
+        nativeAck.Message.ShouldContain(nameof(EndpointMode.NativeAck));
+        nativeAck.Message.ShouldNotBe(inline.Message);
     }
 
     [Fact]

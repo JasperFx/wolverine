@@ -105,9 +105,11 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
     /// that can be handled concurrently.
     ///
-    /// Requires a BufferedInMemory or Durable endpoint. Combining this with ProcessInline()
+    /// Requires a BufferedInMemory, Durable, or NativeAck endpoint. Combining this with ProcessInline()
     /// throws at bootstrap, because an Inline endpoint has no local execution block to shard
-    /// and the group id guarantee would silently not exist. See GH-3712.
+    /// and the group id guarantee would silently not exist. See GH-3712. If you want partitioned
+    /// processing together with native broker acks, that is what
+    /// <see cref="ProcessInParallelWithNativeAcks"/> is for -- see GH-3708.
     /// </summary>
     /// <param name="numberOfSlots"></param>
     /// <returns></returns>
@@ -407,6 +409,37 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// Not valid on a local queue, which has no transport listener to be inline with -- that combination
     /// throws here rather than at the first send. See GH-4022.
     /// </summary>
+    /// <summary>
+    /// Process incoming messages through an in-memory execution block -- optionally group-partitioned via
+    /// <see cref="PartitionProcessingByGroupId"/> -- while holding the broker delivery unacknowledged, settling it
+    /// natively only when the handler pipeline reaches a terminal. Buffered's throughput and partitioning with
+    /// Inline's no-loss guarantee, and no database involvement. See GH-3708.
+    ///
+    /// <para>
+    /// Requires a transport whose deliveries are settled individually and can be settled out of order; a
+    /// transport that does not qualify throws at configuration time rather than silently degrading. RabbitMQ
+    /// queues qualify today.
+    /// </para>
+    ///
+    /// <para>
+    /// Back pressure is the broker's prefetch window rather than <see cref="BufferingLimits"/>, and the ordering
+    /// guarantee is that messages sharing a group id never run concurrently -- NOT that they run in original
+    /// delivery order, which no native-ack retry scheme can promise. Use the durable inbox if you need that.
+    /// </para>
+    /// </summary>
+    public TSelf ProcessInParallelWithNativeAcks()
+    {
+        if (_endpoint is LocalQueue)
+        {
+            throw new NotSupportedException(
+                $"Wolverine cannot use the {nameof(ProcessInParallelWithNativeAcks)} option for local queues. Native acks "
+                + "settle a delivery back to a message broker, and a local queue has no broker to settle against.");
+        }
+
+        add(e => e.Mode = EndpointMode.NativeAck);
+        return this.As<TSelf>();
+    }
+
     public TSelf ProcessInline()
     {
         if (_endpoint is LocalQueue)

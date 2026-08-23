@@ -93,6 +93,60 @@ With this flag enabled:
 
 This is useful when deferring partially-processed batches could lead to latency outliers.
 
+## Native Ack Endpoints <Badge type="tip" text="6.30" />
+
+`NativeAck` fills the cell the other three modes leave empty: **Buffered's throughput and partitioning with
+Inline's no-loss guarantee, and no database involvement.**
+
+| | Broker ack timing | Loss window | Parallelism | Group partitioning | DB cost |
+| --- | --- | --- | --- | --- | --- |
+| `Inline` | after handler success | none | `ListenerCount` only | none | none |
+| `NativeAck` | after handler success | none | `MaximumParallelMessages` | ✔️ | none |
+| `BufferedInMemory` | at receipt, **before** the handler | crash loses buffered messages | `MaximumParallelMessages` | ✔️ | none |
+| `Durable` | after the inbox insert | none | `MaximumParallelMessages` | ✔️ | inbox insert + mark-handled |
+
+```csharp
+opts.ListenToRabbitQueue("webhooks")
+    .ProcessInParallelWithNativeAcks()
+    .PartitionProcessingByGroupId(PartitionSlots.Five)
+    .MaximumParallelMessages(10);
+```
+
+The delivery is held unacknowledged while the message flows through an in-memory, optionally
+group-partitioned execution block, and is settled natively from the completion continuation — acked on
+handler success, nacked or dead-lettered on terminal failure. Nothing is written to a database.
+
+::: warning The guarantee, stated exactly
+**Protection against intra-group concurrency is the hard guarantee. Strict sequential processing in original
+delivery order is not.**
+
+The sequential lane per group slot structurally guarantees that no two messages sharing a group id execute
+concurrently on the owning node. Original-order processing is *not* guaranteed under failure, requeue, or
+broker redelivery — a failed or redelivered message re-enters its lane later, never concurrently. That is the
+honest contract for native-ack retry semantics on every broker. If you need strict order under failure, use
+the durable inbox.
+:::
+
+Three consequences follow from never acking at receipt, and all three are the point rather than side effects:
+
+* **Back pressure is the broker's prefetch window**, not `BufferingLimits`. The broker stops delivering once
+  its unacked ceiling is reached, so no `BackPressureAgent` is created. On RabbitMQ the prefetch default
+  covers every lane that can be busy at once — the partition slot count when group-partitioned, otherwise
+  `MaximumParallelMessages` — doubled so a lane never starves.
+* **A dying node loses nothing.** Anything queued but not yet completed is still unacknowledged, so closing
+  the channel or crashing hands every one of those deliveries back to the broker.
+* **Shutdown trades duplicates for safety.** Graceful drain processes what it can within the drain timeout;
+  whatever it cannot is simply never settled and gets redelivered. A rolling deploy therefore produces
+  duplicate deliveries bounded by the prefetch depth. Your handlers should already be idempotent under
+  at-least-once delivery, but it is worth knowing the number is not zero.
+
+**Transport support is opt-in and default-closed.** A transport must settle each delivery individually *and*
+tolerate settling out of order, because the execution block completes messages in handler-completion order
+rather than delivery order. RabbitMQ queues qualify and are supported today. Kafka cannot and is out of
+scope: a cumulative offset commit has no way to express a gap. Calling
+`ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws at configuration time rather
+than degrading silently.
+
 ## Buffered Endpoints
 
 ::: tip
@@ -189,15 +243,15 @@ queue that `BufferedInMemory` and `Durable` endpoints put between the transport 
 An `Inline` endpoint has no such block: it executes each message directly on the transport's listening
 callback. Settings that size or shard that block therefore do nothing on an `Inline` endpoint.
 
-| Setting | `Inline` | `BufferedInMemory` | `Durable` |
-| --- | --- | --- | --- |
-| `MaximumParallelMessages(n)` / `Sequential()` | ignored (warns) | ✔️ | ✔️ |
-| `PartitionProcessingByGroupId(slots)` | **throws at startup** | ✔️ | ✔️ |
-| `BufferedInMemory(limits)` / `UseDurableInbox(limits)` back pressure | ignored (warns) | ✔️ | ✔️ |
-| `ListenerCount(n)` | ✔️ | ✔️ | ✔️ |
-| `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ |
-| `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ |
-| `CircuitBreaker()` | ✔️ | ✔️ | ✔️ |
+| Setting | `Inline` | `NativeAck` | `BufferedInMemory` | `Durable` |
+| --- | --- | --- | --- | --- |
+| `MaximumParallelMessages(n)` / `Sequential()` | ignored (warns) | ✔️ | ✔️ | ✔️ |
+| `PartitionProcessingByGroupId(slots)` | **throws at startup** | ✔️ | ✔️ | ✔️ |
+| `BufferedInMemory(limits)` / `UseDurableInbox(limits)` back pressure | ignored (warns) | n/a — broker prefetch | ✔️ | ✔️ |
+| `ListenerCount(n)` | ✔️ | ✔️ | ✔️ | ✔️ |
+| `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
+| `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
+| `CircuitBreaker()` | ✔️ | ✔️ | ✔️ | ✔️ |
 
 As of Wolverine 6.30, these combinations are no longer silently accepted:
 

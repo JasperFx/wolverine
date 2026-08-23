@@ -108,6 +108,12 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     ///     Force any messages enqueued to this worker queue to be durable
     /// </summary>
     /// <returns></returns>
+    /// <summary>
+    /// Hold each broker delivery unacknowledged while it flows through an in-memory, optionally
+    /// group-partitioned execution block, and settle it natively when the handler finishes. See GH-3708.
+    /// </summary>
+    T ProcessInParallelWithNativeAcks();
+
     T UseDurableInbox(BufferingLimits limits);
 
     /// <summary>

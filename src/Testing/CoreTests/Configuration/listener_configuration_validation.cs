@@ -43,7 +43,9 @@ public class listener_configuration_validation
         problem.Severity.ShouldBe(ListenerConfigurationSeverity.Fatal);
         problem.Message.ShouldContain("PartitionProcessingByGroupId()");
         problem.Message.ShouldContain("stub://one");
-        problem.Message.ShouldContain("BufferedInMemory or Durable");
+        // GH-3708: the message now points at the mode that exists for exactly this combination
+        problem.Message.ShouldContain("ProcessInParallelWithNativeAcks()");
+        problem.Message.ShouldContain("BufferedInMemory()");
     }
 
     [Fact]
