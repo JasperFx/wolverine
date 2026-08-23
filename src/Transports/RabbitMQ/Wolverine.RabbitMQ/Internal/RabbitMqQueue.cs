@@ -76,6 +76,20 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     public ushort? ConsumerDispatchConcurrency { get; set; }
 
     /// <summary>
+    /// GH-3708. RabbitMQ is the first transport to accept <see cref="EndpointMode.NativeAck"/>. It qualifies on
+    /// both counts the mode requires: deliveries are settled individually -- GH-3706 made every ack
+    /// <c>multiple: false</c>, which matters because under <c>multiple: true</c> an out-of-order completion
+    /// would silently ack every lower delivery tag still in flight -- and GH-3687's <c>DeliveredOn</c> /
+    /// <c>CanSettle</c> plumbing already makes a completion-time ack safe when it arrives from an arbitrary
+    /// worker thread rather than the consumer callback.
+    ///
+    /// <para>
+    /// Only queues, not exchanges or topics: native acks are a listening concept, and RabbitMQ listens on queues.
+    /// </para>
+    /// </summary>
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
     ///     The number of unacknowledged messages that can be processed concurrently
     /// </summary>
     public ushort PreFetchCount
