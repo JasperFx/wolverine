@@ -95,12 +95,25 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         property.GetColumnName().ShouldBe(StorageConstants.TenantIdColumn);
         property.GetDefaultValue().ShouldBe(StorageConstants.DefaultTenantId);
         entityType.GetIndexes().ShouldContain(x => x.Properties.Any(p => p.Name == nameof(ConjoinedItem.TenantId)));
+        // EF 10 replaced the single anonymous filter with NAMED filters, and the customizer
+        // registers under ConjoinedTenancy.QueryFilterName there -- so GetQueryFilter(), the EF 8/9
+        // accessor, reads null on EF 10 even though the filter is applied. Asserting through the
+        // old accessor on net10 reports a broken feature that works. GH-3540.
+#if NET10_0_OR_GREATER
+        entityType.GetDeclaredQueryFilters()
+            .ShouldContain(x => x.Key == Wolverine.EntityFrameworkCore.Internals.ConjoinedTenancy.QueryFilterName);
+#else
         entityType.GetQueryFilter().ShouldNotBeNull();
+#endif
 
         // And an unmarked entity is left completely alone
         var globalType = context.Model.FindEntityType(typeof(GlobalThing))!;
         globalType.FindProperty(nameof(ConjoinedItem.TenantId)).ShouldBeNull();
+#if NET10_0_OR_GREATER
+        globalType.GetDeclaredQueryFilters().ShouldBeEmpty();
+#else
         globalType.GetQueryFilter().ShouldBeNull();
+#endif
     }
 
     [Fact]
