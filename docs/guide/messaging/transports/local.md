@@ -207,6 +207,19 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L25-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+A local queue can only be `BufferedInMemory` (the default) or `Durable`. `ProcessInline()` means "execute
+the message on the transport's own listening callback instead of queueing it", and a local queue has no
+transport listener — the queue itself *is* Wolverine's local execution block, so there would be nothing
+left to run the message. As of Wolverine 6.30 `ProcessInline()` throws a `NotSupportedException` right
+where you call it on a local queue, and a local queue that reaches `Inline` some other way (through
+`LocalQueueFor<T>()` or `IConfigureLocalQueue`, whose queues resolve lazily) stops the host from starting
+with an `InvalidListenerConfigurationException`. Earlier versions accepted the configuration and then threw
+a bare, message-less `NotSupportedException` the first time anything sent to the queue.
+
+If what you wanted was one message at a time, use `Sequential()`.
+:::
+
 ## Using IConfigureLocalQueue to Configure Local Queues <Badge type="tip" text="3.7" />
 
 ::: info
