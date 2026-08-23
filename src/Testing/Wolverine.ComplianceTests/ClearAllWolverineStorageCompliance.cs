@@ -75,7 +75,7 @@ public abstract class ClearAllWolverineStorageCompliance : IAsyncLifetime
         theQueue = runtime.Options.Transports
             .SelectMany(x => x.Endpoints())
             .OfType<IBrokerQueue>()
-            .Single(x => x is IDatabaseBackedEndpoint && ((Endpoint)x).EndpointName == QueueName);
+            .Single(x => x is IStorageBackedQueue && ((Endpoint)x).EndpointName == QueueName);
 
         theMessageStore = runtime.Storage;
 
@@ -92,11 +92,24 @@ public abstract class ClearAllWolverineStorageCompliance : IAsyncLifetime
         theHost.Dispose();
     }
 
-    protected async Task<(long Queued, long Scheduled)> queueCountsAsync()
+    /// <summary>
+    /// How many messages are queued, and how many are parked for later. The database queues all report
+    /// this through <c>GetAttributesAsync()</c> under the same two keys; a transport that names its
+    /// diagnostics differently overrides this rather than bending its diagnostic surface to fit.
+    /// </summary>
+    protected virtual async Task<(long Queued, long Scheduled)> queueCountsAsync()
     {
         var attributes = await theQueue.GetAttributesAsync();
         return (long.Parse(attributes["Count"]), long.Parse(attributes["Scheduled"]));
     }
+
+    /// <summary>
+    /// Whether writing to this queue after <c>TeardownAsync()</c> fails. True for the database queues,
+    /// whose tables really are gone. False where the storage is implicitly recreated by the write --
+    /// a Redis XADD silently recreates a deleted stream key, so there is no missing "table" to observe
+    /// and only the empties-it half of the rebuild scenario is meaningful.
+    /// </summary>
+    protected virtual bool TeardownMakesTheQueueUnwritable => true;
 
     /// <summary>
     /// One row in the queue table, one in its scheduled-message table.
@@ -188,17 +201,20 @@ public abstract class ClearAllWolverineStorageCompliance : IAsyncLifetime
         // writing rather than through CheckAsync() or a count: Weasel's schema diff throws an NRE
         // against a table that is entirely absent rather than reporting a difference, and some
         // providers' CountAsync swallows the missing-table error and reports zero.
-        var missing = false;
-        try
+        if (TeardownMakesTheQueueUnwritable)
         {
-            await sendToQueueAsync(ObjectMother.Envelope());
-        }
-        catch (Exception)
-        {
-            missing = true;
-        }
+            var missing = false;
+            try
+            {
+                await sendToQueueAsync(ObjectMother.Envelope());
+            }
+            catch (Exception)
+            {
+                missing = true;
+            }
 
-        missing.ShouldBeTrue();
+            missing.ShouldBeTrue();
+        }
 
         await theHost.ClearAllWolverineStorageAsync();
 

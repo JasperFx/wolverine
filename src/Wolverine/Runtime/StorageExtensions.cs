@@ -31,16 +31,21 @@ public static class StorageExtensions
             await store.Admin.RebuildAsync();
         }
 
-        // Then the database-backed queue transports. SetupAsync() builds the queue table and its
-        // scheduled-message table if they are missing, PurgeAsync() empties both -- and each fans out
-        // across every tenant database on a multi-tenanted transport. That pair exists on every
-        // database queue transport (PostgreSQL, SQL Server, MySQL, Oracle, SQLite, and Redis streams),
-        // so this needs no provider-specific code.
+        // Then the queue transports whose contents live in storage Wolverine provisions. SetupAsync()
+        // builds the queue's storage if it is missing, PurgeAsync() empties it -- and each fans out
+        // across every tenant database on a multi-tenanted transport. That pair exists on every such
+        // transport (PostgreSQL, SQL Server, MySQL, Oracle, SQLite, and Redis streams), so this needs
+        // no provider-specific code.
+        //
+        // GH-4035: selected by IStorageBackedQueue, NOT by IDatabaseBackedEndpoint. The latter is about
+        // inbox integration, and using it here meant GH-4028's (correct) removal of it from the Redis
+        // stream endpoint silently dropped Redis streams out of this reset -- with no test able to see
+        // it, because no Redis implementation of ClearAllWolverineStorageCompliance existed.
         foreach (var transport in runtime.Options.Transports)
         {
             var queues = transport.Endpoints()
                 .OfType<IBrokerQueue>()
-                .Where(x => x is IDatabaseBackedEndpoint)
+                .Where(x => x is IStorageBackedQueue)
                 .ToArray();
 
             if (queues.Length == 0) continue;

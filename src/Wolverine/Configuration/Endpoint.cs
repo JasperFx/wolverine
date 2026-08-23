@@ -31,10 +31,31 @@ public enum PartitionSlots
 /// Marker interface that tells Wolverine internals that this endpoint directly
 /// integrates with the active transactional inbox
 /// </summary>
+/// <remarks>
+/// GH-4035. This is <i>only</i> about inbox integration: it routes scheduled retries to
+/// <see cref="ScheduleRetryAsync"/> and it tells <c>DurableReceiver</c> that the endpoint persists
+/// incoming messages itself, so the arrival INSERT is skipped and the delivery is completed on receipt.
+/// Do not reuse it to mean "this queue has storage of its own" -- see <see cref="IStorageBackedQueue"/>.
+/// </remarks>
 public interface IDatabaseBackedEndpoint
 {
     Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellation);
 }
+
+/// <summary>
+/// Marker for a queue whose contents live in storage that Wolverine itself provisions -- the database
+/// queue tables, or a Redis stream and its scheduled sorted set -- rather than in an external broker.
+/// <see cref="Wolverine.Runtime.StorageExtensions.ClearAllWolverineStorageAsync"/> builds and empties
+/// exactly these.
+/// </summary>
+/// <remarks>
+/// GH-4035. This used to be inferred from <see cref="IDatabaseBackedEndpoint"/>, which meant a change
+/// to an endpoint's <i>inbox</i> behaviour silently changed whether integration tests could reset it.
+/// Removing that marker from the Redis stream endpoint in GH-4028 dropped Redis out of the reset with
+/// nothing in CI able to see it. The two concerns are separate now: an endpoint may be either, both, or
+/// neither.
+/// </remarks>
+public interface IStorageBackedQueue;
 
 public enum TenancyBehavior
 {
