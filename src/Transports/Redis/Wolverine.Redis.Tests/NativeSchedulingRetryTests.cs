@@ -24,17 +24,18 @@ public class NativeSchedulingRetryTests
     }
 
     [Fact]
-    public void redis_endpoint_implements_idatabase_backed_endpoint()
+    public void redis_endpoint_is_not_database_backed_and_the_listener_owns_native_scheduling()
     {
-        // Verify that RedisStreamEndpoint implements IDatabaseBackedEndpoint interface
-        var endpointType = typeof(RedisStreamEndpoint);
-        var interfaceType = typeof(IDatabaseBackedEndpoint);
-        
-        interfaceType.IsAssignableFrom(endpointType).ShouldBeTrue(
-            "RedisStreamEndpoint should implement IDatabaseBackedEndpoint");
-        
-        _output.WriteLine("✓ RedisStreamEndpoint implements IDatabaseBackedEndpoint interface");
-        _output.WriteLine("  This enables DurableReceiver to call ScheduleRetryAsync() for native retry scheduling");
+        // GH-4028: IDatabaseBackedEndpoint on the endpoint made DurableReceiver skip the inbox INSERT and
+        // complete the delivery on receipt -- "UseDurableInbox()" on a Redis stream never wrote the inbox
+        // and XACKed before the handler ran. The native scheduled retry is now a listener concern, and a
+        // Durable listener routes scheduled retries through the inbox like every other transport.
+        typeof(IDatabaseBackedEndpoint).IsAssignableFrom(typeof(RedisStreamEndpoint)).ShouldBeFalse(
+            "RedisStreamEndpoint must not be IDatabaseBackedEndpoint -- that marker skips the inbox");
+        typeof(ISupportNativeScheduling).IsAssignableFrom(typeof(RedisStreamListener)).ShouldBeTrue(
+            "RedisStreamListener owns Redis-native scheduled retries for the non-durable modes");
+
+        _output.WriteLine("✓ RedisStreamEndpoint is not IDatabaseBackedEndpoint; RedisStreamListener is ISupportNativeScheduling");
     }
 
     [Fact]
@@ -49,7 +50,7 @@ public class NativeSchedulingRetryTests
             "DurableReceiver should implement ISupportNativeScheduling");
         
         _output.WriteLine("✓ DurableReceiver implements ISupportNativeScheduling");
-        _output.WriteLine("  Combined with IDatabaseBackedEndpoint, this enables native retry scheduling");
+        _output.WriteLine("  A Durable Redis listener routes scheduled retries through this, i.e. the inbox");
     }
 
     [Fact]
@@ -65,11 +66,11 @@ public class NativeSchedulingRetryTests
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
-        var endpoint = transport.StreamEndpoint(streamKey) as IDatabaseBackedEndpoint;
+        var endpoint = transport.StreamEndpoint(streamKey);
         var database = transport.GetDatabase(database: 0);
-        var scheduledKey = transport.StreamEndpoint(streamKey).ScheduledMessagesKey;
+        var scheduledKey = endpoint.ScheduledMessagesKey;
 
-        endpoint.ShouldNotBeNull("Endpoint should implement IDatabaseBackedEndpoint");
+        endpoint.ShouldNotBeNull();
 
         // Clear the scheduled set
         await database.KeyDeleteAsync(scheduledKey);

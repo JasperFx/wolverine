@@ -10,7 +10,8 @@ using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportConnectionState, IReportReceiveLoopHealth
+public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportConnectionState, IReportReceiveLoopHealth,
+    ISupportNativeScheduling
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;
@@ -241,6 +242,25 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         {
             _logger.LogWarning(ex, "Error ACKing Redis stream message for envelope {EnvelopeId}", envelope.Id);
         }
+    }
+
+    /// <summary>
+    ///     GH-4028. Redis-native scheduled retries for the non-durable modes: the message is parked in the
+    ///     stream's scheduled sorted set and the polling loop puts it back on the stream when it is due. A
+    ///     Durable listener deliberately reports <c>false</c> here so the scheduled retry goes through the
+    ///     inbox like every other durable transport -- a listener-level reschedule bypasses the inbox
+    ///     entirely, and re-adding the same envelope id to the stream would collide with the inbox row on
+    ///     redelivery and be discarded as a duplicate.
+    /// </summary>
+    public bool NativeSchedulingEnabled => _endpoint.Mode != EndpointMode.Durable;
+
+    public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
+    {
+        envelope.ScheduledTime = time;
+
+        // Park the copy first, then settle the original: a crash in between costs a duplicate, not a loss
+        await _endpoint.ScheduleRetryAsync(envelope, _cancellation.Token);
+        await CompleteAsync(envelope);
     }
 
     public async ValueTask DeferAsync(Envelope envelope)
