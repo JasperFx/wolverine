@@ -67,7 +67,7 @@ public sealed partial class WolverineOptions
     // reachable methods, so the practical risk is low even outside the AOT path.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Best-effort caller-assembly resolution; AOT-clean apps set ApplicationAssembly explicitly. See AOT guide.")]
-    private Assembly? determineCallingAssembly()
+    private static Assembly? determineCallingAssembly()
     {
         var stack = new StackTrace();
         var frames = stack.GetFrames();
@@ -99,7 +99,7 @@ public sealed partial class WolverineOptions
             }
 
             if (assemblyName.StartsWith("System") || assemblyName.StartsWith("Microsoft") ||
-                IsTestRunnerAssembly(assemblyName))
+                IsTestRunnerAssembly(assemblyName) || IsNeverAnApplicationAssembly(assembly))
             {
                 continue;
             }
@@ -132,6 +132,41 @@ public sealed partial class WolverineOptions
                || assemblyName.StartsWith("JetBrains.", StringComparison.OrdinalIgnoreCase);
     }
 
+    // GH-3778: assemblies that cannot be the application, whatever the stack says.
+    //
+    // This is where the divergence warning's noise actually came from, and it is not what the issue
+    // guessed. Instrumenting a fully green CoreTests run, 41 of 46 warnings named an assembly like
+    // "ofqrxydn.tlz" -- Roslyn's Path.GetRandomFileName() default, i.e. Wolverine's OWN generated code
+    // assembly, whose name is different on every run. Another 5 named "JasperFx". Not one named an
+    // extension. The walk knew about System*/Microsoft*/test runners and nothing else, so the first
+    // frame outside Wolverine was frequently code Wolverine had generated moments earlier.
+    //
+    // This matters beyond the warning: the same walk picks the application assembly for handler
+    // discovery in the else-branch of establishApplicationAssembly. Adopting a generated assembly
+    // there means scanning an assembly with no handlers in it -- the same silent-discovery-failure
+    // shape as GH-3776, which took a day to find the last time.
+    [UnconditionalSuppressMessage("SingleFile", "IL3000",
+        Justification = "The empty-Location case IS the intent here. In a single-file app every assembly reports an empty location, so this predicate skips them all and determineCallingAssembly falls through to its Assembly.GetEntryAssembly() fallback — which in a single-file app is the application assembly. Correct answer either way.")]
+    internal static bool IsNeverAnApplicationAssembly(Assembly assembly)
+    {
+        // Reflection.Emit output. Never on disk, never the application.
+        if (assembly.IsDynamic) return true;
+
+        // Runtime-compiled and loaded from a byte array (JasperFx.RuntimeCompiler), which is what the
+        // random 8.3-style names above are.
+        //
+        // Single-file publish also reports an empty Location for every assembly, so there the walk
+        // skips everything and lands on the Assembly.GetEntryAssembly() fallback below -- which in a
+        // single-file app IS the application assembly. Right answer, different route.
+        if (assembly.Location.IsEmpty()) return true;
+
+        // The framework underneath Wolverine. Core Wolverine already excludes itself by carrying
+        // [assembly: WolverineIgnore]; JasperFx carries no such marker, so it is named here.
+        var name = assembly.GetName().Name;
+        return name is not null &&
+               (name == "JasperFx" || name.StartsWith("JasperFx.", StringComparison.OrdinalIgnoreCase));
+    }
+
     private void establishApplicationAssembly(string? assemblyName)
     {
         if (assemblyName.IsNotEmpty())
@@ -140,7 +175,13 @@ public sealed partial class WolverineOptions
         }
         else if (RememberedApplicationAssembly != null)
         {
+            // GH-3778: this branch adopts an assembly pinned by whichever host started FIRST in the
+            // process — the precise situation the divergence warning exists for — and used to do it
+            // in silence. Only the jasperfx.ApplicationAssembly path in ReadJasperFxOptions checked,
+            // so the warning could not fire on the path most likely to need it. JasperFxOptions
+            // already calls its equivalent from the same branch; this closes the gap.
             ApplicationAssembly = RememberedApplicationAssembly;
+            CheckForDivergentApplicationAssembly(RememberedApplicationAssembly);
         }
         else
         {
@@ -166,6 +207,33 @@ public sealed partial class WolverineOptions
     internal void CaptureRegistrationCallingAssembly()
     {
         RegistrationCallingAssembly = determineCallingAssembly();
+    }
+
+    /// <summary>
+    /// GH-3778. Resolves the calling assembly from an entry point, BEFORE any WolverineOptions
+    /// exists.
+    ///
+    /// <para>IHostBuilder.UseWolverine() defers its real work into a ConfigureServices callback that
+    /// does not run until Build(). By then the registering caller's frame is gone, so deriving it
+    /// inside the constructor learns who called <b>Build</b>, not who called <b>UseWolverine</b> —
+    /// and in a harness whose hosts are built by a shared helper in another assembly, which is most
+    /// of them, those are different assemblies. Capturing at the entry point is the only place the
+    /// answer is still on the stack.</para>
+    /// </summary>
+    internal static Assembly? CaptureCallingAssemblyForRegistration() => determineCallingAssembly();
+
+    /// <summary>
+    /// Applies an assembly captured at the entry point by
+    /// <see cref="CaptureCallingAssemblyForRegistration"/>. A null is ignored rather than overwriting
+    /// a value the constructor resolved: an entry point that could not identify its caller has
+    /// nothing better to offer than what the constructor already found.
+    /// </summary>
+    internal void UseRegistrationCallingAssembly(Assembly? assembly)
+    {
+        if (assembly != null)
+        {
+            RegistrationCallingAssembly = assembly;
+        }
     }
 
     // GH-3521: record a warning (buffered until a logger exists at runtime startup) when the application

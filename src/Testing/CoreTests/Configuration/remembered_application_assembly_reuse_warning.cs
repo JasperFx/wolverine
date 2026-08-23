@@ -1,5 +1,6 @@
 using System.Reflection;
 using JasperFx;
+using Module1;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -39,6 +40,29 @@ public class remembered_application_assembly_reuse_warning
     }
 
     [Fact]
+    public async Task captures_the_assembly_that_called_UseWolverine_not_the_one_that_called_Build()
+    {
+        // GH-3778. IHostBuilder.UseWolverine() defers into a ConfigureServices callback that runs during
+        // Build(), so re-deriving the caller from the stack inside WolverineOptions' constructor learns
+        // who called BUILD, not who registered Wolverine. Any harness whose hosts are built by a shared
+        // helper in another assembly — which is most of them — therefore resolved to that helper, and the
+        // divergence warning it feeds fired on healthy hosts: instrumenting a fully green CIPolecat shard
+        // found RegistrationCallingAssembly resolving to Wolverine.SqlServer on 81 of 82 hosts.
+        var builder = Host.CreateDefaultBuilder().UseWolverine();
+
+        // Registered above, in THIS assembly. Built below, in Module1.
+        using var host = HostBuiltFromAnotherAssembly.Build(builder);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+
+        options.RegistrationCallingAssembly!.GetName().Name.ShouldBe(ThisTestAssembly.GetName().Name);
+        options.ApplicationAssemblyReuseWarning.ShouldBeNull();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public void warns_when_the_adopted_assembly_diverges_from_where_the_host_registered()
     {
         var options = new WolverineOptions();
@@ -71,6 +95,70 @@ public class remembered_application_assembly_reuse_warning
         options.ReadJasperFxOptions(JasperFxWithApplicationAssembly(registered!));
 
         options.ApplicationAssemblyReuseWarning.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// GH-3778. Routes through the GH-3776 branch — a JasperFx-pinned assembly that is a TEST RUNNER is
+    /// dropped — so ApplicationAssembly is null by the time establishApplicationAssembly(null) runs, and
+    /// the RememberedApplicationAssembly branch is the one that decides. That is the branch that used to
+    /// adopt a process-wide pin in silence.
+    /// </summary>
+    private static JasperFxOptions JasperFxPinnedToTheTestRunner()
+    {
+        return new JasperFxOptions { ApplicationAssembly = typeof(FactAttribute).Assembly };
+    }
+
+    [Fact]
+    public void warns_when_the_remembered_assembly_diverges_from_where_the_host_registered()
+    {
+        var previous = WolverineOptions.RememberedApplicationAssembly;
+
+        try
+        {
+            var options = new WolverineOptions();
+            var registered = options.RegistrationCallingAssembly;
+            registered.ShouldNotBeNull();
+
+            // What a FIRST host registered from another assembly leaves behind for every later host.
+            WolverineOptions.RememberedApplicationAssembly = WolverineAssembly;
+            registered!.GetName().Name.ShouldNotBe(WolverineAssembly.GetName().Name);
+
+            options.ReadJasperFxOptions(JasperFxPinnedToTheTestRunner());
+
+            // The pin is still adopted -- this fix makes it audible, it does not change what wins.
+            options.ApplicationAssembly!.GetName().Name.ShouldBe(WolverineAssembly.GetName().Name);
+
+            options.ApplicationAssemblyReuseWarning.ShouldNotBeNull();
+            options.ApplicationAssemblyReuseWarning.ShouldContain(registered.GetName().Name!);
+            options.ApplicationAssemblyReuseWarning.ShouldContain(WolverineAssembly.GetName().Name!);
+        }
+        finally
+        {
+            // Process-wide static: leaving it set would pin handler discovery for every later test.
+            WolverineOptions.RememberedApplicationAssembly = previous;
+        }
+    }
+
+    [Fact]
+    public void does_not_warn_when_the_remembered_assembly_matches_where_the_host_registered()
+    {
+        var previous = WolverineOptions.RememberedApplicationAssembly;
+
+        try
+        {
+            var options = new WolverineOptions();
+            options.RegistrationCallingAssembly.ShouldNotBeNull();
+
+            WolverineOptions.RememberedApplicationAssembly = options.RegistrationCallingAssembly;
+
+            options.ReadJasperFxOptions(JasperFxPinnedToTheTestRunner());
+
+            options.ApplicationAssemblyReuseWarning.ShouldBeNull();
+        }
+        finally
+        {
+            WolverineOptions.RememberedApplicationAssembly = previous;
+        }
     }
 
     [Fact]

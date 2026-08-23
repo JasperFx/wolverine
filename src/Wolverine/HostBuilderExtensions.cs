@@ -57,9 +57,15 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static IHostBuilder UseWolverine(this IHostBuilder builder, Action<WolverineOptions>? overrides = null, ExtensionDiscovery discovery = ExtensionDiscovery.Automatic)
     {
+        // GH-3778: captured HERE rather than inside the callback below. ConfigureServices does not run
+        // until Build(), by which point this caller's frame is gone and the constructor's own stack walk
+        // resolves to whoever called Build() instead — a shared host-building helper, in most test
+        // harnesses. This is the last point at which the registering assembly is still on the stack.
+        var registeredFrom = WolverineOptions.CaptureCallingAssemblyForRegistration();
+
         return builder.ConfigureServices(services =>
         {
-            services.AddWolverine(discovery, overrides);
+            services.AddWolverine(discovery, overrides, registeredFrom);
         });
     }
 
@@ -81,7 +87,21 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static IServiceCollection AddWolverine(this IServiceCollection services, ExtensionDiscovery discovery, Action<WolverineOptions>? configure = null)
     {
+        return services.AddWolverine(discovery, configure, null);
+    }
+
+    /// <summary>
+    /// GH-3778. <paramref name="registeredFrom"/> carries an assembly captured at an entry point that
+    /// defers its registration, where the constructor's own stack walk would resolve to the wrong
+    /// caller. Null means "the constructor's answer is the best one available", which is the case for
+    /// every entry point that registers immediately.
+    /// </summary>
+    internal static IServiceCollection AddWolverine(this IServiceCollection services, ExtensionDiscovery discovery,
+        Action<WolverineOptions>? configure, Assembly? registeredFrom)
+    {
         var options = new WolverineOptions();
+        options.UseRegistrationCallingAssembly(registeredFrom);
+
         return AddWolverine(services, options, discovery, configure);
     }
 
