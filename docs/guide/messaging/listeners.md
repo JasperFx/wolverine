@@ -142,10 +142,15 @@ Three consequences follow from never acking at receipt, and all three are the po
 
 **Transport support is opt-in and default-closed.** A transport must settle each delivery individually *and*
 tolerate settling out of order, because the execution block completes messages in handler-completion order
-rather than delivery order. RabbitMQ queues qualify and are supported today. Kafka cannot and is out of
-scope: a cumulative offset commit has no way to express a gap. Calling
-`ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws at configuration time rather
-than degrading silently.
+rather than delivery order. RabbitMQ queues and [Pulsar](/guide/messaging/transports/pulsar.html#native-ack-processing)
+topics qualify and are supported today. Kafka cannot and is out of scope: a cumulative offset commit has no
+way to express a gap. Calling `ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws
+at configuration time rather than degrading silently.
+
+A transport may also refuse the mode for a *particular* endpoint whose own settings contradict it, again at
+bootstrap rather than at runtime. Pulsar is the example: its acknowledgment strategy is configurable, and
+`AcknowledgeCumulative()` reintroduces exactly the gap-less-commit problem that disqualifies Kafka, so that
+one combination is rejected by name.
 
 ## Buffered Endpoints
 

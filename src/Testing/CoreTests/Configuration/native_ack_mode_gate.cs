@@ -28,6 +28,68 @@ public class native_ack_mode_gate
         protected override bool supportsNativeAck => true;
     }
 
+    /// <summary>
+    /// GH-4047. An endpoint type whose transport accepts the mode in general but not for every configuration --
+    /// Pulsar's cumulative acknowledgment being the real case.
+    /// </summary>
+    private class ConditionallyNativeAckCapableEndpoint : NativeAckCapableEndpoint
+    {
+        public ConditionallyNativeAckCapableEndpoint(string queueName, StubTransport transport)
+            : base(queueName, transport)
+        {
+        }
+
+        public bool SettlesCumulatively { get; set; }
+
+        protected internal override IEnumerable<string> validateModeConfiguration()
+        {
+            if (Mode == EndpointMode.NativeAck && SettlesCumulatively)
+            {
+                yield return "cumulative settlement cannot be combined with EndpointMode.NativeAck";
+            }
+        }
+    }
+
+    /// <summary>
+    /// The hook exists because the Mode setter cannot answer this question. Both settings are individually legal
+    /// and both are applied as delayed configuration, so whichever one the setter happened to see first would
+    /// decide whether the pair was caught. Validating after Compile() makes the final state decide instead.
+    /// </summary>
+    [Fact]
+    public void a_transport_can_refuse_native_ack_for_a_particular_configuration()
+    {
+        var endpoint = new ConditionallyNativeAckCapableEndpoint("six", new StubTransport())
+        {
+            IsListener = true
+        };
+
+        // The mode alone is fine -- this is not supportsNativeAck's question
+        endpoint.Mode = EndpointMode.NativeAck;
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+
+        endpoint.SettlesCumulatively = true;
+
+        var problem = ListenerConfigurationValidator.Validate(endpoint).ShouldHaveSingleItem();
+        problem.Severity.ShouldBe(ListenerConfigurationSeverity.Fatal);
+        problem.Message.ShouldContain(nameof(EndpointMode.NativeAck));
+    }
+
+    [Fact]
+    public void the_transport_hook_is_consulted_outside_native_ack_too()
+    {
+        var endpoint = new ConditionallyNativeAckCapableEndpoint("seven", new StubTransport())
+        {
+            IsListener = true,
+            SettlesCumulatively = true
+        };
+
+        // BufferedInMemory: this endpoint type only objects to the pairing with NativeAck, so nothing fires --
+        // but the hook still ran, which is what keeps it usable for constraints that have nothing to do with
+        // Inline (the only mode the rest of this validator looks at).
+        endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
     [Fact]
     public void no_endpoint_type_accepts_native_ack_by_default()
     {
