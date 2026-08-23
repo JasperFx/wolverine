@@ -37,6 +37,18 @@ public class GlobalPartitionedMessageTopology
     /// </exception>
     public GlobalPartitionedMessageTopology Mode(EndpointMode mode)
     {
+        if (mode == EndpointMode.NativeAck)
+        {
+            // GH-3708. A global partitioned topology bridges its external listener into a companion LOCAL queue
+            // (GlobalPartitionedReceiverBridge), and a local queue has no broker delivery to settle -- so the
+            // native ack would have nothing to ack against. Endpoint-level PartitionProcessingByGroupId() on a
+            // NativeAck listener is the supported shape for partitioned native-ack processing.
+            throw new ArgumentOutOfRangeException(nameof(mode),
+                $"{nameof(EndpointMode)}.{nameof(EndpointMode.NativeAck)} is not supported for global partitioned topologies. "
+                + "Partitioned slots bridge into a companion local queue, which has no broker delivery to settle natively. "
+                + "Use PartitionProcessingByGroupId() directly on the native-ack listener instead.");
+        }
+
         if (mode == EndpointMode.Inline)
         {
             throw new ArgumentOutOfRangeException(nameof(mode),

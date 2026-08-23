@@ -591,8 +591,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             case EndpointMode.BufferedInMemory:
                 return new BufferedReceiver(Endpoint, _runtime, _pipeline);
 
+            case EndpointMode.NativeAck:
+                // GH-3708. The enum member and its transport opt-in gate landed ahead of the receiver so that the
+                // mode is never briefly default-open. Unreachable today: no transport overrides supportsNativeAck,
+                // so Endpoint.Mode cannot be set to this value. NativeAckReceiver replaces this arm.
+                throw new NotSupportedException(
+                    $"EndpointMode.NativeAck is not implemented yet for {Endpoint.Uri}. See https://github.com/JasperFx/wolverine/issues/3708");
+
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(Endpoint.Mode), Endpoint.Mode,
+                    $"Unknown {nameof(EndpointMode)} for the listening endpoint at {Endpoint.Uri}");
         }
     }
 }

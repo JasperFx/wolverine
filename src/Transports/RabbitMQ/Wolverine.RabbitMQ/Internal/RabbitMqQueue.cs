@@ -92,6 +92,17 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
                 case EndpointMode.BufferedInMemory:
                 case EndpointMode.Durable:
                     return (ushort)(MaxDegreeOfParallelism * 2);
+
+                case EndpointMode.NativeAck:
+                    // GH-3708. Prefetch IS the back pressure for this mode -- nothing is acked until the handler
+                    // succeeds, so the unacked window is what bounds the in-memory execution block. It has to cover
+                    // every lane that can be busy at once, which is the partition slot count when the endpoint is
+                    // group-partitioned and MaxDegreeOfParallelism otherwise, doubled so a lane is never starved
+                    // waiting on the next delivery.
+                    var lanes = GroupShardingSlotNumber.HasValue
+                        ? Math.Max((int)GroupShardingSlotNumber.Value, MaxDegreeOfParallelism)
+                        : MaxDegreeOfParallelism;
+                    return (ushort)(lanes * 2);
             }
 
             return 100;

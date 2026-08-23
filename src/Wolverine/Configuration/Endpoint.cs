@@ -71,7 +71,19 @@ public enum EndpointMode
     ///     Incoming messages are processed inline with the external message listening. Outgoing messages are delivered inline
     ///     with the triggering operation
     /// </summary>
-    Inline
+    Inline,
+
+    /// <summary>
+    ///     Incoming messages flow through an in-memory (optionally group-partitioned) execution block while the broker
+    ///     delivery is held unacknowledged, and are settled natively -- acked on handler success, nacked or dead-lettered
+    ///     on terminal failure -- from the completion continuation. Buffered's throughput and partitioning with Inline's
+    ///     no-loss guarantee, and no database involvement. See GH-3708.
+    ///     <para>
+    ///     Opt-in per transport: a transport must override <c>supportsNativeAck</c> to accept this mode, because most
+    ///     settlement models cannot express out-of-order completion.
+    ///     </para>
+    /// </summary>
+    NativeAck
 }
 
 public enum EndpointRole
@@ -370,6 +382,20 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         get => _mode;
         set
         {
+            // GH-3708. NativeAck is gated on its OWN predicate rather than through supportsMode(), deliberately.
+            // supportsMode() is default-open -- the base returns true, and several overrides are written as
+            // negations (TcpEndpoint's "mode != Inline", SignalRTransport's "mode != Durable") or as a blanket
+            // true (HttpEndpoint) -- so routing this member through it would have every un-audited transport
+            // silently accept a mode whose settlement model it cannot express. A separate default-false predicate
+            // cannot be leaked by an existing override, so only a transport that opts in explicitly accepts it.
+            if (value == EndpointMode.NativeAck && !supportsNativeAck)
+            {
+                throw new InvalidOperationException(
+                    $"Endpoint of type {GetType().Name} does not support EndpointMode.{nameof(EndpointMode.NativeAck)}. " +
+                    "Native ack processing requires a transport that settles each delivery individually and can settle " +
+                    "deliveries out of order; the transport opts in by overriding supportsNativeAck.");
+            }
+
             if (!supportsMode(value))
             {
                 throw new InvalidOperationException(
@@ -676,11 +702,20 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
+    /// GH-3708. Does this endpoint's transport accept <see cref="EndpointMode.NativeAck"/>? Default is <c>false</c> for
+    /// every endpoint type -- unlike <see cref="supportsMode"/>, which is default-open. A transport may only answer true
+    /// if it settles each delivery individually AND tolerates settling them out of order, because the partitioned
+    /// execution block completes messages in handler-completion order rather than delivery order. Kafka, for instance,
+    /// cannot: a cumulative offset commit has no way to express a gap.
+    /// </summary>
+    protected virtual bool supportsNativeAck => false;
+
+    /// <summary>
     /// Check if this endpoint supports the specified mode
     /// </summary>
     public bool SupportsMode(EndpointMode mode)
     {
-        return supportsMode(mode);
+        return mode == EndpointMode.NativeAck ? supportsNativeAck : supportsMode(mode);
     }
 
     // Is this endpoint part of a sharded messaging topology?
@@ -780,7 +815,9 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
     public virtual bool ShouldEnforceBackPressure()
     {
-        return Mode != EndpointMode.Inline;
+        // GH-3708: a NativeAck endpoint is bounded by the broker's prefetch window -- it never acks on receipt, so
+        // the broker stops delivering -- which makes an in-process BackPressureAgent redundant, same as Inline.
+        return Mode is not (EndpointMode.Inline or EndpointMode.NativeAck);
     }
 
     /// <summary>
