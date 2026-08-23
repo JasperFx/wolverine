@@ -233,12 +233,15 @@ under load. Wolverine coalesces both into short micro-batches:
   batch to the inbox in one round trip, and the one-at-a-time push transports (RabbitMQ, Kafka)
   accumulate deliveries for up to 5ms — or `MaximumMessagesToReceive` (default 100), whichever comes
   first — before one batched insert.
-- **Completion**: successful handler completions accumulate for up to 5ms — or
-  `DurabilitySettings.MarkAsHandledBatchSize` (default 100) of them, whichever comes first — and
-  are marked handled with one batched `UPDATE`. A batch that fails for any reason falls back to
-  marking each message individually, with retries, so nothing is lost — only the round trip is
-  shared. A completion is never held longer than the window, and a message already marked handled
-  inside a transactional middleware's own transaction is skipped.
+- **Completion**: concurrent handler completions share one batched mark-as-handled `UPDATE` (up to
+  `DurabilitySettings.MarkAsHandledBatchSize` of them, default 100). One flush is in flight at a
+  time and everything that completes while it runs joins the next one, so batches form from
+  concurrency alone: a lone completion is flushed immediately, nothing waits on a timer, and every
+  completion still waits for its own `UPDATE` to land before the message counts as handled — a
+  tracked session finishing still means the inbox row is `Handled`. A batch that fails for any
+  reason falls back to marking each message individually, with retries, so nothing is lost — only
+  the round trip is shared. A message already marked handled inside a transactional middleware's own
+  transaction is skipped.
 
 The result is that under load the inbox cost is paid per batch rather than per message on both the
 way in and the way out. `MaximumMessagesToReceive(1)` on a RabbitMQ or Kafka endpoint gives strict

@@ -30,10 +30,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     // GH-3711 (O1b): mark-as-handled was the last per-message durable write. The inbox INSERT has
     // been micro-batched since GH-3492, but every completion still issued its own UPDATE through
     // _markAsHandled -- the IReadOnlyList overload on IMessageInbox was unreachable from here. Now
-    // completions accumulate behind a short max-age window and flush as one round trip. Null when
-    // DurabilitySettings.MarkAsHandledBatchSize is 1, the escape hatch back to one UPDATE per message.
-    private readonly BatchingChannel<Envelope>? _markAsHandledBatching;
-    private readonly Block<Envelope[]>? _markAsHandledBatchBlock;
+    // concurrent completions share one flush (see InboxCompletionCoalescer for why the caller still
+    // awaits it). Null when DurabilitySettings.MarkAsHandledBatchSize is 1, the escape hatch back to
+    // one UPDATE per message.
+    private readonly InboxCompletionCoalescer? _completionCoalescer;
     private readonly RetryBlock<Envelope> _moveToErrors;
     private readonly IBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
@@ -205,9 +205,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (_settings.MarkAsHandledBatchSize > 1)
         {
-            _markAsHandledBatchBlock = new Block<Envelope[]>((batch, _) => markBatchAsHandledAsync(batch));
-            _markAsHandledBatching = new BatchingChannel<Envelope>(MarkAsHandledBatchWindow, _markAsHandledBatchBlock,
-                _settings.MarkAsHandledBatchSize);
+            _completionCoalescer = new InboxCompletionCoalescer(
+                envelopes => _inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes),
+                envelope => _markAsHandled.PostAsync(envelope),
+                _settings.MarkAsHandledBatchSize, Uri, _logger);
         }
 
         _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
@@ -285,17 +286,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         _incrementAttempts.Dispose();
         _scheduleExecution.Dispose();
-
-        if (_markAsHandledBatching != null)
-        {
-            await _markAsHandledBatching.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (_markAsHandledBatchBlock != null)
-        {
-            await _markAsHandledBatchBlock.DisposeAsync().ConfigureAwait(false);
-        }
-
         _markAsHandled.Dispose();
         _moveToErrors.Dispose();
         _receivingOne.Dispose();
@@ -327,11 +317,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 runtime.BatchingPendingCounts.SettleBatch(envelope);
             }
 
+            // GH-3711: post every child before awaiting any, so the coalescer can take them as one flush
+            var completions = new List<Task>(envelope.Batch.Length);
             foreach (var child in envelope.Batch)
             {
                 child.InBatch = false;
-                await markAsHandledAsync(child).ConfigureAwait(false);
+                completions.Add(markAsHandledAsync(child).AsTask());
             }
+
+            await Task.WhenAll(completions).ConfigureAwait(false);
         }
         else
         {
@@ -339,79 +333,42 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
     }
 
-    /// <summary>
-    ///     GH-3711: the maximum age of a pending mark-as-handled batch. Same window the insert side
-    ///     uses (WorkerQueueMessageConsumer / KafkaListener), so a completion never waits longer than
-    ///     this for its UPDATE to be issued.
-    /// </summary>
-    public static readonly TimeSpan MarkAsHandledBatchWindow = TimeSpan.FromMilliseconds(5);
-
-    private ValueTask markAsHandledAsync(Envelope envelope)
-    {
-        if (_markAsHandledBatching != null)
-        {
-            return _markAsHandledBatching.PostAsync(envelope);
-        }
-
-        return new ValueTask(_markAsHandled.PostAsync(envelope));
-    }
-
-    /// <summary>
-    ///     GH-3711: flush one accumulated batch of completions as a single round trip. A batch that
-    ///     fails falls back to the per-envelope retry block, which is the path a batched INSERT already
-    ///     takes on failure -- nothing is ever dropped on the floor, it is just retried one at a time.
-    /// </summary>
-    private async Task markBatchAsHandledAsync(Envelope[] batch)
+    private async ValueTask markAsHandledAsync(Envelope envelope)
     {
         // Same optimization as the per-envelope block: transactional middleware may already have
         // marked the envelope handled inside the handler's own transaction
-        var pending = batch.Where(x => x.Status != EnvelopeStatus.Handled).ToList();
-        if (pending.Count == 0)
+        if (envelope.Status == EnvelopeStatus.Handled)
         {
             return;
         }
 
-        if (pending.Count == 1)
+        if (_completionCoalescer != null)
         {
-            await _markAsHandled.PostAsync(pending[0]).ConfigureAwait(false);
+            await _completionCoalescer.MarkAsHandledAsync(envelope).ConfigureAwait(false);
             return;
         }
 
-        try
-        {
-            await _inbox.MarkIncomingEnvelopeAsHandledAsync(pending).ConfigureAwait(false);
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e,
-                "Failed to mark a batch of {Count} envelopes as handled at {Uri}; falling back to marking them one at a time",
-                pending.Count, Uri);
-
-            foreach (var envelope in pending)
-            {
-                await _markAsHandled.PostAsync(envelope).ConfigureAwait(false);
-            }
-        }
+        await _markAsHandled.PostAsync(envelope).ConfigureAwait(false);
     }
 
     /// <summary>
-    ///     GH-3711: push every pending completion at the inbox before the per-envelope block drains.
-    ///     Terminal -- the receiver is thrown away after a drain.
+    ///     GH-3711: let any flush in flight finish before the per-envelope block drains, so the
+    ///     fallback path still has somewhere to go.
     /// </summary>
     private async Task flushMarkAsHandledBatchAsync()
     {
-        if (_markAsHandledBatching == null)
+        if (_completionCoalescer == null)
         {
             return;
         }
 
         try
         {
-            await _markAsHandledBatching.WaitForCompletionAsync().WaitAsync(_settings.DrainTimeout).ConfigureAwait(false);
+            await _completionCoalescer.DrainAsync().WaitAsync(_settings.DrainTimeout).ConfigureAwait(false);
         }
         catch (Exception e)
         {
-            _logger.LogDebug(e, "Error flushing pending mark-as-handled batches at {Uri}", Uri);
+            _logger.LogDebug(e, "Error waiting for pending mark-as-handled batches at {Uri}", Uri);
         }
     }
 
@@ -567,10 +524,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         // Might need to drain the block
         _receiver.Complete();
-
-        // GH-3711: ship whatever completions are still sitting in the batch window. The flush is
-        // async downstream; this just makes sure nothing waits on a timer that may never fire again.
-        _markAsHandledBatching?.TriggerBatch();
 
         _completeBlock.Dispose();
         _deferBlock.Dispose();
