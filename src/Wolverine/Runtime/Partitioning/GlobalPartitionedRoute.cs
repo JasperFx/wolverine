@@ -12,6 +12,7 @@ internal class GlobalPartitionedRoute : IMessageRoute
     private readonly IMessageRoute[] _externalSlots;
     private readonly IMessageRoute[] _localSlots;
     private readonly Endpoint[] _externalEndpoints;
+    private readonly bool _nativeAcks;
 
     /// <summary>
     /// The set of local queue URIs that sticky handler fanout will deliver to.
@@ -21,13 +22,15 @@ internal class GlobalPartitionedRoute : IMessageRoute
     internal HashSet<Uri> StickyHandlerFanoutUris { get; } = new();
 
     public GlobalPartitionedRoute(Uri uri, MessagePartitioningRules partitioning,
-        IMessageRoute[] externalSlots, IMessageRoute[] localSlots, Endpoint[] externalEndpoints)
+        IMessageRoute[] externalSlots, IMessageRoute[] localSlots, Endpoint[] externalEndpoints,
+        bool nativeAcks = false)
     {
         _uri = uri;
         _partitioning = partitioning;
         _externalSlots = externalSlots;
         _localSlots = localSlots;
         _externalEndpoints = externalEndpoints;
+        _nativeAcks = nativeAcks;
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
@@ -37,14 +40,22 @@ internal class GlobalPartitionedRoute : IMessageRoute
         options?.Override(envelope);
         var slot = envelope.SlotForSending(_externalSlots.Length, _partitioning);
 
-        // Check if this slot's exclusive listener is active on the current node
-        var externalEndpoint = _externalEndpoints[slot];
-        var listeningAgent = runtime.Endpoints.FindListeningAgent(externalEndpoint.Uri);
-
-        if (listeningAgent != null && listeningAgent.Status == ListeningStatus.Accepting)
+        // GH-3709. The local shortcut hands the message straight to the companion local queue when this
+        // node already owns the slot, skipping the broker. A native-ack topology has no companion queue
+        // to hand it to -- and more to the point, the broker delivery IS the durability story in that
+        // mode, so short-circuiting it would drop the message on a crash between send and handling.
+        // Always go through the broker.
+        if (!_nativeAcks)
         {
-            // Local shortcut: route directly to the companion local queue
-            return _localSlots[slot].CreateForSending(message, options, localDurableQueue, runtime, topicName);
+            // Check if this slot's exclusive listener is active on the current node
+            var externalEndpoint = _externalEndpoints[slot];
+            var listeningAgent = runtime.Endpoints.FindListeningAgent(externalEndpoint.Uri);
+
+            if (listeningAgent != null && listeningAgent.Status == ListeningStatus.Accepting)
+            {
+                // Local shortcut: route directly to the companion local queue
+                return _localSlots[slot].CreateForSending(message, options, localDurableQueue, runtime, topicName);
+            }
         }
 
         // Remote: route through the external transport
