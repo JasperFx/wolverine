@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.MySql.Transport;
 
-public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
+public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStorageBackedQueue
 {
     internal static Uri ToUri(string name, string? databaseName)
     {
