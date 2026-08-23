@@ -58,7 +58,8 @@ to bootstrap your application in integration tests to avoid any problems around 
 :::
 
 ::: warning The application assembly is pinned process-wide (test harnesses)
-The resolved application assembly is cached in a **process-wide static** the first time any host in the process
+The resolved application assembly is cached in a **process-wide static** — `WolverineOptions.RememberedApplicationAssembly`,
+mirrored one level down by `JasperFxOptions.RememberedApplicationAssembly` — the first time any host in the process
 falls through to the automatic call-stack determination. In a normal application that runs a single host this is
 harmless. But in a **test process that stands up multiple Wolverine hosts** (xUnit/vstest), whichever test class
 runs *first* pins the scanned assembly for every later host that doesn't set one explicitly — so if an earlier host
@@ -69,9 +70,13 @@ The symptom is quiet and downstream — `No routes can be determined for Envelop
 null scatter/gather results — and it is **order-dependent**: the suite passes in isolation, fails in a full run, and
 can flip between builds as recompilation reshuffles test order.
 
-Wolverine now logs a **warning at startup** when a host adopts an application assembly that differs from where it was
+Wolverine logs a **warning at startup** when a host adopts an application assembly that differs from where it was
 actually registered, naming both assemblies. If you see that warning (or the routing symptom above), set the
 application assembly explicitly on the affected host, or add the missing assembly to discovery — see just below.
+
+This warning only became dependable with GH-3778. Before that fix it could not fire on the
+`RememberedApplicationAssembly` path at all — the very case described here — and elsewhere it frequently named the
+wrong "registered from" assembly, so on older releases neither its presence nor its absence proves much.
 :::
 
 In testing scenarios, if you're bootstrapping the application independently somehow of the application's "official" configuration, you may have to help
