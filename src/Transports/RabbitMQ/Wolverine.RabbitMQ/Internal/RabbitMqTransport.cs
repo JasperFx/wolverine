@@ -205,7 +205,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
-        Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation);
+        Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation,
+            runtime.DurabilitySettings.MaximumAckAttempts);
 
         ConnectionFactory ??= runtime.Services.GetService<IConnectionFactory>() as ConnectionFactory ??
                               new ConnectionFactory { HostName = "localhost" };
