@@ -100,7 +100,7 @@
     <PackageVersion Include="protobuf-net.BuildTools" Version="3.2.52" />
     <PackageVersion Include="protobuf-net.Grpc" Version="1.2.2" />
     <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.2.2" />
-    <PackageVersion Include="RabbitMQ.Client" Version="7.1.2" />
+    <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
     <PackageVersion Include="RavenDB.Client" Version="7.0.2" />
     <PackageVersion Include="RavenDB.DependencyInjection" Version="5.0.1" />
     <PackageVersion Include="RavenDB.TestDriver" Version="7.0.2" />

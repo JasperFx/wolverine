@@ -131,6 +131,17 @@
 
 ### Dependencies
 
+- **RabbitMQ.Client 7.1.2 → 7.2.2.** Nine months of client fixes, several of them in exactly the
+  connection- and channel-churn area Wolverine's listeners live in: races in `AsyncManualResetEvent`,
+  a `SemaphoreFullException`, a connection leak in `AutorecoveringConnection`, publisher confirms being
+  handled after dispose, `TryComplete` during channel shutdown, heartbeat callbacks no longer crashing
+  the process on an exception, and recovery retried when a topology operation times out.
+
+  This deliberately does **not** fix [#3950](https://github.com/JasperFx/wolverine/issues/3950).
+  `SessionManager.Lookup` still reads its session map with an indexer, and is byte-identical in v7.1.2,
+  v7.2.2, and the client's `main` — so one rejected delivery tag on a busy channel can still escalate
+  into a library-initiated close of the whole connection. That fix has to happen upstream.
+
 - **Weasel 9.26.0.** Two defects that Wolverine's new fail-fast migrations (below) turned from a logged
   line into a failed startup: `Table.FetchExisting` filtered the PostgreSQL catalog with
   `NOT nspname LIKE 'pg%'`, which hid every index in a *user* schema whose name began with "pg", so those
