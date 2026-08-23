@@ -208,6 +208,18 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             // Agent is latched if listener is null
             await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
+        else if (_receiver is NativeAckReceiver nativeAck)
+        {
+            // GH-4011. Same shape as the InlineReceiver case above, and for the same reason: a receiver whose
+            // settlement rides the listener rather than a local queue. These envelopes come from the message
+            // store (DLQ replay per GH-1942, scheduled-message firing), not from a broker delivery, so there is
+            // no delivery tag to ack -- RetryOnInlineChannelCallback marks the inbox row handled and only then
+            // forwards to the real listener. Without this branch a NativeAck endpoint in an application that
+            // also has persistence configured -- durable outbox for sending, native acks on one flooding
+            // listener, a perfectly legitimate combination -- threw on any DLQ replay targeting it.
+            // Agent is latched if listener is null
+            await nativeAck.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
+        }
         else if (_receiver is GlobalPartitionedReceiverBridge bridge)
         {
             // Forward to the companion local queue for sequential processing
