@@ -103,7 +103,11 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// specified number of slots. Use this to group messages to prevent concurrent
     /// processing of messages with the same GroupId while allowing parallel work across
     /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
-    /// that can be handled concurrently
+    /// that can be handled concurrently.
+    ///
+    /// Requires a BufferedInMemory or Durable endpoint. Combining this with ProcessInline()
+    /// throws at bootstrap, because an Inline endpoint has no local execution block to shard
+    /// and the group id guarantee would silently not exist. See GH-3712.
     /// </summary>
     /// <param name="numberOfSlots"></param>
     /// <returns></returns>
@@ -236,6 +240,10 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// Configure this listener to run exclusively on a single node in the cluster,
     /// but allow parallel message processing within that node. This is useful for
     /// scenarios where you need single-node consistency but want to maintain throughput.
+    ///
+    /// The parallelism half of this has no effect on an Inline endpoint, which has no local
+    /// execution block to size -- Wolverine normalizes MaxDegreeOfParallelism to 1 and logs a
+    /// warning in that case. The exclusive-node half still applies. See GH-3712.
     /// </summary>
     /// <param name="maxParallelism">Maximum number of messages to process in parallel on the exclusive node. Default is 10.</param>
     /// <param name="endpointName">Optional endpoint name for identification</param>
@@ -328,6 +336,12 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    /// <summary>
+    /// The maximum number of messages this endpoint will execute in parallel through Wolverine's
+    /// local execution block. Only applies to BufferedInMemory and Durable endpoints; an Inline
+    /// endpoint's concurrency belongs to the transport listener instead, and Wolverine logs a warning
+    /// if this is combined with ProcessInline(). See GH-3712.
+    /// </summary>
     public TSelf MaximumParallelMessages(int maximumParallelHandlers)
     {
         add(e =>
@@ -350,6 +364,10 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return BufferedInMemory();
     }
 
+    /// <summary>
+    /// Force this endpoint to execute one message at a time through Wolverine's local execution block.
+    /// Only applies to BufferedInMemory and Durable endpoints -- see MaximumParallelMessages() and GH-3712.
+    /// </summary>
     public TSelf Sequential()
     {
         add(e =>
@@ -379,13 +397,20 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    /// <summary>
+    /// Process incoming messages inline with the transport's own listening callback, with no local
+    /// execution block and no inbox in between. Note that this makes MaximumParallelMessages(),
+    /// Sequential(), and PartitionProcessingByGroupId() inapplicable -- Wolverine normalizes
+    /// MaxDegreeOfParallelism to 1 at bootstrap for an Inline endpoint and rejects partitioned
+    /// processing outright. See GH-3712.
+    /// </summary>
     public TSelf ProcessInline()
     {
-        add(e =>
-        {
-            e.Mode = EndpointMode.Inline;
-            e.MaxDegreeOfParallelism = 1;
-        });
+        // GH-3712. The MaxDegreeOfParallelism = 1 clamp deliberately does NOT happen here. Clamping
+        // eagerly made the endpoint's final state depend on whether ProcessInline() was called before
+        // or after MaximumParallelMessages(); Endpoint.Compile() now normalizes it for every Inline
+        // endpoint once all of the configuration has been applied.
+        add(e => e.Mode = EndpointMode.Inline);
         return this.As<TSelf>();
     }
 

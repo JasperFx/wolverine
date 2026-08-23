@@ -637,7 +637,7 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
                     ep.Uri.ToString().EscapeMarkup(),
                     ep.EndpointName.EscapeMarkup(),
                     ep.Mode.ToString(),
-                    ep.MaxDegreeOfParallelism.ToString());
+                    ep.DescribeMaxDegreeOfParallelism());
             }
 
             AnsiConsole.Write(listenerTable);

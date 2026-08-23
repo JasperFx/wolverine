@@ -179,6 +179,8 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private IMessageSerializer? _defaultSerializer;
 
     private bool _hasCompiled;
+    private int _maxDegreeOfParallelism = Math.Max(Environment.ProcessorCount, 5);
+    private BufferingLimits _bufferingLimits = new(1000, 500);
 
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
     private string? _name;
@@ -208,12 +210,58 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// Controls the maximum number of messages that could be processed at one time.
     /// Default is the greater of Environment.ProcessorCount or 5. Setting this to 1 makes this listening endpoint
     /// be ordered in its processing.
+    ///
+    /// Only applies to <see cref="EndpointMode.BufferedInMemory"/> and <see cref="EndpointMode.Durable"/>
+    /// endpoints, because it governs the size of Wolverine's local execution block -- and an
+    /// <see cref="EndpointMode.Inline"/> endpoint has no execution block at all. An Inline endpoint's
+    /// concurrency is whatever the transport listener itself does; this value is normalized to 1 at
+    /// <see cref="Compile"/> time for an Inline endpoint. See GH-3712.
     /// </summary>
-    public int MaxDegreeOfParallelism { get; set; } = Math.Max(Environment.ProcessorCount, 5);
-    
+    public int MaxDegreeOfParallelism
+    {
+        get => _maxDegreeOfParallelism;
+        set
+        {
+            _maxDegreeOfParallelism = value;
+
+            // GH-3712. Distinguishes "the user asked for parallelism" from "nobody ever touched this",
+            // so the Inline coherence check can warn about the former without nagging about the default.
+            MaxDegreeOfParallelismIsExplicit = true;
+        }
+    }
+
+    /// <summary>
+    /// GH-3712. Has anything actually assigned <see cref="MaxDegreeOfParallelism"/>, as opposed to
+    /// leaving the Environment.ProcessorCount-derived default in place?
+    /// </summary>
+    internal bool MaxDegreeOfParallelismIsExplicit { get; private set; }
+
+    /// <summary>
+    /// GH-3712. The explicitly configured <see cref="MaxDegreeOfParallelism"/> that <see cref="Compile"/>
+    /// discarded because this endpoint's mode ignores it. Null when nothing was discarded.
+    /// </summary>
+    internal int? DiscardedMaxDegreeOfParallelism { get; private set; }
+
+    /// <summary>
+    /// GH-3712. Does this endpoint's mode ignore <see cref="MaxDegreeOfParallelism"/> outright? Used by the
+    /// diagnostics output so an ignored setting is never displayed as though it were live.
+    /// </summary>
+    internal bool ModeIgnoresParallelism => Mode == EndpointMode.Inline;
+
+    /// <summary>
+    /// GH-3712. Render <see cref="MaxDegreeOfParallelism"/> for diagnostics, saying "n/a" rather than
+    /// printing a dead number for a mode that never reads it.
+    /// </summary>
+    internal string DescribeMaxDegreeOfParallelism()
+    {
+        return ModeIgnoresParallelism ? $"n/a ({Mode})" : MaxDegreeOfParallelism.ToString();
+    }
+
     /// <summary>
     /// If specified, directs this endpoint to use by GroupId sharding in processing.
-    /// Only impacts Buffered or Durable endpoints though.
+    /// Only impacts Buffered or Durable endpoints though -- an Inline endpoint has no execution block
+    /// to shard, so Wolverine rejects that combination at bootstrap rather than silently dropping the
+    /// grouping semantics. See GH-3712.
     /// </summary>
     public PartitionSlots? GroupShardingSlotNumber { get; set; }
 
@@ -262,10 +310,27 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public EndpointRole Role { get; internal set; }
 
     /// <summary>
-    ///     Local message buffering limits and restart thresholds for back pressure mechanics
+    ///     Local message buffering limits and restart thresholds for back pressure mechanics.
+    ///     Inert on an <see cref="EndpointMode.Inline"/> endpoint, which never builds a
+    ///     <c>BackPressureAgent</c> -- see <see cref="ShouldEnforceBackPressure"/> and GH-3712.
     /// </summary>
     [ChildDescription]
-    public BufferingLimits BufferingLimits { get; set; } = new(1000, 500);
+    public BufferingLimits BufferingLimits
+    {
+        get => _bufferingLimits;
+        set
+        {
+            _bufferingLimits = value;
+
+            // GH-3712, same rationale as MaxDegreeOfParallelismIsExplicit
+            BufferingLimitsAreExplicit = true;
+        }
+    }
+
+    /// <summary>
+    /// GH-3712. Has anything actually assigned <see cref="BufferingLimits"/>?
+    /// </summary>
+    internal bool BufferingLimitsAreExplicit { get; private set; }
 
     /// <summary>
     ///     If present, adds a circuit breaker to the active listening agent
@@ -556,7 +621,30 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             }
         }
 
+        normalizeForMode();
+
         _hasCompiled = true;
+    }
+
+    /// <summary>
+    /// GH-3712. Converge the endpoint on one state per mode regardless of the order the fluent calls were
+    /// made in. <c>ProcessInline()</c> used to clamp MaxDegreeOfParallelism eagerly, which meant
+    /// <c>.MaximumParallelMessages(20).ProcessInline()</c> and <c>.ProcessInline().MaximumParallelMessages(20)</c>
+    /// ended with different endpoint state for the same two calls. Doing it here -- after endpoint policies and
+    /// all delayed configuration have run -- makes the final mode, not the call sequence, decide.
+    /// </summary>
+    private void normalizeForMode()
+    {
+        if (Mode != EndpointMode.Inline) return;
+
+        if (MaxDegreeOfParallelismIsExplicit && _maxDegreeOfParallelism > 1)
+        {
+            DiscardedMaxDegreeOfParallelism = _maxDegreeOfParallelism;
+        }
+
+        // Assign the backing field directly so the "was explicitly set" flag still reflects
+        // the *user's* intent rather than this normalization.
+        _maxDegreeOfParallelism = 1;
     }
 
     private IWireTap? ResolveWireTap(IWolverineRuntime runtime)

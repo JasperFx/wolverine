@@ -64,7 +64,10 @@ Use the `Inline` mode if you care about message ordering or if you do not want g
 without having to use any kind of message persistence.
 
 To improve throughput, you can direct Wolverine to use a number of parallel listeners, but the default is
-just 1 per listening endpoint.
+just 1 per listening endpoint. Note that `ListenerCount()` — and *not* `MaximumParallelMessages()` — is the
+throughput knob for an `Inline` endpoint, because an `Inline` endpoint has no local execution block for
+`MaximumParallelMessages()` to size. See [Which settings apply in which mode](#which-settings-apply-in-which-mode)
+below.
 
 ### Processing Inline While Draining
 
@@ -178,6 +181,61 @@ Or set a global default for all listening endpoints using a policy:
 ```csharp
 opts.Policies.AllListeners(x => x.MaximumParallelMessages = 5);
 ```
+
+## Which settings apply in which mode
+
+Several listener settings only mean something for a mode that has a *local execution block* — the in-memory
+queue that `BufferedInMemory` and `Durable` endpoints put between the transport listener and your handlers.
+An `Inline` endpoint has no such block: it executes each message directly on the transport's listening
+callback. Settings that size or shard that block therefore do nothing on an `Inline` endpoint.
+
+| Setting | `Inline` | `BufferedInMemory` | `Durable` |
+| --- | --- | --- | --- |
+| `MaximumParallelMessages(n)` / `Sequential()` | ignored (warns) | ✔️ | ✔️ |
+| `PartitionProcessingByGroupId(slots)` | **throws at startup** | ✔️ | ✔️ |
+| `BufferedInMemory(limits)` / `UseDurableInbox(limits)` back pressure | ignored (warns) | ✔️ | ✔️ |
+| `ListenerCount(n)` | ✔️ | ✔️ | ✔️ |
+| `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ |
+| `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ |
+| `CircuitBreaker()` | ✔️ | ✔️ | ✔️ |
+
+As of Wolverine 6.30, these combinations are no longer silently accepted:
+
+* `ProcessInline()` together with `PartitionProcessingByGroupId()` throws an
+  `InvalidListenerConfigurationException` at bootstrap. Partitioned processing is a *guarantee* — messages
+  sharing a group id never run concurrently — and an `Inline` endpoint cannot make it, so failing to start
+  is preferable to quietly not honoring it.
+* `ProcessInline()` together with an explicit parallelism or `BufferingLimits` logs a warning at startup, and
+  Wolverine normalizes `MaxDegreeOfParallelism` to 1.
+
+That normalization also removes an order dependency: `.MaximumParallelMessages(20).ProcessInline()` and
+`.ProcessInline().MaximumParallelMessages(20)` now leave the endpoint in exactly the same state. The
+`wolverine describe` and `wolverine diagnose` listener tables likewise print `n/a (Inline)` for parallelism
+rather than a number the endpoint never reads.
+
+How many messages an `Inline` listener actually handles at once is up to the transport's own listener — for
+example RabbitMQ's `ConsumerDispatchConcurrency` — plus `ListenerCount()`.
+
+::: warning
+This most often bites with a [partitioned messaging topology](/guide/messaging/partitioning) on RabbitMQ,
+because RabbitMQ queues are `Inline` by default. A topology built with `PublishToShardedRabbitQueues()` sets
+the group id slots on its listeners, so unless you also opt those listeners into a mode that can honor them
+Wolverine will now refuse to start:
+
+```csharp
+opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
+{
+    topology.MessagesImplementing<ILetterMessage>();
+    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
+
+    // Required -- RabbitMQ queues are Inline by default, and an Inline
+    // listener cannot honor the group id ordering guarantee
+    topology.ConfigureListening(x => x.BufferedInMemory());
+});
+```
+
+Before this check that configuration started cleanly and simply did not partition anything.
+:::
 
 ## Strictly Ordered Listeners <Badge type="tip" text="2.3" />
 

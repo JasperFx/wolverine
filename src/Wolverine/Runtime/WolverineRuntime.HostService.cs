@@ -596,6 +596,12 @@ public partial class WolverineRuntime
             }
         }
 
+        // GH-3712. Say out loud when a listening endpoint's mode ignores the settings it was given --
+        // most importantly Inline together with PartitionProcessingByGroupId(), which silently dropped
+        // the group id ordering guarantee. Runs even when the external transports are stubbed, so a
+        // test host surfaces the same misconfiguration a deployed one would.
+        validateListenerConfiguration();
+
         if (!Options.ExternalTransportsAreStubbed)
         {
             await Endpoints.StartListenersAsync();
@@ -604,6 +610,26 @@ public partial class WolverineRuntime
         {
             Logger.LogInformation("All external endpoint listeners are disabled because of configuration");
         }
+    }
+
+    /// <summary>
+    /// GH-3712. Compile every listening endpoint and check its settings against its mode. Compilation has to
+    /// happen first, because endpoint policies and delayed configuration are what settle the final mode --
+    /// and it is idempotent, so the later StartListenerAsync() call is unaffected.
+    /// </summary>
+    private void validateListenerConfiguration()
+    {
+        var listeners = Options.Transports
+            .SelectMany(x => x.Endpoints())
+            .Where(x => x.IsListener || x is LocalQueue)
+            .ToArray();
+
+        foreach (var endpoint in listeners)
+        {
+            endpoint.Compile(this);
+        }
+
+        ListenerConfigurationValidator.AssertValid(listeners, Logger);
     }
 
     /// <summary>
