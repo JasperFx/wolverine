@@ -401,6 +401,17 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// tenant id
     /// </summary>
     public virtual string? TenantId { get; set; }
+
+    /// <summary>
+    ///     The name of the external system on the other end of this endpoint — "Stripe", "Legacy ERP" —
+    ///     when a listener receives from, or a sender publishes to, something outside this application.
+    ///     Optional and purely descriptive (GH-3989): the <em>edge</em> of an Event Modeling translation
+    ///     slice is derived from the endpoint itself, but the name is the one thing code cannot say, so it
+    ///     is declared here and flows out through <c>EndpointDescriptor.ExternalSystem</c> and onto the
+    ///     slice as an external-system element. Set with <c>.ExternalSystem("Stripe")</c> on the listener
+    ///     or subscriber configuration.
+    /// </summary>
+    public string? ExternalSystemName { get; set; }
     
     internal IEnumerable<IEnvelopeRule> RulesForIncoming()
     {

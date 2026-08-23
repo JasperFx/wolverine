@@ -15,6 +15,15 @@ public interface IEndpointConfiguration<T>
     T Named(string name);
 
     /// <summary>
+    ///     Name the external system on the other end of this endpoint — "Stripe", "Legacy ERP" — when it
+    ///     listens to, or publishes to, something outside this application (GH-3989). Descriptive only:
+    ///     it flows out through the endpoint's capabilities descriptor and onto the Event Model as an
+    ///     external-system element on the translation slice this endpoint triggers or feeds.
+    /// </summary>
+    /// <param name="name">Display name of the external system.</param>
+    T ExternalSystem(string name);
+
+    /// <summary>
     ///     Override the default serializer for this endpoint
     /// </summary>
     /// <param name="serializer"></param>

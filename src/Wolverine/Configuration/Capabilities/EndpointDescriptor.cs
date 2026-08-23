@@ -43,16 +43,27 @@ public class EndpointDescriptor : OptionsDescription
         Mode = endpoint.Mode;
         IsListener = endpoint.IsListener;
         DeadLetterStorage = endpoint.DeadLetterStorage;
+        ExternalSystem = endpoint.ExternalSystemName;
 
         // Mode and IsListener are now first-class typed fields (GH-3009); DeadLetterStorage is
         // likewise a typed field (GH-3104). Drop the generic OptionsDescription rows the base ctor
         // reflected off the Endpoint so we don't ship them twice — CritterWatch reads the typed
         // fields at the service-overview level, and Properties is becoming lazy-fetchable downstream.
         Properties.RemoveAll(x =>
-            x.Name is nameof(Endpoint.Mode) or nameof(Endpoint.IsListener) or nameof(Endpoint.DeadLetterStorage));
+            x.Name is nameof(Endpoint.Mode) or nameof(Endpoint.IsListener) or nameof(Endpoint.DeadLetterStorage)
+                or nameof(Endpoint.ExternalSystemName));
     }
 
     public Uri Uri { get; set; } = null!;
+
+    /// <summary>
+    /// The name of the external system on the other end of this endpoint — "Stripe", "Legacy ERP" —
+    /// when the application declared one with <c>.ExternalSystem("...")</c> on the listener or subscriber
+    /// configuration (GH-3989). Null when none was declared. Lifted from
+    /// <see cref="Endpoint.ExternalSystemName"/> into a first-class typed field so the Event Model can attach
+    /// the external-system element to the slice this endpoint triggers or feeds.
+    /// </summary>
+    public string? ExternalSystem { get; init; }
 
     /// <summary>
     /// Human-readable description of the transport type (e.g., "RabbitMQ Queue", "Local Queue", "Kafka Topic")
