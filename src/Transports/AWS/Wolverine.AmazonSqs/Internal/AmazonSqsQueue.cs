@@ -202,6 +202,46 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     public TimeSpan DeleteMessageBatchTimeout { get; set; } = TimeSpan.FromMilliseconds(50);
 
     /// <summary>
+    ///     Hard Amazon SQS limit on how long a single received message can be kept invisible, measured
+    ///     from its receipt, across any number of <c>ChangeMessageVisibility</c> calls.
+    /// </summary>
+    public static readonly TimeSpan MaximumSqsVisibilityExtension = TimeSpan.FromHours(12);
+
+    /// <summary>
+    ///     GH-4019. For an <c>Inline</c> listener only: keep the messages of a received batch invisible
+    ///     by extending their visibility timeout (<c>ChangeMessageVisibilityBatch</c>, every half
+    ///     <see cref="VisibilityTimeout" />) until each is settled. Wolverine otherwise sets the
+    ///     visibility once on receive and an inline listener handles the batch one message at a time,
+    ///     so a batch whose handlers collectively outlive the timeout has its later messages redelivered
+    ///     -- and executed again -- while they are still being handled. Costs nothing for a batch that
+    ///     finishes inside half the timeout. Ignored for Buffered and Durable endpoints, which delete the
+    ///     message before the handler runs. Default false.
+    /// </summary>
+    public bool ExtendVisibilityWhileHandling { get; set; }
+
+    private TimeSpan _maximumVisibilityExtension = MaximumSqsVisibilityExtension;
+
+    /// <summary>
+    ///     The longest a single message is kept invisible from its receipt by
+    ///     <see cref="ExtendVisibilityWhileHandling" /> before Wolverine stops extending it and lets SQS
+    ///     redeliver. Bounded above by the SQS limit of 12 hours. Default 12 hours.
+    /// </summary>
+    public TimeSpan MaximumVisibilityExtension
+    {
+        get => _maximumVisibilityExtension;
+        set
+        {
+            if (value <= TimeSpan.Zero || value > MaximumSqsVisibilityExtension)
+            {
+                throw new ArgumentOutOfRangeException(nameof(MaximumVisibilityExtension),
+                    $"Must be greater than zero and no more than {MaximumSqsVisibilityExtension}");
+            }
+
+            _maximumVisibilityExtension = value;
+        }
+    }
+
+    /// <summary>
     ///     Additional configuration for how an SQS queue should be created
     /// </summary>
     [ChildDescription]
@@ -706,6 +746,10 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         sibling.MessageAttributeNames = MessageAttributeNames;
         sibling.FragmentOversizedMessages = FragmentOversizedMessages;
         sibling.FragmentReassemblyTimeout = FragmentReassemblyTimeout;
+        sibling.DeleteMessageBatchSize = DeleteMessageBatchSize;
+        sibling.DeleteMessageBatchTimeout = DeleteMessageBatchTimeout;
+        sibling.ExtendVisibilityWhileHandling = ExtendVisibilityWhileHandling;
+        sibling.MaximumVisibilityExtension = MaximumVisibilityExtension;
 
         // Share the interop mapper strategy so tenant traffic serializes identically to the shared account.
         sibling.Mapper = Mapper;

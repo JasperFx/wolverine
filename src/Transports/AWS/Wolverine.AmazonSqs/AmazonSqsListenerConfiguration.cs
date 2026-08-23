@@ -102,6 +102,35 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     }
 
     /// <summary>
+    ///     For an inline (<c>ProcessInline()</c>) listener: keep the messages of each received batch
+    ///     invisible to other consumers by extending their visibility timeout while they wait for, and
+    ///     run through, their handlers. Without this, Wolverine sets the visibility timeout once on
+    ///     receive, and an inline listener handles a batch one message at a time -- so a batch whose
+    ///     handlers collectively take longer than the timeout has its later messages redelivered and
+    ///     executed a second time while the first execution is still running. Extension calls are only
+    ///     made when a batch is still in flight at half the visibility timeout, so fast handlers pay
+    ///     nothing. Has no effect on Buffered or Durable listeners, which delete the message before the
+    ///     handler runs. See GH-4019.
+    /// </summary>
+    /// <param name="maximum">
+    ///     Longest any single message is kept invisible from its receipt before Wolverine stops
+    ///     extending it. Defaults to, and cannot exceed, the SQS limit of 12 hours
+    /// </param>
+    public AmazonSqsListenerConfiguration ExtendVisibilityWhileHandling(TimeSpan? maximum = null)
+    {
+        add(e =>
+        {
+            e.ExtendVisibilityWhileHandling = true;
+            if (maximum.HasValue)
+            {
+                e.MaximumVisibilityExtension = maximum.Value;
+            }
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Split a message whose body would exceed SQS's hard 256KB limit into several SQS messages, and
     ///     reassemble it on the receiving side. A listener reassembles fragments whether or not this is
     ///     set -- the framing is self-describing -- so this only really matters on the sending side and
