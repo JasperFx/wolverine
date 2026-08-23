@@ -95,9 +95,9 @@ await host.StartAsync();
 
 ::: warning
 Wolverine's inline listener acknowledges, defers, and dead letters messages against the message lock, so it
-requires the peek-lock receive model. The `ReceiveMode` you set in `ConfigureProcessor()` is therefore
-ignored and always re-asserted to `ServiceBusReceiveMode.PeekLock`. All other `ServiceBusProcessorOptions`
-properties are honored. Session-based listeners (`RequireSessions()`) do not use a `ServiceBusProcessor` and
+requires the peek-lock receive model and settles every message itself. The `ReceiveMode` and
+`AutoCompleteMessages` you set in `ConfigureProcessor()` are therefore ignored and always re-asserted to
+`ServiceBusReceiveMode.PeekLock` and `false`. All other `ServiceBusProcessorOptions` properties are honored. Session-based listeners (`RequireSessions()`) do not use a `ServiceBusProcessor` and
 are not affected by this option.
 :::
 

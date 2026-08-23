@@ -72,6 +72,31 @@ public class configuring_processor_options
     }
 
     [Fact]
+    public void build_processor_options_turns_off_auto_complete_by_default()
+    {
+        var transport = new AzureServiceBusTransport();
+        var queue = transport.Queues["incoming"];
+
+        // GH-4018: the SDK default is true, which lets the processor complete a message that
+        // Wolverine failed to settle on the first attempt -- a dead letter whose first try threw
+        // is then completed behind the retry's back and is neither dead lettered nor redelivered.
+        AzureServiceBusTransport.BuildProcessorOptions(queue).AutoCompleteMessages.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void build_processor_options_reasserts_auto_complete_off_over_user_configuration()
+    {
+        var transport = new AzureServiceBusTransport();
+        var queue = transport.Queues["incoming"];
+        queue.ConfigureProcessor = o => o.AutoCompleteMessages = true;
+
+        var options = AzureServiceBusTransport.BuildProcessorOptions(queue);
+
+        // Same contract as the session processor path and as ReceiveMode: Wolverine owns settlement
+        options.AutoCompleteMessages.ShouldBeFalse();
+    }
+
+    [Fact]
     public void build_processor_options_is_valid_when_no_action_is_configured()
     {
         var transport = new AzureServiceBusTransport();
@@ -81,5 +106,6 @@ public class configuring_processor_options
 
         options.ShouldNotBeNull();
         options.ReceiveMode.ShouldBe(ServiceBusReceiveMode.PeekLock);
+        options.AutoCompleteMessages.ShouldBeFalse();
     }
 }

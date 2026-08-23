@@ -70,8 +70,8 @@ public class
     ///     listener when running in the inline (<c>ProcessInline()</c>) mode. This is the way to raise
     ///     <see cref="ServiceBusProcessorOptions.MaxAutoLockRenewalDuration" /> for inline handlers that
     ///     run longer than the Azure SDK's default of five minutes. Wolverine reserves control of the
-    ///     properties it depends on for message acknowledgement (currently <c>ReceiveMode</c>), which are
-    ///     re-asserted after this action runs.
+    ///     properties it depends on for message acknowledgement (<c>ReceiveMode</c> and
+    ///     <c>AutoCompleteMessages</c>), which are re-asserted after this action runs.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
