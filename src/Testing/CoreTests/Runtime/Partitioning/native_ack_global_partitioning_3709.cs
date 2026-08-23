@@ -134,10 +134,19 @@ public class native_ack_global_partitioning_3709
         // guard from GH-3708 is replaced, not deleted.
         var topology = new GlobalPartitionedMessageTopology(_options);
 
-        var ex = Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.NativeAck));
+        var nativeAck = Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.NativeAck));
+        var inline = Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.Inline));
 
-        ex.Message.ShouldContain("companion local queue");
-        ex.Message.ShouldContain(nameof(GlobalPartitionedMessageTopology.ProcessInParallelWithNativeAcks));
+        nativeAck.ParamName.ShouldBe("mode");
+        nativeAck.Message.ShouldContain(nameof(EndpointMode.NativeAck));
+        nativeAck.Message.ShouldContain(nameof(GlobalPartitionedMessageTopology.ProcessInParallelWithNativeAcks));
+
+        // Deliberately NOT asserting on shared prose such as "companion local queue" -- that phrase is in
+        // the Inline rejection too, so an assertion on it would still pass if NativeAck fell through to the
+        // Inline guard and the mode-specific message were lost. Comparing the two is the check that bites.
+        // (Shouldly's ShouldContain is case-insensitive, so ShouldNotContain("Inline") would trip on any
+        // lowercase "inline" in the prose -- inequality is the robust form.)
+        nativeAck.Message.ShouldNotBe(inline.Message);
     }
 
     [Fact]
