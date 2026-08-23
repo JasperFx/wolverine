@@ -61,6 +61,13 @@ was measured at roughly **10% slower** and rejected (GH-3492).
 - **Buffered**: messages are acked **as soon as they are buffered in memory**, before handling —
   an ungraceful shutdown loses whatever was buffered (at-most-once on crash). Fastest mode;
   use with idempotent handlers or tolerable-loss workloads.
+- **NativeAck** <Badge type="tip" text="6.30" />: the delivery is held **unacknowledged** while the message
+  flows through an in-memory, optionally group-partitioned execution block, and is acked only when the handler
+  succeeds. Buffered's throughput and partitioning with Inline's no-loss behaviour, and no database. Configure
+  with `.ProcessInParallelWithNativeAcks()`; see
+  [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints). This is the mode to reach for when
+  Inline is too slow *because* it is single-threaded per listener and Durable is too expensive under a flood.
+  RabbitMQ is the first transport to support it, and per-message acks (below) are exactly why it can.
 - **Durable**: each message is written to the database inbox before it is acked, and handled
   from there. The consumer coalesces prefetched deliveries for up to 5ms into a single batched
   inbox insert (up to `MaximumMessagesToReceive`, default 100), so under load the write cost is
@@ -75,8 +82,15 @@ was measured at roughly **10% slower** and rejected (GH-3492).
 ## Prefetch
 
 Wolverine sets the channel prefetch (`basic.qos`) automatically: for Buffered/Durable endpoints
-it defaults to `2 × MaximumParallelMessages`, and for Inline endpoints to 100. Override with
-`.PreFetchCount(...)` on the listener. For Inline endpoints prefetch mostly just hides network
+it defaults to `2 × MaximumParallelMessages`, and for Inline endpoints to 100. For **NativeAck**
+endpoints it covers every lane that can be busy at once — the partition slot count when the endpoint is
+group-partitioned, otherwise `MaximumParallelMessages` — doubled so a lane never starves waiting on the
+next delivery. Override with `.PreFetchCount(...)` on the listener.
+
+For a NativeAck endpoint the prefetch window **is** the back pressure, since nothing is acked until a handler
+succeeds: the broker simply stops delivering once the unacked ceiling is reached. That is also the bound on
+how many deliveries a dying node hands back, so raising it trades smoother throughput for more redelivery
+after a crash or a rolling deploy. For Inline endpoints prefetch mostly just hides network
 latency between messages; for Buffered/Durable it controls how far the broker can run ahead of
 your workers — higher values smooth throughput at the cost of more unacked messages redelivered
 if the node dies.
