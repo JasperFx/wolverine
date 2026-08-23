@@ -35,8 +35,10 @@ public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
 
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishAllMessages().ToRedisStream(streamKey);
+                // GH-4028: Redis-native scheduling (which this test is about) is the Buffered/Inline path
+                // now; a Durable listener schedules through the inbox and needs a message store.
                 opts.ListenToRedisStream(streamKey, groupName)
-                    .UseDurableInbox()
+                    .BufferedInMemory()
                     .StartFromBeginning();
 
                 opts.RateLimitEndpoint(endpointUri, _limit);

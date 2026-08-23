@@ -5,6 +5,7 @@ using Shouldly;
 using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Redis.Internal;
+using Wolverine.Transports;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
@@ -22,7 +23,7 @@ public class DatabaseBackedEndpointTests
     }
 
     [Fact]
-    public async Task redis_endpoint_implements_idatabase_backed_endpoint()
+    public async Task redis_endpoint_is_not_database_backed_and_its_listener_schedules_natively_when_not_durable()
     {
         var streamKey = $"dbe-test-{Guid.NewGuid():N}";
         using var host = await Host.CreateDefaultBuilder()
@@ -38,10 +39,13 @@ public class DatabaseBackedEndpointTests
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
         var endpoint = transport.StreamEndpoint(streamKey);
 
-        // Verify it implements IDatabaseBackedEndpoint
-        endpoint.ShouldBeAssignableTo<IDatabaseBackedEndpoint>();
+        // GH-4028: IDatabaseBackedEndpoint made DurableReceiver skip the inbox INSERT and ACK on receipt,
+        // which is the opposite of what UseDurableInbox() promises. The Redis-native scheduled retry now
+        // lives on the listener, and only for the non-durable modes.
+        endpoint.ShouldNotBeAssignableTo<IDatabaseBackedEndpoint>();
+        typeof(ISupportNativeScheduling).IsAssignableFrom(typeof(RedisStreamListener)).ShouldBeTrue();
 
-        _output.WriteLine("✓ RedisStreamEndpoint implements IDatabaseBackedEndpoint");
+        _output.WriteLine("✓ RedisStreamEndpoint is no longer IDatabaseBackedEndpoint; RedisStreamListener is ISupportNativeScheduling");
     }
 
     [Fact]
@@ -59,7 +63,7 @@ public class DatabaseBackedEndpointTests
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
-        var endpoint = transport.StreamEndpoint(streamKey) as IDatabaseBackedEndpoint;
+        var endpoint = transport.StreamEndpoint(streamKey);
         var database = transport.GetDatabase(database: 0);
         var scheduledKey = transport.StreamEndpoint(streamKey).ScheduledMessagesKey;
 
@@ -123,7 +127,7 @@ public class DatabaseBackedEndpointTests
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
-        var endpoint = transport.StreamEndpoint(streamKey) as IDatabaseBackedEndpoint;
+        var endpoint = transport.StreamEndpoint(streamKey);
         var database = transport.GetDatabase(database: 0);
         var scheduledKey = transport.StreamEndpoint(streamKey).ScheduledMessagesKey;
 
@@ -183,7 +187,7 @@ public class DatabaseBackedEndpointTests
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
-        var endpoint = transport.StreamEndpoint(streamKey) as IDatabaseBackedEndpoint;
+        var endpoint = transport.StreamEndpoint(streamKey);
         var database = transport.GetDatabase(database: 0);
         var scheduledKey = transport.StreamEndpoint(streamKey).ScheduledMessagesKey;
 

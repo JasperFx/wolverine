@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue, IDatabaseBackedEndpoint
+public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue
 {
     private readonly RedisTransport _transport;
 
@@ -402,7 +402,20 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         }
     }
 
-    // IDatabaseBackedEndpoint implementation
+    /// <summary>
+    ///     Park a message in this stream's scheduled sorted set until <see cref="Envelope.ScheduledTime" />,
+    ///     when the listener's polling loop moves it back onto the stream. This is the Redis-native
+    ///     scheduled retry that Buffered and Inline listeners use through
+    ///     <see cref="Wolverine.Transports.ISupportNativeScheduling" /> on <see cref="RedisStreamListener" />.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4028. This endpoint used to implement <c>IDatabaseBackedEndpoint</c> so that DurableReceiver
+    ///     would route scheduled retries here. That marker also told DurableReceiver to skip the inbox INSERT
+    ///     and complete the delivery on receipt -- so "UseDurableInbox()" on a Redis stream ACKed every
+    ///     message before its handler ran and never wrote the inbox at all. A Durable Redis listener now
+    ///     goes through the real inbox like every other transport, including for scheduled retries;
+    ///     Redis-native scheduling is for the non-durable modes.
+    /// </remarks>
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellation)
     {
         try

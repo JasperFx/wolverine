@@ -40,8 +40,11 @@ public class EndToEndRetryTests(ITestOutputHelper output): IAsyncLifetime
                 // Configure routing to our test stream (without SendInline to ensure durable processing)
                 opts.PublishMessage<E2EFailingCommand>().ToRedisStream(_streamKey);
 
+                // GH-4028: the Redis-native scheduled retry (the sorted set this test inspects) is the
+                // non-durable path now. A Durable Redis listener uses the real inbox, including for its
+                // scheduled retries -- see durable_inbox_is_real_4028.
                 opts.ListenToRedisStream(_streamKey, "e2e-retry-group")
-                    .UseDurableInbox() // Use Durable endpoint (for Redis streams BufferedInMemory is default)
+                    .BufferedInMemory()
                     .StartFromBeginning();
 
                 // Configure a retry policy
@@ -73,8 +76,8 @@ public class EndToEndRetryTests(ITestOutputHelper output): IAsyncLifetime
     [Fact]
     public async Task message_with_retry_policy_saves_to_redis_and_retries()
     {
-        _endpoint.Mode.ShouldBe(EndpointMode.Durable, "Endpoint should be in Durable mode for retries to work");
-        _endpoint.ShouldBeAssignableTo<IDatabaseBackedEndpoint>("Endpoint should implement IDatabaseBackedEndpoint");
+        _endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        _endpoint.ShouldNotBeAssignableTo<IDatabaseBackedEndpoint>("GH-4028: that marker skipped the inbox and ACKed on receipt");
 
         _tracker.FailCount = 1; // Fail once, then succeed
 

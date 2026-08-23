@@ -30,11 +30,11 @@ internal static class RedisTransportWithSchedulingSample
                 .SendInline();
 
             opts.ListenToRedisStream("wolverine-messages", "default")
-                .EnableNativeDeadLetterQueue() // Enable DLQ for failed messages
-                .UseDurableInbox(); // Use durable inbox so retry messages are persisted
+                .EnableNativeDeadLetterQueue(); // Enable DLQ for failed messages
 
-            // schedule retry delays
-            // if durable, these will be scheduled natively in Redis
+            // schedule retry delays. On a Buffered (the default) or Inline Redis listener these are
+            // parked natively in Redis, in the stream's scheduled sorted set; a Durable listener
+            // schedules them through its message store's inbox like every other transport
             opts.OnException<Exception>()
                 .ScheduleRetry(
                     TimeSpan.FromSeconds(10),

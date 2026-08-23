@@ -360,6 +360,24 @@ public class OurRedisJsonMapper<TMessage> : EnvelopeMapper<StreamEntry, List<Nam
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L230-L291' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourredisjsonmapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Durable Inbox <Badge type="tip" text="6.30" />
+
+`UseDurableInbox()` on a Redis stream listener means exactly what it means on every other transport:
+each message is written to your configured message store (`PersistMessagesWithPostgresql()` etc.) **before**
+its stream entry is acknowledged, is handled from there, and scheduled retries are parked in the inbox. A
+process crash mid-handler therefore replays the message from the inbox instead of losing it. Because the
+entry is acknowledged as soon as it is durable, the consumer group's pending list stays short regardless of
+how long handlers take.
+
+::: warning
+Before 6.30 the Redis stream endpoint was marked `IDatabaseBackedEndpoint`, which made a "durable" listener
+skip the inbox write entirely and acknowledge the entry **on receipt** — effectively at-most-once on a crash,
+and scheduled retries went to Redis's own scheduled set rather than the inbox. If you were running
+`UseDurableInbox()` on Redis without a message store, that configuration now requires one, the same as for
+RabbitMQ, Kafka or SQS. If what you actually wanted was Redis-native scheduled retries without a database,
+use the default `BufferedInMemory()` (or `ProcessInline()`) listener: those schedule natively in Redis.
+:::
+
 ## Scheduled Messaging <Badge type="tip" text="5.10" />
 
 The Redis transport supports native Redis message scheduling for delayed or scheduled delivery. There's no configuration
