@@ -4,7 +4,7 @@
         <!-- net9.0 only for now: every project using the Npgsql EF provider in this
              repo is net9.0-only until Npgsql.EntityFrameworkCore.PostgreSQL 10 GA
              (the rc pin conflicts with Microsoft.EntityFrameworkCore 10.0.2) -->
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
