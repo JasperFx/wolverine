@@ -378,6 +378,47 @@ RabbitMQ, Kafka or SQS. If what you actually wanted was Redis-native scheduled r
 use the default `BufferedInMemory()` (or `ProcessInline()`) listener: those schedule natively in Redis.
 :::
 
+## Native Acks with Parallel Processing <Badge type="tip" text="6.30" />
+
+Redis stream listeners support `EndpointMode.NativeAck` (see [GH-3708](https://github.com/JasperFx/wolverine/issues/3708)),
+which combines `BufferedInMemory`'s parallelism and group partitioning with `Inline`'s no-loss behavior, and needs no
+database at all:
+
+```csharp
+opts.ListenToRedisStream("webhooks", "webhook-processors")
+    .ProcessInParallelWithNativeAcks()
+    .PartitionProcessingByGroupId(PartitionSlots.Seven)
+
+    // XAUTOCLAIM is what recovers entries a dead node left pending
+    .EnableAutoClaim(period: TimeSpan.FromSeconds(30), minIdle: TimeSpan.FromMinutes(2));
+```
+
+Incoming entries flow through an in-memory (optionally group-partitioned) execution block while the stream entry is
+held **unacknowledged**, and are settled natively — `XACK` on handler success, dead-lettered or requeued on terminal
+failure — from the completion continuation. Redis qualifies for this mode because `XACK` names a single entry id that
+Wolverine carries on the envelope itself, so one delivery can be settled, out of order, from whichever worker thread
+finished it.
+
+The guarantee is exactly the one the mode promises everywhere: **messages sharing a group id never execute
+concurrently**, and nothing is acknowledged until its handler succeeds. Processing in original delivery order is
+*best effort*, not promised — a failed or reclaimed message re-enters its lane later, never concurrently. Use
+`UseDurableInbox()` if you need strict ordering under failure.
+
+Two things to know that are specific to Redis:
+
+* **Recovery of a dead node's entries is opt-in.** Redis does not hand unacknowledged entries back when a connection
+  drops the way RabbitMQ does; they stay in the consumer group's pending entries list until some consumer runs
+  `XAUTOCLAIM`. That means `EnableAutoClaim()`. This is true of `Inline` and `BufferedInMemory` listeners as well.
+* **Size `minIdle` above your slowest lane, not your slowest handler.** This mode holds an entry from the moment it is
+  read until its handler finishes, including time spent queued in a lane. A `minIdle` shorter than the worst-case lane
+  residency lets a consumer re-claim an entry it is still working on, and process it twice.
+
+The read batch size is this transport's prefetch equivalent, and in this mode it defaults to twice the number of lanes
+that can be busy at once — the partition slot count when `PartitionProcessingByGroupId()` is used, otherwise
+`MaximumParallelMessages()` — instead of the usual 10. `BatchSize()` still overrides it. Note that unlike RabbitMQ's
+prefetch, it does not cap how many entries can be unacknowledged: the bounded execution block is what applies back
+pressure, and the consumer loop stops reading once that block is full.
+
 ## Scheduled Messaging <Badge type="tip" text="5.10" />
 
 The Redis transport supports native Redis message scheduling for delayed or scheduled delivery. There's no configuration

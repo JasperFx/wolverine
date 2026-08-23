@@ -62,6 +62,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.MQTT")]
 [assembly: InternalsVisibleTo("Wolverine.Mqtt5")]
 [assembly: InternalsVisibleTo("Wolverine.Redis")]
+[assembly: InternalsVisibleTo("Wolverine.Redis.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.SignalR")]
 [assembly: InternalsVisibleTo("Wolverine.Pubsub")]
 [assembly: InternalsVisibleTo("MetricsTests")]
