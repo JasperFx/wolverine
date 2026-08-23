@@ -105,9 +105,11 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
     /// that can be handled concurrently.
     ///
-    /// Requires a BufferedInMemory or Durable endpoint. Combining this with ProcessInline()
+    /// Requires a BufferedInMemory, Durable, or NativeAck endpoint. Combining this with ProcessInline()
     /// throws at bootstrap, because an Inline endpoint has no local execution block to shard
-    /// and the group id guarantee would silently not exist. See GH-3712.
+    /// and the group id guarantee would silently not exist. See GH-3712. If you want partitioned
+    /// processing together with native broker acks, that is what
+    /// <see cref="ProcessInParallelWithNativeAcks"/> is for -- see GH-3708.
     /// </summary>
     /// <param name="numberOfSlots"></param>
     /// <returns></returns>

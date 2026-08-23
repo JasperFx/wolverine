@@ -63,6 +63,8 @@ internal static class ListenerConfigurationValidator
             yield break;
         }
 
+        // NativeAck reaches none of the checks below and must not: partitioned processing plus real parallelism
+        // is the entire point of that mode. It is Inline -- and only Inline -- that has no execution block.
         var name = describe(endpoint);
 
         if (endpoint is LocalQueue)
@@ -90,8 +92,9 @@ internal static class ListenerConfigurationValidator
                 $"Invalid listener configuration for {name}: PartitionProcessingByGroupId() was configured on an Inline endpoint. " +
                 "Partitioned processing is implemented by Wolverine's local execution block, and an Inline endpoint executes each message " +
                 "directly on the transport's listening callback without one -- so the group id ordering guarantee would silently not exist. " +
-                "Either remove ProcessInline() (partitioned processing requires BufferedInMemory or Durable), or remove " +
-                "PartitionProcessingByGroupId() from this endpoint.");
+                "If you want partitioned processing AND native broker acks, use ProcessInParallelWithNativeAcks() " +
+                "instead of ProcessInline() -- that mode exists for exactly this combination (GH-3708). Otherwise use " +
+                "BufferedInMemory() or UseDurableInbox(), or remove PartitionProcessingByGroupId() from this endpoint.");
         }
 
         if (endpoint.DiscardedMaxDegreeOfParallelism is { } discarded)

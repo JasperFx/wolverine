@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 
 namespace Wolverine.Configuration;
@@ -13,10 +14,18 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
     {
         try
         {
-            // GH-3708: this silently downgrades a NativeAck endpoint to Inline, which drops its partitioning and
-            // parallelism. Correct for Serverless -- there is no long-running process to hold an execution block --
-            // but it should say so out loud once a transport can actually opt into NativeAck. Tracked with the
-            // fluent API work rather than here, because nothing can reach this state yet.
+            // GH-3708. Coercing NativeAck to Inline is correct for Serverless -- there is no long-running process
+            // to hold an execution block -- but it silently drops the endpoint's partitioning and parallelism, and
+            // partitioned processing is a GUARANTEE the user asked for. Say so rather than degrading in silence.
+            if (endpoint.Mode == EndpointMode.NativeAck)
+            {
+                runtime.Logger.LogWarning(
+                    "Endpoint {Uri} was configured with ProcessInParallelWithNativeAcks(), but Serverless mode requires every endpoint to be Inline. "
+                    + "Wolverine has downgraded it, which means its parallelism and any PartitionProcessingByGroupId() grouping no longer apply. "
+                    + "Messages are still settled natively; they are simply processed one at a time on the transport's listening callback.",
+                    endpoint.Uri);
+            }
+
             endpoint.Mode = EndpointMode.Inline;
         }
         catch (Exception e)
