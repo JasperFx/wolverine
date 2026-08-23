@@ -78,6 +78,91 @@ partial class Build
     }
 
     /// <summary>
+    /// GH-3855. Records that a readiness gate had to restart a container before the service came up.
+    ///
+    /// <para>Kept in the ledger rather than only in the job log, because the whole point of the
+    /// restart is that it makes the job PASS. A silent recovery turns a degrading runner or a bad
+    /// image push into invisible latency, and the ledger is the one surface here that diffs a run
+    /// against the previous main run — which is what makes "this started happening" visible at all.
+    /// The same rule the fresh-process retry already states: a pass on a retry is reported as flaky,
+    /// never as clean.</para>
+    ///
+    /// <para>Written as its own entry with zero tests rather than folded into a project's row: this
+    /// happened <i>above</i> the test runner, before a single test existed to attribute it to, and
+    /// inflating CleanPasses/Tests to carry it would corrupt the columns that do mean tests.</para>
+    /// </summary>
+    void recordServiceRestart(string service, string composeService, int attemptsBefore, string lastReason,
+        int attemptsAfter)
+    {
+        var entry = new LedgerEntry
+        {
+            Job = ledgerJobName,
+            // Not a project. Named for what it is so a reader of the raw ledger is not left looking
+            // for a test project by this name -- and kept to characters that are safe in a file
+            // name, because these two fields compose one. "n/a" for the framework was the first
+            // version of this and its slash sent the write into a directory that does not exist.
+            Project = $"readiness-gate-{composeService}",
+            Framework = "gate",
+            ServiceRestarts =
+            [
+                new ServiceRestart
+                {
+                    Service = service,
+                    ComposeService = composeService,
+                    AttemptsBeforeRestart = attemptsBefore,
+                    AttemptsAfterRestart = attemptsAfter,
+                    Reason = condense(lastReason)
+                }
+            ]
+        };
+
+        writeLedgerFile(entry);
+        appendRestartToStepSummary(entry.ServiceRestarts[0]);
+        annotateRestart(entry.Job, entry.ServiceRestarts[0]);
+    }
+
+    static void appendRestartToStepSummary(ServiceRestart restart)
+    {
+        var summaryFile = Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY");
+        if (string.IsNullOrEmpty(summaryFile)) return;
+
+        try
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine();
+            builder.AppendLine(
+                $"> **Restarted `{restart.ComposeService}`** — {restart.Service} was not ready after " +
+                $"{restart.AttemptsBeforeRestart} attempts, came up {restart.AttemptsAfterRestart} " +
+                $"attempt(s) after a restart. This job is NOT a clean start.");
+
+            if (restart.Reason is not null)
+            {
+                builder.AppendLine("> ");
+                builder.AppendLine($"> Last failure before the restart: `{restart.Reason}`");
+            }
+
+            builder.AppendLine();
+
+            File.AppendAllText(summaryFile, builder.ToString());
+        }
+        catch (Exception e)
+        {
+            Log.Warning(e, "Could not append the {Service} restart to $GITHUB_STEP_SUMMARY", restart.Service);
+        }
+    }
+
+    static void annotateRestart(string job, ServiceRestart restart)
+    {
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return;
+
+        Console.WriteLine(
+            $"::warning title={job}: restarted {restart.ComposeService}::" +
+            $"{restart.Service} was not ready after {restart.AttemptsBeforeRestart} attempts and was " +
+            $"restarted; it came up {restart.AttemptsAfterRestart} attempt(s) later. " +
+            $"Last failure before the restart: {restart.Reason ?? "none recorded"}");
+    }
+
+    /// <summary>
     /// Why a retried test failed the first time.
     ///
     /// <para>The ledger named the flaky test but threw away the reason, and Bobcat's own log keeps
@@ -165,6 +250,24 @@ partial class Build
         return flattened.Length <= limit ? flattened : flattened[..limit] + "…";
     }
 
+    /// <summary>
+    /// Strips anything that cannot appear in a file name. The ledger's name is composed from values
+    /// that are chosen elsewhere, and a stray path separator in one of them does not fail loudly —
+    /// <see cref="writeLedgerFile"/> catches, warns and carries on by design, so the ledger simply
+    /// goes missing and the roll-up reports the job as unmeasured. Cheaper to make that unreachable.
+    /// </summary>
+    static string fileNameSafe(string name)
+    {
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(invalid, '-');
+        }
+
+        // Not invalid, but a file name with spaces in it is a nuisance in every shell that later
+        // touches the artifact.
+        return name.Replace(' ', '-');
+    }
+
     static void writeLedgerFile(LedgerEntry entry)
     {
         try
@@ -173,7 +276,7 @@ partial class Build
 
             // One file per project+framework: a target can run several projects, and a project can
             // run under several TFMs, so neither alone is a unique key.
-            var fileName = $"{entry.Job}.{entry.Project}.{entry.Framework}.json";
+            var fileName = fileNameSafe($"{entry.Job}.{entry.Project}.{entry.Framework}.json");
             var path = LedgerDirectory / fileName;
 
             File.WriteAllText(path, JsonSerializer.Serialize(entry, LedgerJson));
@@ -306,6 +409,32 @@ partial class Build
         /// working against ledgers written by older runs.
         /// </summary>
         public FlakyFailure[] FlakyFailures { get; init; } = [];
+
+        /// <summary>
+        /// Containers a readiness gate had to restart before the service came up. Additive and
+        /// defaulted for the same reason as <see cref="FlakyFailures"/>: the roll-up's baseline is
+        /// downloaded from an EARLIER run's artifact, so the jq that reads this must survive a
+        /// ledger written before the field existed. See GH-3855.
+        /// </summary>
+        public ServiceRestart[] ServiceRestarts { get; init; } = [];
+    }
+
+    /// <summary>
+    /// One container a readiness gate restarted. See <see cref="recordServiceRestart"/>.
+    /// </summary>
+    class ServiceRestart
+    {
+        /// <summary>Display name of the service, e.g. "SQL Server".</summary>
+        public string Service { get; init; }
+
+        /// <summary>Its docker compose service name, e.g. "sqlserver".</summary>
+        public string ComposeService { get; init; }
+
+        public int AttemptsBeforeRestart { get; init; }
+        public int AttemptsAfterRestart { get; init; }
+
+        /// <summary>The gate's last failure reason before the restart, flattened to one line.</summary>
+        public string Reason { get; init; }
     }
 
     /// <summary>

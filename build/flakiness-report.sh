@@ -63,11 +63,15 @@ jq '[group_by(.Job)[] | {
       failed:        (map(.Failed)           | add),
       indeterminate: (map(.Indeterminate)    | add),
       flakyTests:    (map(.FlakyTests[])     | unique),
-      flakyFailures: (map(.FlakyFailures // [] | .[]) | unique)
+      flakyFailures: (map(.FlakyFailures // [] | .[]) | unique),
+      serviceRestarts: (map(.ServiceRestarts // [] | .[]))
     }] | sort_by(-.retries, .job)' \
   "${output_dir}/entries.json" > "${output_dir}/aggregate.json"
 
 total_retries=$(jq '[.[] | .retries] | add // 0' "${output_dir}/aggregate.json")
+# GH-3855. A readiness gate that restarted a wedged container and then succeeded makes the job PASS,
+# so without this the recovery is invisible and a degrading runner reads as clean.
+total_restarts=$(jq '[.[] | (.serviceRestarts // []) | length] | add // 0' "${output_dir}/aggregate.json")
 total_tests=$(jq '[.[] | .tests] | add // 0' "${output_dir}/aggregate.json")
 reporting_jobs=$(jq 'length' "${output_dir}/aggregate.json")
 
@@ -100,8 +104,12 @@ else
 fi
 
 baseline_retries=""
+baseline_restarts=""
 if [ -n "${baseline_file}" ]; then
   baseline_retries=$(jq '[.[] | .retries] | add // 0' "${baseline_file}")
+  # `// []` is load-bearing: the baseline comes from an EARLIER run's artifact, which may predate
+  # the field entirely. Without it one older baseline nulls the whole roll-up.
+  baseline_restarts=$(jq '[.[] | (.serviceRestarts // []) | length] | add // 0' "${baseline_file}")
 fi
 
 # ── Jobs that reported nothing ──────────────────────────────────────────────
@@ -176,6 +184,20 @@ delta_for() {
     echo
   fi
 
+  if [ "${total_restarts}" != "0" ]; then
+    echo "> **Containers restarted by a readiness gate: ${total_restarts}** (baseline: ${baseline_restarts:-—})"
+    echo ">"
+    echo "> A service did not come up within its budget, was restarted, and came up on the second"
+    echo "> try. The job passed, so nothing else here would say so. Treat it as recovered, not clean."
+    echo ">"
+    jq -r '.[] | . as $j | (.serviceRestarts // [])[]
+           | "> - **\($j.job)** restarted `\(.ComposeService)` — \(.Service) not ready after "
+             + "\(.AttemptsBeforeRestart) attempts, up \(.AttemptsAfterRestart) attempt(s) after the "
+             + "restart\(if .Reason then ". Last failure: `\(.Reason)`" else "" end)"' \
+      "${output_dir}/aggregate.json"
+    echo
+  fi
+
   if [ "${total_retries}" = "0" ] && [ "$(jq '[.[] | select(.failed > 0 or .indeterminate > 0)] | length' "${output_dir}/aggregate.json")" = "0" ]; then
     echo "No job spent a retry."
   else
@@ -218,6 +240,6 @@ delta_for() {
 } >> "${summary}"
 
 # Also on stdout, so the roll-up is greppable from `gh run view --log` the way the per-job lines are.
-echo "=== flakiness roll-up: ${total_retries} retries, baseline ${baseline_retries:-none} (run ${baseline_run:-none}) ==="
+echo "=== flakiness roll-up: ${total_retries} retries, ${total_restarts} container restarts, baseline ${baseline_retries:-none} (run ${baseline_run:-none}) ==="
 
 exit 0

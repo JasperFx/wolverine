@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using Bobcat.Supervisor;
@@ -137,7 +138,8 @@ partial class Build
     }
 
     /// <summary>
-    /// Polls until a service reports itself ready, and <b>throws</b> when the budget runs out.
+    /// Polls until a service reports itself ready. When the budget runs out it restarts the container
+    /// and probes once more; a service that fails to serve twice <b>throws</b> and kills the job.
     ///
     /// <para>Every gate in this file used to log a warning and carry on. That is how
     /// <c>CIAzureServiceBus</c> spent 22 of its 25-retry budget on four consecutive <i>green</i> main
@@ -149,13 +151,73 @@ partial class Build
     ///
     /// <para>A container that never starts should fail its job in seconds with a message naming the
     /// service, not hand the whole suite to a broker that cannot serve it.</para>
+    ///
+    /// <para>GH-3855 added the restart. The cost is the worst case: a service that is genuinely dead
+    /// now burns twice its budget plus a restart before the job dies, so a budget here is a number
+    /// that gets doubled. That is deliberate — these gates are fatal on purpose, there are many of
+    /// them across the matrix, and an occurrence that costs a rerun and teaches nothing is the more
+    /// expensive of the two.</para>
     /// </summary>
+    /// <param name="composeService">
+    /// The docker compose service name (e.g. <c>sqlserver</c>), which is what the evidence dump and
+    /// the restart address. Deliberately separate from the display name: "SQL Server" is what a
+    /// reader of the log wants and <c>sqlserver</c> is what compose answers to.
+    /// </param>
     /// <param name="probe">
     /// Returns null when the service is ready, or a short reason why it is not. Exceptions are
     /// treated as "not ready" and their message becomes the reason, so the final error carries the
     /// last real failure rather than a generic timeout.
     /// </param>
-    void awaitService(string name, TimeSpan budget, Func<string> probe)
+    void awaitService(string name, string composeService, TimeSpan budget, Func<string> probe)
+    {
+        var first = pollForReadiness(name, budget, probe);
+        if (first.Ready) return;
+
+        // GH-3855. A gate that expires is not necessarily a gate whose budget was too small. Measured
+        // across seven consecutive passing CIPersistence runs, SQL Server was ready on attempt 4, in
+        // 28-35s, every time -- 4x headroom against this same 2 minute budget. The run that failed
+        // burned all 61 attempts and never came up, which is a different failure, not a slower one:
+        // its container took the full 10s SIGTERM grace period to die at teardown, so it was alive
+        // and wedged rather than dead. Widening the budget fixes nothing there; restarting it might.
+        //
+        // The evidence dump comes FIRST, before the restart destroys the container's own account of
+        // why it never initialized. That account was missing entirely from the run that prompted
+        // this, which is why all that could be established was circumstantial.
+        captureServiceEvidence(name, composeService, "before restart");
+        restartService(name, composeService);
+
+        var second = pollForReadiness(name, budget, probe);
+        if (!second.Ready)
+        {
+            // Twice is a real signal rather than a wedge, so this is the throw the job dies on --
+            // now with two attempts' worth of evidence attached to it.
+            captureServiceEvidence(name, composeService, "after restart");
+
+            throw new InvalidOperationException(
+                $"{name} was not ready after {budget.TotalSeconds:n0}s ({first.Attempts} attempts), " +
+                $"was restarted, and was still not ready after a further {budget.TotalSeconds:n0}s " +
+                $"({second.Attempts} attempts). " +
+                $"Last attempt before the restart: {first.LastReason} " +
+                $"Last attempt after it: {second.LastReason}");
+        }
+
+        // Recorded, never reported as clean -- the same rule RetryFailuresInFreshProcess already
+        // states. A silent restart would convert a degrading runner or a bad image push into
+        // invisible latency, so this lands in the retry ledger where the roll-up diffs it against
+        // the previous main run and a trend becomes visible.
+        Log.Warning(
+            "{Service} was not ready after {Budget}s ({Attempts} attempts), but came up after a restart. " +
+            "This is recorded in the retry ledger, NOT treated as a clean start",
+            name, budget.TotalSeconds, first.Attempts);
+
+        recordServiceRestart(name, composeService, first.Attempts, first.LastReason, second.Attempts);
+    }
+
+    /// <summary>
+    /// One pass of the polling loop: returns rather than throws, so <see cref="awaitService"/> owns
+    /// what an expired budget means.
+    /// </summary>
+    static ReadinessResult pollForReadiness(string name, TimeSpan budget, Func<string> probe)
     {
         var deadline = DateTime.UtcNow.Add(budget);
         var lastReason = "no attempt completed";
@@ -171,7 +233,7 @@ partial class Build
                 if (reason is null)
                 {
                     Log.Information("{Service} is up and ready (attempt {Attempts})", name, attempts);
-                    return;
+                    return new ReadinessResult(true, attempts, null);
                 }
 
                 lastReason = reason;
@@ -181,14 +243,98 @@ partial class Build
                 lastReason = e.Message;
             }
 
-            if (DateTime.UtcNow >= deadline) break;
+            if (DateTime.UtcNow >= deadline) return new ReadinessResult(false, attempts, lastReason);
 
             Thread.Sleep(2000);
         }
+    }
 
-        throw new InvalidOperationException(
-            $"{name} was not ready after {budget.TotalSeconds:n0}s ({attempts} attempts). " +
-            $"Last attempt: {lastReason}");
+    record ReadinessResult(bool Ready, int Attempts, string LastReason);
+
+    /// <summary>
+    /// Dumps what the container itself has to say about why it never came up: <c>compose ps</c> for
+    /// its state, its own logs, and the host's free memory.
+    ///
+    /// <para>None of this existed on the failure path before GH-3855, so a wedged container took its
+    /// explanation with it -- memory pressure, a bad layer and a genuine startup fault all look
+    /// identical from outside. Best effort throughout: reporting on the failure must never replace
+    /// the failure, or the job dies with a worse message than the one it already had.</para>
+    /// </summary>
+    void captureServiceEvidence(string name, string composeService, string moment)
+    {
+        var grouped = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+        if (grouped) Console.WriteLine($"::group::{name} readiness evidence ({moment})");
+
+        try
+        {
+            runDiagnostic(composeTool(), $"compose ps {composeService}");
+            runDiagnostic(composeTool(), $"compose logs --tail=200 {composeService}");
+
+            // Linux-only, and the runner is the only place this matters -- a developer machine has
+            // no OOM killer story worth telling here.
+            if (File.Exists("/usr/bin/free")) runDiagnostic("free", "-m");
+        }
+        finally
+        {
+            if (grouped) Console.WriteLine("::endgroup::");
+        }
+    }
+
+    /// <summary>
+    /// Restarts a single compose service. Failure here is deliberately not fatal: the throw that
+    /// matters is the second readiness failure, and it carries a far better message than "docker
+    /// compose restart exited 1" would.
+    /// </summary>
+    void restartService(string name, string composeService)
+    {
+        Log.Warning("Restarting the {Service} container ({ComposeService}) and probing once more", name, composeService);
+        runDiagnostic(composeTool(), $"compose restart {composeService}");
+    }
+
+    /// <summary>
+    /// Runs a diagnostic command, logging whatever it produced. Never throws -- see
+    /// <see cref="captureServiceEvidence"/>.
+    /// </summary>
+    static void runDiagnostic(string tool, string arguments)
+    {
+        try
+        {
+            var process = ProcessTasks
+                .StartProcess(tool, arguments, logOutput: false, logInvocation: false)
+                .AssertWaitForExit();
+
+            var output = string.Join(Environment.NewLine, process.Output.Select(x => x.Text));
+
+            Log.Information("$ {Tool} {Arguments} (exit {ExitCode}){NewLine}{Output}",
+                tool, arguments, process.ExitCode, Environment.NewLine, output);
+        }
+        catch (Exception e)
+        {
+            Log.Warning("Could not run `{Tool} {Arguments}`: {Message}", tool, arguments, e.Message);
+        }
+    }
+
+    /// <summary>
+    /// docker, or podman where that is what is installed. Same resolution <see cref="ComposeUp"/>
+    /// uses, so the evidence and restart paths cannot end up talking to a different daemon than the
+    /// one that started the container.
+    /// </summary>
+    static string composeTool()
+    {
+        bool isAvailable(string toolName)
+        {
+            try
+            {
+                ToolPathResolver.GetPathExecutable(toolName);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
+        return new List<string> { "docker", "podman" }.FirstOrDefault(isAvailable) ?? "docker";
     }
 
     /// <summary>
@@ -209,7 +355,7 @@ partial class Build
         // checking that something is listening — the distinction the ASB gate was built on.
         using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-        awaitService("GCP Pub/Sub emulator", TimeSpan.FromSeconds(60), () =>
+        awaitService("GCP Pub/Sub emulator", "gcp-pubsub", TimeSpan.FromSeconds(60), () =>
         {
             var response = http.GetAsync("http://localhost:8085/").GetAwaiter().GetResult();
 
@@ -235,7 +381,7 @@ partial class Build
     {
         using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-        awaitService("Pulsar", TimeSpan.FromMinutes(3), () =>
+        awaitService("Pulsar", "pulsar", TimeSpan.FromMinutes(3), () =>
         {
             // /admin/v2/brokers/health is the broker's own readiness answer, not merely "something
             // is listening on 8080" — it stays unavailable while the standalone cluster boots.
@@ -281,7 +427,7 @@ partial class Build
             .SetErrorHandler((_, _) => { })
             .Build();
 
-        awaitService("Kafka", TimeSpan.FromSeconds(60), () =>
+        awaitService("Kafka", "kafka", TimeSpan.FromSeconds(60), () =>
         {
             // Throws until the broker will actually serve; awaitService turns that into the reason.
             var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5));
@@ -298,7 +444,7 @@ partial class Build
         // was never true: each failed attempt could burn the connection's own 5s timeout before the
         // 2s sleep, so 30 attempts was anywhere from 60s to 210s depending on how the failure came
         // back. A deadline says what it means.
-        awaitService("SQL Server", TimeSpan.FromMinutes(2), () =>
+        awaitService("SQL Server", "sqlserver", TimeSpan.FromMinutes(2), () =>
         {
             using var conn = new Microsoft.Data.SqlClient.SqlConnection(
                 "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;Encrypt=False");
@@ -312,7 +458,7 @@ partial class Build
 
     void WaitForMySqlToBeReady()
     {
-        awaitService("MySQL", TimeSpan.FromMinutes(2), () =>
+        awaitService("MySQL", "mysql", TimeSpan.FromMinutes(2), () =>
         {
             using var conn = new MySqlConnector.MySqlConnection(
                 "Server=localhost;Port=3306;Database=wolverine;User=root;Password=P@55w0rd;");
@@ -330,7 +476,7 @@ partial class Build
         // budget. Connecting as the application user against FREEPDB1 (rather than pinging the
         // listener) is deliberate: the listener answers well before the pluggable database will
         // accept an application login.
-        awaitService("Oracle", TimeSpan.FromMinutes(3), () =>
+        awaitService("Oracle", "oracle", TimeSpan.FromMinutes(3), () =>
         {
             using var conn = new Oracle.ManagedDataAccess.Client.OracleConnection(
                 "User Id=wolverine;Password=wolverine;Data Source=localhost:1521/FREEPDB1");
@@ -346,7 +492,7 @@ partial class Build
     {
         using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 
-        awaitService("LocalStack", TimeSpan.FromMinutes(2), () =>
+        awaitService("LocalStack", "localstack", TimeSpan.FromMinutes(2), () =>
         {
             var response = httpClient.GetAsync("http://localhost:4566/_localstack/health")
                 .GetAwaiter().GetResult();
@@ -387,7 +533,7 @@ partial class Build
         // and carry on, so an emulator that never came up at all still fed the entire suite into a
         // broker that could not serve it — and the resulting failures read as flaky tests rather than
         // as infrastructure that never started.
-        awaitService("Azure Service Bus emulator", TimeSpan.FromMinutes(3), () =>
+        awaitService("Azure Service Bus emulator", "asb-emulator", TimeSpan.FromMinutes(3), () =>
         {
             using (var tcpClient = new System.Net.Sockets.TcpClient())
             {
