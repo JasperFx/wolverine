@@ -162,8 +162,15 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
 
     public async ValueTask StopAsync()
     {
-        await _cancellation.CancelAsync();
+        // Stop new deliveries FIRST -- disposing the subscriber ends the consume loop and flushes the
+        // durable batching window into the inbox -- while this listener's cancellation token is still
+        // live, so the acks for everything just persisted still go out. Cancelling first made the
+        // _complete RetryBlock silently drop every ack issued during the drain, and each dropped ack
+        // became a JetStream redelivery (and a duplicate inbox insert) AckWait later, counting against
+        // the consumer's MaxAckPending the whole time -- a back-pressure pause starved the restarted
+        // listener of deliveries for the full AckWait. See GH-4026.
         await _subscriber.DisposeAsync();
+        await _cancellation.CancelAsync();
     }
 
     public void Dispose()
@@ -176,8 +183,9 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
     {
         if (!_cancellation.IsCancellationRequested)
         {
-            await _cancellation.CancelAsync();
+            // Same ordering as StopAsync: no new deliveries, drain, then cancel
             await _subscriber.DisposeAsync();
+            await _cancellation.CancelAsync();
         }
 
         _complete.Dispose();
