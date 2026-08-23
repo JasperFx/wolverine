@@ -108,10 +108,11 @@ public class sharded_execution_parallel_deserialization
         });
 
         // runtime/channel are only touched on the non-NullContinuation path, which these
-        // stubbed deserializations never take
+        // stubbed deserializations never take. The cast disambiguates the single-channel
+        // overload from the GH-4010 per-envelope resolver -- a bare null fits both
         var block = parallelism.HasValue
-            ? sharded.DeserializeFirst(pipeline, null!, null!, parallelism.Value)
-            : sharded.DeserializeFirst(pipeline, null!, null!);
+            ? sharded.DeserializeFirst(pipeline, null!, (Wolverine.Transports.IChannelCallback)null!, parallelism.Value)
+            : sharded.DeserializeFirst(pipeline, null!, (Wolverine.Transports.IChannelCallback)null!);
 
         // Posting sequentially from one thread is what DEFINES the arrival order the
         // sharded structure promises to preserve per group
@@ -343,7 +344,7 @@ public class sharded_execution_parallel_deserialization
             received.GetOrAdd(coffee.Name, _ => new List<int>()).Add(coffee.Sequence);
         });
 
-        var block = sharded.DeserializeFirst(pipeline, null!, null!, 8);
+        var block = sharded.DeserializeFirst(pipeline, null!, (Wolverine.Transports.IChannelCallback)null!, 8);
 
         foreach (var envelope in envelopes)
         {

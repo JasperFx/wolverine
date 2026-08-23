@@ -58,9 +58,34 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel)
     {
+        return DeserializeFirst(pipeline, runtime, _ => channel);
+    }
+
+    /// <summary>
+    /// GH-4010. Resolves the <see cref="IChannelCallback"/> to settle against <em>per envelope</em>
+    /// rather than capturing a single one for the lifetime of the block.
+    ///
+    /// The channel is only consulted on the deserialization-FAILURE path, where the envelope never
+    /// reaches the handler pipeline and the continuation (dead-letter, discard) has to settle the
+    /// delivery itself. Receivers that ack at receipt (<c>BufferedReceiver</c>) or against an inbox
+    /// row (<c>DurableReceiver</c>) pass themselves and are unaffected -- the single-channel overload
+    /// above delegates here. A receiver whose settlement rides the delivery's own transport channel
+    /// passes <c>e =&gt; e.Listener!</c> instead: capturing one channel would leave a poison payload
+    /// dead-lettered but never settled (a silent stall until the connection drops, then an infinite
+    /// redelivery loop), and with <c>ListenerCount &gt; 1</c> there is no single correct listener to
+    /// capture in the first place.
+    /// </summary>
+    public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime,
+        Func<Envelope, IChannelCallback> channelSource)
+    {
         // Deserialize parallelism beyond the slot count buys nothing (the slots become the
         // bottleneck again), and going wider than the machine can't help CPU-bound decompression
-        return DeserializeFirst(pipeline, runtime, channel, Math.Min(_numberOfSlots, Environment.ProcessorCount));
+        return DeserializeFirst(pipeline, runtime, channelSource, Math.Min(_numberOfSlots, Environment.ProcessorCount));
+    }
+
+    public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel, int parallelism)
+    {
+        return DeserializeFirst(pipeline, runtime, _ => channel, parallelism);
     }
 
     /// <summary>
@@ -88,7 +113,8 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
     /// ordered emission; posting to the multi-worker exempt lane never blocks emission any harder
     /// than posting to a slot does (same bounded-channel back pressure).
     /// </summary>
-    public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel, int parallelism)
+    public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime,
+        Func<Envelope, IChannelCallback> channelSource, int parallelism)
     {
         async Task<Envelope?> deserializeAsync(Envelope e)
         {
@@ -99,7 +125,7 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
             }
 
             var envelopeLifecycle = new MessageContext(runtime);
-            envelopeLifecycle.ReadEnvelope(e, channel);
+            envelopeLifecycle.ReadEnvelope(e, channelSource(e));
             await continuation.ExecuteAsync(envelopeLifecycle, runtime, DateTimeOffset.UtcNow, Activity.Current);
 
             return null;
