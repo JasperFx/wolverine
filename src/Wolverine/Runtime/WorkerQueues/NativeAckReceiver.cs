@@ -42,6 +42,15 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
     private readonly ILogger _logger;
     private readonly IBlock<Envelope> _receivingBlock;
     private readonly DurabilitySettings _settings;
+
+    /// <summary>
+    /// GH-3710. Null unless the endpoint opted in with WithInMemoryIdempotency(), which is what makes the
+    /// guard zero-cost by default: one null check per delivery and nothing else. Owned by the endpoint rather
+    /// than by this receiver, so its contents survive the receiver rebuilds -- back pressure recovery, listener
+    /// restart -- that are themselves a source of redeliveries.
+    /// </summary>
+    private readonly IIncomingIdempotencyGuard? _idempotency;
+
     private bool _latched;
 
     public NativeAckReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
@@ -50,6 +59,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<NativeAckReceiver>();
         _settings = runtime.DurabilitySettings;
+        _idempotency = endpoint.IdempotencyGuard;
         Pipeline = pipeline;
 
         // Guard against a listener-less envelope reaching either retry block -- env.Listener is null for the
@@ -143,6 +153,21 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
             return;
         }
 
+        // GH-3710. Ack-and-drop a redelivery of something this process already handled (or is handling right
+        // now), which is exactly what DurableReceiver.handleDuplicateIncomingEnvelope does when the inbox
+        // INSERT hits the primary key -- minus the database. Debug rather than Error, unlike the durable path:
+        // in a mode that never settles on receipt, redelivery after a rolling deploy is expected operational
+        // noise rather than a sign that something went wrong.
+        if (_idempotency != null && !_idempotency.TryBeginProcessing(envelope))
+        {
+            _logger.LogDebug(
+                "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
+                envelope.Id, envelope.MessageType, Uri);
+
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
 
         // NOTE the absence of a _completeBlock.PostAsync here. That single line is what separates this mode
@@ -157,7 +182,9 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
         if (_latched && envelope.Listener != null)
         {
             // Latched before this one started: hand it straight back to the broker instead of holding an
-            // unacked delivery that nothing is going to process.
+            // unacked delivery that nothing is going to process. The broker WILL redeliver it, so the guard
+            // has to forget the id or the redelivery would be dropped as a duplicate of a message that never ran.
+            _idempotency?.Release(envelope);
             await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             return;
         }
@@ -171,6 +198,13 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
 
             // The channel is the LISTENER, which is what makes every terminal settle natively.
             await Pipeline.InvokeAsync(envelope, channelFor(envelope)).ConfigureAwait(false);
+
+            // GH-3710. Envelope.HasBeenAcked is the precise question the guard needs answered: was this
+            // delivery settled in a way the broker will not undo? Success acks it through
+            // MessageContext.CompleteAsync, and so does a native dead-letter move. A requeue or a nack does
+            // NOT set it, and those are the cases where remembering the id would turn a retry into a lost
+            // message -- so anything else releases.
+            recordOutcome(envelope);
         }
         catch (Exception e)
         {
@@ -184,8 +218,11 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
                 // rung, and a faulted block never recovers. Swallow: the message fails, the listener survives.
             }
 
-            // The pipeline did not settle it, so the broker still owns it. Nack rather than leaving the
-            // delivery dangling until the connection drops.
+            // The pipeline did not settle it, so the broker still owns it and will redeliver. Nack rather
+            // than leaving the delivery dangling until the connection drops, and forget the id so the
+            // redelivery is allowed to run.
+            _idempotency?.Release(envelope);
+
             try
             {
                 await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
@@ -194,6 +231,20 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
             {
                 _logger.LogError(ex, "Error trying to defer envelope {EnvelopeId} back to the broker", envelope.Id);
             }
+        }
+    }
+
+    private void recordOutcome(Envelope envelope)
+    {
+        if (_idempotency == null) return;
+
+        if (envelope.HasBeenAcked)
+        {
+            _idempotency.MarkProcessed(envelope);
+        }
+        else
+        {
+            _idempotency.Release(envelope);
         }
     }
 

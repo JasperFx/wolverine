@@ -14,6 +14,7 @@ using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -427,6 +428,23 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
     }
 
+    /// <summary>
+    /// GH-3710. When set, this listening endpoint drops -- and immediately settles -- a redelivery of a
+    /// message id it has already seen within the configured window. Opt in with
+    /// <c>IListenerConfiguration.WithInMemoryIdempotency()</c>; null means the guard does not exist for this
+    /// endpoint and costs nothing. Inert on a <see cref="EndpointMode.Durable"/> endpoint, whose inbox
+    /// already deduplicates by primary key.
+    /// </summary>
+    public InMemoryIdempotencySettings? InMemoryIdempotency { get; internal set; }
+
+    /// <summary>
+    /// GH-3710. Built once in <see cref="Compile"/> and deliberately owned by the ENDPOINT rather than the
+    /// receiver: a receiver is rebuilt on back pressure recovery and on every listener restart, and those are
+    /// precisely the moments that produce redeliveries. A guard scoped to the receiver would forget its
+    /// contents at the one instant it is most needed.
+    /// </summary>
+    internal IIncomingIdempotencyGuard? IdempotencyGuard { get; private set; }
+
     public RoutingMode RoutingType { get; set; } = RoutingMode.Static;
 
 
@@ -669,6 +687,16 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
 
         normalizeForMode();
+
+        // GH-3710. Durable endpoints deduplicate through the inbox's primary key, so a second, weaker
+        // in-memory guard in front of it would only add memory. ListenerConfigurationValidator says so in
+        // the log rather than leaving it silently inert.
+        if (InMemoryIdempotency != null && IdempotencyGuard == null && Mode != EndpointMode.Durable &&
+            this is not Transports.Local.LocalQueue)
+        {
+            IdempotencyGuard =
+                new GenerationalIdempotencyGuard(InMemoryIdempotency, runtime.DurabilitySettings.MessageIdentity);
+        }
 
         _hasCompiled = true;
     }

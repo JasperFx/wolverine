@@ -5,6 +5,7 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 
@@ -437,6 +438,46 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         }
 
         add(e => e.Mode = EndpointMode.NativeAck);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// GH-3710. Remember the message ids this process has already handled on this endpoint, and drop --
+    /// after settling -- any redelivery of one within the window. This is the non-durable analogue of the
+    /// durable inbox's duplicate detection: same outcome (ack the duplicate, never execute it), no database.
+    ///
+    /// <para>
+    /// Chiefly for <see cref="ProcessInParallelWithNativeAcks"/>, which is at-least-once by design and
+    /// deliberately produces a burst of redeliveries -- bounded by the broker's prefetch depth -- on every
+    /// rolling deploy. Also valid on <see cref="BufferedInMemory()"/> and <see cref="ProcessInline"/>.
+    /// Inert on <see cref="UseDurableInbox()"/>, whose inbox primary key already does this properly.
+    /// </para>
+    ///
+    /// <para>
+    /// The guard is per-process and in memory, and the docs say so out loud: a restart forgets every id it
+    /// ever saw, and a sibling node -- or the new owner after an exclusive-listener failover -- starts empty.
+    /// The promise is "at-least-once with best-effort dedup", not exactly-once. Where the broker has a real
+    /// dedup window (NATS JetStream's <c>Nats-Msg-Id</c>, SQS FIFO's <c>MessageDeduplicationId</c>, Pub/Sub's
+    /// <c>deduplication-id</c>), prefer that.
+    /// </para>
+    /// </summary>
+    /// <param name="window">How long a handled message id is remembered. Defaults to 5 minutes.</param>
+    /// <param name="maxTracked">Ceiling on remembered ids. Defaults to 100,000.</param>
+    public TSelf WithInMemoryIdempotency(TimeSpan? window = null, int? maxTracked = null)
+    {
+        if (_endpoint is LocalQueue)
+        {
+            throw new NotSupportedException(
+                $"Wolverine cannot use the {nameof(WithInMemoryIdempotency)} option for local queues. The guard "
+                + "deduplicates redeliveries from a message broker, and a local queue has no broker to redeliver "
+                + "anything -- messages reach it from inside this same process.");
+        }
+
+        var settings = new InMemoryIdempotencySettings();
+        if (window.HasValue) settings.Window = window.Value;
+        if (maxTracked.HasValue) settings.MaxTracked = maxTracked.Value;
+
+        add(e => e.InMemoryIdempotency = settings);
         return this.As<TSelf>();
     }
 
