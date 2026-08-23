@@ -366,6 +366,24 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L14-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_partitioned_processing_on_any_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip Partitioned processing without the database <Badge type="tip" text="6.30" />
+The example above uses the listener's default mode. Note what each mode costs you here:
+
+* **Durable** gives you no-loss partitioned processing, but every message pays an inbox insert and a
+  mark-as-handled update.
+* **BufferedInMemory** removes the database cost, but acknowledges each message to the broker *before* the
+  handler runs — so a node that dies mid-flight loses whatever was buffered.
+* **`ProcessInParallelWithNativeAcks()`** gives you partitioned processing with neither cost: the broker
+  delivery is held unacknowledged until the handler succeeds, so a dying node loses nothing and no database is
+  involved. See [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints).
+* **`ProcessInline()`** cannot do partitioned processing at all, and Wolverine now **throws at startup** rather
+  than silently ignoring `PartitionProcessingByGroupId()` on an inline endpoint.
+
+The ordering guarantee is the same in every mode that supports it: messages sharing a group id never execute
+concurrently. Strict processing in original delivery order is *not* promised under failure or redelivery in any
+non-durable mode.
+:::
+
 ## Exempting Message Types from Partitioned Processing <Badge type="tip" text="6.26" />
 
 `PartitionProcessingByGroupId()` routes **every** message on the listener through a GroupId-keyed slot. That's
