@@ -57,16 +57,8 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         var stickyEndpoints = new Dictionary<string, HashSet<Uri>>(StringComparer.Ordinal);
         var knownTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
 
-        void describe(HandlerChain chain)
+        foreach (var chain in DescribedChains(options))
         {
-            if (chain.MessageType.IsSystemMessageType()) return;
-
-            // sticky handlers live on per-endpoint sub-chains, so walk those whether or not the
-            // parent chain has a default handler of its own
-            foreach (var sticky in chain.ByEndpoint) describe(sticky);
-
-            if (chain.Handlers.Count == 0) return;
-
             var slice = EventModelRoles.ForHandlerChain(chain);
             slices.Add(slice);
 
@@ -95,15 +87,36 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             }
         }
 
-        foreach (var chain in options.HandlerGraph.Chains.OrderBy(x => x.MessageType.FullName, StringComparer.Ordinal))
-        {
-            describe(chain);
-        }
-
         var model = new EventModelDescriptor(options.ServiceName, slices) { Aggregates = aggregates };
         model = ApplyGrpcTriggers(model, grpc);
         model = ApplyExternalSystems(model, options, stickyEndpoints, knownTypes, includeInbound: true);
         return FinishModel(model);
+    }
+
+    /// <summary>
+    ///     Every handler chain that gets a slice, in the order the model lists them: sticky per-endpoint
+    ///     sub-chains ahead of the parent chain they hang off, whole graph ordered by message type. Shared
+    ///     with <see cref="ForGrpcEndpoint" /> so a slice attached to one route is the same slice, chosen the
+    ///     same way, as the one the assembled model carries.
+    /// </summary>
+    internal static IEnumerable<HandlerChain> DescribedChains(WolverineOptions options)
+        => options.HandlerGraph.Chains
+            .OrderBy(x => x.MessageType.FullName, StringComparer.Ordinal)
+            .SelectMany(describedChains);
+
+    private static IEnumerable<HandlerChain> describedChains(HandlerChain chain)
+    {
+        if (chain.MessageType.IsSystemMessageType()) yield break;
+
+        // sticky handlers live on per-endpoint sub-chains, so walk those whether or not the
+        // parent chain has a default handler of its own
+        foreach (var sticky in chain.ByEndpoint)
+        foreach (var described in describedChains(sticky))
+        {
+            yield return described;
+        }
+
+        if (chain.Handlers.Count > 0) yield return chain;
     }
 
     /// <summary>
@@ -250,44 +263,75 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         var slices = model.Slices.ToList();
         foreach (var endpoint in grpc.Endpoints.OrderBy(x => x.ServiceName + "::" + x.MethodName, StringComparer.Ordinal))
         {
-            var origin = new PublisherOrigin
-            {
-                GrpcService = endpoint.ServiceName,
-                GrpcMethod = endpoint.MethodName,
-                Label = $"{endpoint.ServiceName}/{endpoint.MethodName}"
-            };
+            var origin = GrpcOriginFor(endpoint);
 
             var index = slices.FindIndex(x => x.CommandType?.FullName == endpoint.RequestType.FullName);
             if (index >= 0)
             {
-                var existing = slices[index];
-                slices[index] = existing with
-                {
-                    TriggerKind = TriggerKind.Grpc,
-                    TriggerOrigin = existing.TriggerOrigin ?? origin
-                };
+                slices[index] = withGrpcTrigger(slices[index], origin);
             }
             else
             {
-                slices.Add(new EventModelSliceDescriptor(
-                    endpoint.RequestType.Name,
-                    origin.Label,
-                    null,
-                    JasperFx.Descriptors.TypeDescriptor.For(endpoint.RequestType),
-                    null,
-                    Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
-                    Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
-                    Array.Empty<JasperFx.Descriptors.TypeDescriptor>())
-                {
-                    Pattern = SlicePattern.Command,
-                    TriggerKind = TriggerKind.Grpc,
-                    TriggerOrigin = origin
-                });
+                slices.Add(grpcTriggerOnlySlice(endpoint, origin));
             }
         }
 
         return model with { Slices = slices };
     }
+
+    /// <summary>
+    ///     GH-4000: the Event Model slice for one gRPC RPC, so the descriptor for that RPC can carry the
+    ///     slice next to the method rather than leaving a consumer to find it in the assembled model. The
+    ///     RPC forwards its request to the bus, so the slice is the <em>forwarded message's</em> slice with
+    ///     the RPC stamped on as its trigger — or, when nothing in this process handles that message, the
+    ///     trigger-only slice the assembled model would carry for it.
+    /// </summary>
+    /// <param name="endpoint">The discovered RPC.</param>
+    /// <param name="options">The Wolverine options, so the forwarded message's handler chain can be found. Null yields the trigger-only slice.</param>
+    public static EventModelSliceDescriptor ForGrpcEndpoint(GrpcEndpointDescriptor endpoint, WolverineOptions? options)
+    {
+        var origin = GrpcOriginFor(endpoint);
+
+        // the same chain, chosen the same way, that Describe() would have turned into the slice
+        // ApplyGrpcTriggers then stamps: first match in model order wins
+        var chain = options is null
+            ? null
+            : DescribedChains(options).FirstOrDefault(x => x.MessageType.FullName == endpoint.RequestType.FullName);
+
+        return chain is null
+            ? grpcTriggerOnlySlice(endpoint, origin)
+            : withGrpcTrigger(EventModelRoles.ForHandlerChain(chain), origin);
+    }
+
+    internal static PublisherOrigin GrpcOriginFor(GrpcEndpointDescriptor endpoint) => new()
+    {
+        GrpcService = endpoint.ServiceName,
+        GrpcMethod = endpoint.MethodName,
+        Label = $"{endpoint.ServiceName}/{endpoint.MethodName}"
+    };
+
+    private static EventModelSliceDescriptor withGrpcTrigger(EventModelSliceDescriptor slice, PublisherOrigin origin)
+        => slice with
+        {
+            TriggerKind = TriggerKind.Grpc,
+            TriggerOrigin = slice.TriggerOrigin ?? origin
+        };
+
+    private static EventModelSliceDescriptor grpcTriggerOnlySlice(GrpcEndpointDescriptor endpoint, PublisherOrigin origin)
+        => new(
+            endpoint.RequestType.Name,
+            origin.Label,
+            null,
+            JasperFx.Descriptors.TypeDescriptor.For(endpoint.RequestType),
+            null,
+            Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
+            Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
+            Array.Empty<JasperFx.Descriptors.TypeDescriptor>())
+        {
+            Pattern = SlicePattern.Command,
+            TriggerKind = TriggerKind.Grpc,
+            TriggerOrigin = origin
+        };
 
     /// <summary>
     ///     Model-wide derivations that need every slice at once: a slice whose command is an event some
