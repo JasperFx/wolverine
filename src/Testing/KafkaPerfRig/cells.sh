@@ -73,6 +73,11 @@ run_cell max-buffered       wolverine $MAX
 run_cell max-native         native    $MAX
 run_cell max-durable        wolverine $MAX RIG_MODE=durable
 
+# GH-4026: one KafkaTopicGroup consumer over both topics. -group-1 pins MaximumMessagesToReceive=1,
+# which is exactly the pre-GH-4026 topic-group path (one record per inbox insert); -group is the drain.
+run_cell max-durable-group-1 wolverine $MAX RIG_MODE=durable RIG_KAFKA_TOPIC_GROUP=1 RIG_MAX_RECEIVE=1
+run_cell max-durable-group   wolverine $MAX RIG_MODE=durable RIG_KAFKA_TOPIC_GROUP=1
+
 echo ""
 echo "[cells] sweep complete. Summaries:"
 for f in rig-results/*/*-summary.json; do

@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -73,28 +74,18 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
         try
         {
-            var message = result.Message;
-
-            // Seed the offset watermark in consume (in-order) order so out-of-order handler completion can never
-            // commit past this still-in-flight offset (GH-3161).
-            _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
-
-            var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result.Topic, message);
-            envelope.TopicName = result.Topic;
-            envelope.Offset = result.Offset.Value;
-            envelope.PartitionId = result.Partition.Value;
-
-            if (_endpoint.GroupByMessageKey)
+            // GH-4026: the same durable micro-batching KafkaListener has had since GH-3490. A durable topic
+            // group used to hand the inbox one envelope per record -- one INSERT round trip each -- while
+            // the single-topic listener drained up to MaximumMessagesToReceive already-fetched records into
+            // one batched insert. Topic groups have no retry tiers, so the only gate is the mode.
+            if (_endpoint.Mode == EndpointMode.Durable && _endpoint.MaximumMessagesToReceive > 1)
             {
-                // GH-3140: shard by-key processing on the Kafka message key.
-                envelope.GroupId = message.Key;
+                await consumeManyAsync(result);
             }
-            else if (_endpoint.StampConsumerGroupIdOnEnvelope)
+            else
             {
-                envelope.GroupId = Config.GroupId;
+                await consumeSingleAsync(result);
             }
-
-            await _receiver.ReceivedAsync(this, envelope);
         }
         catch (OperationCanceledException)
         {
@@ -109,6 +100,89 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
         }
 
         return true;
+    }
+
+    private async Task consumeSingleAsync(ConsumeResult<string, byte[]> result)
+    {
+        // Seed the offset watermark in consume (in-order) order so out-of-order handler completion can never
+        // commit past this still-in-flight offset (GH-3161).
+        _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
+
+        var envelope = buildEnvelope(result);
+        await _receiver.ReceivedAsync(this, envelope);
+    }
+
+    private async Task consumeManyAsync(ConsumeResult<string, byte[]> first)
+    {
+        var envelopes = new List<Envelope>(Math.Min(_endpoint.MaximumMessagesToReceive, 32));
+        var current = first;
+
+        while (true)
+        {
+            // Track in consume order BEFORE dispatch so the watermark can never commit past an
+            // in-flight record (GH-3161), poison pills included.
+            _committer.Track(current.Topic, current.Partition.Value, current.Offset.Value);
+
+            try
+            {
+                envelopes.Add(buildEnvelope(current));
+            }
+            catch (Exception e)
+            {
+                // Poison pill mid-batch: advance past its offset, keep the rest of the batch.
+                _committer.Complete(current.Topic, current.Partition.Value, current.Offset.Value);
+                _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+            }
+
+            if (envelopes.Count >= _endpoint.MaximumMessagesToReceive)
+            {
+                break;
+            }
+
+            // Zero-timeout poll: only drains records librdkafka already holds locally — never
+            // waits on the broker, so a quiet topic still processes each record immediately.
+            var next = _consumer.Consume(TimeSpan.Zero);
+            if (next == null)
+            {
+                break;
+            }
+
+            current = next;
+        }
+
+        switch (envelopes.Count)
+        {
+            case 0:
+                return;
+            case 1:
+                await _receiver.ReceivedAsync(this, envelopes[0]);
+                return;
+            default:
+                await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                return;
+        }
+    }
+
+    private Envelope buildEnvelope(ConsumeResult<string, byte[]> result)
+    {
+        var message = result.Message;
+
+        var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result.Topic, message);
+        envelope.TopicName = result.Topic;
+        envelope.Offset = result.Offset.Value;
+        envelope.PartitionId = result.Partition.Value;
+
+        if (_endpoint.GroupByMessageKey)
+        {
+            // GH-3140: shard by-key processing on the Kafka message key.
+            envelope.GroupId = message.Key;
+        }
+        else if (_endpoint.StampConsumerGroupIdOnEnvelope)
+        {
+            envelope.GroupId = Config.GroupId;
+        }
+
+        return envelope;
     }
 
     public ConsumerConfig Config { get; }

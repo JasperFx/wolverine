@@ -11,6 +11,23 @@ public class NatsListenerConfiguration
         : base(endpoint) { }
 
     /// <summary>
+    /// For a Durable JetStream listener: the most consumed messages the subscriber coalesces (for at
+    /// most 5ms) into one batched inbox insert instead of one insert per message -- the same knob the
+    /// RabbitMQ and Kafka listeners have. 1 reverts to strict message-at-a-time persistence. Ignored
+    /// for Buffered/Inline endpoints and for core NATS. Default 100. See GH-4026.
+    /// </summary>
+    public NatsListenerConfiguration MaximumMessagesToReceive(int maximum)
+    {
+        if (maximum < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Must be at least 1");
+        }
+
+        add(e => e.MaximumMessagesToReceive = maximum);
+        return this;
+    }
+
+    /// <summary>
     /// Use JetStream for durable messaging
     /// </summary>
     public NatsListenerConfiguration UseJetStream(

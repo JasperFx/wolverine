@@ -85,30 +85,42 @@ public static class PublishLoops
             }
 
             // rate < 0 = max-throughput mode: publish as fast as the publisher can sustain.
-            // The consumer-side sustained receive rate is the measurement.
+            // The consumer-side sustained receive rate is the measurement. GH-4026: RIG_PUBLISHERS
+            // runs that many concurrent loops, for transports whose single awaited publish is slow
+            // enough (Pulsar: ~2ms per produce) that one loop can't saturate the consumer.
             if (rate < 0)
             {
-                var sent = 0;
-                while (!cancellation.IsCancellationRequested)
+                var publishers = Math.Max(1, cfg.Publishers);
+                var counts = new int[publishers];
+
+                async Task loopOneAsync(int index)
                 {
-                    var gameId = games[sent % games.Length];
-                    try
+                    var sent = 0;
+                    while (!cancellation.IsCancellationRequested)
                     {
-                        await publish(gameId, sent, Stopwatch.GetTimestamp(), inWarmup());
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
+                        var seq = sent * publishers + index;
+                        var gameId = games[seq % games.Length];
+                        try
+                        {
+                            await publish(gameId, seq, Stopwatch.GetTimestamp(), inWarmup());
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+
+                        sent++;
+                        if (index == 0 && sent % 50_000 == 0)
+                        {
+                            Console.WriteLine($"[rig] published {sent * publishers} (approx, across {publishers} loops)");
+                        }
                     }
 
-                    sent++;
-                    if (sent % 50_000 == 0)
-                    {
-                        Console.WriteLine($"[rig] published {sent}");
-                    }
+                    counts[index] = sent;
                 }
 
-                return sent;
+                await Task.WhenAll(Enumerable.Range(0, publishers).Select(loopOneAsync));
+                return counts.Sum();
             }
 
             var count = 0;

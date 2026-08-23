@@ -52,6 +52,15 @@ public class RigConfig
     // GH-3492 RO6: per-endpoint consumer dispatch concurrency. 0 leaves the transport-wide default.
     public int DispatchConcurrency { get; } = envInt("RIG_DISPATCH_CONCURRENCY", 0);
 
+    // GH-4026: listen to both Kafka topics through ONE KafkaTopicGroup consumer (ListenToKafkaTopics)
+    // instead of one KafkaListener per topic.
+    public bool KafkaTopicGroup { get; } = envInt("RIG_KAFKA_TOPIC_GROUP", 0) == 1;
+
+    // GH-4026: MaximumMessagesToReceive for durable Kafka listeners; 0 leaves the default (100).
+    // 1 is the pre-GH-4026 topic-group behavior (one record per inbox insert), so a cell pair of
+    // RIG_MAX_RECEIVE=1 vs default measures the drain inside one build.
+    public int MaxReceive { get; } = envInt("RIG_MAX_RECEIVE", 0);
+
     // --- RabbitMQ (GH-3492) ---
     public string RabbitUri { get; } = env("RIG_RABBIT_URI", "amqp://guest:guest@localhost:5672");
     public string SmallQueue => $"rig-small-{RunId}";
@@ -59,6 +68,23 @@ public class RigConfig
 
     // native Rabbit twin prefetch; match Wolverine's listener PreFetchCount default of 100
     public ushort RabbitPrefetch { get; } = (ushort)envInt("RIG_RABBIT_PREFETCH", 100);
+
+    // --- NATS JetStream (GH-4026) ---
+    public string NatsUrl { get; } = env("RIG_NATS_URL", "nats://localhost:4222");
+    // Stream names are uppercase identifiers; subjects are dotted. Both suffixed with the run id so every
+    // run starts on a fresh stream + consumers.
+    public string NatsStream => $"RIG_{RunId.ToUpperInvariant().Replace('-', '_')}";
+    public string NatsSubjectPrefix => $"rig.{RunId}";
+    public string NatsSmallSubject => $"{NatsSubjectPrefix}.small";
+    public string NatsLargeSubject => $"{NatsSubjectPrefix}.large";
+
+    // GH-4026: concurrent publish loops in max-throughput mode (rate < 0). 1 = the original single loop.
+    public int Publishers { get; } = envInt("RIG_PUBLISHERS", 1);
+
+    // --- Pulsar (GH-4026) ---
+    public string PulsarUrl { get; } = env("RIG_PULSAR_URL", "pulsar://localhost:6650");
+    public string PulsarSmallTopic => $"persistent://public/default/rig-small-{RunId}";
+    public string PulsarLargeTopic => $"persistent://public/default/rig-large-{RunId}";
 
     private static string env(string key, string fallback)
     {
