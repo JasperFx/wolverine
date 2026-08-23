@@ -25,11 +25,26 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         return exception.Message.Contains(UnknownDeliveryTag);
     }
 
-    internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken)
+    internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken, int maximumAckAttempts)
     {
         Logger = logger;
         Complete = new RetryBlock<RabbitMqEnvelope>(async (e, _) =>
         {
+            // GH-4012: this is the innermost layer -- e.CompleteAsync() is what reaches
+            // BasicAckAsync -- so it owns the increment. Without a budget riding the envelope, this
+            // block's three attempts nested inside DurableReceiver._completeBlock's three meant nine
+            // broker round trips for one delivery, with neither block able to see the other's count.
+            if (!e.TryRecordAckAttempt(maximumAckAttempts))
+            {
+                // Swallowing stops the retry loop. The delivery stays unsettled, the broker
+                // redelivers it, and the durable inbox deduplicates -- the same recovery the
+                // unknown-delivery-tag branch below relies on.
+                logger.LogWarning(
+                    "Giving up on acking Rabbit MQ delivery for envelope {EnvelopeId} after {AckAttempts} attempts; leaving it for broker redelivery",
+                    e.Id, e.AckAttempts);
+                return;
+            }
+
             try
             {
                 await e.CompleteAsync();

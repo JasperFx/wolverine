@@ -145,6 +145,36 @@ public partial class Envelope
     internal bool HasBeenAcked { get; set; }
 
     /// <summary>
+    /// GH-4012. Counts real attempts to settle (ack/nack) this delivery with its broker, shared by
+    /// every retry layer on the completion path so their budgets add rather than multiply. See
+    /// <see cref="DurabilitySettings.MaximumAckAttempts"/>.
+    ///
+    /// Deliberately runtime-only and never persisted: each broker redelivery constructs a brand new
+    /// envelope, so this cannot bound a redeliver -> dedupe -> re-ack loop.
+    /// </summary>
+    [JsonIgnore]
+    internal int AckAttempts { get; set; }
+
+    /// <summary>
+    /// GH-4012. Records one settle attempt against this delivery's shared budget, returning false
+    /// when the budget is already spent.
+    ///
+    /// A false return means "stop trying", NOT "fail": callers swallow rather than throw, because an
+    /// unsettled delivery is the recoverable outcome -- the broker redelivers it and the durable
+    /// inbox deduplicates. Throwing would just feed the enclosing RetryBlock.
+    /// </summary>
+    internal bool TryRecordAckAttempt(int maximumAttempts)
+    {
+        if (AckAttempts >= maximumAttempts)
+        {
+            return false;
+        }
+
+        AckAttempts++;
+        return true;
+    }
+
+    /// <summary>
     /// The active wire tap for this envelope, set from the endpoint configuration
     /// during message receive or send. Used by the message tracker to record
     /// success/failure without coupling the tracking infrastructure to endpoint config.
@@ -552,7 +582,9 @@ public partial class Envelope
         IsResponse = false;
         Failure = null;
         Batch = null;
+        BatchPendingSettled = false;
         HasBeenAcked = false;
+        AckAttempts = 0;
         WireTap = null;
         Store = null;
     }

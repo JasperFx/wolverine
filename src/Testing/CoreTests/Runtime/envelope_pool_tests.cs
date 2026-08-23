@@ -1,10 +1,14 @@
 using System.Reflection;
 using JasperFx.Resources;
+using NSubstitute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using Wolverine.Transports.Sending;
 using Xunit;
 
 namespace CoreTests.Runtime;
@@ -70,6 +74,23 @@ public class envelope_pool_tests
             KeepUntil = DateTimeOffset.UtcNow,
         };
 
+        // Internal settable properties, stamped separately because they can't ride the object
+        // initializer from outside the assembly's public surface. Without these the widened
+        // reflection guard below would pass vacuously -- every one of them would already be at its
+        // default.
+        envelope.ResponseType = typeof(SomeProbeMessage);
+        envelope.Response = new SomeProbeMessage();
+        envelope.InBatch = true;
+        envelope.BatchGroupId = 11;
+        envelope.FromPool = true;
+        envelope.Sender = Substitute.For<ISendingAgent>();
+        envelope.Batch = [new Envelope()];
+        envelope.BatchPendingSettled = true;
+        envelope.HasBeenAcked = true;
+        envelope.AckAttempts = 2;
+        envelope.WireTap = Substitute.For<IWireTap>();
+        envelope.Store = Substitute.For<IMessageStore>();
+
         // Also stamp the Headers dictionary so Reset's _headers = null path
         // is exercised.
         envelope.Headers["k"] = "v";
@@ -99,7 +120,11 @@ public class envelope_pool_tests
             nameof(Envelope.Data),
         };
 
-        foreach (var prop in typeof(Envelope).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        // GH-4012: NonPublic included. The default binding is public-only, which left every
+        // `internal { get; set; }` property on Envelope outside the guard -- and that blind spot was
+        // real, not theoretical: BatchPendingSettled had been missing from Reset since CritterWatch#942.
+        foreach (var prop in typeof(Envelope)
+                     .GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
         {
             if (!prop.CanWrite) continue;
             if (setterValidated.Contains(prop.Name)) continue;

@@ -154,8 +154,27 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
-        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
-            runtime.Cancellation);
+        // GH-4012: the outer half of the shared settle budget. This block only CHECKS -- the
+        // increment happens at the innermost site that actually issues the broker call, because
+        // that is the only layer that knows a round trip really occurred. For a transport whose
+        // listener settles directly (no inner retry block), nothing increments and this guard never
+        // trips, leaving that transport's behavior exactly as it was.
+        var maximumAckAttempts = runtime.DurabilitySettings.MaximumAckAttempts;
+        _completeBlock = new RetryBlock<Envelope>(async (env, _) =>
+        {
+            if (env.AckAttempts >= maximumAckAttempts)
+            {
+                // Swallow rather than throw: retrying here would only re-enter the inner block,
+                // which has already spent the budget. Leaving the delivery unsettled is the
+                // recoverable outcome -- the broker redelivers and the inbox deduplicates.
+                _logger.LogWarning(
+                    "Giving up on settling envelope {EnvelopeId} at {Uri} after {AckAttempts} attempts; leaving it for broker redelivery",
+                    env.Id, Uri, env.AckAttempts);
+                return;
+            }
+
+            await env.Listener!.CompleteAsync(env).ConfigureAwait(false);
+        }, runtime.Logger, runtime.Cancellation);
 
 
         _markAsHandled = new RetryBlock<Envelope>(async (e, _) =>

@@ -115,6 +115,23 @@ public class DurabilitySettings : IDescribeMyself
     public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
 
     /// <summary>
+    /// GH-4012. The maximum number of times Wolverine will try to settle (ack/nack) a single broker
+    /// delivery before giving up and letting the broker redeliver it.
+    ///
+    /// This is a budget shared across the whole completion path via <c>Envelope.AckAttempts</c>,
+    /// which is the point: <c>RetryBlock.MaximumAttempts</c> bounds retries within a single
+    /// <c>PostAsync</c>, but the durable path stacks two of them
+    /// (<c>DurableReceiver._completeBlock</c> -> <c>Listener.CompleteAsync</c> ->
+    /// <c>RabbitMqChannelCallback.Complete</c>), so their budgets multiplied to nine broker round
+    /// trips with neither block able to see the other's count.
+    ///
+    /// Note this cannot bound a redeliver -> dedupe -> re-ack loop: every redelivery constructs a
+    /// brand new envelope, so the counter starts over. Only a broker-side delivery count can do
+    /// that.
+    /// </summary>
+    public int MaximumAckAttempts { get; set; } = 3;
+
+    /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>
