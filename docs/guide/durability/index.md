@@ -223,6 +223,29 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L82-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Batched Inbox Writes <Badge type="tip" text="6.30" />
+
+The durable inbox costs two database writes per message: the `INSERT` when the message arrives, and
+the `UPDATE` that marks it handled when the handler finishes. Neither is issued one message at a time
+under load. Wolverine coalesces both into short micro-batches:
+
+- **Arrival**: transports that receive in batches (SQS, Azure Service Bus, Pub/Sub) hand the whole
+  batch to the inbox in one round trip, and the one-at-a-time push transports (RabbitMQ, Kafka)
+  accumulate deliveries for up to 5ms — or `MaximumMessagesToReceive` (default 100), whichever comes
+  first — before one batched insert.
+- **Completion**: successful handler completions accumulate for up to 5ms — or
+  `DurabilitySettings.MarkAsHandledBatchSize` (default 100) of them, whichever comes first — and
+  are marked handled with one batched `UPDATE`. A batch that fails for any reason falls back to
+  marking each message individually, with retries, so nothing is lost — only the round trip is
+  shared. A completion is never held longer than the window, and a message already marked handled
+  inside a transactional middleware's own transaction is skipped.
+
+The result is that under load the inbox cost is paid per batch rather than per message on both the
+way in and the way out. `MaximumMessagesToReceive(1)` on a RabbitMQ or Kafka endpoint gives strict
+one-at-a-time persistence on arrival; `opts.Durability.MarkAsHandledBatchSize = 1` does the same for
+completion. The 6.x line only: none of this batching exists on 5.x, so a user reporting durable-inbox
+overhead on 5.x may simply need to upgrade.
+
 ### Who Recovers the Inbox <Badge type="tip" text="6.22" />
 
 An incoming envelope in durable storage is either owned by a specific node (its `owner_id` is that node's
