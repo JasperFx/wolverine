@@ -43,20 +43,23 @@ does not leave settled messages to reappear at their visibility timeout.
 ## Visibility timeout: size it against your processing window
 
 Wolverine sets each received message's visibility timeout at receive (default **120 seconds**)
-and does **not** extend it while messages wait in the local worker queue or execute. If
-(queued messages ÷ processing rate) + handler time can exceed the visibility timeout, SQS
-redelivers messages that are still in flight:
+and never calls `ChangeMessageVisibility` to extend it. How much of your processing that
+window has to cover depends on the endpoint mode, because each mode deletes the message from
+SQS at a different point:
 
-- **Durable** endpoints deduplicate redeliveries through the inbox — you pay wasted work, not
-  duplicate side effects.
-- **Buffered** endpoints delete messages from SQS *as soon as they are buffered*, before
-  handling — so instead of duplicates you get at-most-once semantics: an ungraceful crash
-  loses the buffered backlog.
-- **Inline** endpoints delete after successful handling — safest, and the visibility timeout
-  only needs to cover a single handler execution.
-
-Rule of thumb: keep `BufferingLimits.Maximum × average handler time ÷ MaximumParallelMessages`
-comfortably under the visibility timeout, or raise the timeout on the queue.
+- **Durable** endpoints delete the message as soon as it has been written to the durable
+  inbox — *before* the handler runs. The local backlog lives in your database, not under an
+  SQS timer, so the visibility timeout only has to cover the receive-to-insert round trip.
+  If that insert is ever slower than the timeout (an overloaded database), SQS redelivers and
+  the inbox deduplicates the copy — wasted work, not duplicate side effects.
+- **Buffered** endpoints delete messages *as soon as they are buffered*, before handling — so
+  the visibility timeout is moot, and instead of duplicates you get at-most-once semantics: an
+  ungraceful crash loses the buffered backlog.
+- **Inline** endpoints delete only after successful handling, so the visibility timeout must
+  cover a **single handler execution**. A handler that runs longer than the timeout is
+  redelivered *while it is still running*, and the second copy executes too. Raise the
+  timeout on the endpoint (`.VisibilityTimeout(...)`) to comfortably exceed your slowest
+  inline handler.
 
 ## The send side: batch API, one batch in flight
 
