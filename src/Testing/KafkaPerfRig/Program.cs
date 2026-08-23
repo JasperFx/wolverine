@@ -67,9 +67,17 @@ switch (role)
         await NativeRabbitTwin.RunPublisherAsync(cfg);
         break;
 
+    case "nats-consumer":
+        await WolverineNats.RunConsumerAsync(cfg);
+        break;
+
+    case "nats-publisher":
+        await WolverineNats.RunPublisherAsync(cfg);
+        break;
+
     default:
         Console.WriteLine(
-            "usage: KafkaPerfRig <wolverine|native|rabbit|native-rabbit>-<consumer|publisher>");
+            "usage: KafkaPerfRig <wolverine|native|rabbit|native-rabbit|nats>-<consumer|publisher>");
         Console.WriteLine("Configuration via RIG_* environment variables; see RigConfig.cs and rig.sh.");
         return 1;
 }

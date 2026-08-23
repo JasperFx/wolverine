@@ -58,7 +58,11 @@ trap - EXIT
 # Best-effort per-run broker cleanup: max-throughput cells write millions of messages per run,
 # and letting them accumulate across runs eventually fills the Docker VM disk and takes every
 # container down (learned the hard way on 2026-07-19).
-if [[ "$HARNESS" == *rabbit* ]]; then
+if [[ "$HARNESS" == nats* ]]; then
+  # JetStream streams are work queues here; deleting the per-run stream drops its consumers and messages
+  STREAM="RIG_$(echo "$RIG_RUN_ID" | tr '[:lower:]-' '[:upper:]_')"
+  docker exec wolverine-nats-1 nats stream rm -f "$STREAM" >/dev/null 2>&1 || true
+elif [[ "$HARNESS" == *rabbit* ]]; then
   docker exec wolverine-rabbitmq-1 rabbitmqctl delete_queue "rig-small-${RIG_RUN_ID}" >/dev/null 2>&1 || true
   docker exec wolverine-rabbitmq-1 rabbitmqctl delete_queue "rig-large-${RIG_RUN_ID}" >/dev/null 2>&1 || true
 else

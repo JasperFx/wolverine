@@ -69,6 +69,15 @@ public class RigConfig
     // native Rabbit twin prefetch; match Wolverine's listener PreFetchCount default of 100
     public ushort RabbitPrefetch { get; } = (ushort)envInt("RIG_RABBIT_PREFETCH", 100);
 
+    // --- NATS JetStream (GH-4026) ---
+    public string NatsUrl { get; } = env("RIG_NATS_URL", "nats://localhost:4222");
+    // Stream names are uppercase identifiers; subjects are dotted. Both suffixed with the run id so every
+    // run starts on a fresh stream + consumers.
+    public string NatsStream => $"RIG_{RunId.ToUpperInvariant().Replace('-', '_')}";
+    public string NatsSubjectPrefix => $"rig.{RunId}";
+    public string NatsSmallSubject => $"{NatsSubjectPrefix}.small";
+    public string NatsLargeSubject => $"{NatsSubjectPrefix}.large";
+
     private static string env(string key, string fallback)
     {
         return Environment.GetEnvironmentVariable(key) is { Length: > 0 } value ? value : fallback;

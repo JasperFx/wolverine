@@ -1,8 +1,10 @@
+using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
+using Wolverine.Configuration;
 using Wolverine.Transports;
 
 namespace Wolverine.Nats.Internal;
@@ -17,6 +19,12 @@ internal class JetStreamSubscriber : INatsSubscriber
     private readonly INatsJSContext _jetStreamContext;
     private INatsJSConsumer? _consumer;
     private Task? _consumerTask;
+
+    // GH-4026: Durable endpoints coalesce consumed messages for up to 5ms (or MaximumMessagesToReceive)
+    // and hand the inbox one Envelope[] per window, the way the RabbitMQ and Kafka listeners do. Null
+    // for Buffered/Inline, or when MaximumMessagesToReceive is 1.
+    private BatchingChannel<Envelope>? _batching;
+    private Block<Envelope[]>? _batchFlush;
 
     public JetStreamSubscriber(
         NatsEndpoint endpoint,
@@ -140,6 +148,13 @@ internal class JetStreamSubscriber : INatsSubscriber
             );
         }
 
+        if (_endpoint.Mode == EndpointMode.Durable && _endpoint.MaximumMessagesToReceive > 1)
+        {
+            _batchFlush = new Block<Envelope[]>((batch, _) => deliverBatchAsync(batch, listener, receiver));
+            _batching = new BatchingChannel<Envelope>(TimeSpan.FromMilliseconds(5), _batchFlush,
+                _endpoint.MaximumMessagesToReceive);
+        }
+
         _consumerTask = Task.Run(
             async () =>
             {
@@ -176,7 +191,14 @@ internal class JetStreamSubscriber : INatsSubscriber
                         var envelope = new NatsEnvelope(null, msg);
                         _mapper.MapIncomingToEnvelope(envelope, msg);
 
-                        await receiver.ReceivedAsync(listener, envelope);
+                        if (_batching != null)
+                        {
+                            await _batching.PostAsync(envelope);
+                        }
+                        else
+                        {
+                            await receiver.ReceivedAsync(listener, envelope);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -190,6 +212,39 @@ internal class JetStreamSubscriber : INatsSubscriber
             },
             cancellation
         );
+    }
+
+    /// <summary>
+    ///     GH-4026: one coalesced window of messages to the receiver. A failure NAKs every message in the
+    ///     batch so JetStream redelivers them, exactly as the single-message path would for one.
+    /// </summary>
+    private async Task deliverBatchAsync(Envelope[] batch, IListener listener, IReceiver receiver)
+    {
+        try
+        {
+            await receiver.ReceivedAsync(listener, batch);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Failure receiving a batch of {Count} JetStream messages from subject {Subject}, NAKing them for redelivery",
+                batch.Length, _endpoint.Subject);
+
+            foreach (var envelope in batch.OfType<NatsEnvelope>())
+            {
+                try
+                {
+                    if (envelope.JetStreamMsg != null)
+                    {
+                        await envelope.JetStreamMsg.NakAsync();
+                    }
+                }
+                catch (Exception nakException)
+                {
+                    _logger.LogError(nakException, "Failure NAKing JetStream message for envelope {EnvelopeId}", envelope.Id);
+                }
+            }
+        }
     }
 
     public Task RepublishAsync(NatsEnvelope envelope, CancellationToken cancellation)
@@ -226,6 +281,23 @@ internal class JetStreamSubscriber : INatsSubscriber
             catch (OperationCanceledException)
             {
                 // Expected during shutdown
+            }
+        }
+
+        // GH-4026: whatever the consume loop posted but the 5ms window has not flushed yet still has to
+        // reach the inbox (or be NAKed) before this subscriber goes away, or it sits un-ACKed until
+        // AckWait and is redelivered. Bounded so a wedged receiver can never hang disposal.
+        if (_batching != null)
+        {
+            try
+            {
+                _batching.TriggerBatch();
+                _batching.Complete();
+                await _batching.WaitForCompletionAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Error flushing the pending JetStream receive batch for subject {Subject}", _endpoint.Subject);
             }
         }
     }

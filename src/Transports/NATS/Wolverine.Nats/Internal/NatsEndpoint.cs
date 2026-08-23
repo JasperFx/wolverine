@@ -81,6 +81,15 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public string? StreamName { get; set; }
     public string? ConsumerName { get; set; }
     public bool UseJetStream { get; set; }
+
+    /// <summary>
+    ///     GH-4026. For a Durable JetStream listener: the most consumed messages the subscriber coalesces
+    ///     (for at most 5ms) into one batched inbox insert, instead of one insert round trip per message --
+    ///     the same micro-batching the RabbitMQ and Kafka listeners have. 1 reverts to strict
+    ///     message-at-a-time persistence. Ignored for Buffered/Inline endpoints and for core NATS.
+    ///     Default 100.
+    /// </summary>
+    public int MaximumMessagesToReceive { get; set; } = 100;
     public bool DeadLetterQueueEnabled { get; set; } = true;
     public string? DeadLetterSubject { get; set; }
 
