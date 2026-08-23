@@ -40,6 +40,23 @@ public class KafkaTopicGroupListenerConfiguration : ListenerConfiguration<KafkaT
     }
 
     /// <summary>
+    /// For a Durable topic group: the most already-fetched records the consume loop drains in one
+    /// pass so the inbox persists them with one batched insert instead of one insert per record --
+    /// the same knob as the single-topic listener's. 1 reverts to strict record-at-a-time
+    /// consumption. Ignored for Buffered/Inline endpoints. Default 100. See GH-4026.
+    /// </summary>
+    public KafkaTopicGroupListenerConfiguration MaximumMessagesToReceive(int maximum)
+    {
+        if (maximum < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Must be at least 1");
+        }
+
+        add(group => group.MaximumMessagesToReceive = maximum);
+        return this;
+    }
+
+    /// <summary>
     /// Enable native dead letter queue support for this listener group.
     /// </summary>
     /// <returns></returns>

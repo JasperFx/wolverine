@@ -34,8 +34,15 @@ public static class WolverineConsumer
                     opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, cfg.PostgresSchema);
                 }
 
-                configureListener(opts.ListenToKafkaTopic(cfg.SmallTopic), cfg);
-                configureListener(opts.ListenToKafkaTopic(cfg.LargeTopic), cfg);
+                if (cfg.KafkaTopicGroup)
+                {
+                    configureTopicGroup(opts.ListenToKafkaTopics(cfg.SmallTopic, cfg.LargeTopic), cfg);
+                }
+                else
+                {
+                    configureListener(opts.ListenToKafkaTopic(cfg.SmallTopic), cfg);
+                    configureListener(opts.ListenToKafkaTopic(cfg.LargeTopic), cfg);
+                }
             });
 
         using var host = builder.Build();
@@ -80,6 +87,41 @@ public static class WolverineConsumer
         if (cfg.MaxParallel > 0)
         {
             listener.MaximumParallelMessages(cfg.MaxParallel);
+        }
+
+        if (cfg.MaxReceive > 0)
+        {
+            listener.MaximumMessagesToReceive(cfg.MaxReceive);
+        }
+    }
+
+    // GH-4026: no StampingKafkaMapper here (the topic-group configuration has no UseInterop), so the
+    // rig's t2 stage falls back to handler entry; throughput and handler/total stages are unaffected.
+    private static void configureTopicGroup(KafkaTopicGroupListenerConfiguration listener, RigConfig cfg)
+    {
+        listener.Specification(spec => spec.NumPartitions = (short)cfg.Partitions);
+
+        switch (cfg.ConsumerMode)
+        {
+            case "durable":
+                listener.UseDurableInbox();
+                break;
+            case "inline":
+                listener.ProcessInline();
+                break;
+            default:
+                listener.BufferedInMemory();
+                break;
+        }
+
+        if (cfg.MaxParallel > 0)
+        {
+            listener.MaximumParallelMessages(cfg.MaxParallel);
+        }
+
+        if (cfg.MaxReceive > 0)
+        {
+            listener.MaximumMessagesToReceive(cfg.MaxReceive);
         }
     }
 }

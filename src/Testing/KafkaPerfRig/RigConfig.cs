@@ -52,6 +52,15 @@ public class RigConfig
     // GH-3492 RO6: per-endpoint consumer dispatch concurrency. 0 leaves the transport-wide default.
     public int DispatchConcurrency { get; } = envInt("RIG_DISPATCH_CONCURRENCY", 0);
 
+    // GH-4026: listen to both Kafka topics through ONE KafkaTopicGroup consumer (ListenToKafkaTopics)
+    // instead of one KafkaListener per topic.
+    public bool KafkaTopicGroup { get; } = envInt("RIG_KAFKA_TOPIC_GROUP", 0) == 1;
+
+    // GH-4026: MaximumMessagesToReceive for durable Kafka listeners; 0 leaves the default (100).
+    // 1 is the pre-GH-4026 topic-group behavior (one record per inbox insert), so a cell pair of
+    // RIG_MAX_RECEIVE=1 vs default measures the drain inside one build.
+    public int MaxReceive { get; } = envInt("RIG_MAX_RECEIVE", 0);
+
     // --- RabbitMQ (GH-3492) ---
     public string RabbitUri { get; } = env("RIG_RABBIT_URI", "amqp://guest:guest@localhost:5672");
     public string SmallQueue => $"rig-small-{RunId}";
