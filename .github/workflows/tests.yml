@@ -3,8 +3,25 @@ name: tests
 on:
   push:
     branches: [ main ]
+    # A markdown-only change cannot alter a single test outcome, and this matrix costs ~211 runner-minutes
+    # per run (35 jobs). Those minutes are the binding constraint on this repo's CI, not wall clock: a merge
+    # wave on 2026-08-23 put 26 runs in the queue with 0 in progress for ~2.5 hours, which left three merges
+    # to main unverifiable for the duration. Skipping docs is the cheapest minute back. See #4033.
+    #
+    # SAFE ONLY WHILE THESE CHECKS ARE NOT REQUIRED. A required status check that never reports because its
+    # workflow was path-filtered leaves a PR permanently unmergeable -- the classic version of this mistake.
+    # Confirmed at the time of writing: `main` has no branch protection, and the only ruleset ("Copilot")
+    # carries deletion / non_fast_forward / copilot_code_review and no required_status_checks. If required
+    # checks are ever added for these jobs, this filter has to go, or gain a companion job that reports
+    # success on the skipped path.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 env:
