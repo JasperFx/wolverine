@@ -217,6 +217,23 @@ public class Bootstrapping
         #endregion
     }
 
+    private async Task extending_visibility_while_handling()
+    {
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport().AutoProvision();
+
+                #region sample_sqs_extend_visibility_while_handling
+                opts.ListenToSqsQueue("slow-work", q => q.VisibilityTimeout = 60)
+                    .ProcessInline()
+                    // GH-4019: keep the messages of each received batch invisible while their
+                    // handlers run, extending by the visibility timeout every half timeout
+                    .ExtendVisibilityWhileHandling();
+                #endregion
+            }).StartAsync();
+    }
+
     private async Task publishing()
     {
         #region sample_subscriber_rules_for_sqs

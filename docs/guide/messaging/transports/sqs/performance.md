@@ -43,9 +43,10 @@ does not leave settled messages to reappear at their visibility timeout.
 ## Visibility timeout: size it against your processing window
 
 Wolverine sets each received message's visibility timeout at receive (default **120 seconds**)
-and never calls `ChangeMessageVisibility` to extend it. How much of your processing that
-window has to cover depends on the endpoint mode, because each mode deletes the message from
-SQS at a different point:
+and, unless you opt into the inline heartbeat described below, never calls
+`ChangeMessageVisibility` to extend it. How much of your processing that window has to cover
+depends on the endpoint mode, because each mode deletes the message from SQS at a different
+point:
 
 - **Durable** endpoints delete the message as soon as it has been written to the durable
   inbox — *before* the handler runs. The local backlog lives in your database, not under an
@@ -56,10 +57,35 @@ SQS at a different point:
   the visibility timeout is moot, and instead of duplicates you get at-most-once semantics: an
   ungraceful crash loses the buffered backlog.
 - **Inline** endpoints delete only after successful handling, so the visibility timeout must
-  cover a **single handler execution**. A handler that runs longer than the timeout is
-  redelivered *while it is still running*, and the second copy executes too. Raise the
-  timeout on the endpoint (`.VisibilityTimeout(...)`) to comfortably exceed your slowest
-  inline handler.
+  cover the **whole received batch**, not just one handler: an inline listener works through
+  the up-to-10 messages of a receive one at a time, so the last message of the batch has been
+  aging against the timeout through every handler before it. Past the timeout SQS redelivers
+  the message *while it is still being handled* (or still waiting its turn), the second copy
+  executes too, and the first copy's eventual delete carries a stale receipt handle that SQS
+  accepts without deleting anything. Either raise the timeout on the endpoint
+  (`.VisibilityTimeout(...)`) to comfortably exceed `MaxNumberOfMessages × your slowest
+  handler`, or turn on the heartbeat:
+
+<!-- snippet: sample_sqs_extend_visibility_while_handling -->
+<a id='snippet-sample_sqs_extend_visibility_while_handling'></a>
+```cs
+opts.ListenToSqsQueue("slow-work", q => q.VisibilityTimeout = 60)
+    .ProcessInline()
+    // GH-4019: keep the messages of each received batch invisible while their
+    // handlers run, extending by the visibility timeout every half timeout
+    .ExtendVisibilityWhileHandling();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_extend_visibility_while_handling' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`ExtendVisibilityWhileHandling()` (inline endpoints only — Durable and Buffered have already
+deleted the message by the time a handler runs) issues a `ChangeMessageVisibilityBatch` for
+every message of the batch that is still in flight at each half-timeout tick, so a batch that
+finishes inside half the timeout costs no extra API calls at all. Each message is kept
+invisible for at most 12 hours from its receipt (the SQS limit; lower it with the optional
+`maximum` argument), after which Wolverine stops extending and logs a warning. It is opt-in in
+6.x because it adds billable API calls under sustained slow handling and changes when a
+crashed node's in-flight messages reappear.
 
 ## The send side: batch API, one batch in flight
 

@@ -2,6 +2,7 @@ using Amazon.SQS.Model;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -33,6 +34,11 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     // framing is unambiguous, so a listener reads it whether or not this same endpoint would send
     // that way, and an asymmetrically configured pair still works.
     private readonly SqsFragmentReassembler _reassembler;
+
+    // GH-4019: inline listeners only. Keeps a received batch invisible while its handlers run, because
+    // the inline receiver works through the batch one message at a time and the visibility timeout
+    // was only ever set once, on the receive. Null unless the endpoint opts in.
+    private readonly SqsVisibilityHeartbeat? _heartbeat;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -92,6 +98,12 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             _deleteBlock = new Block<Message[]>((batch, _) => deleteBatchAsync(batch));
             _deleteBatching = new BatchingChannel<Message>(_queue.DeleteMessageBatchTimeout, _deleteBlock,
                 _queue.DeleteMessageBatchSize);
+        }
+
+        if (ShouldExtendVisibility(_queue))
+        {
+            _heartbeat = new SqsVisibilityHeartbeat(TimeSpan.FromSeconds(_queue.VisibilityTimeout),
+                _queue.MaximumVisibilityExtension, extendVisibilityAsync, _queue.Uri, logger, runtime.Cancellation);
         }
 
         // GH-3236: the receive loop is now a shared BackgroundReceiveLoop — it owns the task, the
@@ -183,10 +195,81 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // ReSharper disable once CoVariantArrayConversion
         if (envelopes.Any())
         {
-            await _receiver.ReceivedAsync(this, envelopes.ToArray());
+            if (_heartbeat == null)
+            {
+                await _receiver.ReceivedAsync(this, envelopes.ToArray());
+            }
+            else
+            {
+                // Only the messages that became envelopes. Fragments still waiting on their siblings in
+                // the reassembler are meant to reappear at the visibility timeout if the set never completes.
+                var inFlight = envelopes.OfType<AmazonSqsEnvelope>().SelectMany(x => x.SqsMessages).ToArray();
+                _heartbeat.Track(inFlight);
+                try
+                {
+                    await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                }
+                finally
+                {
+                    // The inline receiver has run every handler by now. Anything still unsettled is in
+                    // a requeue or dead-letter retry block that deletes it; stop holding it invisible.
+                    _heartbeat.Untrack(inFlight);
+                }
+            }
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// GH-4019: the heartbeat only makes sense for an inline listener. Durable deletes the message right
+    /// after the inbox insert and Buffered deletes on receipt, so neither holds a message under the
+    /// visibility timeout while a handler runs.
+    /// </summary>
+    internal static bool ShouldExtendVisibility(AmazonSqsQueue queue)
+    {
+        return queue.ExtendVisibilityWhileHandling && queue.Mode == EndpointMode.Inline;
+    }
+
+    /// <summary>
+    /// GH-4019: re-arm the visibility timeout on these in-flight messages. Returns the ones SQS would
+    /// not extend -- a stale receipt handle means the message was already deleted or redelivered, and
+    /// there is nothing left to keep alive.
+    /// </summary>
+    private async Task<IReadOnlyList<Message>> extendVisibilityAsync(Message[] messages, CancellationToken token)
+    {
+        var dropped = new List<Message>();
+
+        foreach (var chunk in messages.Chunk(AmazonSqsQueue.MaximumDeleteBatchSize))
+        {
+            var entries = new List<ChangeMessageVisibilityBatchRequestEntry>(chunk.Length);
+            for (var i = 0; i < chunk.Length; i++)
+            {
+                entries.Add(new ChangeMessageVisibilityBatchRequestEntry(i.ToString(), chunk[i].ReceiptHandle)
+                {
+                    VisibilityTimeout = _queue.VisibilityTimeout
+                });
+            }
+
+            var response = await _transport.Client!.ChangeMessageVisibilityBatchAsync(_queue.QueueUrl, entries, token);
+            if (response.Failed == null || response.Failed.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (var entry in response.Failed)
+            {
+                if (int.TryParse(entry.Id, out var index) && index >= 0 && index < chunk.Length)
+                {
+                    _logger.LogDebug(
+                        "SQS would not extend the visibility of message {MessageId} at {Uri}: {Code} - {Message}. No longer keeping it invisible",
+                        chunk[index].MessageId, _queue.Uri, entry.Code, entry.Message);
+                    dropped.Add(chunk[index]);
+                }
+            }
+        }
+
+        return dropped;
     }
 
     public ReceiveLoopStatus ReceiveLoopStatus => _loop.ReceiveLoopStatus;
@@ -216,6 +299,11 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public async ValueTask DisposeAsync()
     {
         await _loop.DisposeAsync();
+        if (_heartbeat != null)
+        {
+            await _heartbeat.DisposeAsync();
+        }
+
         await flushPendingDeletesAsync();
         _requeueBlock.Dispose();
         _deadLetterBlock?.Dispose();
@@ -336,6 +424,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public Task CompleteAsync(Message sqsMessage)
     {
+        _heartbeat?.Settled(sqsMessage);
+
         if (_deleteBatching == null)
         {
             return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
