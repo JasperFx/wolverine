@@ -55,19 +55,25 @@ more sessions at once, use `RequireSessions(n)`.
 
 ## Lock duration vs. processing window
 
-For Buffered/Durable endpoints, Wolverine does not renew message locks while messages wait in
-the local worker queue. If (buffered backlog × handler time ÷ `MaximumParallelMessages`) can
-exceed the queue's lock duration, locks expire silently and the broker redelivers:
+Wolverine never renews a message lock on the Buffered/Durable (batched receiver) paths. How
+much of your processing the lock has to cover depends on the endpoint mode, because each mode
+settles the message at a different point:
 
-- **Durable** endpoints deduplicate redelivery through the inbox (wasted work, no duplicate
-  side effects).
+- **Durable** endpoints complete the message as soon as it has been written to the durable
+  inbox — *before* the handler runs. The local backlog lives in your database, not under a
+  broker lock, so the lock only has to cover the receive-to-insert round trip. If that insert
+  is ever slower than the lock duration (an overloaded database), the lock expires, the broker
+  redelivers, and the inbox deduplicates the copy — wasted work, not duplicate side effects.
 - **Buffered** endpoints settle messages as soon as they are buffered — so lock expiry is moot
   for them, but an ungraceful crash loses the buffered backlog (at-most-once on crash).
-- **Inline** endpoints can rely on the processor's automatic lock renewal
+- **Inline** endpoints hold the lock for the whole handler execution, and rely on the
+  processor's automatic lock renewal
   (`ConfigureProcessor(o => o.MaxAutoLockRenewalDuration = ...)`, SDK default 5 minutes).
+  Raise that for inline handlers that can run longer.
 
-Keep `BufferingLimits` sized so the backlog clears within the lock duration, or lengthen the
-queue's `LockDuration`.
+Where the lock duration *does* interact with buffering is prefetch: messages fetched ahead by
+`PrefetchCount` age against their locks before Wolverine ever receives them — see the prefetch
+section above.
 
 ## The send side
 
