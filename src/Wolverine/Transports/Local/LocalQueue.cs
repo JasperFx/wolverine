@@ -40,12 +40,14 @@ public class LocalQueue : Endpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"{this} does not have a transport listener. A local queue is fed by in-process sends rather than by an external broker, so its ISendingAgent is both ends of it. See BuildAgent().");
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"{this} does not have a transport sender. A local queue's ISendingAgent enqueues directly into its own execution block. See BuildAgent().");
     }
 
     protected internal override ISendingAgent StartSending(IWolverineRuntime runtime, Uri? replyUri)
@@ -67,8 +69,14 @@ public class LocalQueue : Endpoint
 
             EndpointMode.Durable => new DurableLocalQueue(this, (WolverineRuntime)runtime),
 
-            EndpointMode.Inline => throw new NotSupportedException(),
-            _ => throw new InvalidOperationException()
+            // GH-4022. Normally unreachable: ListenerConfiguration.ProcessInline() refuses a local queue eagerly, and
+            // ListenerConfigurationValidator catches the lazily-configured queues at bootstrap. Kept as a
+            // real message rather than a bare throw because this is the last line of defense for anything
+            // that assigns Endpoint.Mode directly.
+            EndpointMode.Inline => throw new NotSupportedException(
+                $"{this} cannot run in {nameof(EndpointMode)}.{nameof(EndpointMode.Inline)}. Inline means \"execute the message on the transport's own listening callback instead of queueing it\", and a local queue has no transport listener -- the queue itself is Wolverine's local execution block. Use {nameof(EndpointMode.BufferedInMemory)} or {nameof(EndpointMode.Durable)}."),
+
+            _ => throw new InvalidOperationException($"Unknown {nameof(EndpointMode)} value '{Mode}' on {this}")
         };
     }
 

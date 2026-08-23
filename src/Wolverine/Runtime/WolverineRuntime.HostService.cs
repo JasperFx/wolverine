@@ -578,6 +578,15 @@ public partial class WolverineRuntime
             }
         }
 
+        // GH-3712. Say out loud when a listening endpoint's mode ignores the settings it was given --
+        // most importantly Inline together with PartitionProcessingByGroupId(), which silently dropped
+        // the group id ordering guarantee. Runs even when the external transports are stubbed, so a
+        // test host surfaces the same misconfiguration a deployed one would.
+        //
+        // Deliberately ahead of the sending agents below: an Inline local queue cannot build one at all,
+        // and LocalQueue.BuildAgent()'s throw is a much worse error message than the validator's. See GH-4022.
+        validateListenerConfiguration();
+
         foreach (var transport in Options.Transports)
         {
             // A transport that failed to initialize under ContinueOnFailures has no usable endpoints
@@ -595,12 +604,6 @@ public partial class WolverineRuntime
                 _endpoints.StoreSendingAgent(agent);
             }
         }
-
-        // GH-3712. Say out loud when a listening endpoint's mode ignores the settings it was given --
-        // most importantly Inline together with PartitionProcessingByGroupId(), which silently dropped
-        // the group id ordering guarantee. Runs even when the external transports are stubbed, so a
-        // test host surfaces the same misconfiguration a deployed one would.
-        validateListenerConfiguration();
 
         if (!Options.ExternalTransportsAreStubbed)
         {

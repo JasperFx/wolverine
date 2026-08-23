@@ -4,6 +4,7 @@ using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Xunit;
 
@@ -173,6 +174,74 @@ public class listener_configuration_validation
         ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
     }
 
+    // GH-4022. A local queue can only be BufferedInMemory or Durable -- it has no transport
+    // listener for Inline to execute a message on.
+    [Fact]
+    public void process_inline_on_a_local_queue_throws_eagerly()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+
+        // Used to be accepted here, then throw a bare, message-less NotSupportedException out of
+        // LocalQueue.BuildAgent() the first time anything sent to the queue.
+        var ex = Should.Throw<NotSupportedException>(() => options.LocalQueue("inline-local").ProcessInline());
+
+        ex.Message.ShouldContain("ProcessInline");
+        ex.Message.ShouldContain("BufferedInMemory");
+        ex.Message.ShouldContain("UseDurableInbox");
+    }
+
+    [Fact]
+    public void a_local_queue_in_inline_mode_is_fatal()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        // Assigning the mode directly gets around the eager guard on ProcessInline()
+        var queue = options.Transports.GetOrCreate<LocalTransport>().QueueFor("inline-local");
+        queue.Mode = EndpointMode.Inline;
+        queue.Compile(runtime);
+
+        var problem = ListenerConfigurationValidator.Validate(queue).Single();
+
+        problem.Severity.ShouldBe(ListenerConfigurationSeverity.Fatal);
+        problem.Message.ShouldContain("ProcessInline()");
+        problem.Message.ShouldContain("local://inline-local");
+    }
+
+    [Fact]
+    public async Task a_lazily_configured_inline_local_queue_stops_the_host_from_starting()
+    {
+        // LocalQueueFor<T>() resolves its queue lazily, so ProcessInline()'s eager guard never sees a
+        // LocalQueue and the bootstrap validation is the only thing standing between this configuration
+        // and a message-less NotSupportedException at the first send.
+        var ex = await Should.ThrowAsync<InvalidListenerConfigurationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+            {
+                opts.LocalQueueFor<InlineLocalQueueMessage>().ProcessInline();
+            }).StartAsync();
+        });
+
+        ex.Message.ShouldContain("ProcessInline()");
+        ex.Message.ShouldContain("local queue");
+    }
+
+    [Fact]
+    public void a_normal_local_queue_has_no_problems()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        var queue = options.Transports.GetOrCreate<LocalTransport>().QueueFor("buffered-local");
+        queue.Compile(runtime);
+
+        queue.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        ListenerConfigurationValidator.Validate(queue).ShouldBeEmpty();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -201,3 +270,5 @@ public class listener_configuration_validation
             .Severity.ShouldBe(ListenerConfigurationSeverity.Warning);
     }
 }
+
+public record InlineLocalQueueMessage(string Name);

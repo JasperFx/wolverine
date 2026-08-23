@@ -28,7 +28,9 @@ public class configuring_endpoints : IDisposable
             opts.ListenForMessagesFrom("local://two").MaximumParallelMessages(11);
             opts.ListenForMessagesFrom("local://three").UseDurableInbox();
             opts.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
-            opts.ListenForMessagesFrom("local://five").ProcessInline().TelemetryEnabled(false);
+            // NOTE: no ProcessInline() here. A local queue cannot be Inline -- see
+            // process_inline_is_not_allowed_on_a_local_queue below.
+            opts.ListenForMessagesFrom("local://five").TelemetryEnabled(false);
 
             opts.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
             opts.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
@@ -205,12 +207,15 @@ public class configuring_endpoints : IDisposable
     }
 
     [Fact]
-    public void configure_process_inline()
+    public void process_inline_is_not_allowed_on_a_local_queue()
     {
+        // GH-4022. Used to be accepted here and then throw a bare, message-less NotSupportedException out
+        // of LocalQueue.BuildAgent() the first time anything sent to the queue.
+        var ex = Should.Throw<NotSupportedException>(() =>
+            theOptions.ListenForMessagesFrom("local://five").ProcessInline());
 
-        localQueue("five")
-            .Mode
-            .ShouldBe(EndpointMode.Inline);
+        ex.Message.ShouldContain("ProcessInline");
+        ex.Message.ShouldContain("BufferedInMemory");
     }
 
     [Fact]

@@ -403,9 +403,16 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// Sequential(), and PartitionProcessingByGroupId() inapplicable -- Wolverine normalizes
     /// MaxDegreeOfParallelism to 1 at bootstrap for an Inline endpoint and rejects partitioned
     /// processing outright. See GH-3712.
+    ///
+    /// Not valid on a local queue, which has no transport listener to be inline with -- that combination
+    /// throws here rather than at the first send. See GH-4022.
     /// </summary>
     public TSelf ProcessInline()
     {
+        if (_endpoint is LocalQueue)
+            throw new NotSupportedException(
+                $"Wolverine cannot use the {nameof(ProcessInline)} option for local queues. Inline means \"execute the message on the transport's own listening callback instead of queueing it\", and a local queue has no transport listener -- the queue itself *is* Wolverine's local execution block, so there would be nothing left to run the message. Use {nameof(BufferedInMemory)}() (the default) or {nameof(UseDurableInbox)}() instead, plus {nameof(Sequential)}() if what you wanted was one message at a time.");
+
         // GH-3712. The MaxDegreeOfParallelism = 1 clamp deliberately does NOT happen here. Clamping
         // eagerly made the endpoint's final state depend on whether ProcessInline() was called before
         // or after MaximumParallelMessages(); Endpoint.Compile() now normalizes it for every Inline

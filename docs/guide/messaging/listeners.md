@@ -207,6 +207,11 @@ As of Wolverine 6.30, these combinations are no longer silently accepted:
   is preferable to quietly not honoring it.
 * `ProcessInline()` together with an explicit parallelism or `BufferingLimits` logs a warning at startup, and
   Wolverine normalizes `MaxDegreeOfParallelism` to 1.
+* `ProcessInline()` on a [local queue](/guide/messaging/transports/local) throws a `NotSupportedException`
+  right where you call it, because a local queue has no transport listener to be inline with — the queue
+  itself *is* the local execution block. A local queue that reaches `Inline` through one of the lazily
+  resolved configuration points (`LocalQueueFor<T>()`, `IConfigureLocalQueue`) throws an
+  `InvalidListenerConfigurationException` at bootstrap instead.
 
 That normalization also removes an order dependency: `.MaximumParallelMessages(20).ProcessInline()` and
 `.ProcessInline().MaximumParallelMessages(20)` now leave the endpoint in exactly the same state. The

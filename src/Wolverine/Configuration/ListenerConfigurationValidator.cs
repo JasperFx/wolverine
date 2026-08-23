@@ -65,6 +65,25 @@ internal static class ListenerConfigurationValidator
 
         var name = describe(endpoint);
 
+        if (endpoint is LocalQueue)
+        {
+            // GH-4022. ListenerConfiguration.ProcessInline() refuses this eagerly, but only when it was handed the
+            // queue itself. LocalQueueFor<T>()/IConfigureLocalQueue resolve their queue lazily through
+            // LocalTransport.ConfigureQueueFor(), so the eager guard cannot see a LocalQueue there and the
+            // mode is not settled until Compile(). Catch that path here instead of at LocalQueue.BuildAgent(),
+            // which does not run until something first sends to the queue.
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal,
+                $"Invalid listener configuration for {name}: ProcessInline() was configured on a local queue. Inline means " +
+                "\"execute the message on the transport's own listening callback instead of queueing it\", and a local queue has no " +
+                "transport listener -- the queue itself is Wolverine's local execution block, so there would be nothing left to run " +
+                "the message. Use BufferedInMemory() (the default for a local queue) or UseDurableInbox(), plus Sequential() if what " +
+                "you wanted was one message at a time.");
+
+            // Everything below is about settings an Inline endpoint merely ignores. This queue is not
+            // going to start at all, so there is no point piling warnings on top of the reason why.
+            yield break;
+        }
+
         if (endpoint.GroupShardingSlotNumber.HasValue)
         {
             yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal,
