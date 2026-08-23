@@ -258,6 +258,23 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// For a Durable listener: the most consumed messages the listener coalesces (for at most 5ms)
+    /// into one batched inbox insert instead of one insert per message -- the same knob the RabbitMQ,
+    /// Kafka and NATS listeners have. 1 reverts to strict message-at-a-time persistence. Ignored for
+    /// Buffered/Inline endpoints and for the retry-letter consumer. Default 100. See GH-4026.
+    /// </summary>
+    public PulsarListenerConfiguration MaximumMessagesToReceive(int maximum)
+    {
+        if (maximum < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Must be at least 1");
+        }
+
+        add(e => e.MaximumMessagesToReceive = maximum);
+        return this;
+    }
+
+    /// <summary>
     /// Provide a subscription name to Pulsar for this topic
     /// </summary>
     /// <param name="subscriptionName"></param>

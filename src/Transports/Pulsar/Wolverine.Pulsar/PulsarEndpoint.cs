@@ -93,6 +93,15 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public bool UseNativeRedelivery { get; internal set; }
 
     /// <summary>
+    ///     GH-4026. For a Durable listener: the most consumed messages the listener coalesces (for at most
+    ///     5ms) into one batched inbox insert, instead of one insert round trip per message -- the same
+    ///     micro-batching the RabbitMQ, Kafka and NATS listeners have. 1 reverts to strict
+    ///     message-at-a-time persistence. Ignored for Buffered/Inline endpoints and for the retry-letter
+    ///     consumer. Default 100.
+    /// </summary>
+    public int MaximumMessagesToReceive { get; set; } = 100;
+
+    /// <summary>
     ///     How this listener acknowledges completed messages: individually (default), cumulatively, or
     ///     batched. See <see cref="PulsarAckStrategy"/>.
     /// </summary>

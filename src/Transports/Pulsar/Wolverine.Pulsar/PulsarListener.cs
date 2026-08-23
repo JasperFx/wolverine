@@ -3,6 +3,9 @@ using System.Globalization;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
+using JasperFx.Blocks;
+using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -22,6 +25,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly Task? _receivingRetryLoop;
     private readonly PulsarEndpoint _endpoint;
     private readonly PulsarAckHandler _ackHandler;
+
+    // GH-4026: a Durable endpoint coalesces consumed messages for up to 5ms (or MaximumMessagesToReceive)
+    // and hands the inbox one Envelope[] per window, the way the RabbitMQ, Kafka and NATS listeners do.
+    // Null for Buffered/Inline, or when MaximumMessagesToReceive is 1. The retry-letter consumer stays
+    // one at a time.
+    private readonly BatchingChannel<Envelope>? _batching;
+    private readonly Block<Envelope[]>? _batchFlush;
+    private readonly ILogger? _logger;
     private readonly Schemas.IPulsarMessageCodec? _codec;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
@@ -114,6 +125,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         trySetupNativeResiliency(endpoint, transport);
 
+        if (endpoint.Mode == EndpointMode.Durable && endpoint.MaximumMessagesToReceive > 1)
+        {
+            _logger = runtime.LoggerFactory.CreateLogger<PulsarListener>();
+            _batchFlush = new Block<Envelope[]>((batch, _) => deliverBatchAsync(batch));
+            _batching = new BatchingChannel<Envelope>(TimeSpan.FromMilliseconds(5), _batchFlush,
+                endpoint.MaximumMessagesToReceive);
+        }
+
         _receivingLoop = Task.Run(async () =>
         {
             await foreach (var message in _consumer.Messages(combined.Token))
@@ -136,7 +155,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                     envelope.Message = _codec.Decode(message.Data);
                 }
 
-                await receiver.ReceivedAsync(this, envelope);
+                if (_batching != null)
+                {
+                    await _batching.PostAsync(envelope);
+                }
+                else
+                {
+                    await receiver.ReceivedAsync(this, envelope);
+                }
             }
         }, combined.Token);
 
@@ -218,6 +244,37 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             endpoint.EffectiveDeadLetterTopic?.TopicName ?? $"{endpoint.TopicName}-DLQ");
     }
 
+    /// <summary>
+    ///     GH-4026: one coalesced window of messages to the receiver. A failure defers every message in
+    ///     the batch -- native redelivery or ack-and-requeue, whichever this endpoint is configured for --
+    ///     exactly as the single-message path would for one.
+    /// </summary>
+    private async Task deliverBatchAsync(Envelope[] batch)
+    {
+        try
+        {
+            await _receiver.ReceivedAsync(this, batch);
+        }
+        catch (Exception e)
+        {
+            _logger?.LogError(e,
+                "Failure receiving a batch of {Count} Pulsar messages at {Address}, deferring them for redelivery",
+                batch.Length, Address);
+
+            foreach (var envelope in batch)
+            {
+                try
+                {
+                    await DeferAsync(envelope);
+                }
+                catch (Exception deferException)
+                {
+                    _logger?.LogError(deferException, "Failure deferring Pulsar message for envelope {EnvelopeId}", envelope.Id);
+                }
+            }
+        }
+    }
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         if (envelope is PulsarEnvelope e)
@@ -270,6 +327,23 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         await _localCancellation.CancelAsync();
         _localCancellation.Dispose();
+
+        // GH-4026: whatever the receive loop posted but the 5ms window has not flushed yet still has to
+        // reach the inbox (or be deferred) before the consumer is torn down. Bounded so a wedged receiver
+        // can never hang disposal.
+        if (_batching != null)
+        {
+            try
+            {
+                _batching.TriggerBatch();
+                _batching.Complete();
+                await _batching.WaitForCompletionAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            catch (Exception e)
+            {
+                _logger?.LogDebug(e, "Error flushing the pending Pulsar receive batch at {Address}", Address);
+            }
+        }
 
         // Flush any pending batched acks before the consumer is torn down.
         await _ackHandler.DisposeAsync();

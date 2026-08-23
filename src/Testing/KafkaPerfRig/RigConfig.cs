@@ -78,6 +78,14 @@ public class RigConfig
     public string NatsSmallSubject => $"{NatsSubjectPrefix}.small";
     public string NatsLargeSubject => $"{NatsSubjectPrefix}.large";
 
+    // GH-4026: concurrent publish loops in max-throughput mode (rate < 0). 1 = the original single loop.
+    public int Publishers { get; } = envInt("RIG_PUBLISHERS", 1);
+
+    // --- Pulsar (GH-4026) ---
+    public string PulsarUrl { get; } = env("RIG_PULSAR_URL", "pulsar://localhost:6650");
+    public string PulsarSmallTopic => $"persistent://public/default/rig-small-{RunId}";
+    public string PulsarLargeTopic => $"persistent://public/default/rig-large-{RunId}";
+
     private static string env(string key, string fallback)
     {
         return Environment.GetEnvironmentVariable(key) is { Length: > 0 } value ? value : fallback;
