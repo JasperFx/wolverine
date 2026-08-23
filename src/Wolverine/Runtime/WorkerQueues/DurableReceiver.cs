@@ -26,6 +26,14 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     // ReSharper disable once InconsistentNaming
     protected readonly ILogger _logger;
     private readonly RetryBlock<Envelope> _markAsHandled;
+
+    // GH-3711 (O1b): mark-as-handled was the last per-message durable write. The inbox INSERT has
+    // been micro-batched since GH-3492, but every completion still issued its own UPDATE through
+    // _markAsHandled -- the IReadOnlyList overload on IMessageInbox was unreachable from here. Now
+    // concurrent completions share one flush (see InboxCompletionCoalescer for why the caller still
+    // awaits it). Null when DurabilitySettings.MarkAsHandledBatchSize is 1, the escape hatch back to
+    // one UPDATE per message.
+    private readonly InboxCompletionCoalescer? _completionCoalescer;
     private readonly RetryBlock<Envelope> _moveToErrors;
     private readonly IBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
@@ -195,6 +203,14 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }, _logger,
             _settings.Cancellation);
 
+        if (_settings.MarkAsHandledBatchSize > 1)
+        {
+            _completionCoalescer = new InboxCompletionCoalescer(
+                envelopes => _inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes),
+                envelope => _markAsHandled.PostAsync(envelope),
+                _settings.MarkAsHandledBatchSize, Uri, _logger);
+        }
+
         _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
             _logger, _settings.Cancellation);
 
@@ -301,15 +317,58 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 runtime.BatchingPendingCounts.SettleBatch(envelope);
             }
 
+            // GH-3711: post every child before awaiting any, so the coalescer can take them as one flush
+            var completions = new List<Task>(envelope.Batch.Length);
             foreach (var child in envelope.Batch)
             {
                 child.InBatch = false;
-                await _markAsHandled.PostAsync(child).ConfigureAwait(false);
+                completions.Add(markAsHandledAsync(child).AsTask());
             }
+
+            await Task.WhenAll(completions).ConfigureAwait(false);
         }
         else
         {
-            await _markAsHandled.PostAsync(envelope).ConfigureAwait(false);
+            await markAsHandledAsync(envelope).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask markAsHandledAsync(Envelope envelope)
+    {
+        // Same optimization as the per-envelope block: transactional middleware may already have
+        // marked the envelope handled inside the handler's own transaction
+        if (envelope.Status == EnvelopeStatus.Handled)
+        {
+            return;
+        }
+
+        if (_completionCoalescer != null)
+        {
+            await _completionCoalescer.MarkAsHandledAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+
+        await _markAsHandled.PostAsync(envelope).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     GH-3711: let any flush in flight finish before the per-envelope block drains, so the
+    ///     fallback path still has somewhere to go.
+    /// </summary>
+    private async Task flushMarkAsHandledBatchAsync()
+    {
+        if (_completionCoalescer == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _completionCoalescer.DrainAsync().WaitAsync(_settings.DrainTimeout).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error waiting for pending mark-as-handled batches at {Uri}", Uri);
         }
     }
 
@@ -450,6 +509,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         await _incrementAttempts.DrainAsync().ConfigureAwait(false);
         await _scheduleExecution.DrainAsync().ConfigureAwait(false);
+        await flushMarkAsHandledBatchAsync().ConfigureAwait(false);
         await _markAsHandled.DrainAsync().ConfigureAwait(false);
         await _moveToErrors.DrainAsync().ConfigureAwait(false);
         await _receivingOne.DrainAsync().ConfigureAwait(false);

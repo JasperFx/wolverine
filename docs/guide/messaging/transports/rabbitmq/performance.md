@@ -66,9 +66,11 @@ was measured at roughly **10% slower** and rejected (GH-3492).
   inbox insert (up to `MaximumMessagesToReceive`, default 100), so under load the write cost is
   paid per batch rather than per message — measured locally this took a 2,000 msg/s stream from
   unbounded backlog to sub-millisecond delivery p50, and nearly tripled the maximum sustained
-  durable rate (GH-3492). Set `MaximumMessagesToReceive(1)` for strict message-at-a-time
-  persistence. Database write latency still bounds the ceiling; scale with `ListenerCount` and
-  keep the inbox database close.
+  durable rate (GH-3492). Completions are coalesced the same way on the way out — one batched
+  mark-as-handled `UPDATE` per window instead of one per message (GH-3711; opt out with
+  `opts.Durability.MarkAsHandledBatchSize = 1`). Set `MaximumMessagesToReceive(1)` for strict
+  message-at-a-time persistence on arrival. Database write latency still bounds the ceiling;
+  scale with `ListenerCount` and keep the inbox database close.
 
 ## Prefetch
 

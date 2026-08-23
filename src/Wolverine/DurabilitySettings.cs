@@ -132,6 +132,17 @@ public class DurabilitySettings : IDescribeMyself
     public int MaximumAckAttempts { get; set; } = 3;
 
     /// <summary>
+    /// GH-3711. The most successful handler completions a durable endpoint coalesces into one batched
+    /// mark-as-handled <c>UPDATE</c> against the inbox. One flush is in flight at a time and every
+    /// completion that arrives while it runs joins the next flush, so batches form from concurrency
+    /// alone -- a lone completion is still flushed immediately, and every completion still waits for
+    /// its own UPDATE to land before the message counts as handled. A batch that fails falls back to
+    /// marking each envelope individually with retries. Set to 1 to mark every completion in its own
+    /// round trip as before. Default 100.
+    /// </summary>
+    public int MarkAsHandledBatchSize { get; set; } = 100;
+
+    /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>

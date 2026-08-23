@@ -223,6 +223,32 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L82-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Batched Inbox Writes <Badge type="tip" text="6.30" />
+
+The durable inbox costs two database writes per message: the `INSERT` when the message arrives, and
+the `UPDATE` that marks it handled when the handler finishes. Neither is issued one message at a time
+under load. Wolverine coalesces both into short micro-batches:
+
+- **Arrival**: transports that receive in batches (SQS, Azure Service Bus, Pub/Sub) hand the whole
+  batch to the inbox in one round trip, and the one-at-a-time push transports (RabbitMQ, Kafka)
+  accumulate deliveries for up to 5ms — or `MaximumMessagesToReceive` (default 100), whichever comes
+  first — before one batched insert.
+- **Completion**: concurrent handler completions share one batched mark-as-handled `UPDATE` (up to
+  `DurabilitySettings.MarkAsHandledBatchSize` of them, default 100). One flush is in flight at a
+  time and everything that completes while it runs joins the next one, so batches form from
+  concurrency alone: a lone completion is flushed immediately, nothing waits on a timer, and every
+  completion still waits for its own `UPDATE` to land before the message counts as handled — a
+  tracked session finishing still means the inbox row is `Handled`. A batch that fails for any
+  reason falls back to marking each message individually, with retries, so nothing is lost — only
+  the round trip is shared. A message already marked handled inside a transactional middleware's own
+  transaction is skipped.
+
+The result is that under load the inbox cost is paid per batch rather than per message on both the
+way in and the way out. `MaximumMessagesToReceive(1)` on a RabbitMQ or Kafka endpoint gives strict
+one-at-a-time persistence on arrival; `opts.Durability.MarkAsHandledBatchSize = 1` does the same for
+completion. The 6.x line only: none of this batching exists on 5.x, so a user reporting durable-inbox
+overhead on 5.x may simply need to upgrade.
+
 ### Who Recovers the Inbox <Badge type="tip" text="6.22" />
 
 An incoming envelope in durable storage is either owned by a specific node (its `owner_id` is that node's
