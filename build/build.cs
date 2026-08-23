@@ -463,7 +463,7 @@ partial class Build : NukeBuild
     /// </summary>
     private void WaitForDatabaseToBeReady()
     {
-        awaitService("PostgreSQL", TimeSpan.FromMinutes(2), () =>
+        awaitService("PostgreSQL", "postgresql", TimeSpan.FromMinutes(2), () =>
         {
             using var conn = new Npgsql.NpgsqlConnection(PostgresConnectionString + ";Pooling=false");
             conn.Open();
