@@ -43,20 +43,32 @@ public class FailureSlot
         return applied;
     }
 
-    public IContinuation Build(Exception ex, Envelope envelope)
+    /// <summary>
+    /// Build the continuation for this attempt, or null if every source in this slot declined the
+    /// envelope. See <see cref="IContinuationSource.Build" /> for what declining means.
+    /// </summary>
+    public IContinuation? Build(Exception ex, Envelope envelope)
     {
         if (_sources.Count == 1)
         {
             return _sources[0].Build(ex, envelope);
         }
 
-        var continuations = new IContinuation[_sources.Count];
-        for (var i = 0; i < _sources.Count; i++)
+        var continuations = new List<IContinuation>(_sources.Count);
+        foreach (var source in _sources)
         {
-            continuations[i] = _sources[i].Build(ex, envelope);
+            if (source.Build(ex, envelope) is { } continuation)
+            {
+                continuations.Add(continuation);
+            }
         }
 
-        return new CompositeContinuation(continuations);
+        return continuations.Count switch
+        {
+            0 => null,
+            1 => continuations[0],
+            _ => new CompositeContinuation(continuations.ToArray())
+        };
     }
 
     public string Describe()
