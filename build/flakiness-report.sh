@@ -33,7 +33,9 @@ mkdir -p "${output_dir}"
 
 # One object per project run. Several projects can report under one job (CIAWS, CIMQTT), so the job
 # rows are a group-by rather than a rename.
-ledger_files=$(find "${ledger_dir}" -name '*.json' -type f 2>/dev/null | sort)
+# *.durations.json files ride the same per-job artifacts but are Supervisor.KnownTestDurations
+# feed, not ledger entries — folding one in here would trip the Job/RetriesPerformed assert below.
+ledger_files=$(find "${ledger_dir}" -name '*.json' -not -name '*.durations.json' -type f 2>/dev/null | sort)
 if [ -n "${ledger_files}" ]; then
   # Ledger file names are composed from job/project/framework — no spaces to quote around.
   # shellcheck disable=SC2086
@@ -70,6 +72,12 @@ jq '[group_by(.Job)[] | {
       partial:       (map(.IsPartial // false) | any)
     }] | sort_by(-.retries, .job)' \
   "${output_dir}/entries.json" > "${output_dir}/aggregate.json"
+
+# Fold every job's per-test durations into the published baseline, so the next run's test jobs
+# can feed Supervisor.KnownTestDurations (build/TestDurations.cs, build/fetch-duration-baseline.sh).
+# Copied verbatim, not aggregated: the consumer wants exactly the per-job files back.
+mkdir -p "${output_dir}/durations"
+find "${ledger_dir}" -name '*.durations.json' -type f -exec cp {} "${output_dir}/durations/" \; 2>/dev/null
 
 total_retries=$(jq '[.[] | .retries] | add // 0' "${output_dir}/aggregate.json")
 # GH-3855. A readiness gate that restarted a wedged container and then succeeded makes the job PASS,

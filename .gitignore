@@ -203,6 +203,9 @@ FakesAssemblies/
 *.opt
 
 artifacts
+# The previous main run's published test durations, fetched by CI (or by hand) for
+# Supervisor.KnownTestDurations — see build/TestDurations.cs.
+previous-durations/
 src/CommonAssemblyInfo.cs
 paket.lock
 
