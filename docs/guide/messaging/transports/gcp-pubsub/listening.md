@@ -110,17 +110,78 @@ opts.ListenToPubsubTopic("incoming")
 ```
 
 ::: warning
-`MaxOutstandingMessages` is a bound on the **whole** listener. `ListenerCount` does **not** multiply it.
+`MaxOutstandingMessages` is the bound for **one** `SubscriberClient`, and the several inner clients that
+client builds for itself do **not** each get their own allowance.
 
-Google's own API remarks say that a `SubscriberClient` builds several inner clients and that "each will
-observe the flow control settings independently", which reads as though the effective ceiling were
-`ListenerCount × MaxOutstandingMessages`. Measured against the real client library, that is not what
-happens — the client builds a single shared flow controller. Sizing a listener from the documented reading
-will over-provision by a factor of `ListenerCount`. See
-[#4067](https://github.com/JasperFx/wolverine/issues/4067).
+Google's own API remarks say that a `SubscriberClient` creates multiple `SubscriberServiceApiClient`
+instances and that "each will observe the flow control settings independently", which reads as though the
+effective ceiling were `ClientCount × MaxOutstandingMessages`. Measured against the real client library
+(3.24.0), that is not what happens — the SDK builds a single `Flow` and shares it across every inner
+channel. Observed peak in flight tracked the configured limit exactly at 1 → 1, 3 → 3, 8 → 8 and
+1000 → 1000, and with `ClientCount = 4` against a limit of 3 the peak was **3, not 12**. Wolverine never
+sets `ClientCount` itself, so for a single listener `MaxOutstandingMessages` is simply the ceiling.
+See [#4067](https://github.com/JasperFx/wolverine/issues/4067).
 :::
 
-If the subscription was created with message ordering enabled, Pub/Sub additionally serializes delivery per
-ordering key — Wolverine maps `Envelope.GroupId` onto that key. Effective concurrency then becomes the
-*lesser* of `MaxOutstandingMessages` and the number of distinct group ids currently in flight, so an
-endpoint with only a handful of hot group ids will run at that group count no matter how it is sized.
+`ListenerCount` is a different matter. Wolverine builds a separate listener — and therefore a separate
+`SubscriberClient` with its own flow controller — for each one, so it *does* multiply. An endpoint declared
+like this can hold up to 500 messages in flight, not 100:
+
+```cs
+opts.ListenToPubsubTopic("incoming")
+    .ListenerCount(5)
+    .ConfigureListener(client => client.MaxOutstandingMessages = 100);
+```
+
+Size the endpoint on `ListenerCount × MaxOutstandingMessages`, and treat `MaxOutstandingMessages` on its own
+as the per-listener figure.
+
+## Ordering keys cap concurrency at the number of distinct group ids
+
+If you are diagnosing a Pub/Sub listener that runs slower than its flow control settings imply, and the
+numbers above do not explain it, check whether **message ordering** is in play. It is the most common reason
+a correctly-sized listener refuses to use the capacity you gave it, and nothing in the listener's own
+configuration hints at it.
+
+Pub/Sub guarantees ordered delivery per ordering key, and it implements that guarantee by **refusing to
+dispatch a second message for a key while one is still outstanding**. Wolverine maps `Envelope.GroupId` onto
+the ordering key when it publishes (see
+[Publishing](/guide/messaging/transports/gcp-pubsub/publishing)), so any message carrying a group id
+carries an ordering key too.
+
+The consequence is that effective concurrency becomes the *lesser* of `MaxOutstandingMessages` and **the
+number of distinct group ids currently in flight** — the configured bound stops being the binding constraint
+as soon as the group count falls below it. A listener sized for 100 outstanding messages whose traffic is
+concentrated on 3 group ids will process 3 messages at a time. Measured against a subscription with
+`EnableMessageOrdering = true`, publishing 12 messages across 3 ordering keys and holding every callback
+open, exactly 3 callbacks ran; the other 9 messages were never dispatched until their key freed up.
+
+This only applies when the **subscription** has message ordering enabled, which is off by default:
+
+```cs
+opts.ListenToPubsubTopic("incoming")
+    .ConfigurePubsubSubscription(options =>
+    {
+        // false by default -- without this, ordering keys on incoming
+        // messages are carried but not enforced
+        options.EnableMessageOrdering = true;
+    });
+```
+
+That flag is applied when Wolverine *creates* the subscription. If you are listening to a subscription that
+already exists, whether ordering is enforced was decided when that subscription was created, and you will
+need to inspect it in the Google Cloud console rather than infer it from your Wolverine configuration.
+
+::: tip
+To confirm this is what you are hitting, compare the number of messages your listener holds concurrently
+against the number of *distinct* group ids among them. If the two track each other while
+`MaxOutstandingMessages` sits far above both, broker-side ordering is your ceiling. Widening the group id —
+so that traffic spreads over more keys — raises throughput; raising `MaxOutstandingMessages` will not.
+:::
+
+Note that this serialisation overlaps with what
+[`PartitionProcessingByGroupId`](/guide/messaging/partitioning) provides in process: both keep messages
+sharing a group id from running concurrently. When ordering is enabled at the subscription, the broker's
+serialisation is the binding one, because the second message never arrives to be partitioned. How the two
+mechanisms should combine for a future native-ack Pub/Sub endpoint is still open — see
+[#4052](https://github.com/JasperFx/wolverine/issues/4052).
