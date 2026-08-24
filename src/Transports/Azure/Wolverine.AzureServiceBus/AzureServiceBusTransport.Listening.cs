@@ -96,7 +96,7 @@ public partial class AzureServiceBusTransport
             var inlineListener = new InlineAzureServiceBusListener(queue,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver,
                 mapper,
-                requeue);
+                requeue, runtime.DurabilitySettings.MaximumAckAttempts);
 
             await inlineListener.StartAsync();
 
@@ -105,7 +105,8 @@ public partial class AzureServiceBusTransport
 
         var messageReceiver = BusClient.CreateReceiver(queue.QueueName, BuildReceiverOptions(queue));
         var logger = runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>();
-        var listener = new BatchedAzureServiceBusListener(queue, logger, receiver, messageReceiver, mapper, requeue);
+        var listener = new BatchedAzureServiceBusListener(queue, logger, receiver, messageReceiver, mapper, requeue,
+            runtime.DurabilitySettings.MaximumAckAttempts);
 
         return listener;
     }
@@ -168,7 +169,8 @@ public partial class AzureServiceBusTransport
         {
             var messageProcessor = BusClient.CreateProcessor(subscription.Topic.TopicName, subscription.SubscriptionName, BuildProcessorOptions(subscription));
             var inlineListener = new InlineAzureServiceBusListener(subscription,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver, mapper,  requeue
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver, mapper,  requeue,
+                runtime.DurabilitySettings.MaximumAckAttempts
             );
 
             await inlineListener.StartAsync();
@@ -179,7 +181,9 @@ public partial class AzureServiceBusTransport
         var messageReceiver = BusClient.CreateReceiver(subscription.Topic.TopicName, subscription.SubscriptionName,
             BuildReceiverOptions(subscription));
 
-        var listener = new BatchedAzureServiceBusListener(subscription, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper, requeue);
+        var listener = new BatchedAzureServiceBusListener(subscription,
+            runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper,
+            requeue, runtime.DurabilitySettings.MaximumAckAttempts);
 
         return listener;
     }
