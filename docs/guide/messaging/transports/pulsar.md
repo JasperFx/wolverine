@@ -111,6 +111,41 @@ A few things to know:
 - Reach for `TailFromLatest()` when you want **all** nodes to process each message; use a normal `Shared` /
   `KeyShared` subscription when you want each message processed **once** across the cluster.
 
+#### Handler failures on a hot-tail listener are dropped, not retried
+
+Losing a message because a node was down or had not attached its reader yet is inherent to choosing a
+non-durable cursor, and is the trade you accept when you call `TailFromLatest()`. Losing one because its
+**handler threw** is easier to be surprised by, so it is worth being explicit about what does and does not
+work here.
+
+A hot-tail listener commits no cursor, so there is nothing for the broker to redeliver from. Every
+requeue-shaped error policy therefore resolves to a no-op and the message is simply gone:
+
+| Error handling | On a hot-tail listener |
+| --- | --- |
+| `RetryTimes()`, `RetryWithCooldown()` | ✅ Works — the retry never leaves the process |
+| `ScheduleRetry()` | ✅ Works — rescheduled in memory, or in the durable inbox if one is configured |
+| `Requeue()`, `RequeueIndefinitely()`, `PauseThenRequeue()`, `MaximumAttempts()` | ❌ **Silently drops the message** |
+| Pulsar native dead letter topic (`DeadLetterQueueing()`) | ❌ Never reached — a native dead-letter move is a listener operation, and this listener is a `Reader` |
+| Wolverine's durable dead letter table | ✅ Works, if a message store is configured |
+
+Wolverine warns at bootstrap if a hot-tail listener is combined with any requeue-shaped policy, since none of
+it can run.
+
+In-process retries are the error handling to reach for on a hot-tail listener, and a configured message store
+is the only recovery route it can offer:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/live-events").TailFromLatest();
+
+// Retried inside this process; nothing is handed back to the broker.
+opts.Policies.OnException<TransientFailureException>().RetryWithCooldown(
+    50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+```
+
+If these are messages you cannot afford to lose on a handler failure, use an ordinary `Shared` / `KeyShared`
+subscription instead — the cursor is what makes redelivery possible.
+
 ## Replaying a Topic <Badge type="tip" text="6.8" />
 
 When you need to **reprocess** a window of a topic's history — error recovery, rebuilding downstream state,

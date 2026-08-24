@@ -354,6 +354,17 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     /// cursor is throwaway and unacknowledged, so dead-letter / retry-letter queueing, native redelivery,
     /// and acknowledgment strategies do not apply. Pulsar analogue of the Kafka transport's
     /// <c>TailFromLatest()</c>.
+    ///
+    /// <para>
+    /// <b>Failures on a hot-tail listener are dropped, not retried (GH-4060).</b> With no cursor there is nothing
+    /// to redeliver from, so every requeue-shaped policy -- <c>Requeue()</c>, <c>RequeueIndefinitely()</c>,
+    /// <c>PauseThenRequeue()</c>, <c>MaximumAttempts()</c> -- resolves to a no-op and the message is simply gone.
+    /// Wolverine warns at bootstrap if you configure one. Error handling that stays inside the process still works
+    /// normally: <c>RetryTimes()</c>, <c>RetryWithCooldown()</c> and <c>ScheduleRetry()</c> all run. Pulsar's native
+    /// dead letter topic is <i>not</i> reachable from here either, because a native dead-letter move is a listener
+    /// operation and this listener is a <c>Reader</c>; a configured Wolverine message store does still capture the
+    /// failure in the durable dead letter table, and that is the only recovery route a hot-tail listener offers.
+    /// </para>
     /// </summary>
     /// <returns></returns>
     public PulsarListenerConfiguration TailFromLatest()

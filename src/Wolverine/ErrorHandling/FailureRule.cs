@@ -47,6 +47,17 @@ public class FailureRule : IEnumerable<FailureSlot>
         return false;
     }
 
+    /// <summary>
+    /// GH-4060. Does any attempt of this rule hand the message back to the listener for redelivery? Used by
+    /// <see cref="Wolverine.Configuration.ListenerConfigurationValidator"/> to spot requeue policies configured
+    /// against a listener that cannot redeliver anything.
+    /// </summary>
+    internal bool AnyRequeueContinuations()
+    {
+        return _slots.Any(slot => slot.Sources.Any(x => x is RequeueContinuation))
+               || InfiniteSource is RequeueContinuation;
+    }
+
     public FailureSlot AddSlot(IContinuationSource source)
     {
         var attempt = _slots.Count + 1;

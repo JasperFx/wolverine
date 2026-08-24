@@ -20,6 +20,12 @@ public class FailureSlot
 
     public int Attempt { get; }
 
+    /// <summary>
+    /// GH-4060. The continuation sources this slot will build from, so configuration validation can ask what a rule
+    /// would actually DO without having to manufacture an exception and an envelope to build it against.
+    /// </summary>
+    internal IReadOnlyList<IContinuationSource> Sources => _sources;
+
     public void AddAdditionalSource(IContinuationSource source)
     {
         _sources.Add(source);
