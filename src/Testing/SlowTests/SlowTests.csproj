@@ -22,8 +22,12 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
         <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
         <ProjectReference Include="..\..\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj"/>
+        <!-- GH-3713. The webhook flood reproduction needs a real broker for the message path and Postgres
+             purely as the cluster's node registry. -->
+        <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
         <ProjectReference Include="..\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
 

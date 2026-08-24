@@ -164,7 +164,12 @@ public static class NativeAckPartitionedProcessing
     }
 }
 
-public record NativeAckLetter(string GroupId, int Sequence);
+/// <summary>
+/// <paramref name="Payload" /> is optional and carries nothing the harness reads. It exists so GH-3713's
+/// webhook flood can send bodies in the size range a real webhook delivery has, rather than measuring broker
+/// behaviour against an empty record.
+/// </summary>
+public record NativeAckLetter(string GroupId, int Sequence, string? Payload = null);
 
 /// <summary>
 /// Injected per host so the ledger can name which node executed a message. All hosts in a multi-node test

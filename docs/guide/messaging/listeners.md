@@ -135,12 +135,14 @@ Three consequences follow from never acking at receipt, and all three are the po
   `MaximumParallelMessages` — doubled so a lane never starves.
 * **A dying node loses nothing.** Anything queued but not yet completed is still unacknowledged, so closing
   the channel or crashing hands every one of those deliveries back to the broker.
-* **Shutdown trades duplicates for safety.** Graceful drain processes what it can within the drain timeout;
-  whatever it cannot is simply never settled and gets redelivered. A rolling deploy therefore produces
-  duplicate deliveries bounded by the prefetch depth. Your handlers should already be idempotent under
-  at-least-once delivery, but it is worth knowing the number is not zero. The
-  [in-memory idempotency guard](#in-memory-idempotency-guard) below takes the edge off that for a *running*
-  process.
+* **Shutdown redelivers, but redelivery is not the same as duplicate execution.** Graceful drain finishes the
+  handlers already running and settles them; whatever it never started is simply not settled, and the broker
+  redelivers it. Those redeliveries are bounded by the prefetch window — but almost all of them are messages
+  that had not run yet, so they execute for the *first* time, and your handler cannot tell them from any other
+  first delivery. A **duplicate execution** — the same message running twice — needs something narrower: a
+  handler that finished while its acknowledgement was in flight, on a connection that died before the ack
+  landed. See [What a redeployment actually costs](#what-a-redeployment-actually-costs) for the measured
+  numbers.
 
 **Transport support is opt-in and default-closed.** A transport must settle each delivery individually *and*
 tolerate settling out of order, because the execution block completes messages in handler-completion order
@@ -153,6 +155,42 @@ A transport may also refuse the mode for a *particular* endpoint whose own setti
 bootstrap rather than at runtime. Pulsar is the example: its acknowledgment strategy is configurable, and
 `AcknowledgeCumulative()` reintroduces exactly the gap-less-commit problem that disqualifies Kafka, so that
 one combination is rejected by name.
+
+### What a redeployment actually costs
+
+Earlier versions of this page said a rolling deploy produced "duplicate deliveries bounded by the prefetch
+depth." That was honest reasoning, but it was never measured, and measuring it showed the figure is the wrong
+one to quote: it is the bound on *redeliveries*, and it overstates handler-visible duplicates by more than an
+order of magnitude.
+
+The numbers below come from `webhook_flood_native_ack_chaos` in `SlowTests` — a five node cluster,
+group-partitioned across five RabbitMQ slots, under a sustained flood deep enough that the broker was holding
+a full unacked window at every disruption, with the broker's own `messages_unacknowledged` read at that
+instant. The ranges are across four consecutive runs:
+
+| Scenario | Unacked at disruption | Duplicate executions | Rate |
+| --- | --- | --- | --- |
+| Steady state, no disruption | 0 | **0** | 0% |
+| Rolling deploy, all 5 nodes drained and replaced | 180 | **0** | 0% |
+| One node killed outright mid-flood | 180 | **3–4** | ~0.1% |
+| Two hard kills plus two rolling replacements | 180 | **7–9** | ~0.05% |
+
+Two things follow, and both matter more than the headline percentage:
+
+* **A graceful rolling deploy costs zero duplicate executions.** Draining settles the handlers that were
+  already running, so nothing runs twice. The prefetch window is still redelivered — it simply had not been
+  executed yet, so those are first executions.
+* **A hard kill costs about one duplicate per busy lane, not one per unacked message.** Only handlers that
+  were *mid-flight* when the connection died can run twice, and that population is the partition slot count,
+  not the prefetch depth. In the runs above that was three or four per killed node against an unacked window
+  of 180 — a factor of roughly 45, and it barely moved between runs.
+
+None of this weakens the guarantee. Every duplicate still enters its group's sequential lane, so a duplicate
+never runs concurrently with the original, and the intra-group concurrency invariant held across every kill
+and every handoff in all of the runs above. Handlers must still be idempotent — at-least-once is the contract,
+and 0.1% of a flood is not a small number of messages — but size that work against in-flight lanes rather than
+against prefetch. The [in-memory idempotency guard](#in-memory-idempotency-guard) below removes the remainder
+within a *running* process; it cannot help across a node's death, because the guard dies with it.
 
 ## In-Memory Idempotency Guard <Badge type="tip" text="6.30" />
 

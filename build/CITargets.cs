@@ -1121,8 +1121,10 @@ partial class Build
     /// A reproduction nothing runs is a reproduction that rots, and GH-3781 is exactly what it caught
     /// the moment anyone did run it: a Balanced-mode host that would not finish <c>StopAsync</c>.
     ///
-    /// <para>Postgres is the only infrastructure the project needs — the SqlServer and Kafka project
-    /// references are transitive, and nothing here opens either.</para>
+    /// <para>Postgres and RabbitMQ are the infrastructure the project needs — the SqlServer and Kafka
+    /// project references are transitive, and nothing here opens either. RabbitMQ arrived with GH-3713's
+    /// five-node webhook flood, whose message path is the broker and whose Postgres usage is node
+    /// coordination only.</para>
     ///
     /// <para>This is deliberately one unsharded job to begin with: the point is to <i>measure</i> what
     /// the suite costs on a hosted runner, against the same 20 minute cap every other job answers to.
@@ -1137,9 +1139,12 @@ partial class Build
 
             // The agent scale classes are wall-clock bound, so overlap the container boot with the
             // compile rather than paying them serially.
-            LaunchDockerServices("postgresql");
+            //
+            // RabbitMQ joined the list with GH-3713's webhook flood reproduction: its message path is the
+            // broker, and Postgres is there only as the cluster's node registry.
+            LaunchDockerServices("postgresql", "rabbitmq");
             BuildTestProjects(slowTests);
-            AwaitDockerServices("postgresql");
+            AwaitDockerServices("postgresql", "rabbitmq");
 
             RunTestProject(slowTests);
         });
