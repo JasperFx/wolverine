@@ -26,4 +26,16 @@ public interface IAncillaryStoreFrameProvider
     /// handler opens and commits through that store rather than the primary store.
     /// </summary>
     Frame BuildOutboxFactoryFrame(Type storeType);
+
+    /// <summary>
+    /// This integration's event sourcing seam, when it has one. Lets a parameter attribute that has no
+    /// aggregate type to resolve through -- <c>[StreamState]</c> / <c>[StreamEvents]</c>, GH-3627 -- find
+    /// the right store when a chain has been routed to an ancillary one by <see cref="StorageAttribute"/>.
+    /// </summary>
+    /// <remarks>
+    /// Optional and defaulted to null, on the same terms as the optional members of
+    /// <see cref="EventSourcing.IEventSourcingFrameProvider"/>: an integration with no event sourcing
+    /// (EF Core) inherits the default and the caller reports that rather than failing obscurely.
+    /// </remarks>
+    EventSourcing.IEventSourcingFrameProvider? EventSourcing => null;
 }

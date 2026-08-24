@@ -31,6 +31,11 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
     // AsyncFrame where Marten's also implements IBatchableFrame.
     public Frame BuildLoadAggregateFrame(AggregateLoadRequest request) => new LoadAggregateFrame(request);
 
+    // GH-3627. Polecat's spelling of the raw stream reads.
+    public Frame BuildFetchStreamStateFrame(Variable identity) => new Codegen.FetchStreamStateFrame(identity);
+
+    public Frame BuildFetchStreamFrame(Variable identity) => new Codegen.FetchStreamFrame(identity);
+
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new FetchLatestAggregateFrame(aggregateType, identity);
 
