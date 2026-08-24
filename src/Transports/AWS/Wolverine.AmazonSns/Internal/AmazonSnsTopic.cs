@@ -212,8 +212,6 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             return tenantedSender;
         }
 
-        // GH-4073: SendsInline, not `Mode == EndpointMode.Inline`. EndpointMode.NativeAck also sends through an
-        // InlineSendingAgent, which cannot drive a BatchedSender. Inert until this transport sets supportsNativeAck.
         if (SendsInline)
         {
             return new InlineSnsSender(runtime, this);

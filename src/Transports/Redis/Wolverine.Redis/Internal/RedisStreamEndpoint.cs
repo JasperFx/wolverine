@@ -341,12 +341,6 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
             return tenantedSender;
         }
 
-        // GH-4073. SendsInline, NOT `Mode == EndpointMode.Inline`. GH-4046 gave this transport
-        // EndpointMode.NativeAck and GH-3709 then mapped that mode to an InlineSendingAgent on the way out, so a
-        // stream that listens with native acks and is ALSO a send target (its own reply endpoint counts) arrived
-        // here in NativeAck and fell to the batched branch. InlineSendingAgent is not an ISenderCallback, so the
-        // BatchedSender was never registered and every outgoing batch died inside it with "This sender has not
-        // been registered." -- on a block worker thread, surfacing only as messages that never arrive.
         return SendsInline
             ? new InlineRedisStreamSender(_transport, this, runtime)
             : new BatchedSender(this, new RedisSenderProtocol(_transport, this), runtime.Cancellation,

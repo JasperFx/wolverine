@@ -283,6 +283,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     internal bool ModeIgnoresParallelism => Mode == EndpointMode.Inline;
 
     /// <summary>
+    /// GH-4061. Does this endpoint send synchronously, awaiting the transport, rather than through a batching
+    /// sender?
+    ///
+    /// <para>
+    /// Transports use this to choose between their inline sender and a <c>BatchedSender</c>. It is one property
+    /// because getting it wrong is silent and total: a <c>BatchedSender</c> only functions once the sending agent
+    /// has registered a callback on it, and <c>InlineSendingAgent</c> is NOT an <c>ISenderCallback</c>, so the
+    /// registration in <c>EndpointCollection.CreateSendingAgent</c> is skipped for it. A transport that asks
+    /// <c>Mode == EndpointMode.Inline</c> directly therefore hands a NativeAck endpoint an unregistered
+    /// <c>BatchedSender</c> whose every send throws "This sender has not been registered."
+    /// </para>
+    ///
+    /// <para>
+    /// Ask this rather than comparing against <see cref="EndpointMode.Inline"/>, so that a future mode which also
+    /// sends inline does not require finding all nine call sites again.
+    /// </para>
+    /// </summary>
+    public bool SendsInline => Mode is EndpointMode.Inline or EndpointMode.NativeAck;
+
+    /// <summary>
     /// GH-3712. Render <see cref="MaxDegreeOfParallelism"/> for diagnostics, saying "n/a" rather than
     /// printing a dead number for a mode that never reads it.
     /// </summary>
@@ -786,24 +806,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     {
         return mode == EndpointMode.NativeAck ? supportsNativeAck : supportsMode(mode);
     }
-
-    /// <summary>
-    /// GH-4073. Does the OUTGOING side of this endpoint run through an inline sending agent -- i.e. one that awaits
-    /// the send itself rather than handing the envelope to an in-memory queue? A transport's <c>CreateSender</c>
-    /// must consult this rather than testing <c>Mode == EndpointMode.Inline</c> directly.
-    ///
-    /// <para>
-    /// <see cref="EndpointMode"/> is a single property governing both directions, so the modes that produce an
-    /// inline sending agent are not just <see cref="EndpointMode.Inline"/>. <see cref="EndpointMode.NativeAck"/>
-    /// is a LISTENING optimization that maps to an inline sending agent on the way out (GH-3709), so an endpoint
-    /// that listens with native acks and is also a send target lands here too. A transport that gates only on
-    /// <c>Inline</c> hands a batching sender to an inline agent, and because <see cref="InlineSendingAgent"/> is
-    /// not an <c>ISenderCallback</c> the batching sender is never registered -- every outgoing batch then dies
-    /// inside the sender's own block with "This sender has not been registered."
-    /// </para>
-    /// </summary>
-    [IgnoreDescription]
-    public bool SendsInline => Mode is EndpointMode.Inline or EndpointMode.NativeAck;
 
     // Is this endpoint part of a sharded messaging topology?
     // If so, this should be "auto-started"
