@@ -18,10 +18,11 @@ namespace Wolverine.AzureServiceBus.Tests;
 public class native_ack_with_sessions_4049
 {
     /// <summary>
-    /// Azure Service Bus has NOT opted into native acks yet -- see <see cref="the_shipping_queue_still_refuses_native_acks_in_the_mode_setter" />.
-    /// These subclasses open only that one gate, so the tests below prove the SESSION rejection specifically and
-    /// can never pass on the strength of the mode gate's own InvalidOperationException, which is a different
-    /// exception type raised from a different place at a different time.
+    /// These subclasses predate GH-4051, when Azure Service Bus had not yet opted into native acks and the mode gate
+    /// would otherwise have thrown before any of these tests reached the session rejection. They are kept because
+    /// <see cref="NativeAckCapableQueue.SessionsRequiredWhenTheModeWasChecked" /> is still the only way to observe
+    /// what a guard living in the Mode setter would have been able to see -- see
+    /// <see cref="a_guard_in_the_mode_setter_would_be_ordering_dependent" />.
     /// </summary>
     private class NativeAckCapableQueue : AzureServiceBusQueue
     {
@@ -232,19 +233,27 @@ public class native_ack_with_sessions_4049
     }
 
     /// <summary>
-    /// Pins the reason the subclasses above exist. Until Azure Service Bus opts into the mode (the follow-up half of
-    /// GH-4049's parent issue -- prefetch sizing plus the compliance suite), a real queue refuses native acks in the
-    /// Mode setter, with an InvalidOperationException rather than the session rejection. The two rejections must not
-    /// be confusable for each other.
+    /// GH-4051 replaced this test's original assertion. It used to pin that a shipping queue refused native acks in
+    /// the Mode setter, which is what made the subclasses above necessary. Azure Service Bus has since adopted the
+    /// mode, so a real queue now accepts it -- and the session rejection above still has to be the ONLY thing that
+    /// refuses the pairing, which is exactly what this now checks.
     /// </summary>
     [Fact]
-    public void the_shipping_queue_still_refuses_native_acks_in_the_mode_setter()
+    public void the_shipping_queue_now_accepts_native_acks()
     {
         var transport = new AzureServiceBusTransport();
-        var queue = transport.Queues["not-yet-adopted"];
+        var queue = transport.Queues["adopted-in-4051"];
 
-        var ex = Should.Throw<InvalidOperationException>(() => queue.Mode = EndpointMode.NativeAck);
-        ex.ShouldNotBeOfType<InvalidListenerConfigurationException>();
-        ex.Message.ShouldContain("does not support EndpointMode.NativeAck");
+        Should.NotThrow(() => queue.Mode = EndpointMode.NativeAck);
+        queue.Mode.ShouldBe(EndpointMode.NativeAck);
+
+        // ...and a real subscription too
+        var topic = transport.Topics["adopted-topic-4051"];
+        var subscription = new AzureServiceBusSubscription(transport, topic, "adopted-subscription-4051");
+        Should.NotThrow(() => subscription.Mode = EndpointMode.NativeAck);
+
+        // ...but never a topic, which is only ever published to
+        Should.Throw<InvalidOperationException>(() => topic.Mode = EndpointMode.NativeAck)
+            .Message.ShouldContain("does not support EndpointMode.NativeAck");
     }
 }

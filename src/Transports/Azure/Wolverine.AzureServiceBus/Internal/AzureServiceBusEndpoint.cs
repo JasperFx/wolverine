@@ -71,7 +71,38 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     /// </summary>
     public int PrefetchCount
     {
-        get => _prefetchCount ?? Parent.PrefetchCount;
+        get
+        {
+            if (_prefetchCount.HasValue)
+            {
+                return _prefetchCount.Value;
+            }
+
+            // An explicit transport-wide setting is a deliberate choice and outranks any mode default
+            if (Parent.ExplicitPrefetchCount.HasValue)
+            {
+                return Parent.ExplicitPrefetchCount.Value;
+            }
+
+            // GH-4051. Azure Service Bus's shipping default is 0 -- no prefetch at all -- which leaves a NativeAck
+            // endpoint fetching one batch per network round trip and starving its lanes between receives. Sizing it
+            // to the lanes is the same reasoning as RabbitMqQueue.PreFetchCount's NativeAck arm, but the ceiling
+            // matters far more here than it does there: an Azure Service Bus message starts aging against its lock
+            // the moment the CLIENT buffers it, and a prefetched message has no Envelope yet, so it is not being
+            // tracked by LeaseRenewalTracker and cannot be renewed. Prefetch is therefore the one part of a
+            // NativeAck endpoint's backlog that renewal does NOT protect -- which is exactly why this is a small
+            // multiple of the lane count rather than the large buffer a throughput-only tuning would pick.
+            if (Mode == EndpointMode.NativeAck)
+            {
+                var lanes = GroupShardingSlotNumber.HasValue
+                    ? Math.Max((int)GroupShardingSlotNumber.Value, MaxDegreeOfParallelism)
+                    : MaxDegreeOfParallelism;
+
+                return lanes * 2;
+            }
+
+            return Parent.PrefetchCount;
+        }
         set
         {
             if (value < 0)
@@ -81,6 +112,49 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
             }
 
             _prefetchCount = value;
+        }
+    }
+
+    /// <summary>
+    /// GH-4051. How long Azure Service Bus holds the lock on one unsettled delivery from this endpoint. This is the
+    /// clock <see cref="EndpointMode.NativeAck" /> has to keep alive: a NativeAck delivery stays unsettled for lane
+    /// queue time <em>plus</em> handler time, and past this the broker takes the message back and redelivers it.
+    /// Read from the entity's own <c>LockDuration</c> (Azure's default is one minute, its maximum five).
+    /// </summary>
+    /// <remarks>
+    /// Wolverine reads the value it would <em>create</em> the entity with, which is the value the broker reports for
+    /// any entity Wolverine provisioned. If an entity was created outside Wolverine with a SHORTER lock duration than
+    /// the one configured here, renewal ticks at half of this rather than half of the real clock and can therefore
+    /// tick too late; configure <c>Options.LockDuration</c> to match the deployed entity in that case.
+    /// </remarks>
+    internal virtual TimeSpan LockDuration => TimeSpan.FromMinutes(1);
+
+    private TimeSpan _maximumLockRenewalDuration = TimeSpan.FromHours(1);
+
+    /// <summary>
+    ///     The longest a single delivery's lock is kept alive from its receipt under
+    ///     <see cref="EndpointMode.NativeAck" /> before Wolverine stops renewing it and lets Azure Service Bus
+    ///     redeliver. Default one hour.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike Amazon SQS -- where the equivalent ceiling exists because SQS refuses to keep a message invisible
+    ///     for more than 12 hours -- Azure Service Bus imposes no cap on lock renewal at all; a message's lock can be
+    ///     renewed until the message's own time-to-live runs out. This ceiling is therefore purely Wolverine's
+    ///     stop-loss on a wedged handler, so that one stuck message cannot hold a broker lock forever. Reaching it is
+    ///     deliberately NOT treated as a lost lease: the delivery may still finish inside the lock it already holds.
+    /// </remarks>
+    public TimeSpan MaximumLockRenewalDuration
+    {
+        get => _maximumLockRenewalDuration;
+        set
+        {
+            if (value <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value,
+                    "MaximumLockRenewalDuration must be greater than zero");
+            }
+
+            _maximumLockRenewalDuration = value;
         }
     }
 
@@ -95,6 +169,16 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     ///     default of 1. Does not apply to the default Buffered/Durable batch receive loop, which
     ///     scales through MaximumParallelMessages instead. See GH-3494.
     /// </summary>
+    /// <remarks>
+    ///     GH-4051 considered giving this a <see cref="EndpointMode.NativeAck" /> default alongside
+    ///     <see cref="PrefetchCount" /> and deliberately did not. This setting only reaches a
+    ///     <c>ServiceBusProcessor</c> or <c>ServiceBusSessionProcessor</c>, and NativeAck runs on
+    ///     <see cref="BatchedAzureServiceBusListener" />, which is built over a plain
+    ///     <c>ServiceBusReceiver</c> and never sees these options at all. A default here would have been
+    ///     inert configuration that reads as though it were doing something. NativeAck's lane count is
+    ///     <c>MaximumParallelMessages</c> (or the partition slot count), and the only broker-side number that
+    ///     has to keep up with it is the prefetch.
+    /// </remarks>
     public int? MaximumConcurrentCalls
     {
         get => _maximumConcurrentCalls;

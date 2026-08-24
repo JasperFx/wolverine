@@ -227,6 +227,29 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     internal override bool RequiresSessions => Options.RequiresSession;
 
+    /// <summary>
+    /// GH-4051. Declared here rather than inherited from <see cref="AzureServiceBusEndpoint" /> on purpose, so that
+    /// <see cref="AzureServiceBusTopic" /> -- which shares that base and is only ever published to -- cannot pick
+    /// native acks up by accident.
+    ///
+    /// <para>
+    /// The analysis is the same one that qualifies <see cref="AzureServiceBusQueue" />, and it genuinely does carry
+    /// over: a subscription is consumed through an ordinary <c>ServiceBusReceiver</c> built over
+    /// (topic, subscription) instead of (queue), settled through the same per-message peek-lock calls, and served by
+    /// the same <see cref="BatchedAzureServiceBusListener" />. Nothing about fanning out to several subscriptions
+    /// couples their settlement: each subscription gets its own copy of the message with its own lock.
+    /// </para>
+    /// </summary>
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
+    /// GH-4048. A subscription's unsettled delivery expires on the subscription's own <c>LockDuration</c>, exactly
+    /// as a queue's does.
+    /// </summary>
+    protected internal override bool holdsExpiringLease => true;
+
+    internal override TimeSpan LockDuration => Options.LockDuration;
+
     internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
         if (Parent.AutoProvision)
