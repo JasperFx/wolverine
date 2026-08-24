@@ -47,7 +47,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L25-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L27-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And instead with [multi-tenanted SQL Server](/guide/durability/sqlserver.html#multi-tenancy) storage:
@@ -87,7 +87,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L58-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note in both samples how I'm registering the `DbContext` types. There's a fluent interface first to register the multi-tenanted
@@ -172,7 +172,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L58-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then you can _still_ use those EF Core `DbContext` services with Wolverine messaging including the Wolverine outbox like 
@@ -209,7 +209,7 @@ public class MyMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L185-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idbcontextoutboxfactory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L187-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idbcontextoutboxfactory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The important thing to note above is just that this pattern and service will work with any .NET code and not just within Wolverine
@@ -255,7 +255,7 @@ public class TenantedItem : ITenanted
     public string? TenantId { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L304-L319' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenanted_entity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L372-L387' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenanted_entity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and registering the `DbContext` with conjoined tenancy:
@@ -285,7 +285,7 @@ builder.UseWolverine(opts =>
         }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L222-L245' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_postgresql' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L224-L247' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_postgresql' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With that registration, Wolverine takes over all the mechanical multi-tenancy chores you would otherwise hand-roll
@@ -559,6 +559,45 @@ public static class CrossTenantWriteDemo
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Demos/CrossTenantWriteDemo.cs#L28-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_cross_tenant_write_rejection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### With Marten Owning the Message Store <Badge type="tip" text="6.30" />
+
+If Marten owns the message storage through `IntegrateWithWolverine()`, Wolverine's message store is built from
+Marten's `NpgsqlDataSource` and never sees a connection string. `NpgsqlDataSource.ConnectionString` deliberately
+omits the password, so there is no string the conjoined `DbContext` could be configured with that the database
+would actually accept. Use the overload that hands you the `DbDataSource` itself instead:
+
+<!-- snippet: sample_conjoined_tenancy_with_marten_owned_store -->
+<a id='snippet-sample_conjoined_tenancy_with_marten_owned_store'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+
+builder.UseWolverine(opts =>
+{
+    // Marten owns the message storage here, so Wolverine's message store is built
+    // from Marten's NpgsqlDataSource rather than from a connection string
+    opts.Services.AddMarten(m =>
+    {
+        m.Connection(configuration.GetConnectionString("main")!);
+    }).IntegrateWithWolverine();
+
+    // ...which means the conjoined DbContext has to be configured from that same
+    // DbDataSource. NpgsqlDataSource.ConnectionString deliberately omits the password,
+    // so the connection string overload cannot authenticate in this setup
+    opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+        (builder, dataSource) =>
+        {
+            builder.UseNpgsql((NpgsqlDataSource)dataSource);
+        }, AutoCreate.CreateOrUpdate);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L252-L277' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_marten_owned_store' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Registering the connection string overload in this setup fails fast at startup with an error naming this
+overload, rather than surfacing later as an authentication failure.
+
 ### Tenant Partitioning <Badge type="tip" text="6.21" />
 
 Opt into Weasel-managed **partition-per-tenant** physical partitioning with `PartitionPerTenant()`:
@@ -579,7 +618,7 @@ opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.
         partitioning.AllowPartitionSharing = true;
     }));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L257-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_partitioning' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L289-L302' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With partitioning enabled:
@@ -611,7 +650,7 @@ await partitions.AddTenantAsync("small-tenant-b", "shared_bucket");
 // Dropping a tenant's partition removes its rows
 await partitions.DropTenantAsync("tenant1", deleteData: true);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L271-L285' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_tenant_management' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L308-L324' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_tenant_management' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that with partitioning enabled, a tenant's partition must exist before rows can be written for that tenant.
@@ -666,7 +705,28 @@ succeed — one table's DDL failing does not roll back the tables that already r
 `TenantPartitionResult` reporting the outcome per table, so callers can surface partial failures instead of
 inferring success from the absence of an exception:
 
-snippet: sample_conjoined_partitioning_status_reporting
+<!-- snippet: sample_conjoined_partitioning_status_reporting -->
+<a id='snippet-sample_conjoined_partitioning_status_reporting'></a>
+```cs
+// Partition DDL is applied per table with failures isolated, so a batch
+// can partially succeed -- check the result rather than relying on the
+// absence of an exception
+var result = await partitions.AddTenantsAsync(new Dictionary<string, string?>
+{
+    ["tenant2"] = null,
+    ["tenant3"] = null
+});
+
+if (!result.Succeeded)
+{
+    foreach (var table in result.Failures)
+    {
+        Console.WriteLine($"{table.TableName} => {table.Status}");
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L326-L343' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_status_reporting' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 On SQL Server the result also carries the `tenant_id -> ordinal` map that was assigned. On PostgreSQL, which
 partitions by list on the tenant id itself, `Ordinals` is empty.
@@ -682,7 +742,19 @@ managed set — a newly deployed service, or a newly mapped `ITenanted` entity �
 registered before that table existed**. `MigrateTenantPartitionsAsync()` reconciles every partitioned table
 against the full registered tenant set:
 
-snippet: sample_conjoined_partitioning_back_fill
+<!-- snippet: sample_conjoined_partitioning_back_fill -->
+<a id='snippet-sample_conjoined_partitioning_back_fill'></a>
+```cs
+// Back-fill: reconcile every partitioned table against the full registered
+// tenant set. Needed when a table joins an existing managed set -- a newly
+// deployed service, or a newly mapped ITenanted entity -- because routine
+// migrations deliberately leave managed partitions alone, so the new table
+// would have no partition for any tenant registered before it existed
+var backFill = await partitions.MigrateTenantPartitionsAsync();
+Console.WriteLine($"Back-fill reconciled {backFill.Tables.Count} table(s)");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L345-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_back_fill' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The back-fill is a reconcile rather than a one-shot, so it is safe to run on every deploy. It also repairs a
 partitioned table that is missing a partition for an already-registered tenant.
@@ -711,7 +783,7 @@ await tenants.EnableTenantAsync("tenant1");
 // tenant's partition is dropped along with its rows
 await tenants.RemoveTenantAsync("tenant1");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L287-L301' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenant_registry' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L355-L369' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenant_registry' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Disabled tenants are rejected at `SaveChanges` time with `UnknownTenantIdException`. Removing a tenant deletes its

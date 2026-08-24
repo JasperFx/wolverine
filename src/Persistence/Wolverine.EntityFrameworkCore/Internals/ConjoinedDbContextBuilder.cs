@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using FastExpressionCompiler;
@@ -27,7 +28,8 @@ namespace Wolverine.EntityFrameworkCore.Internals;
     Justification = "FastExpressionCompiler emits IL at registration time; AOT consumers register an explicit factory. See AOT guide / #2755.")]
 public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbContext
 {
-    private readonly Action<DbContextOptionsBuilder<T>, ConnectionString> _configuration;
+    private readonly Action<DbContextOptionsBuilder<T>, ConnectionString>? _configuration;
+    private readonly Action<DbContextOptionsBuilder<T>, DbDataSource>? _dataSourceConfiguration;
     private readonly Func<DbContextOptions<T>, T> _constructor;
     private readonly IMessageDatabase _database;
     private readonly IDomainEventScraper[] _domainScrapers;
@@ -37,10 +39,31 @@ public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbCon
     public ConjoinedDbContextBuilder(IServiceProvider serviceProvider, IMessageDatabase database,
         Action<DbContextOptionsBuilder<T>, ConnectionString> configuration,
         IEnumerable<IDomainEventScraper> domainScrapers)
+        : this(serviceProvider, database, domainScrapers)
+    {
+        _configuration = configuration;
+    }
+
+    /// <summary>
+    /// GH-4044. Configures the shared DbContext from the message store's own DbDataSource rather than
+    /// from a connection string. Necessary whenever the store was built from a data source instead of
+    /// a connection string -- Marten's IntegrateWithWolverine() is the common case -- because
+    /// NpgsqlDataSource.ConnectionString deliberately omits the password, so the string round trip
+    /// cannot produce credentials the database will accept.
+    /// </summary>
+    public ConjoinedDbContextBuilder(IServiceProvider serviceProvider, IMessageDatabase database,
+        Action<DbContextOptionsBuilder<T>, DbDataSource> configuration,
+        IEnumerable<IDomainEventScraper> domainScrapers)
+        : this(serviceProvider, database, domainScrapers)
+    {
+        _dataSourceConfiguration = configuration;
+    }
+
+    private ConjoinedDbContextBuilder(IServiceProvider serviceProvider, IMessageDatabase database,
+        IEnumerable<IDomainEventScraper> domainScrapers)
     {
         _serviceProvider = serviceProvider;
         _database = database;
-        _configuration = configuration;
         _domainScrapers = domainScrapers.ToArray();
 
         var optionsType = typeof(DbContextOptions<T>);
@@ -138,21 +161,40 @@ public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbCon
 
     private DbContextOptions<T> buildOptions()
     {
-        var connectionString = _database.Settings.ConnectionString ?? _database.Settings.DataSource?.ConnectionString;
-        if (connectionString.IsEmpty())
-        {
-            throw new InvalidOperationException(
-                $"Unable to determine the database connection string for the conjoined multi-tenanted DbContext {typeof(T).FullNameInCode()}");
-        }
-
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, ConjoinedTenancyModelCustomizer>();
         // Cache models per (context type, wolverine schema) -- GH-3497
         builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         builder.AddInterceptors(TenantStampingInterceptor.Instance);
-        _configuration(builder, new ConnectionString(connectionString!));
+
+        if (_dataSourceConfiguration != null)
+        {
+            _dataSourceConfiguration(builder, _database.DataSource);
+        }
+        else
+        {
+            _configuration!(builder, new ConnectionString(determineConnectionString()));
+        }
 
         return builder.Options;
     }
+
+    private string determineConnectionString()
+    {
+        var connectionString = _database.Settings.ConnectionString ?? _database.Settings.DataSource?.ConnectionString;
+        if (connectionString.IsEmpty())
+        {
+            throw new InvalidOperationException(
+                $"Unable to determine the database connection string for the conjoined multi-tenanted DbContext {typeof(T).FullNameInCode()}. {dataSourceAdvice}");
+        }
+
+        return connectionString!;
+    }
+
+    // GH-4044. A store built from a DbDataSource cannot hand back a usable connection string --
+    // NpgsqlDataSource.ConnectionString drops the password -- so the failure surfaces as a login
+    // error a long way from its cause. Point at the overload that carries credentials.
+    private static string dataSourceAdvice =>
+        $"Wolverine's message store was built from a {nameof(DbDataSource)} rather than a connection string, which is what Marten's IntegrateWithWolverine() does. Register the conjoined DbContext with the AddDbContextWithWolverineManagedConjoinedTenancy overload that takes a {nameof(DbDataSource)} instead.";
 }

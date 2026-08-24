@@ -126,6 +126,36 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, ConnectionString> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None,
         Action<ConjoinedTenancyOptions>? tenancy = null) where T : DbContext
     {
+        return services.addConjoinedTenancy<T>(
+            (s, database) => new ConjoinedDbContextBuilder<T>(s, database, dbContextConfiguration,
+                s.GetServices<IDomainEventScraper>()), autoCreate, tenancy);
+    }
+
+    /// <summary>
+    /// Register a DbContext type that should use Wolverine managed conjoined multi-tenancy, configured from the
+    /// message store's own DbDataSource rather than from a connection string. Use this overload whenever Wolverine's
+    /// message store was itself built from a DbDataSource -- Marten's IntegrateWithWolverine() being the common case --
+    /// because a DbDataSource does not expose a connection string that still carries credentials
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="dbContextConfiguration"></param>
+    /// <param name="autoCreate">Should this application try to create the database and apply missing migrations at application startup? Default is None, all other options will create the database.</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static IServiceCollection AddDbContextWithWolverineManagedConjoinedTenancy<T>(this IServiceCollection services,
+        Action<DbContextOptionsBuilder<T>, DbDataSource> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None,
+        Action<ConjoinedTenancyOptions>? tenancy = null) where T : DbContext
+    {
+        return services.addConjoinedTenancy<T>(
+            (s, database) => new ConjoinedDbContextBuilder<T>(s, database, dbContextConfiguration,
+                s.GetServices<IDomainEventScraper>()), autoCreate, tenancy);
+    }
+
+    private static IServiceCollection addConjoinedTenancy<T>(this IServiceCollection services,
+        Func<IServiceProvider, IMessageDatabase, IDbContextBuilder<T>> builderSource, AutoCreate autoCreate,
+        Action<ConjoinedTenancyOptions>? tenancy) where T : DbContext
+    {
         var conjoinedOptions = new ConjoinedTenancyOptions();
         tenancy?.Invoke(conjoinedOptions);
         ConjoinedTenancy.SetOptions(typeof(T), conjoinedOptions);
@@ -175,7 +205,7 @@ public static class WolverineEntityCoreExtensions
                     $"Conjoined multi-tenancy for {typeof(T).FullNameInCode()} requires Wolverine to be configured with relational database message storage");
             }
 
-            return new ConjoinedDbContextBuilder<T>(s, database, dbContextConfiguration, s.GetServices<IDomainEventScraper>());
+            return builderSource(s, database);
         });
 
         services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
