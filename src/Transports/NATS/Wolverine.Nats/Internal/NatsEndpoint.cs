@@ -107,6 +107,89 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal int EffectiveMaxDeliveryAttempts => MaxDeliveryAttempts ?? JetStreamDefaults.MaxDeliver;
 
     /// <summary>
+    /// GH-4053. Per-endpoint override for the JetStream consumer's <c>AckWait</c> -- how long the server will
+    /// wait for an unacknowledged delivery before redelivering it. When null the transport-wide
+    /// <see cref="Configuration.JetStreamDefaults.AckWait"/> applies. This is the clock
+    /// <see cref="EndpointMode.NativeAck"/> renews through <c>ISupportLeaseRenewal</c>.
+    /// </summary>
+    public TimeSpan? AckWait { get; set; }
+
+    /// <summary>
+    /// Resolved <c>AckWait</c> for this endpoint: per-endpoint <see cref="AckWait"/> wins over the
+    /// transport-wide <see cref="Configuration.JetStreamDefaults.AckWait"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal TimeSpan EffectiveAckWait => AckWait ?? JetStreamDefaults.AckWait;
+
+    private TimeSpan _maximumAckExtension = TimeSpan.FromHours(12);
+
+    /// <summary>
+    /// GH-4053. The longest a single JetStream delivery is kept alive by <c>AckProgress</c> renewals, measured
+    /// from its receipt, before Wolverine stops renewing and lets the server redeliver. Unlike SQS there is no
+    /// server-side cap on JetStream renewal, so this exists purely as Wolverine's own ceiling on how long one
+    /// unsettled delivery may pin a consumer's <see cref="MaxAckPending"/> slot. Default 12 hours, matching the
+    /// SQS ceiling. Only consulted under <see cref="EndpointMode.NativeAck"/>.
+    /// </summary>
+    public TimeSpan MaximumAckExtension
+    {
+        get => _maximumAckExtension;
+        set
+        {
+            if (value <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(MaximumAckExtension), "Must be greater than zero");
+            }
+
+            _maximumAckExtension = value;
+        }
+    }
+
+    /// <summary>
+    /// GH-4053. Explicit override for the JetStream consumer's <c>MaxAckPending</c> -- the number of deliveries
+    /// the server will leave unacknowledged before it stops delivering. Null leaves the NATS server default
+    /// (1,000) in place for every mode except <see cref="EndpointMode.NativeAck"/>, which computes its own
+    /// value. See <see cref="EffectiveMaxAckPending"/>.
+    /// </summary>
+    public int? MaxAckPending { get; set; }
+
+    /// <summary>
+    /// GH-4053. Resolved <c>MaxAckPending</c>, or null to leave the server default alone.
+    /// </summary>
+    /// <remarks>
+    /// <c>MaxAckPending</c> is JetStream's prefetch equivalent, and under <see cref="EndpointMode.NativeAck"/>
+    /// it IS the back pressure: nothing is acked until the handler succeeds, so the unacked window is what
+    /// bounds the in-memory execution block. It therefore has to cover every lane that can be busy at once --
+    /// the partition slot count when the endpoint is group-partitioned and <see cref="Endpoint.MaxDegreeOfParallelism"/>
+    /// otherwise, doubled so a lane is never starved waiting on the next delivery. Sized under that, the consumer
+    /// stalls itself: the server stops delivering while lanes sit idle. This mirrors
+    /// <c>RabbitMqQueue.PreFetchCount</c>'s NativeAck arm exactly.
+    /// </remarks>
+    [IgnoreDescription]
+    internal int? EffectiveMaxAckPending
+    {
+        get
+        {
+            if (MaxAckPending.HasValue)
+            {
+                return MaxAckPending.Value;
+            }
+
+            if (Mode != EndpointMode.NativeAck)
+            {
+                // Every other mode settles on receipt (Buffered/Durable) or one at a time (Inline), so the
+                // server default has never been the binding constraint. Don't change what they see.
+                return null;
+            }
+
+            var lanes = GroupShardingSlotNumber.HasValue
+                ? Math.Max((int)GroupShardingSlotNumber.Value, MaxDegreeOfParallelism)
+                : MaxDegreeOfParallelism;
+
+            return lanes * 2;
+        }
+    }
+
+    /// <summary>
     /// Suffix appended to the destination subject to form the NATS JetStream scheduling subject for native
     /// scheduled sends. Must keep the schedule subject covered by the stream (e.g. a <c>prefix.&gt;</c>
     /// filter covers <c>{subject}.scheduled</c>). Defaults to <c>.scheduled</c>.
@@ -159,9 +242,76 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             EndpointMode.Inline => true,
             EndpointMode.BufferedInMemory => true,
             EndpointMode.Durable => UseJetStream,
+
+            // GH-4053. A deliberate arm rather than a leak: this switch's `_ => false` correctly refused
+            // NativeAck before this issue, so the mode had to be admitted explicitly. JetStream-only, and the
+            // JetStream half of that decision is made in validateModeConfiguration() below rather than here.
+            EndpointMode.NativeAck => true,
             _ => false
         };
     }
+
+    /// <summary>
+    /// GH-4053. JetStream settles each delivery individually (<c>Ack</c> / <c>Nak</c> / <c>AckTerminate</c> off
+    /// <see cref="NatsEnvelope.JetStreamMsg"/>) and does not care what order the acks arrive in, so out-of-order
+    /// settlement from a worker thread is expressible -- which is what <see cref="EndpointMode.NativeAck"/> requires.
+    /// </summary>
+    /// <remarks>
+    /// Answering the JetStream question HERE, in the <see cref="Endpoint.Mode"/> setter's predicate, would make the
+    /// answer depend on the order the user happened to write two fluent calls: <c>UseJetStream()</c> and
+    /// <c>ProcessInParallelWithNativeAcks()</c> are both applied as delayed configuration, so
+    /// <c>.ProcessInParallelWithNativeAcks().UseJetStream("X")</c> would be refused while
+    /// <c>.UseJetStream("X").ProcessInParallelWithNativeAcks()</c> was accepted -- for identical configurations.
+    /// GH-4047's <see cref="validateModeConfiguration"/> exists for exactly this shape of question and runs over
+    /// the FINAL state after <see cref="Endpoint.Compile"/>, so core NATS is refused deterministically and with a
+    /// message that says why. Azure Service Bus resolved the same ordering problem the same way for
+    /// <c>RequireSessions()</c> in GH-4049.
+    /// </remarks>
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
+    /// GH-4053. Native acks are JetStream-only. Core NATS has no redelivery-on-unacked semantics at all -- a core
+    /// subscription is fire-and-forget, there is nothing to leave unsettled and nothing to hand back -- so the
+    /// crash-safety story the mode exists to provide does not exist there. A core NATS "native ack" endpoint would
+    /// be BufferedInMemory with extra steps and a false no-loss promise, which is worse than refusing it.
+    /// </summary>
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        if (Mode != EndpointMode.NativeAck) yield break;
+
+        if (!UseJetStream)
+        {
+            yield return
+                $"Invalid listener configuration for endpoint '{Uri}': ProcessInParallelWithNativeAcks() requires JetStream. " +
+                "Core NATS delivers a message once and forgets it -- there is no unacknowledged delivery to hold and no " +
+                "redelivery when a node dies mid-flight -- so EndpointMode.NativeAck cannot deliver the no-loss guarantee " +
+                "it promises. Add UseJetStream(...) to this listener, or use BufferedInMemory()/ProcessInline() on core NATS.";
+
+            yield break;
+        }
+
+        if (!_transport.Configuration.EnableJetStream)
+        {
+            yield return
+                $"Invalid listener configuration for endpoint '{Uri}': ProcessInParallelWithNativeAcks() requires JetStream, " +
+                "but JetStream has been disabled transport-wide, so this listener falls back to core NATS and would settle " +
+                "nothing. Re-enable JetStream on the transport, or drop ProcessInParallelWithNativeAcks() from this listener.";
+        }
+    }
+
+    /// <summary>
+    /// GH-4048/GH-4053. A JetStream delivery is only unacknowledged for <see cref="EffectiveAckWait"/> before the
+    /// server redelivers it, so a NativeAck endpoint here has to renew that clock for as long as the envelope sits
+    /// in an execution lane. <see cref="NatsListener"/> supplies the renewal through <c>ISupportLeaseRenewal</c>,
+    /// and <c>ListeningAgent</c> refuses to start a NativeAck listener that does not.
+    ///
+    /// <para>
+    /// False for core NATS, where an un-acked message simply does not exist as a concept -- there is no clock and
+    /// nothing to renew. That combination is refused outright by <see cref="validateModeConfiguration"/> anyway;
+    /// this keeps the two answers consistent rather than asserting a lease core NATS does not have.
+    /// </para>
+    /// </summary>
+    protected internal override bool holdsExpiringLease => UseJetStream;
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
@@ -499,10 +649,17 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                 DurableName = ConsumerName,
                 FilterSubject = Subject,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                AckWait = JetStreamDefaults.AckWait,
+                AckWait = EffectiveAckWait,
                 MaxDeliver = EffectiveMaxDeliveryAttempts,
                 ReplayPolicy = ConsumerConfigReplayPolicy.Instant
             };
+
+            // GH-4053: JetStream's prefetch equivalent, and under NativeAck the only thing bounding the
+            // unacked window. Left unset (server default 1,000) for every other mode.
+            if (EffectiveMaxAckPending is { } maxAckPending)
+            {
+                consumerConfig.MaxAckPending = maxAckPending;
+            }
 
             await js.CreateOrUpdateConsumerAsync(StreamName, consumerConfig);
             logger.LogInformation(
