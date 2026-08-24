@@ -77,6 +77,20 @@ opts.ListenToSqsQueue("orders.fifo", queue =>
 });
 ```
 
+## FIFO Queues and Endpoint Modes
+
+A FIFO queue can be listened to with `BufferedInMemory` (the default), `UseDurableInbox()` or
+`ProcessInline()`. Only `ProcessInline()` actually preserves the ordering the queue guarantees —
+the other two hand messages to Wolverine's local execution block, which runs them in parallel.
+
+`ProcessInParallelWithNativeAcks()` is **refused at bootstrap** on a `.fifo` queue, rather than
+silently voiding the guarantee you are paying for. Native-ack lanes do not preserve delivery
+order, and partitioning by group id does not rescue it — SQS blocks a message group behind its
+own in-flight head, so under that mode every group would be stalled at the broker for as long as
+unrelated messages sat ahead of it in a Wolverine lane. See
+[Native Ack Processing](/guide/messaging/transports/sqs/listening#fifo-queues-do-not-support-native-acks)
+for the full reasoning. For ordered processing with throughput, use the sharded topology below.
+
 ## Partitioned Publishing with FIFO Queues
 
 For high-throughput scenarios where you need ordered processing *per group* but want parallelism *across groups*, consider using Wolverine's [partitioned sequential messaging](/guide/messaging/partitioning) with sharded SQS FIFO queues. This distributes messages across multiple queues based on their group id, giving you the best of both worlds — strict ordering within a group and horizontal scaling across groups.
