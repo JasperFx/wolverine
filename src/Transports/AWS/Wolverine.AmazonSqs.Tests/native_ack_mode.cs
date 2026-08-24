@@ -201,7 +201,7 @@ public class native_ack_mode : IAsyncLifetime
     ///     anything. Only the SECOND node's recordings can come from a redelivery.
     /// </remarks>
     [Fact]
-    public async Task nothing_is_settled_until_the_handler_succeeds_so_a_dead_node_loses_nothing()
+    public async Task nothing_is_settled_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
         NativeAckSqsTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

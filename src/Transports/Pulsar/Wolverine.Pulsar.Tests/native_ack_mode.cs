@@ -325,7 +325,7 @@ public class native_ack_mode : IAsyncLifetime
     /// the handler succeeds, so the broker hands them all back when the consumer drops.
     /// </summary>
     [Fact]
-    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_dead_node_loses_nothing()
+    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
         var batch = Guid.NewGuid().ToString("N");
         var topic = uniqueTopic("nativeack-redelivery");

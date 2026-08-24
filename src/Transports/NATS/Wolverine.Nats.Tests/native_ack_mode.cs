@@ -275,7 +275,7 @@ public class native_ack_mode : IAsyncLifetime
     /// the handler succeeds, so once the dead node stops renewing, JetStream redelivers all of them at AckWait.
     /// </summary>
     [Fact]
-    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_dead_node_loses_nothing()
+    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
         var topology = topologyFor("redelivery");
 
@@ -296,7 +296,8 @@ public class native_ack_mode : IAsyncLifetime
         await waitForAsync(() => queueDepth(firstHost, topology) > 0, 20.Seconds());
         await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
 
-        // The node dies mid-flight, having acked nothing
+        // The node shuts down mid-flight, having acked nothing. GH-4095: Dispose() DRAINS --
+        // WolverineRuntime.DisposeAsync calls StopAsync -- so this is a tidy shutdown, not a crash
         firstHost.Dispose();
 
         NativeAckWorkTracking.Handled.ShouldBeEmpty();

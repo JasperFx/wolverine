@@ -28,9 +28,18 @@ public static class NativeAckWorkTracking
     /// <summary>When set, handlers park here forever -- standing in for a node that dies mid-flight.</summary>
     public static TaskCompletionSource? Block;
 
+    /// <summary>
+    /// GH-4095. Recorded BEFORE the handler parks on <see cref="Block" />, so a test can wait until deliveries
+    /// have genuinely reached handlers before killing the node. The obvious signal -- the listener circuit's
+    /// QueueCount -- is always 0 under NativeAck, because NativeAckReceiver holds the delivery unacknowledged
+    /// rather than queueing it. Waiting on that is waiting on something that never happens.
+    /// </summary>
+    public static readonly ConcurrentBag<(string Node, int Number)> Started = new();
+
     public static void Reset()
     {
         Handled.Clear();
+        Started.Clear();
         Block = null;
     }
 }
@@ -39,6 +48,8 @@ public class NativeAckWorkHandler
 {
     public async Task Handle(NativeAckWork message, IWolverineRuntime runtime)
     {
+        NativeAckWorkTracking.Started.Add((runtime.Options.ServiceName, message.Number));
+
         if (NativeAckWorkTracking.Block != null)
         {
             await NativeAckWorkTracking.Block.Task;
@@ -61,6 +72,7 @@ public class native_ack_mode : IAsyncLifetime
     private const string ModeQueue = "native-ack-3708-mode";
     private const string EndToEndQueue = "native-ack-3708-e2e";
     private const string RedeliveryQueue = "native-ack-3708-redelivery";
+    private const string HardKillQueue = "native-ack-4095-hard-kill";
 
     public ValueTask InitializeAsync()
     {
@@ -81,7 +93,15 @@ public class native_ack_mode : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ServiceName = nodeName;
-                opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
+
+                // GH-4095. Named per node so the broker can be asked to drop exactly this host's
+                // connections -- that is what makes the hard kill test an actual kill
+                opts.UseRabbitMq(factory =>
+                {
+                    factory.HostName = "localhost";
+                    factory.Port = 5672;
+                    factory.ClientProvidedName = nodeName;
+                }).AutoProvision();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<NativeAckWorkHandler>();
 
@@ -128,11 +148,19 @@ public class native_ack_mode : IAsyncLifetime
 
     /// <summary>
     /// The whole point of the mode. Under BufferedInMemory these messages are acked the instant they arrive, so
-    /// a node that dies before the handler finishes loses every one of them. Under NativeAck nothing is acked
-    /// until the handler succeeds, so closing the channel hands them all back to the broker.
+    /// a node that stops before the handler finishes loses every one of them. Under NativeAck nothing is acked
+    /// until the handler succeeds, so the deliveries go back to the broker instead.
     /// </summary>
+    /// <remarks>
+    /// GH-4095. This is the GRACEFUL half: <c>host.Dispose()</c> drains, because
+    /// <c>WolverineRuntime.DisposeAsync</c> calls <c>StopAsync</c> when the runtime has not already stopped.
+    /// What it establishes is that nothing is acknowledged ahead of its handler, so work parked in a lane at
+    /// shutdown comes back rather than vanishing. It says nothing about a crash -- see
+    /// <see cref="a_hard_killed_node_loses_nothing_when_the_broker_drops_its_connection" /> for that, which has
+    /// different guarantees: a drain produces no duplicates, an abrupt loss can.
+    /// </remarks>
     [Fact]
-    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_dead_node_loses_nothing()
+    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
         NativeAckWorkTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -144,14 +172,20 @@ public class native_ack_mode : IAsyncLifetime
             await bus.SendAsync(new NativeAckWork(100 + i));
         }
 
-        // Let the deliveries actually reach the parked handlers before killing the node
+        // Let the deliveries actually reach the parked handlers before stopping the node. GH-4095: this used
+        // to wait on the listener circuit's QueueCount, which is ALWAYS 0 under NativeAck -- the receiver holds
+        // the delivery unacknowledged rather than queueing it -- so it burned the full 15s every run and then
+        // proceeded regardless. Gate on the handlers actually starting instead
         var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
-        while (queueCount(firstHost, RedeliveryQueue) == 0 && DateTimeOffset.UtcNow < deadline)
+        while (startedByNode("dead-node", 100, 5).Count() == 0 && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
 
-        // The node dies mid-flight, having acked nothing
+        startedByNode("dead-node", 100, 5).Count().ShouldBeGreaterThan(0);
+
+        // The node shuts down mid-flight, having acked nothing. GH-4095: Dispose() DRAINS --
+        // WolverineRuntime.DisposeAsync calls StopAsync -- so this is a tidy shutdown, not a crash
         firstHost.Dispose();
 
         handledInRange(100, 5).ShouldBeEmpty();
@@ -174,6 +208,90 @@ public class native_ack_mode : IAsyncLifetime
         handledByNode("fresh-node", 100, 5).ShouldBe(Enumerable.Range(100, 5));
     }
 
+    /// <summary>
+    /// GH-4095. The ABRUPT half. Disposing the host is a tidy shutdown, so every "dead node" test in these
+    /// suites was really measuring a drain. Here the broker drops the node's connection underneath it: nothing
+    /// gets to finish, no ack goes out, and every unacknowledged delivery on that connection is requeued
+    /// immediately. That is the scenario the docs lean on when they say a dying node loses nothing, and until
+    /// now it was only covered by GH-3713's chaos suite in SlowTests, which does not run on the PR path.
+    /// </summary>
+    [Fact]
+    public async Task a_hard_killed_node_loses_nothing_when_the_broker_drops_its_connection()
+    {
+        using var probe = new RabbitManagementProbe();
+        if (!await probe.IsAvailableAsync(TestContext.Current.CancellationToken))
+        {
+            // The management plugin is part of the rabbitmq:4-management image the repo's compose file pins,
+            // so this should not happen in CI. Failing loudly beats silently not testing the thing
+            throw new InvalidOperationException(
+                "The RabbitMQ management API is not reachable on localhost:15672, so a hard kill cannot be performed.");
+        }
+
+        NativeAckWorkTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var firstHost = await startHostAsync(HardKillQueue, "killed-node");
+        var bus = firstHost.MessageBus();
+
+        for (var i = 0; i < 5; i++)
+        {
+            await bus.SendAsync(new NativeAckWork(200 + i));
+        }
+
+        // Wait until the deliveries have actually reached the parked handlers. Killing an idle node proves
+        // nothing -- there has to be an unacknowledged window for the broker to requeue. Gate on the event
+        // itself rather than racing it: QueueCount is always 0 in this mode, so waiting on it just burns the
+        // timeout and then kills an idle node
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (startedByNode("killed-node", 200, 5).Count() == 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        startedByNode("killed-node", 200, 5).Count().ShouldBeGreaterThan(0);
+
+        // The kill. NOT host.Dispose() -- the broker severs the connection, so the listener never drains
+        (await probe.WaitForConnectionAsync("killed-node", 30.Seconds(), TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        var closed = await probe.ForceCloseConnectionsAsync("killed-node", TestContext.Current.CancellationToken);
+        closed.ShouldBeGreaterThan(0);
+
+        handledInRange(200, 5).ShouldBeEmpty();
+
+        // Release the gate only AFTER the connection is gone, so the killed node's handlers complete into a
+        // channel that no longer exists -- their acks cannot land, which is the real crash shape
+        NativeAckWorkTracking.Block!.TrySetResult();
+        NativeAckWorkTracking.Block = null;
+
+        using var secondHost = await startHostAsync(HardKillQueue, "survivor-node");
+
+        deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (handledByNode("survivor-node", 200, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        // Attribution matters for exactly the reason the graceful test documents: the gate is process-wide, so
+        // the killed host's own handlers unwind and record. Counting bare numbers would be satisfied by that
+        // and would prove nothing about redelivery
+        handledByNode("survivor-node", 200, 5).ShouldBe(Enumerable.Range(200, 5));
+
+        // Deliberately NOT asserting zero duplicates. GH-3713 measured that an abrupt loss produces up to one
+        // duplicate per in-flight lane, because a handler can finish after its ack path is gone. No loss is the
+        // guarantee; exactly-once is not
+        firstHost.Dispose();
+    }
+
+    /// <summary>Messages in the range whose handler STARTED on the named node, gate or no gate.</summary>
+    private static IEnumerable<int> startedByNode(string node, int start, int count)
+    {
+        return NativeAckWorkTracking.Started
+            .Where(x => x.Node == node && x.Number >= start && x.Number < start + count)
+            .Select(x => x.Number)
+            .Distinct()
+            .OrderBy(x => x);
+    }
+
     private static IEnumerable<int> handledInRange(int start, int count)
     {
         return NativeAckWorkTracking.Handled
@@ -193,10 +311,4 @@ public class native_ack_mode : IAsyncLifetime
             .OrderBy(x => x);
     }
 
-    private static int queueCount(IHost host, string queueName)
-    {
-        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
-        var circuit = runtime.Endpoints.FindListenerCircuit(new Uri($"rabbitmq://queue/{queueName}"));
-        return circuit?.QueueCount ?? 0;
-    }
 }
