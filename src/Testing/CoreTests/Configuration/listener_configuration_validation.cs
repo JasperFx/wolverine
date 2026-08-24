@@ -1,7 +1,9 @@
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Configuration;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -271,6 +273,82 @@ public class listener_configuration_validation
         ListenerConfigurationValidator.Validate(endpoint).Single()
             .Severity.ShouldBe(ListenerConfigurationSeverity.Warning);
     }
+
+    #region GH-3710 in-memory idempotency guard
+
+    [Fact]
+    public void the_in_memory_idempotency_guard_is_opt_in()
+    {
+        var endpoint = compiledEndpoint(opts => opts.ListenForMessagesFrom("stub://one"));
+
+        endpoint.InMemoryIdempotency.ShouldBeNull();
+        endpoint.IdempotencyGuard.ShouldBeNull();
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void opting_in_builds_the_guard_with_the_configured_tuning()
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            opts.ListenForMessagesFrom("stub://one")
+                .BufferedInMemory()
+                .WithInMemoryIdempotency(30.Seconds(), 5000);
+        });
+
+        endpoint.InMemoryIdempotency!.Window.ShouldBe(30.Seconds());
+        endpoint.InMemoryIdempotency.MaxTracked.ShouldBe(5000);
+        endpoint.IdempotencyGuard.ShouldNotBeNull();
+
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void the_defaults_are_five_minutes_and_a_hundred_thousand_ids()
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            opts.ListenForMessagesFrom("stub://one").WithInMemoryIdempotency();
+        });
+
+        endpoint.InMemoryIdempotency!.Window.ShouldBe(InMemoryIdempotencySettings.DefaultWindow);
+        endpoint.InMemoryIdempotency.MaxTracked.ShouldBe(InMemoryIdempotencySettings.DefaultMaxTracked);
+    }
+
+    [Fact]
+    public void the_guard_is_inert_and_warns_on_a_durable_endpoint()
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            opts.ListenForMessagesFrom("stub://one")
+                .UseDurableInbox()
+                .WithInMemoryIdempotency();
+        });
+
+        // The inbox primary key already does this, across restarts and across nodes
+        endpoint.IdempotencyGuard.ShouldBeNull();
+
+        var problem = ListenerConfigurationValidator.Validate(endpoint).Single();
+        problem.Severity.ShouldBe(ListenerConfigurationSeverity.Warning);
+        problem.Message.ShouldContain("WithInMemoryIdempotency()");
+        problem.Message.ShouldContain("durable");
+    }
+
+    [Fact]
+    public void cannot_use_the_guard_on_a_local_queue()
+    {
+        var ex = Should.Throw<NotSupportedException>(() =>
+        {
+            using var host = Host.CreateDefaultBuilder().UseWolverine(opts =>
+            {
+                opts.LocalQueue("idempotent-local").WithInMemoryIdempotency();
+            }).Build();
+        });
+
+        ex.Message.ShouldContain("WithInMemoryIdempotency");
+    }
+
+    #endregion
 }
 
 public record InlineLocalQueueMessage(string Name);
