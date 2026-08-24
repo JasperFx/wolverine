@@ -69,7 +69,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
     [Fact]
     public async Task run_setup_with_simulated_exception_in_handler()
     {
-        var session =  await WolverineHost.TrackActivity(TimeSpan.FromSeconds(1000))
+        var session =  await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
             //.WaitForMessageToBeReceivedAt<SRMessage1>(WolverineHost)
             .DoNotAssertOnExceptionsDetected()
             .IncludeExternalTransports()
