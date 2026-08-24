@@ -347,8 +347,16 @@ public class native_ack_mode : IAsyncLifetime
 /// once and forgets it -- there is no unacknowledged delivery to hold and nothing to hand back when a node dies
 /// -- so a "native ack" core listener would be BufferedInMemory with a false no-loss promise.
 /// </summary>
+[Collection("NATS Integration")]
 public class core_nats_rejects_native_ack
 {
+    private readonly NatsContainerFixture _fixture;
+
+    public core_nats_rejects_native_ack(NatsContainerFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     [Fact]
     public async Task a_core_nats_listener_refuses_the_mode_at_bootstrap()
     {
@@ -357,7 +365,7 @@ public class core_nats_rejects_native_ack
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.UseNats("nats://localhost:4222");
+                    opts.UseNats(_fixture.ConnectionString);
                     opts.Policies.DisableConventionalLocalRouting();
 
                     // No UseJetStream() -- this is a plain core NATS subject
@@ -388,7 +396,7 @@ public class core_nats_rejects_native_ack
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.UseNats(NatsTestHelpers.ResolveUrl())
+                    opts.UseNats(_fixture.ConnectionString)
                         .AutoProvision()
                         .DefineWorkQueueStream(stream, _ => { }, subject);
 
@@ -420,7 +428,7 @@ public class core_nats_rejects_native_ack
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseNats("nats://localhost:4222");
+                opts.UseNats(_fixture.ConnectionString);
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ListenToNatsSubject("core.no.lease");
             }).Build();
