@@ -13,6 +13,12 @@ public class PubsubTopicOptions
 {
     public CreateTopicOptions Options = new();
     public TopicName Name { get; set; } = default!;
+
+    /// <summary>
+    ///     Derives the Pub/Sub <c>OrderingKey</c> for an outgoing message. Configure through
+    ///     <see cref="PubsubTopicSubscriberConfiguration.OrderMessagesBy" />. Consulted on every publish, but
+    ///     only used when the envelope carries no <see cref="Envelope.GroupId" /> — see GH-4087.
+    /// </summary>
     public Func<Envelope, string?> OrderBy = e => null;
 }
 
