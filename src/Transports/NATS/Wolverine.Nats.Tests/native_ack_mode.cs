@@ -274,6 +274,25 @@ public class native_ack_mode : IAsyncLifetime
     /// node that dies before the handler finishes loses every one of them. Under NativeAck nothing is acked until
     /// the handler succeeds, so once the dead node stops renewing, JetStream redelivers all of them at AckWait.
     /// </summary>
+    /// <remarks>
+    /// <para>GH-4095. This is the GRACEFUL case: <c>host.Dispose()</c> drains, because
+    /// <c>WolverineRuntime.DisposeAsync</c> calls <c>StopAsync</c> when the runtime has not already stopped.
+    /// What it establishes is that nothing is settled ahead of its handler, so work parked in a lane at
+    /// shutdown comes back rather than vanishing. It does NOT establish crash safety.</para>
+    ///
+    /// <para><b>There is deliberately no hard-kill counterpart, and it is not an oversight.</b> The RabbitMQ
+    /// suite has one -- the broker is asked to drop the node's connection, which invalidates the channel and
+    /// the delivery tag with it -- and that approach was measured against this transport and does not work
+    /// here:
+    /// a JetStream ack is just a publish to the message's reply subject. Capturing that subject, dropping the
+    /// node's connection, and then publishing the ack from a <i>different</i> connection was accepted by the
+    /// server, taking <c>num_ack_pending</c> from 1 to 0. The ack is not bound to the connection that received
+    /// the message, so a reconnecting client heals straight over a severed socket.</para>
+    ///
+    /// <para>Reaching the crash shape on this transport -- work completed, acknowledgement lost -- needs the
+    /// process killed rather than the connection, which these in-process suites cannot do. Full measurements
+    /// for every transport are recorded on GH-4095.</para>
+    /// </remarks>
     [Fact]
     public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {

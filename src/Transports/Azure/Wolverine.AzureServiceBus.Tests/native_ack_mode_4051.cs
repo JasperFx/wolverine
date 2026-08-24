@@ -198,6 +198,26 @@ public class native_ack_mode_4051 : IAsyncLifetime
     /// a node that dies before the handler finishes loses every one of them. Under NativeAck nothing is completed
     /// until the handler succeeds, so the broker's lock expires and it hands them all to the next node.
     /// </summary>
+    /// <remarks>
+    /// <para>GH-4095. This is the GRACEFUL case: <c>host.Dispose()</c> drains, because
+    /// <c>WolverineRuntime.DisposeAsync</c> calls <c>StopAsync</c> when the runtime has not already stopped.
+    /// What it establishes is that nothing is settled ahead of its handler, so work parked in a lane at
+    /// shutdown comes back rather than vanishing. It does NOT establish crash safety.</para>
+    ///
+    /// <para><b>There is deliberately no hard-kill counterpart, and it is not an oversight.</b> The RabbitMQ
+    /// suite has one -- the broker is asked to drop the node's connection, which invalidates the channel and
+    /// the delivery tag with it -- and that approach was measured against this transport and does not work
+    /// here:
+    /// disposing the receiver <i>and</i> the whole <c>ServiceBusClient</c>, then creating a brand new client and
+    /// receiver, still completed the message the dead receiver had locked -- and it was never redelivered. The
+    /// lock token is not bound to the link. Measured against the emulator, which is what CI runs; real Azure
+    /// Service Bus may bind lock tokens to the receiver link, but a test built here behaves the emulator's way
+    /// regardless.</para>
+    ///
+    /// <para>Reaching the crash shape on this transport -- work completed, acknowledgement lost -- needs the
+    /// process killed rather than the connection, which these in-process suites cannot do. Full measurements
+    /// for every transport are recorded on GH-4095.</para>
+    /// </remarks>
     [Fact]
     public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
