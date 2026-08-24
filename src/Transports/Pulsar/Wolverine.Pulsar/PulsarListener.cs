@@ -463,6 +463,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     /// </summary>
     internal bool UsesNativeRedelivery => _endpoint.UseNativeRedelivery;
 
+    /// <summary>
+    /// Is there any native Pulsar resiliency for this listener to hand a failure to? When there is not,
+    /// <see cref="ErrorHandling.PulsarNativeContinuationSource" /> declines the failure so that Wolverine's
+    /// own error policies get it instead of the message being silently dropped.
+    /// </summary>
+    internal bool HasNativeResiliency =>
+        NativeRetryLetterQueueEnabled || NativeDeadLetterQueueEnabled || UsesNativeRedelivery;
+
     public RetryLetterTopic? RetryLetterTopic => _endpoint.RetryLetterTopic;
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)

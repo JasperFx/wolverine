@@ -243,6 +243,30 @@ For delayed / backoff redelivery (growing the delay between attempts), use the P
 retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
 or ack-timeout settings.
 
+## Native Resiliency and Your Own Error Policies
+
+`UsePulsar()` registers a failure rule that hands a failed message to Pulsar's own retry-letter /
+dead-letter machinery. That rule is registered globally, ahead of anything you configure afterwards,
+so it is worth being precise about when it takes over:
+
+| Where the failure happened | What handles it |
+| --- | --- |
+| A Pulsar listener with `RetryLetterQueueing(...)`, `DeadLetterQueueing(...)` (native mode), or `UseNativeRedelivery()` | **Pulsar's native retry/DLQ.** Your `opts.Policies.OnException<T>()` rules do not run for that endpoint. |
+| A Pulsar listener with none of the above configured | Your own Wolverine error policies, exactly as on any other transport |
+| A hot-tail listener (`TailFromLatest()`) | Your own Wolverine error policies — see the caveat below |
+| Any other endpoint in the application: another transport, a local queue | Your own Wolverine error policies |
+
+In other words the native path only claims a failure it can actually act on; everything else falls
+through to the policies you configured. Chain-level rules (`chain.OnException<T>()`) always sort
+ahead of global rules, so those take precedence even on a natively-configured Pulsar endpoint.
+
+::: warning
+On a hot-tail listener your error policies do run, but requeue-shaped ones (`Requeue()`,
+`RequeueIndefinitely()`, `PauseThenRequeue()`, `MaximumAttempts()`) still cannot redeliver anything —
+a non-durable `Reader` commits no cursor, so there is nothing to requeue from. Reach for the
+in-process retries (`RetryTimes()`, `RetryWithCooldown()`, `ScheduleRetry()`) there instead.
+:::
+
 ## Tiered Retry-Letter Policy <Badge type="tip" text="6.8" />
 
 `RetryLetterQueueing(...)` configures Pulsar's native retry-letter topic per endpoint. For a

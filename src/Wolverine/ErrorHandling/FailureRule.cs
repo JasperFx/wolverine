@@ -38,8 +38,32 @@ public class FailureRule : IEnumerable<FailureSlot>
             }
 
             var slot = _slots.FirstOrDefault(x => x.Attempt == env.Attempts);
-            
-            continuation = slot?.Build(ex, env) ?? InfiniteSource?.Build(ex, env) ?? new MoveToErrorQueue(ex);
+
+            if (slot?.Build(ex, env) is { } fromSlot)
+            {
+                continuation = fromSlot;
+                return true;
+            }
+
+            if (InfiniteSource?.Build(ex, env) is { } fromInfiniteSource)
+            {
+                continuation = fromInfiniteSource;
+                return true;
+            }
+
+            // GH-4079. Every source this rule could offer for this attempt *declined* the envelope, which is not
+            // the same thing as the rule running out of attempts. Report the rule as unhandled so that
+            // FailureRuleCollection moves on to the next rule -- otherwise a globally registered rule
+            // that only speaks for one transport would swallow every user-configured policy behind it.
+            // See IContinuationSource.Build.
+            if (slot != null || InfiniteSource != null)
+            {
+                continuation = NullContinuation.Instance;
+                return false;
+            }
+
+            // No slot for this attempt and no infinite source: this rule's attempts are exhausted.
+            continuation = new MoveToErrorQueue(ex);
             return true;
         }
 

@@ -109,6 +109,7 @@ public class JitterIntegrationTests
         var envelope = ObjectMother.Envelope();
         envelope.Attempts = 1;
         var continuation = slot.Build(new InvalidOperationException("boom"), envelope);
+        continuation.ShouldNotBeNull();
 
         var lifecycle = Substitute.For<IEnvelopeLifecycle>();
         lifecycle.Envelope.Returns(envelope);
@@ -158,6 +159,7 @@ public class JitterIntegrationTests
         var envelope = Wolverine.ComplianceTests.ObjectMother.Envelope();
         envelope.Attempts = 1;
         var continuation = slot.Build(ex, envelope);
+        continuation.ShouldNotBeNull();
 
         var lifecycle = NSubstitute.Substitute.For<IEnvelopeLifecycle>();
         lifecycle.Envelope.Returns(envelope);
