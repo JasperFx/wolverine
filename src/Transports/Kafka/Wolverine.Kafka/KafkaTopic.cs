@@ -331,7 +331,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             return tenantedSender;
         }
 
-        return Mode == EndpointMode.Inline
+        return SendsInline
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
                 runtime.LoggerFactory.CreateLogger<KafkaSenderProtocol>());
