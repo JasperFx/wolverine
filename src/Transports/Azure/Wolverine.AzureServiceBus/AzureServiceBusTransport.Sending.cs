@@ -31,12 +31,7 @@ public partial class AzureServiceBusTransport
     {
         var sender = BusClient.CreateSender(topic.TopicName);
 
-        // GH-4049 / GH-3709: NativeAck must pick the INLINE sender too, not just Inline. GH-3709 remapped
-        // EndpointMode.NativeAck to InlineSendingAgent on the sending side, and InlineSendingAgent is not an
-        // ISenderCallback -- so EndpointCollection.CreateSendingAgent never calls RegisterCallback and a
-        // BatchedSender underneath it throws "This sender has not been registered." on every batch. Exactly the
-        // GH-3826 mismatch described above, reached through the mode rather than through tenancy.
-        if (topic.Mode is EndpointMode.Inline or EndpointMode.NativeAck)
+        if (topic.SendsInline)
         {
             var inlineSender = new InlineAzureServiceBusSender(topic, mapper, sender,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
@@ -125,12 +120,7 @@ public partial class AzureServiceBusTransport
     {
         var sender = BusClient.CreateSender(queue.QueueName);
 
-        // GH-4049 / GH-3709: NativeAck must pick the INLINE sender too, not just Inline. GH-3709 remapped
-        // EndpointMode.NativeAck to InlineSendingAgent on the sending side, and InlineSendingAgent is not an
-        // ISenderCallback -- so EndpointCollection.CreateSendingAgent never calls RegisterCallback and a
-        // BatchedSender underneath it throws "This sender has not been registered." on every batch. Exactly the
-        // GH-3826 mismatch described above, reached through the mode rather than through tenancy.
-        if (queue.Mode is EndpointMode.Inline or EndpointMode.NativeAck)
+        if (queue.SendsInline)
         {
             var inlineSender = new InlineAzureServiceBusSender(queue, mapper, sender,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);

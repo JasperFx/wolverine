@@ -131,7 +131,7 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
 
         // Inline keeps the historical immediate/fire-and-forget path (this itself, via SendAsync
         // below) so explicit inline usage is unaffected.
-        if (Mode == EndpointMode.Inline)
+        if (SendsInline)
         {
             return this;
         }
