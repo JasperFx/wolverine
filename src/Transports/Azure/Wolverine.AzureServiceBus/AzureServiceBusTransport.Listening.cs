@@ -57,6 +57,13 @@ public partial class AzureServiceBusTransport
     private async Task<IListener> buildListenerForQueue(IWolverineRuntime runtime, IReceiver receiver, AzureServiceBusQueue queue,
         IAzureServiceBusEnvelopeMapper mapper)
     {
+        // GH-4049. This selection asks about sessions BEFORE it asks about the mode, so a native ack endpoint that
+        // also requires sessions would silently take the session branch -- where the session receiver is disposed
+        // at the end of the accept loop iteration that created it, long before any handler has run, and
+        // AzureServiceBusSessionListener.CompleteAsync throws outright. ListenerConfigurationValidator already
+        // refuses that pairing at bootstrap; this is the second gate for any path that builds a listener directly.
+        queue.AssertSessionsAreCompatibleWithMode();
+
         var requeue = BuildInlineSenderForQueue(runtime, queue);
 
         if (queue.Options.RequiresSession)
@@ -129,8 +136,11 @@ public partial class AzureServiceBusTransport
     private async Task<IListener> buildListenerForSubscription(IWolverineRuntime runtime, IReceiver receiver,
         AzureServiceBusSubscription subscription, IAzureServiceBusEnvelopeMapper mapper)
     {
+        // GH-4049: see buildListenerForQueue — native acks and sessions cannot be combined, and this branch
+        // is taken ahead of the mode check.
+        subscription.AssertSessionsAreCompatibleWithMode();
+
         var requeue = RetryQueue != null ? BuildInlineSenderForQueue(runtime, RetryQueue) : BuildInlineSenderForTopic(runtime, subscription.Topic);
-        
 
         if (subscription.Options.RequiresSession)
         {

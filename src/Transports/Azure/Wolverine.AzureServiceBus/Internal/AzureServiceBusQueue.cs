@@ -107,6 +107,8 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     public override bool IsPartitioned { get => Options.EnablePartitioning; }
 
+    internal override bool RequiresSessions => Options.RequiresSession;
+
     private async Task purgeWithSessions(ServiceBusClient client)
     {
         using var cancellation = new CancellationTokenSource();
