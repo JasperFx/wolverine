@@ -292,6 +292,101 @@ opts.ListenToNatsSubject("orders.received")
     .UseJetStream("ORDERS", "my-consumer");
 ```
 
+### Native Acks with Parallel Processing <Badge type="tip" text="6.31" />
+
+JetStream listeners support `EndpointMode.NativeAck` (see [GH-3708](https://github.com/JasperFx/wolverine/issues/3708)),
+which combines `BufferedInMemory`'s parallelism and group partitioning with `ProcessInline()`'s no-loss behavior, and
+needs no database at all:
+
+```csharp
+opts.ListenToNatsSubject("webhooks")
+    .UseJetStream("WEBHOOKS", "webhook-processors")
+    .ProcessInParallelWithNativeAcks()
+    .PartitionProcessingByGroupId(PartitionSlots.Seven);
+```
+
+Incoming messages flow through an in-memory (optionally group-partitioned) execution block while the JetStream
+delivery is held **unacknowledged**, and are settled natively — `Ack` on handler success, `Nak` or `AckTerminate`
+on terminal failure — from the completion continuation. JetStream qualifies for this mode because each delivery is
+settled individually against the message's own reply subject, so one delivery can be settled, out of order, from
+whichever worker thread finished it.
+
+The guarantee is the one the mode promises everywhere: **messages sharing a group id never execute concurrently**,
+and nothing is acknowledged until its handler succeeds, so a node that dies mid-flight has every unfinished message
+redelivered. Processing in original stream order is *best effort*, not promised — a failed or redelivered message
+re-enters its lane later, never concurrently. Use `UseDurableInbox()` if you need strict ordering under failure.
+
+::: warning Core NATS cannot use this mode
+`ProcessInParallelWithNativeAcks()` requires JetStream and is **refused at bootstrap** on a core NATS subject. Core
+NATS delivers a message once and forgets it — there is no unacknowledged delivery to hold and no redelivery when a
+node dies — so the crash-safety story the mode exists for does not exist there. Use `BufferedInMemory()` or
+`ProcessInline()` on core NATS.
+:::
+
+#### AckWait is a real clock, and Wolverine renews it
+
+Unlike RabbitMQ, where an unacknowledged delivery lives until the channel closes, JetStream redelivers anything
+still unacknowledged after the consumer's `AckWait`. Under native acks a message is held unsettled for **lane queue
+time plus handler time**, and lane queue time is unbounded by design — so Wolverine keeps the lease alive by sending
+JetStream's `AckProgress` for every queued-but-unsettled message, every half `AckWait`, for as long as it sits in a
+lane ([GH-4048](https://github.com/JasperFx/wolverine/issues/4048)). You do not configure this; it is what the mode
+requires to be correct on this transport.
+
+Each renewal is sent as a **double ack** (a request the server answers) rather than fire-and-forget, because that
+is the only way a lost lease — a deleted consumer, a dead connection — can be detected at all. If a lease is lost
+before a message starts executing, it is dropped from its lane without being settled, so the server's redelivery is
+the only remaining copy rather than a second one.
+
+Two knobs, both optional:
+
+```csharp
+opts.ListenToNatsSubject("webhooks")
+    .UseJetStream("WEBHOOKS", "webhook-processors")
+    .ProcessInParallelWithNativeAcks()
+
+    // How long the server waits before redelivering an unacked message, and therefore how
+    // often Wolverine renews. Default 30 seconds (JetStreamDefaults.AckWait).
+    .AckWait(TimeSpan.FromSeconds(30))
+
+    // Ceiling on how long ONE delivery may be kept alive by renewals, measured from receipt.
+    // Past this Wolverine stops renewing, so a wedged handler cannot pin a MaxAckPending slot
+    // forever. Default 12 hours.
+    .MaximumAckExtension(TimeSpan.FromHours(1));
+```
+
+#### MaxAckPending is the prefetch, and it must cover every lane
+
+`MaxAckPending` — the number of deliveries JetStream will leave unacknowledged before it stops delivering — is this
+transport's prefetch equivalent, and in this mode it *is* the back pressure. Wolverine defaults it to **twice the
+number of lanes that can be busy at once**: the `PartitionProcessingByGroupId()` slot count when the endpoint is
+partitioned, otherwise `MaximumParallelMessages()`. Every other endpoint mode leaves the NATS server default of
+1,000 alone.
+
+Sizing it below the lane count makes the consumer **stall itself** — the server stops delivering while lanes sit
+idle waiting for work. Override it only if you know why:
+
+```csharp
+opts.ListenToNatsSubject("webhooks")
+    .UseJetStream("WEBHOOKS", "webhook-processors")
+    .ProcessInParallelWithNativeAcks()
+    .MaxAckPending(64);
+```
+
+::: warning Don't call `SendInline()` on a subject you also listen to
+A publisher and a listener for the same subject resolve to the **same** endpoint, and `EndpointMode` is a single
+property on it — so `opts.PublishMessage<T>().ToNatsSubject("x").SendInline()` sets `Mode = Inline` and silently
+downgrades a `ProcessInParallelWithNativeAcks()` listener on `"x"` out of native acks. It is also unnecessary: a
+native-ack endpoint already sends through the inline sending agent.
+:::
+
+::: tip Server-side dedup is a different guarantee
+JetStream's `Nats-Msg-Id` duplicate window (see [JetStream Configuration](#jetstream-configuration)) deduplicates on
+**publish**, at stream ingest. It does not deduplicate *redeliveries* — a redelivered message was already accepted
+into the stream, so the window never sees it again. Native acks are at-least-once by design and produce a burst of
+redeliveries on every rolling deploy, so if you want those suppressed, that is what `WithInMemoryIdempotency()` is
+for. The two are complementary, not alternatives.
+:::
+
 ### Named Endpoints
 
 ```csharp

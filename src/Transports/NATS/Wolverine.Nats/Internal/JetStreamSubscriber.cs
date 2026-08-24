@@ -71,8 +71,18 @@ internal class JetStreamSubscriber : INatsSubscriber
         {
             AckPolicy = ConsumerConfigAckPolicy.Explicit,
             MaxDeliver = _endpoint.EffectiveMaxDeliveryAttempts,
-            AckWait = _endpoint.JetStreamDefaults.AckWait
+            AckWait = _endpoint.EffectiveAckWait
         };
+
+        // GH-4053: MaxAckPending is JetStream's prefetch equivalent, and under NativeAck it is the whole of the
+        // back pressure -- nothing is acked until a handler succeeds, so the unacked window is what bounds the
+        // in-memory execution block. Sized under the number of lanes that can be busy at once, the consumer
+        // stalls itself; see NatsEndpoint.EffectiveMaxAckPending. Null for every other mode, which leaves the
+        // NATS server default of 1,000 exactly where it was.
+        if (_endpoint.EffectiveMaxAckPending is { } maxAckPending)
+        {
+            config.MaxAckPending = maxAckPending;
+        }
 
         // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
         // Leaving the property unset on the ConsumerConfig instance falls through to
@@ -176,9 +186,19 @@ internal class JetStreamSubscriber : INatsSubscriber
                 // duplicate inbox inserts. Measured on the rig as a durable listener freezing for 30s at
                 // a time and ~4,000 duplicate inserts per minute. Buffered/Inline keep the client default:
                 // they ack on receipt, so their in-flight window stays small without help.
-                var consumeOpts = _endpoint.Mode == EndpointMode.Durable
-                    ? new NatsJSConsumeOpts { MaxMsgs = Math.Max(1, _endpoint.MaximumMessagesToReceive) }
-                    : null;
+                //
+                // GH-4053 extends the same reasoning to NativeAck, which needs it more than Durable does: a
+                // NativeAck delivery is unacked for lane queue time PLUS handler time, so a 1,000-message client
+                // pull would park the whole pull window against MaxAckPending. Bounding the pull to the same
+                // number of lanes MaxAckPending is sized for keeps the two consistent.
+                var consumeOpts = _endpoint.Mode switch
+                {
+                    EndpointMode.Durable => new NatsJSConsumeOpts
+                        { MaxMsgs = Math.Max(1, _endpoint.MaximumMessagesToReceive) },
+                    EndpointMode.NativeAck when _endpoint.EffectiveMaxAckPending is { } pending =>
+                        new NatsJSConsumeOpts { MaxMsgs = Math.Max(1, pending) },
+                    _ => null
+                };
 
                 await foreach (
                     var msg in _consumer!.ConsumeAsync<byte[]>(opts: consumeOpts, cancellationToken: consumeToken)
