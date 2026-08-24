@@ -50,24 +50,14 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
 [Collection("acceptance")]
 public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixture>
 {
-    // GH-3800 removed the CloudEvents-specific reason this test used to carry: ErrorCausingMessage
-    // now records an exception TYPE NAME rather than a live Exception, so it survives
-    // System.Text.Json and CloudEvents no longer corrupts it.
+    // GH-3797. The requeue, scheduled-retry and two dead-letter compliance tests used to be skipped here
+    // as unimplemented Pulsar behaviour. They were not: UsePulsar()'s global failure rule swallowed the
+    // fixture's own error policies and handed the failure to a continuation that did nothing on an
+    // endpoint with no native resiliency configured. GH-4079/#4080 fixed that, and all four now run
+    // unmodified from the base class. The full write-up is on PulsarTransportComplianceTests.
     //
-    // It stays skipped, but for the same reason as its two sibling fixtures below rather than a
-    // serialization one -- Pulsar has not implemented dead-letter routing. When GH-3797 lands this
-    // skip goes with the others, not separately.
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_move_to_dead_letter_queue_with_exception_match() => Task.CompletedTask;
-
-    // GH-3763. Deterministic failures shared with the other two Pulsar compliance fixtures -- the
-    // requeue, retry-scheduling and dead-letter behaviours the transport has not implemented. See GH-3797.
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_requeue_and_increment_attempts() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task can_schedule_retry() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_move_to_dead_letter_queue_without_any_exception_match() => Task.CompletedTask;
+    // will_move_to_dead_letter_queue_with_exception_match had also carried a CloudEvents-specific
+    // serialization reason before that, which GH-3800 removed: ErrorCausingMessage records an exception
+    // TYPE NAME rather than a live Exception, so it survives System.Text.Json and CloudEvents no longer
+    // corrupts it. Neither reason applies now, so it too runs from the base class.
 }

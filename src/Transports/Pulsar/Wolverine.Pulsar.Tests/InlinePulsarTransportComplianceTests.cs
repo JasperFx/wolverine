@@ -42,20 +42,9 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 [Collection("acceptance")]
 public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>
 {
-    // GH-3763. These four are not flaky -- they fail deterministically, every run, in all three Pulsar
-    // compliance fixtures, with "No ending activity detected" / "Expected ending activity was not
-    // detected". They are the requeue, retry-scheduling and dead-letter behaviours the transport has not
-    // implemented. Skipping just these restores the other 55 tests in this file's three fixtures, which
-    // pass; the whole classes used to be excluded for them. See GH-3797.
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_requeue_and_increment_attempts() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task can_schedule_retry() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_move_to_dead_letter_queue_with_exception_match() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_move_to_dead_letter_queue_without_any_exception_match() => Task.CompletedTask;
+    // GH-3797. The requeue, scheduled-retry and two dead-letter compliance tests used to be skipped here
+    // as unimplemented Pulsar behaviour. They were not: UsePulsar()'s global failure rule swallowed the
+    // fixture's own error policies and handed the failure to a continuation that did nothing on an
+    // endpoint with no native resiliency configured. GH-4079/#4080 fixed that, and all four now run
+    // unmodified from the base class. The full write-up is on PulsarTransportComplianceTests.
 }
