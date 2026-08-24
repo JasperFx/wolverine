@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,7 @@ namespace Wolverine.Runtime.WorkerQueues;
 /// this mode exists to provide.
 /// </para>
 /// </summary>
-internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
+internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedReceiver
 {
     private readonly RetryBlock<Envelope> _completeBlock;
     private readonly RetryBlock<Envelope> _deferBlock;
@@ -53,12 +54,20 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
 
     private bool _latched;
 
+    // GH-4048. Lazily built on the first delivery that arrives on a lease-renewing listener -- the listener does
+    // not exist yet at construction time, because ListeningAgent builds the receiver first and hands it to the
+    // listener. Null forever on a transport whose unsettled deliveries never expire (RabbitMQ, Redis Streams).
+    private readonly object _leaseGate = new();
+    private readonly Meter? _meter;
+    private LeaseRenewalTracker? _leases;
+
     public NativeAckReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _endpoint = endpoint;
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<NativeAckReceiver>();
         _settings = runtime.DurabilitySettings;
+        _meter = runtime.Meter;
         _idempotency = endpoint.IdempotencyGuard;
         Pipeline = pipeline;
 
@@ -108,11 +117,25 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
     /// <summary>CritterWatch#942 -- set when the receiving block faults terminally (jasperfx#506).</summary>
     public bool HasFaulted { get; private set; }
 
+    /// <summary>
+    /// GH-4048. The lease renewal tracker, if this endpoint's listener has one. Null until the first delivery
+    /// arrives on a lease-renewing listener, and forever on a transport whose deliveries do not expire.
+    /// </summary>
+    internal LeaseRenewalTracker? Leases => _leases;
+
     public void Dispose()
     {
         _receivingBlock.Complete();
         _completeBlock.Dispose();
         _deferBlock.Dispose();
+
+        // Fire and forget: the tracker's loop exits on its own cancellation and bounds its own wait, and
+        // IReceiver.Dispose is synchronous.
+        var leases = Interlocked.Exchange(ref _leases, null);
+        if (leases != null)
+        {
+            _ = leases.DisposeAsync().AsTask();
+        }
     }
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
@@ -170,11 +193,31 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
 
+        // GH-4048. The risk window opens HERE, not when a handler starts: from this point the delivery is held
+        // unsettled for lane queue time plus handler time, and on a clocked transport that clock is already
+        // running. Untracked in executeAsync's finally.
+        leasesFor(listener)?.Track(envelope);
+
         // NOTE the absence of a _completeBlock.PostAsync here. That single line is what separates this mode
         // from BufferedInMemory: the delivery stays unacknowledged until the pipeline settles it.
         await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
 
         activity?.Stop();
+    }
+
+    private LeaseRenewalTracker? leasesFor(IListener listener)
+    {
+        var existing = _leases;
+        if (existing != null) return existing;
+
+        if (listener is not ISupportLeaseRenewal renewal) return null;
+
+        lock (_leaseGate)
+        {
+            // Every listener built for one endpoint reads the same configuration, so the durations only need
+            // to be read once; the renewal call still goes to whichever listener delivered the envelope.
+            return _leases ??= new LeaseRenewalTracker(renewal, Uri, _logger, _meter, _settings.Cancellation);
+        }
     }
 
     internal async Task executeAsync(Envelope envelope, CancellationToken _)
@@ -186,6 +229,22 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
             // has to forget the id or the redelivery would be dropped as a duplicate of a message that never ran.
             _idempotency?.Release(envelope);
             await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+
+        // GH-4048. Sits deliberately NEXT TO the latched branch above and behaves in the opposite way. Latched
+        // still holds the lease, so handing the delivery back is correct. A lost lease does not: the broker owns
+        // it again and is redelivering it. Every transport's defer path is settle-then-republish -- SQS's requeue
+        // block deletes and re-sends, ASB's completes and re-sends, Pub/Sub's republishes -- so deferring here
+        // would put a SECOND copy on the queue on top of the redelivery. Completing is no better: a settle with a
+        // dead handle is either silently ignored (SQS) or a permanent failure inside a RetryBlock (ASB).
+        // Dropping is the only non-amplifying option, and it turns "handled twice" into "handled once, later".
+        if (_leases is { } leases && !leases.TryBeginExecution(envelope))
+        {
+            leases.Untrack(envelope);
+            _logger.LogDebug(
+                "Dropping envelope {EnvelopeId} from the native-ack lane at {Uri} without settling it; its broker lease was lost before it started executing",
+                envelope.Id, Uri);
             return;
         }
 
@@ -218,19 +277,42 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
                 // rung, and a faulted block never recovers. Swallow: the message fails, the listener survives.
             }
 
-            // The pipeline did not settle it, so the broker still owns it and will redeliver. Nack rather
-            // than leaving the delivery dangling until the connection drops, and forget the id so the
-            // redelivery is allowed to run.
+            // GH-3710. The pipeline did not settle it, so the broker still owns it and will redeliver. Forget
+            // the id so that redelivery is allowed to run -- unconditionally, because it is equally true when
+            // the nack below is suppressed: a lost lease means the broker is redelivering anyway, and a
+            // remembered id would suppress the very attempt that is supposed to replace this one.
             _idempotency?.Release(envelope);
 
-            try
+            // GH-4048. The nack is suppressed when the lease was lost mid-execution. The broker is already
+            // redelivering this one, and every defer path settles-then-republishes, so a nack here would add a
+            // second copy on top of it. This envelope stays at-least-once -- a running handler cannot be
+            // un-run -- but the duplication is not compounded, and the tracker has already metered it as
+            // lost-while-executing.
+            if (_leases?.WasLeaseLost(envelope) == true)
             {
-                await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
+                _logger.LogDebug(
+                    "Not deferring envelope {EnvelopeId} at {Uri} after a failed pipeline invocation; its broker lease was lost while it was executing, so the broker already owns the delivery",
+                    envelope.Id, Uri);
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Error trying to defer envelope {EnvelopeId} back to the broker", envelope.Id);
+                // The pipeline did not settle it, so the broker still owns it. Nack rather than leaving the
+                // delivery dangling until the connection drops.
+                try
+                {
+                    await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error trying to defer envelope {EnvelopeId} back to the broker", envelope.Id);
+                }
             }
+        }
+        finally
+        {
+            // The risk window closes here: whatever the terminal was, this envelope is no longer waiting in a
+            // lane on a lease Wolverine has to keep alive.
+            _leases?.Untrack(envelope);
         }
     }
 
@@ -286,6 +368,14 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
         // prefetch window -- not loss. Quantifying that duplicate count under a rolling deploy is GH-3713.
         await _completeBlock.DrainAsync().ConfigureAwait(false);
         await _deferBlock.DrainAsync().ConfigureAwait(false);
+
+        // GH-4048. Nothing left to keep alive: whatever this drain could not process is unacked, so the broker
+        // gets it back on its own clock.
+        var leases = Interlocked.Exchange(ref _leases, null);
+        if (leases != null)
+        {
+            await leases.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     private void onBlockError(Envelope? envelope, Exception ex)

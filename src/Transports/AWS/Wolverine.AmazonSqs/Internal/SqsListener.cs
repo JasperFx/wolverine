@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth
+internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth, ISupportLeaseRenewal
 {
     private readonly RetryBlock<Envelope>? _deadLetterBlock;
     private readonly AmazonSqsQueue? _deadLetterQueue;
@@ -222,13 +222,83 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     }
 
     /// <summary>
-    /// GH-4019: the heartbeat only makes sense for an inline listener. Durable deletes the message right
-    /// after the inbox insert and Buffered deletes on receipt, so neither holds a message under the
-    /// visibility timeout while a handler runs.
+    /// GH-4019: this heartbeat covers an <em>inline</em> listener, which works through a received batch one
+    /// message at a time against a visibility timeout that was only set once, on the receive. Durable deletes
+    /// the message right after the inbox insert and Buffered deletes on receipt, so neither holds a message
+    /// under the visibility timeout while a handler runs.
     /// </summary>
+    /// <remarks>
+    /// GH-4048 corrected the half of the old comment that said no other mode holds a message under the
+    /// visibility timeout. <c>NativeAck</c> holds it for lane queue time <em>plus</em> handler time -- longer
+    /// than Inline ever does, and unbounded by design. That mode is renewed <b>unconditionally</b>, without
+    /// consulting <see cref="AmazonSqsQueue.ExtendVisibilityWhileHandling" />, but the renewal is driven from
+    /// core through <see cref="ISupportLeaseRenewal" /> rather than from this heartbeat: the heartbeat's
+    /// Track/Untrack pair straddles <c>IReceiver.ReceivedAsync</c>, which under NativeAck returns as soon as
+    /// the envelope is enqueued -- i.e. at the very moment the risk window opens. A second tick loop here would
+    /// therefore renew nothing. Both loops share <see cref="extendVisibilityAsync" />, which is the whole of
+    /// the SQS-side work either one does.
+    /// </remarks>
     internal static bool ShouldExtendVisibility(AmazonSqsQueue queue)
     {
         return queue.ExtendVisibilityWhileHandling && queue.Mode == EndpointMode.Inline;
+    }
+
+    public TimeSpan LeaseDuration => TimeSpan.FromSeconds(_queue.VisibilityTimeout);
+
+    public TimeSpan MaximumLeaseExtension => _queue.MaximumVisibilityExtension;
+
+    /// <summary>
+    /// GH-4048. Keep these queued-but-unsettled deliveries invisible. Deliberately does NOT consult
+    /// <see cref="AmazonSqsQueue.ExtendVisibilityWhileHandling" />: that flag is a cost trade for Inline, where
+    /// exposure is bounded by how long one receive of at most ten messages takes to run. Under NativeAck the
+    /// exposure is lane depth, which the mode's back-pressure model deliberately allows to grow, so renewal is
+    /// mandatory. The same reasoning made fragment reassembly unconditional in this listener.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<Envelope>> RenewLeasesAsync(IReadOnlyList<Envelope> envelopes,
+        CancellationToken token)
+    {
+        // One envelope can be several SQS messages after GH-3926 fragment reassembly, and the whole set has to
+        // stay invisible together -- an incomplete set that reappears can never be reassembled.
+        var owners = new Dictionary<string, Envelope>();
+        var messages = new List<Message>(envelopes.Count);
+
+        foreach (var envelope in envelopes)
+        {
+            if (envelope is not AmazonSqsEnvelope sqs) continue;
+
+            foreach (var message in sqs.SqsMessages)
+            {
+                if (message.ReceiptHandle == null) continue;
+                if (owners.TryAdd(message.ReceiptHandle, envelope))
+                {
+                    messages.Add(message);
+                }
+            }
+        }
+
+        if (messages.Count == 0)
+        {
+            return [];
+        }
+
+        var dropped = await extendVisibilityAsync(messages.ToArray(), token);
+        if (dropped.Count == 0)
+        {
+            return [];
+        }
+
+        // Any fragment SQS would not extend loses the lease for the whole envelope.
+        var lost = new List<Envelope>();
+        foreach (var message in dropped)
+        {
+            if (message.ReceiptHandle == null) continue;
+            if (owners.TryGetValue(message.ReceiptHandle, out var envelope) && !lost.Contains(envelope))
+            {
+                lost.Add(envelope);
+            }
+        }
+
+        return lost;
     }
 
     /// <summary>

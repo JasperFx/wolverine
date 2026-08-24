@@ -217,14 +217,22 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     ///     finishes inside half the timeout. Ignored for Buffered and Durable endpoints, which delete the
     ///     message before the handler runs. Default false.
     /// </summary>
+    /// <remarks>
+    ///     GH-4048: <b>not consulted for <c>NativeAck</c></b>, where renewal is unconditional. A NativeAck lane
+    ///     holds the delivery for lane queue time plus handler time and queue time is unbounded by design, so an
+    ///     un-renewed NativeAck endpoint is a duplicate-delivery generator by construction rather than merely at
+    ///     risk under a slow handler -- an opt-in default-false flag would mean "off by default" for the one mode
+    ///     that cannot survive it. <see cref="MaximumVisibilityExtension" /> remains the ceiling for both modes.
+    /// </remarks>
     public bool ExtendVisibilityWhileHandling { get; set; }
 
     private TimeSpan _maximumVisibilityExtension = MaximumSqsVisibilityExtension;
 
     /// <summary>
-    ///     The longest a single message is kept invisible from its receipt by
-    ///     <see cref="ExtendVisibilityWhileHandling" /> before Wolverine stops extending it and lets SQS
-    ///     redeliver. Bounded above by the SQS limit of 12 hours. Default 12 hours.
+    ///     The longest a single message is kept invisible from its receipt -- by
+    ///     <see cref="ExtendVisibilityWhileHandling" /> under <c>Inline</c>, or unconditionally under
+    ///     <c>NativeAck</c> -- before Wolverine stops extending it and lets SQS redeliver. Bounded above by the
+    ///     SQS limit of 12 hours. Default 12 hours.
     /// </summary>
     public TimeSpan MaximumVisibilityExtension
     {
@@ -779,6 +787,14 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     {
         return true;
     }
+
+    /// <summary>
+    /// GH-4048. An unsettled SQS delivery is invisible only for <see cref="VisibilityTimeout" /> seconds, after
+    /// which SQS redelivers it -- so a NativeAck endpoint here has to renew that clock for as long as the
+    /// envelope sits in an execution lane. <see cref="SqsListener" /> supplies the renewal through
+    /// <see cref="ISupportLeaseRenewal" />.
+    /// </summary>
+    protected internal override bool holdsExpiringLease => true;
 
     internal void ConfigureRequest(ReceiveMessageRequest request)
     {

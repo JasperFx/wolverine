@@ -19,31 +19,16 @@ public class InlinePubsubListener : PubsubListener
 
     public override async Task StartAsync()
     {
-        await listenForMessagesAsync(async () =>
+        // This listener used to pass no Settings at all, so it silently ran on the SDK defaults and ignored
+        // whatever the user had configured through ConfigureListener(). The defaults happen to match
+        // PubsubClientOptions' own defaults, so setting them explicitly is not a behavioural change -- but it
+        // does mean MaxOutstandingMessages and, for GH-4066, MaxTotalAckExtension are now honoured on the very
+        // endpoint mode where the subscriber callback is held for the entire handler pipeline.
+        await listenForMessagesAsync(() => listenWithSubscriberAsync(new SubscriberClientBuilder
         {
-            var subscriptionName = ListeningSubscriptionName;
-            var subscriberBuilder = new SubscriberClientBuilder
-            {
-                SubscriptionName = subscriptionName,
-                EmulatorDetection = _clients.EmulatorDetection,
-            };
-            if (_clients.ConfigureSubscriberClientBuilder != null)
-                await _clients.ConfigureSubscriberClientBuilder(subscriberBuilder);
-            await using SubscriberClient subscriber = await subscriberBuilder.BuildAsync();
-            var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
-            try
-            {
-                await subscriber.StartAsync(async (PubsubMessage message, CancellationToken cancel) =>
-                {
-                    var success = await handleMessageAsync(message);
-                    return success ? SubscriberClient.Reply.Ack : SubscriberClient.Reply.Nack;
-                });
-            }
-            finally
-            {
-                ctRegistration.Unregister();
-                await subscriber.StopAsync(CancellationToken.None);
-            }
-        });
+            SubscriptionName = ListeningSubscriptionName,
+            EmulatorDetection = _clients.EmulatorDetection,
+            Settings = buildSubscriberSettings()
+        }));
     }
 }

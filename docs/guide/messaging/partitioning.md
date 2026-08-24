@@ -382,6 +382,10 @@ The example above uses the listener's default mode. Note what each mode costs yo
 The ordering guarantee is the same in every mode that supports it: messages sharing a group id never execute
 concurrently. Strict processing in original delivery order is *not* promised under failure or redelivery in any
 non-durable mode.
+
+Everything above is per *listener*. The cluster-wide equivalent -- one consumer per slot across every node,
+with the same database-free ack behaviour -- is
+[native ack global partitioning](#native-ack-global-partitioning).
 :::
 
 ## Exempting Message Types from Partitioned Processing <Badge type="tip" text="6.26" />
@@ -618,7 +622,8 @@ When you configure global partitioning, Wolverine:
 3. **Support for modular monoliths** -- You can configure multiple global partitioning topologies for the same message type in different modules. Each module can have its own set of sharded queues and routing rules, allowing independent sequential processing pipelines within a single application.
 
 ::: tip
-In single-node mode, global partitioning automatically shortcuts all messages to the companion local queues since the current node owns all listeners.
+In single-node mode, global partitioning automatically shortcuts all messages to the companion local queues since the current node owns all listeners. The shortcut is disabled under
+[`ProcessInParallelWithNativeAcks()`](#native-ack-global-partitioning), which has no companion local queues and where the broker delivery *is* the durability story -- every send goes through the broker even when this node owns the slot.
 :::
 
 ### Configuration
@@ -654,7 +659,7 @@ A couple of transport-specific notes:
 
 * **Kafka** -- all nodes listening to the sharded topics share a single Kafka consumer group named after the base name so that Kafka assigns each topic's partitions exclusively to one consumer at a time. Wolverine stamps that consumer group id onto the `GroupId` of incoming envelopes by default, which you can turn off per listener with `DisableConsumerGroupIdStamping()` when the consumer group name is not meaningful as envelope metadata (e.g. when combined with `PropagateGroupIdToPartitionKey()`).
 * **Azure Service Bus** -- the broker's native [session identifiers](/guide/messaging/transports/azureservicebus/session-identifiers) provide strictly ordered, per-session processing with a single queue and may be a simpler alternative if you are exclusively on Azure Service Bus. Global partitioning is the transport-agnostic option that behaves the same way across every broker in the table above.
-* **PostgreSQL / Sql Server** -- the database queues need no extra infrastructure at all; each shard is just another pair of tables in the database you already have. They are inherently durable, which suits global partitioning since the topology forces `EndpointMode.Durable` on every slot anyway. The Sql Server shard queues additionally opt into the [`seq`-clustered high-throughput table layout](/guide/durability/sqlserver#optimizing-queue-throughput) by default.
+* **PostgreSQL / Sql Server** -- the database queues need no extra infrastructure at all; each shard is just another pair of tables in the database you already have. They are inherently durable, which suits global partitioning since the topology defaults every slot to `EndpointMode.Durable`. The Sql Server shard queues additionally opt into the [`seq`-clustered high-throughput table layout](/guide/durability/sqlserver#optimizing-queue-throughput) by default.
 
 ### Example with RabbitMQ
 
@@ -687,6 +692,86 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L718-L744' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Native Ack Global Partitioning <Badge type="tip" text="6.30" />
+
+By default every slot in a global partitioned topology is `EndpointMode.Durable`, and the external listener
+is bridged into a companion local queue that does the actual partitioned execution. That is a database write
+per message on the way in (inbox insert) and another on the way out (mark handled), and the broker is
+acknowledged as soon as the inbox row lands -- long before the handler runs.
+
+`ProcessInParallelWithNativeAcks()` removes both the database and the bridge:
+
+```csharp
+opts.MessagePartitioning
+    .ByMessage<WebhookEvent>(x => x.EntityId)
+    .GlobalPartitioned(topology =>
+    {
+        topology.UseShardedRabbitQueues("webhooks", 5);
+        topology.Message<WebhookEvent>();
+
+        // Each slot listener settles its own broker deliveries and shards
+        // into sequential lanes by group id in memory. No companion local
+        // queues, no bridge, no inbox.
+        topology.ProcessInParallelWithNativeAcks();
+    });
+```
+
+Each slot listener now holds its broker delivery **unacknowledged** until the handler reaches a terminal, and
+shards incoming messages into sequential lanes by group id inside its own receiver. The transport has to opt
+in to `EndpointMode.NativeAck`; RabbitMQ does, and a transport that does not will fail fast at bootstrap
+naming the endpoint. See [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints).
+
+#### The guarantee
+
+**No two messages sharing a group id execute concurrently.** Within a node the sequential lane inside the
+slot's receiver enforces it; across the cluster the exclusive slot listener enforces it, because exactly one
+node consumes a given slot.
+
+Delivery is **at-least-once**, owned by the broker rather than by the inbox: anything received but not yet
+settled is redelivered if the node dies or the channel drops, so nothing is lost, and a handler may see a
+duplicate. Ordering is **per-slot best effort, not per-group guaranteed** -- redelivery or requeue may
+reorder. And the caveat from the durable topology still applies unchanged: the ordering unit is the **slot**,
+not the group, so two group ids that hash to the same slot serialize against each other.
+
+#### When to choose it over the durable default
+
+Reach for it when the traffic is a flood that the database cannot absorb -- webhook storms, telemetry,
+event fan-in -- and the handler's own work is what actually needs to be durable, not the transport hop.
+Concretely you are trading:
+
+| | Durable slots (default) | `ProcessInParallelWithNativeAcks()` |
+|---|---|---|
+| Database per message | inbox insert + mark handled | none |
+| Broker ack timing | at inbox insert, before the handler | at handler completion |
+| Loss on node death | none | none (redelivered) |
+| Duplicates | suppressed by inbox dedup | possible; handlers must tolerate them |
+| Outbox atomicity with handler side effects | yes | no |
+| Recovery of stranded messages | inbox recovery | broker redelivery |
+| Back pressure | in-process listener circuit | the broker's prefetch window |
+
+Because there is no inbox, there is also no inbox dedup and no outbox atomicity between a handler's database
+work and the messages it publishes. Handlers must be idempotent.
+
+#### Failover caveat
+
+Slot failover is the one place where the cluster-wide half of the guarantee is actually load bearing. When a
+slot moves nodes, the outgoing node stops **and drains** its listener -- it finishes the handlers already
+running and settles them -- before the leader is allowed to start the slot anywhere else. Only then does the
+incoming node begin pulling. That drain is what keeps a group from running in two places at once across a
+handoff, and it is why a redelivery after failover lands on the new owner rather than alongside the old one.
+
+The price is that a slot is briefly unconsumed during the handoff, and that in-flight messages the drain
+could not finish inside `DurabilitySettings.DrainTimeout` are redelivered rather than completed. Both are
+consistent with at-least-once; neither is consistent with "exactly once".
+
+::: warning Slot ownership still needs somewhere to coordinate
+The *messages* touch no database in this mode, but Wolverine's dynamic one-consumer-per-slot assignment is
+done by the node agent framework, which needs a message store to persist node records and agent assignments
+-- that is, `DurabilityMode.Balanced`. A host with no message store at all runs in `DurabilityMode.Solo`,
+where *every* node starts *every* listener, so a multi-node storage-free deployment has to assign slots to
+nodes itself (each node listening only to the slots it owns). Single-node deployments are unaffected.
+:::
 
 ### Excluding Message Types <Badge type="tip" text="6.25" />
 
@@ -735,6 +820,11 @@ Wolverine validates global partitioning configuration at startup. It will throw 
 - No message type matching policies are configured
 - No external transport topology is configured
 - The external and local topologies have different shard counts
+
+The last rule does not apply to a [native ack topology](#native-ack-global-partitioning), which deliberately
+has no companion local topology at all. Calling `LocalQueues()` and `ProcessInParallelWithNativeAcks()`
+together throws, as does `Mode(EndpointMode.NativeAck)` -- that would set the mode while leaving the bridge in
+place, and a local queue has no broker delivery to settle.
 
 ### Native Per-Transport Alternatives
 

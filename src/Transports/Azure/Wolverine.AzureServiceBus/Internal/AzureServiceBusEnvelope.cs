@@ -119,7 +119,9 @@ public class AzureServiceBusEnvelope : Envelope
     private ProcessMessageEventArgs? Args { get; set; }
     private ProcessSessionMessageEventArgs? SessionArgs { get; set; }
 
-    private ServiceBusReceivedMessage AzureMessage { get; }
+    // GH-4049: internal rather than private so tests can tell a redelivered copy from the original by its
+    // broker-assigned SequenceNumber -- the observable difference between a native reschedule and an in-process one.
+    internal ServiceBusReceivedMessage AzureMessage { get; }
     private ServiceBusSessionReceiver? SessionReceiver { get; }
     private ServiceBusReceiver? ServiceBusReceiver { get; }
 

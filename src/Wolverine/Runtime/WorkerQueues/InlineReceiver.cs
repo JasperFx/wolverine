@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-internal class InlineReceiver : IReceiver
+internal class InlineReceiver : IReceiver, ILatchedReceiver
 {
     private readonly ILogger _logger;
     private readonly Endpoint _endpoint;

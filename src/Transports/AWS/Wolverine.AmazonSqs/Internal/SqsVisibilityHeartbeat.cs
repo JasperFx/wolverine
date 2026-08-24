@@ -14,12 +14,24 @@ namespace Wolverine.AmazonSqs.Internal;
 ///     copy's eventual delete carries a stale receipt handle that SQS accepts without deleting anything.
 /// </summary>
 /// <remarks>
-///     Only meaningful for <see cref="Wolverine.Configuration.EndpointMode.Inline" />. Durable endpoints
-///     delete the message right after the inbox insert and buffered endpoints delete on receipt, so
-///     neither holds a message under the visibility timeout while a handler runs. The SQS call itself
-///     is injected so the scheduling can be tested without a broker; the tick is a maximum age, not a
-///     debounce, and nothing is sent on a tick when nothing is in flight -- a listener whose batches
-///     finish inside half the visibility timeout never issues an extension at all.
+///     <para>
+///         Scoped to <see cref="Wolverine.Configuration.EndpointMode.Inline" />. Durable endpoints delete the
+///         message right after the inbox insert and buffered endpoints delete on receipt, so neither holds a
+///         message under the visibility timeout while a handler runs.
+///     </para>
+///     <para>
+///         GH-4048: <see cref="Wolverine.Configuration.EndpointMode.NativeAck" /> holds one for longer than any
+///         of them -- lane queue time plus handler time -- but it is not served from here. Its risk window opens
+///         when the envelope is <em>enqueued</em>, which is exactly when this class's Track/Untrack pair around
+///         <c>IReceiver.ReceivedAsync</c> would already have untracked it. Core's <c>LeaseRenewalTracker</c>,
+///         generalized from this class, owns that window through <c>ISupportLeaseRenewal</c>, and both loops
+///         issue the same <c>ChangeMessageVisibilityBatch</c> call.
+///     </para>
+///     <para>
+///         The SQS call itself is injected so the scheduling can be tested without a broker; the tick is a
+///         maximum age, not a debounce, and nothing is sent on a tick when nothing is in flight -- a listener
+///         whose batches finish inside half the visibility timeout never issues an extension at all.
+///     </para>
 /// </remarks>
 internal class SqsVisibilityHeartbeat : IAsyncDisposable
 {

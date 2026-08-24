@@ -247,18 +247,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// </summary>
     public void LatchReceiver()
     {
+        // GH-3709. Deliberately a single ILatchedReceiver test rather than an if/else chain naming each
+        // receiver type. As a chain this silently missed NativeAckReceiver when GH-3708 added it, and an
+        // unlatched receiver's DrainAsync returns immediately instead of waiting for in-flight handlers --
+        // so a stop-and-drain closed the transport channel underneath running work, the unsettled deliveries
+        // were requeued, and on an exclusive listener handoff the new owner re-ran them concurrently with
+        // the old owner. That is exactly the intra-group concurrency the partitioned modes forbid.
         var actual = _receiver is ReceiverWithRules rwr ? rwr.Inner : _receiver;
-        if (actual is DurableReceiver dr)
+        if (actual is ILatchedReceiver latched)
         {
-            dr.Latch();
-        }
-        else if (actual is BufferedReceiver br)
-        {
-            br.Latch();
-        }
-        else if (actual is InlineReceiver ir)
-        {
-            ir.Latch();
+            latched.Latch();
         }
     }
 
@@ -445,12 +443,66 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             Listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
         }
 
+        assertLeaseRenewalContract(Listener);
+
         Status = ListeningStatus.Accepting;
         _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Started message listening at {Uri}", Uri);
 
         startInboxRecoveryIfNecessary();
+    }
+
+    /// <summary>
+    /// GH-4048. A NativeAck endpoint on a transport that puts a clock on an unsettled delivery MUST build a
+    /// lease-renewing listener. Without one, the delivery expires while the envelope is still sitting in an
+    /// execution lane and the broker redelivers it -- so the endpoint is a silent duplicate generator by
+    /// construction, not merely at risk under load. Failing at startup is the same treatment GH-3712 gave
+    /// silently-ignored listener settings.
+    /// </summary>
+    private void assertLeaseRenewalContract(IListener? listener)
+    {
+        if (Endpoint.Mode != EndpointMode.NativeAck) return;
+        if (!Endpoint.holdsExpiringLease) return;
+        if (listener == null) return;
+
+        foreach (var inner in flatten(listener))
+        {
+            if (inner is ISupportLeaseRenewal) continue;
+
+            throw new InvalidOperationException(
+                $"The listener for endpoint {Uri} ({inner.GetType().FullName}) is using EndpointMode.NativeAck on a transport whose unsettled deliveries expire, but it does not implement {nameof(ISupportLeaseRenewal)}. " +
+                "Under NativeAck a delivery stays unsettled for lane queue time plus handler time, so the broker's lease has to be renewed for the whole time the envelope is queued. " +
+                $"Implement {nameof(ISupportLeaseRenewal)} on the listener, or override Endpoint.holdsExpiringLease to false if this transport really does not expire an unsettled delivery.");
+        }
+    }
+
+    private static IEnumerable<IListener> flatten(IListener listener)
+    {
+        switch (listener)
+        {
+            case ParallelListener parallel:
+                foreach (var inner in parallel.InnerListeners)
+                foreach (var leaf in flatten(inner))
+                {
+                    yield return leaf;
+                }
+
+                break;
+
+            case CompoundListener compound:
+                foreach (var inner in compound.Inner)
+                foreach (var leaf in flatten(inner))
+                {
+                    yield return leaf;
+                }
+
+                break;
+
+            default:
+                yield return listener;
+                break;
+        }
     }
 
     /// <summary>
