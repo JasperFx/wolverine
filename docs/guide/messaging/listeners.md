@@ -164,15 +164,16 @@ one to quote: it is the bound on *redeliveries*, and it overstates handler-visib
 order of magnitude.
 
 The numbers below come from `webhook_flood_native_ack_chaos` in `SlowTests` — a five node cluster,
-group-partitioned across five RabbitMQ slots, under a sustained flood, with the broker's own
-`messages_unacknowledged` read at the moment of each disruption:
+group-partitioned across five RabbitMQ slots, under a sustained flood deep enough that the broker was holding
+a full unacked window at every disruption, with the broker's own `messages_unacknowledged` read at that
+instant. The ranges are across four consecutive runs:
 
 | Scenario | Unacked at disruption | Duplicate executions | Rate |
 | --- | --- | --- | --- |
-| Steady state, no disruption | 0 | 0 | 0% |
+| Steady state, no disruption | 0 | **0** | 0% |
 | Rolling deploy, all 5 nodes drained and replaced | 180 | **0** | 0% |
-| One node killed outright mid-flood | 180 | **4** | 0.100% |
-| Two hard kills plus two rolling replacements | 180 | **8** | 0.050% |
+| One node killed outright mid-flood | 180 | **3–4** | ~0.1% |
+| Two hard kills plus two rolling replacements | 180 | **7–9** | ~0.05% |
 
 Two things follow, and both matter more than the headline percentage:
 
@@ -181,8 +182,8 @@ Two things follow, and both matter more than the headline percentage:
   executed yet, so those are first executions.
 * **A hard kill costs about one duplicate per busy lane, not one per unacked message.** Only handlers that
   were *mid-flight* when the connection died can run twice, and that population is the partition slot count,
-  not the prefetch depth. In the runs above that was 4 per killed node against an unacked window of 180 — a
-  factor of roughly 45.
+  not the prefetch depth. In the runs above that was three or four per killed node against an unacked window
+  of 180 — a factor of roughly 45, and it barely moved between runs.
 
 None of this weakens the guarantee. Every duplicate still enters its group's sequential lane, so a duplicate
 never runs concurrently with the original, and the intra-group concurrency invariant held across every kill
