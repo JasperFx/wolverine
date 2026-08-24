@@ -52,6 +52,16 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         _cancellation = cancellation;
         _codec = endpoint.MessageCodec;
 
+        // GH-4047. Belt and braces with the bootstrap check in PulsarEndpoint.validateModeConfiguration(): that one
+        // runs over every *listening* endpoint at startup, this one covers any path that builds a listener without
+        // going through it. A cumulative ack under NativeAck is silent message loss, so it must be impossible to
+        // reach a running consumer in that state, not merely unlikely.
+        if (endpoint.Mode == EndpointMode.NativeAck && endpoint.AckStrategy == PulsarAckStrategy.Cumulative)
+        {
+            throw new InvalidOperationException(
+                PulsarEndpoint.CumulativeAckIsIncompatibleWithNativeAck(endpoint));
+        }
+
         if (endpoint.AckStrategy == PulsarAckStrategy.Cumulative &&
             endpoint.SubscriptionType is SubscriptionType.Shared or SubscriptionType.KeyShared)
         {
@@ -107,6 +117,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         else
         {
             consumerBuilder = consumerBuilder.Topic(endpoint.PulsarTopic());
+        }
+
+        // GH-4047. Pulsar's client-side receiver queue is the prefetch analogue. Only set when the endpoint asks for
+        // one -- explicitly, or by being in NativeAck mode, whose default sizes the queue to the lanes that can be
+        // busy at once instead of DotPulsar's 1000. Applied BEFORE the user hook so ConfigureConsumer still wins.
+        if (endpoint.EffectiveReceiverQueueSize is { } prefetch)
+        {
+            consumerBuilder = consumerBuilder.MessagePrefetchCount(prefetch);
         }
 
         endpoint.ConfigureConsumer?.Invoke(consumerBuilder);
@@ -224,6 +242,13 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             .SubscriptionType(endpoint.SubscriptionType)
             .InitialPosition(endpoint.SubscriptionInitialPosition)
             .Topic(topicRetry!.ToString());
+
+        // GH-4047. The retry-letter consumer holds unacked deliveries on exactly the same terms as the primary one,
+        // so it gets the same receiver queue sizing.
+        if (endpoint.EffectiveReceiverQueueSize is { } prefetch)
+        {
+            retryBuilder = retryBuilder.MessagePrefetchCount(prefetch);
+        }
 
         endpoint.ConfigureConsumer?.Invoke(retryBuilder);
 
