@@ -5,6 +5,8 @@ using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Transports.Local;
+using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Transports.Stub;
 using Wolverine.Transports.Tcp;
 using Xunit;
@@ -142,5 +144,90 @@ public class native_ack_mode_gate
         // Partitioned processing plus real parallelism is the POINT of this mode, so the GH-3712 checks -- which
         // reject exactly that combination on an Inline endpoint -- must not fire here.
         ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+}
+
+/// <summary>
+/// GH-3709. A NativeAck endpoint sends through the INLINE sending agent, not the buffered one. Not a stylistic
+/// choice: GlobalPartitionedInterceptor re-publishes a message and then acks the SOURCE delivery, and a buffered
+/// agent returns before the envelope reaches the transport -- so the source was being settled while the only copy
+/// lived in this process's memory.
+///
+/// These deliberately do NOT use StubEndpoint. StubEndpoint is its own ISendingAgent (it assigns Agent = this in
+/// its constructor), so it bypasses EndpointCollection.buildSendingAgent entirely -- a test written against it
+/// passes identically with the buffered mapping and proves nothing.
+/// </summary>
+public class native_ack_sends_inline
+{
+    [Fact]
+    public void a_native_ack_endpoint_gets_the_inline_sending_agent()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        var endpoint = new NativeAckSendingEndpoint(new Uri("nativeacksend://one"));
+        endpoint.Mode = EndpointMode.NativeAck;
+
+        endpoint.StartSending(runtime, null).ShouldBeOfType<InlineSendingAgent>();
+    }
+
+    [Fact]
+    public void a_buffered_endpoint_still_gets_the_buffered_agent()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        var endpoint = new NativeAckSendingEndpoint(new Uri("nativeacksend://two"));
+        endpoint.Mode = EndpointMode.BufferedInMemory;
+
+        endpoint.StartSending(runtime, null).ShouldBeOfType<BufferedSendingAgent>();
+    }
+
+    // NOTE: there is deliberately no "the send reached the transport before the call returned" test here.
+    // It was written, and it passes under BOTH mappings, so it proves nothing: Block<T>.PostAsync runs the
+    // handler inline when the block is idle, which is exactly the case a single-envelope unit test creates.
+    // The loss window this change closes is load-dependent -- it opens when the block already has queued work
+    // or the send is retrying -- so it cannot be reproduced by posting one envelope to an idle agent. The
+    // agent-type assertions above are what actually distinguish the two mappings; both were verified to fail
+    // when the NativeAck arm is reverted to BufferedSendingAgent.
+}
+
+public record NativeAckSendPing(string Name);
+
+/// <summary>A real Endpoint (not a stub agent) so sending actually flows through buildSendingAgent.</summary>
+internal class NativeAckSendingEndpoint : Endpoint
+{
+    public RecordingSender Sender { get; }
+
+    public NativeAckSendingEndpoint(Uri uri) : base(uri, EndpointRole.Application)
+    {
+        Sender = new RecordingSender(uri);
+    }
+
+    protected override bool supportsNativeAck => true;
+
+    protected override ISender CreateSender(IWolverineRuntime runtime) => Sender;
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+internal class RecordingSender : ISender
+{
+    public List<Envelope> Sent { get; } = new();
+
+    public RecordingSender(Uri destination) => Destination = destination;
+
+    public bool SupportsNativeScheduledSend => false;
+    public Uri Destination { get; }
+
+    public Task<bool> PingAsync() => Task.FromResult(true);
+
+    public ValueTask SendAsync(Envelope envelope)
+    {
+        Sent.Add(envelope);
+        return ValueTask.CompletedTask;
     }
 }

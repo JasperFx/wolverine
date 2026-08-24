@@ -467,14 +467,27 @@ public class EndpointCollection : IEndpointCollection
                     _runtime.DurabilitySettings, _runtime, sendingPolicies);
 
             case EndpointMode.NativeAck:
-                // GH-3708. Mode is a single property governing BOTH directions, so an endpoint that listens with
-                // native acks and is also used for replies or sending arrives here. NativeAck describes how incoming
-                // deliveries are settled and says nothing about sending; on the outgoing side it means exactly what
-                // BufferedInMemory means -- no outbox. Without this arm such an endpoint hit the throw below, which
-                // carried no message at all.
-                return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
-                    _runtime.MessageTrackingFor(endpoint), sender, _runtime.DurabilitySettings,
-                    endpoint, _runtime, sendingPolicies);
+                // GH-3708 / GH-3709. Mode is a single property governing BOTH directions, so an endpoint that listens
+                // with native acks and is also used for replies or sending arrives here.
+                //
+                // This deliberately maps to the INLINE sending agent rather than the buffered one, reversing the
+                // original GH-3708 choice. NativeAck is a listening optimization -- nobody selects it for its sending
+                // characteristics -- so the outgoing side should be the safe option rather than the fast one.
+                //
+                // The concrete failure that forced this: GlobalPartitionedInterceptor.TryReRouteAsync re-publishes a
+                // message and then acks the SOURCE delivery. BufferedSendingAgent.storeAndForwardAsync posts to an
+                // in-memory Block and returns before the envelope reaches the transport, so the source was being
+                // settled while the only copy lived in this process's memory -- a crash in between lost the message
+                // outright, with no redelivery because the source was already acked. Under the durable topology that
+                // hop was safe because the re-publish hit the outbox first. InlineSendingAgent posts to a RetryBlock
+                // that runs the send rather than queueing it, so the ack follows the send.
+                //
+                // Note this narrows the window rather than eliminating it: Wolverine publishes with RabbitMQ
+                // publisher confirms disabled by default, so an inline send awaits the frame being written, not the
+                // broker acknowledging it. Enabling confirms on these endpoints is the remaining step.
+                return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender,
+                    endpoint, _runtime.MessageTrackingFor(endpoint),
+                    _runtime.DurabilitySettings, _runtime, sendingPolicies);
         }
 
         throw new InvalidOperationException(
