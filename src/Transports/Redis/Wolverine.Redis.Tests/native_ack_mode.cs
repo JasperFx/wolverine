@@ -363,7 +363,7 @@ public class native_ack_mode : IAsyncLifetime
     /// when the node dies, and XAUTOCLAIM hands them to the node that replaces it.
     /// </summary>
     [Fact]
-    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_dead_node_loses_nothing()
+    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
         var sessionId = Guid.NewGuid();
         var session = startSession(sessionId);
@@ -384,7 +384,8 @@ public class native_ack_mode : IAsyncLifetime
         // Let the entries actually reach the parked handlers before killing the node
         await waitFor(async () => await pendingCountAsync(streamKey, group) == 5, 30.Seconds());
 
-        // The node dies mid-flight, having acked nothing
+        // The node shuts down mid-flight, having acked nothing. GH-4095: Dispose() DRAINS --
+        // WolverineRuntime.DisposeAsync calls StopAsync -- so this is a tidy shutdown, not a crash
         firstHost.Dispose();
 
         session.Handled.ShouldBeEmpty();

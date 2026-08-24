@@ -199,7 +199,7 @@ public class native_ack_mode_4051 : IAsyncLifetime
     /// until the handler succeeds, so the broker's lock expires and it hands them all to the next node.
     /// </summary>
     [Fact]
-    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_dead_node_loses_nothing()
+    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
         AsbNativeAckTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -215,7 +215,8 @@ public class native_ack_mode_4051 : IAsyncLifetime
         await waitForAsync(() => AsbNativeAckTracking.Entered.Count(x => x.Node == "first" && x.Number >= 100) >= 5,
             TimeSpan.FromSeconds(60));
 
-        // The node dies mid-flight, having acked nothing
+        // The node shuts down mid-flight, having acked nothing. GH-4095: Dispose() DRAINS --
+        // WolverineRuntime.DisposeAsync calls StopAsync -- so this is a tidy shutdown, not a crash
         firstHost.Dispose();
 
         AsbNativeAckTracking.HandledInRange(100, 5).ShouldBeEmpty();
