@@ -15,6 +15,7 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     IStorageBackedQueue
 {
     private readonly RedisTransport _transport;
+    private int? _batchSize;
 
     internal bool SupportsNativeScheduledSend { get; set; } = true;
     
@@ -74,9 +75,78 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     public string? ConsumerGroup { get; set; }
     
     /// <summary>
-    /// Maximum number of messages to read in a single batch from Redis Stream
+    /// GH-4046. Redis Streams is the second transport to accept <see cref="EndpointMode.NativeAck" />, and it
+    /// qualifies on both counts the mode requires.
+    ///
+    /// <para>
+    /// <b>Settlement is per entry.</b> <c>RedisStreamListener.CompleteAsync</c> acks with
+    /// <c>XACK streamKey consumerGroup entryId</c>, where the entry id rides along on the envelope itself in the
+    /// <c>RedisEnvelopeMapper.RedisEntryIdHeader</c> header. The delivery identity therefore travels with the
+    /// envelope rather than living in the read loop's stack frame, so an arbitrary worker thread can settle one
+    /// delivery -- and only that one -- whenever its handler finishes. There is no cumulative form to get wrong:
+    /// unlike a Kafka offset commit, acking entry 5 says nothing about entries 1-4, which is exactly what
+    /// out-of-order completion out of a partitioned execution block needs.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Redelivery does not depend on a lease clock.</b> An entry that is read but never acked stays in the
+    /// consumer group's pending entries list, and <c>XAUTOCLAIM</c> is what hands it to another consumer. Nothing
+    /// expires on a timer while an envelope waits its turn in a lane, so -- unlike SQS visibility timeouts, Azure
+    /// Service Bus lock durations, Pub/Sub ack deadlines or JetStream <c>AckWait</c> -- there is no deadline to
+    /// renew for the (unbounded) time an envelope sits queued. That is what makes this the cheapest adopter.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Two operational caveats, neither a correctness hole in the mode itself.</b> First, PEL recovery is
+    /// opt-in on this transport: a node that dies holding unacked entries leaves them pending, and they come back
+    /// only when some consumer runs <c>XAUTOCLAIM</c>, which means <c>EnableAutoClaim()</c>. That is true of Inline
+    /// and Buffered listeners here too, not something this mode introduces. Second, once auto-claim IS on,
+    /// <see cref="AutoClaimMinIdle" /> behaves as a de facto lease: this mode holds a delivery for lane queue time
+    /// plus handler time rather than handler time alone, so a min-idle shorter than the worst-case lane residency
+    /// lets a consumer re-claim an entry it is still working on and process it twice. Size it above the slowest
+    /// lane, not just the slowest handler.
+    /// </para>
     /// </summary>
-    public int BatchSize { get; set; } = 10;
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
+    /// Maximum number of messages to read in a single batch from Redis Stream (XREADGROUP / XAUTOCLAIM count).
+    /// Defaults to 10, or to twice the number of concurrently-busy lanes when this endpoint is in
+    /// <see cref="EndpointMode.NativeAck" /> mode.
+    /// </summary>
+    public int BatchSize
+    {
+        get
+        {
+            if (_batchSize.HasValue)
+            {
+                return _batchSize.Value;
+            }
+
+            if (Mode == EndpointMode.NativeAck)
+            {
+                // GH-4046. The read batch is this transport's prefetch equivalent, and it has to cover every lane
+                // that can be busy at once -- the partition slot count when the endpoint is group-partitioned and
+                // MaxDegreeOfParallelism otherwise (whichever is larger, since GH-3899 exempted message types run
+                // at the endpoint's parallelism rather than in a slot), doubled so a lane is never left idle
+                // waiting on the next poll. Ten -- the default for the other modes -- would starve a default
+                // MaxDegreeOfParallelism of Environment.ProcessorCount on any decent box.
+                //
+                // Note what this is NOT: unlike RabbitMQ's PreFetchCount it does not cap the unacked window.
+                // Redis has no unacked ceiling, and the consumer loop polls again the moment it has posted a
+                // batch, so what bounds the in-flight set is the bounded execution block -- the loop's
+                // ReceivedAsync await stops pulling entries once the block's channel is full.
+                var lanes = GroupShardingSlotNumber.HasValue
+                    ? Math.Max((int)GroupShardingSlotNumber.Value, MaxDegreeOfParallelism)
+                    : MaxDegreeOfParallelism;
+
+                return lanes * 2;
+            }
+
+            return 10;
+        }
+        set => _batchSize = value;
+    }
     
     /// <summary>
     /// Consumer name within the consumer group. Defaults to machine name + process ID
