@@ -7,6 +7,7 @@ using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Redis.Internal;
 using Wolverine.Runtime;
+using Wolverine.Transports.Sending;
 using Xunit;
 
 namespace Wolverine.Redis.Tests;
@@ -201,6 +202,64 @@ public class native_ack_mode : IAsyncLifetime
 
         // ...and the read batch, this transport's prefetch equivalent, has to cover every lane
         endpoint.BatchSize.ShouldBe(endpoint.MaxDegreeOfParallelism * 2);
+    }
+
+    /// <summary>
+    /// GH-4073. The mode's OUTGOING half. <see cref="EndpointMode"/> is one property governing both directions, so
+    /// a stream that listens with native acks is also in NativeAck when something sends to it -- and every host in
+    /// this suite does exactly that, because the listener and the subscriber share one Endpoint object.
+    ///
+    /// <para>
+    /// GH-3709 mapped NativeAck to <see cref="InlineSendingAgent"/>, which is not an <c>ISenderCallback</c>, while
+    /// this transport still gated its inline sender on <c>Mode == EndpointMode.Inline</c> alone and so built a
+    /// <see cref="BatchedSender"/> here. <c>EndpointCollection.CreateSendingAgent</c> then skipped
+    /// <c>RegisterCallback</c>, and the batched sender threw "This sender has not been registered." from inside its
+    /// own block on the first outgoing batch -- on a worker thread nothing awaits.
+    /// </para>
+    ///
+    /// <para>
+    /// This asserts the pairing directly rather than through a delivery, on purpose. The other tests in this class
+    /// DO catch the bug, but only as a 30-second <see cref="TimeoutException"/> waiting on messages that were never
+    /// sent, which reads like a slow broker rather than a misconfigured endpoint. This one fails in milliseconds and
+    /// names the mismatch.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task the_outgoing_side_of_a_native_ack_stream_sends_inline()
+    {
+        var streamKey = $"native-ack-4065-sender-{Guid.NewGuid():N}";
+        using var host = await startHostAsync(streamKey, "sender-pairing-group");
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        var endpoint = runtime.Endpoints.EndpointByName(streamKey).ShouldNotBeNull();
+        endpoint.Mode.ShouldBe(EndpointMode.NativeAck);
+        endpoint.SendsInline.ShouldBeTrue();
+
+        var agent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).ShouldBeOfType<InlineSendingAgent>();
+
+        // The sender has to be the fire-and-forget one. A BatchedSender under an inline agent is the defect:
+        // it needs a callback the inline agent cannot supply.
+        agent.Sender.ShouldBeOfType<InlineRedisStreamSender>();
+        agent.Sender.ShouldNotBeAssignableTo<ISenderRequiresCallback>();
+    }
+
+    /// <summary>
+    /// GH-4073. The reply endpoint is the reason this reaches applications that never publish to their own
+    /// listening stream: Wolverine builds a response stream for the node and it goes through the same
+    /// <c>CreateSender</c>.
+    /// </summary>
+    [Fact]
+    public async Task a_native_ack_stream_actually_delivers_what_is_sent_to_it()
+    {
+        var sessionId = Guid.NewGuid();
+        var session = startSession(sessionId);
+        var streamKey = $"native-ack-4065-delivery-{Guid.NewGuid():N}";
+
+        using var host = await startHostAsync(streamKey, "sender-delivery-group");
+
+        await host.MessageBus().SendAsync(new RedisNativeAckWork(sessionId, 7, "sender"));
+
+        await waitFor(() => session.Handled.Contains(7), 30.Seconds());
     }
 
     [Fact]

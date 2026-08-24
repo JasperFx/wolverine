@@ -121,8 +121,29 @@ public class EndpointCollection : IEndpointCollection
 
             endpoint.Agent = agent;
 
-            if (sender is ISenderRequiresCallback senderRequiringCallback && agent is ISenderCallback callbackAgent)
+            if (sender is ISenderRequiresCallback senderRequiringCallback)
             {
+                // GH-4073. This used to be a single `&&` with the agent test, so an agent that could not carry the
+                // callback simply fell through and the sender was left unregistered. That is not a benign no-op:
+                // BatchedSender -- the only ISenderRequiresCallback in the codebase -- throws "This sender has not
+                // been registered." from inside its own block on the FIRST outgoing batch, on a worker thread the
+                // caller never observes. The send just never happens, and the symptom that surfaces is a test or a
+                // subscriber timing out, far away from the endpoint that was actually misconfigured.
+                //
+                // The pairing rule is total: ISenderCallback is implemented only by SendingAgent, the base of the
+                // buffered and durable agents. So a callback-requiring sender is compatible with exactly the
+                // BufferedInMemory and Durable modes, and a transport that builds one for an Inline or NativeAck
+                // endpoint has a bug in its CreateSender gate. Fail the bootstrap loudly and name the fix.
+                if (agent is not ISenderCallback callbackAgent)
+                {
+                    throw new InvalidOperationException(
+                        $"Endpoint {endpoint.Uri} is in EndpointMode.{endpoint.Mode}, which sends through {agent.GetType().Name}, " +
+                        $"but its transport built a {sender.GetType().Name} that requires an {nameof(ISenderCallback)} to deliver anything. " +
+                        $"The transport's CreateSender is most likely gating its inline sender on 'Mode == EndpointMode.Inline'; " +
+                        $"it should gate on the {nameof(Endpoint)}.{nameof(Endpoint.SendsInline)} predicate instead, which also covers " +
+                        $"EndpointMode.{nameof(EndpointMode.NativeAck)}.");
+                }
+
                 senderRequiringCallback.RegisterCallback(callbackAgent);
             }
 
