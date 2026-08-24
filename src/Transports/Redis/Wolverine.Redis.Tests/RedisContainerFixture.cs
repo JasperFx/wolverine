@@ -8,6 +8,12 @@ public static class RedisContainerFixture
 {
     private static RedisContainer? _container;
 
+    /// <summary>
+    ///     The image the suite runs against. Must stay at or above Redis 8.2 -- see the note at the container
+    ///     build below, and GH-4058.
+    /// </summary>
+    public const string RedisImage = "redis:8.2.9-alpine";
+
     public static string ConnectionString { get; private set; } = "localhost:6379";
 
     [ModuleInitializer]
@@ -28,8 +34,12 @@ public static class RedisContainerFixture
         // stdout, and a [ModuleInitializer] runs BEFORE Main -- so before xUnit has redirected
         // Console.Out. The banner lands in the raw protocol channel and the whole assembly dies
         // with "Test process did not return valid JSON", running no tests at all.
+        // GH-4058: this was "redis:7-alpine", on which XACKDEL does not exist, so every run of the suite
+        // exercised a DeleteStreamEntryOnAck(true) code path that could not possibly work and said so only
+        // in a per-message warning. Pinned rather than floating on "redis:8-alpine" because XACKDEL landed
+        // in 8.2 -- a tag resolving to 8.0 or 8.1 would put the blind spot straight back.
         _container = new RedisBuilder()
-            .WithImage("redis:7-alpine")
+            .WithImage(RedisImage)
             .WithLogger(NullLogger.Instance)
             .Build();
 

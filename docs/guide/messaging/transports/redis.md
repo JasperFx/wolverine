@@ -419,6 +419,33 @@ that can be busy at once — the partition slot count when `PartitionProcessingB
 prefetch, it does not cap how many entries can be unacknowledged: the bounded execution block is what applies back
 pressure, and the consumer loop stops reading once that block is full.
 
+## Deleting Stream Entries on Ack
+
+By default Wolverine settles a handled entry with `XACK`, which clears it from the consumer group's pending entries
+list but leaves it in the stream. `DeleteStreamEntryOnAck(true)` additionally removes the entry, so a stream consumed
+by a single group does not grow without bound:
+
+```csharp
+opts.UseRedisTransport(connectionString)
+    .DeleteStreamEntryOnAck(true);
+```
+
+::: warning Requires Redis 8.2 or later
+This setting settles with `XACKDEL`, which was added in Redis 8.2. Against an older server every acknowledgement is
+rejected, so **nothing is ever acknowledged** — entries accumulate in the pending entries list forever, and with
+`EnableAutoClaim()` on they are re-claimed and reprocessed indefinitely. Wolverine therefore refuses to start a
+listener when this setting meets a server that does not implement the command, and the exception tells you to either
+upgrade the server or turn the setting off.
+
+Wolverine deliberately does **not** fall back to `XACK` followed by `XDEL`. The two are not equivalent: `XDEL` removes
+the entry for *every* consumer group on the stream rather than only the one acknowledging it, which would silently
+destroy messages other groups have not read yet. That difference is why `XACKDEL` exists.
+
+Note that the capability is detected by asking the server what commands it implements rather than by comparing version
+numbers, so Redis-compatible servers that carry their own versioning — Valkey, DragonflyDB, and the managed cloud
+offerings — are judged on what they actually support.
+:::
+
 ## Scheduled Messaging <Badge type="tip" text="5.10" />
 
 The Redis transport supports native Redis message scheduling for delayed or scheduled delivery. There's no configuration

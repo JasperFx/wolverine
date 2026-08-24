@@ -60,7 +60,8 @@ public sealed class SecondRedisServerFixture : IAsyncLifetime
     {
         try
         {
-            _container = new RedisBuilder().WithImage("redis:7-alpine").Build();
+            // Same image as the primary fixture, so a multi-broker test never straddles two server versions
+            _container = new RedisBuilder().WithImage(RedisContainerFixture.RedisImage).Build();
             await _container.StartAsync();
             ConnectionString = _container.GetConnectionString();
         }
