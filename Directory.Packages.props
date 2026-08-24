@@ -39,17 +39,15 @@
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
-         honest retry reporting, and — since 0.8.0 — stall detection, heartbeats, RSS sampling,
-         the pre-kill dump seam and partial results on cancellation (build/StallCapture.cs).
-         Referenced ONLY by the build project. -->
+         and honest retry reporting. Referenced ONLY by the build project. -->
     <PackageVersion Include="Bobcat.Supervisor" Version="0.8.0" />
-    <PackageVersion Include="JasperFx" Version="2.54.0" />
-    <PackageVersion Include="JasperFx.Events" Version="2.54.0" />
-    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.54.0" />
+    <PackageVersion Include="JasperFx" Version="2.55.0" />
+    <PackageVersion Include="JasperFx.Events" Version="2.55.0" />
+    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.55.0" />
     <!-- RuntimeCompiler is on its own 5.x line (the Roslyn compiler package) — not the 2.1.x
          family; it stays at 5.0.0. -->
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.0" />
-    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.54.0" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.55.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
     <PackageVersion Include="Marten" Version="9.23.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.3" />
