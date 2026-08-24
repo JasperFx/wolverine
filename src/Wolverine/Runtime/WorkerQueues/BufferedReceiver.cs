@@ -26,6 +26,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly IBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
+
+    /// <summary>
+    /// GH-3710. Null unless the endpoint opted in with WithInMemoryIdempotency(). Only consulted on the
+    /// IReceiver.ReceivedAsync paths -- deliveries that came from a broker. Envelopes enqueued locally
+    /// (cascading messages, an in-process retry, a scheduled job firing) never pass through it, because
+    /// nothing redelivers those.
+    /// </summary>
+    private readonly IIncomingIdempotencyGuard? _idempotency;
     private bool _latched;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
@@ -46,6 +54,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
+        _idempotency = endpoint.IdempotencyGuard;
         Pipeline = pipeline;
 
         _scheduler = new InMemoryScheduledJobProcessor(this, _logger);
@@ -135,6 +144,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     {
         if (_latched && envelope.Listener != null)
         {
+            // GH-3710: deferring hands the delivery back to the broker, which may redeliver it. Forget the
+            // id, or that redelivery would be dropped as a duplicate of a message that never ran.
+            _idempotency?.Release(envelope);
             await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             return;
         }
@@ -147,9 +159,18 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             }
 
             await Pipeline!.InvokeAsync(envelope, this).ConfigureAwait(false);
+
+            // GH-3710. HasBeenAcked answers "did this reach a terminal the broker will not undo?" --
+            // MessageContext.CompleteAsync sets it on success and on a native dead-letter move, while a
+            // requeue back to the broker (IChannelCallback.DeferAsync -> TryRequeueAsync) does not. Only the
+            // former may be remembered; remembering a requeued id would silently discard its redelivery.
+            recordOutcome(envelope);
         }
         catch (Exception? e)
         {
+            // GH-3710: the pipeline never reached a terminal, so nothing about this id may be remembered.
+            _idempotency?.Release(envelope);
+
             // This *should* never happen, but of course it will
             try
             {
@@ -162,6 +183,20 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 // via Block's error rung, and a faulted block never recovers. Swallowing is the
                 // lesser evil: the message fails, the listener survives.
             }
+        }
+    }
+
+    private void recordOutcome(Envelope envelope)
+    {
+        if (_idempotency == null) return;
+
+        if (envelope.HasBeenAcked)
+        {
+            _idempotency.MarkProcessed(envelope);
+        }
+        else
+        {
+            _idempotency.Release(envelope);
         }
     }
 
@@ -296,7 +331,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         foreach (var envelope in messages)
         {
             envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
-            if (!envelope.IsExpired())
+            if (!envelope.IsExpired() && !isDuplicate(envelope))
             {
                 await EnqueueAsync(envelope).ConfigureAwait(false);
             }
@@ -318,6 +353,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             return;
         }
 
+        if (isDuplicate(envelope))
+        {
+            // Already acked by the _completeBlock post below, exactly as the durable path acks-and-drops a
+            // duplicate incoming envelope.
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+
         if (envelope.Status == EnvelopeStatus.Scheduled)
         {
             _scheduler.Enqueue(envelope.ScheduledTime!.Value, envelope);
@@ -330,6 +373,22 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
 
         _logger.IncomingReceived(envelope, Uri);
+    }
+
+    /// <summary>
+    /// GH-3710. Claim this broker delivery for the in-memory idempotency guard, answering true when it is a
+    /// redelivery of something already handled (or in flight) within the window. Always false when the
+    /// endpoint did not opt in.
+    /// </summary>
+    private bool isDuplicate(Envelope envelope)
+    {
+        if (_idempotency == null || _idempotency.TryBeginProcessing(envelope)) return false;
+
+        _logger.LogDebug(
+            "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
+            envelope.Id, envelope.MessageType, Uri);
+
+        return true;
     }
 
     public void Dispose()

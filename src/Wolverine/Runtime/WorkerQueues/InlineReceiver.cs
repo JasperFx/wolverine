@@ -14,6 +14,11 @@ internal class InlineReceiver : IReceiver
     private readonly IHandlerPipeline _pipeline;
     private readonly DurabilitySettings _settings;
 
+    /// <summary>
+    /// GH-3710. Null unless the endpoint opted in with WithInMemoryIdempotency().
+    /// </summary>
+    private readonly IIncomingIdempotencyGuard? _idempotency;
+
     private int _inFlightCount;
     private readonly TaskCompletionSource _drainComplete = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool _latched;
@@ -24,6 +29,7 @@ internal class InlineReceiver : IReceiver
         _pipeline = pipeline;
         _logger = runtime.LoggerFactory.CreateLogger<InlineReceiver>();
         _settings = runtime.DurabilitySettings;
+        _idempotency = endpoint.IdempotencyGuard;
     }
 
     public IHandlerPipeline Pipeline => _pipeline;
@@ -118,7 +124,24 @@ internal class InlineReceiver : IReceiver
         try
         {
             envelope.MarkReceived(listener, DateTimeOffset.UtcNow, _settings, _endpoint.WireTap);
+
+            // GH-3710. Ack-and-drop a redelivery of something already handled within the window, the
+            // non-durable analogue of DurableReceiver.handleDuplicateIncomingEnvelope.
+            if (_idempotency != null && !_idempotency.TryBeginProcessing(envelope))
+            {
+                _logger.LogDebug(
+                    "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
+                    envelope.Id, envelope.MessageType, listener.Address);
+
+                await listener.CompleteAsync(envelope);
+                return;
+            }
+
             await _pipeline.InvokeAsync(envelope, listener, activity!);
+
+            // GH-3710. Only a delivery the broker will not redeliver -- acked, or natively dead lettered --
+            // may be remembered. A nack or requeue releases the id so the redelivery still runs.
+            recordOutcome(envelope);
             _logger.IncomingReceived(envelope, listener.Address);
 
             // Don't clobber an Error status already set by the HandlerPipeline / Executor.
@@ -133,6 +156,8 @@ internal class InlineReceiver : IReceiver
         }
         catch (Exception? e)
         {
+            _idempotency?.Release(envelope);
+
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _logger.LogError(e, "Failure to receive an incoming message for envelope {EnvelopeId}", envelope.Id);
 
@@ -150,6 +175,20 @@ internal class InlineReceiver : IReceiver
         finally
         {
             activity?.Stop();
+        }
+    }
+
+    private void recordOutcome(Envelope envelope)
+    {
+        if (_idempotency == null) return;
+
+        if (envelope.HasBeenAcked)
+        {
+            _idempotency.MarkProcessed(envelope);
+        }
+        else
+        {
+            _idempotency.Release(envelope);
         }
     }
 

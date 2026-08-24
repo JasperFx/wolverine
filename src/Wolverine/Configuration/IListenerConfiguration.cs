@@ -114,6 +114,22 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// </summary>
     T ProcessInParallelWithNativeAcks();
 
+    /// <summary>
+    /// GH-3710. Opt in to a bounded, in-memory guard that drops -- and immediately settles -- a redelivery
+    /// of a message id this process has already handled on this endpoint within the window. The non-durable
+    /// analogue of the durable inbox's duplicate detection, for <c>ProcessInParallelWithNativeAcks()</c>,
+    /// <c>BufferedInMemory()</c>, and <c>ProcessInline()</c> endpoints.
+    ///
+    /// <para>
+    /// Best-effort by construction: the guard lives in memory in ONE process, so a restart forgets
+    /// everything it knew and a second node never knew it. Read the "In-Memory Idempotency Guard" section of
+    /// the listener docs before relying on it, and keep the durable inbox if you need hard deduplication.
+    /// </para>
+    /// </summary>
+    /// <param name="window">How long a handled message id is remembered. Defaults to 5 minutes.</param>
+    /// <param name="maxTracked">Ceiling on remembered ids, after which the oldest generation is evicted early. Defaults to 100,000.</param>
+    T WithInMemoryIdempotency(TimeSpan? window = null, int? maxTracked = null);
+
     T UseDurableInbox(BufferingLimits limits);
 
     /// <summary>

@@ -14,6 +14,7 @@ public class GlobalPartitionedMessageTopology
     private PartitionedMessageTopology? _externalTopology;
     private LocalPartitionedMessageTopology? _localTopology;
     private EndpointMode _mode = EndpointMode.Durable;
+    private bool _nativeAcks;
 
     public GlobalPartitionedMessageTopology(WolverineOptions options)
     {
@@ -22,6 +23,12 @@ public class GlobalPartitionedMessageTopology
 
     internal PartitionedMessageTopology? ExternalTopology => _externalTopology;
     internal LocalPartitionedMessageTopology? LocalTopology => _localTopology;
+
+    /// <summary>
+    /// GH-3709. True when <see cref="ProcessInParallelWithNativeAcks"/> has been called: the slots settle
+    /// their own broker deliveries and there is no companion local topology or bridge at all.
+    /// </summary>
+    internal bool UsesNativeAcks => _nativeAcks;
 
     /// <summary>
     /// Opt the partitioned slots — the external endpoints AND their companion local queues — out of
@@ -44,9 +51,11 @@ public class GlobalPartitionedMessageTopology
             // native ack would have nothing to ack against. Endpoint-level PartitionProcessingByGroupId() on a
             // NativeAck listener is the supported shape for partitioned native-ack processing.
             throw new ArgumentOutOfRangeException(nameof(mode),
-                $"{nameof(EndpointMode)}.{nameof(EndpointMode.NativeAck)} is not supported for global partitioned topologies. "
-                + "Partitioned slots bridge into a companion local queue, which has no broker delivery to settle natively. "
-                + "Use PartitionProcessingByGroupId() directly on the native-ack listener instead.");
+                $"{nameof(EndpointMode)}.{nameof(EndpointMode.NativeAck)} cannot be set through {nameof(Mode)}() on a global partitioned topology. "
+                + "The default topology bridges each slot into a companion local queue, which has no broker delivery to settle natively. "
+                + $"Call {nameof(ProcessInParallelWithNativeAcks)}() instead -- it removes the companion local topology and the bridge so the "
+                + "slot listeners settle their own deliveries. PartitionProcessingByGroupId() directly on a native-ack listener is the "
+                + "endpoint-level equivalent.");
         }
 
         if (mode == EndpointMode.Inline)
@@ -56,6 +65,42 @@ public class GlobalPartitionedMessageTopology
         }
 
         _mode = mode;
+        applyMode();
+        return this;
+    }
+
+    /// <summary>
+    /// Process this topology's slots in parallel with native broker acknowledgements instead of the
+    /// durable inbox: each slot listener settles its own deliveries when the handler completes, and
+    /// shards into sequential lanes by group id in memory. Partitioned clustering with no database at
+    /// all — one exclusive consumer per slot across the cluster, no two messages of a group running
+    /// concurrently, at-least-once delivery owned by the broker rather than by the inbox.
+    /// </summary>
+    /// <remarks>
+    /// <para>GH-3709. This is what makes <see cref="EndpointMode.NativeAck"/> reachable from a global
+    /// partitioned topology. The default topology bridges each external listener into a companion local
+    /// queue and does the partitioned execution there (<c>GlobalPartitionedReceiverBridge</c>), which is
+    /// exactly why <see cref="Mode"/> refuses NativeAck — a local queue has no broker delivery to settle.
+    /// Calling this removes the companion topology and the bridge, so the slot's own receiver shards
+    /// directly and the ack stays tied to the delivery's own channel.</para>
+    ///
+    /// <para>Trade-offs against the Durable default: no inbox insert or mark-handled per message and no
+    /// database on the path, but also no inbox dedup, no outbox atomicity with handler side effects, and
+    /// recovery is the broker's redelivery rather than inbox recovery. Ordering is per-slot best effort;
+    /// two groups hashing to the same slot serialize against each other.</para>
+    ///
+    /// <para>The transport must opt in to <see cref="EndpointMode.NativeAck"/>. If it has not, applying
+    /// the mode throws at bootstrap naming the endpoint type — see <c>Endpoint.supportsNativeAck</c>.</para>
+    /// </remarks>
+    public GlobalPartitionedMessageTopology ProcessInParallelWithNativeAcks()
+    {
+        _nativeAcks = true;
+        _mode = EndpointMode.NativeAck;
+
+        // A companion local topology may already exist if LocalQueues() ran first. It is meaningless
+        // here -- drop it rather than leaving queues nothing routes to.
+        _localTopology = null;
+
         applyMode();
         return this;
     }
@@ -81,6 +126,14 @@ public class GlobalPartitionedMessageTopology
 
     public void LocalQueues(string baseQueueName, int numberOfEndpoints)
     {
+        if (_nativeAcks)
+        {
+            throw new InvalidOperationException(
+                $"A native-ack global partitioned topology has no companion local queues -- {nameof(ProcessInParallelWithNativeAcks)}() "
+                + $"makes each slot settle its own broker deliveries, so there is nothing for {nameof(LocalQueues)}() to configure. "
+                + $"Remove one of the two calls.");
+        }
+
         _localTopology = new LocalPartitionedMessageTopology(_options, baseQueueName, numberOfEndpoints);
         applyMode();
     }
@@ -94,7 +147,9 @@ public class GlobalPartitionedMessageTopology
     {
         _externalTopology = topology;
 
-        if (_localTopology == null)
+        // GH-3709. A native-ack topology has no companion local topology and no bridge: the slot's own
+        // receiver shards by group id so the ack stays tied to the delivery's own channel.
+        if (_localTopology == null && !_nativeAcks)
         {
             // Create companion local topology with matching slot count
             var localBaseName = $"global-{baseName}";
@@ -108,9 +163,11 @@ public class GlobalPartitionedMessageTopology
         // overwritten here.
         applyMode();
 
-        // Tag each external slot endpoint with its companion local queue URI
+        // Tag each external slot endpoint with its companion local queue URI. ListeningAgent wires the
+        // GlobalPartitionedReceiverBridge off exactly this property, so leaving it null on a native-ack
+        // topology is what keeps the bridge out of the picture -- there is no separate opt-out there.
         // Only tag if slot counts match; mismatches will be caught by AssertValidity()
-        if (topology.Slots.Count == _localTopology.Slots.Count)
+        if (_localTopology != null && topology.Slots.Count == _localTopology.Slots.Count)
         {
             for (var i = 0; i < topology.Slots.Count; i++)
             {
@@ -211,6 +268,14 @@ public class GlobalPartitionedMessageTopology
                 "An external transport topology must be configured for global partitioning");
         }
 
+        // GH-3709. A native-ack topology deliberately has no local topology, so the two rules below --
+        // both of which exist to keep the companion queues lined up with the bridge -- do not apply.
+        // The subscription and external-topology rules above still do.
+        if (_nativeAcks)
+        {
+            return;
+        }
+
         if (_localTopology == null)
         {
             throw new InvalidOperationException(
@@ -305,7 +370,14 @@ public class GlobalPartitionedMessageTopology
             return false;
         }
 
-        if (_externalTopology == null || _localTopology == null)
+        if (_externalTopology == null)
+        {
+            return false;
+        }
+
+        // A native-ack topology has no local slots at all; every other topology needs them for the
+        // local shortcut and is not routable until they exist.
+        if (_localTopology == null && !_nativeAcks)
         {
             return false;
         }
@@ -314,9 +386,9 @@ public class GlobalPartitionedMessageTopology
             .Select(x => (IMessageRoute)MessageRoute.For(messageType, x, runtime))
             .ToArray();
 
-        var localRoutes = _localTopology.Slots
+        var localRoutes = _localTopology?.Slots
             .Select(x => (IMessageRoute)MessageRoute.For(messageType, x, runtime))
-            .ToArray();
+            .ToArray() ?? [];
 
         var externalEndpoints = _externalTopology.Slots.ToArray();
 
@@ -325,7 +397,8 @@ public class GlobalPartitionedMessageTopology
             runtime.Options.MessagePartitioning,
             externalRoutes,
             localRoutes,
-            externalEndpoints);
+            externalEndpoints,
+            _nativeAcks);
 
         return true;
     }

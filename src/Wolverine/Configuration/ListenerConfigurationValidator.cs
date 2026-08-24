@@ -65,6 +65,28 @@ internal static class ListenerConfigurationValidator
             yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal, message);
         }
 
+        // GH-3710. The in-memory guard applies to every non-durable listening mode, so this check sits
+        // ahead of the Inline-only block below.
+        if (endpoint.InMemoryIdempotency != null)
+        {
+            if (endpoint.Mode == EndpointMode.Durable)
+            {
+                yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Warning,
+                    $"Ignored listener configuration for {describe(endpoint)}: WithInMemoryIdempotency() was configured on a " +
+                    "durable endpoint, and Wolverine has not built the guard. The durable inbox already rejects a duplicate " +
+                    "message id on the primary key of the incoming table, across restarts and across every node -- which is " +
+                    "strictly stronger than an in-memory, per-process guard. Remove WithInMemoryIdempotency(), or remove " +
+                    "UseDurableInbox() if what you wanted was best-effort dedup without a database.");
+            }
+            else if (endpoint is LocalQueue)
+            {
+                yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Warning,
+                    $"Ignored listener configuration for {describe(endpoint)}: WithInMemoryIdempotency() was configured on a " +
+                    "local queue. The guard deduplicates redeliveries from a message broker, and nothing is ever redelivered " +
+                    "to a local queue -- its messages are enqueued from inside this same process.");
+            }
+        }
+
         if (endpoint.Mode != EndpointMode.Inline)
         {
             yield break;
