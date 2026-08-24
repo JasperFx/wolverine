@@ -158,11 +158,59 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     public int WaitTimeSeconds { get; set; } = 5;
 
     /// <summary>
+    ///     Hard Amazon SQS limit on the number of messages a single <c>ReceiveMessage</c> can return.
+    /// </summary>
+    public const int MaximumReceiveBatchSize = 10;
+
+    private int? _maxNumberOfMessages;
+
+    /// <summary>
     ///     The maximum number of messages to return. Amazon SQS never returns more messages than
     ///     this value (however, fewer messages might be returned). Valid values: 1 to 10. Default:
-    ///     10.
+    ///     10, except on a <see cref="EndpointMode.NativeAck" /> endpoint -- see the remarks.
     /// </summary>
-    public int MaxNumberOfMessages { get; set; } = 10;
+    /// <remarks>
+    ///     GH-4050. This is the SQS analogue of RabbitMQ's prefetch count, and under
+    ///     <see cref="EndpointMode.NativeAck" /> it is sized the same way: enough to cover every lane that can be
+    ///     busy at once -- the partition slot count when the endpoint is group-partitioned, otherwise
+    ///     <see cref="Endpoint.MaxDegreeOfParallelism" /> -- doubled so a lane is never starved waiting on the next
+    ///     receive, and clamped to the SQS maximum of 10.
+    ///     <para>
+    ///     The direction that actually matters here is <em>downward</em>, which is the opposite of RabbitMQ. SQS
+    ///     caps a receive at 10 either way, so the default can never be raised to cover a wide endpoint; what it can
+    ///     do is stop a narrow one from dragging in work it cannot run. Under every other mode the extra messages in
+    ///     a batch are deleted before their handlers run, so fetching ten of them costs nothing and saves API calls.
+    ///     Under this mode they are not: each one sits in the lane holding an unsettled delivery whose visibility
+    ///     timeout Wolverine has to keep renewing, and which a crash turns into a redelivery. A
+    ///     <c>Sequential()</c> native-ack endpoint receiving ten at a time would hold nine leases open through nine
+    ///     handler durations for no throughput at all.
+    ///     </para>
+    ///     <para>
+    ///     Setting this property explicitly always wins, in either direction.
+    ///     </para>
+    /// </remarks>
+    public int MaxNumberOfMessages
+    {
+        get
+        {
+            if (_maxNumberOfMessages.HasValue)
+            {
+                return _maxNumberOfMessages.Value;
+            }
+
+            if (Mode == EndpointMode.NativeAck)
+            {
+                var lanes = GroupShardingSlotNumber.HasValue
+                    ? Math.Max((int)GroupShardingSlotNumber.Value, MaxDegreeOfParallelism)
+                    : MaxDegreeOfParallelism;
+
+                return Math.Clamp(lanes * 2, 1, MaximumReceiveBatchSize);
+            }
+
+            return MaximumReceiveBatchSize;
+        }
+        set => _maxNumberOfMessages = value;
+    }
 
     /// <summary>
     ///     Hard Amazon SQS limit on the number of entries in a single <c>DeleteMessageBatch</c>
@@ -750,6 +798,10 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         sibling.EnableFairQueueMessageGroups = EnableFairQueueMessageGroups;
         sibling.VisibilityTimeout = VisibilityTimeout;
         sibling.WaitTimeSeconds = WaitTimeSeconds;
+        // GH-4050: deliberately the RESOLVED value, not the explicit override. This runs from BuildListenerAsync,
+        // so the parent's mode and lane counts are already final -- but MaxDegreeOfParallelism and
+        // GroupShardingSlotNumber are not among the properties copied onto a sibling, so letting the sibling
+        // re-derive would give the tenant queue a different receive batch size than the account it mirrors.
         sibling.MaxNumberOfMessages = MaxNumberOfMessages;
         sibling.MessageAttributeNames = MessageAttributeNames;
         sibling.FragmentOversizedMessages = FragmentOversizedMessages;
@@ -789,12 +841,109 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     }
 
     /// <summary>
+    /// GH-4050. Amazon SQS qualifies for <see cref="EndpointMode.NativeAck" /> on both counts the mode requires.
+    ///
+    /// <para>
+    /// <b>Deliveries are settled individually.</b> <c>SqsListener.CompleteAsync</c> issues a per-message
+    /// <c>DeleteMessage</c> against the receipt handles carried on <c>AmazonSqsEnvelope.SqsMessages</c>, so the
+    /// delivery identity rides the envelope rather than living on the receive loop. There is no cumulative
+    /// position to advance and therefore no way for settling one delivery to implicitly settle another -- which is
+    /// exactly what disqualifies Kafka, whose offset commit cannot express a gap.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>They can be settled out of order, from an arbitrary worker thread.</b> A receipt handle is valid until
+    /// its visibility timeout expires no matter who holds it, so the native-ack execution block is free to
+    /// complete messages in handler-completion order rather than delivery order. The batching delete path
+    /// (GH-3493) is order-independent for the same reason: <c>DeleteMessageBatch</c> takes an unordered set of
+    /// handles.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>What makes it safe is the lease contract from GH-4048</b>, not the settlement model alone. Unlike
+    /// RabbitMQ, where an unacked delivery lives until the channel closes, an unsettled SQS delivery is on a
+    /// clock: it reappears after <see cref="VisibilityTimeout" /> seconds whether or not anybody is still working
+    /// on it. Under this mode the delivery is held unsettled for lane queue time <em>plus</em> handler time, and
+    /// lane queue time is unbounded by design -- so without renewal every native-ack SQS endpoint would be a
+    /// duplicate-delivery generator by construction. <see cref="holdsExpiringLease" /> declares that clock and
+    /// <see cref="SqsListener" /> renews it through <see cref="ISupportLeaseRenewal" />; <c>ListeningAgent</c>
+    /// refuses to start a native-ack listener here that does not.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Standard queues only.</b> FIFO queues are refused in <see cref="validateModeConfiguration" /> -- see
+    /// there for why.
+    /// </para>
+    /// </summary>
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
     /// GH-4048. An unsettled SQS delivery is invisible only for <see cref="VisibilityTimeout" /> seconds, after
     /// which SQS redelivers it -- so a NativeAck endpoint here has to renew that clock for as long as the
     /// envelope sits in an execution lane. <see cref="SqsListener" /> supplies the renewal through
     /// <see cref="ISupportLeaseRenewal" />.
     /// </summary>
     protected internal override bool holdsExpiringLease => true;
+
+    /// <summary>
+    /// GH-4050. A FIFO queue and <see cref="EndpointMode.NativeAck" /> are mutually exclusive. This is checked
+    /// after <see cref="Endpoint.Compile" /> rather than in the <see cref="Endpoint.Mode" /> setter for the same
+    /// reason Pulsar and Azure Service Bus check their pairings there: the mode arrives as delayed listener
+    /// configuration, so the final state -- not the order of the fluent calls -- has to decide.
+    /// </summary>
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        if (Mode == EndpointMode.NativeAck && IsFifoQueue)
+        {
+            yield return FifoQueuesAreIncompatibleWithNativeAcks(this);
+        }
+    }
+
+    /// <summary>
+    /// GH-4050. The FIFO verdict, stated where a user will actually read it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The tempting reading is that SQS <c>MessageGroupId</c> is a broker-side analogue of
+    /// <see cref="Envelope.GroupId" />, so a FIFO queue and <c>PartitionProcessingByGroupId()</c> ought to be a
+    /// natural pairing. They are not, and the two halves fail differently.
+    /// </para>
+    /// <para>
+    /// <b>Without partitioning the ordering is silently lost.</b> One FIFO receive can return several messages of
+    /// the same message group, in order. The native-ack execution block is a
+    /// <c>Block&lt;Envelope&gt;(MaxDegreeOfParallelism)</c>, so at any parallelism above one those same-group
+    /// messages run concurrently -- the queue keeps its ordering guarantee right up to the moment Wolverine takes
+    /// delivery of it, and then discards it. A FIFO queue costs more and throughputs less than a standard queue
+    /// precisely to buy that guarantee, so voiding it in silence is the worst possible outcome.
+    /// </para>
+    /// <para>
+    /// <b>With partitioning the two schemes stack, and the outer one is held hostage by the inner one.</b> SQS
+    /// FIFO will not deliver another message of a group while any message of that group is in flight. Under this
+    /// mode "in flight" means lane queue time plus handler time, and this mode's entire premise is that lane
+    /// queue depth is unbounded and free. It is not free here: unrelated groups that hash into the same Wolverine
+    /// slot queue ahead of a group's head, and the broker blocks that whole group for the duration. Every other
+    /// mode escapes this -- Buffered and Durable delete the message before the handler runs, and Inline holds it
+    /// for one handler and nothing else -- which makes NativeAck the only Wolverine mode that converts its own
+    /// lane depth into broker-side group stalls.
+    /// </para>
+    /// <para>
+    /// The combination that does work is the one the docs already recommend for FIFO throughput: shard the
+    /// topology across several FIFO queues by group id and listen to each with <c>ProcessInline()</c>. Ordering
+    /// then lives entirely on the broker side, where FIFO can actually enforce it.
+    /// </para>
+    /// </remarks>
+    internal static string FifoQueuesAreIncompatibleWithNativeAcks(AmazonSqsQueue queue)
+    {
+        return
+            $"Invalid listener configuration for endpoint '{queue.Uri}': ProcessInParallelWithNativeAcks() was configured on the " +
+            $"FIFO queue '{queue.QueueName}'. A FIFO queue exists to guarantee ordering within a MessageGroupId, and native ack " +
+            "lanes deliberately do not preserve delivery order -- one FIFO receive can return several messages of the same group, " +
+            "and the execution block would run them concurrently. Partitioning by group id does not rescue it either: SQS blocks a " +
+            "message group behind its own in-flight head, so under this mode every group would be stalled at the broker for as long " +
+            "as unrelated messages sat ahead of it in a Wolverine lane. Use ProcessInline() on this FIFO queue for ordered " +
+            "processing -- sharding the topology across several FIFO queues by group id if you need throughput -- or use a standard " +
+            "(non-.fifo) queue if what you want is native acks with partitioned parallel processing.";
+    }
 
     internal void ConfigureRequest(ReceiveMessageRequest request)
     {

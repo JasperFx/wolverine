@@ -144,15 +144,26 @@ Three consequences follow from never acking at receipt, and all three are the po
 
 **Transport support is opt-in and default-closed.** A transport must settle each delivery individually *and*
 tolerate settling out of order, because the execution block completes messages in handler-completion order
-rather than delivery order. RabbitMQ queues and [Pulsar](/guide/messaging/transports/pulsar.html#native-ack-processing)
-topics qualify and are supported today. Kafka cannot and is out of scope: a cumulative offset commit has no
+rather than delivery order. RabbitMQ queues, [Pulsar](/guide/messaging/transports/pulsar.html#native-ack-processing)
+topics and [Amazon SQS](/guide/messaging/transports/sqs/listening.html#native-ack-processing) queues qualify and
+are supported today. Kafka cannot and is out of scope: a cumulative offset commit has no
 way to express a gap. Calling `ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws
 at configuration time rather than degrading silently.
 
+On a broker where an *unsettled* delivery is on a clock — SQS's visibility timeout, Azure Service Bus's lock
+duration, JetStream's `AckWait` — Wolverine renews that clock for every delivery still sitting in a lane, for
+as long as it sits there. This is unconditional under this mode and not something you opt into: lane queue time
+is unbounded by design, so an un-renewed native-ack endpoint would be a duplicate-delivery generator by
+construction rather than merely at risk under a slow handler. A transport that declares such a clock but does
+not implement renewal is refused at startup.
+
 A transport may also refuse the mode for a *particular* endpoint whose own settings contradict it, again at
-bootstrap rather than at runtime. Pulsar is the example: its acknowledgment strategy is configurable, and
-`AcknowledgeCumulative()` reintroduces exactly the gap-less-commit problem that disqualifies Kafka, so that
-one combination is rejected by name.
+bootstrap rather than at runtime. There are two examples today. Pulsar's acknowledgment strategy is
+configurable, and `AcknowledgeCumulative()` reintroduces exactly the gap-less-commit problem that disqualifies
+Kafka. And an [SQS FIFO queue](/guide/messaging/transports/sqs/listening.html#fifo-queues-do-not-support-native-acks)
+exists to guarantee ordering within a message group, which native-ack lanes deliberately do not preserve — and
+which partitioning by group id does not rescue, because SQS blocks a message group behind its own in-flight
+head. Both combinations are rejected by name.
 
 ## In-Memory Idempotency Guard <Badge type="tip" text="6.30" />
 
