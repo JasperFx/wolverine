@@ -283,6 +283,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     internal bool ModeIgnoresParallelism => Mode == EndpointMode.Inline;
 
     /// <summary>
+    /// GH-4061. Does this endpoint send synchronously, awaiting the transport, rather than through a batching
+    /// sender?
+    ///
+    /// <para>
+    /// Transports use this to choose between their inline sender and a <c>BatchedSender</c>. It is one property
+    /// because getting it wrong is silent and total: a <c>BatchedSender</c> only functions once the sending agent
+    /// has registered a callback on it, and <c>InlineSendingAgent</c> is NOT an <c>ISenderCallback</c>, so the
+    /// registration in <c>EndpointCollection.CreateSendingAgent</c> is skipped for it. A transport that asks
+    /// <c>Mode == EndpointMode.Inline</c> directly therefore hands a NativeAck endpoint an unregistered
+    /// <c>BatchedSender</c> whose every send throws "This sender has not been registered."
+    /// </para>
+    ///
+    /// <para>
+    /// Ask this rather than comparing against <see cref="EndpointMode.Inline"/>, so that a future mode which also
+    /// sends inline does not require finding all nine call sites again.
+    /// </para>
+    /// </summary>
+    public bool SendsInline => Mode is EndpointMode.Inline or EndpointMode.NativeAck;
+
+    /// <summary>
     /// GH-3712. Render <see cref="MaxDegreeOfParallelism"/> for diagnostics, saying "n/a" rather than
     /// printing a dead number for a mode that never reads it.
     /// </summary>
@@ -758,6 +778,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// cannot: a cumulative offset commit has no way to express a gap.
     /// </summary>
     protected virtual bool supportsNativeAck => false;
+
+    /// <summary>
+    /// GH-4047. Transport-specific configuration combinations that are only decidable once the FINAL state of the
+    /// endpoint has settled -- after endpoint policies and every delayed <c>ListenerConfiguration</c> lambda have run
+    /// in <see cref="Compile"/>. Return one message per problem; each is fatal and refuses the bootstrap.
+    ///
+    /// <para>
+    /// <see cref="supportsNativeAck"/> answers "can this transport ever do native acks", which the <see cref="Mode"/>
+    /// setter can ask the moment the mode is assigned. This hook answers the different question "can THIS endpoint,
+    /// configured the way it actually ended up, do them" -- which the Mode setter cannot ask, because the offending
+    /// setting may be applied after the mode. Pulsar is the motivating case: <c>AcknowledgeCumulative()</c> and
+    /// <c>ProcessInParallelWithNativeAcks()</c> are individually legal, and whichever of the two the Mode setter
+    /// happened to see first would decide whether the pair was caught. Validating after Compile makes the final
+    /// state, not the call order, decide.
+    /// </para>
+    /// </summary>
+    protected internal virtual IEnumerable<string> validateModeConfiguration()
+    {
+        yield break;
+    }
 
     /// <summary>
     /// Check if this endpoint supports the specified mode

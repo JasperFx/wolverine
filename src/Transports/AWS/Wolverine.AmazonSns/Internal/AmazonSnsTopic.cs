@@ -212,7 +212,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             return tenantedSender;
         }
 
-        if (Mode == EndpointMode.Inline)
+        if (SendsInline)
         {
             return new InlineSnsSender(runtime, this);
         }

@@ -58,6 +58,13 @@ internal static class ListenerConfigurationValidator
             yield break;
         }
 
+        // GH-4047. Transport-specific constraints first, and deliberately outside the Inline-only gate below: they
+        // are about combinations no core rule can see, and the Pulsar one they were added for is about NativeAck.
+        foreach (var message in endpoint.validateModeConfiguration())
+        {
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal, message);
+        }
+
         // GH-3710. The in-memory guard applies to every non-durable listening mode, so this check sits
         // ahead of the Inline-only block below.
         if (endpoint.InMemoryIdempotency != null)
