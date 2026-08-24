@@ -1,6 +1,7 @@
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.MultiTenancy;
+using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.Marten;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 
@@ -239,6 +241,36 @@ public class ConjoinedTenancyDocumentationSamples
                 (builder, connectionString) =>
                 {
                     builder.UseNpgsql(connectionString.Value);
+                }, AutoCreate.CreateOrUpdate);
+        });
+
+        #endregion
+    }
+
+    public async Task conjoined_tenancy_with_marten_owned_message_store()
+    {
+        #region sample_conjoined_tenancy_with_marten_owned_store
+
+        var builder = Host.CreateApplicationBuilder();
+
+        var configuration = builder.Configuration;
+
+        builder.UseWolverine(opts =>
+        {
+            // Marten owns the message storage here, so Wolverine's message store is built
+            // from Marten's NpgsqlDataSource rather than from a connection string
+            opts.Services.AddMarten(m =>
+            {
+                m.Connection(configuration.GetConnectionString("main")!);
+            }).IntegrateWithWolverine();
+
+            // ...which means the conjoined DbContext has to be configured from that same
+            // DbDataSource. NpgsqlDataSource.ConnectionString deliberately omits the password,
+            // so the connection string overload cannot authenticate in this setup
+            opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+                (builder, dataSource) =>
+                {
+                    builder.UseNpgsql((NpgsqlDataSource)dataSource);
                 }, AutoCreate.CreateOrUpdate);
         });
 

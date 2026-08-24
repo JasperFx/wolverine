@@ -26,6 +26,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
+using Wolverine.Postgresql.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
@@ -121,6 +122,12 @@ public static class WolverineOptionsMartenExtensions
         expression.Services
             .TryAddSingleton<IDocumentSessionFactory<IDocumentSession, IQuerySession>>(s =>
                 (IDocumentSessionFactory<IDocumentSession, IQuerySession>)s.GetRequiredService<IDocumentStore>());
+
+        // GH-4044. Conjoined EF Core tenant partitioning finds its provider through this factory, and
+        // PersistMessagesWithPostgresql() is the only other thing that registers it -- which an
+        // application letting Marten own the message store never calls
+        expression.Services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<ITenantPartitioningProviderFactory, PostgresqlTenantPartitioningProviderFactory>());
 
         // Gotta have at least a placeholder just in case a user also has
         // EF Core

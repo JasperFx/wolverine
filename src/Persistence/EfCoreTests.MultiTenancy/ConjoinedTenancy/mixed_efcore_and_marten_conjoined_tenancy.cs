@@ -70,12 +70,11 @@ public class mixed_efcore_and_marten_conjoined_tenancy : IAsyncLifetime
                 }).ApplyAllDatabaseChangesOnStartup();
 
                 // NOTE: deliberately NOT .IntegrateWithWolverine() here -- see GH-3531. Handing the
-                // Wolverine message store to Marten leaves the conjoined EF builder unable to resolve
-                // a connection string ("Unable to determine the database connection string for the
-                // conjoined multi-tenanted DbContext"), because it reads it from the message store's
-                // database settings and Marten's store does not surface one. That interaction is a
-                // finding in its own right; these tests are about partition and tenant OWNERSHIP
-                // between the two engines, which does not depend on who owns envelope storage.
+                // Wolverine message store to Marten means the conjoined EF builder has to be
+                // registered with the DbDataSource overload instead (GH-4044, covered by
+                // marten_owned_store_with_conjoined_efcore_tenancy). These tests are about partition
+                // and tenant OWNERSHIP between the two engines, which does not depend on who owns
+                // envelope storage, so they keep the simpler connection string registration.
 
                 opts.UseEntityFrameworkCoreTransactions();
                 opts.UseEntityFrameworkCoreWolverineManagedMigrations();
