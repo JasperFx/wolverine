@@ -87,6 +87,14 @@ invisible for at most 12 hours from its receipt (the SQS limit; lower it with th
 6.x because it adds billable API calls under sustained slow handling and changes when a
 crashed node's in-flight messages reappear.
 
+- **NativeAck** endpoints hold the message longest of all — for lane queue time *plus* handler
+  time — and that queue time is unbounded by design. Renewal there is therefore **mandatory and
+  does not consult `ExtendVisibilityWhileHandling()`**: an opt-in default-false flag would mean
+  "off by default" for the one mode that cannot survive it being off. `MaximumVisibilityExtension`
+  is still the ceiling, and idle lanes still cost nothing. See
+  [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints) for what happens when a
+  visibility timeout is lost anyway.
+
 ## The send side: batch API, one batch in flight
 
 Wolverine sends with `SendMessageBatch` (10 messages per API call, the SQS maximum) through its

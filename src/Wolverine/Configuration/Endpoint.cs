@@ -732,6 +732,21 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected virtual bool supportsNativeAck => false;
 
     /// <summary>
+    /// GH-4048. Does this endpoint's broker put a clock on an <em>unsettled</em> delivery? True for SQS (visibility
+    /// timeout), Azure Service Bus (lock duration), Pub/Sub (ack deadline) and JetStream (AckWait); false for
+    /// RabbitMQ and Redis Streams, where an unacked delivery lives until the channel closes and there is nothing
+    /// to renew.
+    /// </summary>
+    /// <remarks>
+    /// This is the endpoint-side half of the lease contract. Under <see cref="EndpointMode.NativeAck"/> a delivery
+    /// is held unsettled for lane queue time <em>plus</em> handler time, so an endpoint that answers true here must
+    /// build a listener implementing <see cref="Transports.ISupportLeaseRenewal"/>. <c>ListeningAgent</c> enforces
+    /// that at startup, deliberately: without the check, opting into NativeAck and forgetting renewal produces a
+    /// silent duplicate generator instead of an error.
+    /// </remarks>
+    protected internal virtual bool holdsExpiringLease => false;
+
+    /// <summary>
     /// Check if this endpoint supports the specified mode
     /// </summary>
     public bool SupportsMode(EndpointMode mode)

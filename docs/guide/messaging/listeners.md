@@ -147,6 +147,36 @@ scope: a cumulative offset commit has no way to express a gap. Calling
 `ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws at configuration time rather
 than degrading silently.
 
+### Brokers that put a clock on an unsettled delivery
+
+Some brokers expire an unsettled delivery on their own: Amazon SQS's visibility timeout, Azure Service Bus's
+lock duration, GCP Pub/Sub's ack deadline, NATS JetStream's `AckWait`. RabbitMQ and Redis Streams do not — an
+unacked delivery there lives until the channel closes.
+
+On a broker that does, Wolverine renews that lease for the whole time an envelope sits in an execution lane,
+not merely while its handler runs — the risk window opens the moment the envelope is *enqueued*. Renewal ticks
+at half the lease, sends nothing while the lanes are empty, and stops at a configurable ceiling (on SQS,
+`MaximumVisibilityExtension`, capped by the SQS limit of 12 hours). It is **not** opt-in for this mode:
+lane depth is unbounded by design, so an un-renewed endpoint would be a duplicate generator by construction.
+A NativeAck endpoint on such a broker whose listener cannot renew fails at startup rather than running.
+
+::: warning What happens when a lease is lost anyway
+If the broker refuses a renewal — or no renewal succeeds for a full lease duration — the broker owns that
+delivery again and is going to redeliver it. Wolverine's response depends on where the envelope had got to:
+
+* **Still queued, not yet executing.** The queued copy is **dropped: neither completed nor deferred.** That
+  looks harsh and is the only non-amplifying option. Every transport's defer path is *settle-then-republish*,
+  so deferring after the lease is gone would put a second copy on the queue on top of the redelivery already
+  coming. Dropping turns "handled twice" into "handled once, later".
+* **Already executing.** A running handler cannot be un-run. This one stays at-least-once — NativeAck's
+  documented contract — and Wolverine's only job is to not compound it, so its defer is suppressed too.
+
+Both are metered. `wolverine-leases-lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
+or `executing` (duplication realized); `wolverine-leases-renewed` and `wolverine-lease-ceiling-reached` round
+out the picture. A rising `executing` count means lane depth has outgrown the configured lease — raise the
+lease, raise the slot count, or lower the prefetch.
+:::
+
 ## Buffered Endpoints
 
 ::: tip
