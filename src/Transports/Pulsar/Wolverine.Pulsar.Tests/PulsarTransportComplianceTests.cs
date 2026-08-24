@@ -45,20 +45,25 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 [Collection("acceptance")]
 public class PulsarTransportComplianceTests : TransportCompliance<PulsarTransportFixture>
 {
-    // GH-3763. These four are not flaky -- they fail deterministically, every run, in all three Pulsar
-    // compliance fixtures, with "No ending activity detected" / "Expected ending activity was not
-    // detected". They are the requeue, retry-scheduling and dead-letter behaviours the transport has not
-    // implemented. Skipping just these restores the other 55 tests in this file's three fixtures, which
-    // pass; the whole classes used to be excluded for them. See GH-3797.
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_requeue_and_increment_attempts() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task can_schedule_retry() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_move_to_dead_letter_queue_with_exception_match() => Task.CompletedTask;
-
-    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
-    public override Task will_move_to_dead_letter_queue_without_any_exception_match() => Task.CompletedTask;
+    // GH-3797. will_requeue_and_increment_attempts, can_schedule_retry and the two dead-letter tests
+    // carried a skip here (and in the two sibling Pulsar fixtures) reading "Pulsar does not implement
+    // this compliance behaviour yet". That diagnosis was wrong -- none of the three was a missing
+    // transport feature.
+    //
+    // UsePulsar() registers PulsarNativeResiliencyPolicy's failure rule *globally*, with an
+    // AlwaysMatches condition, so it sorted ahead of every opts.Policies.OnException<T>() rule the
+    // compliance fixture configures. Its source claimed the failure for any PulsarListener whatsoever,
+    // and PulsarNativeResiliencyContinuation then did nothing at all when the endpoint had no
+    // retry-letter topic, no native dead-letter topic and no UseNativeRedelivery() -- which is exactly
+    // this fixture. The message simply vanished, hence "No ending activity detected". The fixture's
+    // Requeue() / ScheduleRetry() / MoveToErrorQueue() policies were never reached, so they were never
+    // actually under test.
+    //
+    // GH-4079/#4080 made a continuation source able to decline: the Pulsar source now claims a failure
+    // only when there is native resiliency to hand it to. With that in place all four behaviours work
+    // over Pulsar and run unmodified from the base class, so there is nothing to override here.
+    //
+    // Red-baselined: restoring the pre-#4080 predicate (`envelope.Listener is PulsarListener`, without
+    // the HasNativeResiliency check) fails all twelve -- these four across all three fixtures --
+    // deterministically, and restoring it passes all twelve.
 }

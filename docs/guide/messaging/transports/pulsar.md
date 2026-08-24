@@ -295,6 +295,33 @@ In other words the native path only claims a failure it can actually act on; eve
 through to the policies you configured. Chain-level rules (`chain.OnException<T>()`) always sort
 ahead of global rules, so those take precedence even on a natively-configured Pulsar endpoint.
 
+### Where each policy actually lands on a plain Pulsar listener
+
+On a Pulsar listener with no native retry-letter or dead-letter topic configured (row two above),
+Wolverine's own error policies behave exactly as on any other broker transport. This is the
+configuration the Pulsar transport compliance suite runs, so each of these is covered end to end:
+
+| Policy | On a plain Pulsar listener |
+| --- | --- |
+| `RetryTimes()`, `RetryWithCooldown()` | ✅ Retried in the handler lane; the message never leaves the process |
+| `ScheduleRetry()` | ✅ Rescheduled in memory, or in the durable inbox if a message store is configured |
+| `Requeue()`, `RequeueIndefinitely()`, `MaximumAttempts()` | ✅ The listener acknowledges the message and re-publishes it to the same topic, carrying its `attempts` header forward. Turn this off with [`DisableRequeue()`](#read-only-subscriptions) if the topic is read-only to your application, or prefer [`UseNativeRedelivery()`](#per-message-redelivery) to redeliver in place instead of re-publishing a copy. |
+| `MoveToErrorQueue()` | ✅ The envelope is moved to **Wolverine's durable dead letter table** — see the note below |
+
+::: warning `MoveToErrorQueue()` needs either a native DLQ topic or a message store
+Pulsar dead-lettering is deliberately *not* wired through an endpoint-level dead letter sender, so
+there are exactly two destinations for a dead-lettered message and you have to pick one:
+
+- Configure a native dead-letter topic with `DeadLetterQueueing(new DeadLetterTopic(DeadLetterTopicMode.Native))`,
+  and failures land on the `{topic}-DLQ` topic with the full diagnostic headers, or
+- Configure a durable message store, and they land in Wolverine's `wolverine_dead_letters` table.
+
+With **neither** configured, a `MoveToErrorQueue()` is logged and the message is then discarded —
+there is nowhere for it to go. That is the same behaviour as any other transport running without a
+message store, but it is easy to miss on Pulsar because the native DLQ looks like it should apply
+and does not until you ask for it explicitly.
+:::
+
 ::: warning
 On a hot-tail listener your error policies do run, but requeue-shaped ones (`Requeue()`,
 `RequeueIndefinitely()`, `PauseThenRequeue()`, `MaximumAttempts()`) still cannot redeliver anything —
