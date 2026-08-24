@@ -28,7 +28,8 @@ public class loading_entities_with_a_custom_loader : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(DocumentHandlers))
                     .IncludeType(typeof(RegisteredLoaderHandler))
-                    .IncludeType(typeof(InterfaceLoaderHandler));
+                    .IncludeType(typeof(InterfaceLoaderHandler))
+                    .IncludeType(typeof(BeforeMethodLoaderHandler));
 
                 opts.Services.AddSingleton<FakeObjectStore>();
                 opts.Services.AddSingleton<Recorder>();
@@ -127,6 +128,26 @@ public class loading_entities_with_a_custom_loader : IAsyncLifetime
     }
 
     [Fact]
+    public async Task the_loaded_entity_can_arrive_on_a_before_method_and_relay_to_handle()
+    {
+        _store.Save("acme", "on-load", new Document("on-load", "Seen by LoadAsync"));
+
+        await _host.MessageBus().InvokeForTenantAsync("acme", new ReadOnBeforeMethod("on-load"),
+            TestContext.Current.CancellationToken);
+
+        _recorder.Read.ShouldBe(["Seen by LoadAsync/Seen by LoadAsync"]);
+    }
+
+    [Fact]
+    public async Task a_missing_entity_on_a_before_method_still_stops_the_handler()
+    {
+        await _host.MessageBus().InvokeForTenantAsync("acme", new ReadOnBeforeMethod("nothing-here"),
+            TestContext.Current.CancellationToken);
+
+        _recorder.Read.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task a_registered_loader_is_used_by_a_plain_entity_attribute()
     {
         _store.Save("acme", "registered", new RegisteredDocument("registered", "From the registry"));
@@ -177,6 +198,8 @@ public record ReadConstant;
 public record ReadRegisteredDocument(string Id);
 
 public record ReadThroughInterface(string Id);
+
+public record ReadOnBeforeMethod(string Id);
 
 /// <summary>What the handlers actually saw, so the assertions do not depend on message routing.</summary>
 public class Recorder
@@ -288,6 +311,25 @@ public static class InterfaceLoaderHandler
         [Entity(Loader = typeof(IDocumentSource))] Document document,
         Recorder recorder)
         => recorder.Read.Add(document.Body);
+}
+
+/// <summary>
+/// The shape a real handler tends to have: the entity is a parameter of the LoadAsync "before"
+/// method, which derives something from it, and both that and the entity itself reach Handle.
+/// </summary>
+public static class BeforeMethodLoaderHandler
+{
+    public static string LoadAsync(
+        ReadOnBeforeMethod _,
+        [Entity(Loader = typeof(DocumentLoader))] Document document)
+        => document.Body;
+
+    public static void Handle(
+        ReadOnBeforeMethod _,
+        Document document,
+        string derived,
+        Recorder recorder)
+        => recorder.Read.Add($"{derived}/{document.Body}");
 }
 
 public static class RegisteredLoaderHandler
