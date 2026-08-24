@@ -358,10 +358,27 @@ public class native_ack_mode : IAsyncLifetime
 
     /// <summary>
     /// The whole point of the mode. Under BufferedInMemory these entries are XACKed the instant they are read,
-    /// so a node that dies before the handler finishes loses every one of them. Under NativeAck nothing is
+    /// so a node that stops before the handler finishes loses every one of them. Under NativeAck nothing is
     /// acked until the handler succeeds, so they are all still in the consumer group's pending entries list
-    /// when the node dies, and XAUTOCLAIM hands them to the node that replaces it.
+    /// when the node goes away, and XAUTOCLAIM hands them to the node that replaces it.
     /// </summary>
+    /// <remarks>
+    /// <para>GH-4095. This is the GRACEFUL case: <c>host.Dispose()</c> drains, because
+    /// <c>WolverineRuntime.DisposeAsync</c> calls <c>StopAsync</c>. What it establishes is that nothing is
+    /// acknowledged ahead of its handler.</para>
+    ///
+    /// <para><b>There is deliberately no hard-kill counterpart here, and it is not an oversight.</b> The
+    /// obvious approach -- <c>CLIENT KILL</c> on the node's connections, mirroring what the RabbitMQ suite
+    /// does through the management API -- does not produce a crash on this transport, and that was measured
+    /// rather than assumed. <c>CLIENT KILL</c> does break the multiplexer: the very next command throws
+    /// <c>RedisConnectionException: SocketClosed</c>. But StackExchange.Redis reconnects transparently, so by
+    /// the time a released handler finishes its work the connection has healed and the XACK lands normally --
+    /// the PEL drains to 0 with no replacement node involved. A test built on it passes whether or not the
+    /// kill happens, which makes it exactly the kind of vacuous test GH-4095 exists to remove.</para>
+    ///
+    /// <para>Reaching the crash shape on Redis -- work completed, acknowledgement lost -- needs the process
+    /// killed, not the socket. That is a different kind of harness than these in-process suites support.</para>
+    /// </remarks>
     [Fact]
     public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing()
     {
