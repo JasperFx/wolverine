@@ -121,6 +121,53 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public TimeSpan AckBatchInterval { get; internal set; } = TimeSpan.FromSeconds(1);
 
     /// <summary>
+    ///     GH-4047. How many messages the DotPulsar consumer prefetches into its client-side receiver queue
+    ///     (<c>MessagePrefetchCount</c>). Null uses DotPulsar's own default of 1000, except under
+    ///     <see cref="EndpointMode.NativeAck"/> -- see <see cref="EffectiveReceiverQueueSize"/>. Set through
+    ///     <c>ReceiverQueueSize()</c>.
+    /// </summary>
+    public uint? ReceiverQueueSize { get; internal set; }
+
+    /// <summary>
+    ///     The receiver queue size actually handed to the consumer builder, or null to leave DotPulsar's default
+    ///     of 1000 alone. An explicit <see cref="ReceiverQueueSize"/> always wins.
+    ///
+    ///     <para>
+    ///     Under <see cref="EndpointMode.NativeAck"/> the receiver queue is Pulsar's nearest equivalent of
+    ///     RabbitMQ's prefetch window (see <c>RabbitMqQueue.PreFetchCount</c>), and this mirrors that arm: it has
+    ///     to cover every lane that can be busy at once -- the partition slot count when the endpoint is
+    ///     group-partitioned, <see cref="Endpoint.MaxDegreeOfParallelism"/> otherwise -- doubled so a lane is never
+    ///     starved waiting on the next delivery. It is NOT an unacked-message ceiling the way RabbitMQ's prefetch
+    ///     is: Pulsar's flow-control permits are replenished as the receive loop drains the client queue, not as
+    ///     messages are acked, so what actually bounds the in-memory execution block is the block's own bounded
+    ///     capacity back-pressuring the receive loop. What this bounds is the buffer of prefetched-but-unstarted
+    ///     deliveries, which under this mode is pure redelivery cost when the node dies -- and DotPulsar's default
+    ///     of 1000 makes that cost roughly two orders of magnitude larger than it needs to be.
+    ///     </para>
+    /// </summary>
+    internal uint? EffectiveReceiverQueueSize
+    {
+        get
+        {
+            if (ReceiverQueueSize.HasValue)
+            {
+                return ReceiverQueueSize;
+            }
+
+            if (Mode != EndpointMode.NativeAck)
+            {
+                return null;
+            }
+
+            var lanes = GroupShardingSlotNumber.HasValue
+                ? Math.Max((int)GroupShardingSlotNumber.Value, MaxDegreeOfParallelism)
+                : MaxDegreeOfParallelism;
+
+            return (uint)Math.Max(lanes * 2, 1);
+        }
+    }
+
+    /// <summary>
     ///     Optional hook to customize the DotPulsar consumer for this listener (consumer name,
     ///     receive-queue size, priority level, properties, etc.) immediately before it is created.
     /// </summary>
@@ -198,6 +245,72 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
         EffectiveDeadLetterTopic is { Mode: DeadLetterTopicMode.Native }
             ? DeadLetterStorageMode.Native
             : DeadLetterStorageMode.Durable;
+
+    /// <summary>
+    /// GH-4047. Pulsar accepts <see cref="EndpointMode.NativeAck"/>. It qualifies on both counts the mode requires:
+    /// a Pulsar consumer settles each delivery by its own <c>MessageId</c> -- <c>Acknowledge(messageId)</c>, and
+    /// <c>RedeliverUnacknowledgedMessages([messageId])</c> for the negative case -- and the subscription cursor
+    /// tracks individually acked messages in a set rather than a single offset, so settling out of delivery order
+    /// leaves earlier unacked deliveries exactly where they were. That is what makes a completion-time ack from an
+    /// arbitrary execution-block lane safe here and impossible on Kafka.
+    ///
+    /// <para>
+    /// The qualification is conditional, and <see cref="validateModeConfiguration"/> enforces the condition:
+    /// <b>the endpoint must not be acking cumulatively</b>. <see cref="PulsarAckStrategy.Cumulative"/> settles every
+    /// message up to a point in the subscription with one ack, which under this mode -- where the execution block
+    /// completes in handler-completion order, not delivery order -- is the same silent-loss defect that disqualifies
+    /// Kafka and that GH-3706 fixed for RabbitMQ by making every ack <c>multiple: false</c>. Hot-tail listening is
+    /// rejected for the related reason that a Pulsar <c>Reader</c> has no cursor to settle against at all.
+    /// </para>
+    /// </summary>
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
+    /// GH-4047. The two ways a Pulsar endpoint can be configured into a state where native acks cannot deliver the
+    /// no-loss guarantee. Both are checked after Compile() rather than in the <see cref="Endpoint.Mode"/> setter,
+    /// because <c>AcknowledgeCumulative()</c> / <c>TailFromLatest()</c> and
+    /// <c>ProcessInParallelWithNativeAcks()</c> are applied as delayed configuration in whatever order the fluent
+    /// calls were written, and a check in the setter would only catch one of the two orderings.
+    /// </summary>
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        if (Mode != EndpointMode.NativeAck)
+        {
+            yield break;
+        }
+
+        if (AckStrategy == PulsarAckStrategy.Cumulative)
+        {
+            yield return CumulativeAckIsIncompatibleWithNativeAck(this);
+        }
+
+        if (IsHotTail)
+        {
+            yield return
+                $"Invalid listener configuration for Pulsar topic {PulsarTopic()}: TailFromLatest() cannot be combined " +
+                $"with ProcessInParallelWithNativeAcks() (EndpointMode.{nameof(EndpointMode.NativeAck)}). Hot-tail " +
+                "listening consumes through a non-durable Pulsar Reader, which has no subscription cursor -- there is " +
+                "nothing to acknowledge, and nothing is ever redelivered, so the no-loss guarantee this mode exists " +
+                "for cannot be made. Drop TailFromLatest(), or use BufferedInMemory() with it.";
+        }
+    }
+
+    /// <summary>
+    /// The one message both the bootstrap validation and the <c>PulsarListener</c> guard use, so the two can never
+    /// drift into explaining the same refusal differently. Names BOTH settings, per GH-4047.
+    /// </summary>
+    internal static string CumulativeAckIsIncompatibleWithNativeAck(PulsarEndpoint endpoint)
+    {
+        return
+            $"Invalid listener configuration for Pulsar topic {endpoint.PulsarTopic()}: AcknowledgeCumulative() " +
+            $"(PulsarAckStrategy.{nameof(PulsarAckStrategy.Cumulative)}) cannot be combined with " +
+            $"ProcessInParallelWithNativeAcks() (EndpointMode.{nameof(EndpointMode.NativeAck)}). A cumulative " +
+            "acknowledgment settles every message up to a point in the subscription, and this mode completes " +
+            "messages in handler-completion order rather than delivery order -- so acking a later message would " +
+            "silently settle earlier deliveries that are still in flight, turning the mode's no-loss guarantee into " +
+            "silent message loss. Use AcknowledgeIndividually() (the default) or AcknowledgeInBatches(), or choose " +
+            "another endpoint mode.";
+    }
 
     public bool IsPersistent => Persistence.Equals(Persistent);
 

@@ -45,7 +45,7 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {
-            if (envelope is { } e)
+            if (envelope is { IsCompleted: false } e)
             {
                 await e.CompleteAsync(_cancellation.Token);
                 e.IsCompleted = true;
@@ -133,6 +133,18 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
     public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
         envelope.ScheduledTime = time;
+
+        // GH-4062: settle the original before sending the scheduled copy, exactly like _defer above.
+        // This only re-sent the copy, so the original delivery stayed locked until Azure Service Bus
+        // expired the lock and redelivered it -- every ScheduleRetry() produced a duplicate on top of
+        // the scheduled copy. Latent until GH-4018 turned AutoCompleteMessages off, which had been
+        // covering the unsettled original when the processor callback returned.
+        if (envelope is AzureServiceBusEnvelope e)
+        {
+            await _defer.PostAsync(e);
+            return;
+        }
+
         await _requeue.SendAsync(envelope);
     }
 
