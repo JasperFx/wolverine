@@ -527,8 +527,25 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         );
     }
 
+    // GH-4052. An explicit allow-list rather than a bare `true`. The spike called this out as the worst
+    // case of the "supportsMode overrides leak a new enum member" hazard (GH-4011): a blanket true means
+    // every future mode is silently claimed the moment it is added to the enum, and for Pub/Sub that would
+    // mean acking on receipt in a mode built on NOT doing that.
     protected override bool supportsMode(EndpointMode mode)
     {
-        return true;
+        return mode is EndpointMode.Inline or EndpointMode.BufferedInMemory or EndpointMode.Durable
+            or EndpointMode.NativeAck;
     }
+
+    /// <summary>
+    /// GH-4052. Pub/Sub settles by holding the subscriber callback open until the envelopes it carried
+    /// terminate -- it exposes no per-message ack, so the callback's return value is the settlement.
+    /// </summary>
+    /// <remarks>
+    /// The spike measured the load-bearing assumption rather than assuming it: SubscriberClient dispatches
+    /// callbacks concurrently while others are held (1000 of 1200 held simultaneously), so holding does not
+    /// serialise the subscription. Concurrency is bounded by FlowControlSettings.MaxOutstandingElementCount,
+    /// surfaced as PubsubClientOptions.MaxOutstandingMessages, which must be at least lanes x per-lane depth.
+    /// </remarks>
+    protected override bool supportsNativeAck => true;
 }
