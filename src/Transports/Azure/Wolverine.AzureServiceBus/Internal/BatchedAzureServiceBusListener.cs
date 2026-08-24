@@ -10,7 +10,8 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue, IReportConnectionState
+public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling,
+    IReportConnectionState
 {
     private readonly CancellationTokenSource _cancellation = new();
 
@@ -126,6 +127,32 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     }
 
     public bool NativeDeadLetterQueueEnabled => true;
+
+    /// <summary>
+    /// GH-4049. Claimed for <see cref="EndpointMode.NativeAck" /> only, and the narrowness is deliberate.
+    /// <see cref="Wolverine.Runtime.MessageContext.ReScheduleAsync" /> prefers the listener over the pipeline channel,
+    /// so answering true unconditionally would take the reschedule away from receivers that already own it:
+    /// <c>DurableReceiver</c>, where the envelope has an inbox row of its own and re-publishing a copy under the same
+    /// id would be discarded as a duplicate on redelivery (the reason RedisStreamListener opts out of Durable too),
+    /// and <c>BufferedReceiver</c>, which supplies an in-memory rescheduler. NativeAck is the mode with no
+    /// rescheduler at all: without this, a scheduled retry falls through to <c>Storage.Inbox</c> and breaks the
+    /// storage-free guarantee the mode exists to provide (GH-3708).
+    /// </summary>
+    public bool NativeSchedulingEnabled => _endpoint.Mode == EndpointMode.NativeAck;
+
+    /// <summary>
+    /// Reschedule by re-publishing the envelope as an Azure Service Bus scheduled message -- the outgoing mapper
+    /// turns <see cref="Envelope.ScheduledTime" /> into <c>ServiceBusMessage.ScheduledEnqueueTime</c>, so the broker
+    /// holds it, not Wolverine. Same mechanism the inline listener uses (InlineAzureServiceBusListener), routed
+    /// through this listener's existing <c>_defer</c> block so the original delivery is settled first: leaving it
+    /// locked means the broker redelivers it at lock expiry and every reschedule costs a duplicate. That is exactly
+    /// the GH-3494 (AO8) defect the block was fixed for.
+    /// </summary>
+    public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
+    {
+        envelope.ScheduledTime = time;
+        await _defer.PostAsync(envelope);
+    }
 
     private async Task listenForMessages()
     {

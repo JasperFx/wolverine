@@ -142,6 +142,52 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
         return true;
     }
 
+    /// <summary>
+    /// GH-4049. Does this endpoint listen through Azure Service Bus sessions? Only queues and subscriptions
+    /// carry a <c>RequiresSession</c> flag; a topic is never listened to directly.
+    /// </summary>
+    internal virtual bool RequiresSessions => false;
+
+    /// <summary>
+    /// GH-4049. Azure Service Bus sessions and <see cref="EndpointMode.NativeAck" /> are mutually exclusive, and
+    /// the pair has to be refused after <see cref="Endpoint.Compile" /> rather than in the <see cref="Endpoint.Mode" />
+    /// setter: <c>RequireSessions()</c> and <c>ProcessInParallelWithNativeAcks()</c> are both applied as delayed
+    /// configuration, so whichever fluent call the setter happened to see first would decide whether the pair was
+    /// caught. This runs over the final state instead.
+    /// </summary>
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        if (Mode == EndpointMode.NativeAck && RequiresSessions)
+        {
+            yield return SessionsAreIncompatibleWithNativeAcks(this);
+        }
+    }
+
+    /// <summary>
+    /// GH-4049. Belt and braces with <see cref="validateModeConfiguration" />, which refuses this pairing for every
+    /// listening endpoint at bootstrap. This one guards the listener selection itself, because
+    /// <c>AzureServiceBusTransport</c> checks <c>RequiresSession</c> ahead of the mode and would otherwise take the
+    /// session branch in silence -- and a session listener under native acks settles nothing at all.
+    /// </summary>
+    internal void AssertSessionsAreCompatibleWithMode()
+    {
+        if (Mode == EndpointMode.NativeAck && RequiresSessions)
+        {
+            throw new InvalidListenerConfigurationException(SessionsAreIncompatibleWithNativeAcks(this));
+        }
+    }
+
+    internal static string SessionsAreIncompatibleWithNativeAcks(AzureServiceBusEndpoint endpoint)
+    {
+        return
+            $"Invalid listener configuration for endpoint '{endpoint.Uri}': ProcessInParallelWithNativeAcks() was combined with " +
+            "RequireSessions(). Azure Service Bus sessions hold a single lock over the whole session, and Wolverine's session " +
+            "listener releases that lock as soon as it has handed the batch off -- which under native acks is before any handler " +
+            "has run, so nothing could ever be acked. Sessions also exist to give per-session FIFO ordering, which native ack " +
+            "lanes deliberately do not preserve. Use ProcessInline() with RequireSessions() for ordered session processing, or " +
+            "drop RequireSessions() to use native acks with partitioned parallel processing.";
+    }
+
     protected override AzureServiceBusEnvelopeMapper buildMapper(IWolverineRuntime runtime)
     {
         return new AzureServiceBusEnvelopeMapper(this, runtime);
