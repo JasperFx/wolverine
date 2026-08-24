@@ -132,6 +132,24 @@ public class DurabilitySettings : IDescribeMyself
     public int MaximumAckAttempts { get; set; } = 3;
 
     /// <summary>
+    /// GH-4012 item 4. The most times a broker may redeliver one message before Wolverine stops trying to
+    /// process it and moves it to the dead letter queue instead. Zero — the default — leaves the broker's
+    /// own limit in charge and changes nothing.
+    /// </summary>
+    /// <remarks>
+    /// This is the counterpart to <see cref="MaximumAckAttempts" /> for the failure that one cannot reach.
+    /// An in-process budget restarts at zero on every redelivery because each one constructs a brand new
+    /// envelope; the broker's count does not, so it is the only thing that can bound a
+    /// redeliver → dedupe → re-ack loop — the shape where a delivery can never be settled, the inbox
+    /// deduplicates it on arrival, the settle fails again, and the broker delivers it once more.
+    ///
+    /// Read from whichever native signal the transport carries: RabbitMQ's <c>x-death</c> count, Amazon
+    /// SQS's <c>ApproximateReceiveCount</c>, Azure Service Bus's <c>DeliveryCount</c>. A transport with no
+    /// such signal leaves <c>Envelope.BrokerDeliveryCount</c> null and is unaffected.
+    /// </remarks>
+    public int MaximumBrokerRedeliveries { get; set; }
+
+    /// <summary>
     /// GH-3711. The most successful handler completions a durable endpoint coalesces into one batched
     /// mark-as-handled <c>UPDATE</c> against the inbox. One flush is in flight at a time and every
     /// completion that arrives while it runs joins the next flush, so batches form from concurrency

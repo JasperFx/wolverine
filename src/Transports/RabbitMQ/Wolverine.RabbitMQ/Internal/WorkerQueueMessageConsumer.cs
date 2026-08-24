@@ -167,6 +167,10 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         {
             envelope.Data = body.ToArray();
             _mapper.MapIncomingToEnvelope(envelope, properties);
+
+            // GH-4012 item 4. Read AFTER the mapper so a custom envelope mapper cannot clear it -- this is
+            // Wolverine's own bookkeeping, not user-mapped data.
+            envelope.BrokerDeliveryCount = readDeathCount(properties.Headers);
         }
         catch (Exception e)
         {
@@ -259,5 +263,27 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
                 _logger.LogError(ex, "Failure trying to Nack a previously failed message {Id}", envelope.Id);
             }
         }
+    }
+
+    /// <summary>
+    /// GH-4012 item 4. RabbitMQ's own delivery count, when it has one.
+    /// </summary>
+    /// <remarks>
+    /// Weaker than the Azure Service Bus and SQS signals, and deliberately not faked up to match them.
+    /// The <c>redelivered</c> flag is a BOOLEAN -- it says "not the first delivery" and nothing more --
+    /// so the only real count RabbitMQ carries is <c>x-death</c>, which the broker adds when a message
+    /// has been dead-lettered and routed back. That makes the redelivery bound effective on the
+    /// dead-letter-and-retry topologies where a loop actually accumulates, and inactive on plain
+    /// nack-requeue, where the broker simply does not count. Returning a made up 2 for "redelivered"
+    /// would bound the wrong thing on the first requeue.
+    /// </remarks>
+    private static int? readDeathCount(IDictionary<string, object?>? headers)
+    {
+        if (headers == null) return null;
+        if (!headers.TryGetValue("x-death", out var raw)) return null;
+        if (raw is not IList<object> deaths || deaths.Count == 0) return null;
+        if (deaths[0] is not IDictionary<string, object> latest) return null;
+
+        return latest.TryGetValue("count", out var c) && c is long count ? (int)count : null;
     }
 }

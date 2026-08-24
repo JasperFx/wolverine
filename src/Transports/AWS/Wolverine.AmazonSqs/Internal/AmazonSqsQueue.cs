@@ -952,9 +952,18 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         request.VisibilityTimeout = VisibilityTimeout;
 
         request.MessageAttributeNames = _receivedAttributeNames ??= resolveAttributeNames();
+
+        // GH-4012 item 4. ApproximateReceiveCount is a SYSTEM attribute, and SQS returns only what a
+        // receive names -- so without asking, message.Attributes comes back empty and the broker's own
+        // delivery count is invisible. It is the one counter that survives envelope reconstruction, which
+        // is what lets DurabilitySettings.MaximumBrokerRedeliveries bound a redeliver -> dedupe -> re-ack
+        // loop that Envelope.AckAttempts cannot see.
+        request.MessageSystemAttributeNames = _receivedSystemAttributeNames;
     }
 
     private List<string>? _receivedAttributeNames;
+
+    private static readonly List<string> _receivedSystemAttributeNames = ["ApproximateReceiveCount"];
 
     /// <summary>
     ///     Whatever the endpoint asked for, plus Wolverine's own fragment framing (GH-3926). SQS returns
