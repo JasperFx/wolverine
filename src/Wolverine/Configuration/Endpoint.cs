@@ -776,6 +776,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected internal virtual bool supportsRedelivery => true;
 
     /// <summary>
+    /// GH-4047. Transport-specific configuration combinations that are only decidable once the FINAL state of the
+    /// endpoint has settled -- after endpoint policies and every delayed <c>ListenerConfiguration</c> lambda have run
+    /// in <see cref="Compile"/>. Return one message per problem; each is fatal and refuses the bootstrap.
+    ///
+    /// <para>
+    /// <see cref="supportsNativeAck"/> answers "can this transport ever do native acks", which the <see cref="Mode"/>
+    /// setter can ask the moment the mode is assigned. This hook answers the different question "can THIS endpoint,
+    /// configured the way it actually ended up, do them" -- which the Mode setter cannot ask, because the offending
+    /// setting may be applied after the mode. Pulsar is the motivating case: <c>AcknowledgeCumulative()</c> and
+    /// <c>ProcessInParallelWithNativeAcks()</c> are individually legal, and whichever of the two the Mode setter
+    /// happened to see first would decide whether the pair was caught. Validating after Compile makes the final
+    /// state, not the call order, decide.
+    /// </para>
+    /// </summary>
+    protected internal virtual IEnumerable<string> validateModeConfiguration()
+    {
+        yield break;
+    }
+
+    /// <summary>
     /// Check if this endpoint supports the specified mode
     /// </summary>
     public bool SupportsMode(EndpointMode mode)

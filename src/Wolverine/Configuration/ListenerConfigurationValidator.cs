@@ -65,6 +65,13 @@ internal static class ListenerConfigurationValidator
             yield break;
         }
 
+        // GH-4047. Transport-specific constraints first, and deliberately outside the Inline-only gate below: they
+        // are about combinations no core rule can see, and the Pulsar one they were added for is about NativeAck.
+        foreach (var message in endpoint.validateModeConfiguration())
+        {
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal, message);
+        }
+
         // GH-4060. Deliberately ahead of the Inline-only gate below: a listener with no cursor to redeliver from
         // ignores requeue policies in EVERY mode, not just Inline.
         if (requeuePoliciesConfigured && !endpoint.supportsRedelivery)

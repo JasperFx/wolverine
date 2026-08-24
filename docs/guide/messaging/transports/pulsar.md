@@ -380,6 +380,68 @@ listener can complete messages out of order, cumulative ack only ever advances t
 so no in-flight work is lost. Batched ack has no such ordering constraint and is safe for any
 subscription type.
 
+**Cumulative ack cannot be combined with `ProcessInParallelWithNativeAcks()`** — see the section
+below. That pair is refused at bootstrap.
+
+## Native Ack Processing <Badge type="tip" text="6.30" />
+
+Pulsar listeners support [`EndpointMode.NativeAck`](/guide/messaging/listeners.html#native-ack-endpoints):
+the delivery is held unacknowledged while the message flows through an in-memory, optionally
+group-partitioned execution block, and is settled natively from the completion continuation.
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/webhooks")
+    .ProcessInParallelWithNativeAcks()
+    .PartitionProcessingByGroupId(PartitionSlots.Five)
+    .MaximumParallelMessages(10);
+```
+
+Pulsar qualifies for the mode because a consumer settles each delivery by its own `MessageId` and the
+subscription cursor tracks individually acknowledged messages, so settling out of delivery order
+leaves earlier unacked deliveries exactly where they were.
+
+::: warning Cumulative acknowledgment is refused in this mode
+`AcknowledgeCumulative()` together with `ProcessInParallelWithNativeAcks()` throws at bootstrap with a
+message naming both settings. A cumulative ack confirms *everything up to a point in the
+subscription*, and this mode completes messages in handler-completion order rather than delivery
+order — so acknowledging a later message would silently settle earlier deliveries that are still in
+flight, turning the mode's no-loss guarantee into silent message loss. Use `AcknowledgeIndividually()`
+(the default) or `AcknowledgeInBatches()`.
+
+`TailFromLatest()` is refused for the related reason that a hot-tail listener reads through a
+non-durable Pulsar `Reader` with no subscription cursor: there is nothing to acknowledge and nothing
+is ever redelivered.
+:::
+
+### Receiver queue size
+
+The DotPulsar consumer's receiver queue (`MessagePrefetchCount`, default 1000) is Pulsar's nearest
+equivalent of RabbitMQ's prefetch window. A native-ack listener defaults it instead to **twice the
+number of lanes that can be busy at once** — the partition slot count when the endpoint is
+group-partitioned, `MaximumParallelMessages` otherwise. Override it explicitly if you need to:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/webhooks")
+    .ProcessInParallelWithNativeAcks()
+    .ReceiverQueueSize(64);
+```
+
+Note what this does and does not bound. Pulsar replenishes flow-control permits as the receive loop
+drains the client-side queue, *not* as messages are acknowledged, so the receiver queue is not an
+unacked-message ceiling the way RabbitMQ's prefetch is. What actually applies back pressure is the
+execution block's own bounded capacity throttling the receive loop. What the receiver queue bounds is
+the buffer of prefetched-but-unstarted deliveries — which under this mode is pure redelivery cost
+when a node dies, and DotPulsar's default of 1000 makes that cost far larger than it needs to be.
+
+### Failure handling
+
+Prefer `UseNativeRedelivery()` (or a retry-letter / dead-letter topic) on a native-ack listener. The
+default requeue path acknowledges the original message and re-publishes a copy, which opens a small
+window in which a crash between the two loses the message; native redelivery never acknowledges at
+all. Pulsar has no client-side negative-acknowledgment backoff, so a redelivered message returns
+immediately — use the retry-letter topics for a growing delay between attempts, or Wolverine's own
+in-lane `RetryWithCooldown` so the retry never leaves the process.
+
 ## Read Only Subscriptions <Badge type="tip" text="3.13" />
 
 As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender
