@@ -35,9 +35,15 @@ internal static class ListenerConfigurationValidator
     /// Expects the endpoints to have already been compiled, so that endpoint policies and delayed
     /// configuration have had their say about the final mode.
     /// </summary>
-    internal static void AssertValid(IEnumerable<Endpoint> endpoints, ILogger? logger)
+    /// <param name="requeuePoliciesConfigured">
+    /// GH-4060. True when the application configured any error handling that hands a failed message back to its
+    /// listener for redelivery. Failure policies live on the handler graph rather than on an endpoint, so the
+    /// endpoint-scoped checks below cannot work this out for themselves and it is computed once by the caller.
+    /// </param>
+    internal static void AssertValid(IEnumerable<Endpoint> endpoints, ILogger? logger,
+        bool requeuePoliciesConfigured = false)
     {
-        var problems = endpoints.SelectMany(Validate).ToArray();
+        var problems = endpoints.SelectMany(x => Validate(x, requeuePoliciesConfigured)).ToArray();
 
         foreach (var problem in problems.Where(x => x.Severity == ListenerConfigurationSeverity.Warning))
         {
@@ -51,7 +57,8 @@ internal static class ListenerConfigurationValidator
         }
     }
 
-    internal static IEnumerable<ListenerConfigurationProblem> Validate(Endpoint endpoint)
+    internal static IEnumerable<ListenerConfigurationProblem> Validate(Endpoint endpoint,
+        bool requeuePoliciesConfigured = false)
     {
         if (!endpoint.IsListener && endpoint is not LocalQueue)
         {
@@ -63,6 +70,21 @@ internal static class ListenerConfigurationValidator
         foreach (var message in endpoint.validateModeConfiguration())
         {
             yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal, message);
+        }
+
+        // GH-4060. Deliberately ahead of the Inline-only gate below: a listener with no cursor to redeliver from
+        // ignores requeue policies in EVERY mode, not just Inline.
+        if (requeuePoliciesConfigured && !endpoint.supportsRedelivery)
+        {
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Warning,
+                $"Ignored listener configuration for {describe(endpoint)}: this listener reads through an ephemeral, " +
+                "non-durable cursor -- Pulsar's TailFromLatest() is the one transport feature that does this today -- so it " +
+                "has nothing to redeliver a message from. Requeue(), RequeueIndefinitely(), PauseThenRequeue() and " +
+                "MaximumAttempts() all resolve to DeferAsync(), which is necessarily a no-op here: a message that fails its " +
+                "handler is dropped rather than retried, and no error is raised. Error handling that never leaves the " +
+                "process still works -- RetryTimes(), RetryWithCooldown() and ScheduleRetry() all run normally -- and a " +
+                "configured message store still captures the failure in the durable dead letter table. Use those instead, " +
+                "or drop TailFromLatest() for an ordinary subscription if these messages are ones you cannot afford to lose.");
         }
 
         // GH-3710. The in-memory guard applies to every non-durable listening mode, so this check sits

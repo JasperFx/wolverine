@@ -84,6 +84,13 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     internal bool IsHotTail { get; set; }
 
     /// <summary>
+    ///     GH-4060. A hot-tail listener commits no cursor at all, so <c>PulsarReaderListener.DeferAsync</c> has
+    ///     nothing to hand the message back to and is a deliberate no-op. Saying so here lets Wolverine warn at
+    ///     bootstrap when the application configured requeue-shaped error handling that cannot possibly run.
+    /// </summary>
+    protected internal override bool supportsRedelivery => !IsHotTail;
+
+    /// <summary>
     ///     When true, a requeue/defer of a single message uses Pulsar's native per-message
     ///     redelivery (<c>RedeliverUnacknowledgedMessages([messageId])</c>) — the message is left
     ///     unacknowledged and Pulsar redelivers that one message, preserving its redelivery count —

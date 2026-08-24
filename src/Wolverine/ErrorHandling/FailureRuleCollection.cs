@@ -49,6 +49,16 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
         }
     }
 
+    /// <summary>
+    /// GH-4060. Does anything in this collection route a failure back to the listener for redelivery? Both the
+    /// explicit Requeue()/RequeueIndefinitely()/PauseThenRequeue() rules and the requeue ladder that
+    /// <see cref="MaximumAttempts"/> synthesizes in <see cref="combine"/> count.
+    /// </summary>
+    internal bool AnyRequeuePolicies()
+    {
+        return MaximumAttempts.HasValue || _rules.Any(x => x.AnyRequeueContinuations());
+    }
+
     internal IContinuation DetermineExecutionContinuation(Exception e, Envelope envelope)
     {
         foreach (var rule in _rules)

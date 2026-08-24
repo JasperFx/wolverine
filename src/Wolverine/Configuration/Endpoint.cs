@@ -780,6 +780,20 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected virtual bool supportsNativeAck => false;
 
     /// <summary>
+    /// GH-4060. Can a message handed back to this listener with <see cref="IChannelCallback.DeferAsync"/> ever be
+    /// delivered again? Default is <c>true</c>: nearly every listener sits on a broker cursor or a durable inbox
+    /// row, so "hand this back" genuinely means "try it again later".
+    ///
+    /// <para>
+    /// A listener answers <c>false</c> when its delivery has nowhere to come back from -- the motivating case is
+    /// Pulsar's <c>TailFromLatest()</c>, which reads through a non-durable <c>Reader</c> that commits no cursor at
+    /// all, so its <c>DeferAsync</c> is necessarily a no-op and a deferred message is simply gone. That is a
+    /// defensible consequence of choosing an ephemeral cursor, but it makes every requeue-shaped error policy inert,
+    /// which is not something the configuration says anywhere. <see cref="ListenerConfigurationValidator"/> reads
+    /// this to warn about the combination at bootstrap.
+    /// </para>
+    /// </summary>
+    protected internal virtual bool supportsRedelivery => true;
     /// GH-4048. Does this endpoint's broker put a clock on an <em>unsettled</em> delivery? True for SQS (visibility
     /// timeout), Azure Service Bus (lock duration), Pub/Sub (ack deadline) and JetStream (AckWait); false for
     /// RabbitMQ and Redis Streams, where an unacked delivery lives until the channel closes and there is nothing
