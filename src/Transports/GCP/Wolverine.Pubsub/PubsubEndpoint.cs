@@ -449,6 +449,9 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         EnvelopeMapper ??= new PubsubEnvelopeMapper(this);
         EnvelopeMapper.MapEnvelopeToOutgoing(envelope, message);
 
+        // GH-4087: ordering key precedence. An explicit GroupId on the envelope wins, then the per-topic
+        // function supplied to PubsubTopicSubscriberConfiguration.OrderMessagesBy(), and finally whatever a
+        // custom IPubsubEnvelopeMapper already stamped onto the message itself.
         message.OrderingKey = envelope.GroupId ?? orderBy ?? message.OrderingKey;
 
         await clients.PublisherApiClient.PublishAsync(new PublishRequest

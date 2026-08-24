@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.AzureServiceBus.Internal;
 
 public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling,
-    IReportConnectionState
+    IReportConnectionState, ISupportLeaseRenewal
 {
     private readonly CancellationTokenSource _cancellation = new();
 
@@ -151,6 +151,93 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     {
         envelope.ScheduledTime = time;
         await _defer.PostAsync(envelope);
+    }
+
+    /// <summary>
+    /// GH-4048. The entity's own lock duration is the clock on an unsettled Azure Service Bus delivery, and
+    /// <c>LeaseRenewalTracker</c> ticks at half of it.
+    /// </summary>
+    public TimeSpan LeaseDuration => _endpoint.LockDuration;
+
+    public TimeSpan MaximumLeaseExtension => _endpoint.MaximumLockRenewalDuration;
+
+    /// <summary>
+    /// GH-4048/GH-4051. Re-arm the broker's lock on these queued-but-unsettled deliveries.
+    ///
+    /// <para>
+    /// This is deliberately NOT <c>ServiceBusProcessorOptions.MaxAutoLockRenewalDuration</c>, which is the obvious
+    /// thing to reach for and is useless here: the SDK's auto-renewal runs only while the processor's callback is on
+    /// the stack. Under <see cref="EndpointMode.NativeAck" /> the delivery is handed to an execution lane and the
+    /// receive loop moves on immediately, so an endpoint configured that way would LOOK protected and be renewing
+    /// nothing for the whole time the envelope is queued. It also does not apply to this class at all, which uses a
+    /// <c>ServiceBusReceiver</c> rather than a processor.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// Azure Service Bus has no batch lock-renewal call, so this is one round trip per envelope, issued serially --
+    /// the tick only ever covers what is actually in the lanes, and the lane count is bounded by
+    /// <c>MaxDegreeOfParallelism</c> (or the partition slot count).
+    ///
+    /// <para>
+    /// Only a refusal that means the lock is GONE is reported as a lost lease. Everything else -- a throttle, a
+    /// timeout, a dropped AMQP link -- leaves the envelope tracked so the next tick retries it, which is what the
+    /// contract asks for, and is why this catches per envelope rather than letting one bad call abandon the rest of
+    /// the batch.
+    /// </para>
+    /// </remarks>
+    public async ValueTask<IReadOnlyList<Envelope>> RenewLeasesAsync(IReadOnlyList<Envelope> envelopes,
+        CancellationToken token)
+    {
+        List<Envelope>? lost = null;
+
+        foreach (var envelope in envelopes)
+        {
+            if (envelope is not AzureServiceBusEnvelope e) continue;
+
+            // Nothing to renew on a delivery that has already been settled by a terminal that has not yet
+            // untracked it
+            if (e.IsCompleted) continue;
+
+            token.ThrowIfCancellationRequested();
+
+            try
+            {
+                await _receiver.RenewMessageLockAsync(e.AzureMessage, token);
+            }
+            catch (Exception ex) when (isLockLost(ex))
+            {
+                // The broker owns this delivery again and is going to redeliver it. Core decides what happens
+                // next; all this can do is report it accurately.
+                (lost ??= []).Add(envelope);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Transient by elimination. Explicitly NOT a lost lease -- reporting one here would make core drop
+                // a delivery whose lock is very probably still perfectly good.
+                _logger.LogDebug(ex,
+                    "Transient failure renewing the Azure Service Bus lock on message {Id} at {Uri}; it stays tracked and the next tick will retry it",
+                    e.AzureMessage.MessageId, _endpoint.Uri);
+            }
+        }
+
+        return lost ?? (IReadOnlyList<Envelope>)[];
+    }
+
+    /// <summary>
+    /// Does this failure mean the lock is gone for good? <c>MessageLockLost</c> is the direct answer and
+    /// <c>MessageNotFound</c> means the message is no longer there to hold a lock at all. The message-text check
+    /// is the same defensive one <see cref="AzureServiceBusEnvelope.CompleteAsync" /> already carries, for
+    /// implementations that report an expired lock without setting the typed reason.
+    /// </summary>
+    private static bool isLockLost(Exception ex)
+    {
+        return ex is ServiceBusException e && (e.Reason is ServiceBusFailureReason.MessageLockLost
+                                                   or ServiceBusFailureReason.MessageNotFound
+                                               || e.Message.ContainsIgnoreCase("The lock supplied is invalid"));
     }
 
     private async Task listenForMessages()

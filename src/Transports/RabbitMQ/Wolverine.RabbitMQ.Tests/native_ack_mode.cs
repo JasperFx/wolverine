@@ -16,7 +16,14 @@ public record NativeAckWork(int Number);
 
 public static class NativeAckWorkTracking
 {
-    public static readonly ConcurrentBag<int> Handled = new();
+    /// <summary>
+    /// GH-4050. Records (node, message number), NOT just the number. Attribution is load-bearing for the
+    /// dead-node test: the Block gate below is static and process-wide, so releasing it unparks the DEAD host's
+    /// handlers too. They then complete in-process and record. A bag of bare numbers is therefore satisfied by
+    /// the dead node's own tasks unwinding, whether or not the broker redelivered anything to the new node --
+    /// which is precisely the thing the test exists to prove.
+    /// </summary>
+    public static readonly ConcurrentBag<(string Node, int Number)> Handled = new();
 
     /// <summary>When set, handlers park here forever -- standing in for a node that dies mid-flight.</summary>
     public static TaskCompletionSource? Block;
@@ -30,14 +37,14 @@ public static class NativeAckWorkTracking
 
 public class NativeAckWorkHandler
 {
-    public async Task Handle(NativeAckWork message)
+    public async Task Handle(NativeAckWork message, IWolverineRuntime runtime)
     {
         if (NativeAckWorkTracking.Block != null)
         {
             await NativeAckWorkTracking.Block.Task;
         }
 
-        NativeAckWorkTracking.Handled.Add(message.Number);
+        NativeAckWorkTracking.Handled.Add((runtime.Options.ServiceName, message.Number));
     }
 }
 
@@ -68,11 +75,12 @@ public class native_ack_mode : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    private static Task<IHost> startHostAsync(string queueName)
+    private static Task<IHost> startHostAsync(string queueName, string nodeName = "node")
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.ServiceName = nodeName;
                 opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<NativeAckWorkHandler>();
@@ -128,7 +136,7 @@ public class native_ack_mode : IAsyncLifetime
     {
         NativeAckWorkTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var firstHost = await startHostAsync(RedeliveryQueue);
+        var firstHost = await startHostAsync(RedeliveryQueue, "dead-node");
         var bus = firstHost.MessageBus();
 
         for (var i = 0; i < 5; i++)
@@ -152,21 +160,35 @@ public class native_ack_mode : IAsyncLifetime
         NativeAckWorkTracking.Block!.TrySetResult();
         NativeAckWorkTracking.Block = null;
 
-        using var secondHost = await startHostAsync(RedeliveryQueue);
+        using var secondHost = await startHostAsync(RedeliveryQueue, "fresh-node");
 
         deadline = DateTimeOffset.UtcNow.AddSeconds(30);
-        while (handledInRange(100, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
+        while (handledByNode("fresh-node", 100, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
 
-        handledInRange(100, 5).ShouldBe(Enumerable.Range(100, 5));
+        // Asserted against the FRESH node specifically. Counting bare message numbers here would be satisfied by
+        // the dead node's own parked handlers unwinding when the static gate was released above -- which proves
+        // nothing about redelivery, the single thing this test exists to establish.
+        handledByNode("fresh-node", 100, 5).ShouldBe(Enumerable.Range(100, 5));
     }
 
     private static IEnumerable<int> handledInRange(int start, int count)
     {
         return NativeAckWorkTracking.Handled
+            .Select(x => x.Number)
             .Where(x => x >= start && x < start + count)
+            .Distinct()
+            .OrderBy(x => x);
+    }
+
+    /// <summary>Messages in the range handled specifically BY the named node.</summary>
+    private static IEnumerable<int> handledByNode(string node, int start, int count)
+    {
+        return NativeAckWorkTracking.Handled
+            .Where(x => x.Node == node && x.Number >= start && x.Number < start + count)
+            .Select(x => x.Number)
             .Distinct()
             .OrderBy(x => x);
     }

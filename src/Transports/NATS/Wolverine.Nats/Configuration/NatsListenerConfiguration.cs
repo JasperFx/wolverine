@@ -46,6 +46,62 @@ public class NatsListenerConfiguration
     }
 
     /// <summary>
+    /// GH-4053. Override the JetStream consumer's <c>AckWait</c> for this listener -- how long the server waits
+    /// for an unacknowledged delivery before redelivering it. Defaults to the transport-wide
+    /// <c>JetStreamDefaults.AckWait</c> (30 seconds).
+    ///
+    /// <para>
+    /// Under <c>ProcessInParallelWithNativeAcks()</c> this is the lease Wolverine renews with <c>AckProgress</c>
+    /// for as long as an envelope sits in an execution lane, and the renewal tick is half of it. Shortening it
+    /// makes a genuinely dead node's messages come back faster, at the cost of more renewal round trips.
+    /// </para>
+    /// </summary>
+    public NatsListenerConfiguration AckWait(TimeSpan ackWait)
+    {
+        if (ackWait <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ackWait), "Must be greater than zero");
+        }
+
+        add(e => e.AckWait = ackWait);
+        return this;
+    }
+
+    /// <summary>
+    /// GH-4053. The longest a single delivery may be kept alive by <c>AckProgress</c> renewals under
+    /// <c>ProcessInParallelWithNativeAcks()</c>, measured from its receipt. Past this Wolverine stops renewing and
+    /// lets JetStream redeliver, so one wedged handler cannot pin a <c>MaxAckPending</c> slot forever.
+    /// Default 12 hours.
+    /// </summary>
+    public NatsListenerConfiguration MaximumAckExtension(TimeSpan maximum)
+    {
+        add(e => e.MaximumAckExtension = maximum);
+        return this;
+    }
+
+    /// <summary>
+    /// GH-4053. Override the JetStream consumer's <c>MaxAckPending</c> -- the number of deliveries the server
+    /// leaves unacknowledged before it stops delivering. This is JetStream's prefetch equivalent.
+    ///
+    /// <para>
+    /// Under <c>ProcessInParallelWithNativeAcks()</c> it defaults to twice the number of lanes that can be busy at
+    /// once (the <c>PartitionProcessingByGroupId()</c> slot count, otherwise <c>MaximumParallelMessages()</c>), and
+    /// it must cover every one of them: sized lower, the consumer stops delivering while lanes sit idle. Every
+    /// other mode leaves the NATS server default of 1,000 alone.
+    /// </para>
+    /// </summary>
+    public NatsListenerConfiguration MaxAckPending(int maximum)
+    {
+        if (maximum < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Must be at least 1");
+        }
+
+        add(e => e.MaxAckPending = maximum);
+        return this;
+    }
+
+    /// <summary>
     /// Use a queue group for load balancing (Core NATS only)
     /// </summary>
     public NatsListenerConfiguration UseQueueGroup(string queueGroup)
