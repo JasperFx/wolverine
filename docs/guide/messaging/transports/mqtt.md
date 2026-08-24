@@ -431,7 +431,7 @@ packet, and re-authenticates on the configured refresh period while the client i
 different method name are covered [below](#custom-authentication-methods).
 
 ::: info
-You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
+You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overridden when the `MqttJwtAuthenticationOptions` parameter is set.
 :::
 
 Minimal configuration example:

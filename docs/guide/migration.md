@@ -402,7 +402,7 @@ All Marten/Wolverine integration options are available by this one syntax call n
 
 ### Wolverine.RabbitMq
 
-The RabbitMq transport recieved a significant overhaul for 3.0.
+The RabbitMq transport received a significant overhaul for 3.0.
 
 #### RabbitMq Client v7
 
