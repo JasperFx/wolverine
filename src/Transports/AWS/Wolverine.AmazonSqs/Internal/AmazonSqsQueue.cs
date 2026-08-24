@@ -712,7 +712,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             return tenantedSender;
         }
 
-        if (Mode == EndpointMode.Inline)
+        if (SendsInline)
         {
             return new InlineSqsSender(runtime, this);
         }

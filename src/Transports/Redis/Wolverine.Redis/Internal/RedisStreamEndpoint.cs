@@ -341,7 +341,7 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
             return tenantedSender;
         }
 
-        return Mode == EndpointMode.Inline
+        return SendsInline
             ? new InlineRedisStreamSender(_transport, this, runtime)
             : new BatchedSender(this, new RedisSenderProtocol(_transport, this), runtime.Cancellation,
                 runtime.LoggerFactory.CreateLogger<RedisSenderProtocol>());

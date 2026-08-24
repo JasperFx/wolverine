@@ -283,6 +283,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     internal bool ModeIgnoresParallelism => Mode == EndpointMode.Inline;
 
     /// <summary>
+    /// GH-4061. Does this endpoint send synchronously, awaiting the transport, rather than through a batching
+    /// sender?
+    ///
+    /// <para>
+    /// Transports use this to choose between their inline sender and a <c>BatchedSender</c>. It is one property
+    /// because getting it wrong is silent and total: a <c>BatchedSender</c> only functions once the sending agent
+    /// has registered a callback on it, and <c>InlineSendingAgent</c> is NOT an <c>ISenderCallback</c>, so the
+    /// registration in <c>EndpointCollection.CreateSendingAgent</c> is skipped for it. A transport that asks
+    /// <c>Mode == EndpointMode.Inline</c> directly therefore hands a NativeAck endpoint an unregistered
+    /// <c>BatchedSender</c> whose every send throws "This sender has not been registered."
+    /// </para>
+    ///
+    /// <para>
+    /// Ask this rather than comparing against <see cref="EndpointMode.Inline"/>, so that a future mode which also
+    /// sends inline does not require finding all nine call sites again.
+    /// </para>
+    /// </summary>
+    public bool SendsInline => Mode is EndpointMode.Inline or EndpointMode.NativeAck;
+
+    /// <summary>
     /// GH-3712. Render <see cref="MaxDegreeOfParallelism"/> for diagnostics, saying "n/a" rather than
     /// printing a dead number for a mode that never reads it.
     /// </summary>
