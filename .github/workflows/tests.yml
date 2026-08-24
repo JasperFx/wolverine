@@ -90,12 +90,29 @@ jobs:
           # NOTE: CISlowTests is deliberately NOT here. It is wall-clock bound by design and blew
           # through the 20 minute cap on its first run; it lives in slow-tests.yml as a manual job.
         include:
-          # CIMarten was twice killed outright by the runner ~15 minutes in ("The runner has received a
-          # shutdown signal"), on unrelated diffs, at almost exactly the same elapsed time on both
-          # attempts -- the signature of the VM running out of memory rather than of a test failure.
-          # The worker lanes that caused it are gone (the suite is sharded across these three jobs
-          # instead, one database at a time), so this sampler is now here to *confirm* the footprint
-          # actually dropped and to catch a recurrence with evidence rather than a guess. See #3771.
+          # This sampler was added after CIMarten was twice killed outright by the runner ~15 minutes
+          # in ("The runner has received a shutdown signal"), on unrelated diffs, at almost exactly
+          # the same elapsed time both times -- read at the time as the VM running out of memory.
+          # See #3771.
+          #
+          # IT IS NOT OOM. The sampler caught the recurrence on 2026-08-24 (run 32683981250, job
+          # 97305549745) and disproved that reading outright: the last several minutes of samples are
+          # BYTE-IDENTICAL every 15 seconds -- ~13.7GB available, swap_used=0, the MartenTests process
+          # pinned at 1160MB and not growing. Nothing was starved. The process was idle and making no
+          # progress, and the job hit this workflow's 20 minute cap at 20m16s.
+          #
+          # Two things that cost real time to re-derive, so do not re-derive them:
+          #   * The job's API conclusion is `cancelled`, NOT `failure`, and no step is marked failed.
+          #     `gh pr checks` renders a cancelled job as `fail`, which reads as a test failure and is
+          #     not one. Confirm with
+          #     `gh api repos/JasperFx/wolverine/actions/jobs/<id> --jq '"\(.status) \(.conclusion)"'`.
+          #   * A capped job uploads NO ledger and prints no summary, so the flakiness roll-up reports
+          #     it as unmeasured rather than as clean.
+          #
+          # So the sampler now also carries a stall watchdog (see build/ci-memory-sampler.sh): flat
+          # memory alone was never actionable, because Bobcat 0.6.1 reports per-test results only when
+          # a batch finishes and a batch that never finishes prints nothing. The watchdog captures the
+          # wedged process's async stacks itself, before the cap can take them. Tracked in #4083.
           - target: CIMarten
             memory_telemetry: true
           - target: CIMartenDistribution
