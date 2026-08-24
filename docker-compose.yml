@@ -141,7 +141,11 @@ services:
       - "9101:9101"
 
   redis-server:
-    image: "redis:7-alpine"
+    # Kept in step with RedisContainerFixture, which is what the Redis tests actually run against
+    # (Testcontainers). Pinned rather than floating on "redis:8-alpine": XACKDEL, which
+    # DeleteStreamEntryOnAck(true) requires, only exists from 8.2 on, so a tag that could resolve
+    # to 8.0 or 8.1 would quietly take the GH-4058 coverage back out.
+    image: "redis:8.2.9-alpine"
     command: redis-server
     ports:
       - "6379:6379"

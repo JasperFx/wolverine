@@ -72,7 +72,69 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     public DateTimeOffset? LastReceiveLoopActivityAt => _loop?.LastReceiveLoopActivityAt;
 
     internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
-    
+
+    /// <summary>
+    ///     GH-4058. <c>DeleteStreamEntryOnAck(true)</c> settles with <c>XACKDEL</c>, which arrived in Redis 8.2.
+    ///     An older server answers <c>ERR unknown command 'XACKDEL'</c> to every single ack, so the entries pile
+    ///     up in the consumer group's pending list forever: under auto-claim they are redelivered and reprocessed
+    ///     without end, and without it they leak. There is no honest fallback -- <c>XACK</c> plus <c>XDEL</c> is
+    ///     not the same operation, because <c>XDEL</c> drops the entry for every consumer group on the stream
+    ///     rather than only this one, which is precisely why <c>XACKDEL</c> exists. So refuse to start instead.
+    /// </summary>
+    private async Task assertDeleteOnAckIsSupportedAsync()
+    {
+        if (!DeleteOnAck) return;
+
+        var supported = await RedisStreamCapabilities.SupportsXackDelAsync(getDatabase());
+
+        if (supported == false)
+        {
+            throw new InvalidOperationException(
+                $"The Redis transport is configured with DeleteStreamEntryOnAck(true), but the Redis server behind stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not support the {RedisStreamCapabilities.XackDel} command that setting requires. {RedisStreamCapabilities.XackDel} was added in Redis 8.2; on an older server every acknowledgement fails and no message on this listener is ever settled. Upgrade the server to Redis 8.2 or later, or call DeleteStreamEntryOnAck(false) to acknowledge with XACK and leave the entries in the stream. Wolverine deliberately does not fall back to XACK plus XDEL, because XDEL removes the entry for every consumer group on the stream rather than only this one.");
+        }
+
+        if (supported == null)
+        {
+            _logger.LogWarning(
+                "Unable to confirm that the Redis server behind stream {StreamKey} (db {DatabaseId}) supports the {Command} command required by DeleteStreamEntryOnAck(true). Starting anyway, but acknowledgements will fail at runtime if the server is older than Redis 8.2.",
+                _endpoint.StreamKey, _endpoint.DatabaseId, RedisStreamCapabilities.XackDel);
+        }
+    }
+
+    /// <summary>
+    ///     The one place that settles a stream entry for this consumer group, so the <c>DeleteOnAck</c> choice
+    ///     cannot drift between the complete, requeue, and dead-letter paths.
+    /// </summary>
+    private Task acknowledgeAsync(IDatabase db, string entryId)
+    {
+        return DeleteOnAck
+            ? db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!,
+                StreamTrimMode.Acknowledged, entryId)
+            : db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, entryId);
+    }
+
+    /// <summary>
+    ///     GH-4058. A one-off ack failure is a warning -- the entry stays pending and gets redelivered. Redis
+    ///     rejecting the command as unknown is not: it means nothing on this listener is being acknowledged, and
+    ///     nothing ever will be, so it is logged at Error with the fix in the message.
+    /// </summary>
+    private void logAckFailure(Exception ex, Envelope envelope, string context)
+    {
+        if (RedisStreamCapabilities.IsUnknownCommandFailure(ex))
+        {
+            _logger.LogError(ex,
+                "Redis rejected the acknowledgement command for stream {StreamKey} (db {DatabaseId}) as unknown while {Context} envelope {EnvelopeId}. No message on this listener is being acknowledged, and entries will accumulate in the pending list of consumer group {ConsumerGroup} indefinitely. DeleteStreamEntryOnAck(true) requires {Command}, which needs Redis 8.2 or later; upgrade the server or call DeleteStreamEntryOnAck(false).",
+                _endpoint.StreamKey, _endpoint.DatabaseId, context, envelope.Id, _endpoint.ConsumerGroup,
+                RedisStreamCapabilities.XackDel);
+        }
+        else
+        {
+            _logger.LogWarning(ex,
+                "Error ACKing Redis stream message on {StreamKey} while {Context} envelope {EnvelopeId}",
+                _endpoint.StreamKey, context, envelope.Id);
+        }
+    }
+
     // ISupportDeadLetterQueue implementation
     public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
     
@@ -116,14 +178,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             {
                 try
                 {
-                    if (DeleteOnAck)
-                        await database.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
-                    else
-                        await database.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+                    await acknowledgeAsync(database, idString!);
                 }
                 catch (Exception ackEx)
                 {
-                    _logger.LogWarning(ackEx, "Error ACKing message {EnvelopeId} after moving to dead letter queue", envelope.Id);
+                    logAckFailure(ackEx, envelope, "acknowledging after a move to the dead letter queue");
                 }
             }
         }
@@ -138,6 +197,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     // ISupportNativeScheduling implementation
     public async ValueTask InitializeAsync()
     {
+        // GH-4058: reject a DeleteStreamEntryOnAck(true) that this server cannot honor before we provision
+        // anything. Left unchecked it is a total, silent failure -- every settle throws and nothing is ever
+        // acknowledged -- so it is not something to discover one warning at a time in production.
+        await assertDeleteOnAckIsSupportedAsync();
+
         // Only create resources at listener init time if AutoProvision is enabled. Provision the consumer
         // group over THIS listener's connection so a tenant listener creates its group on the tenant's own
         // server (broker-per-tenant), not the shared one. GH-3309.
@@ -231,16 +295,12 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                 return;
             }
 
-            var db = getDatabase();
-            if (DeleteOnAck)
-                await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
-            else
-                await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+            await acknowledgeAsync(getDatabase(), idString!);
             _logger.LogDebug("Acknowledged Redis stream message {StreamId} on {StreamKey}", idString, _endpoint.StreamKey);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error ACKing Redis stream message for envelope {EnvelopeId}", envelope.Id);
+            logAckFailure(ex, envelope, "completing");
         }
     }
 
@@ -274,14 +334,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             {
                 try
                 {
-                    if(DeleteOnAck)
-                        await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
-                    else
-                        await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+                    await acknowledgeAsync(db, idString!);
                 }
                 catch (Exception ackEx)
                 {
-                    _logger.LogWarning(ackEx, "Error ACKing Redis stream message before requeue for envelope {EnvelopeId}", envelope.Id);
+                    logAckFailure(ackEx, envelope, "acknowledging before a requeue");
                 }
             }
 
