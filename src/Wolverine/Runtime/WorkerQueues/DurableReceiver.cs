@@ -13,7 +13,7 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Runtime.WorkerQueues;
 
 public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
-    IAsyncDisposable, IFaultTrackingReceiver
+    IAsyncDisposable, IFaultTrackingReceiver, ILatchedReceiver
 {
     private readonly RetryBlock<Envelope> _completeBlock;
 

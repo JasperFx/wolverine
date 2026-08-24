@@ -34,7 +34,7 @@ namespace Wolverine.Runtime.WorkerQueues;
 /// this mode exists to provide.
 /// </para>
 /// </summary>
-internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver
+internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedReceiver
 {
     private readonly RetryBlock<Envelope> _completeBlock;
     private readonly RetryBlock<Envelope> _deferBlock;
