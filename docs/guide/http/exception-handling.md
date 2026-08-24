@@ -32,7 +32,7 @@ public static class OnExceptionEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L21-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_handler_level' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L22-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_handler_level' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Key behaviors:
@@ -87,7 +87,7 @@ public static class MultipleExceptionEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L47-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_specific' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L48-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_specific' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Async Exception Handlers
@@ -120,7 +120,7 @@ public static class AsyncExceptionEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L90-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L91-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Combining with Finally
@@ -161,7 +161,7 @@ public static class ExceptionWithFinallyEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L116-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_with_finally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L117-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_with_finally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The execution order is: Handler (throws) -> OnException -> Finally
@@ -206,6 +206,97 @@ app.MapWolverineEndpoints(opts =>
         chain => chain.Method.HandlerType.Namespace == "MyApp.Api");
 });
 ```
+
+## Recipe: Marten Concurrency Conflicts as 409 <Badge type="tip" text="6.30" />
+
+An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a Marten session can lose an
+optimistic concurrency race -- two clients posting to the same aggregate at the same time. Without a handler
+the exception escapes the endpoint as an unhandled **500**, even though nothing went wrong with the data:
+optimistic concurrency did its job. **409 Conflict** is the honest status for that.
+
+The `OnException` middleware convention is all you need. There are two exception types to cover, and the
+second one is easy to miss:
+
+<!-- snippet: sample_marten_concurrency_exception_middleware -->
+<a id='snippet-sample_marten_concurrency_exception_middleware'></a>
+```cs
+/// <summary>
+/// Maps Marten's commit time concurrency failures onto a 409 ProblemDetails response
+/// instead of letting them escape as an unhandled 500
+/// </summary>
+public static class MartenConcurrencyExceptionMiddleware
+{
+    // Marten's optimistic concurrency failures -- EventStreamUnexpectedMaxEventIdException from
+    // the event store, and document level concurrency violations -- all derive from
+    // JasperFx.ConcurrencyException, so one handler covers them
+    public static ProblemDetails OnException(ConcurrencyException ex)
+    {
+        return new ProblemDetails
+        {
+            Status = 409,
+            Title = "Conflict",
+            Detail = ex.Message
+        };
+    }
+
+    // StreamLockedException does NOT derive from ConcurrencyException -- it is a MartenException --
+    // so the FetchForExclusiveWriting path needs its own handler. Catching only ConcurrencyException
+    // silently misses it
+    public static ProblemDetails OnException(StreamLockedException ex)
+    {
+        return new ProblemDetails
+        {
+            Status = 409,
+            Title = "Conflict",
+            Detail = ex.Message
+        };
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyEndpoints.cs#L32-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_marten_concurrency_exception_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning `StreamLockedException` is not a `ConcurrencyException`
+`EventStreamUnexpectedMaxEventIdException` and Marten's document level concurrency violations derive from
+`JasperFx.ConcurrencyException`, so a single handler covers both. But `Marten.Exceptions.StreamLockedException`
+-- what `FetchForExclusiveWriting` throws on a contended stream -- derives from `MartenException` instead.
+A recipe that catches only `ConcurrencyException` silently leaves the exclusive locking path returning 500s.
+:::
+
+Register it across the endpoints that commit Marten sessions:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.AddMiddleware(typeof(MartenConcurrencyExceptionMiddleware),
+        chain => chain.IsTransactional);
+});
+```
+
+If you would rather advertise the conflict in your OpenAPI document -- so generated clients know 409 is a
+possible response -- add a small `IHttpPolicy` that stamps the metadata on the same chains:
+
+```csharp
+public class ConcurrencyProblemPolicy : IHttpPolicy
+{
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains.Where(x => x.IsTransactional))
+        {
+            chain.Metadata.ProducesProblem(409);
+        }
+    }
+}
+```
+
+Applications that adopt client supplied `If-Match` preconditions may prefer **412 Precondition Failed** to 409
+-- the status is just a number in your own handler, so use whichever dialect your API speaks.
+
+::: tip Give exclusive locking a short timeout
+`FetchForExclusiveWriting` waits on a database lock rather than failing immediately, and only surfaces
+`StreamLockedException` once the command times out -- **30 seconds** by default, which no HTTP request should
+ever spend. Open the session with a short `SessionOptions.Timeout` so a contended stream becomes a prompt 409.
+:::
 
 ## Return Value Semantics
 
