@@ -131,7 +131,9 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
 
         // Inline keeps the historical immediate/fire-and-forget path (this itself, via SendAsync
         // below) so explicit inline usage is unaffected.
-        if (Mode == EndpointMode.Inline)
+        // GH-4073: SendsInline, not `Mode == EndpointMode.Inline`. EndpointMode.NativeAck also sends through an
+        // InlineSendingAgent, which cannot drive a BatchedSender. Inert until this transport sets supportsNativeAck.
+        if (SendsInline)
         {
             return this;
         }

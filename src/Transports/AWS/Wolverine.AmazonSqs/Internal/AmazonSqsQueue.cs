@@ -704,7 +704,9 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             return tenantedSender;
         }
 
-        if (Mode == EndpointMode.Inline)
+        // GH-4073: SendsInline, not `Mode == EndpointMode.Inline`. EndpointMode.NativeAck also sends through an
+        // InlineSendingAgent, which cannot drive a BatchedSender. Inert until this transport sets supportsNativeAck.
+        if (SendsInline)
         {
             return new InlineSqsSender(runtime, this);
         }

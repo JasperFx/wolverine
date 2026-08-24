@@ -331,7 +331,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             return tenantedSender;
         }
 
-        return Mode == EndpointMode.Inline
+        // GH-4073: SendsInline, not `Mode == EndpointMode.Inline`. EndpointMode.NativeAck also sends through an
+        // InlineSendingAgent, which cannot drive a BatchedSender. Inert until this transport sets supportsNativeAck.
+        return SendsInline
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
                 runtime.LoggerFactory.CreateLogger<KafkaSenderProtocol>());
