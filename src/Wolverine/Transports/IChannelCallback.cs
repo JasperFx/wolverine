@@ -88,3 +88,51 @@ public interface IChannelCallback
         return Task.FromResult(false);
     }
 }
+
+/// <summary>
+/// GH-4048. Marks a listener whose broker puts a clock on an <em>unsettled</em> delivery -- SQS's visibility
+/// timeout, Azure Service Bus's lock duration, Pub/Sub's ack deadline, JetStream's AckWait -- so that
+/// <see cref="Wolverine.Configuration.EndpointMode.NativeAck" /> can keep that clock alive for as long as the
+/// envelope sits in an execution lane, rather than only while a handler runs.
+/// </summary>
+/// <remarks>
+/// The tick timing, the ceiling, the loss classification and the enforcement all live in core, in
+/// <c>LeaseRenewalTracker</c>. A transport contributes only the broker call plus the two durations that
+/// describe its clock. The matching endpoint-side declaration is <c>Endpoint.holdsExpiringLease</c>, and
+/// a NativeAck endpoint that declares an expiring lease without a listener implementing this interface
+/// fails at startup rather than silently generating duplicates.
+/// </remarks>
+public interface ISupportLeaseRenewal
+{
+    /// <summary>
+    ///     How long the broker's clock runs on one unsettled delivery. Each successful renewal re-arms it
+    ///     for this long, and the tracker ticks at half of it.
+    /// </summary>
+    TimeSpan LeaseDuration { get; }
+
+    /// <summary>
+    ///     Longest a single delivery may be kept alive, measured from its receipt. Broker-capped -- SQS, for
+    ///     instance, will not keep a message invisible for more than 12 hours. Reaching this stops renewal;
+    ///     it is deliberately NOT treated as a lost lease, because the delivery may still finish inside the
+    ///     lease it already holds.
+    /// </summary>
+    TimeSpan MaximumLeaseExtension { get; }
+
+    /// <summary>
+    ///     False when the transport's own client already renews for the whole time a delivery is unsettled
+    ///     (Pub/Sub's SubscriberClient does). Wolverine then issues no renewal calls at all and enforces only
+    ///     the ceiling.
+    /// </summary>
+    bool RequiresExplicitRenewal => true;
+
+    /// <summary>
+    ///     Re-arm the broker's clock on these deliveries. Returns the envelopes the broker would <b>not</b>
+    ///     renew -- their lease is gone and the broker owns them again.
+    /// </summary>
+    /// <remarks>
+    ///     Throwing is a <em>transient</em> failure (network, throttle) and is explicitly NOT a lost lease;
+    ///     the tracker keeps those envelopes and retries on the next tick. Report a lost lease only by
+    ///     returning the envelope in the result.
+    /// </remarks>
+    ValueTask<IReadOnlyList<Envelope>> RenewLeasesAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token);
+}
