@@ -126,7 +126,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// </summary>
     public bool SystemQueuesEnabled { get; set; } = true;
 
-    private int _prefetchCount;
+    private int? _prefetchCount;
+
+    /// <summary>
+    /// GH-4051. Null unless a transport-wide prefetch was actually configured. An endpoint needs to tell "the user
+    /// chose 0" from "nobody chose anything", because a NativeAck endpoint substitutes a lane-sized default in the
+    /// second case only -- an explicit choice, at either level, always wins.
+    /// </summary>
+    internal int? ExplicitPrefetchCount => _prefetchCount;
 
     /// <summary>
     ///     The transport-wide default for the number of messages that the underlying Azure Service
@@ -138,7 +145,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// </summary>
     public int PrefetchCount
     {
-        get => _prefetchCount;
+        get => _prefetchCount ?? 0;
         set
         {
             if (value < 0)

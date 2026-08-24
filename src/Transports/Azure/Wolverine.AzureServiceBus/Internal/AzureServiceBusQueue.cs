@@ -109,6 +109,36 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     internal override bool RequiresSessions => Options.RequiresSession;
 
+    /// <summary>
+    /// GH-4051. Azure Service Bus qualifies on both counts <see cref="EndpointMode.NativeAck" /> requires.
+    /// Settlement is per message -- <c>ServiceBusReceiver.CompleteMessageAsync</c> takes one message and settles
+    /// exactly that lock, with no cumulative or ordered semantics anywhere in the peek-lock model -- and settling
+    /// out of delivery order is expressible, because a lock is held per message rather than over a position in a
+    /// stream. That is the difference from Kafka, which cannot express a gap in a cumulative offset commit.
+    ///
+    /// <para>
+    /// Only queues and subscriptions, never topics: native acks are a listening concept and a topic is only ever
+    /// published to. <see cref="AzureServiceBusSubscription" /> declares this separately rather than inheriting it
+    /// from a shared base, so that the topic cannot pick it up by accident.
+    /// </para>
+    ///
+    /// <para>
+    /// Sessions are the one Azure Service Bus configuration this mode cannot serve, and they are refused after
+    /// compilation rather than here -- see <see cref="AzureServiceBusEndpoint.validateModeConfiguration" />.
+    /// </para>
+    /// </summary>
+    protected override bool supportsNativeAck => true;
+
+    /// <summary>
+    /// GH-4048. An unsettled Azure Service Bus delivery is locked only for the queue's <c>LockDuration</c>, after
+    /// which the broker hands the message to someone else -- so a NativeAck endpoint here has to renew that lock for
+    /// as long as the envelope sits in an execution lane. <see cref="BatchedAzureServiceBusListener" /> supplies the
+    /// renewal through <see cref="Wolverine.Transports.ISupportLeaseRenewal" />.
+    /// </summary>
+    protected internal override bool holdsExpiringLease => true;
+
+    internal override TimeSpan LockDuration => Options.LockDuration;
+
     private async Task purgeWithSessions(ServiceBusClient client)
     {
         using var cancellation = new CancellationTokenSource();
