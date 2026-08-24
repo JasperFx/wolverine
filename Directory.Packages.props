@@ -39,8 +39,10 @@
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
-         and honest retry reporting. Referenced ONLY by the build project. -->
-    <PackageVersion Include="Bobcat.Supervisor" Version="0.7.0" />
+         honest retry reporting, and — since 0.8.0 — stall detection, heartbeats, RSS sampling,
+         the pre-kill dump seam and partial results on cancellation (build/StallCapture.cs).
+         Referenced ONLY by the build project. -->
+    <PackageVersion Include="Bobcat.Supervisor" Version="0.8.0" />
     <PackageVersion Include="JasperFx" Version="2.54.0" />
     <PackageVersion Include="JasperFx.Events" Version="2.54.0" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.54.0" />

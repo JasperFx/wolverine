@@ -69,7 +69,16 @@ partial class Build
             // Bounded by the budget itself: the point of the list is to name the suspects, not to
             // reproduce the log.
             FlakyTests = results.PassedOnRetry.Select(x => x.DisplayName).Take(MaxRetriesPerRun).ToArray(),
-            FlakyFailures = results.PassedOnRetry.Take(MaxRetriesPerRun).Select(firstFailure).ToArray()
+            FlakyFailures = results.PassedOnRetry.Take(MaxRetriesPerRun).Select(firstFailure).ToArray(),
+            // The observability cluster's facts (Bobcat 0.8.0). IsPartial marks a ledger written
+            // by the cancellation handler — the run so far, not a verdict; StalledTests carries
+            // the names a capped job's log used to take to its grave (GH-4083); PeakWorkerRssMb
+            // is the GH-4089 figure, per job instead of per shell-sampler scrape.
+            IsPartial = results.IsPartial,
+            Stalled = results.StalledTests.Count,
+            StalledTests = results.StalledTests.Select(x => x.DisplayName).Distinct()
+                .Take(MaxRetriesPerRun).ToArray(),
+            PeakWorkerRssMb = RunResources.For(results).PeakBytes is { } peak ? peak / (1024 * 1024) : null
         };
 
         writeLedgerFile(entry);
@@ -320,6 +329,22 @@ partial class Build
                 builder.AppendLine($"> **ABORTED** — {entry.AbortReason}");
             }
 
+            if (entry.IsPartial)
+            {
+                builder.AppendLine();
+                builder.AppendLine(
+                    "> **PARTIAL** — the job was cancelled mid-run. These counts are the run so far; " +
+                    "tests without a verdict are counted Indeterminate, not failed.");
+            }
+
+            if (entry.StalledTests.Length > 0)
+            {
+                builder.AppendLine();
+                builder.AppendLine(
+                    "> **Stalled (in flight past the 5-minute threshold):** " +
+                    string.Join(", ", entry.StalledTests.Select(t => $"`{t}`")));
+            }
+
             if (entry.FlakyTests.Length > 0)
             {
                 builder.AppendLine();
@@ -366,18 +391,37 @@ partial class Build
     static void annotate(LedgerEntry entry)
     {
         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return;
-        if (entry.RetriesPerformed == 0) return;
 
-        var suspects = entry.FlakyTests.Length > 0
-            ? $" First flaky test: {entry.FlakyTests[0]}."
-            : "";
+        // Workflow commands are newline-delimited, so every message has to be a single line.
 
-        // Workflow commands are newline-delimited, so the message has to be a single line.
-        Console.WriteLine(
-            $"::warning title={entry.Job}: {entry.RetriesPerformed} retries::" +
-            $"{entry.Project} ({entry.Framework}) spent {entry.RetriesPerformed} of its " +
-            $"{MaxRetriesPerRun}-retry budget; " +
-            $"{entry.PassedOnRetry} test(s) passed only on a retry.{suspects}");
+        if (entry.RetriesPerformed > 0)
+        {
+            var suspects = entry.FlakyTests.Length > 0
+                ? $" First flaky test: {entry.FlakyTests[0]}."
+                : "";
+
+            Console.WriteLine(
+                $"::warning title={entry.Job}: {entry.RetriesPerformed} retries::" +
+                $"{entry.Project} ({entry.Framework}) spent {entry.RetriesPerformed} of its " +
+                $"{MaxRetriesPerRun}-retry budget; " +
+                $"{entry.PassedOnRetry} test(s) passed only on a retry.{suspects}");
+        }
+
+        if (entry.Stalled > 0)
+        {
+            Console.WriteLine(
+                $"::warning title={entry.Job}: {entry.Stalled} stalled test(s)::" +
+                $"{entry.Project} ({entry.Framework}) had test(s) in flight past the 5-minute " +
+                $"stall threshold. First: {entry.StalledTests[0]}.");
+        }
+
+        if (entry.IsPartial)
+        {
+            Console.WriteLine(
+                $"::warning title={entry.Job}: partial results::" +
+                $"{entry.Project} ({entry.Framework}) was cancelled mid-run; the uploaded ledger " +
+                "holds the run so far, with unverdicted tests counted Indeterminate.");
+        }
     }
 
     static readonly JsonSerializerOptions LedgerJson = new() { WriteIndented = true };
@@ -417,6 +461,27 @@ partial class Build
         /// ledger written before the field existed. See GH-3855.
         /// </summary>
         public ServiceRestart[] ServiceRestarts { get; init; } = [];
+
+        // The Bobcat 0.8.0 observability fields. All additive and defaulted — the roll-up's jq
+        // reads them with `// 0` / `// false` / `// []` for the same baseline reason as above.
+
+        /// <summary>
+        /// True when this ledger came from the cancellation handler's Supervisor.Snapshot() —
+        /// the run so far, not a verdict. A partial ledger's counts are honest but incomplete,
+        /// and its Indeterminate column includes every test the run never got to.
+        /// </summary>
+        public bool IsPartial { get; init; }
+
+        /// <summary>Tests reported in flight past the stall threshold, whether or not they finished.</summary>
+        public int Stalled { get; init; }
+
+        public string[] StalledTests { get; init; } = [];
+
+        /// <summary>
+        /// The highest worker RSS the supervisor sampled, in MB. Null when unmeasured — never
+        /// zero, so "no memory data" can never read as "used no memory".
+        /// </summary>
+        public long? PeakWorkerRssMb { get; init; }
     }
 
     /// <summary>

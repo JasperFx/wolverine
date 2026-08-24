@@ -89,69 +89,16 @@ jobs:
           - CIAotSmoke
           # NOTE: CISlowTests is deliberately NOT here. It is wall-clock bound by design and blew
           # through the 20 minute cap on its first run; it lives in slow-tests.yml as a manual job.
-        include:
-          # This sampler was added after CIMarten was twice killed outright by the runner ~15 minutes
-          # in ("The runner has received a shutdown signal"), on unrelated diffs, at almost exactly
-          # the same elapsed time both times -- read at the time as the VM running out of memory.
-          # See #3771.
-          #
-          # IT IS NOT OOM. The sampler caught the recurrence on 2026-08-24 (run 32683981250, job
-          # 97305549745) and disproved that reading outright: the last several minutes of samples are
-          # BYTE-IDENTICAL every 15 seconds -- ~13.7GB available, swap_used=0, the MartenTests process
-          # pinned at 1160MB and not growing. Nothing was starved. The process was idle and making no
-          # progress, and the job hit this workflow's 20 minute cap at 20m16s.
-          #
-          # Two things that cost real time to re-derive, so do not re-derive them:
-          #   * The job's API conclusion is `cancelled`, NOT `failure`, and no step is marked failed.
-          #     `gh pr checks` renders a cancelled job as `fail`, which reads as a test failure and is
-          #     not one. Confirm with
-          #     `gh api repos/JasperFx/wolverine/actions/jobs/<id> --jq '"\(.status) \(.conclusion)"'`.
-          #   * A capped job uploads NO ledger and prints no summary, so the flakiness roll-up reports
-          #     it as unmeasured rather than as clean.
-          #
-          # So the sampler now also carries a stall watchdog (see build/ci-memory-sampler.sh): flat
-          # memory alone was never actionable, because Bobcat 0.6.1 reports per-test results only when
-          # a batch finishes and a batch that never finishes prints nothing. The watchdog captures the
-          # wedged process's async stacks itself, before the cap can take them. Tracked in #4083.
-          #
-          # THE SAMPLER NOW RUNS ON EVERY TARGET, so there is no per-target flag here any more. It
-          # costs a `free`/`ps` pair every 15 seconds and installs nothing unless it actually fires.
-          # It was widened because #4089 -- MartenTests retains ~35MB per test and a GREEN CIMarten
-          # ends with 243MB free on a 16GB runner -- cannot be answered for the other suites without
-          # measuring them, and the suites that hold the most memory are not necessarily the ones
-          # that take the longest.
-          #
-          # What IS per-target is the watchdog's unconditional deadline, and it has to be, because
-          # the honest runtime of the heaviest suites already runs past it. Measured over 12 green
-          # `main` runs (max of 12):
-          #
-          #   CIRabbitMQ 859s   CIEfCore 821s   CISqlServer 810s   CIPersistence 807s
-          #   CIPubsub   779s   CIAzureServiceBus 775s   CIRedis 629s   CIKafka 625s
-          #
-          # ...against a 780s default. On these there is no daylight between "healthy" and "about to
-          # be capped" for a time trigger to sit in, and a spurious capture costs ~2 minutes inside a
-          # 20 minute cap on a job already at 14 -- it would turn a green job red. So they set the
-          # deadline to 0 and run the idle detector alone, which does not care how long a suite
-          # takes: a healthy suite is never idle for five minutes.
-          #
-          # Re-measure before trusting these numbers; they are a snapshot of 2026-08-24. Anything
-          # whose green max climbs past ~620s belongs on this list.
-          - target: CIRabbitMQ
-            stall_deadline: 0
-          - target: CIEfCore
-            stall_deadline: 0
-          - target: CISqlServer
-            stall_deadline: 0
-          - target: CIPersistence
-            stall_deadline: 0
-          - target: CIPubsub
-            stall_deadline: 0
-          - target: CIAzureServiceBus
-            stall_deadline: 0
-          - target: CIRedis
-            stall_deadline: 0
-          - target: CIKafka
-            stall_deadline: 0
+        # HISTORY: from 2026-08 to 2026-08-24 an `include:` block here carried per-target
+        # stall_deadline overrides for build/ci-memory-sampler.sh — a shell watchdog that sampled
+        # RSS from outside the process, guessed which pid was the test host, inferred stalls from
+        # flat memory + idle CPU, and captured async stacks before the cap could take them
+        # (#3771, #4083, #4089). Retired when Bobcat 0.8.0 moved all of it inside the supervisor
+        # (JasperFx/bobcat#145-#150), which states as facts what the watchdog inferred: the TEST
+        # in flight past its budget (named at +5 minutes, per test — no per-target deadline table
+        # to maintain), a 30s progress heartbeat, per-test RSS attribution, the pre-kill dump
+        # seam, and a partial ledger written on cancellation so a capped job is no longer
+        # unmeasured. See build/SupervisedTests.cs and build/StallCapture.cs.
 
     steps:
       - name: Checkout
@@ -166,21 +113,10 @@ jobs:
 
       - name: Run Tests
         env:
-          # Empty for every target that does not override it, which the sampler reads as its default.
-          STALL_DEADLINE_SECONDS: ${{ matrix.stall_deadline }}
           # Names this job in the retry ledger (build/RetryLedger.cs). GITHUB_JOB is the matrix's
           # job id -- the same string, "test", for all thirty of these -- so it cannot be used.
           CI_JOB_NAME: ${{ matrix.target }}
-        run: |
-          # The sampler has to live inside this step: when the runner is killed, later steps are
-          # skipped, so only what has already been streamed to this step's log survives. See #3771.
-          # It must also be backgrounded from THIS shell -- it picks the process to watch out of its
-          # own parent's process tree, which is how it tells the test host from a service container.
-          ./build/ci-memory-sampler.sh &
-          sampler_pid=$!
-          trap 'kill "${sampler_pid}" 2>/dev/null || true' EXIT
-
-          ./build.sh ${{ matrix.target }} --framework net9.0
+        run: ./build.sh ${{ matrix.target }} --framework net9.0
 
       # Only reachable when the runner itself survived. If the OOM killer took a *test* process
       # rather than the runner service, the kill is recorded here and nowhere else.
