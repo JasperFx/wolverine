@@ -13,7 +13,7 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Runtime.WorkerQueues;
 
 internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
-    IFaultTrackingReceiver
+    IFaultTrackingReceiver, ILatchedReceiver
 {
     private readonly RetryBlock<Envelope> _completeBlock;
 

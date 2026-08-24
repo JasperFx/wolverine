@@ -247,18 +247,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// </summary>
     public void LatchReceiver()
     {
+        // GH-3709. Deliberately a single ILatchedReceiver test rather than an if/else chain naming each
+        // receiver type. As a chain this silently missed NativeAckReceiver when GH-3708 added it, and an
+        // unlatched receiver's DrainAsync returns immediately instead of waiting for in-flight handlers --
+        // so a stop-and-drain closed the transport channel underneath running work, the unsettled deliveries
+        // were requeued, and on an exclusive listener handoff the new owner re-ran them concurrently with
+        // the old owner. That is exactly the intra-group concurrency the partitioned modes forbid.
         var actual = _receiver is ReceiverWithRules rwr ? rwr.Inner : _receiver;
-        if (actual is DurableReceiver dr)
+        if (actual is ILatchedReceiver latched)
         {
-            dr.Latch();
-        }
-        else if (actual is BufferedReceiver br)
-        {
-            br.Latch();
-        }
-        else if (actual is InlineReceiver ir)
-        {
-            ir.Latch();
+            latched.Latch();
         }
     }
 

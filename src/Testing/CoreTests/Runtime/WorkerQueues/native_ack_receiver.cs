@@ -25,8 +25,14 @@ public class NativeAckPingHandler
     /// <summary>Gate so a test can observe the receiver mid-flight without Task.Delay. </summary>
     public static TaskCompletionSource? Gate;
 
+    /// <summary>Signals that the handler has actually started, so a test can latch mid-flight rather than
+    /// racing the block.</summary>
+    public static TaskCompletionSource? Entered;
+
     public async Task Handle(NativeAckPing message)
     {
+        Entered?.TrySetResult();
+
         if (Gate != null)
         {
             await Gate.Task;
@@ -56,11 +62,13 @@ public class native_ack_receiver : IAsyncLifetime
         theRuntime = _host.Services.GetRequiredService<IWolverineRuntime>();
         NativeAckPingHandler.Handled.Clear();
         NativeAckPingHandler.Gate = null;
+        NativeAckPingHandler.Entered = null;
     }
 
     public async ValueTask DisposeAsync()
     {
         NativeAckPingHandler.Gate = null;
+        NativeAckPingHandler.Entered = null;
         await _host.StopAsync();
         _host.Dispose();
     }
@@ -135,6 +143,42 @@ public class native_ack_receiver : IAsyncLifetime
         listener.Deferred.Count.ShouldBe(1);
         listener.Completed.Count.ShouldBe(0);
         NativeAckPingHandler.Handled.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// GH-3709. The half of the drain contract that an exclusive listener handoff depends on: once the
+    /// receiver has been latched, <c>DrainAsync</c> must not report done while a handler is still running.
+    /// If it returns early the listener is disposed underneath live work, the still-unsettled deliveries go
+    /// back to the broker, and the node taking the listener over runs them concurrently with the node that
+    /// is still finishing them.
+    /// </summary>
+    [Fact]
+    public async Task draining_a_latched_receiver_waits_for_the_in_flight_handler()
+    {
+        var receiver = receiverFor();
+        var listener = new RecordingListener();
+
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        NativeAckPingHandler.Gate = gate;
+        NativeAckPingHandler.Entered = entered;
+
+        await receiver.ReceivedAsync(listener, pingEnvelope("in-flight"));
+        await entered.Task.WaitAsync(30.Seconds(), TestContext.Current.CancellationToken);
+
+        receiver.Latch();
+        var drain = receiver.DrainAsync().AsTask();
+
+        var raced = await Task.WhenAny(drain, Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken));
+        raced.ShouldNotBeSameAs(drain);
+
+        gate.SetResult();
+
+        await drain.WaitAsync(30.Seconds(), TestContext.Current.CancellationToken);
+
+        listener.Completed.Count.ShouldBe(1);
+        listener.Deferred.Count.ShouldBe(0);
+        NativeAckPingHandler.Handled.ShouldContain("in-flight");
     }
 
     /// <summary>

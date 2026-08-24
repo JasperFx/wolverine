@@ -149,19 +149,35 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         setDefaults(envelope);
+
+        var pooled = envelope.FromPool;
+        if (pooled) _messageLogger.Sent(envelope);
+
         await _sending.PostAsync(envelope);
+
         _lastMessageSentAt = DateTimeOffset.UtcNow;
-        _messageLogger.Sent(envelope);
+        if (!pooled) _messageLogger.Sent(envelope);
     }
 
     public async ValueTask StoreAndForwardAsync(Envelope envelope)
     {
         setDefaults(envelope);
 
+        // GH-3709. Handing a POOLED envelope to the sending block publishes it to another thread that may
+        // send it, succeed, and return it to the pool -- Envelope.Reset(), which nulls Destination and
+        // MessageType -- before this frame resumes. Reading it afterwards for metrics is therefore a data
+        // race, and it surfaced as an intermittent NullReferenceException out of Envelope.ToMetricsHeaders()
+        // (Destination non-null at its own guard, null one line later) under concurrent publishing to any
+        // BufferedInMemory endpoint. EndpointMode.NativeAck maps to BufferedSendingAgent, which is what made
+        // it easy to hit. Non-pooled envelopes -- every durable send, and anything published inside a
+        // tracking session -- keep the original ordering, so a store that throws still reports no send.
+        var pooled = envelope.FromPool;
+        if (pooled) _messageLogger.Sent(envelope);
+
         await storeAndForwardAsync(envelope);
 
         _lastMessageSentAt = DateTimeOffset.UtcNow;
-        _messageLogger.Sent(envelope);
+        if (!pooled) _messageLogger.Sent(envelope);
     }
 
     public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
