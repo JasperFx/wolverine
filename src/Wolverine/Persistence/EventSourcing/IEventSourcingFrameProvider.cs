@@ -100,6 +100,37 @@ public interface IEventSourcingFrameProvider
             $"{nameof(IEventSourcingFrameProvider)}.{nameof(BuildLoadBoundaryFrame)}.");
 
     /// <summary>
+    /// Build the frame that reads a stream's <see cref="JasperFx.Events.StreamState"/> — the store's
+    /// <c>FetchStreamStateAsync</c> call. Must create exactly one variable of type
+    /// <c>JasperFx.Events.StreamState</c>.
+    /// </summary>
+    /// <remarks>
+    /// GH-3627. Optional, following the <see cref="BuildLoadBoundaryFrame"/> precedent: a store that has
+    /// not implemented it reports that rather than failing at codegen with something obscure. The types
+    /// involved are already store-agnostic -- <c>StreamState</c> and <c>IEvent</c> live in JasperFx.Events,
+    /// and <c>FetchStreamStateAsync</c> is declared on <c>IQueryEventStore</c> -- but the <c>.Events</c>
+    /// accessor that reaches them is not, which is exactly what this seam exists to keep store-side.
+    /// </remarks>
+    Frame BuildFetchStreamStateFrame(Variable identity)
+        => throw new NotSupportedException(
+            $"The {StoreName} integration does not support reading raw stream state. " +
+            $"[{nameof(StreamStateAttribute).Replace("Attribute", "")}] requires " +
+            $"{nameof(IEventSourcingFrameProvider)}.{nameof(BuildFetchStreamStateFrame)}.");
+
+    /// <summary>
+    /// Build the frame that reads a stream's raw events — the store's <c>FetchStreamAsync</c> call. Must
+    /// create exactly one variable of type <c>IReadOnlyList&lt;JasperFx.Events.IEvent&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// GH-3627. Optional, on the same terms as <see cref="BuildFetchStreamStateFrame"/>.
+    /// </remarks>
+    Frame BuildFetchStreamFrame(Variable identity)
+        => throw new NotSupportedException(
+            $"The {StoreName} integration does not support reading raw stream events. " +
+            $"[{nameof(StreamEventsAttribute).Replace("Attribute", "")}] requires " +
+            $"{nameof(IEventSourcingFrameProvider)}.{nameof(BuildFetchStreamFrame)}.");
+
+    /// <summary>
     /// Whether the store identifies streams by <see cref="Guid"/> or by string key. Consulted only to
     /// pick between <c>IEvent.StreamId</c> and <c>IEvent.StreamKey</c> when the handler's input is an
     /// <c>IEvent&lt;T&gt;</c>.

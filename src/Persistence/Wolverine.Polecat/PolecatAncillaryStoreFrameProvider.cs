@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Polecat;
 using Wolverine.Persistence;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Polecat.Codegen;
 
 namespace Wolverine.Polecat;
@@ -15,4 +16,8 @@ internal class PolecatAncillaryStoreFrameProvider : IAncillaryStoreFrameProvider
     public bool Matches(Type storeType) => storeType.CanBeCastTo<IDocumentStore>();
 
     public Frame BuildOutboxFactoryFrame(Type storeType) => new AncillaryOutboxFactoryFrame(storeType);
+
+    // GH-3627. Lets [StreamState] / [StreamEvents] find Polecat when a chain has been routed to a Polecat
+    // ancillary store by [Storage(...)] -- those attributes have no aggregate type to resolve through.
+    public IEventSourcingFrameProvider? EventSourcing { get; } = new Persistence.Sagas.PolecatPersistenceFrameProvider();
 }

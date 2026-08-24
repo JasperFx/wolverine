@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using JasperFx;
 using JasperFx.Events;
+using Wolverine.Persistence.EventSourcing;
 using Marten;
 using Marten.Events;
 using Marten.Linq;
@@ -323,6 +324,29 @@ public static class MarkItemEndpoint
         );
     }
 
+    #region sample_using_streamstate_and_streamevents_in_http
+
+    // GH-3627. Timeline/audit shaped reads: the handler serves the event history itself, which
+    // [ReadAggregate] cannot express because folding has already collapsed what it needs. Both fetches
+    // batch into one round trip alongside any other batchable load on the same handler.
+    [WolverineGet("/orders/{id}/timeline")]
+    public static OrderTimeline GetTimeline(
+        Guid id,
+        [MartenStreamState] StreamState state,
+        [MartenStreamEvents] IReadOnlyList<IEvent> events)
+    {
+        return new OrderTimeline(state.Version, events.Select(x => x.EventTypeName).ToArray());
+    }
+
+    #endregion
+
+    // The nullable spelling: no 404 guard, the handler decides what absence means
+    [WolverineGet("/orders/{id}/timeline-optional")]
+    public static OrderTimeline GetTimelineOptional(Guid id, [MartenStreamState] StreamState? state)
+    {
+        return new OrderTimeline(state?.Version ?? 0, []);
+    }
+
     #region sample_using_readaggregate_in_http
     [WolverineGet("/orders/latest/{id}")]
     public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
@@ -469,3 +493,5 @@ public static class MarkItemReadyHandler
 }
 
 #endregion
+
+public record OrderTimeline(long Version, string[] EventTypes);

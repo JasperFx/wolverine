@@ -31,6 +31,12 @@ internal partial class MartenPersistenceFrameProvider : IEventSourcingFrameProvi
     // Polecat has no equivalent of - entirely on this side of the seam.
     public Frame BuildLoadAggregateFrame(AggregateLoadRequest request) => new LoadAggregateFrame(request);
 
+    // GH-3627. Marten's spelling of the raw stream reads. The batch-query enlistment lives inside these
+    // frames, which is the whole reason the seam hands back a Frame rather than letting core write the call.
+    public Frame BuildFetchStreamStateFrame(Variable identity) => new FetchStreamStateFrame(identity);
+
+    public Frame BuildFetchStreamFrame(Variable identity) => new FetchStreamFrame(identity);
+
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new FetchLatestAggregateFrame(aggregateType, identity);
 
