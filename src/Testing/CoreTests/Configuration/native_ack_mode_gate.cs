@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -252,6 +253,110 @@ public class native_ack_sends_inline
     // or the send is retrying -- so it cannot be reproduced by posting one envelope to an idle agent. The
     // agent-type assertions above are what actually distinguish the two mappings; both were verified to fail
     // when the NativeAck arm is reverted to BufferedSendingAgent.
+}
+
+/// <summary>
+/// GH-4073. The pairing between the sending AGENT (chosen centrally from <see cref="EndpointMode"/>) and the
+/// SENDER (chosen by the transport) is a real invariant, and until now nothing enforced it.
+///
+/// <para>
+/// <c>EndpointCollection.CreateSendingAgent</c> registered the callback under
+/// <c>sender is ISenderRequiresCallback &amp;&amp; agent is ISenderCallback</c>. When the second half was false the
+/// whole thing was simply skipped -- silently. That combination became reachable the moment GH-3709 mapped
+/// NativeAck to <see cref="InlineSendingAgent"/> (not an <c>ISenderCallback</c>) while transports were still
+/// gating their inline senders on <c>Mode == EndpointMode.Inline</c> alone, and Redis Streams shipped it.
+/// </para>
+///
+/// <para>
+/// The failure it produced was maximally unhelpful: <see cref="BatchedSender"/> throws "This sender has not been
+/// registered." from inside its own block, on a worker thread no caller awaits, so the only visible symptom was
+/// messages that never arrived. Bootstrap is where this belongs.
+/// </para>
+/// </summary>
+public class native_ack_sender_pairing_is_validated
+{
+    [Fact]
+    public void a_callback_requiring_sender_under_an_inline_agent_is_refused_at_bootstrap()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        var endpoint = new BatchingNativeAckEndpoint(new Uri("nativeackbatched://one"));
+        endpoint.Mode = EndpointMode.NativeAck;
+
+        var ex = Should.Throw<TransportEndpointException>(() => endpoint.StartSending(runtime, null));
+
+        // The message has to point at the actual defect -- the transport's CreateSender gate -- because the
+        // symptom otherwise shows up nowhere near it.
+        var inner = ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        inner.Message.ShouldContain(nameof(EndpointMode.NativeAck));
+        inner.Message.ShouldContain(nameof(Endpoint.SendsInline));
+        inner.Message.ShouldContain(nameof(BatchedSender));
+    }
+
+    [Fact]
+    public void the_same_sender_is_fine_under_a_buffered_agent()
+    {
+        using var host = Host.CreateDefaultBuilder().UseWolverine(_ => { }).Build();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+        var endpoint = new BatchingNativeAckEndpoint(new Uri("nativeackbatched://two"));
+        endpoint.Mode = EndpointMode.BufferedInMemory;
+
+        // Buffered and Durable derive from SendingAgent, which IS the ISenderCallback. The guard must not
+        // fire for the pairing that batching senders were designed for.
+        endpoint.StartSending(runtime, null).ShouldBeOfType<BufferedSendingAgent>();
+    }
+
+    [Fact]
+    public void sends_inline_covers_both_of_the_modes_that_produce_an_inline_agent()
+    {
+        var endpoint = new NativeAckSendingEndpoint(new Uri("nativeacksend://sendsinline"));
+
+        endpoint.Mode = EndpointMode.NativeAck;
+        endpoint.SendsInline.ShouldBeTrue();
+
+        endpoint.Mode = EndpointMode.Inline;
+        endpoint.SendsInline.ShouldBeTrue();
+
+        endpoint.Mode = EndpointMode.BufferedInMemory;
+        endpoint.SendsInline.ShouldBeFalse();
+
+        endpoint.Mode = EndpointMode.Durable;
+        endpoint.SendsInline.ShouldBeFalse();
+    }
+}
+
+/// <summary>
+/// Stands in for a transport that gates its inline sender on <c>Mode == EndpointMode.Inline</c> and therefore
+/// hands a batching sender to a NativeAck endpoint -- which is exactly what Redis Streams did.
+/// </summary>
+internal class BatchingNativeAckEndpoint : Endpoint
+{
+    public BatchingNativeAckEndpoint(Uri uri) : base(uri, EndpointRole.Application)
+    {
+    }
+
+    protected override bool supportsNativeAck => true;
+
+    protected override ISender CreateSender(IWolverineRuntime runtime)
+    {
+        return new BatchedSender(this, new StubSenderProtocol(), runtime.Cancellation,
+            runtime.LoggerFactory.CreateLogger<BatchedSender>());
+    }
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+internal class StubSenderProtocol : ISenderProtocol
+{
+    public Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
+    {
+        return callback.MarkSuccessfulAsync(batch);
+    }
 }
 
 public record NativeAckSendPing(string Name);

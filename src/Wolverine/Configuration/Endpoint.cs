@@ -787,6 +787,24 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return mode == EndpointMode.NativeAck ? supportsNativeAck : supportsMode(mode);
     }
 
+    /// <summary>
+    /// GH-4073. Does the OUTGOING side of this endpoint run through an inline sending agent -- i.e. one that awaits
+    /// the send itself rather than handing the envelope to an in-memory queue? A transport's <c>CreateSender</c>
+    /// must consult this rather than testing <c>Mode == EndpointMode.Inline</c> directly.
+    ///
+    /// <para>
+    /// <see cref="EndpointMode"/> is a single property governing both directions, so the modes that produce an
+    /// inline sending agent are not just <see cref="EndpointMode.Inline"/>. <see cref="EndpointMode.NativeAck"/>
+    /// is a LISTENING optimization that maps to an inline sending agent on the way out (GH-3709), so an endpoint
+    /// that listens with native acks and is also a send target lands here too. A transport that gates only on
+    /// <c>Inline</c> hands a batching sender to an inline agent, and because <see cref="InlineSendingAgent"/> is
+    /// not an <c>ISenderCallback</c> the batching sender is never registered -- every outgoing batch then dies
+    /// inside the sender's own block with "This sender has not been registered."
+    /// </para>
+    /// </summary>
+    [IgnoreDescription]
+    public bool SendsInline => Mode is EndpointMode.Inline or EndpointMode.NativeAck;
+
     // Is this endpoint part of a sharded messaging topology?
     // If so, this should be "auto-started"
     internal bool UsedInShardedTopology { get; set; }
