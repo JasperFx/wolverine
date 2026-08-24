@@ -160,7 +160,17 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
             ConnegMode = chain.ConnegMode.ToString(),
             ServiceProviderSource = chain.ServiceProviderSource.ToString(),
             TenancyMode = chain.TenancyMode?.ToString(),
-            IsTransactional = chain.IsTransactional
+            IsTransactional = chain.IsTransactional,
+
+            // GH-4000. The slice this route IS, so a consumer walking endpoint by endpoint sees it next
+            // to the route rather than only through the assembled model. Derived by the SAME method the
+            // assembled model uses -- HttpEventModelSource.ForChain -- so the two cannot disagree, which
+            // is the property the gRPC sibling (GrpcRpcDescriptor.EventModel) was built on.
+            //
+            // Could not be declared until JasperFx 2.55.0: HttpChainDescriptor lives in JasperFx and
+            // EventModelSliceDescriptor lived in JasperFx.Events, which references it, so the slot was
+            // undeclarable. jasperfx#694 moved the wire descriptors down.
+            EventModel = HttpEventModelSource.ForChain(chain)
         };
 
         // OpenAPI tags — surface chain.Tags keys that are tagged as OpenAPI tags.
