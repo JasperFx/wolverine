@@ -374,6 +374,11 @@ public class Program
 
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
+            // GH-3764. Scoped to the concurrency endpoints so the 409 mapping cannot change the
+            // status codes the rest of this application's tests assert on
+            opts.AddMiddleware(typeof(MartenConcurrencyExceptionMiddleware),
+                chain => chain.Method.HandlerType == typeof(ConcurrencyEndpoints));
+
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
             #region sample_adding_custom_parameter_handling
