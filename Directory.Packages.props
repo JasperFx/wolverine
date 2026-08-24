@@ -40,7 +40,7 @@
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
-    <PackageVersion Include="Bobcat.Supervisor" Version="0.6.1" />
+    <PackageVersion Include="Bobcat.Supervisor" Version="0.7.0" />
     <PackageVersion Include="JasperFx" Version="2.54.0" />
     <PackageVersion Include="JasperFx.Events" Version="2.54.0" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.54.0" />

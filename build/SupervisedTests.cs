@@ -156,6 +156,12 @@ partial class Build
 
         if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
 
+        // Only under Actions: locally the run finishes and prints its summary, and `dotnet run --
+        // --output Detailed` is the per-test view. In CI the summary is exactly what a wedged job
+        // never reaches. Same GITHUB_ACTIONS check the ledger uses.
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
+            supervisor.AddObserver(new NarrateTestsAsTheyStart());
+
         var results = supervisor.Run().GetAwaiter().GetResult();
 
         return report(projectName, framework, results, shardFilter is not null);
@@ -179,6 +185,34 @@ partial class Build
 
             return Disposition.RetryInFreshProcess(
                 "a failure is retried in a fresh process, within the budget, to separate flaky from broken");
+        }
+    }
+
+    /// <summary>
+    /// Prints one line per test as the worker picks it up, so a run that never finishes still says
+    /// what it was doing when it stopped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The supervisor reports per-test results when a batch FINISHES. A batch that wedges never
+    /// finishes, so it reports nothing at all: on JasperFx/wolverine#4083 a CIMarten job's last
+    /// line was "275 test(s): 275 batched, 0 isolated", printed 18m33s before the 20 minute cap
+    /// cancelled the job, and the log could not name the test that hung. This is the cheap half of
+    /// the fix — the sampler's stack dump (build/ci-memory-sampler.sh) is the evidence, this is the
+    /// bookmark that says where to look.
+    /// </para>
+    /// <para>
+    /// In-progress updates only. The terminal update carries the same verdict the end-of-run
+    /// summary already prints, and doubling every line would bury the one that matters — the LAST
+    /// one. Bobcat fires these from the worker client's I/O thread, so lines from different lanes
+    /// interleave; the lane number is on each one for that reason.
+    /// </para>
+    /// </remarks>
+    class NarrateTestsAsTheyStart : ISupervisorObserver
+    {
+        public void TestUpdated(WorkerLaunchContext worker, WorkerTestUpdate update)
+        {
+            if (update.InProgress) Log.Information("  [lane {Lane}] -> {Test}", worker.Lane, update.DisplayName);
         }
     }
 
