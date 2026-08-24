@@ -31,7 +31,7 @@ public partial class AzureServiceBusTransport
     {
         var sender = BusClient.CreateSender(topic.TopicName);
 
-        if (topic.Mode == EndpointMode.Inline)
+        if (topic.SendsInline)
         {
             var inlineSender = new InlineAzureServiceBusSender(topic, mapper, sender,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
@@ -120,7 +120,7 @@ public partial class AzureServiceBusTransport
     {
         var sender = BusClient.CreateSender(queue.QueueName);
 
-        if (queue.Mode == EndpointMode.Inline)
+        if (queue.SendsInline)
         {
             var inlineSender = new InlineAzureServiceBusSender(queue, mapper, sender,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
