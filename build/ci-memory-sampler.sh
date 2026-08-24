@@ -31,9 +31,15 @@
 # dotnet-dump + `dumpasync`, NOT dotnet-stack: the wedge is an await living on the GC heap, and a
 # thread report just shows pool workers parked on a semaphore.
 #
-# Sizing, from 116 green Marten shard jobs: avg 380s, worst 476s. The stall threshold and deadline
-# below sit well clear of that and well clear of the 20 minute cap, so a healthy run can never pay
-# for the diagnostic and a wedged one always gets it with time to spare.
+# Sizing is measured, per target, over 12 green `main` runs -- see the note on `stall_deadline`
+# below. The idle threshold is safe for every suite regardless of how long it takes (a healthy suite
+# is never idle for five minutes); the deadline is not, and is turned off for the targets whose
+# honest runtime is already close to the cap.
+#
+# This runs on EVERY target, not just the Marten shards it was written for. The suites that hold the
+# most memory are not necessarily the ones that take the longest, and #4089 asks a question -- does
+# any other suite retain the way MartenTests does -- that can only be answered by measuring rather
+# than by guessing which ones to instrument.
 
 set -uo pipefail
 
@@ -49,6 +55,13 @@ stall_arm_after="${STALL_ARM_AFTER_SECONDS:-240}"
 # Unconditional backstop: fire this many seconds in whatever the CPU says, because a wedge with a
 # live poller in it (a durability agent, a Marten daemon) burns enough CPU to never look idle. Set
 # below the workflow's timeout-minutes cap with room for the capture itself to finish and print.
+#
+# **0 disables it**, and several targets need that. Measured over 12 green `main` runs, the heaviest
+# suites legitimately run PAST this: CIRabbitMQ 859s, CIEfCore 821s, CISqlServer 810s, CIPersistence
+# 807s, CIPubsub 779s, CIAzureServiceBus 775s. There is not enough daylight between "healthy" and
+# "about to be capped" on those for an unconditional time trigger to mean anything, and a spurious
+# capture costs ~2 minutes inside a 20 minute cap on a job already at 14 -- it would turn a green job
+# red. Those targets run the idle detector alone, which does not care how long a suite takes.
 stall_deadline="${STALL_DEADLINE_SECONDS:-780}"
 
 # A watched process using less than this share of one core across a whole interval is idle.
@@ -60,6 +73,10 @@ stall_dump_lines="${STALL_DUMP_LINES:-400}"
 clock_tick="$(getconf CLK_TCK 2>/dev/null || echo 100)"
 idle_jiffy_floor=$(( clock_tick * interval * stall_cpu_percent / 100 ))
 
+# The shell that backgrounded this sampler. Everything the step runs descends from it; the service
+# containers do not. See the watched-process selection in the loop.
+step_root="${PPID}"
+
 started="${SECONDS}"
 fired=0
 prev_pid=""
@@ -68,7 +85,11 @@ prev_cpu=""
 idle_for=0
 
 echo "[mem] sampling every ${interval}s -- total/used/free/available in MB, plus the largest RSS consumers"
-echo "[stall] watchdog armed at +${stall_arm_after}s: dumps async stacks after ${stall_after}s idle, or at +${stall_deadline}s regardless"
+if [ "${stall_deadline}" -gt 0 ]; then
+    echo "[stall] watchdog armed at +${stall_arm_after}s: dumps async stacks after ${stall_after}s idle, or at +${stall_deadline}s regardless"
+else
+    echo "[stall] watchdog armed at +${stall_arm_after}s: dumps async stacks after ${stall_after}s idle (deadline trigger disabled for this target)"
+fi
 
 # Everything the kernel will tell us for free, printed before anything slow is attempted so that a
 # capture truncated by the cap still leaves the cheap half behind.
@@ -157,9 +178,26 @@ while true; do
     # rather than just observed in aggregate.
     top="$(ps -eo rss=,comm= --sort=-rss | head -3 | awk '{printf "%s=%dMB ", $2, $1/1024}')"
 
-    # The largest process is the one worth watching: on every Marten shard that is the test host
-    # from the moment it starts, and a wedge is by definition something that has already started.
-    read -r pid rss _ <<<"$(ps -eo pid=,rss=,comm= --sort=-rss | head -1)"
+    # The largest process IN THIS STEP'S OWN TREE -- deliberately not the largest on the box.
+    # `ps -e` on a runner also sees the service containers, and several of them are both huge and
+    # idle: sqlservr alone holds multiple GB and can sit still for minutes while the test host is
+    # working perfectly well. Watching it would report a stall that is not happening, on exactly the
+    # suites (CISqlServer, CIPersistence, CIPolecat) this was turned on for. Everything the step
+    # actually runs -- Nuke's `build`, the MTP test host -- descends from the shell that backgrounded
+    # this sampler, and no container process does.
+    read -r pid rss watched <<<"$(ps -eo pid=,ppid=,rss=,comm= | awk -v root="${step_root}" '
+        { ppid[$1] = $2; rss[$1] = $3; comm[$1] = $4; seen[NR] = $1 }
+        END {
+            for (i = 1; i <= NR; i++) {
+                p = seen[i]; cur = p; hops = 0
+                while (cur != "" && cur != "1" && hops < 64) {
+                    if (cur == root) break
+                    cur = ppid[cur]; hops++
+                }
+                if (cur == root && rss[p] > best) { best = rss[p]; bp = p; bc = comm[p] }
+            }
+            if (bp != "") print bp, best, bc
+        }')"
 
     cpu=""
     # The pid guard is not paranoia: "/proc/${pid}/stat" with an empty pid collapses to the
@@ -186,13 +224,13 @@ while true; do
         idle_for=0
     fi
 
-    echo "[mem] $(date -u +%H:%M:%S) total=${total} used=${used} free=${free} available=${available} swap_used=${swap_used} | ${top}| watching pid ${pid} cpu_jiffies+${cpu_delta} idle_for=${idle_for}s"
+    echo "[mem] $(date -u +%H:%M:%S) total=${total} used=${used} free=${free} available=${available} swap_used=${swap_used} | ${top}| watching ${watched:-?}(${pid:-?}) cpu_jiffies+${cpu_delta} idle_for=${idle_for}s"
 
     if [ "${fired}" -eq 0 ] && [ $(( SECONDS - started )) -ge "${stall_arm_after}" ]; then
         if [ "${idle_for}" -ge "${stall_after}" ]; then
             fire "${pid}" "watched process idle for ${idle_for}s (RSS unchanged, under ${stall_cpu_percent}% of one core)"
-        elif [ $(( SECONDS - started )) -ge "${stall_deadline}" ]; then
-            fire "${pid}" "still running ${stall_deadline}s in -- the worst green Marten shard on record finished in 476s"
+        elif [ "${stall_deadline}" -gt 0 ] && [ $(( SECONDS - started )) -ge "${stall_deadline}" ]; then
+            fire "${pid}" "still running ${stall_deadline}s in, past this target's measured green ceiling"
         fi
     fi
 
