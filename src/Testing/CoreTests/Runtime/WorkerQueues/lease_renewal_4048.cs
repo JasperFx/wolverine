@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -361,6 +362,61 @@ public class lease_renewal_4048 : IAsyncLifetime
     #endregion
 
     #region enforcement in the lane -- the assertions that matter
+
+    /// <summary>
+    ///     GH-4091. The receiver used to walk a delivered batch one envelope at a time, registering each lease
+    ///     immediately before posting it. <c>PostAsync</c> blocks once the execution block is at capacity, so
+    ///     every envelope behind the blocked one sat UNTRACKED -- with its broker lease already running -- for
+    ///     as long as the ones ahead took to be admitted.
+    /// </summary>
+    /// <remarks>
+    ///     The window opened precisely when the block was full, which is the saturation this mode exists to
+    ///     serve, and it was invisible: a lease that expires while untracked just looks like ordinary
+    ///     at-least-once redelivery. Tracking the whole batch before posting any of it closes the window.
+    /// </remarks>
+    [Fact]
+    public async Task every_envelope_in_a_batch_is_tracked_even_while_the_block_is_full()
+    {
+        var receiver = receiverFor(e => e.MaxDegreeOfParallelism = 1);
+        var listener = new FakeLeaseListener();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        LeasePingHandler.Gate = gate;
+        LeasePingHandler.Entered = entered;
+
+        // Saturate the block first. One lane, and the handler never returns, so everything posted after this
+        // is queued; once the queue reaches its bound, PostAsync itself blocks
+        var capacity = Block<Envelope>.DefaultBoundedCapacity;
+        var filler = Enumerable.Range(0, capacity + 1).Select(i => pingEnvelope($"filler-{i}")).ToArray();
+        await receiver.ReceivedAsync(listener, filler);
+
+        await entered.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        receiver.Leases.ShouldNotBeNull();
+        var tracker = receiver.Leases!;
+        await waitUntil(() => tracker.InFlightCount == filler.Length);
+
+        // Now a second batch arrives at a block that cannot take it. This call will NOT complete -- its first
+        // post blocks -- which is the whole point, so it is deliberately not awaited here
+        var batch = Enumerable.Range(0, 5).Select(i => pingEnvelope($"batch-{i}")).ToArray();
+        var receiving = receiver.ReceivedAsync(listener, batch).AsTask();
+
+        // Every envelope in that batch must be registered even though only the first one could be posted.
+        // Before the fix this settled at filler.Length + 1 and stayed there
+        await waitUntil(() => tracker.InFlightCount == filler.Length + batch.Length);
+
+        foreach (var envelope in batch)
+        {
+            tracker.WasLeaseLost(envelope).ShouldBeFalse();
+        }
+
+        // Let the whole thing unwind so the receiver is not left holding a blocked post
+        gate.SetResult();
+        LeasePingHandler.Gate = null;
+
+        await receiving.WaitAsync(30.Seconds(), TestContext.Current.CancellationToken);
+    }
+
 
     /// <summary>
     ///     The single most important assertion in GH-4048. A lease-lost envelope that has not started executing is

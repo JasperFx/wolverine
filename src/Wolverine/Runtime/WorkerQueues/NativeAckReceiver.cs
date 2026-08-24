@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using JasperFx.Blocks;
 using JasperFx.Core;
@@ -149,23 +150,45 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
 
         var now = DateTimeOffset.Now;
 
+        // GH-4091. TWO passes, deliberately. Posting blocks once the execution block is at capacity, so a
+        // single admit-then-post loop leaves every envelope after the first blocked one untracked -- with its
+        // broker lease already running -- for as long as the ones ahead of it take to be admitted. Tracking
+        // the whole batch first closes that window. The exposure was bounded by batch size rather than lane
+        // depth, but it opened precisely when the block was full, which is the flood this mode exists for.
+        var admitted = new List<(Envelope Envelope, Activity? Activity)>(messages.Length);
+
         foreach (var envelope in messages)
         {
-            await receiveOneAsync(listener, envelope, now).ConfigureAwait(false);
+            if (await admitAsync(listener, envelope, now).ConfigureAwait(false) is { } entry)
+            {
+                admitted.Add(entry);
+            }
         }
+
+        await postAllAsync(admitted).ConfigureAwait(false);
 
         _logger.IncomingBatchReceived(Uri, messages);
     }
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        await receiveOneAsync(listener, envelope, DateTimeOffset.Now).ConfigureAwait(false);
+        if (await admitAsync(listener, envelope, DateTimeOffset.Now).ConfigureAwait(false) is { } entry)
+        {
+            await postAllAsync([entry]).ConfigureAwait(false);
+        }
+
         _logger.IncomingReceived(envelope, Uri);
     }
 
-    private async ValueTask receiveOneAsync(IListener listener, Envelope envelope, DateTimeOffset now)
+    /// <summary>
+    /// Everything that happens to a delivery BEFORE it is posted to the execution block: the terminal cases
+    /// that never reach a lane at all, and -- for the ones that do -- registering the lease. Returns null when
+    /// the envelope is not going any further.
+    /// </summary>
+    private async ValueTask<(Envelope Envelope, Activity? Activity)?> admitAsync(IListener listener,
+        Envelope envelope, DateTimeOffset now)
     {
-        if (envelope.IsPing()) return;
+        if (envelope.IsPing()) return null;
 
         envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
@@ -173,7 +196,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
         {
             // Nothing will ever handle it, so settle it rather than leaving the broker to redeliver forever.
             await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
-            return;
+            return null;
         }
 
         // GH-3710. Ack-and-drop a redelivery of something this process already handled (or is handling right
@@ -188,7 +211,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
                 envelope.Id, envelope.MessageType, Uri);
 
             await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
-            return;
+            return null;
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
@@ -198,11 +221,43 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
         // running. Untracked in executeAsync's finally.
         leasesFor(listener)?.Track(envelope);
 
-        // NOTE the absence of a _completeBlock.PostAsync here. That single line is what separates this mode
-        // from BufferedInMemory: the delivery stays unacknowledged until the pipeline settles it.
-        await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
+        return (envelope, activity);
+    }
 
-        activity?.Stop();
+    /// <summary>
+    /// The second pass. NOTE the absence of a <c>_completeBlock.PostAsync</c> here -- that single omission is
+    /// what separates this mode from BufferedInMemory: the delivery stays unacknowledged until the pipeline
+    /// settles it.
+    /// </summary>
+    private async ValueTask postAllAsync(IReadOnlyList<(Envelope Envelope, Activity? Activity)> admitted)
+    {
+        for (var i = 0; i < admitted.Count; i++)
+        {
+            var (envelope, activity) = admitted[i];
+
+            try
+            {
+                await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
+            }
+            catch
+            {
+                // GH-4091. Tracking ahead of posting means a failed post -- a completed block during a drain,
+                // most likely -- leaves envelopes registered that executeAsync will now never untrack. This one
+                // and everything behind it are in that position, so release them here. The deliveries stay
+                // unsettled, which is the mode's whole point: the broker redelivers them.
+                for (var j = i; j < admitted.Count; j++)
+                {
+                    var (stranded, strandedActivity) = admitted[j];
+                    _leases?.Untrack(stranded);
+                    _idempotency?.Release(stranded);
+                    strandedActivity?.Stop();
+                }
+
+                throw;
+            }
+
+            activity?.Stop();
+        }
     }
 
     private LeaseRenewalTracker? leasesFor(IListener listener)
