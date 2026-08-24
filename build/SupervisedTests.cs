@@ -137,7 +137,13 @@ partial class Build
 
         var factory = new MtpWorkerFactory(executable)
         {
-            EnvironmentFor = laneEnvironment(workers, postgresDatabasePerLane, sqlServerDatabasePerLane)
+            EnvironmentFor = laneEnvironment(workers, postgresDatabasePerLane, sqlServerDatabasePerLane),
+            // A wedged worker's state stops existing the moment it is killed (GH-4100): this
+            // hook gets the live pid first, and the dumpasync capture is the diagnosis. Only
+            // ever invoked for a live process that refused to exit — a healthy worker never
+            // pays for it. The budget covers dotnet-dump collect + analyze.
+            OnBeforeKill = captureBeforeKill,
+            BeforeKillTimeout = TimeSpan.FromMinutes(10)
         };
 
         var supervisor = new Supervisor(factory)
@@ -151,7 +157,24 @@ partial class Build
             // released before they run: without this, workers+1 test hosts sit resident at once,
             // which OOM-killed 16GB GitHub runners twice — both times during a retry.
             ReleaseIdleLanes = true,
-            Log = message => Log.Information("  {Message}", message)
+            Log = message => Log.Information("  {Message}", message),
+
+            // The observability the retired shell watchdog (build/ci-memory-sampler.sh,
+            // GH-4083/GH-4089) approximated from outside the process, now the supervisor's own
+            // facts (Bobcat 0.8.0, JasperFx/bobcat#145-#150). All report-only — none of these
+            // ever fails or kills anything:
+            // - a TEST in flight past five minutes is named immediately. Five minutes is the
+            //   watchdog's own calibration ("a healthy suite is never idle for five minutes"),
+            //   and per-test in-flight time replaces both its idle heuristic and the per-target
+            //   deadline table that heavy suites kept having to opt out of.
+            // - a one-line progress heartbeat every 30s, so a wedged run's log shows where it
+            //   stopped and how far it got — the summary a capped job never reaches.
+            // - worker RSS sampled on the watchdog's own 15s cadence, attributed per test
+            //   (GH-4089: a GREEN CIMarten grew its host 375MB -> 9334MB and nothing could say
+            //   which tests grew it).
+            StallThreshold = TimeSpan.FromMinutes(5),
+            HeartbeatInterval = TimeSpan.FromSeconds(30),
+            ResourceSampleInterval = TimeSpan.FromSeconds(15)
         };
 
         if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
@@ -161,6 +184,11 @@ partial class Build
         // never reaches. Same GITHUB_ACTIONS check the ledger uses.
         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
             supervisor.AddObserver(new NarrateTestsAsTheyStart());
+
+        // GH-4098: a job cancelled at the cap used to report nothing at all. The registration
+        // snapshots the run, writes the partial ledger and names the stalled tests inside the
+        // runner's grace window — see build/StallCapture.cs.
+        using var cancellation = registerCancellationCapture(supervisor, projectName, framework);
 
         var results = supervisor.Run().GetAwaiter().GetResult();
 
@@ -197,9 +225,10 @@ partial class Build
     /// The supervisor reports per-test results when a batch FINISHES. A batch that wedges never
     /// finishes, so it reports nothing at all: on JasperFx/wolverine#4083 a CIMarten job's last
     /// line was "275 test(s): 275 batched, 0 isolated", printed 18m33s before the 20 minute cap
-    /// cancelled the job, and the log could not name the test that hung. This is the cheap half of
-    /// the fix — the sampler's stack dump (build/ci-memory-sampler.sh) is the evidence, this is the
-    /// bookmark that says where to look.
+    /// cancelled the job, and the log could not name the test that hung. Since Bobcat 0.8.0 the
+    /// supervisor's own stall reporting and heartbeat carry the run-level view (STALLED lines and
+    /// the progress line arrive through Log above); this narration stays as the per-test bookmark
+    /// that says exactly what each lane picked up, in order.
     /// </para>
     /// <para>
     /// In-progress updates only. The terminal update carries the same verdict the end-of-run
@@ -248,6 +277,23 @@ partial class Build
 
         foreach (var fault in results.WorkerFaults)
             Log.Error("  [WORKER FAULT] {Fault}", fault);
+
+        // Report-only, like everything else the stall threshold does: a test that exceeded five
+        // minutes and then passed is still worth a line — a green run is exactly where a
+        // creeping slowdown would otherwise go unnoticed.
+        foreach (var stalled in results.StalledTests)
+            Log.Warning("  [STALLED] {Test} — {Seconds}s in flight on lane {Lane}",
+                stalled.DisplayName, (int)stalled.InFlight.TotalSeconds, stalled.Worker.Lane);
+
+        var memory = RunResources.For(results);
+        if (memory.IsMeasured)
+        {
+            Log.Information("  peak worker RSS {Peak}; top retainer: {Retainer}",
+                RunResources.Humanize(memory.PeakBytes!.Value),
+                memory.TopRetainers(1) is [{ } top]
+                    ? $"{RunResources.Delta(top.RetainedBytes!.Value)} {top.DisplayName}"
+                    : "(none attributed)");
+        }
 
         foreach (var test in results.Indeterminate)
             Log.Error("  [INDETERMINATE] {Test} — {Error}", test.DisplayName, test.Final.Outcome.ErrorMessage);
