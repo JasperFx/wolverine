@@ -727,18 +727,55 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         _logger.LogError(e, "Duplicate incoming envelope detected");
 
-        if (envelope.Listener != null)
+        if (envelope.Listener == null) return;
+
+        // GH-4012 item 4. THIS is where the redeliver -> dedupe -> re-ack loop turns: the settle below
+        // cannot succeed, so the broker redelivers, the inbox deduplicates it again, and around it goes.
+        // Envelope.AckAttempts cannot bound that -- every redelivery arrives as a brand new envelope with
+        // a fresh counter -- but the broker's own delivery count survives, which is the whole reason it
+        // exists. Past the limit, hand the delivery to the dead letter queue instead of settling it again.
+        if (HasExhaustedBrokerRedeliveries(envelope) &&
+            envelope.Listener is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } deadLetters)
         {
             try
             {
-                await envelope.Listener.CompleteAsync(envelope).ConfigureAwait(false);
+                await deadLetters.MoveToErrorsAsync(envelope, e).ConfigureAwait(false);
+
+                _logger.LogWarning(
+                    "Moved envelope {Id} from {Uri} to the dead letter queue after the broker delivered it {DeliveryCount} times; it is a duplicate that cannot be settled",
+                    envelope.Id, Uri, envelope.BrokerDeliveryCount);
+
+                return;
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
+                // Fall through to the ordinary settle -- a dead letter move that fails is no worse than
+                // the loop we were already in
+                _logger.LogError(exception, "Error trying to dead letter over-delivered message {Id} from {Uri}",
                     envelope.Id, Uri);
             }
         }
+
+        try
+        {
+            await envelope.Listener.CompleteAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
+                envelope.Id, Uri);
+        }
+    }
+
+    /// <summary>
+    /// GH-4012 item 4. Has the broker delivered this message more times than
+    /// <see cref="DurabilitySettings.MaximumBrokerRedeliveries" /> allows? False when the limit is off
+    /// (the default) or the transport reports no delivery count.
+    /// </summary>
+    internal bool HasExhaustedBrokerRedeliveries(Envelope envelope)
+    {
+        var limit = _settings.MaximumBrokerRedeliveries;
+        return limit > 0 && envelope.BrokerDeliveryCount is { } count && count > limit;
     }
 
     /// <summary>

@@ -451,6 +451,22 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     }
 
     /// <summary>
+    /// GH-4012 item 4. SQS's own delivery count, requested as a system attribute in
+    /// <c>AmazonSqsQueue.ConfigureRequest</c>. Null when absent -- an older queue, a custom receive, or a
+    /// broker emulator that does not populate it -- which leaves the redelivery bound simply inactive
+    /// rather than guessing.
+    /// </summary>
+    private static int? readApproximateReceiveCount(Message message)
+    {
+        if (message.Attributes == null) return null;
+
+        return message.Attributes.TryGetValue("ApproximateReceiveCount", out var raw)
+               && int.TryParse(raw, out var count)
+            ? count
+            : null;
+    }
+
+    /// <summary>
     /// Build one envelope from the message(s) that carried it. A fragmented message hands over every
     /// SQS message in the set plus the reassembled body; everything else is a set of one.
     /// </summary>
@@ -464,6 +480,11 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // Guarantee a non-null dictionary so ISqsEnvelopeMapper implementations can read freely.
         var attributes = messages[0].MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
         _mapper.ReadEnvelopeData(envelope, body, attributes);
+
+        // GH-4012 item 4. Read AFTER the mapper, so a custom ISqsEnvelopeMapper cannot accidentally clear
+        // it -- this is Wolverine's own bookkeeping rather than user-mapped data. A fragmented message is
+        // one logical delivery, so the first fragment's count speaks for the set.
+        envelope.BrokerDeliveryCount = readApproximateReceiveCount(messages[0]);
 
         // CritterWatch#942 — the Body string (base64, UTF-16, ~2.7× the wire payload size) is fully
         // mapped into the envelope now, and every later use of SqsMessage — single delete, batched

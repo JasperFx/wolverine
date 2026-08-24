@@ -245,6 +245,20 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     public int SendAttempts { get; set; }
 
+    /// <summary>
+    ///     The <b>broker's</b> own count of how many times it has delivered this message, when the
+    ///     transport reports one — RabbitMQ's <c>x-death</c> count, Amazon SQS's
+    ///     <c>ApproximateReceiveCount</c>, Azure Service Bus's <c>DeliveryCount</c>. Null on a transport
+    ///     that has no such concept, and on the first delivery of transports that only count redeliveries.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4012 item 4. This is the one delivery counter that <b>survives envelope reconstruction</b>:
+    ///     every redelivery builds a brand new <c>RabbitMqEnvelope</c> / <c>AzureServiceBusEnvelope</c>, so
+    ///     <see cref="Attempts" /> and <c>AckAttempts</c> both restart at zero and neither can bound a
+    ///     redeliver → dedupe → re-ack loop. Only the broker remembers across those boundaries.
+    /// </remarks>
+    public int? BrokerDeliveryCount { get; set; }
+
     public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>

@@ -58,6 +58,12 @@ public class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMe
 
     protected override void writeIncomingHeaders(ServiceBusReceivedMessage incoming, Envelope envelope)
     {
+        // GH-4012 item 4. Azure Service Bus counts deliveries itself and the count survives the envelope
+        // being reconstructed on every redelivery, which is what makes it the only thing able to bound a
+        // redeliver -> dedupe -> re-ack loop. First delivery is 1, so it is a delivery count rather than a
+        // redelivery count -- Envelope.BrokerDeliveryCount is documented in those terms.
+        envelope.BrokerDeliveryCount = incoming.DeliveryCount;
+
         if (incoming.ApplicationProperties == null) return;
 
         foreach (var pair in incoming.ApplicationProperties) envelope.Headers[pair.Key] = pair.Value?.ToString();
