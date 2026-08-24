@@ -8,17 +8,26 @@ namespace Wolverine.Persistence;
 internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
 {
     public Variable Entity { get; }
-    public Variable Identity { get; }
+
+    /// <summary>
+    /// Null when the entity was not addressed by a single identity value — a loader-backed
+    /// <c>[Entity]</c>, for instance. The message is then used as it stands.
+    /// </summary>
+    public Variable? Identity { get; }
+
     public string Message { get; }
     
-    public ThrowRequiredDataMissingExceptionFrame(Variable entity, Variable identity, string message)
+    public ThrowRequiredDataMissingExceptionFrame(Variable entity, Variable? identity, string message)
     {
         Entity = entity;
         Identity = identity;
         Message = message;
         
         uses.Add(Entity);
-        uses.Add(Identity);
+        if (Identity != null)
+        {
+            uses.Add(Identity);
+        }
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -26,7 +35,13 @@ internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
         writer.WriteComment("Write ProblemDetails if this required object is null");
         writer.Write($"BLOCK:if ({Entity.Usage} == null)");
 
-        if (Message.Contains("{0}"))
+        if (Identity == null)
+        {
+            // Nothing to substitute into the message, so write it out as it stands.
+            var literal = Constant.For(Message);
+            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}({literal.Usage});");
+        }
+        else if (Message.Contains("{0}"))
         {
             writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(string.Format(\"{Message}\", {Identity.Usage}));");
         }

@@ -519,8 +519,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 return [frame, new HandlerContinuationFrame(frame)];
                 
             default:
-                var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
+                // A loader-backed [Entity] has no single identity variable, so the stock message
+                // cannot name one.
+                var message = requirement.MissingMessage ?? (identity == null
+                    ? $"Required {data.VariableType.NameInCode()} was not found"
+                    : $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}");
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
         }
     }
 

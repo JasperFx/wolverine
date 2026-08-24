@@ -474,7 +474,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
     {
-        var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
+        // A loader-backed [Entity] has no single identity variable, so the stock message cannot
+        // name one.
+        var message = requirement.MissingMessage ?? (identity == null
+            ? $"Required {data.VariableType.NameInCode()} was not found"
+            : $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}");
         
         switch (requirement.OnMissing)
         {
@@ -484,17 +488,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 
             case OnMissing.ProblemDetailsWith400:
                 Metadata.Produces(400, contentType: "application/problem+json");
-                return [new WriteProblemDetailsIfNull(data, identity!, message, 400)];
+                return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
             case OnMissing.ProblemDetailsWith404:
                 Metadata.Produces(404, contentType: "application/problem+json");
-                return [new WriteProblemDetailsIfNull(data, identity!, message, 404)];
+                return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
 
             case OnMissing.EmptyContentWith204:
                 Metadata.Produces(204);
                 return [new SetStatusCodeAndReturnIfEntityIsNullFrame(data, 204)];
 
             default:
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
         }
     }
 

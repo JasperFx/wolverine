@@ -209,6 +209,96 @@ public enum ValueSource
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Loading From Somewhere Wolverine Does Not Know <Badge type="tip" text="6.30" />
+
+`[Entity]` loads through whichever persistence provider owns the type — Marten, Polecat, EF Core, RavenDb,
+Cosmos DB. Plenty of real entities do not live in any of them. An invoice's line items sit in an S3 bucket,
+a rendered document is in Azure Blob Storage, a rate table comes from a cache, a customer record comes from
+an HTTP API, a legacy record comes from a hand rolled repository. For all of those you drop out of `[Entity]`
+entirely, inject a service, `await` it yourself — and re-implement the "what if it is not there" handling by
+hand, in every handler that reads it.
+
+`[Entity(Loader = typeof(...))]` closes that gap. You name a type with a `Load` or `LoadAsync` method, and
+Wolverine calls it in place of a persistence provider while keeping everything else about the attribute:
+
+```cs
+public class InvoiceContentLoader(IAmazonS3 s3)
+{
+    public async Task<InvoiceContent?> LoadAsync(TenantId tenant, string id, CancellationToken token)
+    {
+        // Whatever addressing your bucket actually uses. Answer null for "no object", and
+        // Wolverine turns that into the OnMissing behavior the attribute asked for.
+        var key = $"invoices/v7/{tenant.Value}/{id}.json";
+        return await s3.TryGetJsonAsync<InvoiceContent>("invoice-content", key, token);
+    }
+}
+
+public static class InvoiceContentEndpoint
+{
+    [WolverineGet("/api/invoices/{id}/content")]
+    public static InvoiceContent Get(
+        [Entity(Loader = typeof(InvoiceContentLoader), OnMissing = OnMissing.ProblemDetailsWith404,
+            MissingMessage = "That invoice's content has not been written yet")]
+        InvoiceContent content) => content;
+}
+```
+
+`Required`, `OnMissing` and `MissingMessage` mean exactly what they mean everywhere else, so a missing object
+answers 404, or 404 with a `ProblemDetails` body, or throws, or stops a message handler cleanly — and the
+handler itself stays a pure function of data that is already there.
+
+### How a loader's parameters are filled
+
+A loader method's parameters are resolved the same way a handler method's are, and that is the interesting
+part. Wolverine first looks for a value the chain already exposes *under that name* — a message member, a
+route argument, a query string value, a header — and leaves everything else to normal resolution: the
+loader's own services, `TenantId`, `Envelope`, the `CancellationToken`.
+
+That is what lets a loader address something by more than one value. `[Entity]`'s identity convention finds a
+single id, which is all a `session.LoadAsync<T>(id)` needs; an object key is routinely built from a tenant
+*and* an id, and the example above gets both without either being passed in explicitly.
+
+A loader may be a static class, an instance class whose constructor dependencies are resolved like any
+handler's, or a type you already have registered in the container — including an interface. That last one
+matters: if you already have an `IInvoiceContentStore` with a `LoadAsync` on it, point `Loader` at
+`typeof(IInvoiceContentStore)` and you need no new type at all. A registered loader is resolved as a
+service, so its registration's factory and lifetime are honoured; an unregistered concrete class is simply
+constructed.
+
+### Registering a loader once
+
+When an entity type always comes from the same place, register it once instead of repeating the loader type
+at every call site. A plain `[Entity]` then picks it up:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.EntityDefaults.LoadWith<InvoiceContent, InvoiceContentLoader>();
+    }).StartAsync();
+
+// ...and every handler and endpoint reading it needs nothing more than this
+public static InvoiceContent Get([Entity] InvoiceContent content) => content;
+```
+
+`[Entity(Loader = typeof(...))]` on the parameter always wins over the registration.
+
+Some things to know:
+
+* A loader is a **read**. A loader-backed entity takes no part in a unit of work, so returning
+  `Storage.Update(entity)` for it is meaningless — Wolverine has no idea how to write to your bucket.
+* `MaybeSoftDeleted` does not apply, because only the loader knows what deleted means for its source.
+  Answer `null` from the loader for anything that should count as missing.
+* There is no identity variable to substitute, so a `MissingMessage` is used verbatim — a `{Id}`
+  placeholder is only filled in when the chain happens to expose one. The default message names the entity
+  type instead.
+* Wolverine needs **exactly one** `Load` / `LoadAsync` method returning the entity type (bare, `Task<T>` or
+  `ValueTask<T>`). Zero or several is an `InvalidEntityLoaderException` at bootstrapping time, naming the
+  candidates it found.
+* Nothing about this is specific to one storage technology, which is deliberate — the mapping from an
+  identity to a key, a URL or a query is application code, and it is the only part a framework cannot
+  supply. Wolverine calls your loader; your loader knows your bucket.
+
 ## Reading the First of a Type <Badge type="tip" text="6.28" />
 
 `[Entity]` needs an identity to load by, which means it cannot express the *singleton document* — a type

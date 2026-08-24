@@ -9,7 +9,7 @@ internal class WriteProblemDetailsIfNull : AsyncFrame
 {
     private Variable? _httpContext;
 
-    public WriteProblemDetailsIfNull(Variable entity, Variable identity, string message, int statusCode = 400)
+    public WriteProblemDetailsIfNull(Variable entity, Variable? identity, string message, int statusCode = 400)
     {
         Entity = entity;
         Identity = identity;
@@ -17,11 +17,19 @@ internal class WriteProblemDetailsIfNull : AsyncFrame
         StatusCode = statusCode;
         
         uses.Add(Entity);
-        uses.Add(Identity);
+        if (Identity != null)
+        {
+            uses.Add(Identity);
+        }
     }
 
     public Variable Entity { get; }
-    public Variable Identity { get; }
+
+    /// <summary>
+    /// Null when the entity was not addressed by a single identity value — a loader-backed
+    /// <c>[Entity]</c>, for instance. WriteProblems already accepts a null identity.
+    /// </summary>
+    public Variable? Identity { get; }
     public string Message { get; }
     public int StatusCode { get; }
 
@@ -30,14 +38,16 @@ internal class WriteProblemDetailsIfNull : AsyncFrame
         writer.WriteComment("Write ProblemDetails if this required object is null");
         writer.Write($"BLOCK:if ({Entity.Usage} == null)");
 
-        if (Message.Contains("{0}"))
+        var identity = Identity?.Usage ?? "null";
+
+        if (Identity != null && Message.Contains("{0}"))
         {
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {Identity.Usage}), {_httpContext!.Usage}, {Identity.Usage});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {identity}), {_httpContext!.Usage}, {identity});");
         }
         else
         {
             var constant = Constant.For(Message);
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext!.Usage}, {Identity.Usage});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext!.Usage}, {identity});");
         }
 
         writer.Write("return;");

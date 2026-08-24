@@ -134,6 +134,28 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         set => _maybeSoftDeleted = value;
     }
 
+    /// <summary>
+    /// Load this entity by calling a <c>Load</c> / <c>LoadAsync</c> method on this type instead of
+    /// going to the application's configured persistence. Use it for anything Wolverine has no
+    /// persistence provider for — an object store like S3 or Azure Blob Storage, a cache, an HTTP
+    /// API, a legacy repository — while keeping the <see cref="Required" />, <see cref="OnMissing" />
+    /// and <see cref="MissingMessage" /> handling this attribute already gives you.
+    /// <para>
+    /// The loader's method parameters are resolved out of the surrounding chain exactly like a
+    /// handler method's, so it can take its own services, the <c>TenantId</c>, route arguments,
+    /// message members and the <see cref="CancellationToken" />. That is what lets a loader address
+    /// something by more than one value — an object key built from a tenant and an id, say — where
+    /// the identity convention only ever finds one.
+    /// </para>
+    /// <para>
+    /// A loader-backed entity is read-only as far as Wolverine is concerned: it never takes part in
+    /// a unit of work, and <see cref="MaybeSoftDeleted" /> does not apply because only the loader
+    /// knows what deleted means for its source. <see cref="MissingMessage" /> is used verbatim, so a
+    /// <c>{Id}</c> placeholder is only substituted when the chain happens to expose an identity.
+    /// </para>
+    /// </summary>
+    public Type? Loader { get; set; }
+
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
     {
@@ -141,6 +163,15 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         var entityDefaults = container.GetInstance<WolverineOptions>().EntityDefaults;
         _onMissing ??= entityDefaults.OnMissing;
         _maybeSoftDeleted ??= entityDefaults.MaybeSoftDeleted;
+
+        var loaderType = Loader ?? (entityDefaults.TryFindLoader(parameter.ParameterType, out var registered)
+            ? registered
+            : null);
+
+        if (loaderType != null)
+        {
+            return modifyWithLoader(loaderType, chain, parameter, container);
+        }
 
         if (!rules.TryFindPersistenceFrameProvider(container, parameter.ParameterType, out var provider))
         {
@@ -190,6 +221,48 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         }
 
         // Store deferred assignment for middleware methods added later (Before/After)
+        StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
+
+        return returnVariable;
+    }
+
+    /// <summary>
+    /// The loader path. Deliberately the same shape as the persistence-provider path above it: build
+    /// the frame that creates the entity, then hang the same missing-data guard off it, so
+    /// Required/OnMissing/MissingMessage behave identically no matter where the entity came from.
+    /// </summary>
+    private Variable modifyWithLoader(Type loaderType, IChain chain, ParameterInfo parameter,
+        IServiceContainer container)
+    {
+        var plan = EntityLoaderPlan.For(loaderType, parameter.ParameterType);
+        var (call, preamble) = plan.BuildFrames(chain, container);
+
+        foreach (var frame in preamble)
+        {
+            chain.Middleware.Add(frame);
+        }
+
+        var entity = call.Creates.First(x => x.VariableType == parameter.ParameterType);
+        entity.OverrideName(parameter.Name!);
+
+        Variable returnVariable;
+        if (Required)
+        {
+            // No identity variable: a loader addresses its source however it likes, and its
+            // parameters are not necessarily one id. The guard frames handle that.
+            var guardFrames = chain.AddStopConditionIfNull(entity, null, this);
+
+            var block = new LoadEntityFrameBlock(entity, guardFrames);
+            chain.Middleware.Add(block);
+
+            returnVariable = block.Mirror;
+        }
+        else
+        {
+            chain.Middleware.Add(call);
+            returnVariable = entity;
+        }
+
         StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
