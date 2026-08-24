@@ -31,7 +31,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
     public BatchedAzureServiceBusListener(AzureServiceBusEndpoint endpoint, ILogger logger,
         IReceiver wolverineReceiver, ServiceBusReceiver receiver, IIncomingMapper<ServiceBusReceivedMessage> mapper,
-        ISender requeue)
+        ISender requeue, int maximumAckAttempts)
     {
         _endpoint = endpoint;
         _logger = logger;
@@ -42,7 +42,9 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
         _task = Task.Run(listenForMessages, _cancellation.Token);
 
-        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) => { return e.CompleteAsync(_cancellation.Token); },
+        // GH-4012 item 3: ack budget + terminal-failure classification, shared with the inline listener
+        _complete = new RetryBlock<AzureServiceBusEnvelope>(
+            (e, _) => AzureServiceBusSettlement.CompleteAsync(e, maximumAckAttempts, _logger, _cancellation.Token),
             _logger, _cancellation.Token);
 
         _defer = new RetryBlock<Envelope>(async (envelope, _) =>
