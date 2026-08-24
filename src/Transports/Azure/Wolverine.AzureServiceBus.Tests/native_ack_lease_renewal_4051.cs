@@ -130,7 +130,7 @@ public class native_ack_lease_renewal_4051
 
         await using var listener = new BatchedAzureServiceBusListener(queue,
             NullLogger<BatchedAzureServiceBusListener>.Instance, Substitute.For<IReceiver>(), receiver,
-            Substitute.For<IAzureServiceBusEnvelopeMapper>(), Substitute.For<ISender>());
+            Substitute.For<IAzureServiceBusEnvelopeMapper>(), Substitute.For<ISender>(), 3);
 
         var dead = new AzureServiceBusEnvelope(deadMessage, receiver);
         var live = new AzureServiceBusEnvelope(liveMessage, receiver);
@@ -192,7 +192,7 @@ public class native_ack_lease_renewal_4051
         var client = new ServiceBusClient(Servers.AzureServiceBusConnectionString);
         return new BatchedAzureServiceBusListener(endpoint, NullLogger<BatchedAzureServiceBusListener>.Instance,
             Substitute.For<IReceiver>(), client.CreateReceiver("never-used"),
-            Substitute.For<IAzureServiceBusEnvelopeMapper>(), Substitute.For<ISender>());
+            Substitute.For<IAzureServiceBusEnvelopeMapper>(), Substitute.For<ISender>(), 3);
     }
 }
 

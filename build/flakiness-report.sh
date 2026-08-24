@@ -64,7 +64,10 @@ jq '[group_by(.Job)[] | {
       indeterminate: (map(.Indeterminate)    | add),
       flakyTests:    (map(.FlakyTests[])     | unique),
       flakyFailures: (map(.FlakyFailures // [] | .[]) | unique),
-      serviceRestarts: (map(.ServiceRestarts // [] | .[]))
+      serviceRestarts: (map(.ServiceRestarts // [] | .[])),
+      stalled:       (map(.Stalled // 0)      | add),
+      stalledTests:  (map(.StalledTests // [] | .[]) | unique),
+      partial:       (map(.IsPartial // false) | any)
     }] | sort_by(-.retries, .job)' \
   "${output_dir}/entries.json" > "${output_dir}/aggregate.json"
 
@@ -72,6 +75,10 @@ total_retries=$(jq '[.[] | .retries] | add // 0' "${output_dir}/aggregate.json")
 # GH-3855. A readiness gate that restarted a wedged container and then succeeded makes the job PASS,
 # so without this the recovery is invisible and a degrading runner reads as clean.
 total_restarts=$(jq '[.[] | (.serviceRestarts // []) | length] | add // 0' "${output_dir}/aggregate.json")
+# Bobcat 0.8.0 (JasperFx/bobcat#145/#150): a test in flight past the 5-minute stall threshold, and
+# jobs whose ledger came from the cancellation handler — the run so far, not a verdict.
+total_stalled=$(jq '[.[] | .stalled // 0] | add // 0' "${output_dir}/aggregate.json")
+partial_jobs=$(jq -r '[.[] | select(.partial // false) | .job] | join(", ")' "${output_dir}/aggregate.json")
 total_tests=$(jq '[.[] | .tests] | add // 0' "${output_dir}/aggregate.json")
 reporting_jobs=$(jq 'length' "${output_dir}/aggregate.json")
 
@@ -179,8 +186,31 @@ delta_for() {
     # `paste -sd', '` would cycle the two delimiters and yield "a,b c,d" -- one delimiter, then sed.
     echo "> **Reported no ledger at all:** $(echo "${missing}" | paste -sd, - | sed 's/,/, /g')"
     echo ">"
-    echo "> Bobcat prints its summary only at the end, so a job killed by the 20-minute cap reports"
-    echo "> nothing — not even a partial count. Treat this as unmeasured, not as clean."
+    echo "> A cancelled job now writes a PARTIAL ledger from its cancellation handler (see"
+    echo "> build/StallCapture.cs), so total silence means the handler never got a chance —"
+    echo "> a hard kill, or a wedge before the supervisor started. Treat this as unmeasured,"
+    echo "> not as clean."
+    echo
+  fi
+
+  if [ -n "${partial_jobs}" ]; then
+    echo "> **Partial ledgers (cancelled mid-run): ${partial_jobs}**"
+    echo ">"
+    echo "> These counts are the run so far, written in the cancellation grace window; tests the"
+    echo "> run never got a verdict for are counted Indeterminate, never failed."
+    echo
+  fi
+
+  if [ "${total_stalled}" != "0" ]; then
+    echo "> **Tests stalled past the 5-minute threshold: ${total_stalled}**"
+    echo ">"
+    echo "> Named because a hung batch's log otherwise cannot say which test wedged. A stalled"
+    echo "> test that eventually passed still exceeded its budget — a green run is exactly where"
+    echo "> a creeping slowdown goes unnoticed."
+    echo ">"
+    jq -r '.[] | select((.stalled // 0) > 0)
+           | "> - **\(.job)**: " + ((.stalledTests // []) | map("`" + . + "`") | join(", "))' \
+      "${output_dir}/aggregate.json"
     echo
   fi
 
