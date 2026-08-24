@@ -50,10 +50,9 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
             // inline listener already does. Leaving it unsettled meant the message stayed locked
             // until the lock expired and Azure Service Bus redelivered it -- so every deferral
             // produced a duplicate on top of the copy this block sends.
-            if (envelope is AzureServiceBusEnvelope e && !e.IsCompleted)
+            if (envelope is AzureServiceBusEnvelope { IsCompleted: false } e)
             {
                 await e.CompleteAsync(_cancellation.Token);
-                e.IsCompleted = true;
             }
 
             await _requeue.SendAsync(envelope);

@@ -157,10 +157,9 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {
-            if (envelope is { } e)
+            if (envelope is { IsCompleted: false } e)
             {
                 await e.CompleteAsync(_cancellation.Token);
-                e.IsCompleted = true;
             }
 
             await requeue.SendAsync(envelope);

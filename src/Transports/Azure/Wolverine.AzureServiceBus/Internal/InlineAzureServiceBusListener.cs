@@ -48,7 +48,6 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
             if (envelope is { IsCompleted: false } e)
             {
                 await e.CompleteAsync(_cancellation.Token);
-                e.IsCompleted = true;
             }
 
             await _requeue.SendAsync(envelope);

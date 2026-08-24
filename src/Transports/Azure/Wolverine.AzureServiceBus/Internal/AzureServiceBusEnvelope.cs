@@ -50,6 +50,11 @@ public class AzureServiceBusEnvelope : Envelope
             {
                 await SessionReceiver.CompleteMessageAsync(AzureMessage, token);
             }
+
+            // GH-4068: mark the settle here rather than in each caller. Only the _defer blocks used
+            // to set this, so the "already completed" guards never saw a completion that came from
+            // a _complete block -- most importantly the one BufferedReceiver issues on receipt.
+            IsCompleted = true;
         }
         catch (ServiceBusException e)
         {

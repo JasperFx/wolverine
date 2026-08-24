@@ -52,10 +52,9 @@ public class InlineAzureServiceBusSessionListener : IListener, ISupportDeadLette
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {
-            if (envelope is { } e)
+            if (envelope is { IsCompleted: false } e)
             {
                 await e.CompleteAsync(_cancellation.Token);
-                e.IsCompleted = true;
             }
 
             await _requeue.SendAsync(envelope);
@@ -140,6 +139,17 @@ public class InlineAzureServiceBusSessionListener : IListener, ISupportDeadLette
     public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
         envelope.ScheduledTime = time;
+
+        // GH-4062: settle the original before sending the scheduled copy, exactly like _defer above.
+        // This only re-sent the copy, so on an inline session listener the original delivery was
+        // never settled and came back as a duplicate. Held back from the GH-4062 fix until GH-4068
+        // stopped _defer from double-settling a message the BufferedReceiver had already completed.
+        if (envelope is AzureServiceBusEnvelope e)
+        {
+            await _defer.PostAsync(e);
+            return;
+        }
+
         await _requeue.SendAsync(envelope);
     }
 
