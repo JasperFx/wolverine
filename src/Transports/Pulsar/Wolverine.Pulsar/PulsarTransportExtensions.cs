@@ -494,6 +494,29 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// GH-4047. How many messages the DotPulsar consumer prefetches into its client-side receiver queue --
+    /// Pulsar's nearest equivalent of RabbitMQ's prefetch window. DotPulsar's own default is 1000.
+    ///
+    /// <para>
+    /// A <c>ProcessInParallelWithNativeAcks()</c> endpoint defaults this instead to twice the number of lanes that
+    /// can be busy at once (the partition slot count when group-partitioned, <c>MaximumParallelMessages</c>
+    /// otherwise), because under that mode every prefetched-but-unstarted delivery is redelivery cost if the node
+    /// dies. Set this explicitly to override the mode default in either direction.
+    /// </para>
+    /// </summary>
+    /// <param name="size">Number of messages to prefetch. Must be at least 1.</param>
+    public PulsarListenerConfiguration ReceiverQueueSize(int size)
+    {
+        if (size < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(size), "Must be at least 1");
+        }
+
+        add(e => e.ReceiverQueueSize = (uint)size);
+        return this;
+    }
+
+    /// <summary>
     /// Acknowledge each message individually as it completes (the default).
     /// </summary>
     /// <returns></returns>
@@ -509,6 +532,11 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     /// Failover subscriptions (a clear error is thrown at startup otherwise). Wolverine only advances
     /// the cumulative ack to the highest contiguous-completed message, so it never acks a message
     /// that is still being processed.
+    ///
+    /// <para>
+    /// Cannot be combined with <c>ProcessInParallelWithNativeAcks()</c>; that pair is refused at bootstrap. See
+    /// GH-4047.
+    /// </para>
     /// </summary>
     /// <returns></returns>
     public PulsarListenerConfiguration AcknowledgeCumulative()

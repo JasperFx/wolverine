@@ -14,6 +14,7 @@ using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -427,6 +428,23 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
     }
 
+    /// <summary>
+    /// GH-3710. When set, this listening endpoint drops -- and immediately settles -- a redelivery of a
+    /// message id it has already seen within the configured window. Opt in with
+    /// <c>IListenerConfiguration.WithInMemoryIdempotency()</c>; null means the guard does not exist for this
+    /// endpoint and costs nothing. Inert on a <see cref="EndpointMode.Durable"/> endpoint, whose inbox
+    /// already deduplicates by primary key.
+    /// </summary>
+    public InMemoryIdempotencySettings? InMemoryIdempotency { get; internal set; }
+
+    /// <summary>
+    /// GH-3710. Built once in <see cref="Compile"/> and deliberately owned by the ENDPOINT rather than the
+    /// receiver: a receiver is rebuilt on back pressure recovery and on every listener restart, and those are
+    /// precisely the moments that produce redeliveries. A guard scoped to the receiver would forget its
+    /// contents at the one instant it is most needed.
+    /// </summary>
+    internal IIncomingIdempotencyGuard? IdempotencyGuard { get; private set; }
+
     public RoutingMode RoutingType { get; set; } = RoutingMode.Static;
 
 
@@ -670,6 +688,16 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         normalizeForMode();
 
+        // GH-3710. Durable endpoints deduplicate through the inbox's primary key, so a second, weaker
+        // in-memory guard in front of it would only add memory. ListenerConfigurationValidator says so in
+        // the log rather than leaving it silently inert.
+        if (InMemoryIdempotency != null && IdempotencyGuard == null && Mode != EndpointMode.Durable &&
+            this is not Transports.Local.LocalQueue)
+        {
+            IdempotencyGuard =
+                new GenerationalIdempotencyGuard(InMemoryIdempotency, runtime.DurabilitySettings.MessageIdentity);
+        }
+
         _hasCompiled = true;
     }
 
@@ -745,6 +773,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// silent duplicate generator instead of an error.
     /// </remarks>
     protected internal virtual bool holdsExpiringLease => false;
+
+    /// <summary>
+    /// GH-4047. Transport-specific configuration combinations that are only decidable once the FINAL state of the
+    /// endpoint has settled -- after endpoint policies and every delayed <c>ListenerConfiguration</c> lambda have run
+    /// in <see cref="Compile"/>. Return one message per problem; each is fatal and refuses the bootstrap.
+    ///
+    /// <para>
+    /// <see cref="supportsNativeAck"/> answers "can this transport ever do native acks", which the <see cref="Mode"/>
+    /// setter can ask the moment the mode is assigned. This hook answers the different question "can THIS endpoint,
+    /// configured the way it actually ended up, do them" -- which the Mode setter cannot ask, because the offending
+    /// setting may be applied after the mode. Pulsar is the motivating case: <c>AcknowledgeCumulative()</c> and
+    /// <c>ProcessInParallelWithNativeAcks()</c> are individually legal, and whichever of the two the Mode setter
+    /// happened to see first would decide whether the pair was caught. Validating after Compile makes the final
+    /// state, not the call order, decide.
+    /// </para>
+    /// </summary>
+    protected internal virtual IEnumerable<string> validateModeConfiguration()
+    {
+        yield break;
+    }
 
     /// <summary>
     /// Check if this endpoint supports the specified mode

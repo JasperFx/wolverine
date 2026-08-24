@@ -138,14 +138,116 @@ Three consequences follow from never acking at receipt, and all three are the po
 * **Shutdown trades duplicates for safety.** Graceful drain processes what it can within the drain timeout;
   whatever it cannot is simply never settled and gets redelivered. A rolling deploy therefore produces
   duplicate deliveries bounded by the prefetch depth. Your handlers should already be idempotent under
-  at-least-once delivery, but it is worth knowing the number is not zero.
+  at-least-once delivery, but it is worth knowing the number is not zero. The
+  [in-memory idempotency guard](#in-memory-idempotency-guard) below takes the edge off that for a *running*
+  process.
 
 **Transport support is opt-in and default-closed.** A transport must settle each delivery individually *and*
 tolerate settling out of order, because the execution block completes messages in handler-completion order
-rather than delivery order. RabbitMQ queues qualify and are supported today. Kafka cannot and is out of
-scope: a cumulative offset commit has no way to express a gap. Calling
-`ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws at configuration time rather
-than degrading silently.
+rather than delivery order. RabbitMQ queues and [Pulsar](/guide/messaging/transports/pulsar.html#native-ack-processing)
+topics qualify and are supported today. Kafka cannot and is out of scope: a cumulative offset commit has no
+way to express a gap. Calling `ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws
+at configuration time rather than degrading silently.
+
+A transport may also refuse the mode for a *particular* endpoint whose own settings contradict it, again at
+bootstrap rather than at runtime. Pulsar is the example: its acknowledgment strategy is configurable, and
+`AcknowledgeCumulative()` reintroduces exactly the gap-less-commit problem that disqualifies Kafka, so that
+one combination is rejected by name.
+
+## In-Memory Idempotency Guard <Badge type="tip" text="6.30" />
+
+The [durable inbox](/guide/durability) deduplicates incoming messages on the primary key of its incoming
+table: a redelivery of a message id it has already stored is acked back to the broker and never executed
+again. `NativeAck`, `BufferedInMemory`, and `Inline` endpoints have no such table, and `NativeAck` in
+particular is *at-least-once by design* — every rolling deploy leaves whatever the drain could not finish
+unsettled, and the broker redelivers it.
+
+`WithInMemoryIdempotency()` is the non-durable analogue: an opt-in, bounded, in-memory set of the message ids
+this process has already handled on this endpoint. A redelivery of one is settled with the broker and dropped
+without ever reaching your handler — the same outcome as the durable path, minus the database.
+
+```csharp
+opts.ListenToRabbitQueue("webhooks")
+    .ProcessInParallelWithNativeAcks()
+    .PartitionProcessingByGroupId(PartitionSlots.Five)
+
+    // Opt in. Both arguments are optional; these are the defaults.
+    .WithInMemoryIdempotency(window: 5.Minutes(), maxTracked: 100_000);
+```
+
+To turn it on everywhere rather than endpoint by endpoint, use a policy:
+
+```csharp
+opts.Policies.AllListeners(x => x.WithInMemoryIdempotency());
+```
+
+### What it does and does not promise
+
+::: warning An in-memory guard does not survive a restart
+The guard is **per process and in memory**. Three limits follow, and none of them is a bug:
+
+* **A restart forgets everything.** The very deploy that produces the redelivery burst also empties the guard
+  on the node that starts up. It protects a *running* process against a redelivery it saw itself.
+* **A second node never knew.** With competing consumers, a redelivery can land on a different node than the
+  original. With an exclusive listener (including the [partitioned topology](/guide/messaging/partitioning)
+  story) redeliveries land on the node that owns the listener — the same node whose guard saw the original —
+  so the guard is effective in steady state, but a failover hands the queue to a node starting from empty.
+* **Eviction is generational, not exact.** An id is remembered for at least half the window and at most the
+  whole window, and less than that when a flood of unique ids hits `maxTracked` first.
+
+The promise is **at-least-once delivery with best-effort deduplication**, not exactly-once. If you need hard
+deduplication that holds across restarts and across nodes, use the durable inbox. Handlers should still be
+written to tolerate a duplicate.
+:::
+
+Note that duplicate *processing* under `NativeAck` is a cost and liveness concern rather than a correctness
+one for group ordering: even a duplicate that slips past the guard runs in its group's sequential lane, so
+the intra-group concurrency guarantee holds either way.
+
+### Bounding and tuning
+
+Memory is bounded by construction, which matters because the workload `NativeAck` exists for is exactly the
+one that would make an unbounded set of seen ids a leak. Two hash sets — a current generation and the
+previous one — are kept and both are consulted on lookup. The pair rotates on whichever comes first:
+
+| Trigger | Effect |
+| --- | --- |
+| `window / 2` elapsed | current generation becomes previous, previous is dropped |
+| `maxTracked / 2` ids in the current generation | same rotation, early — a flood of unique ids evicts by size rather than growing |
+
+So the ceiling really is `maxTracked` ids, roughly single-digit megabytes at the 100,000 default, with no
+per-entry timestamps and no LRU bookkeeping. Size the `window` to cover the redelivery burst you actually
+expect — for `NativeAck` that is the drain timeout plus the broker's redelivery latency, seconds rather than
+minutes — and leave `maxTracked` alone unless you are running a flood at a sustained rate where
+`maxTracked / peak messages per second` would fall below that window.
+
+### Where it applies
+
+| Mode | Guard |
+| --- | --- |
+| `NativeAck` | ✔️ — the primary use case |
+| `BufferedInMemory` | ✔️ |
+| `Inline` | ✔️ |
+| `Durable` | ignored (warns at startup) — the inbox already deduplicates, and does it better |
+| Local queues | `NotSupportedException` — nothing redelivers to a local queue |
+
+A message that fails and is handed *back* to the broker — nacked, requeued, or deferred during a drain — is
+deliberately **not** remembered, because remembering it would suppress its own retry and turn a failure into
+a lost message. Only a delivery that reached a terminal the broker will not undo (handler success, or a
+native dead-letter move) is recorded. Duplicate drops are logged at `Debug`, not `Error`: in a mode that
+never settles at receipt, redelivery is expected operational noise rather than a sign that something is wrong.
+
+### Prefer broker-side deduplication where it exists
+
+Some transports can deduplicate at the broker, which is strictly better than anything an in-process guard can
+do — it survives restarts and spans nodes:
+
+* **NATS JetStream** — a stream's `duplicate_window` deduplicates on the `Nats-Msg-Id` header.
+* **SQS FIFO queues** — `MessageDeduplicationId`, with a five-minute window.
+* **Google Cloud Pub/Sub** — subscription-level deduplication on a publisher-supplied `deduplication-id`.
+
+Use those where they are available. This guard is chiefly for RabbitMQ classic and quorum queues, which have
+nothing of the kind.
 
 ### Brokers that put a clock on an unsettled delivery
 
@@ -197,6 +299,10 @@ With `Buffered` endpoints, you can:
   acceptable level
 
 Requeue error actions just put the failed message back into the in memory queue at the back of the queue.
+
+Because the broker ack happens at receipt, a `Buffered` endpoint sees a redelivery only when the broker itself
+resends one (a closed channel with the ack still in flight, say). The
+[in-memory idempotency guard](#in-memory-idempotency-guard) is available here too if that matters to you.
 
 ## Durable Endpoints
 
@@ -282,6 +388,7 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 | `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
 | `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
 | `CircuitBreaker()` | ✔️ | ✔️ | ✔️ | ✔️ |
+| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ | ✔️ | ignored (warns) |
 
 As of Wolverine 6.30, these combinations are no longer silently accepted:
 
