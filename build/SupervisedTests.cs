@@ -174,7 +174,13 @@ partial class Build
             //   which tests grew it).
             StallThreshold = TimeSpan.FromMinutes(5),
             HeartbeatInterval = TimeSpan.FromSeconds(30),
-            ResourceSampleInterval = TimeSpan.FromSeconds(15)
+            ResourceSampleInterval = TimeSpan.FromSeconds(15),
+
+            // The previous main run's per-test durations, when a CI step (or a developer) has
+            // fetched them into previous-durations/ — longest-processing-time lane balancing
+            // instead of count balancing. Null degrades to exactly today's behavior. See
+            // build/TestDurations.cs for the whole loop.
+            KnownTestDurations = knownDurationsFor(projectName, framework)
         };
 
         if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());

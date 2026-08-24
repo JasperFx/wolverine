@@ -84,6 +84,7 @@ partial class Build
         writeLedgerFile(entry);
         appendStepSummary(entry);
         annotate(entry);
+        recordDurations(projectName, framework, results);
     }
 
     /// <summary>
