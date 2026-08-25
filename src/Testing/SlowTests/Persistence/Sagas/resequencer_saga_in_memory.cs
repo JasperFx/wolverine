@@ -13,6 +13,24 @@ public record StartSequencedSaga(Guid Id);
 
 public record SequencedCommand(Guid SagaId, int? Order) : SequencedMessage;
 
+public record EnqueueSequencedBatch(Guid SagaId, int[] Orders);
+
+public class EnqueueSequencedBatchHandler
+{
+    // Returning cascading messages puts the whole batch into the queue atomically, so the
+    // test controls exactly what backlog exists when the resequencer drains its Pending list
+    public static OutgoingMessages Handle(EnqueueSequencedBatch batch)
+    {
+        var messages = new OutgoingMessages();
+        foreach (var order in batch.Orders)
+        {
+            messages.Add(new SequencedCommand(batch.SagaId, order));
+        }
+
+        return messages;
+    }
+}
+
 public class TestResequencerSaga : ResequencerSaga<SequencedCommand>
 {
     public Guid Id { get; set; }
@@ -39,9 +57,13 @@ public class resequencer_saga_in_memory : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType<TestResequencerSaga>();
+                    .IncludeType<TestResequencerSaga>()
+                    .IncludeType<EnqueueSequencedBatchHandler>();
 
-                opts.PublishAllMessages().To(TransportConstants.LocalUri);
+                opts.PublishAllMessages().ToLocalQueue("sequenced");
+
+                // Strictly sequential so that message ordering through the queue is deterministic
+                opts.LocalQueue("sequenced").Sequential();
             })
             .StartAsync();
     }
@@ -114,6 +136,31 @@ public class resequencer_saga_in_memory : IAsyncLifetime
         state.ProcessedOrders.ShouldContain(1);
         state.ProcessedOrders.ShouldContain(2);
         state.ProcessedOrders.ShouldContain(3);
+    }
+
+    [Fact]
+    public async Task replayed_pending_message_is_processed_in_sequence_behind_a_backlog()
+    {
+        var sagaId = Guid.NewGuid();
+
+        await _host.InvokeMessageAndWaitAsync(new StartSequencedSaga(sagaId));
+
+        // 3 arrives early and lands in Pending
+        await _host.InvokeMessageAndWaitAsync(new SequencedCommand(sagaId, 3));
+
+        // 1, 2, 4, and 5 all hit the queue at once. Handling 2 fills the gap, so 3 gets
+        // replayed -- but it must not be handled after 4 and 5 that were already queued
+        await _host.ExecuteAndWaitAsync(async () =>
+        {
+            await _host.MessageBus()
+                .PublishAsync(new EnqueueSequencedBatch(sagaId, [1, 2, 4, 5]));
+        }, timeoutInMilliseconds: 30000);
+
+        var state = await LoadState(sagaId);
+        state.ShouldNotBeNull();
+        state.LastSequence.ShouldBe(5);
+        state.Pending.ShouldBeEmpty();
+        state.ProcessedOrders.ShouldBe([1, 2, 3, 4, 5]);
     }
 
     [Fact]
