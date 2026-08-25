@@ -292,7 +292,7 @@ opts.ListenToNatsSubject("orders.received")
     .UseJetStream("ORDERS", "my-consumer");
 ```
 
-### Native Acks with Parallel Processing <Badge type="tip" text="6.31" />
+### Native Acks with Parallel Processing <Badge type="tip" text="6.30" />
 
 JetStream listeners support `EndpointMode.NativeAck` (see [GH-3708](https://github.com/JasperFx/wolverine/issues/3708)),
 which combines `BufferedInMemory`'s parallelism and group partitioning with `ProcessInline()`'s no-loss behavior, and
