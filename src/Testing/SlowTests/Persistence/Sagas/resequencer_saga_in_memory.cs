@@ -133,9 +133,7 @@ public class resequencer_saga_in_memory : IAsyncLifetime
         state.ShouldNotBeNull();
         state.LastSequence.ShouldBe(3);
         state.Pending.ShouldBeEmpty();
-        state.ProcessedOrders.ShouldContain(1);
-        state.ProcessedOrders.ShouldContain(2);
-        state.ProcessedOrders.ShouldContain(3);
+        state.ProcessedOrders.ShouldBe([1, 2, 3]);
     }
 
     [Fact]
