@@ -5,6 +5,7 @@ using Grpc.Core;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -36,6 +37,11 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     /// The connection (default or per-tenant) this listener consumes and, for requeue/dead-letter, re-publishes over.
     /// </summary>
     protected readonly PubsubClientSet _clients;
+
+    /// <summary>GH-4052. Only populated when the endpoint is in EndpointMode.NativeAck.</summary>
+    private readonly PubsubHeldDeliveries _held = new();
+
+    private bool holdsUntilSettled => _endpoint.Mode == EndpointMode.NativeAck;
     private readonly IPubsubEnvelopeMapper _mapper;
 
     /// <summary>
@@ -102,16 +108,39 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
+        // GH-4052. Pub/Sub has no per-message settle API, so under NativeAck the "ack" is the subscriber
+        // callback finally being allowed to return Ack. Outside NativeAck this stays the no-op it always
+        // was: the callback already returned Ack the moment the envelope was handed to the receiver.
+        if (holdsUntilSettled && _held.TryFind(envelope, out var delivery))
+        {
+            delivery.Succeeded();
+        }
+
         return ValueTask.CompletedTask;
     }
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
+        // GH-4052. Under NativeAck a Nack IS the requeue -- the spike measured redelivery in ~10ms -- and it
+        // is the correct one: the delivery was never settled, so republishing a copy would put a SECOND
+        // message on the subscription on top of the redelivery Pub/Sub is about to perform anyway.
+        if (holdsUntilSettled && _held.TryFind(envelope, out var delivery))
+        {
+            delivery.Failed();
+            return;
+        }
+
         await _requeue.PostAsync(envelope);
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
+        if (holdsUntilSettled && _held.TryFind(envelope, out var delivery))
+        {
+            delivery.Failed();
+            return true;
+        }
+
         await _requeue.PostAsync(envelope);
 
         return true;
@@ -119,6 +148,11 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
     public async ValueTask StopAsync()
     {
+        // GH-4052 (spike section 4c). A held callback that never returns wedges SubscriberClient.StopAsync
+        // forever. Everything still held is unsettled by definition, so Nack is both correct and the only
+        // answer that lets shutdown finish -- Pub/Sub redelivers it to whoever is still running.
+        _held.NackAll();
+
         await _cancellation.CancelAsync();
     }
 
@@ -282,6 +316,15 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         {
             await subscriber.StartAsync(async (PubsubMessage message, CancellationToken cancel) =>
             {
+                // GH-4052. Under NativeAck the callback is held open until every envelope this delivery
+                // carried reaches a terminal, because the callback's return value IS the settlement -- Pub/Sub
+                // exposes no per-message ack. Every other mode returns as soon as the envelopes are handed
+                // over, exactly as before.
+                if (holdsUntilSettled)
+                {
+                    return await handleMessageHeldAsync(message);
+                }
+
                 var success = await handleMessageAsync(message);
                 return success ? SubscriberClient.Reply.Ack : SubscriberClient.Reply.Nack;
             });
@@ -375,6 +418,83 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         {
             _ackExtensionWatchdog.Release(ticket);
         }
+    }
+
+    /// <summary>
+    /// GH-4052. The NativeAck path: map the delivery's envelopes, stamp them with the delivery key, hand them
+    /// to the receiver, and then <b>wait</b> for the settle calls that the handler pipeline will make.
+    /// </summary>
+    private async Task<SubscriberClient.Reply> handleMessageHeldAsync(PubsubMessage message)
+    {
+        // Same watchdog as every other mode. It matters MORE here: the hold now spans lane queue time plus
+        // handler time, and outliving the ack extension budget means Pub/Sub silently starts a concurrent
+        // second execution rather than reporting anything (GH-4066, spike section 3).
+        var ticket = _ackExtensionWatchdog.Track(message.MessageId);
+
+        Envelope[] envelopes;
+
+        try
+        {
+            envelopes = readEnvelopes(message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "{Uri}: Error while mapping Google Cloud Platform Pub/Sub message {MessageId}.",
+                _endpoint.Uri, message.MessageId);
+
+            _ackExtensionWatchdog.Release(ticket);
+            return SubscriberClient.Reply.Nack;
+        }
+
+        if (envelopes.Length == 0)
+        {
+            // Nothing to wait on. Ack rather than Nack: an empty delivery is not a failure, and nacking it
+            // would have Pub/Sub redeliver something nobody will ever process
+            _ackExtensionWatchdog.Release(ticket);
+            return SubscriberClient.Reply.Ack;
+        }
+
+        var key = message.MessageId.IsNotEmpty() ? message.MessageId : Guid.NewGuid().ToString();
+        var delivery = _held.Hold(key, envelopes.Length);
+
+        foreach (var envelope in envelopes)
+        {
+            envelope.Headers[PubsubHeldDeliveries.DeliveryKeyHeader] = key;
+        }
+
+        try
+        {
+            await _receiver.ReceivedAsync(this, envelopes);
+
+            return await delivery.Reply;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "{Uri}: Error while handing Pub/Sub message {MessageId} to the receiver.",
+                _endpoint.Uri, message.MessageId);
+
+            delivery.NackNow();
+            return SubscriberClient.Reply.Nack;
+        }
+        finally
+        {
+            _held.Release(key);
+            _ackExtensionWatchdog.Release(ticket);
+        }
+    }
+
+    /// <summary>The envelopes one Pub/Sub delivery carries -- many when the sender batched them.</summary>
+    private Envelope[] readEnvelopes(PubsubMessage message)
+    {
+        if (message.Attributes.Keys.Contains("batched"))
+        {
+            return EnvelopeSerializer.ReadMany(message.Data.ToByteArray()).ToArray();
+        }
+
+        var envelope = new Envelope();
+        _mapper.MapIncomingToEnvelope(envelope, message);
+        return [envelope];
     }
 
     private async Task<bool> processMessageAsync(PubsubMessage message)
