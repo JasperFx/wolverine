@@ -44,7 +44,9 @@ public class HandlerPipeline : IHandlerPipeline
         _contextPool = runtime.ExecutionPool;
         _cancellation = runtime.Cancellation;
 
-        Logger = runtime.MessageTracking;
+        // CritterWatch GH-907: a system endpoint's received traffic never reaches the meters or the
+        // CritterWatch accumulator. Resolved once here, not per envelope.
+        Logger = runtime.MessageTrackingFor(endpoint);
 
         _executors = new LightweightCache<Type, IExecutor>(type => executorFactory.BuildFor(type, endpoint));
     }

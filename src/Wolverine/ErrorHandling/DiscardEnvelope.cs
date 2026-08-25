@@ -57,7 +57,7 @@ public sealed class DiscardEnvelope : IContinuation
             // is acceptable noise.
             if (lifecycle.Envelope is { } env)
             {
-                runtime.MessageTracking.DiscardedEnvelope(env);
+                lifecycle.CompletionTrackerFor(runtime).DiscardedEnvelope(env);
             }
         }
     }

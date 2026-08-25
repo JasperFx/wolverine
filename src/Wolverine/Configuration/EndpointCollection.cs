@@ -364,17 +364,17 @@ public class EndpointCollection : IEndpointCollection
                     : _runtime.Storage.Outbox;
 
                 return new DurableSendingAgent(sender, _options.Durability,
-                    _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
+                    _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTrackingFor(endpoint),
                     outbox, endpoint, _runtime, sendingPolicies);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
-                    _runtime.MessageTracking, sender, _runtime.DurabilitySettings,
+                    _runtime.MessageTrackingFor(endpoint), sender, _runtime.DurabilitySettings,
                     endpoint, _runtime, sendingPolicies);
 
             case EndpointMode.Inline:
                 return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender,
-                    endpoint, _runtime.MessageTracking,
+                    endpoint, _runtime.MessageTrackingFor(endpoint),
                     _runtime.DurabilitySettings, _runtime, sendingPolicies);
         }
 

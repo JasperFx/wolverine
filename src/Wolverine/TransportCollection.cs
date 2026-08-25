@@ -32,6 +32,20 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
             if (value != null)
             {
                 value.IsListener = true;
+
+                // CritterWatch GH-907: whatever endpoint carries node control traffic is system
+                // traffic by definition. The database and shared-memory control endpoints are born
+                // with the System role, but a generic endpoint promoted to control duty (e.g.
+                // UseTcpForControlEndpoint or broker control queues) was not — leaving its
+                // agent-command traffic visible to metrics as apparent application volume.
+                value.Role = EndpointRole.System;
+
+                // GH-1670 follow-up: node control traffic is nothing but IAgentCommand executions
+                // and their replies. Switching telemetry off here suppresses the send, receive,
+                // and execution Open Telemetry spans that were still being published for agent
+                // commands whenever the control endpoint was a broker queue or TCP endpoint
+                // (the database control endpoint was already born with TelemetryEnabled = false).
+                value.TelemetryEnabled = false;
             }
 
             _nodeControlEndpoint = value;

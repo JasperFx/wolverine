@@ -6,6 +6,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using JasperFx;
 using JasperFx.MultiTenancy;
+using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
@@ -60,6 +61,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         get => _current.Value;
         internal set => _current.Value = value;
     }
+
+    /// <summary>
+    ///     The metrics tracker the executing handler resolved for this envelope — stamped by the
+    ///     executor at execution time so completion continuations (success, no-handler, error-queue,
+    ///     discard) can honor the metrics-silent selection for system traffic instead of reporting
+    ///     through the runtime's global tracker. Null outside an execution. CritterWatch GH-907 /
+    ///     wolverine#3774.
+    /// </summary>
+    internal IMessageTracker? Tracker { get; set; }
 
     private IChannelCallback? _channel;
 
@@ -768,6 +778,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope = null;
         Transaction = null;
         _sagaId = null;
+        Tracker = null;
     }
 
     public void SetSagaId(object sagaId) => _sagaId = sagaId;
