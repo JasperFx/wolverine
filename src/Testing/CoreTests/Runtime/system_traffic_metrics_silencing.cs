@@ -140,17 +140,23 @@ public class system_traffic_metrics_silencing : IAsyncLifetime
     }
 
     [Fact]
-    public void promoting_an_endpoint_to_node_control_duty_marks_it_as_system()
+    public void promoting_an_endpoint_to_node_control_duty_marks_it_as_system_and_disables_telemetry()
     {
         // UseTcpForControlEndpoint promotes a plain TCP endpoint; before GH-907 it stayed
         // Application-role and its agent-command traffic was counted as application volume.
+        // GH-1670 follow-up: the promoted endpoint's telemetry flag also switches off, because the
+        // receive span and pipeline-level execution span are gated by the endpoint — not the
+        // agent-command chain — so a broker or TCP control endpoint was still publishing OTel
+        // spans for every agent command.
         var options = new WolverineOptions();
         var endpoint = new TcpEndpoint(577);
         endpoint.Role.ShouldBe(EndpointRole.Application);
+        endpoint.TelemetryEnabled.ShouldBeTrue();
 
         options.Transports.NodeControlEndpoint = endpoint;
 
         endpoint.Role.ShouldBe(EndpointRole.System);
+        endpoint.TelemetryEnabled.ShouldBeFalse();
     }
 
     /*** METER BEHAVIOR — the silent tracker records nothing, the standard one records ***/
