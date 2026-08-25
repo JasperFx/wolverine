@@ -109,6 +109,18 @@ public class loading_entities_with_a_custom_loader : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_missing_message_needing_escapes_still_generates_compiling_code()
+    {
+        // The message is baked into generated source as a string literal, so a quote or a backslash
+        // in it has to be escaped on the way in — otherwise the handler assembly does not compile at
+        // all and this whole fixture fails to start.
+        var ex = await Should.ThrowAsync<RequiredDataMissingException>(() =>
+            _host.MessageBus().InvokeForTenantAsync("acme", new ReadDocumentOrQuote("nothing-here")));
+
+        ex.Message.ShouldBe("No \"Document\" under C:\\bucket\\path");
+    }
+
+    [Fact]
     public async Task a_static_loader_class_needs_no_instance()
     {
         await _host.MessageBus().InvokeAsync(new ReadConstant(), TestContext.Current.CancellationToken);
@@ -192,6 +204,8 @@ public record MaybeReadDocument(string Id);
 public record ReadDocumentOrThrow(string Id);
 
 public record ReadDocumentOrComplain(string Id);
+
+public record ReadDocumentOrQuote(string Id);
 
 public record ReadConstant;
 
@@ -293,6 +307,14 @@ public static class DocumentHandlers
         ReadDocumentOrComplain _,
         [Entity(Loader = typeof(DocumentLoader), OnMissing = OnMissing.ThrowException,
             MissingMessage = "That document is not in the bucket")]
+        Document document,
+        Recorder recorder)
+        => recorder.Read.Add(document.Body);
+
+    public static void Handle(
+        ReadDocumentOrQuote _,
+        [Entity(Loader = typeof(DocumentLoader), OnMissing = OnMissing.ThrowException,
+            MissingMessage = "No \"Document\" under C:\\bucket\\path")]
         Document document,
         Recorder recorder)
         => recorder.Read.Add(document.Body);

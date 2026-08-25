@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Util;
 
 namespace Wolverine.Http.Policies;
 
@@ -40,14 +41,17 @@ internal class WriteProblemDetailsIfNull : AsyncFrame
 
         var identity = Identity?.Usage ?? "null";
 
+        // The message can come straight from an [Entity(MissingMessage = "...")], so it is only ever
+        // emitted as an escaped literal — see ToStringLiteral for why Constant.For will not do.
+        var literal = Message.ToStringLiteral();
+
         if (Identity != null && Message.Contains("{0}"))
         {
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {identity}), {_httpContext!.Usage}, {identity});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format({literal}, {identity}), {_httpContext!.Usage}, {identity});");
         }
         else
         {
-            var constant = Constant.For(Message);
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext!.Usage}, {identity});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {literal}, {_httpContext!.Usage}, {identity});");
         }
 
         writer.Write("return;");

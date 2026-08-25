@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Util;
 
 namespace Wolverine.Persistence;
 
@@ -35,28 +36,28 @@ internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
         writer.WriteComment("Write ProblemDetails if this required object is null");
         writer.Write($"BLOCK:if ({Entity.Usage} == null)");
 
-        if (Identity == null)
+        // The message can come straight from an [Entity(MissingMessage = "...")], so it is only ever
+        // emitted as an escaped literal — see ToStringLiteral for why Constant.For will not do.
+        var literal = Message.ToStringLiteral();
+        var exceptionType = typeof(RequiredDataMissingException).FullNameInCode();
+
+        if (Identity != null && Message.Contains("{0}"))
         {
-            // Nothing to substitute into the message, so write it out as it stands.
-            var literal = Constant.For(Message);
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}({literal.Usage});");
+            writer.Write($"throw new {exceptionType}(string.Format({literal}, {Identity.Usage}));");
         }
-        else if (Message.Contains("{0}"))
-        {
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(string.Format(\"{Message}\", {Identity.Usage}));");
-        }
-        else if (Message.Contains("{Id}"))
+        else if (Identity != null && Message.Contains("{Id}"))
         {
             var toStringExpression = Identity.VariableType.IsValueType
                 ? $"{Identity.Usage}.ToString()"
                 : $"{Identity.Usage}?.ToString() ?? \"\"";
 
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{Message}\".Replace(\"{{Id}}\", {toStringExpression}));");
+            writer.Write($"throw new {exceptionType}({literal}.Replace(\"{{Id}}\", {toStringExpression}));");
         }
         else
         {
-            var constant = Constant.For(Message);
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}({constant.Usage});");
+            // Either there is no identity to substitute — a loader-backed [Entity] — or the message
+            // never asked for one, so it goes out as it stands.
+            writer.Write($"throw new {exceptionType}({literal});");
         }
 
         writer.FinishBlock();
