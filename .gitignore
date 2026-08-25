@@ -206,6 +206,8 @@ artifacts
 # The previous main run's published test durations, fetched by CI (or by hand) for
 # Supervisor.KnownTestDurations — see build/TestDurations.cs.
 previous-durations/
+# Nuke scratch (dotnet installs, the cancellation relay pid handshake)
+.nuke/temp/
 src/CommonAssemblyInfo.cs
 paket.lock
 
