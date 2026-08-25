@@ -70,19 +70,35 @@ public partial class NodeAgentController
     {
         foreach (var controller in _agentFamilies.Values)
         {
+            IReadOnlyList<Uri> allAgents;
             try
             {
-                var allAgents = await controller.AllKnownAgentsAsync();
-                foreach (var uri in allAgents)
-                {
-                    // This is idempotent, so call away!
-                    await StartAgentAsync(uri);
-                }
+                allAgents = await controller.AllKnownAgentsAsync();
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to reevaluate agent assignments for '{Scheme}' agents",
                     controller.Scheme);
+                continue;
+            }
+
+            foreach (var uri in allAgents)
+            {
+                try
+                {
+                    // This is idempotent, so call away!
+                    await StartAgentAsync(uri);
+                }
+                catch (Exception e)
+                {
+                    // GH-3519: isolate each agent's start so a single agent that cannot start --
+                    // e.g. an event-subscription shard that loses a first-assignment startup race
+                    // with high-water detection -- does not skip the remaining, healthy sibling
+                    // agents in the same family for this reevaluation tick. The wedged agent is
+                    // still retried on the next tick; it just no longer takes its siblings down
+                    // with it.
+                    _logger.LogError(e, "Error trying to start agent {AgentUri}", uri);
+                }
             }
         }
     }
