@@ -50,8 +50,10 @@ internal class NoHandlerContinuation : IContinuation
         await lifecycle.CompleteAsync();
 
         // These two lines are important to make the message tracking work
-        // if there is no handler
-        runtime.MessageTracking.ExecutionFinished(lifecycle.Envelope);
-        runtime.MessageTracking.MessageSucceeded(lifecycle.Envelope);
+        // if there is no handler. Routed through the executor-resolved tracker so an
+        // unhandled SYSTEM message doesn't record success metrics (GH-907 / #3774).
+        var tracker = lifecycle.CompletionTrackerFor(runtime);
+        tracker.ExecutionFinished(lifecycle.Envelope);
+        tracker.MessageSucceeded(lifecycle.Envelope);
     }
 }

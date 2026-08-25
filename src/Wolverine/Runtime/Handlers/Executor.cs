@@ -58,6 +58,12 @@ internal class Executor : IExecutor
     private readonly IWolverineRuntime? _runtime;
 
     /// <summary>
+    ///     The tracker this executor reports to. Exposed for tests asserting which traffic is
+    ///     metrics-silent (CritterWatch GH-907).
+    /// </summary>
+    internal IMessageTracker Tracker => _tracker;
+
+    /// <summary>
     /// When <see langword="true"/>, the executor publishes the in-flight <see cref="MessageContext"/>
     /// through <see cref="MessageContext.Current"/> for the duration of each invocation, so
     /// service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/> see the same
@@ -181,6 +187,10 @@ internal class Executor : IExecutor
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
+        // Completion continuations report through the tracker this executor resolved — see
+        // CompletionTrackerExtensions (CritterWatch GH-907 / wolverine#3774).
+        context.Tracker = _tracker;
+
         var envelope = context.Envelope;
         _tracker.ExecutionStarted(envelope!);
         _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);

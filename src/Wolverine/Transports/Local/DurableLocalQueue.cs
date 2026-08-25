@@ -38,7 +38,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             ? new DelegatingMessageInbox(runtime.Storage.Inbox, runtime.Stores)
             : runtime.Storage.Inbox;
 
-        _messageLogger = runtime.MessageTracking;
+        _messageLogger = runtime.MessageTrackingFor(endpoint);
         _serializer = endpoint.DefaultSerializer ??
                       throw new ArgumentOutOfRangeException(nameof(endpoint),
                           "No default serializer for this Endpoint");
