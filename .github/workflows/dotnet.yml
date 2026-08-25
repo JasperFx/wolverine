@@ -39,7 +39,7 @@ jobs:
         # Names this run in the retry ledger written to the job summary (build/RetryLedger.cs).
         env:
           CI_JOB_NAME: dotnet-ci
-        run: ./build.sh ci
+        run: ./build/run-with-cancellation-relay.sh ci
 
       # The CI target now also runs MessageRoutingTests, which boots a real
       # RabbitMQ broker (started inline by the build target via docker compose).
