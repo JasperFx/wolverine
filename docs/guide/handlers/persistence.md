@@ -18,6 +18,8 @@ These all speak one vocabulary, and none of it names your database:
 | An event sourced model's current state, read only | `[ReadModel]` |
 | The whole method to be an event sourced command handler | `[DeciderFunction]` |
 | An event sourced model spanning several streams, matched by tag | `[DcbModel]` |
+| A stream's metadata — version, type, timestamps — **unfolded** | [`[StreamState]`](#raw-stream-reads) |
+| A stream's raw events, **unfolded** | [`[StreamEvents]`](#raw-stream-reads) |
 | To write a document back | `Storage.Store` / `Insert` / `Update` / `Delete` / `Nothing<T>` |
 | To append events to a stream | [`Storage.AppendEvents` / `Storage.StartStream`](/guide/handlers/side-effects#event-side-effects) |
 | Every document of a type | [`[All]`](#reading-every-document-of-a-type) |
@@ -407,7 +409,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L29-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_write_model_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L30-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_write_model_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Use `[DeciderFunction]` for the same workflow at the method or class level, where the model's
@@ -431,7 +433,7 @@ public static class MarkItemReadyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L44-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_decider_function_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L45-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_decider_function_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Use `[ReadModel]` when the handler only needs to *look at* the model. It resolves the current state
@@ -450,7 +452,7 @@ public static class ReadOrderStatusHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L60-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_read_model_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L61-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_read_model_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By default `[WriteModel]` and `[DeciderFunction]` use an optimistic concurrency check at the point
@@ -468,8 +470,132 @@ public static class ShipOrderExclusivelyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L74-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_write_model_with_exclusive_locking' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L75-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_write_model_with_exclusive_locking' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Raw Stream Reads <Badge type="tip" text="6.30" />
+
+`[ReadModel]` gives you a model *folded* from a stream's events. Sometimes folding is exactly the wrong
+thing: a timeline endpoint, an audit view, or a "what happened to this order?" screen needs the history
+itself, and the fold has already collapsed it. `[StreamState]` and `[StreamEvents]` are the raw reads for
+those handlers.
+
+`[StreamState]` resolves the stream's metadata — version, aggregate type, created and updated timestamps —
+and `[StreamEvents]` resolves its events as `IReadOnlyList<IEvent>`. Neither one folds anything. Both are
+store-agnostic in the same way the rest of this vocabulary is, and the store batches them with any other
+batchable load on the same handler into a single round trip:
+
+<!-- snippet: sample_using_stream_state_and_events -->
+<a id='snippet-sample_using_stream_state_and_events'></a>
+```cs
+public static class OrderTimelineHandler
+{
+    // [StreamState] gives you the stream's metadata -- version, aggregate type, created/updated
+    // timestamps -- and [StreamEvents] gives you the raw events, WITHOUT folding either into an
+    // aggregate. This is the read [ReadModel] cannot express, because folding has already thrown
+    // away the history this handler exists to serve. Both fetches batch into one round trip.
+    public static OrderTimeline Handle(
+        OrderTimelineQuery query,
+        [StreamState] StreamState state,
+        [StreamEvents] IReadOnlyList<IEvent> events)
+    {
+        return new OrderTimeline(state.Version, events.Select(x => x.EventTypeName).ToArray());
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L130-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_stream_state_and_events' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Like `[ReadModel]`, `[StreamState]` takes its required-ness from the parameter's nullable annotation:
+`StreamState state` stops the handler when the stream does not exist, and `StreamState? state` leaves
+absence to you.
+
+<!-- snippet: sample_stream_state_optional -->
+<a id='snippet-sample_stream_state_optional'></a>
+```cs
+public static class OptionalOrderTimelineHandler
+{
+    // Nullable annotation decides the default, exactly as it does for [ReadModel]:
+    // "StreamState state" is required and stops the handler when the stream does not exist,
+    // "StreamState? state" leaves absence to you
+    public static OrderTimeline Handle(OrderTimelineQuery query, [StreamState] StreamState? state)
+    {
+        return new OrderTimeline(state?.Version ?? 0, []);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L168-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_state_optional' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning The identity convention is not the one `[Entity]` uses
+This is the easiest thing here to get wrong. `[Entity] Order order` can infer an identity member named
+`OrderId`, because the parameter's own type names your entity. The parameter type here is `StreamState` —
+the *store's* vocabulary, not your aggregate — so there is no aggregate name to infer from, and the
+convention degrades to a member literally named `Id`.
+
+For anything else, name the member explicitly:
+
+<!-- snippet: sample_stream_state_with_named_identity -->
+<a id='snippet-sample_stream_state_with_named_identity'></a>
+```cs
+public static class OrderAuditHandler
+{
+    // The identity convention here is NOT the one [Entity] and [ReadModel] use. Those infer
+    // "OrderId" from the parameter's own type; the parameter type here is StreamState, which
+    // names the store's vocabulary rather than your aggregate. So a bare [StreamState] resolves
+    // only a member literally named "Id" -- name the member explicitly for anything else.
+    public static OrderTimeline Handle(
+        OrderAuditQuery query,
+        [StreamState("OrderId")] StreamState state,
+        [StreamEvents("OrderId")] IReadOnlyList<IEvent> events)
+    {
+        return new OrderTimeline(state.Version, events.Select(x => x.EventTypeName).ToArray());
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L149-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_state_with_named_identity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A miss is not silent. Wolverine throws `InvalidEntityLoadUsageException` when the chain is compiled — at
+startup, not at the first request.
+:::
+
+#### There is deliberately no `Required` on `[StreamEvents]`
+
+`[StreamState]` has a `Required` property; `[StreamEvents]` does not, and that asymmetry is intentional
+rather than an oversight. A missing stream yields an **empty list**, not null, so the null-guard model the
+rest of the `[Entity]` family is built on has nothing to test — a guard would either never fire, or would
+have to invent a count threshold. And "zero events" is a genuinely different question from "no such
+stream."
+
+When a handler needs an existence guard, pair the two. `[StreamState]` reads the same stream in the same
+batch and answers the question precisely:
+
+```csharp
+public static OrderTimeline Handle(
+    OrderTimelineQuery query,
+    [StreamState] StreamState state,           // non-nullable, so this is the not-found guard
+    [StreamEvents] IReadOnlyList<IEvent> events)
+```
+
+#### Choosing a store
+
+Because these parameter types are store vocabulary rather than your own types, Wolverine cannot ask "who
+owns this?" the way it can for `[ReadModel] Order`. Resolution goes, in order:
+
+1. An explicit `AggregateType` — `[StreamState(AggregateType = typeof(Order))]` — which identifies the
+   owning store and nothing else. It does not change what is read.
+2. The ancillary store the chain was routed to by `[Storage(typeof(IMyStore))]`.
+3. The single registered event store integration, when there is only one.
+
+With more than one integration registered and no other signal, Wolverine throws at compile time with a
+message naming both escape hatches rather than guessing.
+
+There are also Marten-specific spellings, `[MartenStreamState]` and `[MartenStreamEvents]`, which exist
+for the same reason [`[ReadAggregate]`](/guide/durability/marten/event-sourcing) does: they **name** their
+store instead of resolving one, so they still work in a host that called `AddMarten(...)` without
+`IntegrateWithWolverine()`, where nothing ever registers a persistence strategy. Prefer the store-agnostic
+`[StreamState]` and `[StreamEvents]` in new code.
 
 ### Dynamic Consistency Boundaries <Badge type="tip" text="6.27" />
 
@@ -507,7 +633,7 @@ public static class ReserveSeatHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L97-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dcb_model_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L98-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dcb_model_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Mark the parameter as `IEventBoundary<T>` instead of `T` if you want the boundary handle itself —

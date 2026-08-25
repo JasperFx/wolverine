@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using JasperFx.Events.Tags;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
@@ -115,6 +116,65 @@ public static class ReserveSeatHandler
         }
 
         return new SeatReserved(command.ScreeningId, command.CustomerId);
+    }
+}
+
+#endregion
+
+public record OrderTimelineQuery(Guid Id);
+
+public record OrderAuditQuery(Guid OrderId);
+
+public record OrderTimeline(long Version, string[] EventTypes);
+
+#region sample_using_stream_state_and_events
+
+public static class OrderTimelineHandler
+{
+    // [StreamState] gives you the stream's metadata -- version, aggregate type, created/updated
+    // timestamps -- and [StreamEvents] gives you the raw events, WITHOUT folding either into an
+    // aggregate. This is the read [ReadModel] cannot express, because folding has already thrown
+    // away the history this handler exists to serve. Both fetches batch into one round trip.
+    public static OrderTimeline Handle(
+        OrderTimelineQuery query,
+        [StreamState] StreamState state,
+        [StreamEvents] IReadOnlyList<IEvent> events)
+    {
+        return new OrderTimeline(state.Version, events.Select(x => x.EventTypeName).ToArray());
+    }
+}
+
+#endregion
+
+#region sample_stream_state_with_named_identity
+
+public static class OrderAuditHandler
+{
+    // The identity convention here is NOT the one [Entity] and [ReadModel] use. Those infer
+    // "OrderId" from the parameter's own type; the parameter type here is StreamState, which
+    // names the store's vocabulary rather than your aggregate. So a bare [StreamState] resolves
+    // only a member literally named "Id" -- name the member explicitly for anything else.
+    public static OrderTimeline Handle(
+        OrderAuditQuery query,
+        [StreamState("OrderId")] StreamState state,
+        [StreamEvents("OrderId")] IReadOnlyList<IEvent> events)
+    {
+        return new OrderTimeline(state.Version, events.Select(x => x.EventTypeName).ToArray());
+    }
+}
+
+#endregion
+
+#region sample_stream_state_optional
+
+public static class OptionalOrderTimelineHandler
+{
+    // Nullable annotation decides the default, exactly as it does for [ReadModel]:
+    // "StreamState state" is required and stops the handler when the stream does not exist,
+    // "StreamState? state" leaves absence to you
+    public static OrderTimeline Handle(OrderTimelineQuery query, [StreamState] StreamState? state)
+    {
+        return new OrderTimeline(state?.Version ?? 0, []);
     }
 }
 
