@@ -40,6 +40,15 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
                 // UseTcpForControlEndpoint) was not — leaving its agent-command traffic visible to
                 // metrics as apparent application volume.
                 value.Role = EndpointRole.System;
+
+                // GH-1670 follow-up: node control traffic is nothing but IAgentCommand executions
+                // and their replies. The receive span and the pipeline-level execution span are
+                // gated by the ENDPOINT's telemetry flag, not the agent-command chain's, so a
+                // broker control queue (EnableWolverineControlQueues) or TCP control endpoint was
+                // still publishing send/receive/execution Open Telemetry spans for every agent
+                // command. The database control endpoint is already born with telemetry off; this
+                // closes the same hole for promoted endpoints.
+                value.TelemetryEnabled = false;
             }
 
             _nodeControlEndpoint = value;
