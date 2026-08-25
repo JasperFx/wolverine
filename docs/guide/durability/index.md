@@ -249,6 +249,77 @@ one-at-a-time persistence on arrival; `opts.Durability.MarkAsHandledBatchSize = 
 completion. The 6.x line only: none of this batching exists on 5.x, so a user reporting durable-inbox
 overhead on 5.x may simply need to upgrade.
 
+### Bounding Broker Redeliveries <Badge type="tip" text="6.30" />
+
+There is one failure the inbox's own deduplication cannot get you out of on its own. Suppose a delivery
+reaches Wolverine, is written to the inbox, and then the *settle* back to the broker fails — a dropped
+connection, an expired lock, a channel that closed underneath the ack. The broker never heard the
+acknowledgement, so it redelivers. The inbox correctly recognizes the redelivery as a duplicate and refuses
+it, Wolverine tries to settle it again, that settle fails again, and the broker delivers it once more.
+
+**Nothing counted in your process can stop that loop.** Every redelivery arrives as a brand new envelope,
+so `Envelope.Attempts` and the ack-attempt budget both restart at zero each time around. The broker's own
+delivery count is the only counter that survives the boundary, which is exactly why
+`Envelope.BrokerDeliveryCount` exists.
+
+`MaximumBrokerRedeliveries` puts a ceiling on it. Past the limit, an undeliverable duplicate is moved to the
+dead letter queue instead of being settled one more time:
+
+```csharp
+opts.Durability.MaximumBrokerRedeliveries = 5;
+```
+
+The default is **0, meaning off** — the broker's own redelivery limit stays in charge and nothing changes.
+That default is why this is additive for every existing application.
+
+**It reads whatever native signal the transport already carries:**
+
+| Transport | Signal | Always present? |
+| --- | --- | --- |
+| Azure Service Bus | `DeliveryCount` | Yes |
+| Amazon SQS | `ApproximateReceiveCount` | Yes |
+| RabbitMQ | the `x-death` count header | **No** — see below |
+| Everything else | — | No signal, so the setting has no effect |
+
+A transport that reports no count leaves `Envelope.BrokerDeliveryCount` null and is simply unaffected.
+Wolverine does not guess a count from anything else.
+
+::: warning Three things to know before you set it
+**It is a delivery count, not a redelivery count**, despite the property name. The first delivery is `1` on
+both Azure Service Bus and SQS, so `MaximumBrokerRedeliveries = 3` permits three deliveries and dead-letters
+on the fourth. A message delivered exactly the permitted number of times still gets to run.
+
+**RabbitMQ only reports a count after a dead-letter cycle.** The `x-death` header is written when a message
+is rejected through a dead-letter exchange; a plain `nack`-with-requeue does not add one. So on a RabbitMQ
+endpoint that is requeueing rather than dead-lettering, there is no count to bound and this setting does
+nothing.
+
+**It only applies where the loop actually turns** — the durable inbox's duplicate path. This is not a general
+purpose retry limit, and it does not bound ordinary handler failures; that is what
+[error handling policies](/guide/handlers/error-handling) are for. It also needs the listener to support a
+native dead letter queue, since dead-lettering is the escape. Without one, Wolverine falls through to the
+ordinary settle and behaves exactly as it did before.
+:::
+
+#### The in-process counterpart
+
+`MaximumAckAttempts` (default `3`) bounds the *other* half of the same problem: how many times Wolverine
+will retry a single settle before giving up and letting the broker redeliver.
+
+The reason it is a budget carried on the envelope rather than a per-block retry count is that the durable
+completion path stacks two retry blocks — the receiver's complete block, then the transport's own channel
+callback — and each one bounded its own attempts independently. Their budgets multiplied rather than
+combined, so what read as "three attempts" was really nine broker round trips, with neither block able to
+see the other's count.
+
+```csharp
+opts.Durability.MaximumAckAttempts = 3;
+```
+
+The two are deliberately different tools. `MaximumAckAttempts` limits the effort spent on one delivery
+inside one process; `MaximumBrokerRedeliveries` limits how many times a message may come back *around*
+after that effort was abandoned. Neither one substitutes for the other, which is why both exist.
+
 ### Who Recovers the Inbox <Badge type="tip" text="6.22" />
 
 An incoming envelope in durable storage is either owned by a specific node (its `owner_id` is that node's
