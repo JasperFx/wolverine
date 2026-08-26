@@ -87,8 +87,15 @@ public class Bug_3413_unknown_destination_on_scheduled_recovery : IAsyncLifetime
             Destination = TheLocalDestination
         };
 
-        var session = await _host.ExecuteAndWaitAsync(
-            () => _host.GetRuntime().EnqueueDirectlyAsync([orphan, good]).AsTask());
+        // The orphan is dead-lettered with UnknownTransportException by design, so the exception
+        // assertion has to be opted out of. It used to pass without this only because the
+        // exception-carrying tracking record lost a race with session completion -- GH-4136 made
+        // MovedToErrorQueue the first terminal record and gave it the exception, so it is now
+        // deterministically present.
+        var session = await _host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(
+                _ => _host.GetRuntime().EnqueueDirectlyAsync([orphan, good]).AsTask());
 
         session.Received.SingleMessage<OrphanedMessage>()
             .Name.ShouldBe("deliver me");
