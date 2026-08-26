@@ -2,6 +2,192 @@
 
 ## Unreleased
 
+### WolverineFx (core)
+
+- **A `TypeLoadMode.Static` assembly mismatch now fails the host start instead of the first message.**
+  (closes [#4151](https://github.com/JasperFx/wolverine/issues/4151)) `Static` mode loads pre-built handler
+  types out of `WolverineOptions.ApplicationAssembly`, but `codegen write` emits its source into the entry
+  project. When handlers live in a class library and the app points `ApplicationAssembly` at that library the
+  two disagree, and nothing detected it — not `codegen write`, not the build, not host start. The host booted
+  healthy and `StaticTypeLoader` threw on the first dispatched message. `HandlerGraph` now attaches every
+  expected pre-built type up front and throws `MissingPreBuiltTypesException` naming the chains it could not
+  load, where the generated types actually landed, and how to reconcile the two assemblies.
+
+- **An envelope whose executor cannot be built is dead-lettered rather than acked away.**
+  (closes [#4151](https://github.com/JasperFx/wolverine/issues/4151)) That throw happens before any
+  `HandlerChain` instance exists, so no `chain.Failures` rule could ever apply — not even a `MoveToErrorQueue`
+  rule written for that message type — and the pipeline's last-resort recovery completed the message. On a
+  durable transport the row was marked `Handled` with `attempts=0` and then swept by ordinary inbox cleanup:
+  byte for byte the lifecycle of a message that succeeded, with an empty dead letter table and a healthy host.
+  The reporter lost every message of one type in production this way. A missing pre-built type, a chain that
+  will not compile, and a sticky-handler misconfiguration all take this path, and none of them succeeds on a retry.
+
+- **A failed message now reaches a terminal tracking state, and failures are no longer invisible to
+  `IMessageTracker`.** (closes [#4136](https://github.com/JasperFx/wolverine/issues/4136))
+  `WolverineRuntime.MessageFailed` recorded `MessageEventType.Sent`, which is not terminal, so a session
+  containing a failed message could only end by timing out. Separately,
+  `HandlerPipeline.RecoverFromFailedProcessingAsync` emitted no message event at all — an envelope that died
+  there was invisible to every `IMessageTracker`, so **failure metrics under-counted every such envelope**.
+  Note this is visible beyond tests: wire taps and custom `IMessageTracker` implementations now see a
+  `MessageFailed` event where they previously saw a `Sent`. The dead-letter path now reports exactly one
+  terminal event — `MovedToErrorQueue`, carrying the exception — which also fixes a double-counted dead-letter
+  metric, a doubly-recorded effective time, and a failure wire tap firing twice for a single envelope.
+
+- **`Received` is reported exactly once per receipt on a partitioned listener.**
+  (closes [#4135](https://github.com/JasperFx/wolverine/issues/4135)) A listener with
+  `PartitionProcessingByGroupId` recorded **two** `Received` events for one envelope while executing it exactly
+  once: `ShardedExecutionBlock.DeserializeFirst` has to deserialize up front, so the envelope reached
+  `executeAsync` already carrying a `Message` and took a second reporting branch. `IMessageTracker.Received` is
+  not only tracking — the same call increments the received counter, posts `RecordReceived` to the CritterWatch
+  accumulator, and logs the receipt. **Every partitioned listener has been double-counting received messages in
+  production metrics and logging each receipt twice.** `GlobalPartitionedInterceptor` took the same route and is
+  fixed by the same guard.
+
+- **An `OnException` method returning the type its chain handles now compiles.**
+  (closes [#4139](https://github.com/JasperFx/wolverine/issues/4139)) The return value took its default variable
+  name from its type, and so does the chain's message body variable; the catch block is emitted inside the scope
+  that declares the body, so the generated handler failed with CS0136 and **the chain then never ran**. Silent
+  from two directions — the cascading message is still sent, so coverage asserting on `session.Sent` stayed green.
+
+- **`MessageRoute.Describe()` no longer throws a `NullReferenceException` under description.**
+  (closes [#4132](https://github.com/JasperFx/wolverine/issues/4132)) A route built under
+  `WolverineSystemPart.WithinDescription` against an endpoint the runtime never compiled has a legitimately null
+  `Serializer`, and because `GlobalPartitionedRoute.Describe()` maps over every slot, one such route took out
+  `wolverine-diagnostics describe-routing` for the whole application.
+
+### Testing (`TrackedSession`)
+
+- **`DoNotAssertOnExceptionsDetected()` no longer suppresses the tracked-session timeout assertion, and
+  `DoNotAssertOnTimeout()` is added.** (closes [#4125](https://github.com/JasperFx/wolverine/issues/4125))
+  `AssertNotTimedOut()` shared a flag with `AssertNoExceptionsWereThrown()`, so a resiliency test reaching for
+  that method for its documented reason — handlers are *expected* to throw — silently also opted out of the only
+  assertion that catches a session having completed none of its work. **The result was a permanently green test
+  over a session that did nothing.** The session's own timeout is not an "exception detected during the message
+  activity"; it is the harness reporting that the activity never finished, so the assertion is ungated rather
+  than moved behind a second flag. Ungating it surfaced exactly three real defects across CoreTests
+  (see #4136 and #4139 above) plus four more suites that were green over a session that timed out. Tests that
+  legitimately expect activity *not* to happen now use the separate, accurately-named `DoNotAssertOnTimeout()`.
+
+### WolverineFx (core) + event store integrations
+
+- **A service-located session is the handler's session on RavenDb, Polecat and Fisher too.**
+  (closes [#4145](https://github.com/JasperFx/wolverine/issues/4145)) GH-3001 primed Wolverine's child
+  `IServiceScope` with the handler's outbox-enrolled `IDocumentSession` for Marten only; on the other three
+  stores a service-located session was a **separate, un-enrolled one whose writes escaped the transaction the
+  middleware commits**. RavenDb was the worst of the three — `Wolverine.RavenDb` registered no
+  `IAsyncDocumentSession` in DI at all, so a service-located one could not resolve. `UseRavenDbPersistence()`
+  now owns that registration, decorating rather than replacing an application's own. That last part is an
+  **additive behavior change**: `IAsyncDocumentSession` becomes DI-resolvable where it previously was not.
+
+- **`OutboxedSessionFactory` resolves the `Main` message store lazily.**
+  (closes [#4130](https://github.com/JasperFx/wolverine/issues/4130)) Both providers captured
+  `MessageStore = runtime.Storage` in the constructor, but that is the placeholder `NullMessageStore` until
+  `MessageStoreCollection.InitializeAsync()` assigns the real one — deferred whenever more than one store claims
+  `Main`. A factory constructed during startup kept the placeholder for the life of the process while
+  `Stores.Main` read perfectly correct afterwards: the host booted and listened cleanly, then **failed every
+  message and HTTP request**. The reproducing shape is ordinary — an event-store-integrated `Main` plus a
+  database-backed queue transport, which is the whole broker-less deployment mode.
+
+### WolverineFx.Pulsar
+
+- **A Pulsar listener is not "started" until its subscription exists at the broker.**
+  (closes [#4149](https://github.com/JasperFx/wolverine/issues/4149)) DotPulsar's `IConsumerBuilder.Create()`
+  returns as soon as the consumer object exists; the `Subscribe` command travels to the broker on a background
+  task. `IHost.StartAsync()` therefore returned while the topic did not yet exist at the broker at all —
+  measured against the admin API, HTTP 404 five runs out of five. Since `SubscriptionInitialPosition` defaults
+  to `Latest`, anything published into that window **is not delivered and is not recoverable**: silent message
+  loss on first deployment of a service that publishes to a topic it also listens to.
+  `BuildListenerAsync` now awaits subscription establishment for the primary consumer, the retry-letter
+  consumer, and every per-tenant listener, bounded at 10s and logged rather than thrown.
+
+- **A Pulsar receiving loop no longer dies silently on one exception.**
+  (closes [#4100](https://github.com/JasperFx/wolverine/issues/4100)) Both loops were a bare `await foreach`
+  inside a fire-and-forget `Task.Run` with no `try` anywhere and nothing observing the returned task. Anything
+  that threw killed that task for good while the consumer stayed alive, the socket stayed open, and
+  `ConnectionState` went on reporting `Connected` — the silently-dead listener RabbitMQ fixed in #3391. The
+  loops get a per-message guard that logs and skips (deliberately leaving the message unacknowledged, since a
+  mapper or codec failure is deterministic and deferring would redeliver into the same exception forever) and an
+  enumeration guard that logs and re-enters `Messages()` after a one-second pause. Disposal is fixed on the same
+  path: `Task.Dispose()` throws on a task that has not reached a final state, and the linked
+  `CancellationTokenSource` was never disposed.
+
+### WolverineFx.EntityFrameworkCore
+
+- **`StartDatabaseTransactionForDbContext` no longer runs the eager idempotency check twice.**
+  (closes [#4128](https://github.com/JasperFx/wolverine/issues/4128)) It emitted `AssertEagerIdempotencyAsync`
+  under identical guards both above and below the `BeginTransactionAsync` block. Where that falls through to
+  `Runtime.Storage.Inbox.ExistsAsync` — which does not set `Envelope.WasPersistedInInbox` — it ran **two
+  identical inbox existence queries per message**.
+
+### Diagnostics & telemetry
+
+- **Node control endpoints stop publishing OpenTelemetry spans for agent commands.**
+  (GH-1670 / GH-907 follow-up) The receive and execution spans are gated by the *endpoint's* `TelemetryEnabled`
+  flag, not the agent-command chain's, so a broker control queue (`EnableWolverineControlQueues` on RabbitMQ,
+  Azure Service Bus or SQS) or a TCP control endpoint still published send, receive and execution spans for
+  every `IAgentCommand` it carried, while the database control endpoint was quiet. The `NodeControlEndpoint`
+  setter now switches telemetry off along with the role promotion. **Known trade-off:** the broker control
+  queues also set `IsUsedForReplies`, so on hosts that opt into them, replies to cross-node request/reply
+  arriving on the control queue lose their receive span as well.
+
+- **`event-model --url` PUTs the assembled descriptor to a monitor.**
+  (closes [#4146](https://github.com/JasperFx/wolverine/issues/4146)) So the design-time loop is one command:
+
+  ```bash
+  dotnet watch run -- event-model --url http://localhost:5525
+  ```
+
+  `--json`'s default moves from `"event-model.json"` to null so `--url` on its own does not also litter the
+  application directory; with neither flag the command still writes `event-model.json` exactly as before.
+  Wolverine takes no reference on the monitor — it is an HTTP PUT to whatever URL is named — and a monitor that
+  is down fails with a one-line message and a non-zero exit rather than a stack trace, because under
+  `dotnet watch` a console that has not been started yet is the ordinary case.
+
+- **Event model sources declare `EventModelProvenance.Derived`.**
+  (closes [#4152](https://github.com/JasperFx/wolverine/issues/4152),
+  [#4147](https://github.com/JasperFx/wolverine/issues/4147)) `WolverineEventModelSource` and
+  `HttpEventModelSource` both read their roles off compiled chains, so both now say so. That lets the
+  `services.Insert(0, ...)` in `UseWolverine()` and `MapWolverineEndpoints()` become plain `AddSingleton` calls —
+  the insert was load-bearing behaviour that nothing in the registration explained. Note the deliberate
+  inversion this buys: a source that **observes** a running system now outranks a derived one.
+
+### Dependencies
+
+- **JasperFx 2.56.0.** Adopted for the `EventModelProvenance` ladder above.
+
+- **Weasel 9.27.0.** Nine fixes, every one a case where Weasel read a schema back as something other than what
+  the database actually held, and **no DDL changes** for a schema it was already reading correctly. Three of
+  them could never converge — the patch is applied, the read-back is still different, and the next run produces
+  the identical patch indefinitely: a **named foreign key on SQLite** rebuilt the table and copied every row on
+  every run ([weasel#516](https://github.com/JasperFx/weasel/issues/516)); a **partition-aligned index on SQL
+  Server** was dropped and recreated on every run, because the implicit `sys.index_columns` row for the
+  partitioning column was read as a declared key column, so the index compared unequal to itself
+  ([weasel#512](https://github.com/JasperFx/weasel/issues/512)); and a **concurrent index on a manager-owned
+  partitioned table** stayed permanently invalid, strictly worse than the blocking `CREATE INDEX` it replaced
+  ([weasel#520](https://github.com/JasperFx/weasel/issues/520)). Full notes in Weasel's
+  [upgrade guide](https://weasel.jasperfx.net/release-9-27).
+
+### Documentation
+
+- **The concurrent-duplicate bound belongs to group partitioning, not to `EndpointMode.NativeAck`.**
+  (closes [#4127](https://github.com/JasperFx/wolverine/issues/4127)) `listeners.md` stated "a duplicate never
+  runs concurrently with the original" as a property of the mode. It is a property of group partitioning, which
+  is opt-in via `PartitionProcessingByGroupId()` and never on by default; an unpartitioned `NativeAck` endpoint
+  is bounded by `MaximumParallelMessages()` instead. Both the guarantee and the #3713 measurements that inherit
+  it are now scoped.
+
+- **`tutorials/idempotency.md` no longer contradicts itself.**
+  (closes [#4129](https://github.com/JasperFx/wolverine/issues/4129)) It warned that every explicit idempotency
+  usage outside a durable listener falls back to `Eager`, then said a few lines later that "Marten supports both
+  modes." The warning is the accurate one — Marten, Polecat, Fisher and EF Core all emit the `Eager` check for
+  either style — and that is now mirrored onto the `IdempotencyStyle.Optimistic` XML doc, which described a live
+  choice.
+
+- `MaximumBrokerRedeliveries` and `MaximumAckAttempts` are documented
+  ([#4012](https://github.com/JasperFx/wolverine/issues/4012)); `[StreamState]` and `[StreamEvents]` are
+  documented ([#3627](https://github.com/JasperFx/wolverine/issues/3627)); the NATS native-ack badge is
+  corrected to 6.30 ([#4053](https://github.com/JasperFx/wolverine/issues/4053)).
+
 ### WolverineFx.Http
 
 - **HTTP chains carry their Event Modeling roles.** ([#3988](https://github.com/JasperFx/wolverine/issues/3988))
