@@ -60,8 +60,13 @@ public class duplicate_received_with_partitioning_4135 : IAsyncLifetime
             .Where(x => x.Envelope?.Message is DupProbe)
             .ToArray();
 
-        records.Count(x => x.MessageEventType == MessageEventType.ExecutionStarted).ShouldBe(1);
-        records.Count(x => x.MessageEventType == MessageEventType.Received).ShouldBe(1);
+        var dump = string.Join("\n  ", records.Select(x =>
+            $"{x.MessageEventType} seq={x.Sequence} svc={x.ServiceName} node={x.UniqueNodeId} env={x.Envelope?.Id} attempts={x.AttemptNumber}"));
+
+        records.Count(x => x.MessageEventType == MessageEventType.ExecutionStarted)
+            .ShouldBe(1, "records were:\n  " + dump);
+        records.Count(x => x.MessageEventType == MessageEventType.Received)
+            .ShouldBe(1, "records were:\n  " + dump);
 
         session.Received.SingleMessage<DupProbe>().Name.ShouldBe("only-once");
     }
