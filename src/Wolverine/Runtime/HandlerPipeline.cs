@@ -268,8 +268,27 @@ public class HandlerPipeline : IHandlerPipeline
         }
         finally
         {
-            Logger.Received(envelope);
+            recordReceivedOnce(envelope);
         }
+    }
+
+    /// <summary>
+    /// GH-4135: report Received exactly once per receipt. Both the deserialization path and the
+    /// already-deserialized path report it, and partitioned processing goes through BOTH -- it
+    /// deserializes up front so it can read the group id, then hands the pipeline an envelope that
+    /// already carries a Message. Reporting twice double-counted the received metric, double-fed the
+    /// CritterWatch accumulator, logged each receipt twice, and left two Received records in a tracked
+    /// session, which is what made Received.SingleMessage&lt;T&gt;() fail on correct behaviour.
+    /// </summary>
+    private void recordReceivedOnce(Envelope envelope)
+    {
+        if (envelope.WasTrackedAsReceived)
+        {
+            return;
+        }
+
+        envelope.WasTrackedAsReceived = true;
+        Logger.Received(envelope);
     }
 
     // Resolve the serializer for an envelope whose runtime-only Serializer reference
@@ -339,7 +358,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
         else
         {
-            Logger.Received(envelope);
+            recordReceivedOnce(envelope);
         }
 
         if (envelope.IsResponse)
