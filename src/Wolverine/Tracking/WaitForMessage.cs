@@ -10,14 +10,13 @@ internal class WaitForMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
-        // GH-4125/4136: MovedToErrorQueue counts. This condition means "wait until this message
-        // reaches a terminal outcome at that host", and being dead-lettered is one -- nothing further
-        // will ever happen to the envelope. Leaving it out meant a WaitForMessageToBeReceivedAt over a
-        // message that fails into the DLQ could never be satisfied, so the session ran to its timeout
-        // every time. That was invisible while the timeout assertion was suppressed.
+        // GH-4125: deliberately NOT satisfied by MovedToErrorQueue. A dead letter is not the end of
+        // the story -- it can be marked replayable and redelivered, and a test waiting on this message
+        // is usually waiting for exactly that second, successful pass (see
+        // MartenTests.Bugs.Bug_971_replay_dead_letter_queue_of_event_wrapper). Completing on the
+        // dead-letter would return the session on the FAILING delivery and skip the replay entirely.
         if (record.MessageEventType != MessageEventType.MessageSucceeded &&
-            record.MessageEventType != MessageEventType.MessageFailed &&
-            record.MessageEventType != MessageEventType.MovedToErrorQueue)
+            record.MessageEventType != MessageEventType.MessageFailed)
         {
             return;
         }
