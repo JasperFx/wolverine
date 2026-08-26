@@ -192,13 +192,20 @@ Two things follow, and both matter more than the headline percentage:
   already running, so nothing runs twice. The prefetch window is still redelivered — it simply had not been
   executed yet, so those are first executions.
 * **A hard kill costs about one duplicate per busy lane, not one per unacked message.** Only handlers that
-  were *mid-flight* when the connection died can run twice, and that population is the partition slot count,
-  not the prefetch depth. In the runs above that was three or four per killed node against an unacked window
-  of 180 — a factor of roughly 45, and it barely moved between runs.
+  were *mid-flight* when the connection died can run twice, and that population is the number of lanes the
+  endpoint runs, not the prefetch depth. On the group-partitioned endpoint measured here that is the partition
+  slot count: three or four duplicates per killed node against an unacked window of 180 — a factor of roughly
+  45, and it barely moved between runs. On an **unpartitioned** `NativeAck` endpoint there are no slots, and
+  the ceiling is `MaximumParallelMessages()` instead.
 
-None of this weakens the guarantee. Every duplicate still enters its group's sequential lane, so a duplicate
-never runs concurrently with the original, and the intra-group concurrency invariant held across every kill
-and every handoff in all of the runs above. Handlers must still be idempotent — at-least-once is the contract,
+On a **group-partitioned** endpoint, none of this weakens the guarantee: every duplicate re-enters its group's
+sequential lane, so a duplicate never runs concurrently with the original, and the intra-group concurrency
+invariant held across every kill and every handoff in all of the runs above. That is a property of group
+partitioning rather than of `NativeAck` itself — an **unpartitioned** `NativeAck` endpoint has no such lanes,
+and a redelivery can and will run alongside the original. Group partitioning is opt-in via
+[`PartitionProcessingByGroupId()`](/guide/messaging/partitioning); it is never on by default.
+
+Handlers must still be idempotent either way — at-least-once is the contract,
 and 0.1% of a flood is not a small number of messages — but size that work against in-flight lanes rather than
 against prefetch. The [in-memory idempotency guard](#in-memory-idempotency-guard) below removes the remainder
 within a *running* process; it cannot help across a node's death, because the guard dies with it.

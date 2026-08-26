@@ -9,11 +9,15 @@ public enum IdempotencyStyle
     None,
     
     /// <summary>
-    /// Message idempotency will be checked at the time the current transaction
+    /// Message idempotency would be checked at the time the current transaction
     /// is being committed. This mode is a little more optimal as it allows for more database command batching,
     /// but should not be used if the message handling involves any actions not part of the current transaction
     /// like calls to external web services
-    /// 
+    ///
+    /// NOT CURRENTLY REACHABLE. As of 5.4.1 every persistence provider -- EF Core, Marten, Polecat and Fisher --
+    /// emits the <see cref="Eager" /> check for this style as well, so choosing Optimistic behaves exactly like
+    /// choosing Eager at runtime. Reserved rather than removed so that existing configuration keeps compiling.
+    ///
     /// Only applies to messages received at "Inline" or "Buffered" endpoints
     /// </summary>
     Optimistic,
