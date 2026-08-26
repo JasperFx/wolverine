@@ -10,8 +10,14 @@ internal class WaitForMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
+        // GH-4125/4136: MovedToErrorQueue counts. This condition means "wait until this message
+        // reaches a terminal outcome at that host", and being dead-lettered is one -- nothing further
+        // will ever happen to the envelope. Leaving it out meant a WaitForMessageToBeReceivedAt over a
+        // message that fails into the DLQ could never be satisfied, so the session ran to its timeout
+        // every time. That was invisible while the timeout assertion was suppressed.
         if (record.MessageEventType != MessageEventType.MessageSucceeded &&
-            record.MessageEventType != MessageEventType.MessageFailed)
+            record.MessageEventType != MessageEventType.MessageFailed &&
+            record.MessageEventType != MessageEventType.MovedToErrorQueue)
         {
             return;
         }

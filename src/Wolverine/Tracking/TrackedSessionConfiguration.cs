@@ -167,6 +167,21 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    ///     Do not assert or fail if this session times out before all tracked activity completes.
+    ///     Use this ONLY where the activity is expected not to happen -- asserting that a message was
+    ///     filtered out and never arrived, or that a listener was paused before its envelope could
+    ///     finish. It is deliberately separate from <see cref="DoNotAssertOnExceptionsDetected" />,
+    ///     which governs exceptions only: a session that times out having achieved nothing is the one
+    ///     failure a tracked test cannot afford to hide by accident. See GH-4125.
+    /// </summary>
+    /// <returns></returns>
+    public TrackedSessionConfiguration DoNotAssertOnTimeout()
+    {
+        Session.AssertNoTimeout = false;
+        return this;
+    }
+
+    /// <summary>
     /// Do not assert or fail if failure acks were sent during the message activity.
     /// This might be useful if using request/reply mechanics where you are testing
     /// cases where you want to see if failure acks are sent. Maybe only useful
