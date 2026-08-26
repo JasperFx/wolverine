@@ -293,6 +293,73 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         }
     }
 
+    /// <summary>
+    ///     GH-4149. Block until this listener's consumers have actually subscribed at the broker.
+    ///
+    ///     <para>DotPulsar's <c>IConsumerBuilder.Create()</c> returns as soon as the consumer object
+    ///     exists; the Subscribe command travels to the broker on a background task. Wolverine's listener
+    ///     startup did not wait for it, so <c>IHost.StartAsync()</c> returned with the listener reporting
+    ///     started while the topic did not yet exist at the broker — measured directly: the admin API
+    ///     answered <c>404</c> for the topic at the instant start returned, on five runs out of five.</para>
+    ///
+    ///     <para>Because <see cref="PulsarEndpoint.SubscriptionInitialPosition" /> defaults to
+    ///     <see cref="SubscriptionInitialPosition.Latest" />, anything published into that window is not
+    ///     delivered to the subscription at all. It is silently dropped: no error, no redelivery, and on a
+    ///     brand-new topic no earlier position to fall back to. That is a real message-loss window on
+    ///     first deployment of a service that publishes to a topic it also listens to, and it is what makes
+    ///     the Pulsar suite drop exactly the first message it publishes under parallel load.</para>
+    ///
+    ///     <para>A consumer leaves <see cref="ConsumerState.Disconnected" /> once the broker has
+    ///     acknowledged the subscribe, so that transition is the signal. Waiting for <em>any</em> state
+    ///     other than Disconnected rather than for Active specifically matters for Failover subscriptions,
+    ///     where a standby consumer is legitimately established but Inactive.</para>
+    ///
+    ///     <para>Bounded, and a timeout is logged rather than thrown: a broker that is slow or briefly
+    ///     unreachable at startup must not stop the host from coming up. The listener still works once
+    ///     DotPulsar connects — the wait closes the ordering race, it does not add a hard dependency.</para>
+    /// </summary>
+    internal async Task WaitForSubscriptionAsync(TimeSpan timeout)
+    {
+        await waitForConsumerAsync(_consumer, timeout);
+        await waitForConsumerAsync(_retryConsumer, timeout);
+    }
+
+    private async Task waitForConsumerAsync(IConsumer<ReadOnlySequence<byte>>? consumer, TimeSpan timeout)
+    {
+        if (consumer == null)
+        {
+            return;
+        }
+
+        // NOTE: deliberately the no-delay overload. DotPulsar's StateChangedFrom(state, TimeSpan, ct)
+        // takes a *settle* delay, not a timeout -- it waits the full TimeSpan and only then reports the
+        // state, so using it here added the whole budget to every single host start (measured: 10,030ms
+        // per start against a broker that had gone Active in milliseconds). The timeout has to be ours.
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(_cancellation);
+        timeoutSource.CancelAfter(timeout);
+
+        try
+        {
+            await consumer.StateChangedFrom(ConsumerState.Disconnected, timeoutSource.Token);
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // Shutting down before the subscription was ever established; nothing to report.
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "The Pulsar consumer for topic {Topic} at {Address} had not subscribed after {Timeout}; starting the listener anyway. Messages published to this topic before the subscription is established may not be delivered to it.",
+                consumer.Topic, Address, timeout);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Error waiting for the Pulsar subscription on topic {Topic} at {Address} to be established; starting the listener anyway",
+                consumer.Topic, Address);
+        }
+    }
+
     private void trySetupNativeResiliency(PulsarEndpoint endpoint, PulsarTransport transport)
     {
         if (!NativeRetryLetterQueueEnabled && !NativeDeadLetterQueueEnabled)
