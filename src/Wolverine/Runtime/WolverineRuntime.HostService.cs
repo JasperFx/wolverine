@@ -141,6 +141,13 @@ public partial class WolverineRuntime
             // which is what decides whether a topology was found.
             warnOrAssertUnsequencedBatchExecution();
 
+            // GH-4151. Last of the chain-shaping steps, so every chain that will ever exist -- including the
+            // batch chains just moved above -- is checked. In TypeLoadMode.Static a missing pre-built type
+            // used to surface on the first message of that type, from inside executor construction where no
+            // failure policy can reach it. Fail the deploy here instead, before storage migration or any
+            // listener starts.
+            Handlers.AssertPreBuiltTypesExist(Options);
+
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
             // cost (attribute reads, interface walks, generic-type pretty-printing).

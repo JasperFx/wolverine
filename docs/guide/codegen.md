@@ -327,6 +327,26 @@ using var host = Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_application_assembly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+Be careful with this one if your handlers live in a **class library** rather than in the entry project. `codegen write`
+writes its output relative to the host's content root -- that is, into the *entry* project -- while `TypeLoadMode.Static`
+loads pre-built types out of `ApplicationAssembly`. Setting `ApplicationAssembly` to the class library makes the two
+disagree: the generated types compile into the entry assembly, and the static loader looks for them in the library.
+
+If you were only setting `ApplicationAssembly` so that Wolverine would *discover* handlers in that library, use handler
+discovery for that instead and leave `ApplicationAssembly` alone:
+
+```csharp
+opts.Discovery.IncludeAssembly(typeof(SomeHandler).Assembly);
+```
+
+If you really do want `ApplicationAssembly` to be the class library, point the generated code output at the project that
+builds it with `opts.CodeGeneration.GeneratedCodeOutputPath` so `codegen write` and the static loader agree.
+
+Since Wolverine 6.30 this mismatch fails the host start rather than the first message. Before that the host booted
+healthy and every message of the affected types was lost.
+:::
+
 If the assembly choice is correct, and the expected code files are really in `Internal/Generated` exactly as you'd expect, make
 sure there's no accidental `<Exclude />` nodes in your project file. *Don't laugh, that's actually happened to Wolverine users*
 
@@ -494,6 +514,13 @@ your own session building still runs everywhere the handler's session is not in 
 :::
 
 ## Environment Check for Expected Types
+
+::: tip
+As of Wolverine 6.30, **message handlers** no longer need this opt in. In `TypeLoadMode.Static` Wolverine
+asserts at startup that every handler chain's pre-generated type is really in the application assembly, and
+throws a `MissingPreBuiltTypesException` naming the chains it could not load if any are missing. The check
+below still covers the other code file collections -- HTTP endpoints, gRPC services, Marten document providers.
+:::
 
 As a new option in Wolverine 1.7.0, you can also add an environment check for the existence of the expected pre-built types
 to [fail fast](https://en.wikipedia.org/wiki/Fail-fast) on application startup like this:

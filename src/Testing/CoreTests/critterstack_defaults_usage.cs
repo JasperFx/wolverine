@@ -97,6 +97,11 @@ public class critterstack_defaults_usage
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-4151: TypeLoadMode.Static now asserts at startup that every handler chain's pre-built
+                // type is really in the application assembly. These tests only care that the profile was
+                // resolved, and CoreTests has no pre-generated types, so give them no chains to check.
+                opts.Discovery.DisableConventionalDiscovery();
+
                 opts.Services.CritterStackDefaults(x =>
                 {
                     x.Production.GeneratedCodeMode = TypeLoadMode.Static;

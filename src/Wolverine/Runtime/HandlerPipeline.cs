@@ -372,7 +372,25 @@ public class HandlerPipeline : IHandlerPipeline
             }
         }
 
-        var executor = _executors[envelope.Message!.GetType()];
+        IExecutor executor;
+        try
+        {
+            executor = _executors[envelope.Message!.GetType()];
+        }
+        catch (Exception e)
+        {
+            // GH-4151: building the executor happens *before* any HandlerChain instance exists, so there
+            // is no chain.Failures for a failure policy to hang off of -- not even a MoveToErrorQueue rule
+            // written specifically for this message type. Without this catch the exception escapes to
+            // InvokeAsync's last line of defense, which acks the envelope away: on a durable transport the
+            // row is marked Handled with attempts=0 and then swept by ordinary inbox cleanup, so a
+            // configuration error silently discards durable messages with no DLQ row and a healthy host.
+            // Every cause takes this same path -- a missing pre-built type in TypeLoadMode.Static, a chain
+            // that will not compile, a sticky-handler misconfiguration -- and none of them will ever
+            // succeed on a retry, so the dead letter queue is where the envelope belongs.
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            return new MoveToErrorQueue(e);
+        }
 
         return await executor.ExecuteAsync(context, _cancellation).ConfigureAwait(false);
     }
