@@ -29,6 +29,11 @@ public class respecting_jasper_fx_defaults
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-4151: TypeLoadMode.Static now asserts at startup that every handler chain's pre-built
+                // type is really in the application assembly. This test only cares that the option was
+                // propagated, and CoreTests has no pre-generated types, so give it no chains to check.
+                opts.Discovery.DisableConventionalDiscovery();
+
                 opts.Services.CritterStackDefaults(cr =>
                 {
                     cr.ServiceName = "Special";

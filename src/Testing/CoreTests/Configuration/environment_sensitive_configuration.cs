@@ -77,6 +77,11 @@ public class environment_sensitive_configuration
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-4151: TypeLoadMode.Static now asserts at startup that every handler chain's pre-built
+                // type is really in the application assembly. These tests only care that the profile was
+                // resolved, and CoreTests has no pre-generated types, so give them no chains to check.
+                opts.Discovery.DisableConventionalDiscovery();
+
                 opts.Services.CritterStackDefaults(x =>
                 {
                     // Somebody did want this, so you can actually change the name
@@ -114,6 +119,11 @@ public class environment_sensitive_configuration
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-4151: TypeLoadMode.Static now asserts at startup that every handler chain's pre-built
+                // type is really in the application assembly. These tests only care that the profile was
+                // resolved, and CoreTests has no pre-generated types, so give them no chains to check.
+                opts.Discovery.DisableConventionalDiscovery();
+
                 opts.Services.CritterStackDefaults(x =>
                 {
                     // Somebody did want this, so you can actually change the name

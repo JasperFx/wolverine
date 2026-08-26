@@ -19,6 +19,10 @@ namespace CoreTests.Tracking;
 // The second half compounded with WolverineRuntime.MessageFailed recording MessageEventType.Sent
 // instead of MessageFailed -- Sent is not terminal, it only completes once a matching Received
 // arrives. Both are fixed here.
+//
+// GH-4151 then changed which terminal record this path produces. Acking the envelope away was itself the
+// bug: an executor that cannot be built will never build on a retry either, so the envelope now goes to the
+// dead letter queue and records MovedToErrorQueue. Still exactly one terminal record, still no timeout.
 public class terminal_event_on_message_failure
 {
     [Fact]
@@ -43,8 +47,8 @@ public class terminal_event_on_message_failure
         session.Status.ShouldBe(TrackingStatus.Completed);
 
         session.AllRecordsInOrder()
-            .Any(x => x.MessageEventType == MessageEventType.MessageFailed)
-            .ShouldBeTrue("the failed envelope should record a terminal MessageFailed event");
+            .Any(x => x.MessageEventType == MessageEventType.MovedToErrorQueue)
+            .ShouldBeTrue("the failed envelope should record a terminal MovedToErrorQueue event");
     }
 }
 
