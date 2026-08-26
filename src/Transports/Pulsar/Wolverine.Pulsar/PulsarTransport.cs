@@ -15,6 +15,13 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "pulsar";
 
+    /// <summary>
+    ///     GH-4149. How long listener startup waits for a consumer to actually subscribe at the broker
+    ///     before giving up and starting anyway. Generous enough to cover topic auto-creation on a cold
+    ///     broker, bounded so an unreachable broker cannot stop the host from coming up.
+    /// </summary>
+    internal static readonly TimeSpan SubscriptionEstablishmentTimeout = TimeSpan.FromSeconds(10);
+
     private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
 
     public PulsarTransport() : this(ProtocolName)
@@ -266,7 +273,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     /// with the tenant id they were consumed under. The hot-tail (<see cref="PulsarReaderListener"/>) branch is
     /// preserved with the same per-tenant treatment. Modeled on <c>RabbitMqTransport.BuildListenerAsync</c>.
     /// </summary>
-    internal ValueTask<IListener> BuildListenerAsync(PulsarEndpoint endpoint, IReceiver receiver,
+    internal async ValueTask<IListener> BuildListenerAsync(PulsarEndpoint endpoint, IReceiver receiver,
         IWolverineRuntime runtime)
     {
         if (Tenants.Any() && endpoint.TenancyBehavior == TenancyBehavior.TenantAware)
@@ -280,10 +287,31 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
                 compound.Inner.Add(buildSingleListener(endpoint, wrapped, tenant.Transport, runtime));
             }
 
-            return ValueTask.FromResult<IListener>(compound);
+            foreach (var inner in compound.Inner)
+            {
+                await waitForSubscriptionAsync(inner);
+            }
+
+            return compound;
         }
 
-        return ValueTask.FromResult(buildSingleListener(endpoint, receiver, this, runtime));
+        var listener = buildSingleListener(endpoint, receiver, this, runtime);
+        await waitForSubscriptionAsync(listener);
+
+        return listener;
+    }
+
+    /// <summary>
+    ///     GH-4149. Do not report a listener started until its subscription actually exists at the broker.
+    ///     See <see cref="PulsarListener.WaitForSubscriptionAsync" /> for why this matters: with the default
+    ///     Latest initial position, anything published before the subscription is established is silently
+    ///     dropped rather than delivered or redelivered.
+    /// </summary>
+    private static ValueTask waitForSubscriptionAsync(IListener listener)
+    {
+        return listener is PulsarListener pulsar
+            ? new ValueTask(pulsar.WaitForSubscriptionAsync(SubscriptionEstablishmentTimeout))
+            : ValueTask.CompletedTask;
     }
 
     private static IListener buildSingleListener(PulsarEndpoint endpoint, IReceiver receiver,
