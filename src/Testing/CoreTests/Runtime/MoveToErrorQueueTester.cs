@@ -67,8 +67,15 @@ public class MoveToErrorQueueTester
     {
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
-        theRuntime.MessageTracking.Received().MessageFailed(theEnvelope, theException);
         theRuntime.MessageTracking.Received().MovedToErrorQueue(theEnvelope, theException);
+
+        // GH-4136: exactly ONE terminal tracking event on this path. A terminal record sweeps every
+        // earlier record for the envelope complete, and the durable transports' dead-letter move emits
+        // a trailing Sent that nothing else completes -- so a second terminal record here cannot be
+        // ordered to satisfy both that sweep and the guarantee that the ending record is present.
+        // MessageFailed's dead-letter counter, effective time and failure wire tap moved into
+        // MovedToErrorQueue rather than being dropped.
+        theRuntime.MessageTracking.DidNotReceive().MessageFailed(theEnvelope, theException);
     }
 
     [Fact]
