@@ -398,6 +398,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 var exceptionType = parameters[0].ParameterType;
                 var call = new MethodCall(handlerType, onException);
                 ApplyParameterMatching(call);
+                MiddlewarePolicy.DisambiguateOnExceptionReturnValue(call);
 
                 var frames = new List<Frame> { call };
 
