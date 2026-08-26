@@ -131,7 +131,10 @@ jobs:
           # Names this job in the retry ledger (build/RetryLedger.cs). GITHUB_JOB is the matrix's
           # job id -- the same string, "test", for all thirty of these -- so it cannot be used.
           CI_JOB_NAME: ${{ matrix.target }}
-        run: ./build.sh ${{ matrix.target }} --framework net9.0
+        # Through the relay so a cancellation's SIGTERM reaches the build process's handler
+        # (build/run-with-cancellation-relay.sh) — the partial ledger and the wedged
+        # worker's async stacks both depend on it.
+        run: ./build/run-with-cancellation-relay.sh ${{ matrix.target }} --framework net9.0
 
       # Only reachable when the runner itself survived. If the OOM killer took a *test* process
       # rather than the runner service, the kill is recorded here and nowhere else.

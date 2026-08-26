@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Bobcat.Supervisor;
+using Nuke.Common.IO;
 using Serilog;
 
 // The successor to build/ci-memory-sampler.sh (GH-4083/GH-4089), retired when Bobcat 0.8.0 moved
@@ -53,6 +54,24 @@ partial class Build
     {
         // Only under Actions: locally Ctrl-C should stay an ordinary Ctrl-C.
         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return null;
+
+        // Where the workflow's cancellation relay (build/run-with-cancellation-relay.sh) finds
+        // us. The runner signals only the step's own shell, and nothing in the bash -> build.sh
+        // -> `dotnet run` chain forwards SIGTERM to this process — found live on the first
+        // capped job after the handler shipped: CIKafka wedged, the stall detector named the
+        // test and its pid, and the partial ledger never happened because the signal never
+        // arrived here. Publishing the pid lets the relay signal exactly this process.
+        try
+        {
+            var pidFile = RootDirectory / ".nuke" / "temp" / "build.pid";
+            pidFile.Parent.CreateDirectory();
+            File.WriteAllText(pidFile, Environment.ProcessId.ToString());
+        }
+        catch
+        {
+            // Best-effort like everything else here: without the pid the relay just logs that
+            // it had nothing to signal, and the job degrades to what it did before.
+        }
 
         var fired = 0;
 

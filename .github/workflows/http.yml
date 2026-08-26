@@ -40,13 +40,13 @@ jobs:
       - name: Run HTTP Tests
         env:
           CI_JOB_NAME: CIHttp
-        run: ./build.sh CIHttp --framework net9.0
+        run: ./build/run-with-cancellation-relay.sh CIHttp --framework net9.0
 
       # Asp.Versioning tests are pinned to net10.0
       - name: Run HTTP Asp.Versioning Tests
         env:
           CI_JOB_NAME: CIHttpAspVersioning
-        run: ./build.sh CIHttpAspVersioning
+        run: ./build/run-with-cancellation-relay.sh CIHttpAspVersioning
 
       - name: Stop containers
         if: always()
