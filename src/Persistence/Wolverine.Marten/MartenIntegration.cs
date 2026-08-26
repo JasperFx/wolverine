@@ -19,6 +19,7 @@ using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Requirements;
 using Wolverine.Middleware;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
@@ -67,7 +68,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         // GH-3001: prime the service-location child scope with the handler's outbox-enrolled
         // IDocumentSession so a service-located IDocumentSession / IQuerySession resolves to that same
         // session. The frame self-guards (no-op when the chain has no Marten session).
-        options.ScopingFrameSources.Add(() => new PrimeScopedDocumentSessionFrame());
+        options.ScopingFrameSources.Add(() =>
+            new PrimeScopedSessionFrame<IDocumentSession, ScopedDocumentSessionHolder>());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new SessionVariableSource());

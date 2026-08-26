@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Polecat.Distribution;
 using Wolverine.Polecat.Publishing;
 using Wolverine.Polecat.Subscriptions;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.SqlServer.Persistence;
@@ -59,11 +60,26 @@ public static class WolverineOptionsPolecatExtensions
 
         expression.Services.AddScoped<IPolecatOutbox, PolecatOutbox>();
 
+        // GH-4145 (the GH-3001 pattern, ported from Wolverine.Marten): structural scope priming for
+        // Polecat sessions. When a handler falls back to service location, the generated code primes the
+        // child scope's ScopedDocumentSessionHolder with the handler's outbox-enrolled IDocumentSession
+        // (PrimeScopedSessionFrame). Decorate Polecat's own IDocumentSession / IQuerySession scoped
+        // registrations so service-located resolution prefers that primed session -- enrolled with the
+        // active outbox -- instead of a separate, un-enrolled session. Non-handler scopes (the holder is
+        // empty) fall back to Polecat's original session factory.
+        expression.Services.AddScoped<ScopedDocumentSessionHolder>();
+        expression.Services.PreferPrimedSession<IDocumentSession>(primedSession);
+        expression.Services.PreferPrimedSession<IQuerySession>(primedSession);
+
         // GH-3956: Polecat registers its own interfaces, never the store-agnostic
         // JasperFx.Events.Documents contracts its session types already implement, so a service depending
         // on one of those could not be resolved at all on a stock host. Handler PARAMETERS are satisfied by
         // codegen (SharedDocumentOperationsSource); these registrations cover everything codegen does not
         // see -- a service-located contract, or one injected into a class that a handler depends on.
+        //
+        // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
+        // the PreferPrimedSession decoration above applies: inside a handler scope these resolve to the
+        // handler's outbox-enrolled session, not a separate un-enrolled one.
         expression.Services.TryAddScoped<IDocumentSessionOperations>(s => s.GetRequiredService<IDocumentSession>());
         expression.Services.TryAddScoped<IDocumentWriteOperations>(s => s.GetRequiredService<IDocumentSession>());
         expression.Services.TryAddScoped<IDocumentReadOperations>(s => s.GetRequiredService<IQuerySession>());
@@ -162,6 +178,13 @@ public static class WolverineOptionsPolecatExtensions
         }
 
         return expression;
+    }
+
+    // GH-4145: the scope-primed session (the outbox-enrolled session the handler is using), or null
+    // outside a handler scope -- where PreferPrimedSession falls back to Polecat's own session factory.
+    private static object? primedSession(IServiceProvider services)
+    {
+        return services.GetRequiredService<ScopedDocumentSessionHolder>().Session;
     }
 
     internal static IMessageStore BuildSqlServerMessageStore(

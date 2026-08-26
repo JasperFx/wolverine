@@ -51,6 +51,13 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
 
         options.CodeGeneration.Sources.Add(new PolecatBackedPersistenceMarker());
 
+        // GH-4145 (the GH-3001 pattern, ported from Wolverine.Marten): prime the service-location child
+        // scope with the handler's outbox-enrolled IDocumentSession so a service-located IDocumentSession
+        // / IQuerySession resolves to that same session rather than a separate, un-enrolled one. The
+        // frame self-guards (no-op when the chain has no Polecat session).
+        options.ScopingFrameSources.Add(() =>
+            new PrimeScopedSessionFrame<IDocumentSession, ScopedDocumentSessionHolder>());
+
         options.CodeGeneration.InsertFirstPersistenceStrategy<PolecatPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
         options.CodeGeneration.Sources.Add(new DocumentOperationsSource());

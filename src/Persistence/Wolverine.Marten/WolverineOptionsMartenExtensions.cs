@@ -21,6 +21,7 @@ using Wolverine.Marten.Distribution;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Subscriptions;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql;
@@ -100,8 +101,8 @@ public static class WolverineOptionsMartenExtensions
         // separate, un-enrolled session. Non-handler scopes (the holder is empty) fall back to
         // Marten's original session factory.
         expression.Services.AddScoped<ScopedDocumentSessionHolder>();
-        preferScopedSession<IDocumentSession>(expression.Services);
-        preferScopedSession<IQuerySession>(expression.Services);
+        expression.Services.PreferPrimedSession<IDocumentSession>(primedSession);
+        expression.Services.PreferPrimedSession<IQuerySession>(primedSession);
 
         // GH-3956: Marten registers its own interfaces, never the store-agnostic JasperFx.Events.Documents
         // contracts its session types already implement, so a service depending on one of those could not
@@ -110,7 +111,7 @@ public static class WolverineOptionsMartenExtensions
         // a service-located contract, or one injected into a class that a handler depends on.
         //
         // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
-        // the preferScopedSession decoration above applies: inside a handler scope these resolve to the
+        // the PreferPrimedSession decoration above applies: inside a handler scope these resolve to the
         // handler's outbox-enrolled session, not a separate un-enrolled one.
         expression.Services.TryAddScoped<IDocumentSessionOperations>(s => s.GetRequiredService<IDocumentSession>());
         expression.Services.TryAddScoped<IDocumentWriteOperations>(s => s.GetRequiredService<IDocumentSession>());
@@ -208,46 +209,11 @@ public static class WolverineOptionsMartenExtensions
         return expression;
     }
 
-    // GH-3001: replace Marten's scoped session registration with one that prefers a scope-primed
-    // session (the outbox-enrolled session the handler is using), falling back to Marten's original
-    // factory when the holder is empty (non-handler scopes). Preserving the original factory keeps
-    // Marten's exact session-building (options, tenancy) for the fall-back path.
-    private static void preferScopedSession<T>(IServiceCollection services) where T : class
+    // GH-3001: the scope-primed session (the outbox-enrolled session the handler is using), or null
+    // outside a handler scope -- where PreferPrimedSession falls back to Marten's own session factory.
+    private static object? primedSession(IServiceProvider services)
     {
-        var descriptor = services.LastOrDefault(x => x.ServiceType == typeof(T));
-        if (descriptor == null)
-        {
-            return;
-        }
-
-        Func<IServiceProvider, object> original;
-        if (descriptor.ImplementationFactory != null)
-        {
-            original = descriptor.ImplementationFactory;
-        }
-        else if (descriptor.ImplementationInstance != null)
-        {
-            original = _ => descriptor.ImplementationInstance;
-        }
-        else if (descriptor.ImplementationType != null)
-        {
-            original = sp => ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
-        }
-        else
-        {
-            return;
-        }
-
-        services.Remove(descriptor);
-        services.AddScoped<T>(sp =>
-        {
-            if (sp.GetRequiredService<ScopedDocumentSessionHolder>().Session is T primed)
-            {
-                return primed;
-            }
-
-            return (T)original(sp);
-        });
+        return services.GetRequiredService<ScopedDocumentSessionHolder>().Session;
     }
 
     internal static NpgsqlDataSource findMasterDataSource(
