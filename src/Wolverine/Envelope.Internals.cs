@@ -55,6 +55,18 @@ public partial class Envelope
     [JsonIgnore]
     public bool WasPersistedInInbox { get; set; }
 
+    /// <summary>
+    /// GH-4135. Guards against reporting IMessageTracker.Received more than once for a single
+    /// receipt. Partitioned processing deserializes an envelope up front -- through
+    /// HandlerPipeline.TryDeserializeEnvelope, so it can read the group id off the message -- and the
+    /// envelope then arrives at the pipeline already carrying a Message, which is the other branch
+    /// that reports Received. Two reports per delivery double-counted the received metric, double-fed
+    /// the CritterWatch accumulator, logged each receipt twice, and put two Received records in a
+    /// tracked session so Received.SingleMessage&lt;T&gt;() failed against correct behaviour.
+    /// </summary>
+    [JsonIgnore]
+    internal bool WasTrackedAsReceived { get; set; }
+
     [JsonIgnore]
     public IMessageSerializer? Serializer { get; set; }
 
@@ -567,6 +579,7 @@ public partial class Envelope
 
         // Public / internal settable properties — runtime-only (Envelope.Internals.cs)
         WasPersistedInInbox = false;
+        WasTrackedAsReceived = false;
         Serializer = null;
         ResponseType = null;
         Response = null;
