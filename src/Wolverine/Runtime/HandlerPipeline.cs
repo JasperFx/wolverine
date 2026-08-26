@@ -140,6 +140,17 @@ public class HandlerPipeline : IHandlerPipeline
 
             tracker.LogException(exception, envelope.Id);
 
+            // GH-4125: record a terminal event for the envelope. This path acks the message away and
+            // will never touch it again, so from every tracker's point of view the message has failed --
+            // but until now the only thing emitted was the free-form LogException, which is not a
+            // message event. Two consequences: failure metrics under-counted every envelope that died
+            // here (a handler chain that fails to compile, a missing sticky handler), and a tracked
+            // session could never see the envelope reach a terminal state, so it stayed "incomplete"
+            // until the session timed out. Now that the timeout assertion is no longer suppressed by
+            // DoNotAssertOnExceptionsDetected(), that second one is the difference between a test that
+            // reports the real failure and one that reports a five second timeout.
+            tracker.MessageFailed(envelope, exception);
+
             activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
         }
         catch (Exception recoveryFailure)

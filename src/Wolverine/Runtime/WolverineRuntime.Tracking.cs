@@ -181,7 +181,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
         // Same unset-SentAt guard as MessageSucceeded (CritterWatch#880's arithmetic half)
         if (envelope.SentAt == default)
         {
-            ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+            ActiveSession?.Record(MessageEventType.MessageFailed, envelope, _serviceName, _uniqueNodeId, ex);
             fireWireTapFailure(envelope, ex);
             return;
         }
@@ -197,7 +197,14 @@ public sealed partial class WolverineRuntime : IMessageTracker
             accumulator.EntryPoint.Post(new RecordEffectiveTime(time, envelope.TenantId!));
         }
 
-        ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+        // GH-4125: record MessageFailed, not Sent. Every caller of this method is on a terminal path
+        // (MoveToErrorQueue, the MessageSucceededContinuation catch, the batching continuations, the
+        // pipeline's last line of defense), but Sent is NOT a terminal MessageEventType -- an
+        // EnvelopeHistory only completes a Sent record once a matching Received arrives. So a failed
+        // message never reached a terminal state in a tracked session and the session could only ever
+        // end by timing out. That went unnoticed because MoveToErrorQueue emits its own terminal
+        // MovedToErrorQueue record immediately afterwards, covering the one path anybody tested.
+        ActiveSession?.Record(MessageEventType.MessageFailed, envelope, _serviceName, _uniqueNodeId, ex);
 
         fireWireTapFailure(envelope, ex);
     }
