@@ -61,8 +61,12 @@ partial class Build : NukeBuild
     // VerifyCITargetCoverage is here rather than in tests.yml on purpose: it costs under a second, and
     // dotnet.yml's `./build.sh ci` runs on every push and PR, so a target that runs nowhere is reported
     // on the cheap workflow instead of behind the 20 minute matrix. GH-3816.
+    //
+    // VerifyTrackedSessionTimeouts rides along for the same reason and at the same cost (~1s for 345
+    // budgets): a tracked-session budget longer than the job cap turns every hang under it into a job
+    // cancellation with discarded logs instead of a test failure with a tracking dump. GH-4100.
     Target CI => _ => _
-        .DependsOn(VerifyCITargetCoverage, CoreTests, CIMessageRouting);
+        .DependsOn(VerifyCITargetCoverage, VerifyTrackedSessionTimeouts, CoreTests, CIMessageRouting);
 
     Target Test => _ => _
         .DependsOn(CoreTests, TestExtensions, Commands, PolicyTests, HttpTests);
