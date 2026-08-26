@@ -181,7 +181,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
         // Same unset-SentAt guard as MessageSucceeded (CritterWatch#880's arithmetic half)
         if (envelope.SentAt == default)
         {
-            ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+            ActiveSession?.Record(MessageEventType.MessageFailed, envelope, _serviceName, _uniqueNodeId, ex);
             fireWireTapFailure(envelope, ex);
             return;
         }
@@ -197,7 +197,12 @@ public sealed partial class WolverineRuntime : IMessageTracker
             accumulator.EntryPoint.Post(new RecordEffectiveTime(time, envelope.TenantId!));
         }
 
-        ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+        // GH-4136: record MessageFailed, not Sent. Sent is NOT terminal -- an EnvelopeHistory only
+        // completes a Sent record once a matching Received arrives -- so a failed message never
+        // reached a terminal state in a tracked session and the session could only ever end by timing
+        // out. It went unnoticed because the dead-letter path emits its own terminal
+        // MovedToErrorQueue record, covering the one path anybody tested.
+        ActiveSession?.Record(MessageEventType.MessageFailed, envelope, _serviceName, _uniqueNodeId, ex);
 
         fireWireTapFailure(envelope, ex);
     }
@@ -216,9 +221,32 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _noRoutes(Logger, envelope, null);
     }
 
+    /// <summary>
+    /// GH-4136: this is the <b>only</b> tracking event the dead-letter path reports, and it carries the
+    /// exception. MoveToErrorQueue used to call MessageFailed as well, which was harmless while
+    /// MessageFailed recorded the non-terminal Sent -- MovedToErrorQueue came last and swept every
+    /// prior record complete. Once MessageFailed became terminal, two terminal records on one path
+    /// broke both orderings: MessageFailed first completes the envelope and the session can resume
+    /// before MovedToErrorQueue lands (TransportCompliance's "No ending activity detected"), while
+    /// MovedToErrorQueue first stops sweeping the trailing Sent that the durable transports' own DLQ
+    /// move produces, so the session never completes at all. One terminal event, reported last, is
+    /// the only arrangement that satisfies both. MessageFailed's dead-letter counter, effective-time
+    /// recording and failure wire tap are folded in here so no metric is lost.
+    /// </summary>
     public void MovedToErrorQueue(Envelope envelope, Exception ex)
     {
-        ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
+        var tags = metricTags(envelope);
+        _deadLetterQueueCounter.Add(1, tags);
+
+        // Same unset-SentAt guard as MessageSucceeded (CritterWatch#880's arithmetic half)
+        if (envelope.SentAt != default)
+        {
+            var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+            _effectiveTime.Record(time, tags);
+        }
+
+        ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId, ex);
+        fireWireTapFailure(envelope, ex);
         _movedToErrorQueue(Logger, envelope, ex);
 
         if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
