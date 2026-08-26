@@ -9,9 +9,7 @@ namespace Wolverine.Configuration.EventModeling;
 /// <summary>
 ///     The Wolverine-derived <see cref="IEventModelDefinitionSource" /> (GH-3988): one slice per message
 ///     handler chain, with the roles <see cref="EventModelRoles" /> derives off the chain, plus the gRPC
-///     trigger for any message an RPC forwards to the bus. Registered by <c>UseWolverine()</c> ahead of
-///     every other source so that <see cref="EventModelDiscovery.Assemble" /> lets the derived roles win
-///     over an overlay's names.
+///     trigger for any message an RPC forwards to the bus.
 /// </summary>
 /// <remarks>
 ///     HTTP chains are described by <c>Wolverine.Http</c>'s sibling source — the HTTP graph is not known to
@@ -24,6 +22,25 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     public const string Scheme = "event-model";
 
     public Uri Subject { get; } = new($"{Scheme}://wolverine");
+
+    /// <summary>
+    ///     GH-4147/GH-4152. Every role this source claims is read off a compiled handler chain, so it sits
+    ///     on the <see cref="EventModelProvenance.Derived" /> rung rather than the
+    ///     <see cref="EventModelProvenance.Declared" /> default (jasperfx#703).
+    ///
+    ///     <para>This is what makes derived roles beat an overlay's. Until JasperFx 2.56 the mechanism was
+    ///     registration order — <c>UseWolverine()</c> did <c>services.Insert(0, ...)</c> purely so this
+    ///     source merged first — which was load-bearing behaviour that nothing in the registration
+    ///     explained. Precedence is now on the ladder, so the insert is gone and the ordering no longer
+    ///     matters.</para>
+    ///
+    ///     <para>Note the deliberate inversion: a source that <em>observes</em> a running system outranks
+    ///     this one. That is the point of the ladder, not a regression — production truth beats what the
+    ///     code says it should do. Precedence is also per <em>claimed</em> role, so this does not start
+    ///     overwriting an overlay's slice names, domains or specification links; nothing else claims the
+    ///     factual roles this source fills in.</para>
+    /// </summary>
+    public EventModelProvenance Provenance => EventModelProvenance.Derived;
 
     public Task<EventModelDescriptor?> TryCreateAsync(IServiceProvider services, CancellationToken token)
     {

@@ -177,7 +177,10 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
             .ConfigureServices(services =>
             {
                 // Registered BEFORE UseWolverine() on purpose: the derived source must still win on
-                // merge, so the overlay may only fill gaps (the trigger label) — never a derived role
+                // merge, so the overlay may only fill gaps (the trigger label) — never a derived role.
+                // GH-4152: this is now the regression guard for the provenance ladder specifically. The
+                // overlay is registered first and is no longer beaten by registration order, so if the
+                // Derived stamp ever came off, this fixture would start losing derived roles to it.
                 services.AddEventModel("Overlay", model =>
                 {
                     model.InDomain("Sales");
@@ -199,12 +202,26 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
         _host.Dispose();
     }
 
+    // GH-4152: this used to assert the Wolverine source was registered FIRST, because until JasperFx 2.56
+    // that ordering was the only thing making derived roles beat an overlay's -- hence the
+    // services.Insert(0, ...) in UseWolverine(). Precedence now rides the provenance ladder, so the
+    // registration order is no longer meaningful and asserting it would be pinning an implementation
+    // detail we deliberately removed. What has to hold is the rung.
     [Fact]
-    public void the_wolverine_source_is_registered_first()
+    public void the_wolverine_source_claims_the_derived_rung()
     {
         var sources = _host.Services.GetServices<IEventModelDefinitionSource>().ToArray();
-        sources.First().ShouldBeOfType<WolverineEventModelSource>();
         sources.Length.ShouldBe(2);
+
+        // Through the interface on purpose: Provenance is a default interface member, so reading it off
+        // the concrete type would only compile when the override exists and would assert nothing.
+        IEventModelDefinitionSource wolverine = sources.OfType<WolverineEventModelSource>().Single();
+        wolverine.Provenance.ShouldBe(EventModelProvenance.Derived);
+
+        // The overlay registered in InitializeAsync is unstamped, so it stays on the bottom rung -- which
+        // is what lets it fill gaps without overwriting anything derived, whatever order it registered in.
+        var overlay = sources.Single(x => x is not WolverineEventModelSource);
+        overlay.Provenance.ShouldBe(EventModelProvenance.Declared);
     }
 
     [Fact]

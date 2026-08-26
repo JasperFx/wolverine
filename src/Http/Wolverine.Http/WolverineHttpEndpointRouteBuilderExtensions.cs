@@ -194,11 +194,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // shipped the richer reader yet.
         services.AddSingleton<IHttpGraphUsageSource, HttpGraphUsageSource>();
 
-        // GH-3988 — the Wolverine.HTTP-derived Event Model source. Inserted at the front, like Wolverine
-        // core's, so an overlay registered earlier cannot overwrite a derived role on merge.
+        // GH-3988 — the Wolverine.HTTP-derived Event Model source. GH-4152: appended rather than inserted
+        // at the front, now that the source declares EventModelProvenance.Derived and precedence is on the
+        // ladder instead of registration order.
         if (services.All(x => x.ImplementationType != typeof(HttpEventModelSource)))
         {
-            services.Insert(0, ServiceDescriptor.Singleton<IEventModelDefinitionSource, HttpEventModelSource>());
+            services.AddSingleton<IEventModelDefinitionSource, HttpEventModelSource>();
         }
 
         // Registered unconditionally — harmless when no versioned endpoint uses it.

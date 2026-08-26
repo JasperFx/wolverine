@@ -207,13 +207,13 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
 
-        // GH-3988: the Wolverine-derived Event Model source. Inserted at the FRONT of the collection
-        // rather than appended, because JasperFx's EventModelDiscovery folds sources in registration
-        // order with the earlier winning on every scalar — and a derived role must never be overwritten
-        // by an overlay the application registered before UseWolverine().
+        // GH-3988: the Wolverine-derived Event Model source. GH-4152: a plain append, because the source
+        // now declares EventModelProvenance.Derived and the merge resolves on that ladder rather than on
+        // registration order. This used to be services.Insert(0, ...) solely so a derived role could not be
+        // overwritten by an overlay registered before UseWolverine().
         if (services.All(x => x.ImplementationType != typeof(WolverineEventModelSource)))
         {
-            services.Insert(0, ServiceDescriptor.Singleton<IEventModelDefinitionSource, WolverineEventModelSource>());
+            services.AddSingleton<IEventModelDefinitionSource, WolverineEventModelSource>();
         }
 
         services.AddSingleton<IFaultPublisher>(sp =>

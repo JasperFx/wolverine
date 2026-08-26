@@ -328,6 +328,34 @@ dotnet run -- event-model --json ./docs/orders.json
 dotnet run -- event-model --json ./out.json --name Orders
 ```
 
+### Publishing to a monitor
+
+`--url` PUTs the assembled descriptor to a monitor instead of writing it to a file, which collapses the
+design-time loop to a single command:
+
+```bash
+dotnet watch run -- event-model --url http://localhost:5525
+```
+
+The two flags compose. `--url` on its own publishes and writes nothing; add `--json` and you get both, with
+the file and the request body byte-for-byte identical:
+
+```bash
+dotnet run -- event-model --url http://localhost:5525                       # publish only
+dotnet run -- event-model --url http://localhost:5525 --json ./out.json     # publish and write
+```
+
+Wolverine takes **no reference on the monitor** — this is an HTTP PUT to whatever URL you name, so anything
+that accepts the descriptor works. A monitor that is down fails with a one-line message and a non-zero exit
+rather than a stack trace, because under `dotnet watch` a console you have not started yet is the ordinary
+case and must not look like a crash.
+
+::: tip
+Note that the rebuild has to come from `dotnet watch`, not from a `--watch` flag on the command. The command's
+process already has your assembly loaded, so an internal loop would re-serialize the same chains forever and
+never see an edit — only a fresh process picks up recompiled handlers.
+:::
+
 The host is built but **never started**: the handler graph is compiled the same way
 `wolverine-diagnostics describe-handlers` does it, so no transport is opened, no database is touched, and no
 runtime compiler is needed — a `TypeLoadMode.Dynamic` application without `WolverineFx.RuntimeCompilation`

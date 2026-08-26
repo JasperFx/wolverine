@@ -23,6 +23,15 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
 
     public Uri Subject { get; } = new($"{WolverineEventModelSource.Scheme}://wolverine-http");
 
+    /// <summary>
+    ///     GH-4147/GH-4152. Roles here are derived off compiled <see cref="HttpChain" />s, so this source
+    ///     sits on the same <see cref="EventModelProvenance.Derived" /> rung as Wolverine core's
+    ///     (jasperfx#703), which is what replaced the <c>services.Insert(0, ...)</c> registration hack.
+    ///     Two sources on the same rung union rather than clobber, so this and
+    ///     <see cref="WolverineEventModelSource" /> still both contribute to the one model per service.
+    /// </summary>
+    public EventModelProvenance Provenance => EventModelProvenance.Derived;
+
     public Task<EventModelDescriptor?> TryCreateAsync(IServiceProvider services, CancellationToken token)
     {
         var graph = _options.Endpoints;
