@@ -152,7 +152,12 @@ public class TrackedSessionConfiguration
     /// <summary>
     ///     Do not assert or fail if exceptions where thrown during the
     ///     message activity. This is useful for testing resiliency features
-    ///     and exception handling with message failures
+    ///     and exception handling with message failures.
+    ///
+    ///     This governs exceptions thrown by the message activity itself. It does NOT suppress the
+    ///     session's own timeout assertion -- a session that times out having completed none of its
+    ///     work still throws <see cref="TimeoutException" />, and that exception carries the full
+    ///     activity grid for diagnosis. See GH-4125.
     /// </summary>
     /// <returns></returns>
     public TrackedSessionConfiguration DoNotAssertOnExceptionsDetected()
