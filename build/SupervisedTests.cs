@@ -291,14 +291,30 @@ partial class Build
             Log.Warning("  [STALLED] {Test} — {Seconds}s in flight on lane {Lane}",
                 stalled.DisplayName, (int)stalled.InFlight.TotalSeconds, stalled.Worker.Lane);
 
+        // GH-4109. Report the top THREE, and do not call them retainers.
+        //
+        // This is a start-to-verdict RSS delta, which is heap EXPANSION, not live bytes: the GC does
+        // not hand memory back to the OS promptly, so whichever test happens to be running when the
+        // heap grows is charged for all of it. Naming a single winner "top retainer" reads as an
+        // accusation against that test, and the very first measurement this ever produced sent us
+        // after CoreTests.Acceptance.wolverine_as_command_bus.use_iasync_enumerable_as_return_value
+        // at +685 MB -- a test that sends three empty records and awaits two 50ms delays.
+        //
+        // Five consecutive runs of the same unchanged suite named five DIFFERENT tests (+535 MB to
+        // +1084 MB) while peak RSS stayed flat at 4956-5468 MB. The leader is noise; the peak is the
+        // signal. Three entries make that visible in the log itself -- a test that really does retain
+        // will hold its place across runs, and a run whose three entries are all strangers is telling
+        // you the ranking means nothing this time.
         var memory = RunResources.For(results);
         if (memory.IsMeasured)
         {
-            Log.Information("  peak worker RSS {Peak}; top retainer: {Retainer}",
+            var growth = memory.TopRetainers(3)
+                .Select(x => $"{RunResources.Delta(x.RetainedBytes!.Value)} {x.DisplayName}")
+                .ToArray();
+
+            Log.Information("  peak worker RSS {Peak}; largest RSS growth during: {Growth}",
                 RunResources.Humanize(memory.PeakBytes!.Value),
-                memory.TopRetainers(1) is [{ } top]
-                    ? $"{RunResources.Delta(top.RetainedBytes!.Value)} {top.DisplayName}"
-                    : "(none attributed)");
+                growth.Length > 0 ? string.Join(", ", growth) : "(none attributed)");
         }
 
         foreach (var test in results.Indeterminate)
