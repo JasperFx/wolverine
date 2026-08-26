@@ -13,10 +13,16 @@ namespace Wolverine.Pulsar;
 
 internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling, IReportConnectionState
 {
+    // GH-4100: how long a failed receiving loop waits before re-entering Messages(). Long enough that a
+    // permanently faulted consumer logs at a readable rate, short enough that a transient fault costs
+    // roughly nothing.
+    private static readonly TimeSpan ReceivingLoopRestartDelay = TimeSpan.FromSeconds(1);
+
     private readonly CancellationToken _cancellation;
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
     private readonly IConsumer<ReadOnlySequence<byte>>? _retryConsumer;
     private readonly CancellationTokenSource _localCancellation;
+    private readonly CancellationTokenSource _combinedCancellation;
     private readonly Task? _receivingLoop;
     private readonly PulsarSender? _sender;
     private readonly bool _enableRequeue;
@@ -32,7 +38,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     // one at a time.
     private readonly BatchingChannel<Envelope>? _batching;
     private readonly Block<Envelope[]>? _batchFlush;
-    private readonly ILogger? _logger;
+    private readonly ILogger _logger;
     private readonly Schemas.IPulsarMessageCodec? _codec;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
@@ -51,6 +57,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
         _cancellation = cancellation;
         _codec = endpoint.MessageCodec;
+        _logger = runtime.LoggerFactory.CreateLogger<PulsarListener>();
 
         // GH-4047. Belt and braces with the bootstrap check in PulsarEndpoint.validateModeConfiguration(): that one
         // runs over every *listening* endpoint at startup, this one covers any path that builds a listener without
@@ -86,7 +93,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         _localCancellation = new CancellationTokenSource();
 
-        var combined = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
+        _combinedCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
 
         // GH-3183: when an endpoint schema is configured, create the consumer with it so the broker
         // registers/enforces the schema for the topic. The schema is a pass-through over Wolverine's
@@ -145,15 +152,13 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         if (endpoint.Mode == EndpointMode.Durable && endpoint.MaximumMessagesToReceive > 1)
         {
-            _logger = runtime.LoggerFactory.CreateLogger<PulsarListener>();
             _batchFlush = new Block<Envelope[]>((batch, _) => deliverBatchAsync(batch));
             _batching = new BatchingChannel<Envelope>(TimeSpan.FromMilliseconds(5), _batchFlush,
                 endpoint.MaximumMessagesToReceive);
         }
 
-        _receivingLoop = Task.Run(async () =>
-        {
-            await foreach (var message in _consumer.Messages(combined.Token))
+        _receivingLoop = Task.Run(
+            () => consumeAsync(_consumer, _combinedCancellation.Token, async message =>
             {
                 // Record receipt so the ack handler can compute the cumulative-ack watermark safely.
                 _ackHandler.Track(FixMessageId(message.MessageId, _consumer.Topic));
@@ -181,16 +186,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                 {
                     await receiver.ReceivedAsync(this, envelope);
                 }
-            }
-        }, combined.Token);
+            }), _combinedCancellation.Token);
 
 
         if (NativeRetryLetterQueueEnabled)
         {
             _retryConsumer = createRetryConsumer(endpoint, transport);
-            _receivingRetryLoop = Task.Run(async () =>
-            {
-                await foreach (var message in _retryConsumer.Messages(combined.Token))
+            _receivingRetryLoop = Task.Run(
+                () => consumeAsync(_retryConsumer, _combinedCancellation.Token, async message =>
                 {
                     var envelope = new PulsarEnvelope(message)
                     {
@@ -206,8 +209,87 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                     }
 
                     await receiver.ReceivedAsync(this, envelope);
+                }), _combinedCancellation.Token);
+        }
+    }
+
+    /// <summary>
+    ///     GH-4100. The receiving loop for one consumer, with the two guards it has to have.
+    ///
+    ///     <para>Both Pulsar receiving loops used to be a bare <c>await foreach</c> over
+    ///     <c>IConsumer.Messages()</c> inside a fire-and-forget <see cref="Task.Run(Func{Task})" />,
+    ///     with no <c>try</c> anywhere in them and nothing ever observing the returned task. Anything
+    ///     that threw — the envelope mapper, a schema codec, the receiver, or DotPulsar itself faulting
+    ///     the consumer — killed that task for good. The consumer object stayed alive, the socket to the
+    ///     broker stayed open, and <see cref="ConnectionState" /> (which is fed by DotPulsar's state
+    ///     handler, not by this loop) went on reporting Connected, so the listener read no further
+    ///     messages and said nothing about it. That is the silently-dead listener the RabbitMQ transport
+    ///     fixed in #3391, and it is the shape of the CIPulsar wedge in #4100: a fully built host, a live
+    ///     connection, and total silence until the test's tracked-session budget ran out.</para>
+    ///
+    ///     <para>So: an inner guard per message, and an outer guard around the enumeration.</para>
+    ///
+    ///     <para>The per-message failure is logged and skipped, and the message is deliberately left
+    ///     <em>unacknowledged</em> rather than deferred. Deferring is what the batched path does, but a
+    ///     mapper or codec failure is deterministic — deferring it would redeliver the same message into
+    ///     the same exception forever at whatever rate the broker allows. Leaving it unacked neither
+    ///     drops it silently nor spins on it.</para>
+    ///
+    ///     <para>The enumeration failure is logged and the loop re-enters <c>Messages()</c> after a short
+    ///     pause. DotPulsar reconnects the consumer underneath us, so a transient broker fault costs a
+    ///     restart instead of the listener. A consumer that is permanently faulted re-throws immediately,
+    ///     which the pause turns into one log line per second — noisy on purpose, and still far better
+    ///     than the silence it replaces.</para>
+    /// </summary>
+    private async Task consumeAsync(IConsumer<ReadOnlySequence<byte>> consumer, CancellationToken token,
+        Func<IMessage<ReadOnlySequence<byte>>, Task> handleAsync)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                await foreach (var message in consumer.Messages(token))
+                {
+                    try
+                    {
+                        await handleAsync(message);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e,
+                            "Failure receiving Pulsar message {MessageId} on topic {Topic} at {Address}; the message is left unacknowledged and the listener continues",
+                            message.MessageId, consumer.Topic, Address);
+                    }
                 }
-            }, combined.Token);
+
+                // A clean end of the stream means the consumer was closed underneath us; there is
+                // nothing left to re-enumerate.
+                return;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception e)
+            {
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                _logger.LogError(e,
+                    "The Pulsar receiving loop for topic {Topic} at {Address} failed; restarting it",
+                    consumer.Topic, Address);
+
+                try
+                {
+                    await Task.Delay(ReceivingLoopRestartDelay, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
         }
     }
 
@@ -282,7 +364,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         }
         catch (Exception e)
         {
-            _logger?.LogError(e,
+            _logger.LogError(e,
                 "Failure receiving a batch of {Count} Pulsar messages at {Address}, deferring them for redelivery",
                 batch.Length, Address);
 
@@ -294,7 +376,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                 }
                 catch (Exception deferException)
                 {
-                    _logger?.LogError(deferException, "Failure deferring Pulsar message for envelope {EnvelopeId}", envelope.Id);
+                    _logger.LogError(deferException, "Failure deferring Pulsar message for envelope {EnvelopeId}", envelope.Id);
                 }
             }
         }
@@ -366,7 +448,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             }
             catch (Exception e)
             {
-                _logger?.LogDebug(e, "Error flushing the pending Pulsar receive batch at {Address}", Address);
+                _logger.LogDebug(e, "Error flushing the pending Pulsar receive batch at {Address}", Address);
             }
         }
 
@@ -398,8 +480,34 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             await _sender.DisposeAsync();
         }
 
-        _receivingLoop?.Dispose();
-        _receivingRetryLoop?.Dispose();
+        // GH-4100: Task.Dispose() throws InvalidOperationException on a task that has not reached a
+        // final state, and cancelling the token above does not by itself mean the receiving loops have
+        // unwound yet. Wait for them (bounded, so a wedged receiver can never hang disposal) before
+        // disposing, and swallow the cancellation they finish with.
+        foreach (var loop in new[] { _receivingLoop, _receivingRetryLoop })
+        {
+            if (loop == null)
+            {
+                continue;
+            }
+
+            try
+            {
+                await loop.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Error waiting on the Pulsar receiving loop at {Address} during disposal",
+                    Address);
+            }
+
+            if (loop.IsCompleted)
+            {
+                loop.Dispose();
+            }
+        }
+
+        _combinedCancellation.Dispose();
     }
 
     public Uri Address { get; }
