@@ -204,7 +204,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     {
         return new MessageSubscriptionDescriptor
         {
-            ContentType = Serializer.ContentType,
+            // GH-4132: Serializer is only guaranteed non-null when this route was built outside of
+            // description mode -- the constructor's WithinDescription branch deliberately accepts a
+            // null DefaultSerializer from an endpoint the runtime never compiled. Describing a
+            // topology must not be the thing that throws, so fall back the same way
+            // WolverineDiagnosticsCommand does when it reads Serializer directly.
+            ContentType = Serializer?.ContentType ?? _endpoint.DefaultSerializer?.ContentType ?? "application/json",
             Endpoint = _endpoint.Uri
         };
     }

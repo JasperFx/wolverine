@@ -14,6 +14,8 @@ public class OutboxedSessionFactory
     private readonly IDocumentStore _store;
     private readonly bool _shouldPublishEvents;
     private readonly bool _shouldTrackAppends;
+    private readonly IWolverineRuntime _runtime;
+    private IMessageStore? _messageStore;
 
     public OutboxedSessionFactory(ISessionFactory factory, IWolverineRuntime runtime, IDocumentStore store)
     {
@@ -23,10 +25,32 @@ public class OutboxedSessionFactory
         _shouldPublishEvents = runtime.TryFindExtension<PolecatIntegration>()?.UseFastEventForwarding ?? false;
         _shouldTrackAppends = runtime.Options.Tracking.EnableEventAppendTracking;
 
-        MessageStore = runtime.Storage;
+        _runtime = runtime;
     }
 
-    internal IMessageStore MessageStore { get; set; }
+    /// <summary>
+    /// The message store this factory enlists sessions in. Defaults to the runtime's <b>Main</b> store,
+    /// resolved on every read rather than captured in the constructor; an ancillary-store subclass
+    /// (<c>OutboxedSessionFactory&lt;T&gt;</c>) assigns a fixed store and that assignment wins.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>GH-4130. Do not go back to <c>MessageStore = runtime.Storage</c> in the constructor.</b>
+    /// <c>IWolverineRuntime.Storage</c> is <c>Stores.Main</c>, which is the placeholder
+    /// <see cref="NullMessageStore"/> until <c>MessageStoreCollection.InitializeAsync()</c> assigns the
+    /// real one — and that assignment is deferred whenever more than one store claims
+    /// <see cref="MessageStoreRole.Main"/> and <c>DurabilitySettings.ResolveMainStoreOnConflict</c> has to
+    /// reconcile them (GH-3226). A database-backed queue transport alongside an event-store-integrated
+    /// Main is exactly that shape. Capturing early left this factory holding the placeholder for the life
+    /// of the process while <c>Stores.Main</c> read perfectly correct afterwards, so the host booted and
+    /// listened cleanly and then failed EVERY message and HTTP request with "requires a SQL Server-backed
+    /// message store / is not using Postgresql + Marten as the backing message persistence". Nothing
+    /// pointed at the store roles, which were right the whole time.
+    /// </remarks>
+    internal IMessageStore MessageStore
+    {
+        get => _messageStore ?? _runtime.Storage;
+        set => _messageStore = value;
+    }
 
     /// <summary>Build new instances of IQuerySession on demand</summary>
     public IQuerySession QuerySession(MessageContext context)

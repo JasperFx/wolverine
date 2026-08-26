@@ -92,14 +92,16 @@ Idempotency checking within message handlers executing within `Buffered` or more
 you to "opt in." First though, the idempotency check in this case can be done in one of two modes:
 
 1. `Eager` -- just means that Wolverine will apply some middleware around the handler such that it will make an early database call to try to insert a skeleton placeholder in the transactional inbox storage
-2. `Optmistic` -- Wolverine will try to insert the skeleton message information as part of the message handling transaction to try to avoid extra database round trips
+2. `Optimistic` -- Wolverine would try to insert the skeleton message information as part of the message handling transaction to try to avoid extra database round trips
 
-To be honest, the EF Core integration will always use the `Eager` approach no matter what. Marten supports both modes, and the `Optimistic`
-approach may be valuable if all the activity of your message handler is in changes to that same database so everything can still be 
-rolled back by the idempotency check failing. 
+`Optimistic` was the more optimal of the two on paper, but as the warning above says, it is **not currently reachable**. Every
+provider -- EF Core, Marten, Polecat, and Fisher alike -- emits the `Eager` check for any handler configured with either style,
+so `IdempotencyStyle.Optimistic` behaves exactly like `IdempotencyStyle.Eager` at runtime. Treat the two as one option until
+that changes; nothing in your code has to change if it does.
 
-For another example, if your message handler involves a web service call to an external system or really any kind of action
-that potentially makes state changes outside of the current transaction, you have to use the `Eager` mode.
+`Eager` is also the mode you actually want in most cases: if your message handler involves a web service call to an external
+system or really any kind of action that potentially makes state changes outside of the current transaction, the check has to
+happen before the handler runs.
 
 With all of that being said, you can either opt into the idempotency checks one at a time with an overload of the `[Transactional]`
 attribute like this:
