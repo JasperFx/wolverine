@@ -60,9 +60,16 @@ internal class MoveToErrorQueue : IContinuation
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));
 
+        // GH-4136: MovedToErrorQueue is recorded FIRST. Both of these are terminal MessageEventTypes
+        // now that MessageFailed records its own type instead of Sent, and the first terminal record
+        // is what completes the envelope -- which can complete the tracked session and let
+        // ExecuteAndTrackAsync resume before the second record lands. MovedToErrorQueue is the ending
+        // event a caller actually asserts on for a dead-lettered message (see
+        // TransportCompliance.shouldMoveToErrorQueueOnAttempt), so it is the one that has to be in the
+        // session by then. Both calls still run, so neither one's metrics are affected by the order.
         var tracker = lifecycle.CompletionTrackerFor(runtime);
-        tracker.MessageFailed(lifecycle.Envelope, Exception);
         tracker.MovedToErrorQueue(lifecycle.Envelope, Exception);
+        tracker.MessageFailed(lifecycle.Envelope, Exception);
     }
 
     public override string ToString()

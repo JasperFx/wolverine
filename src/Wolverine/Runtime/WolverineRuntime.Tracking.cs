@@ -225,7 +225,11 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void MovedToErrorQueue(Envelope envelope, Exception ex)
     {
-        ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
+        // GH-4136: carry the exception on this record. Both this and MessageFailed are terminal
+        // MessageEventTypes, and MoveToErrorQueue reports this one first so the dead-letter ending
+        // record is guaranteed to be in a tracked session -- which means this is the record a caller
+        // can rely on seeing, so it is the one that has to say why the envelope was dead-lettered.
+        ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId, ex);
         _movedToErrorQueue(Logger, envelope, ex);
 
         if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
