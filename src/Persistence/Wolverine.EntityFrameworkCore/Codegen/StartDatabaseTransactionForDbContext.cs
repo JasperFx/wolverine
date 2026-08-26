@@ -33,17 +33,15 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
     {
         writer.Write("BLOCK:try");
 
-        // EF Core can only do eager idempotent checks
-        if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
-        {
-            writer.Write($"await {_context!.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
-        }
-
         writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction == null)");
         writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
 
-        // EF Core can only do eager idempotent checks
+        // EF Core can only do eager idempotent checks. GH-4128: this is emitted exactly once, and
+        // after the transaction is opened, matching the single-DbContext sibling
+        // EnrollDbContextInTransaction. A second copy above the BeginTransactionAsync block used to
+        // run the same inbox existence query twice per message on the paths where
+        // AssertEagerIdempotencyAsync does not set Envelope.WasPersistedInInbox.
         if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
         {
             writer.Write($"await {_context!.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
