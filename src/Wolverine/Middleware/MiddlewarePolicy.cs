@@ -111,6 +111,32 @@ public class MiddlewarePolicy : IChainPolicy
         ApplyExceptionHandling(applications, rules, chain);
     }
 
+    /// <summary>
+    /// Give an OnException method's return value a name that cannot collide with the enclosing scope.
+    /// The catch block is emitted *inside* the scope that already declares the chain's message body
+    /// variable, and both names are derived from their type -- so an OnException that returns the same
+    /// type the chain handles produced two locals called e.g. "cascadedFromOnException" nested one
+    /// inside the other, and the generated handler failed to compile with CS0136. The handler then
+    /// never ran, which is silent: the cascading message is still *sent*, so anything asserting on
+    /// sent messages rather than executed ones stayed green.
+    /// </summary>
+    internal static void DisambiguateOnExceptionReturnValue(MethodCall call)
+    {
+        var returnVariable = call.ReturnVariable;
+        if (returnVariable == null)
+        {
+            return;
+        }
+
+        var usage = returnVariable.Usage;
+        if (usage.IsEmpty())
+        {
+            return;
+        }
+
+        returnVariable.OverrideName($"onException{char.ToUpperInvariant(usage[0])}{usage[1..]}");
+    }
+
     internal static void ApplyExceptionHandling(List<Application> applications, GenerationRules rules, IChain chain)
     {
         var exceptionHandlers = applications
@@ -427,6 +453,7 @@ public class MiddlewarePolicy : IChainPolicy
                 var exceptionType = parameters[0].ParameterType;
                 var call = new MethodCall(MiddlewareType, method);
                 chain.ApplyParameterMatching(call);
+                DisambiguateOnExceptionReturnValue(call);
                 yield return (exceptionType, call);
             }
         }
