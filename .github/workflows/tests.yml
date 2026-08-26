@@ -138,8 +138,12 @@ jobs:
 
       # Only reachable when the runner itself survived. If the OOM killer took a *test* process
       # rather than the runner service, the kill is recorded here and nowhere else.
+      #
+      # GH-4098: `always()`, not `failure()`. A job cancelled at the 20-minute cap is neither success
+      # nor failure, so `failure()` skipped this step on exactly the wedges it was written for --
+      # #4083's CIMarten cancellations among them.
       - name: Kernel OOM report
-        if: failure()
+        if: always()
         run: |
           echo "::group::dmesg (OOM / kill events)"
           sudo dmesg | grep -iE "out of memory|oom-kill|killed process" || echo "no OOM events in dmesg"
