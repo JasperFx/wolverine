@@ -10,6 +10,11 @@ internal class WaitForMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
+        // GH-4125: deliberately NOT satisfied by MovedToErrorQueue. A dead letter is not the end of
+        // the story -- it can be marked replayable and redelivered, and a test waiting on this message
+        // is usually waiting for exactly that second, successful pass (see
+        // MartenTests.Bugs.Bug_971_replay_dead_letter_queue_of_event_wrapper). Completing on the
+        // dead-letter would return the session on the FAILING delivery and skip the replay entirely.
         if (record.MessageEventType != MessageEventType.MessageSucceeded &&
             record.MessageEventType != MessageEventType.MessageFailed)
         {

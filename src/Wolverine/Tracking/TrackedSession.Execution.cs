@@ -91,7 +91,17 @@ internal partial class TrackedSession
             AssertNoFailureAcksWereSent();
         }
 
-        if (AssertNoExceptions)
+        // GH-4125: gated on its own flag, deliberately NOT on AssertNoExceptions. The session's own timeout is
+        // not one of the "exceptions detected during the message activity" that
+        // DoNotAssertOnExceptionsDetected() opts out of -- it is this harness reporting that the
+        // activity never finished. Sharing the flag meant a resiliency test, which reaches for that
+        // method for its documented reason (handlers are *expected* to throw), silently also opted out
+        // of the only assertion that would catch the session completing none of its work. The failure
+        // mode was a permanently green test over a session that did nothing, so it could sit in a suite
+        // indefinitely. The TimeoutException carries the full activity grid, conditions and captured
+        // exceptions, so throwing it loses nothing a returned session would have shown. A test that
+        // genuinely expects the activity not to happen opts out by name with DoNotAssertOnTimeout().
+        if (AssertNoTimeout)
         {
             AssertNotTimedOut();
         }

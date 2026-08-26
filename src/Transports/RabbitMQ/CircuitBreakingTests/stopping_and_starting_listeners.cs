@@ -163,10 +163,14 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         var stopWaiter = runtime.Tracker.WaitForListenerStatusAsync(
             "one", ListeningStatus.Paused, 1.Minutes());
 
+        // PausingMessage exists to latch the listener, so its envelope never reaches a terminal state
+        // and this session times out by design -- stopWaiter below is the real synchronisation.
+        // GH-4125.
         await sender
             .TrackActivity()
             .AlsoTrack(theListener)
             .DoNotAssertOnExceptionsDetected()
+            .DoNotAssertOnTimeout()
             .SendMessageAndWaitAsync(new PausingMessage());
 
         await stopWaiter;
@@ -186,10 +190,13 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         var stopWaiter = runtime.Tracker.WaitForListenerStatusAsync(
             "local", ListeningStatus.Paused, 1.Minutes());
 
+        // As above: the error policy pauses the local queue, so the envelope never completes and the
+        // session times out by design. stopWaiter is the real synchronisation. GH-4125.
         var session = await theListener
             .TrackActivity()
             .AlsoTrack(theListener)
             .DoNotAssertOnExceptionsDetected()
+            .DoNotAssertOnTimeout()
             .SendMessageAndWaitAsync(new CanCauseErrorMessage { Throw = true });
 
         await stopWaiter;

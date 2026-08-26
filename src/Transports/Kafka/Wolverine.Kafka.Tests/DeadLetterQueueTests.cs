@@ -113,12 +113,17 @@ public class DeadLetterQueueTests : IAsyncLifetime
     [Fact]
     public async Task dead_letter_message_has_exception_headers()
     {
+        // GH-4125: no WaitForMessageToBeReceivedAt here. This message is meant to fail into Kafka's
+        // native dead letter topic, and that condition is only satisfied by MessageSucceeded or
+        // MessageFailed -- neither of which a natively dead-lettered envelope produces -- so the
+        // session could never complete and ran the full 60 seconds every time, passing only because
+        // the timeout assertion was suppressed. Quiescence is the right wait, exactly as the sibling
+        // failed_message_moves_to_dead_letter_queue above already does.
         await _host.TrackActivity()
             .IncludeExternalTransports()
             .DoNotAssertOnExceptionsDetected()
-            .Timeout(60.Seconds())
-            .WaitForMessageToBeReceivedAt<DlqTestMessage>(_host)
-            .PublishMessageAndWaitAsync(new DlqTestMessage("fail-headers"));
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(ctx => ctx.PublishAsync(new DlqTestMessage("fail-headers")));
 
         var result = ConsumeDlqMessage(30.Seconds());
         result.ShouldNotBeNull("Expected message on DLQ Kafka topic");

@@ -109,6 +109,15 @@ internal partial class TrackedSession : ITrackedSession
 
     public bool AssertNoExceptions { get; set; } = true;
 
+    /// <summary>
+    /// GH-4125: deliberately separate from <see cref="AssertNoExceptions" />. Suppressing the timeout
+    /// assertion is a real requirement for a test that expects the activity NOT to happen -- asserting
+    /// a message was filtered out, or that a listener paused before the envelope could finish -- but it
+    /// has to be asked for by name. Sharing one flag with exception suppression meant a resiliency test
+    /// opted out of it by accident and went permanently green over a session that did nothing.
+    /// </summary>
+    public bool AssertNoTimeout { get; set; } = true;
+
     public bool AssertAnyFailureAcknowledgements { get; set; } = true;
 
     public Func<IMessageContext, Task> Execution { get; set; } = _ => Task.CompletedTask;
@@ -258,6 +267,7 @@ internal partial class TrackedSession : ITrackedSession
         replayed.AlwaysTrackExternalTransports = AlwaysTrackExternalTransports;
         replayed.AssertAnyFailureAcknowledgements = AssertAnyFailureAcknowledgements;
         replayed.AssertNoExceptions = AssertNoExceptions;
+        replayed.AssertNoTimeout = AssertNoTimeout;
         replayed._otherHosts.AddRange(_otherHosts);
         
         return trackedSessionConfiguration.ExecuteAndWaitAsync(c => ReplayAll(c, records));

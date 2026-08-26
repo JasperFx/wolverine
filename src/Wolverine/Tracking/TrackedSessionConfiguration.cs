@@ -152,12 +152,32 @@ public class TrackedSessionConfiguration
     /// <summary>
     ///     Do not assert or fail if exceptions where thrown during the
     ///     message activity. This is useful for testing resiliency features
-    ///     and exception handling with message failures
+    ///     and exception handling with message failures.
+    ///
+    ///     This governs exceptions thrown by the message activity itself. It does NOT suppress the
+    ///     session's own timeout assertion -- a session that times out having completed none of its
+    ///     work still throws <see cref="TimeoutException" />, and that exception carries the full
+    ///     activity grid for diagnosis. See GH-4125.
     /// </summary>
     /// <returns></returns>
     public TrackedSessionConfiguration DoNotAssertOnExceptionsDetected()
     {
         Session.AssertNoExceptions = false;
+        return this;
+    }
+
+    /// <summary>
+    ///     Do not assert or fail if this session times out before all tracked activity completes.
+    ///     Use this ONLY where the activity is expected not to happen -- asserting that a message was
+    ///     filtered out and never arrived, or that a listener was paused before its envelope could
+    ///     finish. It is deliberately separate from <see cref="DoNotAssertOnExceptionsDetected" />,
+    ///     which governs exceptions only: a session that times out having achieved nothing is the one
+    ///     failure a tracked test cannot afford to hide by accident. See GH-4125.
+    /// </summary>
+    /// <returns></returns>
+    public TrackedSessionConfiguration DoNotAssertOnTimeout()
+    {
+        Session.AssertNoTimeout = false;
         return this;
     }
 
