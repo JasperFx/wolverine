@@ -60,16 +60,13 @@ internal class MoveToErrorQueue : IContinuation
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));
 
-        // GH-4136: MovedToErrorQueue is recorded FIRST. Both of these are terminal MessageEventTypes
-        // now that MessageFailed records its own type instead of Sent, and the first terminal record
-        // is what completes the envelope -- which can complete the tracked session and let
-        // ExecuteAndTrackAsync resume before the second record lands. MovedToErrorQueue is the ending
-        // event a caller actually asserts on for a dead-lettered message (see
-        // TransportCompliance.shouldMoveToErrorQueueOnAttempt), so it is the one that has to be in the
-        // session by then. Both calls still run, so neither one's metrics are affected by the order.
-        var tracker = lifecycle.CompletionTrackerFor(runtime);
-        tracker.MovedToErrorQueue(lifecycle.Envelope, Exception);
-        tracker.MessageFailed(lifecycle.Envelope, Exception);
+        // GH-4136: MovedToErrorQueue only. It is reported LAST because a terminal record sweeps every
+        // earlier record for the envelope complete, and the durable transports' own dead-letter move
+        // emits a trailing Sent that nothing else will ever complete. The MessageFailed call that used
+        // to sit alongside this is gone: two terminal records on one path cannot be ordered to satisfy
+        // both that sweep and the guarantee that the ending record is present. Its dead-letter counter,
+        // effective time and failure wire tap now live in MovedToErrorQueue, so no metric is lost.
+        lifecycle.CompletionTrackerFor(runtime).MovedToErrorQueue(lifecycle.Envelope, Exception);
     }
 
     public override string ToString()
