@@ -462,6 +462,37 @@ For example, this functionality might be helpful for:
 * EF Core `DbContext` types that might require some runtime configuration to construct themselves, but don't use other services (a [JasperFx Software](https://jasperfx.net) client
   ran into this needing to conditionally opt into read replica usage, so hence, this feature made it into Wolverine 5.0)
 
+## Service Location and the Document Session <Badge type="tip" text="6.30" />
+
+When a message handler or HTTP endpoint does fall back to service location, Wolverine's generated code
+opens a child `IServiceScope` off the root container to resolve from. Left alone, that scope is a
+stranger to the handler: a service-located document session resolved from it would be a *brand new*
+session with no relationship to the outbox-enrolled session the handler is writing through, so its
+writes would quietly escape the transaction the middleware commits.
+
+Wolverine primes that child scope instead. Every Critter Stack persistence option resolves the
+handler's own outbox-enrolled session for the duration of the message:
+
+| Package | Types resolved from the primed scope |
+|---------|--------------------------------------|
+| `WolverineFx.Marten` | `IDocumentSession`, `IQuerySession` |
+| `WolverineFx.Polecat` | `IDocumentSession`, `IQuerySession` |
+| `WolverineFx.Fisher` | `IDocumentSession`, `IQuerySession` |
+| `WolverineFx.RavenDb` | `IAsyncDocumentSession` |
+
+This applies to service location *anywhere* the scope reaches — a service-located session, or one
+injected into a service that a handler depends on. Outside a handler scope (hosted services, admin
+tooling, plain `CreateScope()`), nothing is primed and the registration falls back to the store's own
+session factory, so an ordinary DI scope still gets an ordinary scoped session.
+
+::: warning New in RavenDb
+`Wolverine.RavenDb` previously registered no `IAsyncDocumentSession` in DI at all — RavenDb sessions
+only ever reached a handler through code generation, so a service-located one could not resolve.
+`UseRavenDbPersistence()` now owns that registration. If your application already registers
+`IAsyncDocumentSession` itself, Wolverine decorates your registration rather than replacing it, and
+your own session building still runs everywhere the handler's session is not in play.
+:::
+
 ## Environment Check for Expected Types
 
 As a new option in Wolverine 1.7.0, you can also add an environment check for the existence of the expected pre-built types

@@ -2,7 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Session;
 using Wolverine.Attributes;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RavenDb.Internals;
@@ -34,6 +36,25 @@ public static class WolverineRavenDbExtensions
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new AsyncDocumentSessionSource());
+
+        // GH-4145 (the RavenDb half of GH-3001): prime the service-location child scope with the
+        // handler's outbox-enrolled IAsyncDocumentSession so a service-located IAsyncDocumentSession
+        // resolves to that same session. The frame self-guards (no-op when the chain has no RavenDb
+        // session).
+        options.ScopingFrameSources.Add(() =>
+            new PrimeScopedSessionFrame<IAsyncDocumentSession, ScopedRavenDocumentSessionHolder>());
+
+        // Unlike Marten / Polecat / Fisher, nothing registers IAsyncDocumentSession in DI -- RavenDb
+        // sessions have only ever reached a handler through codegen (AsyncDocumentSessionSource), so a
+        // service-located one could not resolve at all. Wolverine owns the registration here: inside a
+        // handler scope it is the primed, outbox-enrolled session; everywhere else it is a genuine
+        // scoped session off the store. A registration the application made itself is decorated rather
+        // than replaced, so its own session-building still runs on the fall-back path.
+        options.Services.AddScoped<ScopedRavenDocumentSessionHolder>();
+        options.Services.PreferPrimedSession<IAsyncDocumentSession>(
+            s => s.GetRequiredService<ScopedRavenDocumentSessionHolder>().Session,
+            s => s.GetRequiredService<IDocumentStore>().OpenAsyncSession());
+
         options.Services.AddHostedService<DeadLetterQueueReplayer>();
         options.CodeGeneration.ReferenceAssembly(typeof(WolverineRavenDbExtensions).Assembly);
 
