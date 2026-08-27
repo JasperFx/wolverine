@@ -33,6 +33,18 @@
   terminal event — `MovedToErrorQueue`, carrying the exception — which also fixes a double-counted dead-letter
   metric, a doubly-recorded effective time, and a failure wire tap firing twice for a single envelope.
 
+- **A batched message type gets one `BatchingProcessor`, not one per racing caller.**
+  (closes [#4167](https://github.com/JasperFx/wolverine/issues/4167)) `BatchingOptions.BuildHandler` was an
+  unguarded `if (_handler != null)` lazy init, and it runs on the **message-handling path**, not at bootstrap.
+  Callers reach it through `HandlerPipeline`'s `LightweightCache<Type, IExecutor>`, whose indexer does not lock:
+  two concurrent misses each invoke the factory **and each returns its own instance**. That is harmless for a
+  stateless executor, which is why the cache is fine everywhere else — but a `BatchingProcessor` owns a
+  `BatchingChannel` buffer, a flush `Timer`, and two `Block`s with live worker tasks. Two instances means
+  **members of one logical batch are split across two buffers and flushed as separate batches**, and the losing
+  instance is never handed back to any caller, so nothing disposes it: **its timer and worker tasks leak for the
+  life of the process**. Reachable on any concurrent first-touch of a batched message type; the JasperFx change
+  below made it deterministic by removing the inline execution that had been serializing those first messages.
+
 - **`Received` is reported exactly once per receipt on a partitioned listener.**
   (closes [#4135](https://github.com/JasperFx/wolverine/issues/4135)) A listener with
   `PartitionProcessingByGroupId` recorded **two** `Received` events for one envelope while executing it exactly
@@ -154,6 +166,19 @@
 ### Dependencies
 
 - **JasperFx 2.56.0.** Adopted for the `EventModelProvenance` ladder above.
+
+- **JasperFx 2.57.0.** A `Block` no longer runs its action on the **publisher's** thread
+  ([#4167](https://github.com/JasperFx/wolverine/issues/4167),
+  [jasperfx#714](https://github.com/JasperFx/jasperfx/pull/714)). `Block` built its channel with
+  `AllowSynchronousContinuations = true`, so a reader parked in `WaitToReadAsync` was resumed by `TryWrite` on
+  the publishing thread and `Post()` executed the action **inline instead of enqueuing it**. A buffered local
+  queue therefore got **no parallelism at all** once its workers went idle: measured on a queue configured with
+  `MaximumParallelMessages(5)`, a burst of 20 published messages all ran inline and serialized on the publishing
+  thread — and that thread, which may be a broker listener loop or an HTTP request, stalled for the full
+  duration of every handler. Note the reported ".NET 10 regression" framing is only half the story: an
+  **unbounded** channel — what a buffered local queue uses — ran continuations inline on *every* runtime, so
+  local queues were never net10-specific. What [dotnet/runtime#116021](https://github.com/dotnet/runtime/pull/116021)
+  changed is the **bounded** case, which is what broker-backed `BufferedReceiver`s and `DurableReceiver` use.
 
 - **Weasel 9.27.0.** Nine fixes, every one a case where Weasel read a schema back as something other than what
   the database actually held, and **no DDL changes** for a schema it was already reading correctly. Three of
