@@ -9,7 +9,11 @@ namespace Wolverine.Runtime.Batching;
 
 public class BatchingOptions : IAsyncDisposable
 {
-    private IMessageHandler _handler = null!;
+    private volatile IMessageHandler _handler = null!;
+
+    // GH-4167. BuildHandler runs on the message-handling path, not at bootstrap, so it has to be
+    // safe for concurrent first-touch. See the note there for why a duplicate is not benign.
+    private readonly object _handlerLock = new();
 
     // CloseAndBuildAs over DefaultMessageBatcher<elementType> and
     // ProcessorBuilder<ElementType> closes a generic over the user-supplied
@@ -179,8 +183,25 @@ public class BatchingOptions : IAsyncDisposable
     {
         if (_handler != null) return _handler;
 
-        var builder = typeof(ProcessorBuilder<>).CloseAndBuildAs<IProcessorBuilder>(ElementType);
-        _handler = builder.Build(runtime, Batcher, this);
+        // GH-4167. This is lazy init on the message-handling path, and the caller reaches it through
+        // HandlerPipeline's LightweightCache<Type, IExecutor>, whose indexer does NOT lock: two
+        // concurrent misses each invoke the factory AND each returns its own instance. A duplicate
+        // stateless executor is harmless, which is why that cache is fine everywhere else. A duplicate
+        // BatchingProcessor is not -- each one owns a separate BatchingChannel buffer, its own flush
+        // Timer, and two Blocks with live worker tasks. Two instances means the batch silently splits
+        // across them, and the loser is never handed back to anyone, so it is never disposed: its timer
+        // and worker tasks leak for the life of the process.
+        //
+        // Reproduced deterministically once JasperFx stopped running Block continuations inline on the
+        // publisher (jasperfx#714) -- that inline execution had been serializing the first messages onto
+        // one thread and hiding this. The race was always reachable under genuinely concurrent traffic.
+        lock (_handlerLock)
+        {
+            if (_handler != null) return _handler;
+
+            var builder = typeof(ProcessorBuilder<>).CloseAndBuildAs<IProcessorBuilder>(ElementType);
+            _handler = builder.Build(runtime, Batcher, this);
+        }
 
         return _handler;
     }

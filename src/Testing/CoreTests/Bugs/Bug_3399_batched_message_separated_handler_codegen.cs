@@ -75,9 +75,18 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.BatchMessagesOf<ItemDeleted3399>();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
+        // GH-4167: wait for EXECUTION, not receipt. A WaitFor* condition REPLACES quiescence rather
+        // than adding to it, so WaitForMessageToBeReceivedAt released this session the moment the batch
+        // envelope arrived -- before any handler ran -- and the assertion below raced it. That passed
+        // only because JasperFx ran Block continuations inline on the publisher, which made receive and
+        // execute effectively atomic; it failed on every run once that was fixed (jasperfx#714).
+        //
+        // The count is 2 because that is the whole point of this fixture: under Separated behavior the
+        // batched array has TWO chains (TelemetryHandler3399 and OtherDeletedHandler3399). Waiting on
+        // one execution just swaps a receive/execute race for a which-chain-won race.
         await host.TrackActivity()
             .Timeout(30.Seconds())
-            .WaitForMessageToBeReceivedAt<ItemDeleted3399[]>(host)
+            .WaitForExecutionOf<ItemDeleted3399[]>(2)
             .SendMessageAndWaitAsync(new ItemDeleted3399(Guid.NewGuid()));
 
         TelemetryHandler3399.Batched.ShouldBeGreaterThan(0);
