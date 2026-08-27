@@ -1,14 +1,11 @@
 using System.Runtime.CompilerServices;
-using System.Net.Sockets;
+using IntegrationTests;
 using Amazon.S3;
 
 namespace Wolverine.ClaimCheck.AmazonS3.Tests;
 
 /// <summary>
-/// Probe LocalStack once per process and cache the result. We treat any TCP
-/// connect failure on <c>localhost:4566</c> as "not running" and let tests
-/// skip cleanly. This mirrors the <c>AzuriteFact</c> pattern used by the
-/// Azure Blob backend tests.
+/// Where LocalStack lives, and whether it is up. Tests skip cleanly when it is not.
 /// </summary>
 internal static class LocalStack
 {
@@ -16,9 +13,7 @@ internal static class LocalStack
     public const int Port = 4566;
     public const string ServiceUrl = "http://localhost:4566";
 
-    private static readonly Lazy<bool> _isRunning = new(Probe);
-
-    public static bool IsRunning => _isRunning.Value;
+    public static bool IsRunning => EmulatorProbe.IsListening(Host, Port);
 
     public const string SkipReason =
         "LocalStack is not running on localhost:4566. " +
@@ -34,22 +29,6 @@ internal static class LocalStack
         };
 
         return new AmazonS3Client("xxx", "xxx", config);
-    }
-
-    private static bool Probe()
-    {
-        try
-        {
-            using var client = new TcpClient();
-            var connect = client.ConnectAsync(Host, Port);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            return connect.Wait(TimeSpan.FromSeconds(2)) && client.Connected;
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-        }
-        catch
-        {
-            return false;
-        }
     }
 }
 

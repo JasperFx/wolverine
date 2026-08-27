@@ -1,13 +1,11 @@
 using System.Runtime.CompilerServices;
-using System.Net.Sockets;
+using IntegrationTests;
 using Azure.Storage.Blobs;
 
 namespace Wolverine.ClaimCheck.AzureBlobStorage.Tests;
 
 /// <summary>
-/// Probe Azurite (the official Azure Storage emulator) once per process and
-/// cache the result. We treat any TCP connect failure on
-/// <c>127.0.0.1:10000</c> as "not running" and let tests skip cleanly.
+/// Where Azurite lives, and whether it is up. Tests skip cleanly when it is not.
 /// </summary>
 internal static class Azurite
 {
@@ -34,31 +32,13 @@ internal static class Azurite
     public const string Host = "127.0.0.1";
     public const int Port = 10000;
 
-    private static readonly Lazy<bool> _isRunning = new(Probe);
-
-    public static bool IsRunning => _isRunning.Value;
+    public static bool IsRunning => EmulatorProbe.IsListening(Host, Port);
 
     public const string SkipReason =
         "Azurite is not running on 127.0.0.1:10000. " +
         "Start it with `azurite --silent --location ./.azurite --debug ./.azurite/debug.log` " +
         "or `docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite azurite-blob --blobHost 0.0.0.0` " +
         "to enable these tests.";
-
-    private static bool Probe()
-    {
-        try
-        {
-            using var client = new TcpClient();
-            var connect = client.ConnectAsync(Host, Port);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            return connect.Wait(TimeSpan.FromSeconds(2)) && client.Connected;
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
 
 /// <summary>
