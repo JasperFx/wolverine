@@ -101,19 +101,17 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
         // It can go ahead
         LastSequence = message.Order.Value;
 
-        // Try to recover any pending messages
-        while (Pending.Any())
+        // Hand the next contiguous pending message back to the queue -- deliberately ONE, and
+        // deliberately WITHOUT advancing LastSequence. The counter has to mean "what has been handled",
+        // not "what has been published": the republish is a cascading message that does not leave this
+        // context until the current envelope completes, so anything already sitting in the queue is
+        // processed BEFORE it. Advancing the counter here let that backlog walk straight through this
+        // guard while the replayed message was still in flight. The replayed message's own ShouldProceed
+        // advances the counter and hands back the one after it, so the chain continues itself.
+        var next = Pending.FirstOrDefault(x => x.Order.HasValue && x.Order.Value == LastSequence + 1);
+        if (next != null)
         {
-            var next = Pending.FirstOrDefault(x => x.Order.HasValue && x.Order.Value == LastSequence + 1);
-            if (next == null)
-            {
-                break;
-            }
-
             Pending.Remove(next);
-            LastSequence = next.Order!.Value;
-
-            // This doesn't actually go out until the original message completes
             await bus.PublishAsync(next);
         }
 
