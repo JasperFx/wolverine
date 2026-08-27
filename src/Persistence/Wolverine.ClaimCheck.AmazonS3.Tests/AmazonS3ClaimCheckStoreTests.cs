@@ -1,6 +1,7 @@
 using System.Text;
 using Amazon.S3;
 using Amazon.S3.Model;
+using IntegrationTests;
 using Shouldly;
 using Wolverine.Persistence;
 

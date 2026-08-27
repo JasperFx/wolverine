@@ -1,8 +1,7 @@
 using System.Runtime.CompilerServices;
-using IntegrationTests;
 using Amazon.S3;
 
-namespace Wolverine.ClaimCheck.AmazonS3.Tests;
+namespace IntegrationTests;
 
 /// <summary>
 /// Where LocalStack lives, and whether it is up. Tests skip cleanly when it is not.

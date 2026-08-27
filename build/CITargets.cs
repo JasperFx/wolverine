@@ -626,6 +626,23 @@ partial class Build
             }
         });
 
+    /// <summary>
+    /// GH-4160. WolverineFx.AmazonS3 stores documents and sagas as S3 objects. The suite keeps its own
+    /// LocalStack skip guard so a developer without the emulator still gets a clean local run.
+    /// </summary>
+    Target CIAmazonS3 => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var project = RootDirectory / "src" / "Persistence" / "Wolverine.AmazonS3.Tests" /
+                "Wolverine.AmazonS3.Tests.csproj";
+
+            BuildTestProjects(project);
+            StartDockerServices("localstack");
+
+            RunTestProject(project);
+        });
+
     Target CISqlite => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
