@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Amazon S3 document and saga persistence for Wolverine applications</Description>
+        <PackageId>WolverineFx.AmazonS3</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AWSSDK.S3" />
+    </ItemGroup>
+
+</Project>

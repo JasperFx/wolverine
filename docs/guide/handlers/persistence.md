@@ -81,6 +81,11 @@ mechanism, this would be using `IDocumentSession.LoadAsync<Todo2>(id)` to load t
 you were using EF Core and had an `Todo2DbContext` service registered in your system, it would
 be using `Todo2DbContext.FindAsync<Todo2>(id)`. 
 
+The same attribute works against a document stored as an Amazon S3 object, once its type is
+registered with `UseAmazonS3Persistence()` -- see the [Amazon S3 integration](/guide/durability/amazon-s3).
+There the identity is mapped to an object key by the key function you registered, rather than by the
+store.
+
 By default, Wolverine is assuming that any parameter value marked with `[Entity]` is required, so if the `Todo2` entity was not found in the database, then:
 
 * As a message handler, it will just log that the entity could not be found and otherwise exit cleanly without doing any further processing
