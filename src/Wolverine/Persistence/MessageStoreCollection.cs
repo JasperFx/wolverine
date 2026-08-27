@@ -314,13 +314,18 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
     }
 
     /// <summary>
-    ///     Verify that every store's durable objects exist and match configuration, throwing when they do
+    ///     Verify that every store's durable storage has actually been provisioned, throwing when it has
     ///     not. The counterpart to <see cref="MigrateAsync" /> for a system that provisions its storage ahead
     ///     of startup instead of building it there, and it has to cover the same set of stores: an ancillary
     ///     store whose schema was never provisioned fails whenever something first uses it, which can be a
     ///     long way from startup.
     /// </summary>
-    public async Task AssertStorageExistsAsync(CancellationToken token)
+    /// <remarks>
+    ///     GH-4166: this asks each store's cheap <see cref="IMessageStoreAdmin.AssertStorageProvisionedAsync" />,
+    ///     NOT the full schema diff behind <see cref="IMessageStoreAdmin.AssertStorageExistsAsync" />. Startup
+    ///     under AutoCreate.None must not pay for the introspection that setting exists to avoid.
+    /// </remarks>
+    public async Task AssertStorageProvisionedAsync(CancellationToken token)
     {
         var stores = await FindAllAsync();
         var exceptions = new List<Exception>();
@@ -329,7 +334,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         {
             try
             {
-                await store.Admin.AssertStorageExistsAsync(token);
+                await store.Admin.AssertStorageProvisionedAsync(token);
             }
             catch (Exception e)
             {
