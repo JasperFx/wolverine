@@ -2,23 +2,34 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Util;
 
 namespace Wolverine.Persistence;
 
 internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
 {
     public Variable Entity { get; }
-    public Variable Identity { get; }
+
+    /// <summary>
+    /// Null when the entity was not addressed by a single identity value, which
+    /// <c>AddStopConditionIfNull</c> allows for. The message is then used as it stands instead of
+    /// being substituted into.
+    /// </summary>
+    public Variable? Identity { get; }
+
     public string Message { get; }
     
-    public ThrowRequiredDataMissingExceptionFrame(Variable entity, Variable identity, string message)
+    public ThrowRequiredDataMissingExceptionFrame(Variable entity, Variable? identity, string message)
     {
         Entity = entity;
         Identity = identity;
         Message = message;
         
         uses.Add(Entity);
-        uses.Add(Identity);
+        if (Identity != null)
+        {
+            uses.Add(Identity);
+        }
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -26,22 +37,28 @@ internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
         writer.WriteComment("Write ProblemDetails if this required object is null");
         writer.Write($"BLOCK:if ({Entity.Usage} == null)");
 
-        if (Message.Contains("{0}"))
+        // The message can come straight from an [Entity(MissingMessage = "...")], so it is only ever
+        // emitted as an escaped literal — see ToStringLiteral for why Constant.For will not do.
+        var literal = Message.ToStringLiteral();
+        var exceptionType = typeof(RequiredDataMissingException).FullNameInCode();
+
+        if (Identity != null && Message.Contains("{0}"))
         {
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(string.Format(\"{Message}\", {Identity.Usage}));");
+            writer.Write($"throw new {exceptionType}(string.Format({literal}, {Identity.Usage}));");
         }
-        else if (Message.Contains("{Id}"))
+        else if (Identity != null && Message.Contains("{Id}"))
         {
             var toStringExpression = Identity.VariableType.IsValueType
                 ? $"{Identity.Usage}.ToString()"
                 : $"{Identity.Usage}?.ToString() ?? \"\"";
 
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{Message}\".Replace(\"{{Id}}\", {toStringExpression}));");
+            writer.Write($"throw new {exceptionType}({literal}.Replace(\"{{Id}}\", {toStringExpression}));");
         }
         else
         {
-            var constant = Constant.For(Message);
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}({constant.Usage});");
+            // Either there is no identity to substitute, or the message never asked for one, so it
+            // goes out as it stands.
+            writer.Write($"throw new {exceptionType}({literal});");
         }
 
         writer.FinishBlock();

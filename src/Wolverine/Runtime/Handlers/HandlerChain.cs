@@ -519,8 +519,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 return [frame, new HandlerContinuationFrame(frame)];
                 
             default:
-                var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
+                // AddStopConditionIfNull declares the identity nullable, so an entity addressed by
+                // something other than a single identity variable has none for the stock message to name.
+                var message = requirement.MissingMessage ?? (identity == null
+                    ? $"Required {data.VariableType.NameInCode()} was not found"
+                    : $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}");
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
         }
     }
 

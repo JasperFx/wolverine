@@ -96,6 +96,19 @@ You can choose a different answer with the `OnMissing` property:
 | `EmptyContentWith204` <Badge type="tip" text="6.28" /> | Log it and stop | Empty **204** |
 | `ThrowException` | Throws `RequiredDataMissingException` | Throws `RequiredDataMissingException` |
 
+`MissingMessage` sets the text of that answer -- the `ProblemDetails` detail, or the
+`RequiredDataMissingException` message. Two placeholders are substituted into it:
+
+| Placeholder | Replaced with |
+|---|---|
+| `{0}` | the identity value, through `string.Format` |
+| `{Id}` | the identity value |
+
+The message is escaped on its way into generated code, so a quote, a backslash or a newline in it is
+safe. Where an entity was not addressed by a single identity value there is nothing to substitute, so
+the message is used exactly as written and the stock message names the entity type rather than an id
+it does not have.
+
 If you need or want any other kind of failure handling on the entity not being found, you'll need to
 use explicit code instead, maybe with a `LoadAsync()` "before" method to still keep your main
 handler or endpoint method a *pure function*.

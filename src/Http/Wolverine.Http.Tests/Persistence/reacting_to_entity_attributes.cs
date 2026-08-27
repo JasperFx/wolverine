@@ -150,5 +150,36 @@ public class reacting_to_entity_attributes : IAsyncLifetime
         text.ShouldContain(typeof(RequiredDataMissingException).FullName!);
         text.ShouldContain("Id 'nonexistent' is wrong!");
     }
-    
+
+    [Fact]
+    public async Task problem_details_400_on_missing_with_a_custom_message_needing_escapes()
+    {
+        var tracked = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/required/todo8/nonexistent");
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        var details = await tracked.ReadAsJsonAsync<ProblemDetails>();
+        details.Detail.ShouldBe("No \"Todo\" for 'nonexistent' under C:\\todos");
+    }
+
+    [Fact]
+    public async Task throw_exception_on_missing_with_a_custom_message_needing_escapes()
+    {
+        var tracked = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/required/todo9/nonexistent");
+            x.StatusCodeShouldBe(500);
+        });
+
+        // The developer exception page HTML-encodes the quotes, so the assertion sticks to the part
+        // of the message that survives it. Whether the quotes themselves round-trip is settled
+        // exactly by the ProblemDetails test above, whose body is JSON.
+        var text = await tracked.ReadAsTextAsync();
+        text.ShouldContain(typeof(RequiredDataMissingException).FullName!);
+        text.ShouldContain("for 'nonexistent' under C:\\todos");
+    }
+
 }
