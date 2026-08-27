@@ -70,6 +70,19 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
         await conn.CloseAsync();
     }
 
+    /// <summary>
+    ///     Schema drift that leaves every table in place: an extra column Wolverine never built. Weasel's
+    ///     diff reports this as a difference; the cheap startup probe deliberately does not care.
+    /// </summary>
+    private static async Task addUnexpectedColumnAsync(string tableName)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        await conn.CreateCommand($"alter table {SchemaName}.{tableName} add column gh4166_drift varchar(25) null")
+            .ExecuteNonQueryAsync();
+        await conn.CloseAsync();
+    }
+
     private static async Task<bool> envelopeTablesExist()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -190,21 +203,19 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
     }
 
     /// <summary>
-    ///     The GH-3130 compatibility path. Storage that is merely <em>out of date</em> rather than absent is
-    ///     the case this matters for: the assert is strict about any difference, but a host whose code never
-    ///     touches the drifted object used to start perfectly well - so a deployment that provisions after
-    ///     its replicas has to be able to keep that behaviour.
+    ///     The GH-3130 compatibility path. A host whose code never touches the missing object used to start
+    ///     perfectly well, so a deployment that provisions after its replicas has to keep that behaviour.
     /// </summary>
     [Fact]
-    public async Task continue_on_failures_starts_the_host_when_the_storage_is_out_of_date()
+    public async Task continue_on_failures_starts_the_host_when_a_table_is_missing()
     {
         using (var provisioned = configureHost().Build())
         {
             await provisioned.SetupResources(cancellation: TestContext.Current.CancellationToken);
         }
 
-        // Nothing in the startup path reads the dead letter table, so this is drift the host can tolerate -
-        // and the assert still has to see it, or the test proves nothing.
+        // Nothing in the startup path reads the dead letter table, so this is a gap the host can tolerate -
+        // and the check still has to see it, or the test proves nothing.
         await dropAsync(DatabaseConstants.DeadLetterTable);
 
         using var host = configureHost(ResourceMigrationFailureMode.ContinueOnFailures).Build();
@@ -214,7 +225,7 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
     }
 
     [Fact]
-    public async Task fail_fast_stops_the_host_when_the_storage_is_out_of_date()
+    public async Task fail_fast_stops_the_host_when_a_table_is_missing()
     {
         using (var provisioned = configureHost().Build())
         {
@@ -229,6 +240,30 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
             () => host.StartAsync(TestContext.Current.CancellationToken));
 
         exception.ToString().ShouldContain("resources setup");
+    }
+
+    /// <summary>
+    ///     GH-4166. AutoCreate.None is a claim that something ELSE owns this schema, so startup must not
+    ///     fail over a schema that merely differs from what this Wolverine version would have built. 6.30.0
+    ///     ran the full Weasel diff here and threw on any difference, which broke controlled-migration and
+    ///     rolling-deploy setups that had been starting fine. Every table is present here; only its shape
+    ///     differs, and that is the migration path's business, not startup's.
+    /// </summary>
+    [Fact]
+    public async Task drift_that_leaves_the_tables_in_place_does_not_stop_startup()
+    {
+        using (var provisioned = configureHost().Build())
+        {
+            await provisioned.SetupResources(cancellation: TestContext.Current.CancellationToken);
+        }
+
+        await addUnexpectedColumnAsync(DatabaseConstants.IncomingTable);
+
+        // Fail-fast mode deliberately, so this cannot pass merely because failures are being swallowed
+        using var host = configureHost().Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

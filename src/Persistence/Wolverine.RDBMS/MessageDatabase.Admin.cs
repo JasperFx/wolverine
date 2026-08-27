@@ -211,6 +211,56 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
+    /// <summary>
+    /// GH-4166. The cheap startup counterpart to <see cref="AssertStorageExistsAsync"/>: one trivially
+    /// planned probe per core table rather than a full schema diff of every object. `select 1 ... where
+    /// 1 = 0` returns no rows and reads no data on every engine we support -- it fails only when the
+    /// table itself is not there, which is the condition worth catching when AutoCreate is None.
+    /// </summary>
+    public async Task AssertStorageProvisionedAsync(CancellationToken token)
+    {
+        // Envelope storage first, then the node tables, which only the Main store owns. Deliberately not
+        // the stored procedures or indexes -- their absence is drift for the migration path to report,
+        // not the "nothing was ever provisioned" case this exists to name.
+        var tables = new List<string>
+        {
+            DatabaseConstants.IncomingTable,
+            DatabaseConstants.OutgoingTable,
+            DatabaseConstants.DeadLetterTable
+        };
+
+        if (Role == MessageStoreRole.Main)
+        {
+            tables.Add(DatabaseConstants.NodeTableName);
+        }
+
+        await using var conn = await DataSource.OpenConnectionAsync(token);
+        try
+        {
+            foreach (var table in tables)
+            {
+                var name = QuotedTableNameFor(table);
+
+                try
+                {
+                    await using var command = conn.CreateCommand();
+                    command.CommandText = $"select 1 from {name} where 1 = 0";
+                    await command.ExecuteNonQueryAsync(token);
+                }
+                catch (Exception e)
+                {
+                    throw new InvalidOperationException(
+                        $"The Wolverine message storage for database '{Name}' is missing (could not read '{name}'). Run 'resources setup' / IHost.SetupResources(), or enable auto-provisioning with AutoBuildMessageStorageOnStartup.",
+                        e);
+                }
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
     private Task migrateAsync(DbConnection conn)
     {
         return migrateAsync(conn, _settings.AutoCreate);

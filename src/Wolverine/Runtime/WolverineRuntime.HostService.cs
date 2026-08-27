@@ -309,12 +309,17 @@ public partial class WolverineRuntime
             // deploy that deliberately tolerates a replica starting ahead of its provisioning step still
             // can. Stores that cannot introspect their own schema no-op this (IMessageStoreAdmin default).
             //
+            // GH-4166: this asks only whether the storage EXISTS. It deliberately does not run the full
+            // Weasel schema diff -- that is the very work AutoCreate.None is set to avoid, and doing it
+            // here timed out startup on small Azure SQL tiers in 6.30.0/6.30.1. Drift is likewise not a
+            // startup failure: None means something else owns this schema.
+            //
             // The whole collection rather than Storage alone, so that it covers what MigrateAsync above
             // covers: an ancillary store whose schema was never provisioned would otherwise go unchecked and
             // fail whenever something first used it.
             try
             {
-                await _stores.Value.AssertStorageExistsAsync(Cancellation);
+                await _stores.Value.AssertStorageProvisionedAsync(Cancellation);
             }
             catch (Exception e) when (Options.ResourceMigrationFailureMode ==
                                       ResourceMigrationFailureMode.ContinueOnFailures)

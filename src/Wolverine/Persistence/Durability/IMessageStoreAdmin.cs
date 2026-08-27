@@ -69,6 +69,28 @@ public interface IMessageStoreAdmin
     Task AssertStorageExistsAsync(CancellationToken token) => Task.CompletedTask;
 
     /// <summary>
+    ///     Verify that the durable envelope storage has been provisioned at all, throwing when it has not.
+    ///     Deliberately weaker AND far cheaper than <see cref="AssertStorageExistsAsync" />: it asks only
+    ///     whether the storage exists, not whether it matches the configured schema exactly.
+    /// </summary>
+    /// <remarks>
+    ///     This is the startup-path check for <c>AutoBuildMessageStorageOnStartup = AutoCreate.None</c>
+    ///     (GH-4166). Startup used to call <see cref="AssertStorageExistsAsync" />, whose RDBMS
+    ///     implementation runs the same full Weasel schema diff as the migration itself -- 14 schema
+    ///     objects including five stored procedures on SQL Server, measured at ~80ms against a warm local
+    ///     database and enough to blow the 30s command timeout on a small Azure SQL tier. That is exactly
+    ///     the work <c>None</c> is set to avoid.
+    ///
+    ///     It is also deliberately tolerant of drift. <c>None</c> is a claim that something else owns the
+    ///     schema, so failing startup because a column differs from what this Wolverine version would have
+    ///     built punishes the controlled-migration and rolling-deploy cases that set it. Absent storage is
+    ///     the failure worth catching early, and it is the one this catches.
+    ///
+    ///     The default is a no-op for stores that cannot introspect their own storage.
+    /// </remarks>
+    Task AssertStorageProvisionedAsync(CancellationToken token) => Task.CompletedTask;
+
+    /// <summary>
     ///     Apply any necessary database migrations to bring the underlying envelope
     ///     storage to the configured requirements of the Wolverine system
     /// </summary>
