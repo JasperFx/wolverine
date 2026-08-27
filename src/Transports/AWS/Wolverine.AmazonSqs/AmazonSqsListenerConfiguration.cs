@@ -141,7 +141,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     ///     <b>Wolverine to Wolverine only</b>, and reassembly happens <b>in memory on one listener</b>, so
     ///     every fragment of a message has to reach the same node. SQS is a competing-consumer queue, so
     ///     use this only on a FIFO queue, with a <c>GlobalPartitioning</c> listener, or with a single
-    ///     listening node. Prefer a claim check (<c>WolverineFx.ClaimCheck.AmazonS3</c>) otherwise -- it
+    ///     listening node. Prefer a claim check (<c>WolverineFx.AmazonS3</c>) otherwise -- it
     ///     is the AWS-sanctioned answer and has none of these constraints.
     ///     </para>
     ///     <para>

@@ -2,9 +2,10 @@ using System.Text;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Shouldly;
+using Wolverine.ClaimCheck.AmazonS3;
 using Wolverine.Persistence;
 
-namespace Wolverine.ClaimCheck.AmazonS3.Tests;
+namespace Wolverine.AmazonS3.Tests;
 
 public class AmazonS3ClaimCheckStoreTests : IAsyncLifetime
 {

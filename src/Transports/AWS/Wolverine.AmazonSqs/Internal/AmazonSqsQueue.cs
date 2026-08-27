@@ -518,7 +518,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         if (!FragmentOversizedMessages)
         {
             throw new SqsMessageTooLargeException(
-                $"Envelope {envelope.Id} of message type {envelope.MessageType} produced a {body.Length} byte body for queue {QueueName}, over the {SqsMessageFragments.MaximumBodyBytes} bytes Wolverine will send in one SQS message (SQS caps a message and its attributes together at {SqsMessageFragments.MaximumMessageBytes}). Use a claim check (WolverineFx.ClaimCheck.AmazonS3), or opt this endpoint into FragmentOversizedMessages().");
+                $"Envelope {envelope.Id} of message type {envelope.MessageType} produced a {body.Length} byte body for queue {QueueName}, over the {SqsMessageFragments.MaximumBodyBytes} bytes Wolverine will send in one SQS message (SQS caps a message and its attributes together at {SqsMessageFragments.MaximumMessageBytes}). Use a claim check (WolverineFx.AmazonS3), or opt this endpoint into FragmentOversizedMessages().");
         }
 
         var bodies = SqsMessageFragments.Split(body);
@@ -526,7 +526,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         if (bodies.Length > SqsMessageFragments.MaximumFragments)
         {
             throw new SqsMessageTooLargeException(
-                $"Envelope {envelope.Id} of message type {envelope.MessageType} produced a {body.Length} byte body for queue {QueueName}, which would need {bodies.Length} fragments against a maximum of {SqsMessageFragments.MaximumFragments}. A message this large is a claim check problem rather than a framing one; see WolverineFx.ClaimCheck.AmazonS3.");
+                $"Envelope {envelope.Id} of message type {envelope.MessageType} produced a {body.Length} byte body for queue {QueueName}, which would need {bodies.Length} fragments against a maximum of {SqsMessageFragments.MaximumFragments}. A message this large is a claim check problem rather than a framing one; see WolverineFx.AmazonS3.");
         }
 
         for (var i = 0; i < bodies.Length; i++)

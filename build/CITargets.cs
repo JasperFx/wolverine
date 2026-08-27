@@ -610,20 +610,44 @@ partial class Build
                 $"Wolverine.ClaimCheck.{name}.Tests.csproj";
 
             var databaseSuites = new[] { suite("Postgresql"), suite("SqlServer"), suite("Marten") };
+            // GH-4160: the Amazon S3 backend moved into WolverineFx.AmazonS3 and its suite moved with
+            // it, so it runs under CIAmazonS3 rather than here.
             var objectStoreSuites = new[]
             {
-                suite("AmazonS3"), suite("AzureBlobStorage"), suite("GoogleCloudStorage"), suite("Nats")
+                suite("AzureBlobStorage"), suite("GoogleCloudStorage"), suite("Nats")
             };
 
             var all = databaseSuites.Concat(objectStoreSuites).ToArray();
 
             BuildTestProjects(all);
-            StartDockerServices("postgresql", "sqlserver", "localstack", "azurite", "fake-gcs-server", "nats");
+            StartDockerServices("postgresql", "sqlserver", "azurite", "fake-gcs-server", "nats");
 
             foreach (var project in all)
             {
                 RunTestProject(project);
             }
+        });
+
+    /// <summary>
+    /// GH-4160. WolverineFx.AmazonS3 owns every S3 concern -- the claim check store, and from here on
+    /// entity and saga persistence -- so its suite gets a target of its own rather than staying a
+    /// tenant of CIClaimCheck, which only ever ran it for the claim check half.
+    /// </summary>
+    /// <remarks>
+    /// The suite keeps its own LocalStack skip guard so a developer without the emulator running still
+    /// gets a clean local run. CI has it, so nothing skips there.
+    /// </remarks>
+    Target CIAmazonS3 => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var project = RootDirectory / "src" / "Persistence" / "Wolverine.AmazonS3.Tests" /
+                "Wolverine.AmazonS3.Tests.csproj";
+
+            BuildTestProjects(project);
+            StartDockerServices("localstack");
+
+            RunTestProject(project);
         });
 
     Target CISqlite => _ => _

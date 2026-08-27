@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Superseded by WolverineFx.AmazonS3, which now carries the Amazon S3 claim check store alongside S3 entity and saga persistence. This package forwards its types there and exists only so existing references keep working; reference WolverineFx.AmazonS3 directly instead.</Description>
-        <PackageId>WolverineFx.ClaimCheck.AmazonS3</PackageId>
+        <Description>Amazon S3 integration for Wolverine, including the claim check store for large message payloads</Description>
+        <PackageId>WolverineFx.AmazonS3</PackageId>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
         <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
@@ -12,7 +12,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Wolverine.AmazonS3\Wolverine.AmazonS3.csproj" />
+      <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AWSSDK.S3" />
     </ItemGroup>
 
 </Project>

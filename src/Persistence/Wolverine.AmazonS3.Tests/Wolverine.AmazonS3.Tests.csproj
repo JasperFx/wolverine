@@ -26,6 +26,9 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Wolverine.AmazonS3\Wolverine.AmazonS3.csproj" />
+      <!-- Referenced so the type forwards in the retired package are actually exercised at runtime
+           rather than only declared. See ClaimCheck/retired_claim_check_package.cs. -->
       <ProjectReference Include="..\Wolverine.ClaimCheck.AmazonS3\Wolverine.ClaimCheck.AmazonS3.csproj" />
     </ItemGroup>
 

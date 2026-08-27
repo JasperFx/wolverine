@@ -318,6 +318,9 @@ partial class Build : NukeBuild
                 Solution.Persistence.Oracle.Wolverine_Oracle,
                 Solution.Persistence.Sqlite.Wolverine_Sqlite,
                 Solution.Persistence.CosmosDb.Wolverine_CosmosDb,
+                Solution.Persistence.AmazonS3.Wolverine_AmazonS3,
+                // GH-4160: retired in favour of WolverineFx.AmazonS3, but still packed so consumers
+                // already referencing it keep resolving the type forwards it now carries.
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_AmazonS3,
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_AzureBlobStorage,
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_GoogleCloudStorage,

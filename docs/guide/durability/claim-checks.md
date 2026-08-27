@@ -151,8 +151,12 @@ The store maps each `ClaimCheckToken.Id` directly to a blob name, and sets `Blob
 ### Amazon S3
 
 ```sh
-dotnet add package WolverineFx.ClaimCheck.AmazonS3
+dotnet add package WolverineFx.AmazonS3
 ```
+
+::: tip
+The store used to ship as `WolverineFx.ClaimCheck.AmazonS3`. Since <Badge type="tip" text="6.31" /> it lives in `WolverineFx.AmazonS3`, which carries every S3 concern in one package. The old package is still published and still works -- it forwards its types to the new one, and the namespace is unchanged -- but new applications should reference `WolverineFx.AmazonS3` directly.
+:::
 
 ```csharp
 using Wolverine.ClaimCheck.AmazonS3;
