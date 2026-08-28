@@ -198,6 +198,14 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
 
         InjectedField? tenantOptionsField = null;
 
+        // GH-4180. Declared once for the type, consumed per method; only when this chain opted in.
+        InjectedField? deduplicatorField = null;
+        if (GrpcDeduplication.AnyRequires(this, ServiceContractType, SupportedMethods.Select(x => x.Method)))
+        {
+            deduplicatorField = new InjectedField(typeof(IMessageDeduplicator), "deduplicator");
+            _generatedType.AllInjectedFields.Add(deduplicatorField);
+        }
+
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
@@ -230,6 +238,34 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                 generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                 generatedMethod.Frames.Add(new DetectGrpcTenantIdFrame(TenantDetection!, tenantOptionsField,
                     $"{contextArg!.Usage}.{nameof(CallContext.ServerCallContext)}", busField, null));
+            }
+
+            // GH-4180. Deduplication runs before any middleware. It is gated exactly like tenant
+            // detection above and for the same two reasons: the CallContext is the only route to the
+            // request metadata carrying the logical id, and a server-streaming method returns
+            // IAsyncEnumerable<T> directly so its body cannot await the claim.
+            var deduplication = deduplicatorField == null
+                ? null
+                : GrpcDeduplication.RequirementFor(this, ServiceContractType, rpc.Method);
+
+            if (deduplication != null)
+            {
+                if (contextArg == null || rpc.Kind is not (CodeFirstMethodKind.Unary or CodeFirstMethodKind.ClientStreaming))
+                {
+                    // Refuse rather than skip. Silently generating an unprotected method on a service
+                    // that asked for deduplication is the failure this whole feature exists to remove,
+                    // not one to introduce here.
+                    throw new NotSupportedException(
+                        $"Logical message deduplication is not supported on the {rpc.Kind} method '{rpc.Method.Name}' of {ServiceContractType.FullNameInCode()}. It requires a CallContext parameter (the only route to request metadata) and an awaitable return shape. Add a CallContext parameter, or remove [Deduplicated] from this service. See GH-4180");
+                }
+
+                generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+
+                foreach (var frame in GrpcDeduplication.BuildFrames(this, deduplication,
+                             $"{contextArg.Usage}.{nameof(CallContext.ServerCallContext)}", deduplicatorField!))
+                {
+                    generatedMethod.Frames.Add(frame);
+                }
             }
 
             // Per-call middleware (including the Validate short-circuit) requires a concrete
@@ -290,7 +326,7 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                     {
                         // When tenant detection made the method async, 'return _bus.InvokeAsync(...)'
                         // would no longer compile — the forward frame must await instead.
-                        ForceAwait = detectTenantId
+                        ForceAwait = detectTenantId || deduplication != null
                     });
                     break;
 
@@ -303,7 +339,7 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                     {
                         // Same forcing rule as unary: tenant detection makes the method async,
                         // so 'return _bus.StreamAsync(...)' must become 'return await ...'.
-                        ForceAwait = detectTenantId
+                        ForceAwait = detectTenantId || deduplication != null
                     });
                     break;
             }

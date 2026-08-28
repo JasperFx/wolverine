@@ -1,6 +1,7 @@
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.CodeGeneration;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Codegen;
@@ -44,26 +45,40 @@ internal class DeduplicationHandlerPolicy : IHandlerPolicy
             .ToArray();
 
         if (opted.Length == 0) return;
+        if (_options.Durability.EnableMessageDeduplication) return;
 
-        AssertDeduplicationIsEnabled(_options, opted.Select(x => x.Description));
+        WarnDeduplicationIsNotEnabled(container, opted.Select(x => x.Description));
     }
 
     /// <summary>
-    /// Fail at bootstrap rather than at runtime when a chain asked for logical deduplication but the
-    /// storage that backs it was never turned on.
+    /// Warn — loudly, and once per host — when a chain asked for logical deduplication but the storage
+    /// that backs it was never turned on.
     ///
     /// <para>
-    /// The alternative — <see cref="NullDeduplicationStore" /> quietly answering "yes, that's new" for
-    /// every id — is the worst available outcome: the application reports itself as protected, every
-    /// duplicate runs, and there is no log line, no metric, and no failing test that distinguishes it
-    /// from a working configuration. A misconfiguration this quiet is only ever found in production.
+    /// This deliberately warns rather than throws, and the reason is worth stating because "fail fast"
+    /// is the obvious instinct here and it is the wrong one. <c>[Deduplicated]</c> lives on a handler
+    /// TYPE, and handler types get discovered by every host that scans the assembly they live in.
+    /// A modular monolith where one module enables deduplication and a sibling host does not is an
+    /// entirely legitimate setup, and a hard failure makes the attribute unusable in any shared
+    /// assembly — the sibling host cannot start, through no fault of its own configuration.
+    /// </para>
+    ///
+    /// <para>
+    /// The property that actually matters — an application is never <i>silently</i> unprotected — is
+    /// not weakened by warning here, because it is not enforced here. It is enforced at the point of
+    /// use: <see cref="MessageDeduplicator.TryClaimAsync" /> throws on a store whose
+    /// <see cref="IDeduplicationStore.Enabled" /> is false rather than answering "yes, that's new" to
+    /// every id. A misconfigured host still cannot process a single duplicate quietly; it just gets to
+    /// start, and to tell its operator why at startup instead of at the first message.
     /// </para>
     /// </summary>
-    internal static void AssertDeduplicationIsEnabled(WolverineOptions options, IEnumerable<string> descriptions)
+    private static void WarnDeduplicationIsNotEnabled(IServiceContainer container, IEnumerable<string> descriptions)
     {
-        if (options.Durability.EnableMessageDeduplication) return;
+        var logger = container.GetInstance<ILoggerFactory>().CreateLogger<DeduplicationHandlerPolicy>();
 
-        throw new InvalidOperationException(
-            $"Logical message deduplication was requested by {descriptions.Join(", ")}, but {nameof(DurabilitySettings)}.{nameof(DurabilitySettings.EnableMessageDeduplication)} is false, so there is no storage to enforce it. Set opts.Durability.{nameof(DurabilitySettings.EnableMessageDeduplication)} = true (this provisions a new table) or remove the [Deduplicated] usage. See GH-4180");
+        logger.LogWarning(
+            "Logical message deduplication was requested by {Chains}, but {Setting} is false, so there is no storage to enforce it. These handlers will throw on their first message. Set opts.Durability.{Setting} = true (this provisions a new table) or remove the [Deduplicated] usage. See GH-4180",
+            descriptions.Join(", "), nameof(DurabilitySettings.EnableMessageDeduplication),
+            nameof(DurabilitySettings.EnableMessageDeduplication));
     }
 }

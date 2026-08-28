@@ -58,6 +58,19 @@ FIFO queues and topics, and GCP Pub/Sub.)
 <!-- snippet: sample_enabling_message_deduplication -->
 <!-- endSnippet -->
 
+::: warning
+If a handler asks for deduplication and `EnableMessageDeduplication` is left off, Wolverine logs a
+warning at startup and that handler **throws on its first message**. It is deliberately a warning
+rather than a startup failure: `[Deduplicated]` lives on a handler type, and handler types are
+discovered by every host that scans their assembly. In a modular monolith where one module wants
+deduplication and a sibling host does not, a hard failure would stop the sibling from starting
+through no fault of its own configuration.
+
+What is *not* softened is the guarantee itself. A store that cannot enforce deduplication throws
+rather than answering "yes, that's new" to every id, so a misconfigured host can never quietly
+process a duplicate.
+:::
+
 ### Deduplicating a message handler
 
 <!-- snippet: sample_deduplicated_message_handler -->
@@ -157,9 +170,8 @@ The claims live in `wolverine_deduplication` rather than as a column on
 
 ### Scope and limitations
 
-- **Supported on:** message handlers and [Wolverine.HTTP endpoints](/guide/http/deduplication).
-  Wolverine's gRPC services are not supported yet, and a `[Deduplicated]` gRPC method fails at
-  bootstrap with a clear message rather than silently doing nothing.
+- **Supported on:** message handlers, [Wolverine.HTTP endpoints](/guide/http/deduplication), and
+  [Wolverine gRPC services](/guide/grpc/deduplication).
 - **Storage:** the RDBMS message stores — PostgreSQL, SQL Server, MySQL and SQLite (and therefore
   Marten-backed applications). Other stores report themselves as unsupported and fail loudly rather
   than passing every duplicate through.

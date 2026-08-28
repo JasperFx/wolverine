@@ -61,15 +61,33 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
+    private readonly string? _deduplicatorUsage;
+    private readonly string? _cancellationUsage;
     private Variable? _deduplicator;
     private Variable? _cancellation;
 
-    public ClaimDeduplicationIdFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
+    /// <param name="deduplicatorUsage">
+    /// Explicit expression for the <see cref="IMessageDeduplicator" />, or null to resolve it as an
+    /// ordinary chain variable. Wolverine's gRPC codegen supplies one: it composes generated service
+    /// types out of explicit <c>InjectedField</c>s rather than the container-driven variable sources
+    /// that handler and HTTP chains use, so a <c>FindVariable</c> there would come up empty.
+    /// </param>
+    /// <param name="cancellationUsage">
+    /// Explicit expression for the cancellation token, or null to resolve it as a chain variable.
+    /// gRPC supplies <c>context.CancellationToken</c> for the same reason.
+    /// </param>
+    public ClaimDeduplicationIdFrame(Variable deduplicationId, Type? ancillaryStoreMarker,
+        string? deduplicatorUsage = null, string? cancellationUsage = null)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
+        _deduplicatorUsage = deduplicatorUsage;
+        _cancellationUsage = cancellationUsage;
         Variable = new Variable(typeof(bool), "isDuplicateMessage", this);
     }
+
+    private string deduplicatorUsage => _deduplicatorUsage ?? _deduplicator!.Usage;
+    private string cancellationUsage => _cancellationUsage ?? _cancellation!.Usage;
 
     /// <summary>
     /// <see langword="true" /> when this execution must be refused as a duplicate. Deliberately phrased
@@ -87,7 +105,7 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
         writer.Write($"var {Variable.Usage} = false;");
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
-            $"{Variable.Usage} = !(await {_deduplicator!.Usage}.{nameof(IMessageDeduplicator.TryClaimAsync)}({_deduplicationId.Usage}, {marker}, {_cancellation!.Usage}).ConfigureAwait(false));");
+            $"{Variable.Usage} = !(await {deduplicatorUsage}.{nameof(IMessageDeduplicator.TryClaimAsync)}({_deduplicationId.Usage}, {marker}, {cancellationUsage}).ConfigureAwait(false));");
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);
@@ -97,11 +115,17 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
     {
         yield return _deduplicationId;
 
-        _deduplicator = chain.FindVariable(typeof(IMessageDeduplicator));
-        yield return _deduplicator;
+        if (_deduplicatorUsage == null)
+        {
+            _deduplicator = chain.FindVariable(typeof(IMessageDeduplicator));
+            yield return _deduplicator;
+        }
 
-        _cancellation = chain.FindVariable(typeof(CancellationToken));
-        yield return _cancellation;
+        if (_cancellationUsage == null)
+        {
+            _cancellation = chain.FindVariable(typeof(CancellationToken));
+            yield return _cancellation;
+        }
     }
 }
 
@@ -126,14 +150,23 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
+    private readonly string? _deduplicatorUsage;
+    private readonly string? _cancellationUsage;
     private Variable? _deduplicator;
     private Variable? _cancellation;
 
-    public ReleaseDeduplicationIdOnFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
+    /// <inheritdoc cref="ClaimDeduplicationIdFrame(Variable, Type, string, string)" />
+    public ReleaseDeduplicationIdOnFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker,
+        string? deduplicatorUsage = null, string? cancellationUsage = null)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
+        _deduplicatorUsage = deduplicatorUsage;
+        _cancellationUsage = cancellationUsage;
     }
+
+    private string deduplicatorUsage => _deduplicatorUsage ?? _deduplicator!.Usage;
+    private string cancellationUsage => _cancellationUsage ?? _cancellation!.Usage;
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -151,7 +184,7 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
         writer.Write("BLOCK:catch");
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
-            $"await {_deduplicator!.Usage}.{nameof(IMessageDeduplicator.ReleaseAsync)}({_deduplicationId.Usage}, {marker}, {_cancellation!.Usage}).ConfigureAwait(false);");
+            $"await {deduplicatorUsage}.{nameof(IMessageDeduplicator.ReleaseAsync)}({_deduplicationId.Usage}, {marker}, {cancellationUsage}).ConfigureAwait(false);");
         writer.FinishBlock();
         writer.Write("throw;");
         writer.FinishBlock();
@@ -161,10 +194,16 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
     {
         yield return _deduplicationId;
 
-        _deduplicator = chain.FindVariable(typeof(IMessageDeduplicator));
-        yield return _deduplicator;
+        if (_deduplicatorUsage == null)
+        {
+            _deduplicator = chain.FindVariable(typeof(IMessageDeduplicator));
+            yield return _deduplicator;
+        }
 
-        _cancellation = chain.FindVariable(typeof(CancellationToken));
-        yield return _cancellation;
+        if (_cancellationUsage == null)
+        {
+            _cancellation = chain.FindVariable(typeof(CancellationToken));
+            yield return _cancellation;
+        }
     }
 }

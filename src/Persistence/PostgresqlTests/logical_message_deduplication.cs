@@ -40,14 +40,6 @@ public class logical_message_deduplication : IAsyncLifetime
                 opts.Durability.EnableMessageDeduplication = true;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
-                // These handlers are [WolverineIgnore]'d so that the OTHER hosts in this assembly do not
-                // discover them: a [Deduplicated] handler in a host that has not enabled deduplication is
-                // a hard bootstrap failure by design, and without this every other test class in
-                // PostgresqlTests fails to start. Included explicitly here instead.
-                opts.Discovery.IncludeType(typeof(DeduplicatedHandler));
-                opts.Discovery.IncludeType(typeof(UnkeyedHandler));
-                opts.Discovery.IncludeType(typeof(FailingDeduplicatedHandler));
-
                 opts.Policies.AutoApplyTransactions();
 
                 // Discard rather than retry, so each Send is exactly one handler attempt and the
@@ -194,7 +186,6 @@ public record UnkeyedMessage(string Name);
 
 public record FailingDeduplicatedMessage;
 
-[WolverineIgnore]
 public static class DeduplicatedHandler
 {
     public static readonly List<string> Received = [];
@@ -206,7 +197,6 @@ public static class DeduplicatedHandler
     }
 }
 
-[WolverineIgnore]
 public static class UnkeyedHandler
 {
     public static readonly List<string> Received = [];
@@ -218,7 +208,6 @@ public static class UnkeyedHandler
     }
 }
 
-[WolverineIgnore]
 public static class FailingDeduplicatedHandler
 {
     public static int Attempts;

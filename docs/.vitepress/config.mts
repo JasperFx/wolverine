@@ -300,6 +300,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'How gRPC Handlers Work', link: '/guide/grpc/handlers'},
                                 {text: 'Code-First and Proto-First Contracts', link: '/guide/grpc/contracts'},
                                 {text: 'Error Handling', link: '/guide/grpc/errors'},
+                        {text: 'Idempotency Keys', link: '/guide/grpc/deduplication'},
                                 {text: 'Streaming', link: '/guide/grpc/streaming'},
                                 {text: 'Typed gRPC Clients', link: '/guide/grpc/client'},
                                 {text: 'Multi-Tenancy', link: '/guide/grpc/multi-tenancy'},
