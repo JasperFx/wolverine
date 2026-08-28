@@ -215,6 +215,28 @@
 
 ### WolverineFx.Http
 
+- **`ServiceProviderSource.IsolatedAndScoped` is honored, and the isolated scope is primed.**
+  (closes [#4171](https://github.com/JasperFx/wolverine/issues/4171)) An endpoint or middleware that asked
+  for an `IServiceProvider` always received `httpContext.RequestServices`, whatever `ServiceProviderSource`
+  said. Two separate paths bound it: `HttpChain.HttpContextVariables` exposes every `HttpContext` property as
+  a derived codegen variable, and derived variables outrank every variable source; and `HttpContextElements`,
+  an `IParameterStrategy`, matches any parameter whose type equals an `HttpContext` property type, which it
+  did first. Both now leave `IServiceProvider` alone and let the normal service machinery answer it, so
+  `IsolatedAndScoped` gets Wolverine's own child scope and `FromHttpContextRequestServices` still gets
+  `httpContext.RequestServices`.
+
+  HTTP chains also never composed the GH-3001 scope priming that handler chains have, so a service-located
+  `IMessageContext` / `IMessageBus` — or a persistence session contributed through
+  `WolverineOptions.ScopingFrameSources`, such as Marten's outbox-enrolled `IDocumentSession` — was a
+  *different* instance from the one the endpoint already owned. `HttpChain` now appends the same
+  `ScopePrimingActivatorFrame` that `HandlerChain` does.
+
+  ::: warning
+  Requesting an `IServiceProvider` in an endpoint is service location, and it now registers as such. Under
+  `ServiceLocationPolicy.NotAllowed` those endpoints will throw where they previously slipped through
+  unnoticed — message handlers have always behaved this way, and HTTP now matches.
+  :::
+
 - **HTTP chains carry their Event Modeling roles.** ([#3988](https://github.com/JasperFx/wolverine/issues/3988))
   Every routed `HttpChain` derives the same slice a message handler does — triggered by its verb + route, the
   request body as the command, the endpoint type as the handler, `[WriteAggregate]` / `[ReadAggregate]` and friends

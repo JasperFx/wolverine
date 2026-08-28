@@ -57,6 +57,16 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
+    // GH-4171: HttpContext.RequestServices is one of the properties above, and derived variables win
+    // over every variable source during arrangement -- so an endpoint (or middleware) asking for
+    // IServiceProvider silently got httpContext.RequestServices no matter what ServiceProviderSource
+    // said, and never registered as a service location at all. Leave IServiceProvider out of the
+    // derived set and let the normal service-variable machinery answer it: IsolatedAndScoped gets
+    // Wolverine's own child scope, FromHttpContextRequestServices gets httpContext.RequestServices
+    // through TryReplaceServiceProvider, and both are reported to ServiceLocationPolicy.
+    internal static readonly Variable[] DerivedHttpContextVariables =
+        HttpContextVariables.Where(x => x.VariableType != typeof(IServiceProvider)).ToArray();
+
     // Used by CloneForVersion to sanitize ApiVersion text (e.g. "2024-01-01") into a legal
     // identifier suffix for OperationId. Compiled once; only ASCII alphanumerics survive.
     private static readonly Regex NonAlphanumeric = new(@"[^A-Za-z0-9]", RegexOptions.Compiled);
