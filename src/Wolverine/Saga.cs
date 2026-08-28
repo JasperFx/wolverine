@@ -1,3 +1,7 @@
+using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
+
 namespace Wolverine;
 
 #region sample_statefulsagaof
@@ -86,10 +90,19 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
             return true;
         }
 
-        // Already processed in sequence, allow re-published messages through
+        // GH-4175. LastSequence only ever advances when a message is HANDLED (see the drain below), and
+        // only ever by exactly one, so every order up to it has already been handled in sequence. Since
+        // GH-4172 the drain also hands back LastSequence + 1 WITHOUT advancing the counter, so a
+        // legitimate replay satisfies the `== LastSequence + 1` path below and never arrives here.
+        //
+        // What does arrive here is a redelivery of an order that was already handled -- an at-least-once
+        // transport, a manual republish, or something genuinely out of sequence. The saga cannot tell
+        // those apart, and it used to wave all of them through in silence: no exception, no log, nothing,
+        // while LastSequence and Pending both still looked perfectly healthy. Handing it to the handler
+        // remains the default so this is not a behavioral break, but it is now observable and overridable.
         if (message.Order.Value <= LastSequence)
         {
-            return true;
+            return shouldHandleAlreadySequenced(message, bus);
         }
 
         if (message.Order.Value != LastSequence + 1)
@@ -113,6 +126,34 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
         {
             Pending.Remove(next);
             await bus.PublishAsync(next);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Called when a message arrives whose <c>Order</c> this saga has already passed, i.e.
+    ///     <c>Order &lt;= LastSequence</c>. That means the order was already handled, so this is a
+    ///     redelivery -- from an at-least-once transport, a manual republish, or a genuine ordering
+    ///     violation somewhere upstream. The saga has no way to distinguish those from each other.
+    /// </summary>
+    /// <returns>
+    ///     <c>true</c> (the default) to hand the message to the handler anyway, preserving the behavior
+    ///     this type has always had. Override and return <c>false</c> to discard it instead, which is
+    ///     usually what you want if the handler is not idempotent.
+    /// </returns>
+    /// <remarks>
+    ///     The default implementation logs a warning. Override it to raise a metric, throw, or stay quiet
+    ///     if a duplicate is expected and uninteresting in your system (GH-4175).
+    /// </remarks>
+    protected virtual bool shouldHandleAlreadySequenced(T message, IMessageBus bus)
+    {
+        if (bus is MessageBus messageBus)
+        {
+            messageBus.Runtime.Logger.LogWarning(
+                "Saga {SagaType} received message {MessageType} with sequence {Order}, which it has already passed (LastSequence {LastSequence}). This is a redelivery or an out-of-sequence arrival; the message is being handled anyway. Override {Method} to change that.",
+                GetType().FullNameInCode(), typeof(T).FullNameInCode(), message.Order, LastSequence,
+                nameof(shouldHandleAlreadySequenced));
         }
 
         return true;
