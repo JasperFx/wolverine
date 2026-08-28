@@ -41,13 +41,13 @@
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
     <PackageVersion Include="Bobcat.Supervisor" Version="0.8.0" />
-    <PackageVersion Include="JasperFx" Version="2.57.0" />
-    <PackageVersion Include="JasperFx.Events" Version="2.57.0" />
-    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.57.0" />
+    <PackageVersion Include="JasperFx" Version="2.57.1" />
+    <PackageVersion Include="JasperFx.Events" Version="2.57.1" />
+    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.57.1" />
     <!-- RuntimeCompiler is on its own 5.x line (the Roslyn compiler package) — not the 2.1.x
          family; it stays at 5.0.0. -->
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.0" />
-    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.57.0" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.57.1" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
     <PackageVersion Include="Marten" Version="9.23.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.3" />

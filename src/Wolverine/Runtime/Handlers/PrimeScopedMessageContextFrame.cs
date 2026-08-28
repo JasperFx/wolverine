@@ -26,22 +26,37 @@ internal sealed class PrimeScopedMessageContextFrame : SyncFrame, IUsesServicePr
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _context = chain.FindVariable(typeof(MessageContext));
-        yield return _context;
+        // Self-guarding, like the persistence-session frames: this is now attached to EVERY scope
+        // Wolverine's codegen creates, and not all of them belong to a message handler or an HTTP
+        // endpoint. A handler finds its MessageContext argument and an HTTP chain finds one through
+        // MessageBusSource; anything else primes nothing rather than forcing a context into existence.
+        _context = chain.TryFindVariable(typeof(MessageContext), VariableSource.NotServices);
+        if (_context != null)
+        {
+            yield return _context;
+        }
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write(
-            $"{typeof(ServiceProviderServiceExtensions).FullNameInCode()}.{nameof(ServiceProviderServiceExtensions.GetRequiredService)}<{typeof(ScopedMessageContextHolder).FullNameInCode()}>({_scopedProvider!.Usage}).{nameof(ScopedMessageContextHolder.Context)} = {_context!.Usage};");
+        if (_context != null)
+        {
+            writer.Write(
+                $"{typeof(ServiceProviderServiceExtensions).FullNameInCode()}.{nameof(ServiceProviderServiceExtensions.GetRequiredService)}<{typeof(ScopedMessageContextHolder).FullNameInCode()}>({_scopedProvider!.Usage}).{nameof(ScopedMessageContextHolder.Context)} = {_context.Usage};");
+        }
+
         Next?.GenerateCode(method, writer);
     }
 
     // F#: mutable property assignment uses `<-` and no trailing semicolon.
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write(
-            $"{typeof(ServiceProviderServiceExtensions).FSharpName()}.{nameof(ServiceProviderServiceExtensions.GetRequiredService)}<{typeof(ScopedMessageContextHolder).FSharpName()}>({_scopedProvider!.Usage}).{nameof(ScopedMessageContextHolder.Context)} <- {_context!.Usage}");
+        if (_context != null)
+        {
+            writer.Write(
+                $"{typeof(ServiceProviderServiceExtensions).FSharpName()}.{nameof(ServiceProviderServiceExtensions.GetRequiredService)}<{typeof(ScopedMessageContextHolder).FSharpName()}>({_scopedProvider!.Usage}).{nameof(ScopedMessageContextHolder.Context)} <- {_context.Usage}");
+        }
+
         Next?.GenerateFSharpCode(method, writer);
     }
 }
