@@ -75,18 +75,25 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.BatchMessagesOf<ItemDeleted3399>();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        // GH-4167: wait for EXECUTION, not receipt. A WaitFor* condition REPLACES quiescence rather
-        // than adding to it, so WaitForMessageToBeReceivedAt released this session the moment the batch
-        // envelope arrived -- before any handler ran -- and the assertion below raced it. That passed
-        // only because JasperFx ran Block continuations inline on the publisher, which made receive and
-        // execute effectively atomic; it failed on every run once that was fixed (jasperfx#714).
+        // Wait for the exact fact this test asserts, and nothing else.
         //
-        // The count is 2 because that is the whole point of this fixture: under Separated behavior the
-        // batched array has TWO chains (TelemetryHandler3399 and OtherDeletedHandler3399). Waiting on
-        // one execution just swaps a receive/execute race for a which-chain-won race.
+        // Two earlier attempts both raced. WaitForMessageToBeReceivedAt released at receipt, before any
+        // handler ran (GH-4167). Its replacement, WaitForExecutionOf<ItemDeleted3399[]>(2), counted
+        // ENVELOPES of that type -- and under Separated behavior there are THREE, not two: the batch
+        // lands on its own execution queue and is then relayed to each sticky handler queue. Measured:
+        //
+        //   ExecutionFinished env=...5310 dest=local://coretests.bugs.itemdeleted3399/          <- relay source
+        //   ExecutionFinished env=...b332 dest=local://coretests.bugs.otherdeletedhandler3399/  <- sibling
+        //   Received         env=...a676 dest=local://coretests.bugs.telemetryhandler3399/      <- never ran
+        //
+        // Those first two satisfy a count of 2 on their own, so the session was released while the
+        // handler under assertion had only been received. It runs a moment later -- probed
+        // immediate=0, eventual=1 -- so nothing was ever lost; the test was simply reading the counter
+        // too early. Counting envelopes can never express "TelemetryHandler3399 ran", so don't: gate on
+        // the counter itself.
         await host.TrackActivity()
             .Timeout(30.Seconds())
-            .WaitForExecutionOf<ItemDeleted3399[]>(2)
+            .WaitForCondition(new TelemetryBatchHandled())
             .SendMessageAndWaitAsync(new ItemDeleted3399(Guid.NewGuid()));
 
         TelemetryHandler3399.Batched.ShouldBeGreaterThan(0);
@@ -111,6 +118,24 @@ public record ItemCreated3399(Guid Id);
 // TelemetryHandler3399's calls get a sticky chain -- and sticky chains are named off the HANDLER type
 // (HandlerChain.cs:85). The two sticky chains therefore share a TypeName, which drives HandlerGraph's
 // duplicate disambiguation to rebuild the name off the message type: "ItemDeleted3399[]<hash>_...".
+/// <summary>
+/// Completes the tracked session once <see cref="TelemetryHandler3399"/> has actually handled a batch.
+/// Conditions are re-evaluated as envelope records arrive, and the handler increments before its own
+/// ExecutionFinished record is written, so this is satisfied no later than that record.
+/// </summary>
+internal class TelemetryBatchHandled : ITrackedCondition
+{
+    public void Record(EnvelopeRecord record)
+    {
+        // Nothing to accumulate -- the handler's own static counter is the observable.
+    }
+
+    public bool IsCompleted()
+    {
+        return TelemetryHandler3399.Batched > 0;
+    }
+}
+
 [WolverineIgnore]
 public class TelemetryHandler3399
 {
