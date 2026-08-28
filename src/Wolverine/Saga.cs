@@ -102,7 +102,7 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
         // remains the default so this is not a behavioral break, but it is now observable and overridable.
         if (message.Order.Value <= LastSequence)
         {
-            return ShouldHandleAlreadySequenced(message, bus);
+            return shouldHandleAlreadySequenced(message, bus);
         }
 
         if (message.Order.Value != LastSequence + 1)
@@ -146,14 +146,14 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
     ///     The default implementation logs a warning. Override it to raise a metric, throw, or stay quiet
     ///     if a duplicate is expected and uninteresting in your system (GH-4175).
     /// </remarks>
-    protected virtual bool ShouldHandleAlreadySequenced(T message, IMessageBus bus)
+    protected virtual bool shouldHandleAlreadySequenced(T message, IMessageBus bus)
     {
         if (bus is MessageBus messageBus)
         {
             messageBus.Runtime.Logger.LogWarning(
                 "Saga {SagaType} received message {MessageType} with sequence {Order}, which it has already passed (LastSequence {LastSequence}). This is a redelivery or an out-of-sequence arrival; the message is being handled anyway. Override {Method} to change that.",
                 GetType().FullNameInCode(), typeof(T).FullNameInCode(), message.Order, LastSequence,
-                nameof(ShouldHandleAlreadySequenced));
+                nameof(shouldHandleAlreadySequenced));
         }
 
         return true;

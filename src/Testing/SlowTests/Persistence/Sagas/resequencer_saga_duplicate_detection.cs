@@ -25,7 +25,7 @@ public class DiscardingResequencerSaga : ResequencerSaga<GuardedCommand>
 
     public static DiscardingResequencerSaga Start(StartGuardedSaga cmd) => new() { Id = cmd.Id };
 
-    protected override bool ShouldHandleAlreadySequenced(GuardedCommand message, IMessageBus bus)
+    protected override bool shouldHandleAlreadySequenced(GuardedCommand message, IMessageBus bus)
     {
         lock (Rejected)
         {
@@ -81,14 +81,14 @@ public class resequencer_saga_duplicate_detection : IAsyncLifetime
     {
         var sagaId = Guid.NewGuid();
 
-        await _host.InvokeMessageAndWaitAsync(new StartGuardedSaga(sagaId));
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 1));
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 2));
+        await _host.SendMessageAndWaitAsync(new StartGuardedSaga(sagaId));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 1));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 2));
 
         LoadState(sagaId).ProcessedOrders.ShouldBe([1, 2]);
 
         // 1 arrives again, after the saga has already passed it
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 1));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 1));
 
         var state = LoadState(sagaId);
 
@@ -109,18 +109,15 @@ public class resequencer_saga_duplicate_detection : IAsyncLifetime
     {
         var sagaId = Guid.NewGuid();
 
-        await _host.InvokeMessageAndWaitAsync(new StartGuardedSaga(sagaId));
+        await _host.SendMessageAndWaitAsync(new StartGuardedSaga(sagaId));
 
         // 2 and 3 land in Pending, then 1 fills the gap and both are replayed out of Pending.
         // Since GH-4172 the drain hands back LastSequence + 1 without advancing the counter, so a
         // replay takes the normal path -- it must never look like a duplicate to this hook.
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 3));
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 2));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 3));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 2));
 
-        await _host.ExecuteAndWaitAsync(async () =>
-        {
-            await _host.MessageBus().PublishAsync(new GuardedCommand(sagaId, 1));
-        }, timeoutInMilliseconds: 30000);
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 1), timeoutInMilliseconds: 30000);
 
         var state = LoadState(sagaId);
         state.ProcessedOrders.ShouldBe([1, 2, 3]);
@@ -139,10 +136,10 @@ public class resequencer_saga_duplicate_detection : IAsyncLifetime
     {
         var sagaId = Guid.NewGuid();
 
-        await _host.InvokeMessageAndWaitAsync(new StartGuardedSaga(sagaId));
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 1));
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, null));
-        await _host.InvokeMessageAndWaitAsync(new GuardedCommand(sagaId, 0));
+        await _host.SendMessageAndWaitAsync(new StartGuardedSaga(sagaId));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 1));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, null));
+        await _host.SendMessageAndWaitAsync(new GuardedCommand(sagaId, 0));
 
         LoadState(sagaId).ProcessedOrders.ShouldBe([1, null, 0]);
 
