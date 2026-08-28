@@ -4,6 +4,43 @@
 
 ### WolverineFx (core)
 
+- **Scope priming now fires for every chain that service-locates, not only the ones naming an
+  `IServiceProvider`.** (closes [#4171](https://github.com/JasperFx/wolverine/issues/4171),
+  [jasperfx#715](https://github.com/JasperFx/jasperfx/pull/715)) When generated code falls back to
+  service location it creates a child scope, and since GH-3001 Wolverine has seeded that scope so a
+  service-located `IMessageContext` / `IMessageBus` — and any instance an integration contributes
+  through `WolverineOptions.ScopingFrameSources`, such as Marten's outbox-enrolled `IDocumentSession` —
+  is the *same* instance the handler already owns rather than a second, un-enrolled one.
+
+  It only ever worked when something in the chain asked for an `IServiceProvider` by name. The priming
+  was composed as a frame, and a frame can only look for the scoped provider during the code
+  generator's first resolution pass — but the scope for an *opaque* scoped/transient registration (a
+  lambda the container alone can build) is not created until after that pass. So for exactly the chains
+  that had no explicit `IServiceProvider`, the frame found nothing, attached nothing, and reported
+  nothing: the handler ran against one session while a service-located dependency quietly used another.
+  Every test covering the feature happened to put an `IServiceProvider` on the handler signature, which
+  is the one shape that did work.
+
+  Priming now attaches where the scope is actually created, so it covers both shapes.
+  `ScopePrimingActivatorFrame` is gone.
+
+- **`Lazy<T>` constructor dependencies resolve through their registration instead of being
+  inline-constructed.** (closes [#4159](https://github.com/JasperFx/wolverine/issues/4159),
+  [jasperfx#715](https://github.com/JasperFx/jasperfx/pull/715)) Code generation ignored an
+  open-generic registration such as `services.TryAddScoped(typeof(Lazy<>), typeof(LazyResolver<>))`
+  whenever the closed type was itself concrete — which `Lazy<T>` is — and emitted `new Lazy<IFoo>()`
+  instead. That compiles and can never work: the parameterless constructor uses
+  `Activator.CreateInstance<T>()`, so the first `.Value` throws `MissingMemberException` for any `T`
+  without a public parameterless constructor, which is every DI-registered service.
+
+  It failed silently and late. The reporter's host started clean, listeners attached, health checks
+  passed, and twelve integration tests recorded zero message execution — no dead letters and no failed
+  envelopes, because nothing ever ran.
+
+  Relatedly, `CodeGeneration.AlwaysUseServiceLocationFor(typeof(Lazy<>))` accepted an open generic and
+  then matched nothing, so it was a silent no-op; it now matches that generic's closed forms, and only
+  those. A concrete generic with no registration of its own still gets built inline as before.
+
 - **A `TypeLoadMode.Static` assembly mismatch now fails the host start instead of the first message.**
   (closes [#4151](https://github.com/JasperFx/wolverine/issues/4151)) `Static` mode loads pre-built handler
   types out of `WolverineOptions.ApplicationAssembly`, but `codegen write` emits its source into the entry
@@ -225,11 +262,11 @@
   `IsolatedAndScoped` gets Wolverine's own child scope and `FromHttpContextRequestServices` still gets
   `httpContext.RequestServices`.
 
-  HTTP chains also never composed the GH-3001 scope priming that handler chains have, so a service-located
-  `IMessageContext` / `IMessageBus` — or a persistence session contributed through
+  HTTP chains also never took part in the GH-3001 scope priming that handler chains have, so a
+  service-located `IMessageContext` / `IMessageBus` — or a persistence session contributed through
   `WolverineOptions.ScopingFrameSources`, such as Marten's outbox-enrolled `IDocumentSession` — was a
-  *different* instance from the one the endpoint already owned. `HttpChain` now appends the same
-  `ScopePrimingActivatorFrame` that `HandlerChain` does.
+  *different* instance from the one the endpoint already owned. They do now; see the core entry below,
+  which fixes the same gap for message handlers.
 
   ::: warning
   Requesting an `IServiceProvider` in an endpoint is service location, and it now registers as such. Under

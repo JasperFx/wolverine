@@ -101,14 +101,28 @@ public class service_provider_source_compliance
         (await result.ReadAsTextAsync()).ShouldContain("IServiceProvider");
     }
 
-    // GH-3001's priming, now composed into HttpChain: the child scope is seeded with the endpoint's
-    // own MessageContext and its outbox-enrolled Marten session before anything is resolved out of it.
+    // GH-3001's priming: the child scope is seeded with the endpoint's own MessageContext and its
+    // outbox-enrolled Marten session before anything is resolved out of it.
     [Fact]
     public async Task the_child_scope_is_primed_with_the_endpoints_own_instances()
     {
         await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped);
 
         var result = await host.Scenario(x => x.Get.Url("/service-provider-source/priming"));
+
+        (await result.ReadAsTextAsync()).ShouldBe("context:same session:same");
+    }
+
+    // ...and it is primed even when nothing in the endpoint names an IServiceProvider. This is the
+    // shape that silently went unprimed: the scope exists only because IScopeProbe is an opaque scoped
+    // registration, and it is not created until after every frame has resolved its variables. See
+    // GH-4171 and the ScopePostProcessorSources it moved the priming onto.
+    [Fact]
+    public async Task priming_does_not_depend_on_the_endpoint_asking_for_a_service_provider()
+    {
+        await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped);
+
+        var result = await host.Scenario(x => x.Get.Url("/service-provider-source/implicit-priming"));
 
         (await result.ReadAsTextAsync()).ShouldBe("context:same session:same");
     }
@@ -137,8 +151,19 @@ public static class ServiceProviderSourceEndpoint
     [WolverineGet("/service-provider-source/priming")]
     public static string Priming(IServiceProvider services, IMessageContext context, IDocumentSession session)
     {
-        var probe = services.GetRequiredService<IScopeProbe>();
+        return Compare(services.GetRequiredService<IScopeProbe>(), context, session);
+    }
 
+    // No IServiceProvider anywhere. IScopeProbe is an opaque scoped registration, so the scope is
+    // created for it alone -- and until GH-4171 that scope was never primed.
+    [WolverineGet("/service-provider-source/implicit-priming")]
+    public static string ImplicitPriming(IScopeProbe probe, IMessageContext context, IDocumentSession session)
+    {
+        return Compare(probe, context, session);
+    }
+
+    private static string Compare(IScopeProbe probe, IMessageContext context, IDocumentSession session)
+    {
         var contextMatch = ReferenceEquals(probe.Context, context) ? "same" : "different";
         var sessionMatch = ReferenceEquals(probe.Session, session) ? "same" : "different";
 

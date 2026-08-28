@@ -149,7 +149,23 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<IServiceContainer, ServiceContainer>();
 
-        services.AddTransient<IServiceVariableSource, ServiceCollectionServerVariableSource>();
+        // GH-3001 / GH-4171: whenever generated code falls back to service location, JasperFx creates a
+        // child scope; these frames run immediately after that scope line and seed it with the instances
+        // the generated method already owns, so a service-located IMessageContext / IMessageBus -- and
+        // any integration-registered instance, such as Marten's outbox-enrolled IDocumentSession -- is
+        // that same instance rather than a second, un-enrolled one. Every frame self-guards, so a chain
+        // that has nothing to prime emits nothing.
+        //
+        // Registered on the variable source rather than appended as a frame to each chain: a frame can
+        // only look for the scoped provider during the arranger's first resolution pass, and the scope
+        // for an opaque scoped/transient registration is not created until after it. See GH-4171.
+        services.AddTransient<IServiceVariableSource>(s =>
+        {
+            var source = new ServiceCollectionServerVariableSource(s.GetRequiredService<IServiceContainer>());
+            source.ScopePostProcessorSources.Add(() => new PrimeScopedMessageContextFrame());
+            source.ScopePostProcessorSources.AddRange(options.ScopingFrameSources);
+            return source;
+        });
 
         services.AddSingleton(s =>
         {

@@ -693,20 +693,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             ? new Frame[] { new RecordMessageCausationFrame() }
             : Array.Empty<Frame>();
 
-        // GH-3001: when this chain falls back to service location, prime the child scope so
-        // service-located IMessageContext / IMessageBus (and integration-registered instances like
-        // Marten's outbox-enrolled IDocumentSession) resolve to the same instances the handler uses
-        // instead of duplicates. The MessageContext frame is always added; integrations contribute
-        // more via WolverineOptions.ScopingFrameSources. Every scoping frame self-guards, and the
-        // activator emits nothing unless a service-location scope is actually created for the chain.
-        var scopingFrames = new List<SyncFrame> { new PrimeScopedMessageContextFrame() };
-        scopingFrames.AddRange(options?.ScopingFrameSources.Select(x => x()) ?? []);
-        var scopeActivator = new ScopePrimingActivatorFrame(scopingFrames);
+        // GH-3001 scope priming used to be composed here, as a frame appended after the postprocessors.
+        // It now lives on the IServiceVariableSource (see HostBuilderExtensions) because a frame can
+        // only look for the scoped provider during the arranger's first resolution pass, and the scope
+        // for an opaque scoped/transient registration is not created until after it — so this never
+        // primed anything for the chains that had no explicit IServiceProvider. See GH-4171.
 
         // The Enqueue cascading needs to happen before the post processors because of the
-        // transactional & outbox support. The scope-priming activator runs LAST so it arranges after
-        // the service-location scope (if any) has been created — it emits no code, it only registers
-        // postprocessors on that scope.
+        // transactional & outbox support.
         return preamble
             .Concat(Middleware)
             .Concat(container.TryCreateConstructorFrames(Handlers))
@@ -717,7 +711,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             // GH-3975: after EVERY postprocessor, which is what makes "after the commit" structural rather
             // than a position that policy ordering can silently move.
             .Concat(PostCommitPostprocessors)
-            .Append(scopeActivator)
             .ToList();
     }
 
