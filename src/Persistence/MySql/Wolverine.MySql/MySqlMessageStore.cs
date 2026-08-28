@@ -483,6 +483,12 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
 
+        // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
+        if (Durability.EnableMessageDeduplication)
+        {
+            yield return new DeduplicationTable(SchemaName);
+        }
+
         if (Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));

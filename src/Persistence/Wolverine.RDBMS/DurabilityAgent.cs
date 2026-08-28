@@ -33,6 +33,7 @@ internal class DurabilityAgent : IAgent
     private Timer? _handledCleanupTimer;
     private Timer? _nodeRecordPruningTimer;
     private Timer? _orphanSweepTimer;
+    private Timer? _deduplicationCleanupTimer;
 
     private readonly DurabilityHealthSignals _health;
     private DateTime _lastHealthCheck = DateTime.UtcNow;
@@ -142,6 +143,18 @@ internal class DurabilityAgent : IAgent
             _runningBlock.Post(command);
         }, _settings, 5.Seconds(), _settings.HandledMessageCleanupPollingTime);
 
+        // GH-4180: the deduplication table is append-only on the write path -- one row per deduplicated
+        // message -- so enabling the feature without a reaper trades duplicate work for a table that
+        // grows without bound. Its own timer, its own transaction, for the same reason as the handled
+        // cleanup above. Created only when the feature is on, so nothing changes for anyone else.
+        if (_settings.EnableMessageDeduplication)
+        {
+            _deduplicationCleanupTimer = new Timer(_ =>
+            {
+                _runningBlock.Post(new DeleteExpiredDeduplicationClaimsCommand(_database, _logger));
+            }, _settings, _settings.DeduplicationCleanupPollingTime, _settings.DeduplicationCleanupPollingTime);
+        }
+
         // GH-3701: node records only exist on the Main store, and their housekeeping is slow, unbounded-scan
         // work that has no business riding along on the recovery batch. See PruneNodeRecords.
         if (_database.Settings.Role == MessageStoreRole.Main)
@@ -198,6 +211,11 @@ internal class DurabilityAgent : IAgent
         if (_orphanSweepTimer != null)
         {
             await _orphanSweepTimer.DisposeAsync();
+        }
+
+        if (_deduplicationCleanupTimer != null)
+        {
+            await _deduplicationCleanupTimer.DisposeAsync();
         }
 
         Status = AgentStatus.Stopped;

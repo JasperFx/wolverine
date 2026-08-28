@@ -17,6 +17,7 @@ using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.RDBMS.DynamicListeners;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -93,7 +94,35 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             // ReSharper disable once VirtualMemberCallInConstructor
             Listeners = BuildListenerStore();
         }
+
+        // GH-4180. Logical deduplication storage, unlike the listener registry above, is built for
+        // EVERY store role rather than only Main. A handler chain carrying an AncillaryStoreType
+        // claims its id in that store, so that the claim and the work it guards land in one
+        // transaction; a claim that went to the Main store instead could commit while the ancillary
+        // transaction rolled back.
+        if (settings.EnableMessageDeduplication)
+        {
+            // ReSharper disable once VirtualMemberCallInConstructor
+            Deduplication = BuildDeduplicationStore();
+        }
     }
+
+    /// <summary>
+    /// Factory hook for the per-database <see cref="IDeduplicationStore" /> when
+    /// <see cref="DurabilitySettings.EnableMessageDeduplication" /> is set. The default returns
+    /// <see cref="RdbmsDeduplicationStore" />, which is portable across every provider that uses
+    /// <c>@</c>-prefixed bind variables and <see cref="DbDataSource" />-driven command creation
+    /// (Postgres, SqlServer, MySQL, SQLite). Oracle supplies its own.
+    /// </summary>
+    protected virtual IDeduplicationStore BuildDeduplicationStore()
+    {
+        return new RdbmsDeduplicationStore(_dataSource,
+            QuotedTableNameFor(DatabaseConstants.DeduplicationTableName), IsUniqueConstraintViolation,
+            BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize);
+    }
+
+    /// <inheritdoc />
+    public IDeduplicationStore Deduplication { get; private set; } = NullDeduplicationStore.Instance;
 
     /// <summary>
     /// Factory hook for constructing the per-database <see cref="IListenerStore"/> when
@@ -294,6 +323,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// batched cleanup. See <see cref="IMessageDatabase.BatchedDeleteExpiredHandledEnvelopesSql"/>.
     /// </summary>
     public virtual string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize) => null;
+
+    /// <summary>
+    /// GH-4180. Provider hook for a BOUNDED delete of expired logical deduplication claims. Null means
+    /// "this engine cannot bound it", and the reaper falls back to one unbounded statement. Mirrors
+    /// <see cref="BatchedDeleteExpiredHandledEnvelopesSql" />.
+    /// </summary>
+    public virtual string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize) => null;
 
     /// <summary>
     /// GH-3971. Portable default. PostgreSQL and SQL Server override it with a recursive index

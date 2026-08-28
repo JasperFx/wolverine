@@ -181,6 +181,16 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
             $"(select ctid from {table} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= :now limit {batchSize});";
     }
 
+    public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
+    {
+        var table = $"{QuotedSchemaName}.{DatabaseConstants.DeduplicationTableName}";
+
+        // Bounded via ctid, the same shape as BatchedDeleteExpiredHandledEnvelopesSql, so each
+        // statement holds locks briefly instead of taking out a day's worth of claims at once.
+        return
+            $"delete from {table} where ctid in (select ctid from {table} where {DatabaseConstants.Expires} <= :now limit {batchSize});";
+    }
+
     /// <summary>
     /// GH-3971: a "loose index scan" (skip scan), which PostgreSQL will not plan on its own. Descends
     /// the <c>owner_id</c> index once per DISTINCT value instead of reading every row, so the steady
@@ -756,6 +766,13 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
+
+        // GH-4180. Every store role, not just Main: a handler chain with an AncillaryStoreType claims
+        // its logical id in that store so the claim and the work land in one transaction.
+        if (Durability.EnableMessageDeduplication)
+        {
+            yield return new DeduplicationTable(SchemaName);
+        }
 
         foreach (var table in _externalTables)
         {

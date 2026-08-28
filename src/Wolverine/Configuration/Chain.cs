@@ -36,6 +36,43 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract IdempotencyStyle Idempotency { get; set; }
 
+    /// <summary>
+    ///     GH-4180. Logical message deduplication for this chain, or null for none. A real property here
+    ///     rather than the interface's default so that every chain type Wolverine ships — handler, HTTP,
+    ///     and all three gRPC flavours — round-trips a set value instead of swallowing it.
+    /// </summary>
+    public DeduplicationRequirement? Deduplication { get; set; }
+
+    /// <inheritdoc />
+    public virtual bool RequiresDeduplication() => Deduplication is not null;
+
+    /// <inheritdoc />
+    public virtual Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+        => throw new NotSupportedException(
+            $"{GetType().FullNameInCode()} does not support logical message deduplication (GH-4180)");
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Mirrors the <see cref="IChain" /> default. It exists here as a <c>virtual</c> so that the chain
+    ///     types Wolverine ships can override it — a default interface member cannot be overridden by a
+    ///     class in the hierarchy, only reimplemented on the interface, which would not be picked up
+    ///     through a <see cref="Chain{TChain,TModifyAttribute}" />-typed reference.
+    /// </remarks>
+    public virtual Variable ResolveDeduplicationId(DeduplicationRequirement requirement)
+    {
+        var source = requirement.Source == ValueSource.Anything ? ValueSource.Header : requirement.Source;
+        var key = requirement.Key ?? DeduplicationRequirement.DefaultHeaderName;
+
+        if (TryFindVariable(key, source, typeof(string), out var variable))
+        {
+            return variable;
+        }
+
+        throw new InvalidOperationException(
+            $"Cannot resolve a logical deduplication id for {Description}. No {source} value named '{key}' could be found. See GH-4180");
+    }
+
     public List<Frame> Postprocessors { get; } = [];
 
     /// <summary>

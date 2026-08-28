@@ -131,6 +131,11 @@ public static class HostBuilderExtensions
         services.AddJasperFx();
         services.AddSingleton<MessageStoreCollection>();
 
+        // GH-4180. The single service that generated logical-deduplication code resolves, in message
+        // handlers, HTTP endpoints and gRPC methods alike. Registered unconditionally and cheap to
+        // construct -- it does nothing at all unless a chain opted in.
+        services.AddSingleton<IMessageDeduplicator, MessageDeduplicator>();
+
         // The Roslyn runtime compiler (JasperFx.RuntimeCompiler / AssemblyGenerator) is no
         // longer registered by, or referenced from, core WolverineFx. Apps running
         // TypeLoadMode.Dynamic/Auto reference the WolverineFx.RuntimeCompilation package,

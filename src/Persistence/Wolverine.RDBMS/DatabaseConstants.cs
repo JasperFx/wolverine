@@ -48,6 +48,36 @@ public class DatabaseConstants
     /// </summary>
     public const string ListenersTableName = "wolverine_listeners";
 
+    /// <summary>
+    /// GH-4180. Table backing logical message deduplication. One row per claimed
+    /// application-defined deduplication id, with its own expiry.
+    ///
+    /// <para>
+    /// Deliberately NOT a column on <see cref="IncomingTable"/>. Under
+    /// <c>DurabilitySettings.EnableInboxPartitioning</c> that table is PARTITION BY LIST (status),
+    /// and PostgreSQL will not create a unique index on a partitioned table unless the index
+    /// carries the partition key -- but marking an envelope handled UPDATEs status, which moves
+    /// the row between partitions, so a (deduplication_id, status) index would let the same
+    /// logical id exist once as Incoming and once as Handled. A separate table sidesteps the
+    /// whole problem, carries its own retention window (which has to outlive the inbox row it
+    /// came from), and means the small, hot, constantly-written inbox table never migrates for
+    /// this feature at all.
+    /// </para>
+    ///
+    /// <para>
+    /// Provisioned only when <c>DurabilitySettings.EnableMessageDeduplication</c> is set.
+    /// </para>
+    /// </summary>
+    public const string DeduplicationTableName = "wolverine_deduplication";
+
+    /// <summary>
+    /// GH-4180. The application-defined logical id, and the primary key of
+    /// <see cref="DeduplicationTableName"/>. The uniqueness of this column IS the guarantee --
+    /// the claim is an INSERT that either succeeds or trips this constraint, never a SELECT
+    /// followed by an INSERT.
+    /// </summary>
+    public const string DeduplicationId = "deduplication_id";
+
     public const string Expires = "expires";
 
     public static readonly string IncomingFields =

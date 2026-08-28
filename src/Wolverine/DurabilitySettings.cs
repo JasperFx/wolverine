@@ -228,6 +228,61 @@ public class DurabilitySettings : IDescribeMyself
     public int HandledMessageCleanupMaxBatchesPerCycle { get; set; } = 20;
 
     /// <summary>
+    ///     GH-4180. Opt in to storage for <b>logical</b> message deduplication ids — the
+    ///     <see cref="Envelope.DeduplicationId" /> an application sets to say "this is the same intent",
+    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery.
+    ///
+    ///     <para>
+    ///     Off by default, and deliberately so: enabling it provisions a new
+    ///     <c>wolverine_deduplication</c> table, and forcing a schema change on every existing
+    ///     deployment is not something a patch upgrade should do. Nothing in the read or write path of
+    ///     the transactional inbox changes either way — the deduplication markers live in their own
+    ///     table (see <see cref="Persistence.Durability.IDeduplicationStore" /> for why).
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Turning this on provisions storage; it does not by itself deduplicate anything. Individual
+    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
+    ///     <c>Policies.RequireDeduplicationId()</c>.
+    ///     </para>
+    /// </summary>
+    public bool EnableMessageDeduplication { get; set; }
+
+    /// <summary>
+    ///     GH-4180. How long a logical deduplication claim is honoured before the reaper removes it.
+    ///     Default is 24 hours.
+    ///
+    ///     <para>
+    ///     This is the whole guarantee, so it is stated rather than inherited. It is NOT
+    ///     <see cref="KeepAfterMessageHandling" />: that setting exists to absorb a broker redelivery
+    ///     and defaults to five minutes, which would turn "idempotent" into "idempotent for a while" —
+    ///     worse than no guarantee, because it holds in testing and fails in production.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Past this window the same logical id is accepted again. Size it against how long a duplicate
+    ///     could plausibly arrive: an operator double-click is seconds, a console republish is minutes,
+    ///     an agent that pre-publishes tomorrow's scheduled occurrences is a day.
+    ///     </para>
+    /// </summary>
+    public TimeSpan DeduplicationWindow { get; set; } = 24.Hours();
+
+    /// <summary>
+    ///     GH-4180. Polling interval for the reaper that deletes expired deduplication claims. Runs on
+    ///     its own timer in its own transaction, off the recovery loop, for the same reason the
+    ///     handled-envelope cleanup does (issue #3116). Default is 5 minutes — the table only needs to
+    ///     be kept bounded, not kept current, and a claim that outlives its expiry by a few minutes
+    ///     costs nothing but a row.
+    /// </summary>
+    public TimeSpan DeduplicationCleanupPollingTime { get; set; } = 5.Minutes();
+
+    /// <summary>
+    ///     GH-4180. Maximum number of expired deduplication claims deleted in a single bounded DELETE.
+    ///     Default is 5000, matching <see cref="HandledMessageCleanupBatchSize" />.
+    /// </summary>
+    public int DeduplicationCleanupBatchSize { get; set; } = 5000;
+
+    /// <summary>
     ///     Governs the page size for how many persisted incoming or outgoing messages
     ///     will be loaded at one time for attempted retries or scheduled jobs
     /// </summary>
@@ -640,6 +695,13 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
+        desc.AddValue(nameof(EnableMessageDeduplication), EnableMessageDeduplication);
+        if (EnableMessageDeduplication)
+        {
+            desc.AddValue(nameof(DeduplicationWindow), DeduplicationWindow);
+            desc.AddValue(nameof(DeduplicationCleanupPollingTime), DeduplicationCleanupPollingTime);
+        }
+
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);

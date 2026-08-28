@@ -157,6 +157,13 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             $"where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @now;";
     }
 
+    public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
+    {
+        return
+            $"delete top ({batchSize}) from {SchemaName}.{DatabaseConstants.DeduplicationTableName} " +
+            $"where {DatabaseConstants.Expires} <= @now;";
+    }
+
     // GH-3971: deliberately NOT overriding DistinctOwnerIdsSql. The recursive index skip-scan
     // PostgreSQL uses cannot be expressed in T-SQL: SQL Server forbids aggregate functions, TOP and
     // subqueries in the recursive member of a recursive CTE, and every spelling of "next distinct value"
@@ -574,6 +581,12 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         yield return new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", this);
         yield return new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", this);
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
+
+        // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
+        if (Durability.EnableMessageDeduplication)
+        {
+            yield return new DeduplicationTable(SchemaName);
+        }
         
         foreach (var table in _externalTables)
         {

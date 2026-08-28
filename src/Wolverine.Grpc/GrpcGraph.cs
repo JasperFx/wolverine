@@ -167,6 +167,38 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         {
             policy.Apply(_chains, _codeFirstChains, _handWrittenChains, Rules, Container);
         }
+
+        AssertNoUnsupportedDeduplication(chainableChains);
+    }
+
+    /// <summary>
+    /// GH-4180. Logical message deduplication is not wired into gRPC yet, and this makes that visible
+    /// instead of quiet.
+    ///
+    /// <para>
+    /// The refusal half IS implemented — <c>BuildDeduplicationStopCondition</c> on all three gRPC chain
+    /// types maps a duplicate to <c>AlreadyExists</c> and a missing id to <c>InvalidArgument</c>. What is
+    /// missing is the id-resolution half: gRPC generates each RPC method inside <c>AssembleTypes</c> with
+    /// a method-local <c>ServerCallContext</c> expression rather than through the <c>Middleware</c> list
+    /// that <c>ApplyDeduplication</c> weaves into, so reading the id out of request metadata needs
+    /// plumbing that does not exist yet.
+    /// </para>
+    ///
+    /// <para>
+    /// Throwing here rather than ignoring the attribute is the whole point. <c>[Deduplicated]</c> is a
+    /// <c>ModifyChainAttribute</c>, so it happily sets the requirement on a gRPC chain and then nothing
+    /// would consume it — an application that believes it is protected, is not, and has no log line or
+    /// failing test that says so. A bootstrap failure naming the limitation is strictly better than a
+    /// feature that silently is not there.
+    /// </para>
+    /// </summary>
+    private static void AssertNoUnsupportedDeduplication(IReadOnlyList<IChain> chains)
+    {
+        var offenders = chains.Where(x => x.Deduplication != null).ToArray();
+        if (offenders.Length == 0) return;
+
+        throw new NotSupportedException(
+            $"Logical message deduplication ([Deduplicated]) is not yet supported on Wolverine gRPC services, but was requested by {offenders.Select(x => x.Description).Join(", ")}. It is supported on message handlers and Wolverine.HTTP endpoints today. See GH-4180");
     }
 
     /// <summary>

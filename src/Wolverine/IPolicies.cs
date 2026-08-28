@@ -119,6 +119,28 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void AutoApplyIdempotencyOnNonTransactionalHandlers();
 
     /// <summary>
+    ///     GH-4180. Require a <b>logical</b> deduplication id on every message handler chain matched by
+    ///     <paramref name="filter" />, as an alternative to decorating each one with
+    ///     <c>[Deduplicated]</c>.
+    ///
+    ///     <para>
+    ///     Requires <c>Durability.EnableMessageDeduplication</c>, which provisions the backing storage.
+    ///     Unlike the attribute, this reaches handlers you do not own — the usual case being a marker
+    ///     interface on every create-style command in an application.
+    ///     </para>
+    /// </summary>
+    /// <param name="filter">
+    ///     Which handler chains this applies to. Required rather than optional: applying logical
+    ///     deduplication to <i>every</i> handler would demand an id on traffic that has no business
+    ///     carrying one, and with <c>Required</c> defaulting to true that turns into a dead-lettered
+    ///     message per unkeyed send.
+    /// </param>
+    /// <param name="requirement">
+    ///     How the id is resolved. Defaults to <see cref="Envelope.DeduplicationId" />, required.
+    /// </param>
+    void RequireDeduplicationId(Func<HandlerChain, bool> filter, DeduplicationRequirement? requirement = null);
+
+    /// <summary>
     ///     Add Wolverine middleware to message handlers
     /// </summary>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>

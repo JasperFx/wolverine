@@ -72,6 +72,18 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
     public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4180. A gRPC method owes its caller a status, so a refusal is an <c>RpcException</c> rather
+    ///     than the silent discard a message handler gets or the problem document an HTTP endpoint gets.
+    ///     Shared across all three gRPC chain flavours — the refusal is identical in each, and three
+    ///     copies of the mapping would only drift.
+    /// </remarks>
+    public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+        => GrpcDeduplication.BuildStopCondition(condition, outcome, requirement);
+
+
     /// <summary>
     ///     Set by <see cref="GrpcTenantIdDetection"/> (the built-in <see cref="IGrpcChainPolicy"/>
     ///     behind <see cref="WolverineGrpcOptions.TenantId"/>) when tenant detection strategies are

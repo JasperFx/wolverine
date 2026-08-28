@@ -213,6 +213,18 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
     public override Frame[] AddStopConditionIfNull(Variable variable) => [];
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4180. A gRPC method owes its caller a status, so a refusal is an <c>RpcException</c> rather
+    ///     than the silent discard a message handler gets or the problem document an HTTP endpoint gets.
+    ///     Shared across all three gRPC chain flavours — the refusal is identical in each, and three
+    ///     copies of the mapping would only drift.
+    /// </remarks>
+    public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+        => GrpcDeduplication.BuildStopCondition(condition, outcome, requirement);
+
+
     public override void UseForResponse(MethodCall methodCall)
     {
         // no-op: proto-first chains don't synthesize response variables via MethodCall.
