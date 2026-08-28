@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using Wolverine.Configuration;
 using Wolverine.Marten;
 
 namespace Wolverine.Http.Tests.CodeGeneration;
@@ -53,6 +52,11 @@ public class service_provider_source_compliance
 
         return await AlbaHost.For(builder, app =>
         {
+            // Same shape as service_location_assertions.buildHost: a chain that refuses to compile
+            // throws inside the endpoint, and whether that exception propagates out of TestServer or
+            // is turned into a 500 depends on the host environment -- it differs between a local run
+            // and CI. The developer exception page makes it a 500 with the message in the body either way.
+            app.UseDeveloperExceptionPage();
             app.MapWolverineEndpoints(opts => opts.ServiceProviderSource = source);
         });
     }
@@ -87,12 +91,14 @@ public class service_provider_source_compliance
         await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped,
             ServiceLocationPolicy.NotAllowed);
 
-        var ex = await Should.ThrowAsync<InvalidServiceLocationException>(async () =>
+        var result = await host.Scenario(x =>
         {
-            await host.Scenario(x => x.Get.Url("/service-provider-source"));
+            x.Get.Url("/service-provider-source");
+            x.StatusCodeShouldBe(500);
         });
 
-        ex.Message.ShouldContain("System.IServiceProvider");
+        // ...and specifically because of the IServiceProvider, not just any 500.
+        (await result.ReadAsTextAsync()).ShouldContain("IServiceProvider");
     }
 
     // GH-3001's priming, now composed into HttpChain: the child scope is seeded with the endpoint's
