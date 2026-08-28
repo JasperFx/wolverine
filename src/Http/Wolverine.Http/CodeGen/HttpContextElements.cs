@@ -15,8 +15,12 @@ internal class HttpContextElements : IParameterStrategy
 
     public HttpContextElements()
     {
+        // GH-4171: IServiceProvider is deliberately excluded. HttpContext.RequestServices is one of
+        // these properties, and matching it here quietly bound every IServiceProvider parameter to
+        // httpContext.RequestServices regardless of ServiceProviderSource. Let the normal service
+        // machinery answer IServiceProvider instead.
         _properties = typeof(HttpContext).GetProperties().Where(x =>
-                x.PropertyType != typeof(string) || x.PropertyType == typeof(IServiceProvider))
+                x.PropertyType != typeof(string) && x.PropertyType != typeof(IServiceProvider))
             .ToList();
     }
 

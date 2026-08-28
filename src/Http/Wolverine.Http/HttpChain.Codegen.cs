@@ -55,7 +55,7 @@ public partial class HttpChain
 
             var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
 
-            handleMethod.DerivedVariables.AddRange(HttpContextVariables);
+            handleMethod.DerivedVariables.AddRange(DerivedHttpContextVariables);
 
             var loggedType = determineLogMarkerType();
 
@@ -222,6 +222,15 @@ public partial class HttpChain
 
         // GH-3975: after EVERY postprocessor, including the persistence provider's commit frame.
         foreach (var frame in PostCommitPostprocessors) yield return frame;
+
+        // GH-4171: exactly what HandlerChain.DetermineFrames does. When this endpoint falls back to
+        // service location, prime the child scope so a service-located IMessageContext / IMessageBus
+        // (and integration-registered instances such as Marten's outbox-enrolled IDocumentSession)
+        // resolves to the same instance the endpoint already owns. The activator emits no code and
+        // attaches nothing unless a service-location scope was actually created for the chain.
+        var scopingFrames = new List<SyncFrame> { new PrimeScopedMessageContextFrame() };
+        scopingFrames.AddRange(_parent.Options.ScopingFrameSources.Select(x => x()));
+        yield return new ScopePrimingActivatorFrame(scopingFrames);
     }
 
     private bool requiresFlush(Frame[] actionsOnOtherReturnValues)

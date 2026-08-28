@@ -273,6 +273,16 @@ leads to code that is hard to reason about and hence, potentially buggy in real 
 need this functionality in the real world, so here you go. 
 :::
 
+Whichever source you choose, an endpoint that reaches for an `IServiceProvider` -- directly, or through a
+dependency Wolverine cannot build inline -- is using service location, and it is subject to
+[`ServiceLocationPolicy`](/guide/codegen.html#wolverine-code-generation-and-ioc) exactly like a message handler.
+
+When Wolverine does create its own isolated scope, that scope is *primed* before anything is resolved out of it:
+a service-located `IMessageContext` or `IMessageBus` is the same instance the endpoint itself received, enrolled
+with the active outbox, and so is the persistence session for whichever store you have integrated -- Marten's
+`IDocumentSession`, for example. You will not silently end up with a second, un-enrolled session inside a
+service-located dependency.
+
 ## API Versioning <Badge type="tip" text="5.36" />
 
 Wolverine.Http has native support for versioning your HTTP APIs over time using URL-segment strategies (e.g.
