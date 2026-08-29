@@ -205,7 +205,37 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             parent.ApplyParameterMatching(this, call);
         }
 
+        // GH-4180. Register the deduplication refusal codes BEFORE applyMetadata() runs.
+        //
+        // The frames themselves cannot do this. They are woven in AssembleTypes, which is lazy and runs
+        // long after the endpoint metadata has been built -- so a Produces() call from there lands on an
+        // object nobody reads again, and the 409 a client can actually receive never appears in the
+        // generated OpenAPI document. The status codes are known from the requirement alone, so they do
+        // not need to wait for weaving.
+        registerDeduplicationMetadata();
+
         applyMetadata();
+    }
+
+    private void registerDeduplicationMetadata()
+    {
+        if (Deduplication is not { } requirement) return;
+
+        if (requirement.Required)
+        {
+            Metadata.Produces(400, contentType: "application/problem+json");
+        }
+
+        var status = requirement.DuplicateStatusCode;
+
+        if (status is >= 200 and < 300)
+        {
+            Metadata.Produces(status);
+        }
+        else
+        {
+            Metadata.Produces(status, contentType: "application/problem+json");
+        }
     }
 
     private bool tryFindResourceType(MethodCall method, out Type resourceType)
@@ -480,6 +510,46 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override Frame[] AddStopConditionIfNull(Variable variable)
     {
         return [new SetStatusCodeAndReturnIfEntityIsNullFrame(variable)];
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4180. An HTTP endpoint owes its caller an answer, so a refused request gets a status code
+    ///     rather than the silent discard a message handler gets. Both codes are registered as endpoint
+    ///     metadata so they show up in OpenAPI — a 409 a client can receive but cannot discover from the
+    ///     generated spec is a contract change hidden from exactly the people who need it.
+    /// </remarks>
+    public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+    {
+        var key = requirement.Key ?? DeduplicationRequirement.DefaultHeaderName;
+
+        if (outcome == DeduplicationOutcome.MissingId)
+        {
+            // Metadata is registered in registerDeduplicationMetadata() during construction, not here --
+            // this runs during the lazy AssembleTypes pass, too late for the endpoint metadata build.
+            return
+            [
+                new DeduplicationProblemDetailsFrame(condition, 400,
+                    $"This endpoint requires a logical deduplication id in the '{key}' header")
+            ];
+        }
+
+        var status = requirement.DuplicateStatusCode;
+
+        // A success code means the application has declared a replayed request benign, so there is
+        // nothing to explain and a problem document would be actively wrong. Anything else is a
+        // refusal, and a refusal without a reason is a status code the caller has to guess at.
+        if (status is >= 200 and < 300)
+        {
+            return [new DeduplicationStatusCodeFrame(condition, status)];
+        }
+
+        return
+        [
+            new DeduplicationProblemDetailsFrame(condition, status,
+                $"A request with this '{key}' has already been handled")
+        ];
     }
 
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)

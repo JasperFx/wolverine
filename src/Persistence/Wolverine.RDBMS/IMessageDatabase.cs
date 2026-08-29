@@ -137,6 +137,12 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
     string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize);
 
     /// <summary>
+    /// GH-4180. A BOUNDED delete of expired logical deduplication claims, or null when this engine
+    /// cannot express one. Mirrors <see cref="BatchedDeleteExpiredHandledEnvelopesSql" />.
+    /// </summary>
+    string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize) => null;
+
+    /// <summary>
     /// GH-3971: SQL returning every DISTINCT non-zero <c>owner_id</c> present in
     /// <paramref name="table"/>, so the orphan sweep can work out which owners are actually dead
     /// <i>in memory</i> and then issue an indexable <c>owner_id in (…)</c> update.

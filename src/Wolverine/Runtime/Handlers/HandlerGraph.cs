@@ -575,8 +575,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// </remarks>
     private IEnumerable<IHandlerPolicy> handlerPolicies(WolverineOptions options)
     {
+        // GH-4180: DeduplicationHandlerPolicy is pulled to the end for exactly the same reason as the
+        // idempotency policy beside it -- the frames it weaves differ depending on IsTransactional, so
+        // it can only run once every store's policy has had its say.
         var registered = options.RegisteredPolicies
-            .OrderBy(x => x is EagerIdempotencyOnNonTransactionalChains ? 1 : 0)
+            .OrderBy(x => x is EagerIdempotencyOnNonTransactionalChains or DeduplicationHandlerPolicy ? 1 : 0)
             .ToArray();
 
         foreach (var policy in registered)

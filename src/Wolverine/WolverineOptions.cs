@@ -293,6 +293,12 @@ public sealed partial class WolverineOptions
         // eager policies (e.g. Marten's MartenStoreEagerPolicy). See StorageAttributeEagerPolicy.
         Policies.Add<StorageAttributeEagerPolicy>();
 
+        // GH-4180. Weaves logical deduplication frames into handler chains that opted in with
+        // [Deduplicated] or Policies.RequireDeduplicationId(). Always registered; it is a no-op for the
+        // (overwhelmingly common) case where no chain asked for deduplication. HandlerGraph pulls it to
+        // the end of the policy list -- see handlerPolicies().
+        RegisteredPolicies.Add(new DeduplicationHandlerPolicy(this));
+
         this.OnException<DuplicateIncomingEnvelopeException>().Discard();
 
         // GH-3289: a batch handler can throw ApplyItemException to isolate poison items from a batch.

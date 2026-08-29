@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
@@ -46,6 +47,13 @@ public partial class HttpChain
             assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
             assembly.UsingNamespaces.Fill("System.Linq");
             assembly.UsingNamespaces.Fill("System");
+
+            // GH-4180. Weave logical deduplication here rather than in the constructor's attribute pass:
+            // [Deduplicated] is applied there, but IsTransactional is not settled until the HTTP policies
+            // have run, and the compensating-release frame depends on it. AssembleTypes is the first
+            // point after both. Idempotent, so a chain assembled into two GeneratedAssemblies (which
+            // happens under `codegen write` -- see GH-3692) is woven once.
+            this.ApplyDeduplication();
 
             _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
 

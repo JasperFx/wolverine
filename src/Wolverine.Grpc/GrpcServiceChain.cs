@@ -213,6 +213,18 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
     public override Frame[] AddStopConditionIfNull(Variable variable) => [];
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4180. A gRPC method owes its caller a status, so a refusal is an <c>RpcException</c> rather
+    ///     than the silent discard a message handler gets or the problem document an HTTP endpoint gets.
+    ///     Shared across all three gRPC chain flavours — the refusal is identical in each, and three
+    ///     copies of the mapping would only drift.
+    /// </remarks>
+    public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+        => GrpcDeduplication.BuildStopCondition(condition, outcome, requirement);
+
+
     public override void UseForResponse(MethodCall methodCall)
     {
         // no-op: proto-first chains don't synthesize response variables via MethodCall.
@@ -250,6 +262,15 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             _generatedType.AllInjectedFields.Add(tenantOptionsField);
         }
 
+        // GH-4180. Declared once for the type, consumed per method. Only added when this chain actually
+        // opted into logical deduplication, so a service that did not asks for no extra dependency.
+        InjectedField? deduplicatorField = null;
+        if (GrpcDeduplication.AnyRequires(this, StubType, SupportedMethods.Select(x => x.Method)))
+        {
+            deduplicatorField = new InjectedField(typeof(IMessageDeduplicator), "deduplicator");
+            _generatedType.AllInjectedFields.Add(deduplicatorField);
+        }
+
         var befores = DiscoveredBefores;
         var afters = DiscoveredAfters;
 
@@ -270,6 +291,28 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
                 generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                 generatedMethod.Frames.Add(new DetectGrpcTenantIdFrame(TenantDetection!, tenantOptionsField,
                     contextName, busField, null));
+            }
+
+            // GH-4180. Deduplication runs before any middleware, and applies to EVERY RPC shape: the
+            // logical id comes from request metadata, which bidi and client-streaming calls carry just
+            // as unary ones do. Like tenant detection above, the frames await, so the method body must
+            // be async even for the unary shape that would otherwise return the bus task directly.
+            var deduplication = deduplicatorField == null
+                ? null
+                : GrpcDeduplication.RequirementFor(this, StubType, rpc.Method);
+
+            if (deduplication != null)
+            {
+                var rpcParameters = rpc.Method.GetParameters();
+                var contextName = ForwardUnaryToMessageBusFrame.ParameterName(rpcParameters, rpcParameters.Length - 1);
+
+                generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+
+                foreach (var frame in GrpcDeduplication.BuildFrames(this, deduplication, contextName,
+                             deduplicatorField!))
+                {
+                    generatedMethod.Frames.Add(frame);
+                }
             }
 
             // Before-frames (including Validate short-circuit) require a concrete TRequest
@@ -300,9 +343,10 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
                         generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardUnaryToMessageBusFrame(rpc.Method, busField)
                     {
-                        // When tenant detection made the method async, 'return _bus.InvokeAsync(...)'
-                        // would no longer compile — the forward frame must await instead.
-                        ForceAwait = tenantOptionsField != null
+                        // When tenant detection or deduplication (GH-4180) made the method async,
+                        // 'return _bus.InvokeAsync(...)' would no longer compile — the forward frame
+                        // must await instead.
+                        ForceAwait = tenantOptionsField != null || deduplication != null
                     });
                     break;
 

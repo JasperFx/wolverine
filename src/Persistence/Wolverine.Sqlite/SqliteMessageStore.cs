@@ -470,6 +470,12 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
 
+        // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
+        if (Durability.EnableMessageDeduplication)
+        {
+            yield return new DeduplicationTable(SchemaName);
+        }
+
         foreach (var table in _externalTables)
         {
             yield return table;

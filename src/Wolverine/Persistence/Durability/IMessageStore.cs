@@ -112,6 +112,22 @@ public interface IMessageStore : IAsyncDisposable
     /// </summary>
     IListenerStore Listeners { get; }
 
+    /// <summary>
+    /// GH-4180. Storage for logical message deduplication ids. Opt-in via
+    /// <see cref="DurabilitySettings.EnableMessageDeduplication" />; providers must return
+    /// <see cref="NullDeduplicationStore.Instance" /> (and skip provisioning the deduplication
+    /// table) when the flag is <c>false</c>, so an upgrade is a no-op for anyone who has not asked
+    /// for the feature.
+    ///
+    /// <para>
+    /// Defaulted rather than abstract on purpose: a provider that has no answer for logical
+    /// deduplication should inherit the no-op instead of being forced to write one, and
+    /// <see cref="IDeduplicationStore.Enabled" /> is what code generation checks before it will emit
+    /// a deduplication assertion against this store.
+    /// </para>
+    /// </summary>
+    IDeduplicationStore Deduplication => NullDeduplicationStore.Instance;
+
     IMessageStoreAdmin Admin { get; }
 
     IDeadLetters DeadLetters { get; }

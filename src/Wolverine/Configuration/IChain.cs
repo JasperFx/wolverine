@@ -105,6 +105,80 @@ public interface IChain
     IdempotencyStyle Idempotency { get; set; }
 
     /// <summary>
+    ///     GH-4180. When set, this chain enforces <b>logical</b> message deduplication: it resolves an
+    ///     application-supplied id and refuses to run a second time for the same id. Null — the default —
+    ///     means no logical deduplication, which is distinct from <see cref="Idempotency" />, whose
+    ///     subject is <see cref="Envelope.Id" /> and therefore one delivery rather than one intent.
+    /// </summary>
+    /// <remarks>
+    ///     Declared with a default implementation so that <see cref="IChain" /> implementors outside
+    ///     Wolverine's own <see cref="Chain{TChain,TModifyAttribute}" /> hierarchy keep compiling. Every
+    ///     chain type Wolverine ships overrides it with a real auto-property.
+    /// </remarks>
+    DeduplicationRequirement? Deduplication
+    {
+        get => null;
+        set { }
+    }
+
+    /// <summary>
+    ///     GH-4180. Does this chain need deduplication frames woven into it? Mirrors
+    ///     <see cref="RequiresOutbox" /> — a predicate the code generation asks rather than a flag policies
+    ///     have to keep in sync.
+    /// </summary>
+    bool RequiresDeduplication() => Deduplication is not null;
+
+    /// <summary>
+    ///     GH-4180. Build the frames that abort execution when the deduplication check fails.
+    ///
+    ///     <para>
+    ///     This is the ONLY part of logical deduplication that differs between chain types. Resolving the
+    ///     id and claiming it are identical everywhere and live in shared frames; what a caller is told
+    ///     about the refusal is not — a message handler discards and acks, an HTTP endpoint owes the
+    ///     caller a status code, and a gRPC method owes it a <c>StatusCode</c>. Splitting it here follows
+    ///     the same seam as <see cref="AddStopConditionIfNull(Variable)" /> and
+    ///     <see cref="CreateSimpleValidationFrame" />, so it composes with the existing middleware
+    ///     ordering and <see cref="TryCatchFinallyFrame" /> handling instead of introducing new rules.
+    ///     </para>
+    /// </summary>
+    /// <param name="condition">
+    ///     A <c>bool</c> variable that is <see langword="true" /> when execution must stop.
+    /// </param>
+    /// <param name="outcome">Which of the two failures this is — the two are not interchangeable.</param>
+    /// <param name="requirement">The requirement being enforced, for messages and metadata.</param>
+    Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+        => throw new NotSupportedException(
+            $"{GetType().FullNameInCode()} does not support logical message deduplication (GH-4180)");
+
+    /// <summary>
+    ///     GH-4180. Find the variable holding this chain's logical deduplication id.
+    ///
+    ///     <para>
+    ///     The default handles every source expressible through <see cref="TryFindVariable" /> — a request
+    ///     header, a member of the input type, a route value — and falls back to the conventional
+    ///     <see cref="DeduplicationRequirement.DefaultHeaderName" /> header, which is right for HTTP and
+    ///     gRPC. Message handlers override it, because their natural id lives on
+    ///     <see cref="Envelope.DeduplicationId" />: that value is a first-class envelope property which
+    ///     <c>EnvelopeSerializer</c> lifts off the wire into the property rather than leaving in
+    ///     <see cref="Envelope.Headers" />, so a header lookup would never find it.
+    ///     </para>
+    /// </summary>
+    Variable ResolveDeduplicationId(DeduplicationRequirement requirement)
+    {
+        var source = requirement.Source == ValueSource.Anything ? ValueSource.Header : requirement.Source;
+        var key = requirement.Key ?? DeduplicationRequirement.DefaultHeaderName;
+
+        if (TryFindVariable(key, source, typeof(string), out var variable))
+        {
+            return variable;
+        }
+
+        throw new InvalidOperationException(
+            $"Cannot resolve a logical deduplication id for {Description}. No {source} value named '{key}' could be found. See GH-4180");
+    }
+
+    /// <summary>
     ///     Frames that would be initially placed in front of
     ///     the primary action(s)
     /// </summary>

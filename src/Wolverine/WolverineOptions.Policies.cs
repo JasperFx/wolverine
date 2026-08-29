@@ -56,6 +56,14 @@ public sealed partial class WolverineOptions : IPolicies
         RegisteredPolicies.Add(new EagerIdempotencyOnNonTransactionalChains());
     }
 
+    void IPolicies.RequireDeduplicationId(Func<HandlerChain, bool> filter, DeduplicationRequirement? requirement)
+    {
+        if (filter == null) throw new ArgumentNullException(nameof(filter));
+
+        RegisteredPolicies.Add(new RequireDeduplicationIdPolicy(filter,
+            requirement ?? new DeduplicationRequirement()));
+    }
+
     void IPolicies.Add<T>()
     {
         this.As<IPolicies>().Add(new T());

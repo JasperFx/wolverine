@@ -18,6 +18,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Routing;
@@ -498,6 +499,37 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return [frame, new HandlerContinuationFrame(frame)];
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4180. A message handler's natural logical id is <see cref="Envelope.DeduplicationId" />,
+    ///     which is not reachable through <see cref="TryFindVariable" />: <c>EnvelopeSerializer</c> lifts
+    ///     the <c>deduplication-id</c> wire header off into the first-class property rather than leaving
+    ///     it in <see cref="Envelope.Headers" />, so the inherited header lookup would find nothing. Any
+    ///     explicitly configured source falls through to the base implementation.
+    /// </remarks>
+    public override Variable ResolveDeduplicationId(DeduplicationRequirement requirement)
+    {
+        if (requirement.Source != ValueSource.Anything)
+        {
+            return base.ResolveDeduplicationId(requirement);
+        }
+
+        var frame = new DeduplicationIdFromEnvelopeFrame();
+        return frame.Variable;
+    }
+
+    /// <inheritdoc />
+    public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+    {
+        return outcome switch
+        {
+            DeduplicationOutcome.Duplicate => [new HandlerDeduplicationStopFrame(condition)],
+            DeduplicationOutcome.MissingId => [new MissingDeduplicationIdFrame(condition, Description)],
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome))
+        };
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
@@ -738,6 +770,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
+
+        // GH-4180. Weave logical deduplication HERE rather than from an IHandlerPolicy, because this is
+        // the first point at which both inputs are settled: [Deduplicated] is a ModifyChainAttribute and
+        // is only applied a few lines above -- well after HandlerGraph.Compile() ran the policies -- and
+        // IsTransactional is only final once [Transactional] and the stores' own policies have both had
+        // their say. Reading either one earlier produced a chain that silently wove nothing in.
+        // Idempotent, so a chain reached twice is woven once.
+        this.ApplyDeduplication();
 
         // Use Wolverine Parameter Attribute on any middleware
         foreach (var methodCall in Middleware.OfType<MethodCall>().ToArray())

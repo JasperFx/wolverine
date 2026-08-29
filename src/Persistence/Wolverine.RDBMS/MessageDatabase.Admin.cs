@@ -296,6 +296,16 @@ public abstract partial class MessageDatabase<T>
             await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)}")
                 .ExecuteNonQueryAsync(_cancellation);
 
+            // GH-4180. Outside the Main-only block below on purpose: the deduplication table is
+            // provisioned for every store role, and ClearAllAsync means "no residue from the previous
+            // test". A surviving claim would silently refuse the next test's first message as a
+            // duplicate -- a green suite over a system that did nothing.
+            if (Durability.EnableMessageDeduplication)
+            {
+                await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeduplicationTableName)}")
+                    .ExecuteNonQueryAsync(_cancellation);
+            }
+
             if (_settings.Role == MessageStoreRole.Main)
             {
                 await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.AgentRestrictionsTableName)}")

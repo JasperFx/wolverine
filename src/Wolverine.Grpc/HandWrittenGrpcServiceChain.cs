@@ -72,6 +72,18 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
     public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4180. A gRPC method owes its caller a status, so a refusal is an <c>RpcException</c> rather
+    ///     than the silent discard a message handler gets or the problem document an HTTP endpoint gets.
+    ///     Shared across all three gRPC chain flavours — the refusal is identical in each, and three
+    ///     copies of the mapping would only drift.
+    /// </remarks>
+    public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
+        DeduplicationRequirement requirement)
+        => GrpcDeduplication.BuildStopCondition(condition, outcome, requirement);
+
+
     /// <summary>
     ///     Set by <see cref="GrpcTenantIdDetection"/> (the built-in <see cref="IGrpcChainPolicy"/>
     ///     behind <see cref="WolverineGrpcOptions.TenantId"/>) when tenant detection strategies are
@@ -160,6 +172,14 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
 
         InjectedField? tenantOptionsField = null;
 
+        // GH-4180. Declared once for the type, consumed per method; only when this chain opted in.
+        InjectedField? deduplicatorField = null;
+        if (GrpcDeduplication.AnyRequires(this, ServiceClassType, SupportedMethods.Select(x => x.Method)))
+        {
+            deduplicatorField = new InjectedField(typeof(IMessageDeduplicator), "deduplicator");
+            _generatedType.AllInjectedFields.Add(deduplicatorField);
+        }
+
         var befores = DiscoveredBefores;
         var afters = DiscoveredAfters;
 
@@ -192,6 +212,32 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
                     $"{contextParam!.Name}.{nameof(CallContext.ServerCallContext)}", null, spField));
             }
 
+            // GH-4180. Deduplication runs before any middleware, gated exactly like tenant detection
+            // above and for the same two reasons: the CallContext is the only route to the request
+            // metadata carrying the logical id, and a streaming method returns IAsyncEnumerable<T>
+            // directly so its body cannot await the claim.
+            var deduplication = deduplicatorField == null
+                ? null
+                : GrpcDeduplication.RequirementFor(this, ServiceClassType, rpc.Method);
+
+            if (deduplication != null)
+            {
+                if (contextParam == null || rpc.Kind != HandWrittenMethodKind.Unary)
+                {
+                    // Refuse rather than skip -- see the code-first twin.
+                    throw new NotSupportedException(
+                        $"Logical message deduplication is not supported on the {rpc.Kind} method '{rpc.Method.Name}' of {ServiceClassType.FullNameInCode()}. It requires a CallContext parameter (the only route to request metadata) and an awaitable return shape. Add a CallContext parameter, or remove [Deduplicated] from this service. See GH-4180");
+                }
+
+                generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+
+                foreach (var frame in GrpcDeduplication.BuildFrames(this, deduplication,
+                             $"{contextParam.Name}.{nameof(CallContext.ServerCallContext)}", deduplicatorField!))
+                {
+                    generatedMethod.Frames.Add(frame);
+                }
+            }
+
             // Before-frames require a concrete TRequest in scope. Skip for bidi methods where
             // the first parameter is IAsyncEnumerable<T> rather than a single message instance.
             // Also skip any before whose non-CallContext parameters don't match this RPC method's
@@ -221,10 +267,10 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
             if (hasAfters)
                 generatedMethod.AsyncMode = AsyncMode.AsyncTask;
 
-            // Tenant detection forces the method async, so the delegation frame must await the
-            // inner call even when there are no after-frames.
+            // Tenant detection and deduplication (GH-4180) both force the method async, so the
+            // delegation frame must await the inner call even when there are no after-frames.
             generatedMethod.Frames.Add(new DelegateToInnerServiceFrame(rpc.Method, spField, ServiceClassType,
-                hasAfters || detectTenantId));
+                hasAfters || detectTenantId || deduplication != null));
 
             if (hasAfters)
             {
