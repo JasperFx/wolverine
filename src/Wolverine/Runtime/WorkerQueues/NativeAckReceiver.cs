@@ -36,7 +36,7 @@ namespace Wolverine.Runtime.WorkerQueues;
 /// this mode exists to provide.
 /// </para>
 /// </summary>
-internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedReceiver
+internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedReceiver, IHasQueueDepth
 {
     private readonly RetryBlock<Envelope> _completeBlock;
     private readonly RetryBlock<Envelope> _deferBlock;
@@ -113,7 +113,33 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
 
     public IHandlerPipeline Pipeline { get; }
 
+    // GH-4186. Reachable through IHasQueueDepth rather than ILocalQueue: this receiver is deliberately not a
+    // local queue -- it cannot be enqueued into, because every delivery settles against the listener that
+    // brought it -- but its lane depth is exactly the saturation signal an operator wants from this mode, and
+    // it used to contribute a constant 0 to EndpointHealthSnapshot.
     public int QueueCount => (int)_receivingBlock.Count;
+
+    /// <summary>
+    /// GH-4186. Stamped on receipt rather than derived from a depth change, because this mode runs no
+    /// BackPressureAgent and the change-detection heuristic that agent drives is the only other writer -- so
+    /// LastQueueActivityAt sat frozen at listener construction for the whole life of the process.
+    /// </summary>
+    public DateTimeOffset? LastReceivedAt
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref _lastReceivedTicks);
+            return ticks == 0 ? null : new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+    }
+
+    // A DateTimeOffset is too wide to write atomically, so the stamp is kept as UTC ticks.
+    private long _lastReceivedTicks;
+
+    private void stampReceipt(DateTimeOffset now)
+    {
+        Interlocked.Exchange(ref _lastReceivedTicks, now.UtcTicks);
+    }
 
     /// <summary>CritterWatch#942 -- set when the receiving block faults terminally (jasperfx#506).</summary>
     public bool HasFaulted { get; private set; }
@@ -149,6 +175,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
         }
 
         var now = DateTimeOffset.Now;
+        stampReceipt(now);
 
         // GH-4091. TWO passes, deliberately. Posting blocks once the execution block is at capacity, so a
         // single admit-then-post loop leaves every envelope after the first blocked one untracked -- with its
@@ -172,7 +199,10 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        if (await admitAsync(listener, envelope, DateTimeOffset.Now).ConfigureAwait(false) is { } entry)
+        var now = DateTimeOffset.Now;
+        stampReceipt(now);
+
+        if (await admitAsync(listener, envelope, now).ConfigureAwait(false) is { } entry)
         {
             await postAllAsync([entry]).ConfigureAwait(false);
         }
