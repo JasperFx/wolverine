@@ -43,10 +43,19 @@ public sealed class SchemaRegistryJsonSerializer : SchemaRegistrySerializer
                 Topic = topicName ?? string.Empty
             };
 
+            // Schema registration/lookup is asynchronous but cached, so this completes synchronously
+            // on every call after the first per message type. Only the first-contact registry round
+            // trip blocks, forced by Wolverine's synchronous IMessageSerializer contract.
+            var prepare = serializer.PrepareAsync((T)message, context, CancellationToken.None);
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            // Schema registration/lookup is asynchronous; the actual serialization is synchronous
-            serializer.PrepareAsync((T)message, context, CancellationToken.None)
-                .AsTask().GetAwaiter().GetResult();
+            if (prepare.IsCompletedSuccessfully)
+            {
+                prepare.GetAwaiter().GetResult();
+            }
+            else
+            {
+                prepare.AsTask().GetAwaiter().GetResult();
+            }
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
             var buffer = new ArrayBufferWriter<byte>();

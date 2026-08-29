@@ -6,7 +6,7 @@ using Wolverine.Logging;
 
 namespace Wolverine.Transports.Sending;
 
-public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativeScheduling
+public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativeScheduling, IAsyncDisposable
 {
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
@@ -190,15 +190,19 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        if (_protocol is IDisposable d)
+        if (_protocol is IAsyncDisposable ad)
+        {
+            await ad.DisposeAsync().ConfigureAwait(false);
+        }
+        else if (_protocol is IDisposable d)
         {
             d.SafeDispose();
         }
 
         _serializing.Complete();
-        _serializing.SafeDisposeSynchronously();
+        await _serializing.DisposeAsync().ConfigureAwait(false);
     }
 
     public void RegisterCallback(ISenderCallback senderCallback)

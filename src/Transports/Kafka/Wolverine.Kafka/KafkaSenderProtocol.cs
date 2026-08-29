@@ -7,9 +7,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka;
 
-// IDisposable rather than IAsyncDisposable because BatchedSender only disposes its protocol
-// through the synchronous IDisposable check
-public class KafkaSenderProtocol : ISenderProtocol, IDisposable
+public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
 {
     private readonly KafkaTopic _topic;
     // Dekaf producers are built and initialized asynchronously, but sender protocols are constructed
@@ -116,23 +114,26 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
         await callback.MarkSuccessfulAsync(batch);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         var producer = _producer;
+        _producerLock.Dispose();
         if (producer == null)
         {
             return;
         }
 
+        // Bounded drain for anything still queued in the producer before tearing it down.
+        // DisposeAsync flushes pending records.
         try
         {
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            producer.DisposeAsync().AsTask().GetAwaiter().GetResult();
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await producer.FlushAsync(timeout.Token);
+            await producer.DisposeAsync();
         }
         catch (Exception)
         {
-            // already gone — nothing to drain
+            // already gone or the drain timed out, nothing more to do
         }
     }
 }

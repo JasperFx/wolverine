@@ -27,8 +27,13 @@ public enum KafkaUsage
     ConsumeOnly
 }
 
-public class KafkaTransport : BrokerTransport<KafkaTopic>
+public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 {
+    // Dead letter senders are handed to receivers that never dispose them, so the transport
+    // owns their lifetime and drains them when the runtime disposes its transports.
+    private readonly object _ownedSenderLock = new();
+    private readonly List<IAsyncDisposable> _ownedSenders = new();
+
     [IgnoreDescription]
     public Cache<string, KafkaTopic> Topics { get; }
 
@@ -362,5 +367,30 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
             .ApplyOptions(AdminClientConfig);
         ConfigureAdminClientBuilders(adminClientBuilder);
         return adminClientBuilder.Build();
+    }
+
+    internal InlineKafkaSender TrackOwnedSender(InlineKafkaSender sender)
+    {
+        lock (_ownedSenderLock)
+        {
+            _ownedSenders.Add(sender);
+        }
+
+        return sender;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        IAsyncDisposable[] senders;
+        lock (_ownedSenderLock)
+        {
+            senders = _ownedSenders.ToArray();
+            _ownedSenders.Clear();
+        }
+
+        foreach (var sender in senders)
+        {
+            await sender.DisposeAsync();
+        }
     }
 }

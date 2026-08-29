@@ -98,7 +98,7 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         {
             var dlqTopic = Parent.Topics[Parent.DeadLetterQueueTopicName];
             dlqTopic.EnvelopeMapper ??= dlqTopic.BuildMapper(runtime);
-            deadLetterSender = new InlineKafkaSender(dlqTopic, fixedDestination: true);
+            deadLetterSender = Parent.TrackOwnedSender(new InlineKafkaSender(dlqTopic, fixedDestination: true));
             return true;
         }
 
