@@ -154,13 +154,22 @@ public static class EventModelRoles
             pattern = SlicePattern.View;
             if (seed.ResponseType is { } response && response != typeof(void))
             {
-                roles.ReadModels.Add(response);
+                roles.ReadModels.Add(readModelOf(response));
             }
         }
 
+        // GH-4181. TriggerLabel is deliberately NOT claimed here. Every structural fact a derived
+        // trigger knows -- the route and verb, the gRPC service and method -- already rides on
+        // TriggerOrigin, losslessly, and a viewer resolves the trigger element from TriggerType /
+        // TriggerLabel / TriggerOrigin together. Claiming the label as well duplicated the origin onto
+        // the Derived rung, where per-role precedence (jasperfx#703) made it beat any label an overlay
+        // declared -- and minted a SourceDisagreement hotspot per labelled route for the privilege.
+        // A trigger *label* is a naming concern ("Customer at the ATM"), which is exactly what the SDD
+        // decisions reserve for declarations: the code cannot express it. Leaving the role unclaimed
+        // means an overlay's label wins by default, because nothing else claims it.
         return new EventModelSliceDescriptor(
             seed.SliceName,
-            seed.TriggerOrigin?.Label,
+            null,
             null,
             seed.CommandType is null ? null : TypeDescriptor.For(seed.CommandType),
             seed.HandlerType is null ? null : TypeDescriptor.For(seed.HandlerType),
@@ -312,6 +321,88 @@ public static class EventModelRoles
             // exception to throw at codegen time, not this reader's
             return null;
         }
+    }
+
+    /// <summary>
+    ///     The read model behind a <see cref="SlicePattern.View" /> slice's response. A response that is a
+    ///     <em>collection</em> of a type is a view over that type -- "a list of Account" reads the same
+    ///     Account read model the sibling single-document routes name -- so the element type is what the
+    ///     slice reports, and the slice folds onto the canvas node that already exists rather than minting
+    ///     an unreadable one out of the closed generic's assembly-qualified name (GH-4182).
+    /// </summary>
+    /// <remarks>
+    ///     Only a <em>composite</em> element unwraps. A <c>byte[]</c> download is not a view over
+    ///     <c>byte</c>, and folding every list-of-string route onto one <c>String</c> node would be a
+    ///     worse canvas than the one this fixes, so a scalar element leaves the response type exactly as
+    ///     it was before this method existed.
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "Response types come from handler discovery, which already roots them; Closes() only reads interfaces. Diagnostic surface only.")]
+    private static Type readModelOf(Type responseType)
+    {
+        var type = responseType;
+
+        // Wolverine.HTTP hands over an already-unwrapped resource type and a gRPC response is bare, but
+        // the seed only promises "the response", so the wrapper is unwrapped rather than assumed away
+        if (type.Closes(typeof(Task<>)) || type.Closes(typeof(ValueTask<>)))
+        {
+            type = type.GetGenericArguments()[0];
+        }
+
+        var element = elementTypeOf(type);
+        if (element is null) return type;
+
+        if (element.IsPrimitive || element.IsEnum || element == typeof(string) || element == typeof(decimal) ||
+            element == typeof(object) || element == typeof(Guid) || element == typeof(DateTime) ||
+            element == typeof(DateTimeOffset) || element == typeof(TimeSpan))
+        {
+            return type;
+        }
+
+        return element;
+    }
+
+    /// <summary>
+    ///     The single element type a response enumerates, or null when it is not a collection of one thing.
+    /// </summary>
+    /// <remarks>
+    ///     The interface walk is deliberate rather than a whitelist of collection types: Marten hands a
+    ///     query endpoint back an <c>IPagedList&lt;T&gt;</c>, and a page of Order is every bit as much a
+    ///     view over Order as a list of Order is.
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Response types come from handler discovery, which already roots them; only the interface list is read. Diagnostic surface only.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "Response types come from handler discovery, which already roots them; Closes() only reads interfaces. Diagnostic surface only.")]
+    private static Type? elementTypeOf(Type type)
+    {
+        // string is IEnumerable<char> and is never a collection of read models
+        if (type == typeof(string)) return null;
+
+        if (type.IsArray) return type.GetElementType();
+
+        // A map enumerates as KeyValuePair<TKey, TValue>, which would unwrap to a type nobody drew. It is
+        // not a collection of one read model, so it does not unwrap at all
+        if (type.Closes(typeof(IDictionary<,>)) || type.Closes(typeof(IReadOnlyDictionary<,>))) return null;
+
+        // A streaming endpoint's response
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+        {
+            return type.GetGenericArguments()[0];
+        }
+
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+        {
+            return type.GetGenericArguments()[0];
+        }
+
+        // Exactly one closed IEnumerable<T>, or nothing: a type that enumerates as two different things
+        // has no single element type, and guessing one would be worse than leaving the response alone
+        var closed = type.GetInterfaces()
+            .Where(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            .ToArray();
+
+        return closed.Length == 1 ? closed[0].GetGenericArguments()[0] : null;
     }
 
     private static IEnumerable<Type> returnedTypes(IChain chain, EventModelSliceSeed seed)

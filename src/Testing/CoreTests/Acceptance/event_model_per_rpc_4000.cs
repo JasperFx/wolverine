@@ -67,7 +67,13 @@ public class event_model_per_rpc_4000 : IAsyncLifetime
         slice.HandlerType.ShouldBeNull();
         slice.Pattern.ShouldBe(SlicePattern.Command);
         slice.TriggerKind.ShouldBe(TriggerKind.Grpc);
-        slice.TriggerLabel.ShouldBe("Orders/Cancel");
+
+        // GH-4181: the RPC is named by the ORIGIN, and the TriggerLabel role is left unclaimed so a
+        // declared label can take it without losing to a derived duplicate of what the origin says
+        slice.TriggerLabel.ShouldBeNull();
+        slice.TriggerOrigin!.Label.ShouldBe("Orders/Cancel");
+        slice.TriggerOrigin.GrpcService.ShouldBe("Orders");
+        slice.TriggerOrigin.GrpcMethod.ShouldBe("Cancel");
     }
 
     [Fact]

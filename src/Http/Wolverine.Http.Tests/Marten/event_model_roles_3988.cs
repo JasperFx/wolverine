@@ -26,7 +26,12 @@ public class event_model_roles_3988(AppFixture fixture) : IntegrationContext(fix
         slice.TriggerKind.ShouldBe(TriggerKind.Http);
         slice.TriggerOrigin!.HttpMethod.ShouldBe("POST");
         slice.TriggerOrigin.HttpRoute.ShouldBe("/orders/ship3");
-        slice.TriggerLabel.ShouldBe("POST /orders/ship3");
+
+        // GH-4181: the route is named by the ORIGIN, which carries it losslessly. The TriggerLabel role
+        // is left unclaimed so a declared label ("Customer at the ATM") can win it -- see
+        // event_model_trigger_label_4181
+        slice.TriggerLabel.ShouldBeNull();
+        slice.TriggerOrigin.Label.ShouldBe("POST /orders/ship3");
         slice.CommandType!.Name.ShouldBe(nameof(ShipOrder));
         slice.HandlerType!.Name.ShouldBe(nameof(MarkItemEndpoint));
         slice.AggregateTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });

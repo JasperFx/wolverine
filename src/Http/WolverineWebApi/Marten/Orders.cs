@@ -495,3 +495,14 @@ public static class MarkItemReadyHandler
 #endregion
 
 public record OrderTimeline(long Version, string[] EventTypes);
+
+// GH-4182. A query endpoint whose response is a *collection* of a read model. Kept beside
+// QueryOrdersEndpoint on purpose: that one returns Marten's IPagedList<Order>, this one the bare
+// IReadOnlyList<Order> the issue was reported against, and the Event Model slice has to name Order as
+// the read model for both rather than the closed generic's assembly-qualified CLR string.
+public static class ListOrdersEndpoint
+{
+    [WolverineGet("/api/orders/list")]
+    public static Task<IReadOnlyList<Order>> Get(IQuerySession session, CancellationToken token)
+        => session.Query<Order>().ToListAsync(token);
+}

@@ -337,7 +337,10 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     private static EventModelSliceDescriptor grpcTriggerOnlySlice(GrpcEndpointDescriptor endpoint, PublisherOrigin origin)
         => new(
             endpoint.RequestType.Name,
-            origin.Label,
+            // GH-4181: TriggerLabel unclaimed, for the same reason EventModelRoles.Describe leaves it
+            // unclaimed -- this slice sets the origin two lines down, so claiming the label as well only
+            // duplicated the origin onto the Derived rung and beat any label an overlay declared
+            null,
             null,
             JasperFx.Descriptors.TypeDescriptor.For(endpoint.RequestType),
             null,
