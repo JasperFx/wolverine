@@ -1,22 +1,22 @@
-using Confluent.Kafka;
+using Dekaf;
+using Dekaf.Consumer;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
-using Wolverine.Kafka;
 using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka.Tests;
 
 // GH-3150: unit coverage for the commit-strategy resolution, specific-offset commits, the contiguous
-// watermark, and shutdown flush — all without a broker (mocked IConsumer).
+// watermark, and shutdown flush — all without a broker (mocked IKafkaConsumer).
 public class kafka_offset_committer
 {
-    private readonly IConsumer<string, byte[]> theConsumer = Substitute.For<IConsumer<string, byte[]>>();
+    private readonly IKafkaConsumer<string, byte[]> theConsumer = Substitute.For<IKafkaConsumer<string, byte[]>>();
 
-    private KafkaOffsetCommitter committerFor(CommitMode mode, ConsumerConfig? config = null, int batchCount = 100,
+    private KafkaOffsetCommitter committerFor(CommitMode mode, KafkaConsumerOptions? config = null, int batchCount = 100,
         TimeSpan? interval = null)
     {
-        config ??= new ConsumerConfig();
+        config ??= new KafkaConsumerOptions();
         KafkaOffsetCommitter.ApplyTo(config, mode);
         return new KafkaOffsetCommitter(theConsumer, config, mode, batchCount,
             interval ?? TimeSpan.FromSeconds(5), NullLogger.Instance);
@@ -25,7 +25,7 @@ public class kafka_offset_committer
     [Fact]
     public void apply_to_store_then_auto_flush_sets_autocommit_and_disables_offset_store()
     {
-        var config = new ConsumerConfig();
+        var config = new KafkaConsumerOptions();
         KafkaOffsetCommitter.ApplyTo(config, CommitMode.StoreThenAutoFlush);
 
         config.EnableAutoCommit.ShouldBe(true);
@@ -35,7 +35,7 @@ public class kafka_offset_committer
     [Fact]
     public void apply_to_per_message_disables_autocommit()
     {
-        var config = new ConsumerConfig();
+        var config = new KafkaConsumerOptions();
         KafkaOffsetCommitter.ApplyTo(config, CommitMode.PerMessage);
         config.EnableAutoCommit.ShouldBe(false);
     }
@@ -43,7 +43,7 @@ public class kafka_offset_committer
     [Fact]
     public void apply_to_respects_explicit_user_autocommit()
     {
-        var config = new ConsumerConfig { EnableAutoCommit = true };
+        var config = new KafkaConsumerOptions { EnableAutoCommit = true };
         KafkaOffsetCommitter.ApplyTo(config, CommitMode.PerMessage);
         // user's choice is untouched
         config.EnableAutoCommit.ShouldBe(true);
@@ -52,72 +52,76 @@ public class kafka_offset_committer
     [Fact]
     public void resolve_strategy_matrix()
     {
-        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = true },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = true },
             CommitMode.StoreThenAutoFlush).ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
 
-        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = true, EnableAutoOffsetStore = false },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = true, EnableAutoOffsetStore = false },
             CommitMode.StoreThenAutoFlush).ShouldBe(KafkaOffsetCommitter.Strategy.Store);
 
-        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = false },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = false },
             CommitMode.PerMessage).ShouldBe(KafkaOffsetCommitter.Strategy.PerMessage);
 
-        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = false },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = false },
             CommitMode.BatchCount).ShouldBe(KafkaOffsetCommitter.Strategy.Batch);
     }
 
     [Fact]
-    public void store_mode_stores_specific_offset_plus_one_and_never_commits()
+    public async Task store_mode_stores_specific_offset_plus_one_and_never_commits()
     {
         var committer = committerFor(CommitMode.StoreThenAutoFlush);
 
-        committer.Complete("topic-a", 2, 41);
+        await committer.Complete("topic-a", 2, 41);
 
         // Kafka convention: committed/stored offset is last-processed + 1
         theConsumer.Received(1).StoreOffset(
-            Arg.Is<TopicPartitionOffset>(t => t.Topic == "topic-a" && t.Partition.Value == 2 && t.Offset.Value == 42));
-        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+            Arg.Is<TopicPartitionOffset>(t => t.Topic == "topic-a" && t.Partition == 2 && t.Offset == 42));
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void per_message_commits_specific_offset_plus_one()
+    public async Task per_message_commits_specific_offset_plus_one()
     {
         var committer = committerFor(CommitMode.PerMessage);
 
-        committer.Complete("topic-a", 0, 9);
+        await committer.Complete("topic-a", 0, 9);
 
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Topic == "topic-a" && list.Single().Partition.Value == 0 && list.Single().Offset.Value == 10));
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+                list.Single().Topic == "topic-a" && list.Single().Partition == 0 && list.Single().Offset == 10),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void automatic_mode_neither_stores_nor_commits()
+    public async Task automatic_mode_neither_stores_nor_commits()
     {
-        var committer = committerFor(CommitMode.StoreThenAutoFlush, new ConsumerConfig { EnableAutoCommit = true });
+        var committer = committerFor(CommitMode.StoreThenAutoFlush, new KafkaConsumerOptions { EnableAutoCommit = true });
         committer.ResolvedStrategy.ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
 
-        committer.Complete("topic-a", 0, 5);
+        await committer.Complete("topic-a", 0, 5);
 
         theConsumer.DidNotReceive().StoreOffset(Arg.Any<TopicPartitionOffset>());
-        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void batch_count_commits_watermark_after_threshold()
+    public async Task batch_count_commits_watermark_after_threshold()
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 3);
 
-        committer.Complete("t", 0, 100);
-        committer.Complete("t", 0, 101);
-        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+        await committer.Complete("t", 0, 100);
+        await committer.Complete("t", 0, 101);
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
-        committer.Complete("t", 0, 102); // hits batch size 3
+        await committer.Complete("t", 0, 102); // hits batch size 3
 
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 103)); // watermark = last contiguous (102) + 1
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 103), Arg.Any<CancellationToken>()); // watermark = last contiguous (102) + 1
     }
 
     [Fact]
-    public void batch_count_never_commits_ahead_of_an_in_flight_offset()
+    public async Task batch_count_never_commits_ahead_of_an_in_flight_offset()
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 3);
 
@@ -128,26 +132,26 @@ public class kafka_offset_committer
         committer.Track("t", 0, 103);
 
         // Out-of-order completion: 100, 102, 103 — 101 is still in flight.
-        committer.Complete("t", 0, 100);
-        committer.Complete("t", 0, 102);
-        committer.Complete("t", 0, 103); // threshold reached, but 101 is still in flight
+        await committer.Complete("t", 0, 100);
+        await committer.Complete("t", 0, 102);
+        await committer.Complete("t", 0, 103); // threshold reached, but 101 is still in flight
 
         // The committed position may only advance to the lowest in-flight offset (101), never past it.
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 101));
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 101), Arg.Any<CancellationToken>());
 
         theConsumer.ClearReceivedCalls();
 
         // Now 101 completes -> nothing in flight -> the position jumps to the high-water 103 + 1 = 104.
-        committer.Complete("t", 0, 101);
-        committer.Flush();
+        await committer.Complete("t", 0, 101);
+        await committer.FlushAsync();
 
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 104));
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 104), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void per_message_never_commits_ahead_of_an_in_flight_offset()
+    public async Task per_message_never_commits_ahead_of_an_in_flight_offset()
     {
         var committer = committerFor(CommitMode.PerMessage);
 
@@ -157,24 +161,25 @@ public class kafka_offset_committer
         committer.Track("t", 0, 2);
 
         // 2 finishes while 0 and 1 are still in flight -> nothing may be committed yet.
-        committer.Complete("t", 0, 2);
-        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+        await committer.Complete("t", 0, 2);
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
         // 0 finishes -> safe to resume from the next in-flight offset (1).
-        committer.Complete("t", 0, 0);
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 1));
+        await committer.Complete("t", 0, 0);
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 1), Arg.Any<CancellationToken>());
 
         theConsumer.ClearReceivedCalls();
 
         // 1 finishes -> nothing in flight -> resume past the highest delivered (2 + 1 = 3).
-        committer.Complete("t", 0, 1);
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 3));
+        await committer.Complete("t", 0, 1);
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 3), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void store_never_stores_ahead_of_an_in_flight_offset()
+    public async Task store_never_stores_ahead_of_an_in_flight_offset()
     {
         var committer = committerFor(CommitMode.StoreThenAutoFlush);
 
@@ -184,22 +189,22 @@ public class kafka_offset_committer
         committer.Track("t", 0, 2);
 
         // 2 finishes while 0 and 1 are still in flight -> nothing may be stored yet.
-        committer.Complete("t", 0, 2);
+        await committer.Complete("t", 0, 2);
         theConsumer.DidNotReceive().StoreOffset(Arg.Any<TopicPartitionOffset>());
 
         // 0 finishes -> safe to store the next in-flight offset (1).
-        committer.Complete("t", 0, 0);
-        theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset.Value == 1));
+        await committer.Complete("t", 0, 0);
+        theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset == 1));
 
         theConsumer.ClearReceivedCalls();
 
         // 1 finishes -> nothing in flight -> store past the highest delivered (2 + 1 = 3).
-        committer.Complete("t", 0, 1);
-        theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset.Value == 3));
+        await committer.Complete("t", 0, 1);
+        theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset == 3));
     }
 
     [Fact]
-    public void per_message_tolerates_non_contiguous_offsets_from_a_compacted_topic()
+    public async Task per_message_tolerates_non_contiguous_offsets_from_a_compacted_topic()
     {
         var committer = committerFor(CommitMode.PerMessage);
 
@@ -208,43 +213,46 @@ public class kafka_offset_committer
         committer.Track("t", 0, 0);
         committer.Track("t", 0, 3);
 
-        committer.Complete("t", 0, 0);
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 3)); // resume from the next in-flight delivered offset
+        await committer.Complete("t", 0, 0);
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+                list.Single().Offset == 3),
+            Arg.Any<CancellationToken>()); // resume from the next in-flight delivered offset
 
         theConsumer.ClearReceivedCalls();
 
-        committer.Complete("t", 0, 3);
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Offset.Value == 4)); // high-water + 1, gaps skipped
+        await committer.Complete("t", 0, 3);
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 4), Arg.Any<CancellationToken>()); // high-water + 1, gaps skipped
     }
 
     [Fact]
-    public void flush_commits_pending_batch_watermark()
+    public async Task flush_commits_pending_batch_watermark()
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
 
-        committer.Complete("t", 1, 7);
-        committer.Complete("t", 1, 8);
-        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+        await committer.Complete("t", 1, 7);
+        await committer.Complete("t", 1, 8);
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
-        committer.Flush();
+        await committer.FlushAsync();
 
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Single().Topic == "t" && list.Single().Partition.Value == 1 && list.Single().Offset.Value == 9));
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+                list.Single().Topic == "t" && list.Single().Partition == 1 && list.Single().Offset == 9),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void watermark_handles_independent_partitions()
+    public async Task watermark_handles_independent_partitions()
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
 
-        committer.Complete("t", 0, 50);
-        committer.Complete("t", 1, 200);
-        committer.Flush();
+        await committer.Complete("t", 0, 50);
+        await committer.Complete("t", 1, 200);
+        await committer.FlushAsync();
 
-        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
-            list.Any(x => x.Partition.Value == 0 && x.Offset.Value == 51) &&
-            list.Any(x => x.Partition.Value == 1 && x.Offset.Value == 201)));
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Any(x => x.Partition == 0 && x.Offset == 51) &&
+            list.Any(x => x.Partition == 1 && x.Offset == 201)), Arg.Any<CancellationToken>());
     }
 }

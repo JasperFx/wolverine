@@ -27,7 +27,6 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.AmazonSqs")]
 [assembly: InternalsVisibleTo("Wolverine.AmazonSns")]
 [assembly: InternalsVisibleTo("Wolverine.AmazonSqs.Tests")]
-[assembly: InternalsVisibleTo("Wolverine.ConfluentKafka")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus.Tests")]
 [assembly: InternalsVisibleTo("PersistenceTests")]
 [assembly: InternalsVisibleTo("EfCoreTests")]

@@ -1,14 +1,14 @@
-using Confluent.Kafka;
+using Dekaf.Errors;
 using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
 
 /// <summary>
-/// GH-3454 (split from GH-3237): librdkafka hides connection/group state behind <c>Consume()</c>, so this
-/// tracker derives a degrade-only <see cref="TransportConnectionState"/> from the consumer's error callback.
-/// It may only ever move state toward trouble (Reconnecting/Disconnected), never synthesize Connected — the
-/// resting state for a healthy consumer is Unknown, and a successfully consumed record clears back to it.
-/// Liveness is answered separately by <see cref="BackgroundReceiveLoop"/> health (GH-3236).
+/// GH-3454 (split from GH-3237): derives a degrade-only <see cref="TransportConnectionState"/> from the
+/// exceptions the consume loop observes. It may only ever move state toward trouble
+/// (Reconnecting/Disconnected), never synthesize Connected — the resting state for a healthy consumer is
+/// Unknown, and a successfully consumed record clears back to it. Liveness is answered separately by
+/// <see cref="BackgroundReceiveLoop"/> health (GH-3236).
 /// </summary>
 public class KafkaConnectionStateTracker : IReportConnectionState
 {
@@ -16,44 +16,30 @@ public class KafkaConnectionStateTracker : IReportConnectionState
 
     public TransportConnectionState ConnectionState => _connectionState;
 
-    /// <summary>
-    /// True when the error handler could not be registered because user configuration already claimed it
-    /// through ConfigureConsumerBuilders (Confluent's builder throws on double registration). The state
-    /// then rests at Unknown permanently rather than breaking existing configurations.
-    /// </summary>
-    public bool ErrorHandlerSuppressed { get; internal set; }
-
-    /// <summary>
-    /// GH-4522. True when user configuration had already registered a consumer error handler through
-    /// ConfigureConsumerBuilders and Wolverine's tracking was composed in behind it rather than registered
-    /// on its own. Purely informational -- tracking works either way -- but worth surfacing, because before
-    /// GH-4522 this exact configuration silently disabled connection-state reporting altogether.
-    /// </summary>
-    public bool ComposedWithUserErrorHandler { get; internal set; }
-
-    public void ApplyError(Error error)
+    public void ApplyException(Exception exception)
     {
-        if (error.IsFatal || error.Code == ErrorCode.Local_AllBrokersDown)
+        switch (exception)
         {
-            _connectionState = TransportConnectionState.Disconnected;
-            return;
-        }
+            // Bootstrap servers can't be resolved at all — nothing to connect to
+            case BootstrapResolutionException:
+                _connectionState = TransportConnectionState.Disconnected;
+                return;
 
-        switch (error.Code)
-        {
-            // Broker-level transport trouble that librdkafka retries under the covers. Never allowed to
-            // downgrade Disconnected — the aggregate all-brokers-down signal outranks a per-broker error,
-            // and only a successful consume clears it
-            case ErrorCode.Local_Transport:
-            case ErrorCode.Local_TimedOut:
-            case ErrorCode.Local_Resolve:
+            // Broker-level transport trouble the client retries under the covers. Never allowed to
+            // downgrade Disconnected — only a successful consume clears it
+            case KafkaTimeoutException:
+            case TimeoutException:
+            case KafkaException { IsRetriable: true }:
                 if (_connectionState != TransportConnectionState.Disconnected)
                 {
                     _connectionState = TransportConnectionState.Reconnecting;
                 }
 
-                break;
+                return;
         }
+
+        // Anything else (deserialization trouble, authorization on one topic, ...) is not evidence
+        // about the connection, so leave the state alone
     }
 
     public void MarkSuccessfulConsume()

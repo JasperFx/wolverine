@@ -1,4 +1,4 @@
-using Confluent.SchemaRegistry;
+using Dekaf.SchemaRegistry;
 using NSubstitute;
 using Shouldly;
 using Wolverine.Kafka.Serialization;

@@ -1,8 +1,8 @@
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
+using Dekaf.Errors;
+using Dekaf.Protocol;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
-using System.Text;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime;
@@ -40,7 +40,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     }
 
     [ChildDescription]
-    public TopicSpecification Specification { get; } = new();
+    public KafkaTopicSpecification Specification { get; } = new();
 
     public string TopicName { get; }
 
@@ -48,13 +48,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// Override for this specific Kafka Topic
     /// </summary>
     [ChildDescription]
-    public ConsumerConfig? ConsumerConfig { get; internal set; }
+    public KafkaConsumerOptions? ConsumerConfig { get; internal set; }
 
     /// <summary>
     /// Override for this specific Kafka Topic
     /// </summary>
     [ChildDescription]
-    public ProducerConfig? ProducerConfig { get; internal set; }
+    public KafkaProducerOptions? ProducerConfig { get; internal set; }
 
     /// <summary>
     /// How this listener commits consumer offsets back to Kafka. Defaults to
@@ -146,75 +146,39 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     }
 
     /// <summary>
-    /// Gets the effective ConsumerConfig for this topic, ensuring BootstrapServers, GroupId, and the
+    /// Gets the effective consumer options for this topic, ensuring BootstrapServers, GroupId, and the
     /// security/SASL settings (SecurityProtocol, SaslMechanism, SaslUsername, SaslPassword) are
     /// inherited from parent if not set
     /// </summary>
-    internal ConsumerConfig GetEffectiveConsumerConfig()
+    internal KafkaConsumerOptions GetEffectiveConsumerConfig()
     {
-        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.BootstrapServers))
+        if (ConsumerConfig != null)
         {
-            ConsumerConfig.BootstrapServers = Parent.ConsumerConfig.BootstrapServers;
-        }
-
-        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.GroupId))
-        {
-            ConsumerConfig.GroupId = Parent.ConsumerConfig.GroupId;
-        }
-
-        if (ConsumerConfig != null && ConsumerConfig.SecurityProtocol == null)
-        {
-            ConsumerConfig.SecurityProtocol = Parent.ConsumerConfig.SecurityProtocol;
-        }
-
-        if (ConsumerConfig != null && ConsumerConfig.SaslMechanism == null)
-        {
-            ConsumerConfig.SaslMechanism = Parent.ConsumerConfig.SaslMechanism;
-        }
-
-        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.SaslUsername))
-        {
-            ConsumerConfig.SaslUsername = Parent.ConsumerConfig.SaslUsername;
-        }
-
-        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.SaslPassword))
-        {
-            ConsumerConfig.SaslPassword = Parent.ConsumerConfig.SaslPassword;
+            ConsumerConfig.BootstrapServers ??= Parent.ConsumerConfig.BootstrapServers;
+            ConsumerConfig.GroupId ??= Parent.ConsumerConfig.GroupId;
+            ConsumerConfig.SecurityProtocol ??= Parent.ConsumerConfig.SecurityProtocol;
+            ConsumerConfig.SaslMechanism ??= Parent.ConsumerConfig.SaslMechanism;
+            ConsumerConfig.SaslUsername ??= Parent.ConsumerConfig.SaslUsername;
+            ConsumerConfig.SaslPassword ??= Parent.ConsumerConfig.SaslPassword;
         }
 
         return ConsumerConfig ?? Parent.ConsumerConfig;
     }
 
     /// <summary>
-    /// Gets the effective ProducerConfig for this topic, ensuring BootstrapServers and the
+    /// Gets the effective producer options for this topic, ensuring BootstrapServers and the
     /// security/SASL settings (SecurityProtocol, SaslMechanism, SaslUsername, SaslPassword) are
     /// inherited from parent if not set
     /// </summary>
-    internal ProducerConfig GetEffectiveProducerConfig()
+    internal KafkaProducerOptions GetEffectiveProducerConfig()
     {
-        if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.BootstrapServers))
+        if (ProducerConfig != null)
         {
-            ProducerConfig.BootstrapServers = Parent.ProducerConfig.BootstrapServers;
-        }
-
-        if (ProducerConfig != null && ProducerConfig.SecurityProtocol == null)
-        {
-            ProducerConfig.SecurityProtocol = Parent.ProducerConfig.SecurityProtocol;
-        }
-
-        if (ProducerConfig != null && ProducerConfig.SaslMechanism == null)
-        {
-            ProducerConfig.SaslMechanism = Parent.ProducerConfig.SaslMechanism;
-        }
-
-        if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.SaslUsername))
-        {
-            ProducerConfig.SaslUsername = Parent.ProducerConfig.SaslUsername;
-        }
-
-        if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.SaslPassword))
-        {
-            ProducerConfig.SaslPassword = Parent.ProducerConfig.SaslPassword;
+            ProducerConfig.BootstrapServers ??= Parent.ProducerConfig.BootstrapServers;
+            ProducerConfig.SecurityProtocol ??= Parent.ProducerConfig.SecurityProtocol;
+            ProducerConfig.SaslMechanism ??= Parent.ProducerConfig.SaslMechanism;
+            ProducerConfig.SaslUsername ??= Parent.ProducerConfig.SaslUsername;
+            ProducerConfig.SaslPassword ??= Parent.ProducerConfig.SaslPassword;
         }
 
         return ProducerConfig ?? Parent.ProducerConfig;
@@ -229,7 +193,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         return EnvelopeMapper ??= BuildMapper(runtime);
     }
 
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
 
@@ -237,16 +201,17 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         ApplyHotTailConfig(config, runtime);
 
-        // Wire the Kafka client for the configured commit strategy (GH-3150). Replaces the previous
-        // blanket EnableAutoCommit=false for Durable mode — the default StoreThenAutoFlush mode relies
-        // on Kafka's background committer flushing manually stored offsets.
+        // Wire the Kafka client for the configured commit strategy (GH-3150). The default
+        // StoreThenAutoFlush mode relies on the client's background committer flushing manually
+        // stored offsets.
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
-        // GH-3454: the tracker is wired into the consumer's error callback (when not claimed by user
-        // configuration) and handed to the listener for IReportConnectionState
+        // GH-3454: consume exceptions feed the tracker, which the listener surfaces through
+        // IReportConnectionState
         var tracker = new KafkaConnectionStateTracker();
         var listener = new KafkaListener(this, config,
-            Parent.CreateConsumer(config, tracker), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>(),
+            Parent.CreateConsumer(config), [TopicName], receiver,
+            runtime.LoggerFactory.CreateLogger<KafkaListener>(),
             runtime.DurabilitySettings.DrainTimeout, connectionState: tracker);
 
         // Broker-per-tenant (GH-3303): the shared listener consumes the default cluster. Each tenant runs its
@@ -264,16 +229,16 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
                 var tenantTracker = new KafkaConnectionStateTracker();
                 var tenantListener = new KafkaListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig, tenantTracker), tenantReceiver,
+                    tenant.Transport.CreateConsumer(tenantConfig), [TopicName], tenantReceiver,
                     runtime.LoggerFactory.CreateLogger<KafkaListener>(), runtime.DurabilitySettings.DrainTimeout,
                     tenant.Transport, tenantTracker);
                 compound.Inner.Add(tenantListener);
             }
 
-            return ValueTask.FromResult((IListener)compound);
+            return compound;
         }
 
-        return ValueTask.FromResult((IListener)listener);
+        return listener;
     }
 
     /// <summary>
@@ -281,12 +246,10 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// re-point it at the tenant's cluster. The GroupId is deliberately preserved unchanged — each tenant is a
     /// separate cluster, so offsets are isolated and there is no reason to suffix the group id (GH-3303).
     /// </summary>
-    internal static ConsumerConfig cloneConsumerConfigForTenant(ConsumerConfig source, KafkaTenant tenant)
+    internal static KafkaConsumerOptions cloneConsumerConfigForTenant(KafkaConsumerOptions source, KafkaTenant tenant)
     {
-        var clone = new ConsumerConfig(new Dictionary<string, string>(source))
-        {
-            BootstrapServers = tenant.Transport.ConsumerConfig.BootstrapServers
-        };
+        var clone = source.Clone();
+        clone.BootstrapServers = tenant.Transport.ConsumerConfig.BootstrapServers;
 
         return clone;
     }
@@ -296,7 +259,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// node receives all messages and never replays, and disable Wolverine-managed commits (the
     /// position is throwaway). Setting EnableAutoCommit=true makes the commit strategy hands-off.
     /// </summary>
-    private protected void ApplyHotTailConfig(ConsumerConfig config, IWolverineRuntime runtime)
+    private protected void ApplyHotTailConfig(KafkaConsumerOptions config, IWolverineRuntime runtime)
     {
         if (!IsHotTail)
         {
@@ -360,13 +323,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
-            using var client = Parent.CreateProducer(GetEffectiveProducerConfig());
-            await client.ProduceAsync(TopicName, new Message<string, byte[]>
-            {
-                Key = "ping",
-                Value = Encoding.UTF8.GetBytes("ping")
-            });
-
+            await using var client = await Parent.CreateProducerAsync(GetEffectiveProducerConfig());
+            await client.ProduceAsync(TopicName, "ping", "ping"u8.ToArray(), CancellationToken.None);
 
             return true;
         }
@@ -382,8 +340,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         if (IsExternallyOwned) return;
 
-        using var adminClient = Parent.CreateAdminClient();
-        await adminClient.DeleteTopicsAsync([TopicName]);
+        await using var adminClient = Parent.CreateAdminClient();
+        await adminClient.DeleteTopicsAsync([TopicName], new DeleteTopicsOptions(), CancellationToken.None);
     }
 
     public async ValueTask SetupAsync(ILogger logger)
@@ -392,7 +350,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         if (IsExternallyOwned) return;
 
-        using var adminClient = Parent.CreateAdminClient();
+        await using var adminClient = Parent.CreateAdminClient();
         await SetupOnAsync(adminClient, logger);
     }
 
@@ -414,10 +372,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }
-        catch (CreateTopicsException e)
+        catch (KafkaException e) when (e.ErrorCode == ErrorCode.TopicAlreadyExists)
         {
-            if (e.Results.Count > 0 && e.Results.All(x => x.Error.Code == ErrorCode.TopicAlreadyExists)) return;
-            throw;
         }
     }
 
@@ -441,7 +397,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// Override how this Kafka topic is created
     /// </summary>
     [IgnoreDescription]
-    public Func<IAdminClient, KafkaTopic, Task> CreateTopicFunc { get; internal set; } = (c, t) => c.CreateTopicsAsync([t.Specification]);
+    public Func<IAdminClient, KafkaTopic, Task> CreateTopicFunc { get; internal set; } = (c, t) =>
+        c.CreateTopicsAsync([t.Specification.ToNewTopic()], new CreateTopicsOptions(), CancellationToken.None).AsTask();
 }
 
 public enum QualityOfService

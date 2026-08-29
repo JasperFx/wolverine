@@ -1,5 +1,5 @@
 using System.Text;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -129,7 +129,7 @@ public class kafka_record_identity
     {
         var id = Guid.NewGuid();
         var mapper = Substitute.For<IKafkaEnvelopeMapper>();
-        mapper.When(x => x.MapIncomingToEnvelope(Arg.Any<Envelope>(), Arg.Any<Message<string, byte[]>>()))
+        mapper.When(x => x.MapIncomingToEnvelope(Arg.Any<Envelope>(), Arg.Any<ConsumeResult<string, byte[]>>()))
             .Do(ci => ci.Arg<Envelope>().Id = id);
 
         mapper.CreateEnvelope(record(offset: 7), theIdentity).Id.ShouldBe(id);
@@ -195,8 +195,8 @@ public class kafka_record_identity
         group.EnvelopeMapper = new KafkaEnvelopeMapper(group);
 
         var received = new TaskCompletionSource<Envelope>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var listener = new KafkaTopicGroupListener(group, new ConsumerConfig { GroupId = "orders-group" },
-            consumerOf(record(offset: 7)), receiverInto(received), NullLogger<KafkaTopicGroupListener>.Instance,
+        await using var listener = new KafkaListener(group, new KafkaConsumerOptions { GroupId = "orders-group" },
+            consumerOf(record(offset: 7)), group.TopicNames, receiverInto(received), NullLogger<KafkaListener>.Instance,
             TimeSpan.FromSeconds(5));
 
         var envelope = await received.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
@@ -210,8 +210,8 @@ public class kafka_record_identity
         topic.EnvelopeMapper = new KafkaEnvelopeMapper(topic);
 
         var received = new TaskCompletionSource<Envelope>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var listener = new KafkaListener(topic, new ConsumerConfig { GroupId = "orders-group" },
-            consumerOf(record(offset: 7)), receiverInto(received), NullLogger<KafkaListener>.Instance,
+        await using var listener = new KafkaListener(topic, new KafkaConsumerOptions { GroupId = "orders-group" },
+            consumerOf(record(offset: 7)), [topic.TopicName], receiverInto(received), NullLogger<KafkaListener>.Instance,
             TimeSpan.FromSeconds(5), tenantTransport);
 
         transport.Protocol.ShouldBe("kafka");
@@ -231,25 +231,31 @@ public class kafka_record_identity
         return receiver;
     }
 
-    // Hands out the one record, then blocks the way the real Consume(token) does until the listener stops
-    private static IConsumer<string, byte[]> consumerOf(ConsumeResult<string, byte[]> result)
+    // Hands out the one record, then waits the way the real ConsumeOneAsync does until the listener stops. A
+    // zero-timeout poll only drains records already fetched, so it finds nothing.
+    private static IKafkaConsumer<string, byte[]> consumerOf(ConsumeResult<string, byte[]> result)
     {
-        var consumer = Substitute.For<IConsumer<string, byte[]>>();
+        var consumer = Substitute.For<IKafkaConsumer<string, byte[]>>();
         var handedOut = 0;
 
-        consumer.Consume(Arg.Any<CancellationToken>()).Returns(ci =>
+        consumer.ConsumeOneAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ci => next(ci.ArgAt<TimeSpan>(0), ci.ArgAt<CancellationToken>(1)));
+
+        async ValueTask<ConsumeResult<string, byte[]>?> next(TimeSpan timeout, CancellationToken token)
         {
+            if (timeout == TimeSpan.Zero)
+            {
+                return null;
+            }
+
             if (Interlocked.Exchange(ref handedOut, 1) == 0)
             {
                 return result;
             }
 
-            var token = ci.Arg<CancellationToken>();
-            token.WaitHandle.WaitOne();
-            throw new OperationCanceledException(token);
-        });
-
-        consumer.Consume(Arg.Any<TimeSpan>()).Returns((ConsumeResult<string, byte[]>)null!);
+            await Task.Delay(Timeout.Infinite, token);
+            return null;
+        }
 
         return consumer;
     }
@@ -261,28 +267,17 @@ public class kafka_record_identity
 
     private static ConsumeResult<string, byte[]> record(long offset, string? idHeader = null)
     {
-        var headers = new Headers
+        var headers = new List<KeyValuePair<string, byte[]?>>
         {
-            { "ce_id", Encoding.UTF8.GetBytes("order-1") },
-            { "ce_type", Encoding.UTF8.GetBytes("com.example.order.placed.v1") }
+            new("ce_id", Encoding.UTF8.GetBytes("order-1")),
+            new("ce_type", Encoding.UTF8.GetBytes("com.example.order.placed.v1"))
         };
 
         if (idHeader != null)
         {
-            headers.Add(EnvelopeConstants.IdKey, Encoding.UTF8.GetBytes(idHeader));
+            headers.Add(new(EnvelopeConstants.IdKey, Encoding.UTF8.GetBytes(idHeader)));
         }
 
-        return new ConsumeResult<string, byte[]>
-        {
-            Topic = "orders",
-            Partition = new Partition(2),
-            Offset = new Offset(offset),
-            Message = new Message<string, byte[]>
-            {
-                Key = "order-1",
-                Value = "{}"u8.ToArray(),
-                Headers = headers
-            }
-        };
+        return TestRecords.Incoming("orders", "order-1", "{}"u8.ToArray(), headers, partition: 2, offset: offset);
     }
 }

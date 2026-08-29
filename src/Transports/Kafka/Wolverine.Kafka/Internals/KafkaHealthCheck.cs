@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Admin;
 using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
@@ -12,7 +12,7 @@ internal class KafkaHealthCheck : WolverineTransportHealthCheck
     public override string TransportName => "Kafka";
     public override string Protocol => "kafka";
 
-    public override Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
+    public override async Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         var status = TransportHealthStatus.Healthy;
         string? message = null;
@@ -21,13 +21,17 @@ internal class KafkaHealthCheck : WolverineTransportHealthCheck
         try
         {
             // Create a short-lived admin client to check broker connectivity
-            using var adminClient = _transport.CreateAdminClient();
-            var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(5));
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
 
-            data["BrokerCount"] = metadata.Brokers.Count;
-            data["TopicCount"] = metadata.Topics.Count;
+            await using var adminClient = _transport.CreateAdminClient();
+            var cluster = await adminClient.DescribeClusterAsync(timeout.Token);
+            var topics = await adminClient.ListTopicsAsync(new ListTopicsOptions(), timeout.Token);
 
-            if (metadata.Brokers.Count == 0)
+            data["BrokerCount"] = cluster.Nodes.Count;
+            data["TopicCount"] = topics.Count;
+
+            if (cluster.Nodes.Count == 0)
             {
                 status = TransportHealthStatus.Unhealthy;
                 message = "No Kafka brokers available";
@@ -39,7 +43,7 @@ internal class KafkaHealthCheck : WolverineTransportHealthCheck
             message = $"Kafka connectivity check failed: {ex.Message}";
         }
 
-        return Task.FromResult(new TransportHealthResult(TransportName, Protocol, status, message,
-            DateTimeOffset.UtcNow, data));
+        return new TransportHealthResult(TransportName, Protocol, status, message,
+            DateTimeOffset.UtcNow, data);
     }
 }

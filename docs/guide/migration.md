@@ -34,6 +34,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
 | `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
 | Runtime code generation (Roslyn) | bundled in core `WolverineFx` (via `JasperFx.RuntimeCompiler`) | **moved to the opt-in `WolverineFx.RuntimeCompilation` package** *(BREAKING for `TypeLoadMode.Dynamic`/`Auto`)* | Reference [`WolverineFx.RuntimeCompilation`](#runtime-code-generation-moved-to-the-wolverinefxruntimecompilation-package-breaking) (it auto-registers), or pre-generate with `TypeLoadMode.Static` |
+| `WolverineFx.Kafka` client library | Confluent.Kafka (librdkafka) | **Dekaf** (pure C#, KIP-848-only) *(BREAKING for custom config, mappers, schema-registry serializers; requires Kafka 4.0+)* | Swap Confluent config types for [Wolverine's Kafka option classes](#kafka-transport-now-runs-on-dekaf-breaking); wire format is unchanged |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
 ::: tip
@@ -342,6 +343,19 @@ Both `PulsarEndpoint.UriFor(...)` overloads were `[Obsolete]` in the 5.x line an
   ```
 
 If you only ever called `UriFor(string)`, this is a one-line `using`-already-imported rename.
+
+### Kafka transport now runs on Dekaf (BREAKING)
+
+`WolverineFx.Kafka` replaced the Confluent.Kafka client library with [Dekaf](https://thomhurst.github.io/Dekaf/), a pure C# Kafka client with no native librdkafka dependency that is friendly to Native AOT. The transport's fluent configuration API, commit modes, dead letter queue, retry topics, replay, multi-tenancy, and multi-topic listening all behave as before, but there are several visible changes:
+
+- **Kafka 4.0+ broker required.** Dekaf speaks only the [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) consumer-group protocol, so consumers cannot join their groups on older brokers.
+- **Wolverine-owned option classes replace the Confluent config objects.** `ConfigureConsumers()`, `ConfigureProducers()`, `ConfigureClient()`, and `AutoProvision(...)` keep their shapes, but now hand you `KafkaConsumerOptions`, `KafkaProducerOptions`, `KafkaClientOptions`, and `KafkaAdminClientOptions` from the `Wolverine.Kafka` namespace instead of Confluent's `ConsumerConfig` / `ProducerConfig` / `ClientConfig` / `AdminClientConfig`. The curated properties cover connectivity, SASL/SSL, group and fetch settings, and producer delivery settings; anything beyond them is reachable via `ConfigureConsumerBuilders()` / `ConfigureProducerBuilders()` / `ConfigureAdminClientBuilders()`, which expose Dekaf's fluent builders. `TopicSpecification` becomes Wolverine's `KafkaTopicSpecification` (with `ToNewTopic()` for hand-off to Dekaf's admin API), and `TopicCreation(...)` callbacks receive `Dekaf.Admin.IAdminClient`.
+- **Custom envelope mappers change signature.** `IKafkaEnvelopeMapper` is now `IEnvelopeMapper<Dekaf.Consumer.ConsumeResult<string, byte[]>, OutgoingKafkaRecord>` — incoming records are Dekaf's `ConsumeResult`, outgoing records are Wolverine's mutable `OutgoingKafkaRecord` (`Key`, `Value` where null means a tombstone, `Headers`, `Timestamp`, `Partition`).
+- **Schema registry serializer constructors changed.** `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer` now build on the Dekaf.SchemaRegistry packages: constructors take a `Dekaf.SchemaRegistry.ISchemaRegistryClient` (`new SchemaRegistryClient(new SchemaRegistryConfig { Url = "..." })`) plus optional `AvroSerializerConfig` / `JsonSchemaSerializerConfig` (and optional `JsonSerializerOptions` for JSON) instead of the Confluent.SchemaRegistry.Serdes types. The wire format is still the Confluent framing, so records interoperate with Confluent serdes on the other side.
+- **Obsolete no-ops.** `UseCooperativeStickyAssignment()` and `UseNextGenerationRebalanceProtocol()` are `[Obsolete]` no-ops — under KIP-848 rebalances are always broker-driven and incremental, so there is nothing to opt into. Delete the calls. `UseStaticMembership(...)` is unchanged and fully supported.
+- **Full wire interop.** The transport remains wire-compatible with applications using Confluent.Kafka or any other Kafka client: keys, values, headers, timestamps, and tombstones all round-trip.
+
+See the [Kafka transport docs](/guide/messaging/transports/kafka) for the full configuration surface.
 
 ### Performance: per-endpoint serializer cache pre-population
 

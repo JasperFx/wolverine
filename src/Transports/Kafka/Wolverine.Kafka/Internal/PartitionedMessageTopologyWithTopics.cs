@@ -1,4 +1,3 @@
-using Confluent.Kafka;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Partitioning;
 

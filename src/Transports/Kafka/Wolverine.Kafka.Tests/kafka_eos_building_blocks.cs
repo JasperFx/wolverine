@@ -1,4 +1,5 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
+using IsolationLevel = Dekaf.Protocol.Messages.IsolationLevel;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
@@ -58,8 +59,8 @@ public class kafka_eos_building_blocks
         // GetEffectiveProducerConfig() previously only backfilled BootstrapServers from the parent,
         // silently dropping SecurityProtocol/SaslMechanism/SaslUsername/SaslPassword.
         var transport = new KafkaTransport();
-        transport.ProducerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
-        transport.ProducerConfig.SaslMechanism = SaslMechanism.Plain;
+        transport.ProducerConfig.SecurityProtocol = KafkaSecurityProtocol.SaslSsl;
+        transport.ProducerConfig.SaslMechanism = KafkaSaslMechanism.Plain;
         transport.ProducerConfig.SaslUsername = "api-key";
         transport.ProducerConfig.SaslPassword = "api-secret";
 
@@ -69,8 +70,8 @@ public class kafka_eos_building_blocks
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveProducerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
-        effective.SaslMechanism.ShouldBe(SaslMechanism.Plain);
+        effective.SecurityProtocol.ShouldBe(KafkaSecurityProtocol.SaslSsl);
+        effective.SaslMechanism.ShouldBe(KafkaSaslMechanism.Plain);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");
     }

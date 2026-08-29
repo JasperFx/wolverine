@@ -1,4 +1,7 @@
-using Confluent.Kafka;
+using Dekaf;
+using Dekaf.Admin;
+using Dekaf.Consumer;
+using Dekaf.Producer;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +10,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
+using DekafClient = Dekaf.Kafka;
 
 namespace Wolverine.Kafka.Internals;
 
@@ -37,22 +41,21 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     [IgnoreDescription]
     internal LightweightCache<string, KafkaTenant> Tenants { get; } = new();
 
-    // GH-3269: Confluent's ProducerConfig/ConsumerConfig/AdminClientConfig (ClientConfig) expose SaslUsername,
-    // SaslPassword, SslKeyPassword, SslKeystorePassword, … as public properties. Reflecting them into the diagnostic
-    // tree (the old [ChildDescription]) leaks those secrets to monitoring consumers, so they are suppressed.
-    // The sanitized bootstrap-servers target is surfaced via DescribeEndpoint() instead.
+    // GH-3269: the client options carry SaslUsername/SaslPassword, so reflecting them into the diagnostic
+    // tree would leak those secrets to monitoring consumers. The sanitized bootstrap-servers target is
+    // surfaced via DescribeEndpoint() instead.
     [IgnoreDescription]
-    public ProducerConfig ProducerConfig { get; } = new();
+    public KafkaProducerOptions ProducerConfig { get; internal set; } = new();
     [IgnoreDescription]
     public Action<ProducerBuilder<string, byte[]>> ConfigureProducerBuilders { get; internal set; } = _ => {};
 
     [IgnoreDescription]
-    public ConsumerConfig ConsumerConfig { get; } = new();
+    public KafkaConsumerOptions ConsumerConfig { get; internal set; } = new();
     [IgnoreDescription]
     public Action<ConsumerBuilder<string, byte[]>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
 
     [IgnoreDescription]
-    public AdminClientConfig AdminClientConfig { get; } = new();
+    public KafkaAdminClientOptions AdminClientConfig { get; internal set; } = new();
     [IgnoreDescription]
     public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
@@ -101,7 +104,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
             {
                 uri = new Uri(uri, bootstrap);
             }
-            
+
             return uri;
         }
     }
@@ -168,7 +171,6 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
             dlqTopic.Compile(runtime);
         }
 
-        sanitizeGroupProtocolConflicts(runtime);
         warnOnStaticMembership(runtime);
         registerRetryTopicListeners(runtime);
 
@@ -202,7 +204,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
         foreach (var tenant in Tenants)
         {
-            using var adminClient = tenant.Transport.CreateAdminClient();
+            await using var adminClient = tenant.Transport.CreateAdminClient();
 
             foreach (var topic in singleTopics)
             {
@@ -278,14 +280,10 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
                 tierTopic.NativeDeadLetterQueueEnabled = Topics[source].NativeDeadLetterQueueEnabled;
                 // Stable group + earliest so a tier consumer never misses a just-produced retry record
                 // (a Latest consumer races the producer). Reads + commits its own retry-topic offsets.
-                tierTopic.ConsumerConfig = new ConsumerConfig
+                tierTopic.ConsumerConfig = new KafkaConsumerOptions
                 {
                     GroupId = $"{runtime.Options.ServiceName}-retry",
-                    AutoOffsetReset = AutoOffsetReset.Earliest,
-                    // Follow the transport's rebalance protocol choice (GH-3473). The transport-level
-                    // config was already sanitized, and this fresh config carries no conflicting
-                    // classic-protocol settings. Assigning null is a no-op.
-                    GroupProtocol = ConsumerConfig.GroupProtocol
+                    AutoOffsetReset = AutoOffsetReset.Earliest
                 };
                 tierTopic.Compile(runtime);
 
@@ -293,42 +291,6 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
                     tierTopic.TopicName, delay);
             }
         }
-    }
-
-    // GH-3473: with the KIP-848 next-generation rebalance protocol enabled, librdkafka rejects the
-    // classic-protocol client-side settings at consumer creation — which would otherwise fail every
-    // listener mid-startup. Clear them here (with a logged warning apiece) before any consumer is built.
-    // Runs before the tenant transports are compiled so broker-per-tenant clones inherit the sanitized
-    // config, and covers per-topic ConsumerConfig overrides, which replace the transport-level config
-    // wholesale and are therefore sanitized individually.
-    private void sanitizeGroupProtocolConflicts(IWolverineRuntime runtime)
-    {
-        var logger = runtime.LoggerFactory.CreateLogger<KafkaTransport>();
-
-        KafkaGroupProtocolGuard.Sanitize(ConsumerConfig, "transport", logger);
-
-        foreach (var topic in Topics.Where(x => x.ConsumerConfig != null))
-        {
-            inheritGroupProtocol(topic.ConsumerConfig!);
-            KafkaGroupProtocolGuard.Sanitize(topic.ConsumerConfig!, $"topic '{topic.TopicName}'", logger);
-        }
-
-        foreach (var group in TopicGroups.Where(x => x.ConsumerConfig != null))
-        {
-            inheritGroupProtocol(group.ConsumerConfig!);
-            KafkaGroupProtocolGuard.Sanitize(group.ConsumerConfig!, $"topic group '{group.EndpointName}'", logger);
-        }
-    }
-
-    // A per-topic ConsumerConfig replaces the transport-level config wholesale, but it also inherits the
-    // transport's GroupId when it doesn't set one — so if group.protocol did NOT flow down with it, a topic
-    // override would silently join the *same* consumer group over the classic protocol while the other
-    // listeners join it via KIP-848, leaving the group permanently stuck mid-migration with mixed member
-    // kinds. Inherit the transport's group.protocol exactly like GroupId/SASL unless the topic config sets
-    // its own value explicitly.
-    private void inheritGroupProtocol(ConsumerConfig config)
-    {
-        config.GroupProtocol ??= ConsumerConfig.GroupProtocol;
     }
 
     // GH-3139: surface the resolved group.instance.id so operators can verify per-node uniqueness, and
@@ -373,48 +335,31 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         yield break;
     }
 
-    internal IProducer<string, byte[]> CreateProducer(ProducerConfig? config)
+    internal async ValueTask<IKafkaProducer<string, byte[]>> CreateProducerAsync(KafkaProducerOptions? config)
     {
-        var producerBuilder = new ProducerBuilder<string, byte[]>(config ?? ProducerConfig);
+        var producerBuilder = DekafClient.CreateProducer<string, byte[]>()
+            .ApplyOptions(config ?? ProducerConfig);
         ConfigureProducerBuilders(producerBuilder);
-        return producerBuilder.Build();
+        return await producerBuilder.BuildAsync(CancellationToken.None);
     }
 
-    internal IConsumer<string, byte[]> CreateConsumer(ConsumerConfig? config,
-        KafkaConnectionStateTracker? tracker = null)
+    /// <summary>
+    /// Builds the consumer WITHOUT connecting. Listeners initialize it from their receive loop with
+    /// retries so a host still starts (and keeps retrying) when the broker is unreachable; one-shot
+    /// consumers (replay) call InitializeAsync themselves.
+    /// </summary>
+    internal IKafkaConsumer<string, byte[]> CreateConsumer(KafkaConsumerOptions? config)
     {
-        var consumerBuilder = new WolverineConsumerBuilder(config ?? ConsumerConfig);
+        var consumerBuilder = DekafClient.CreateConsumer<string, byte[]>()
+            .ApplyOptions(config ?? ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
-
-        if (tracker != null)
-        {
-            // GH-3454 registered this after the user's ConfigureConsumerBuilders callback because Confluent's
-            // builder throws on double registration -- and when the user had already claimed the handler,
-            // Wolverine silently gave up and the connection state rested at Unknown forever.
-            //
-            // GH-4522: compose instead. WolverineConsumerBuilder can see the handler the user registered and
-            // wraps it so both run, which is strictly better than picking a winner. The suppressed path is
-            // kept only for a failure that should now be unreachable.
-            try
-            {
-                consumerBuilder.ComposeErrorHandler((_, error) => tracker.ApplyError(error));
-                tracker.ComposedWithUserErrorHandler = consumerBuilder.ComposedWithUserHandler;
-            }
-            catch (Exception)
-            {
-                // Should now be unreachable -- composition does not go through SetErrorHandler at all. Kept so
-                // an unexpected change in Confluent's builder degrades the way it used to rather than taking
-                // the host down, and the listeners still say so at Warning on startup.
-                tracker.ErrorHandlerSuppressed = true;
-            }
-        }
-
         return consumerBuilder.Build();
     }
 
     internal IAdminClient CreateAdminClient()
     {
-        var adminClientBuilder = new AdminClientBuilder(AdminClientConfig);
+        var adminClientBuilder = DekafClient.CreateAdminClient()
+            .ApplyOptions(AdminClientConfig);
         ConfigureAdminClientBuilders(adminClientBuilder);
         return adminClientBuilder.Build();
     }

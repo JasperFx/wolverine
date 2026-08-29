@@ -26,7 +26,7 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
             {
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
-                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
+                    .ConfigureConsumers(c => c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest);
 
                 opts.ListenToKafkaTopic(_topicName)
                     .InteropWithCloudEvents();
@@ -67,7 +67,7 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
         """;
 
         var transport = _receiver.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
-        var producerBuilder = new ProducerBuilder<string, byte[]>(transport.ProducerConfig);
+        var producerBuilder = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = transport.ProducerConfig.BootstrapServers });
         using var producer = producerBuilder.Build();
 
         await producer.ProduceAsync(_topicName, new Message<string, byte[]>

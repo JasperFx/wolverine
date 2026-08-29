@@ -1,6 +1,5 @@
 using System.Text.Json;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime.Serialization;
@@ -38,7 +37,7 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public KafkaSubscriberConfiguration Specification(Action<TopicSpecification> configure)
+    public KafkaSubscriberConfiguration Specification(Action<KafkaTopicSpecification> configure)
     {
         if (configure == null)
         {
@@ -81,11 +80,11 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     /// </summary>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public KafkaSubscriberConfiguration ConfigureProducer(Action<ProducerConfig> configuration)
+    public KafkaSubscriberConfiguration ConfigureProducer(Action<KafkaProducerOptions> configuration)
     {
         add(topic =>
         {
-            var config = new ProducerConfig();
+            var config = new KafkaProducerOptions();
             configuration(config);
 
             topic.ProducerConfig = config;
@@ -103,7 +102,7 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     {
         add(topic =>
         {
-            topic.ProducerConfig ??= new ProducerConfig();
+            topic.ProducerConfig ??= new KafkaProducerOptions();
             topic.ProducerConfig.EnableIdempotence = true;
         });
         return this;

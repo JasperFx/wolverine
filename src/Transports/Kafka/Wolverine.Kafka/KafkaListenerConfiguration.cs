@@ -1,10 +1,11 @@
 using System.Text.Json;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
+using Dekaf.Consumer;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime.Serialization;
+using IsolationLevel = Dekaf.Protocol.Messages.IsolationLevel;
 
 namespace Wolverine.Kafka;
 
@@ -17,14 +18,14 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     public KafkaListenerConfiguration(Func<KafkaTopic> source) : base(source)
     {
     }
-    
+
     /// <summary>
-    /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
+    /// Fine tune the topic specification for this Kafka Topic if it is being created by Wolverine
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public KafkaListenerConfiguration Specification(Action<TopicSpecification> configure)
+    public KafkaListenerConfiguration Specification(Action<KafkaTopicSpecification> configure)
     {
         if (configure == null)
         {
@@ -91,38 +92,23 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
-    /// Opt this listener's consumer into cooperative-sticky rebalancing
-    /// (<c>partition.assignment.strategy = CooperativeSticky</c>) so a rebalance keeps unaffected
-    /// partitions instead of revoking everything. Opt-in. See GH-3139. Call after
-    /// <see cref="ConfigureConsumer"/> if you also use that (it replaces the whole consumer config).
+    /// No-op retained for source compatibility. The Dekaf client speaks only the KIP-848 consumer
+    /// protocol, where rebalances are broker-driven and incremental by design — cooperative-sticky
+    /// client-side assignment no longer applies.
     /// </summary>
+    [Obsolete("Rebalances are always incremental under the KIP-848 consumer protocol; this call has no effect and will be removed in a future version")]
     public KafkaListenerConfiguration UseCooperativeStickyAssignment()
     {
-        add(topic =>
-        {
-            topic.ConsumerConfig ??= new ConsumerConfig();
-            topic.ConsumerConfig.PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky;
-        });
         return this;
     }
 
     /// <summary>
-    /// Opt this listener's consumer into the KIP-848 next-generation consumer rebalance protocol
-    /// (<c>group.protocol = consumer</c>): broker-driven, incremental rebalances with no stop-the-world
-    /// JoinGroup/SyncGroup barrier. Requires a Kafka 4.0+ broker. Client-side assignors and group timings
-    /// don't apply under KIP-848 — Wolverine clears any conflicting <c>partition.assignment.strategy</c>,
-    /// <c>session.timeout.ms</c>, <c>heartbeat.interval.ms</c>, or <c>group.protocol.type</c> settings at
-    /// bootstrap with a logged warning. Static membership is still supported. Call after
-    /// <see cref="ConfigureConsumer"/> if you also use that (it replaces the whole consumer config).
-    /// See GH-3473.
+    /// No-op retained for source compatibility. The Dekaf client always uses the KIP-848
+    /// next-generation consumer rebalance protocol (which requires a Kafka 4.0+ broker).
     /// </summary>
+    [Obsolete("The KIP-848 consumer protocol is always on; this call has no effect and will be removed in a future version")]
     public KafkaListenerConfiguration UseNextGenerationRebalanceProtocol()
     {
-        add(topic =>
-        {
-            topic.ConsumerConfig ??= new ConsumerConfig();
-            topic.ConsumerConfig.GroupProtocol = GroupProtocol.Consumer;
-        });
         return this;
     }
 
@@ -136,7 +122,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     {
         add(topic =>
         {
-            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig ??= new KafkaConsumerOptions();
             topic.ConsumerConfig.GroupInstanceId = KafkaStaticMembership.Resolve(instanceId);
             topic.StaticMembershipRequested = true;
         });
@@ -161,7 +147,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     {
         add(topic =>
         {
-            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig ??= new KafkaConsumerOptions();
             topic.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Earliest;
         });
         return this;
@@ -175,7 +161,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     {
         add(topic =>
         {
-            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig ??= new KafkaConsumerOptions();
             topic.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Latest;
         });
         return this;
@@ -193,7 +179,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         add(topic =>
         {
             topic.IsHotTail = true;
-            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig ??= new KafkaConsumerOptions();
             topic.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Latest;
         });
         return this;
@@ -203,9 +189,8 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     /// Opt into intra-partition concurrency by key (GH-3140): within each Kafka partition assigned to
     /// this node, messages with <em>different</em> keys are processed concurrently across
     /// <paramref name="numberOfSlots"/> slots while messages sharing the <em>same</em> key stay strictly
-    /// ordered. This is the *second* concurrency lever — prefer scaling out (more partitions + nodes,
-    /// see <see cref="UseCooperativeStickyAssignment"/>) first; reach for this for hot partitions or a
-    /// capped partition count.
+    /// ordered. This is the *second* concurrency lever — prefer scaling out (more partitions + nodes)
+    /// first; reach for this for hot partitions or a capped partition count.
     ///
     /// Runs in durable mode: the Kafka offset is committed as each message is persisted to the inbox (in
     /// consumption order), and the inbox processing is sharded by key — so offset commit is decoupled
@@ -239,7 +224,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     {
         add(topic =>
         {
-            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig ??= new KafkaConsumerOptions();
             topic.ConsumerConfig.IsolationLevel = IsolationLevel.ReadCommitted;
         });
         return this;
@@ -286,7 +271,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         add(topic => topic.CreateTopicFunc = creation);
         return this;
     }
-    
+
     /// <summary>
     /// Configure this endpoint to receive messages of type T from
     /// JSON message bodies. This option maybe be necessary to receive
@@ -334,7 +319,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         // default KafkaEnvelopeMapper in effect. See GH-3407.
         return UseInterop((_, e) => new JsonOnlyMapper(e));
     }
-    
+
     /// <summary>
     /// Enable native dead letter queue support for this Kafka listener.
     /// Failed messages will be produced to the DLQ Kafka topic
@@ -387,49 +372,42 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
-    /// Configure the consumer config for only this topic. This overrides the default
+    /// Configure the consumer options for only this topic. This overrides the default
     /// settings at the transport level. This is not combinatorial with the parent configuration
-    /// and overwrites all ConsumerConfig from the parent
+    /// and overwrites all consumer options from the parent
     /// </summary>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public KafkaListenerConfiguration ConfigureConsumer(Action<ConsumerConfig> configuration)
+    public KafkaListenerConfiguration ConfigureConsumer(Action<KafkaConsumerOptions> configuration)
     {
         add(topic =>
         {
-            var config = new ConsumerConfig();
+            var config = new KafkaConsumerOptions();
             configuration(config);
 
             topic.ConsumerConfig = config;
         });
         return this;
     }
+
     /// <summary>
     /// Extends the Kafka consumer settings for this topic without replacing the
     /// existing topic-level configuration. If no topic-specific configuration exists,
-    /// a new <see cref="ConsumerConfig"/> is created before applying the changes.
+    /// a new <see cref="KafkaConsumerOptions"/> is created before applying the changes.
     /// </summary>
     /// <param name="configuration">An action that adds or updates consumer settings for this topic.</param>
     /// <returns>The current <see cref="KafkaListenerConfiguration"/> for fluent chaining.</returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public KafkaListenerConfiguration ExtendConsumerConfiguration(Action<ConsumerConfig> configuration)
+    public KafkaListenerConfiguration ExtendConsumerConfiguration(Action<KafkaConsumerOptions> configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
         add(topic =>
         {
-            var values = topic.Parent.ConsumerConfig.
-                ToDictionary(x => x.Key, x => x.Value);
-
-            if (topic.ConsumerConfig != null)
-            {
-                foreach (var pair in topic.ConsumerConfig)
-                {
-                    values[pair.Key] = pair.Value;
-                }
-            }
-
-            var config = new ConsumerConfig(values);
+            // Seed with the topic's own overrides where they exist, filled in from the transport
+            // defaults, so the user's action extends the effective configuration
+            var config = topic.ConsumerConfig?.Clone() ?? new KafkaConsumerOptions();
+            config.InheritDefaultsFrom(topic.Parent.ConsumerConfig);
             configuration(config);
 
             topic.ConsumerConfig = config;

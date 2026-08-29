@@ -1,15 +1,15 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using Confluent.Kafka;
+using Dekaf;
+using Dekaf.Consumer;
+using Dekaf.Errors;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Kafka.Internals;
 
 /// <summary>
-/// Encapsulates the offset-commit strategy for a single Kafka consumer (GH-3150). Shared by the
-/// single-topic and grouped listeners. Commits the *specific* TopicPartitionOffset of each completed
-/// message (never the consumer's global position) and respects the user's
-/// EnableAutoCommit/EnableAutoOffsetStore configuration.
+/// Encapsulates the offset-commit strategy for a single Kafka consumer (GH-3150). Commits the
+/// *specific* TopicPartitionOffset of each completed message (never the consumer's global position)
+/// and respects the user's EnableAutoCommit/EnableAutoOffsetStore configuration.
 ///
 /// All three manual strategies (PerMessage, Store, Batch) route through a per-partition
 /// <see cref="OffsetWatermark"/> so that under concurrent, out-of-order handler completion the
@@ -37,7 +37,7 @@ internal sealed class KafkaOffsetCommitter
         Batch
     }
 
-    private readonly IConsumer<string, byte[]> _consumer;
+    private readonly IKafkaConsumer<string, byte[]> _consumer;
     private readonly ILogger _logger;
     private readonly CommitMode _mode;
     private readonly int _batchCount;
@@ -46,22 +46,10 @@ internal sealed class KafkaOffsetCommitter
 
     private readonly object _lock = new();
     private readonly Dictionary<TopicPartition, OffsetWatermark> _watermarks = new();
-
-    // GH-4330: Track runs per consumed record and Complete per handled record, and both were
-    // allocating a TopicPartition (a class) just to key the watermark lookup. The set of
-    // (topic, partition) pairs a listener sees is small and fixed by the assignment, so intern them.
-    private readonly ConcurrentDictionary<(string Topic, int Partition), TopicPartition> _topicPartitions = new();
-
-    private TopicPartition topicPartitionFor(string topic, int partition)
-    {
-        return _topicPartitions.TryGetValue((topic, partition), out var existing)
-            ? existing
-            : _topicPartitions.GetOrAdd((topic, partition), key => new TopicPartition(key.Topic, new Partition(key.Partition)));
-    }
     private int _sinceLastCommit;
     private long _lastCommitTimestamp;
 
-    public KafkaOffsetCommitter(IConsumer<string, byte[]> consumer, ConsumerConfig config, CommitMode mode,
+    public KafkaOffsetCommitter(IKafkaConsumer<string, byte[]> consumer, KafkaConsumerOptions config, CommitMode mode,
         int batchCount, TimeSpan batchInterval, ILogger logger)
     {
         _consumer = consumer;
@@ -80,7 +68,7 @@ internal sealed class KafkaOffsetCommitter
     /// with the consumer configuration. An explicit <c>EnableAutoCommit=true</c> always suppresses
     /// Wolverine's manual commits (GH-3150 acceptance #1).
     /// </summary>
-    internal static Strategy ResolveStrategy(ConsumerConfig config, CommitMode mode)
+    internal static Strategy ResolveStrategy(KafkaConsumerOptions config, CommitMode mode)
     {
         if (config.EnableAutoCommit == true)
         {
@@ -105,7 +93,7 @@ internal sealed class KafkaOffsetCommitter
     /// Mutate <paramref name="config"/> so the Kafka client is wired for the requested mode. Called
     /// once at listener-build time. Leaves an explicit user EnableAutoCommit choice untouched.
     /// </summary>
-    internal static void ApplyTo(ConsumerConfig config, CommitMode mode)
+    internal static void ApplyTo(KafkaConsumerOptions config, CommitMode mode)
     {
         if (config.EnableAutoCommit == true)
         {
@@ -140,7 +128,7 @@ internal sealed class KafkaOffsetCommitter
             return;
         }
 
-        var tp = topicPartitionFor(topic, partition);
+        var tp = new TopicPartition(topic, partition);
         lock (_lock)
         {
             WatermarkFor(tp).Track(offset);
@@ -153,14 +141,14 @@ internal sealed class KafkaOffsetCommitter
     /// high-water consumed offset + 1 when nothing is in flight) — the next offset to resume from, per
     /// Kafka convention — so out-of-order completion never advances the position past in-flight work.
     /// </summary>
-    public void Complete(string topic, int partition, long offset)
+    public async ValueTask Complete(string topic, int partition, long offset)
     {
         if (_strategy == Strategy.Automatic)
         {
             return;
         }
 
-        var tp = topicPartitionFor(topic, partition);
+        var tp = new TopicPartition(topic, partition);
 
         List<TopicPartitionOffset>? toCommit = null;
         List<TopicPartitionOffset>? toStore = null;
@@ -174,7 +162,7 @@ internal sealed class KafkaOffsetCommitter
                 case Strategy.PerMessage:
                     if (watermark.TryTakeCommittable(out var perMessage))
                     {
-                        toCommit = [new TopicPartitionOffset(tp, new Offset(perMessage))];
+                        toCommit = [new TopicPartitionOffset(topic, partition, perMessage)];
                     }
 
                     break;
@@ -182,7 +170,7 @@ internal sealed class KafkaOffsetCommitter
                 case Strategy.Store:
                     if (watermark.TryTakeCommittable(out var store))
                     {
-                        toStore = [new TopicPartitionOffset(tp, new Offset(store))];
+                        toStore = [new TopicPartitionOffset(topic, partition, store)];
                     }
 
                     break;
@@ -202,7 +190,7 @@ internal sealed class KafkaOffsetCommitter
 
         if (toCommit is { Count: > 0 })
         {
-            CommitOffsets(toCommit);
+            await CommitOffsets(toCommit);
         }
 
         if (toStore is { Count: > 0 })
@@ -242,7 +230,7 @@ internal sealed class KafkaOffsetCommitter
         {
             if (watermark.TryTakeCommittable(out var nextOffset))
             {
-                list.Add(new TopicPartitionOffset(tp, new Offset(nextOffset)));
+                list.Add(new TopicPartitionOffset(tp.Topic, tp.Partition, nextOffset));
             }
         }
 
@@ -253,7 +241,7 @@ internal sealed class KafkaOffsetCommitter
     /// Flush any pending offsets. Called on graceful shutdown so a clean stop doesn't lose progress
     /// (GH-3150 acceptance #4).
     /// </summary>
-    public void Flush()
+    public async ValueTask FlushAsync()
     {
         switch (_strategy)
         {
@@ -267,21 +255,18 @@ internal sealed class KafkaOffsetCommitter
 
                 if (pending.Count > 0)
                 {
-                    CommitOffsets(pending);
+                    await CommitOffsets(pending);
                 }
 
                 break;
 
             case Strategy.Store:
                 // Force the stored offsets to be committed synchronously rather than waiting for the
-                // next background flush (Close() also does this, but be explicit and resilient).
+                // next background flush (CloseAsync also does this, but be explicit and resilient).
+                // A commit with nothing stored is a no-op in Dekaf, not an error.
                 try
                 {
-                    _consumer.Commit();
-                }
-                catch (KafkaException e) when (e.Error.Code == ErrorCode.Local_NoOffset)
-                {
-                    // Nothing stored yet — nothing to flush.
+                    await _consumer.CommitAsync(CancellationToken.None);
                 }
                 catch (Exception e)
                 {
@@ -292,15 +277,11 @@ internal sealed class KafkaOffsetCommitter
         }
     }
 
-    private void CommitOffsets(List<TopicPartitionOffset> offsets)
+    private async ValueTask CommitOffsets(List<TopicPartitionOffset> offsets)
     {
         try
         {
-            _consumer.Commit(offsets);
-        }
-        catch (KafkaException e) when (e.Error.Code == ErrorCode.Local_NoOffset)
-        {
-            // No offsets to commit.
+            await _consumer.CommitAsync(offsets, CancellationToken.None);
         }
         catch (Exception e)
         {

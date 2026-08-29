@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -118,8 +118,8 @@ internal static class KafkaComplianceTopics
     {
         try
         {
-            using var admin = new AdminClientBuilder(
-                new AdminClientConfig { BootstrapServers = KafkaContainerFixture.ConnectionString }).Build();
+            using var admin = new Confluent.Kafka.AdminClientBuilder(
+                new Confluent.Kafka.AdminClientConfig { BootstrapServers = KafkaContainerFixture.ConnectionString }).Build();
             await admin.DeleteTopicsAsync(topics);
         }
         catch

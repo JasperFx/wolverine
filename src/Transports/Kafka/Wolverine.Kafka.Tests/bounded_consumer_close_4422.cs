@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -9,17 +9,15 @@ using Wolverine.Transports;
 namespace Wolverine.Kafka.Tests;
 
 /// <summary>
-/// GH-4422. <c>KafkaListener.StopAsync</c> bounded the receive-loop drain (GH-3434) and then called
-/// <c>_consumer.Close()</c> with no timeout and no token. That call is a synchronous P/Invoke into
-/// <c>rd_kafka_consumer_close</c>, which waits on an infinite queue pop for the consumer group to
-/// finish revoke/commit/leave; against a degraded broker or coordinator it never returns
-/// (librdkafka#4519), so <c>IHost.StopAsync</c> never completed — observed still wedged 20+ minutes
-/// later, past both <c>DrainTimeout</c> and <c>HostOptions.ShutdownTimeout</c>.
+/// GH-4422. <c>KafkaListener.StopAsync</c> bounded the receive-loop drain (GH-3434) but not the offset flush and
+/// consumer close that follow it. Closing a consumer leaves the group, and against a degraded broker or
+/// coordinator that wait never ended, so <c>IHost.StopAsync</c> never completed -- past both
+/// <c>DrainTimeout</c> and <c>HostOptions.ShutdownTimeout</c>.
 ///
 /// <para>
-/// No broker here: a substituted <see cref="IConsumer{TKey,TValue}" /> stands in for the wedge, which
-/// is the only way to reproduce "never returns" deterministically. Every test bounds its own wait, so
-/// a regression fails these tests instead of hanging the suite forever.
+/// No broker here: a substituted <see cref="IKafkaConsumer{TKey,TValue}" /> stands in for the wedge, which is the
+/// only way to reproduce "never returns" deterministically. Every test bounds its own wait, so a regression fails
+/// these tests instead of hanging the suite forever.
 /// </para>
 /// </summary>
 public class bounded_consumer_close_4422 : IDisposable
@@ -27,51 +25,60 @@ public class bounded_consumer_close_4422 : IDisposable
     // Deliberately short so the test asserts the BOUND rather than waiting out the real 30s default.
     private static readonly TimeSpan TheDrainTimeout = TimeSpan.FromMilliseconds(250);
 
+    private readonly ManualResetEventSlim _consuming = new(false);
     private readonly ManualResetEventSlim _closeEntered = new(false);
-    private readonly ManualResetEventSlim _releaseClose = new(false);
+    private readonly TaskCompletionSource _releaseClose = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public void Dispose()
     {
-        // Never leave an abandoned teardown thread parked on the gate after the test.
-        _releaseClose.Set();
+        // Never leave an abandoned close parked on the gate after the test.
+        _releaseClose.TrySetResult();
+        _consuming.Dispose();
         _closeEntered.Dispose();
-        _releaseClose.Dispose();
     }
 
-    private IConsumer<string, byte[]> buildConsumer()
+    private IKafkaConsumer<string, byte[]> buildConsumer()
     {
-        var consumer = Substitute.For<IConsumer<string, byte[]>>();
+        var consumer = Substitute.For<IKafkaConsumer<string, byte[]>>();
 
-        // The real Consume(token) blocks until a record arrives or the token trips. Mirroring that
-        // keeps the consume loop parked exactly where it sits in production.
-        consumer.Consume(Arg.Any<CancellationToken>()).Returns(ci =>
-        {
-            var token = ci.Arg<CancellationToken>();
-            token.WaitHandle.WaitOne();
-            throw new OperationCanceledException(token);
-        });
+        // The real ConsumeOneAsync waits for a record or the token. Mirroring that keeps the consume loop parked
+        // exactly where it sits in production.
+        consumer.ConsumeOneAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(ci => waitForCancellationAsync(ci.ArgAt<CancellationToken>(1)));
 
         return consumer;
     }
 
-    private void makeCloseWedge(IConsumer<string, byte[]> consumer)
+    private async ValueTask<ConsumeResult<string, byte[]>?> waitForCancellationAsync(CancellationToken token)
     {
-        consumer.When(x => x.Close()).Do(_ =>
+        _consuming.Set();
+        await Task.Delay(Timeout.Infinite, token);
+        return null;
+    }
+
+    private void makeCloseWedge(IKafkaConsumer<string, byte[]> consumer)
+    {
+        consumer.CloseAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
             _closeEntered.Set();
-            // Stands in for rd_kafka_consumer_close never returning.
-            _releaseClose.Wait();
+            // Stands in for a group leave that never completes.
+            return new ValueTask(_releaseClose.Task);
         });
     }
 
-    private static KafkaListener listenerFor(IConsumer<string, byte[]> consumer)
+    private KafkaListener startListener(IKafkaConsumer<string, byte[]> consumer)
     {
         var transport = new KafkaTransport();
         var topic = transport.Topics["shutdown-4422"];
-        var config = new ConsumerConfig { GroupId = "shutdown-4422" };
+        var config = new KafkaConsumerOptions { GroupId = "shutdown-4422" };
 
-        return new KafkaListener(topic, config, consumer, Substitute.For<IReceiver>(),
+        var listener = new KafkaListener(topic, config, consumer, [topic.TopicName], Substitute.For<IReceiver>(),
             NullLogger<KafkaListener>.Instance, TheDrainTimeout);
+
+        // A consumer that never initialized has nothing to close, so let the loop get past initialization first
+        _consuming.Wait(TimeSpan.FromSeconds(5)).ShouldBeTrue("the consume loop should have started");
+
+        return listener;
     }
 
     [Fact]
@@ -80,7 +87,7 @@ public class bounded_consumer_close_4422 : IDisposable
         var consumer = buildConsumer();
         makeCloseWedge(consumer);
 
-        var listener = listenerFor(consumer);
+        var listener = startListener(consumer);
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -91,7 +98,7 @@ public class bounded_consumer_close_4422 : IDisposable
         stopwatch.Stop();
 
         _closeEntered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
-            .ShouldBeTrue("Close() should still be attempted — the fix bounds the wait, it does not skip the close");
+            .ShouldBeTrue("CloseAsync() should still be attempted — the fix bounds the wait, it does not skip the close");
 
         // The budget covers the loop drain and then the flush+close, so a couple of multiples of the
         // drain timeout is the honest ceiling. The point is that it is finite at all.
@@ -104,16 +111,14 @@ public class bounded_consumer_close_4422 : IDisposable
         var consumer = buildConsumer();
         makeCloseWedge(consumer);
 
-        var listener = listenerFor(consumer);
+        var listener = startListener(consumer);
 
         await listener.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
 
         _closeEntered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).ShouldBeTrue();
 
-        // The abandoned thread is still inside the native Close(), and it owns the handle. Destroying
-        // it underneath that thread would trade a hang for a crash, so teardown leaves it to process
-        // exit instead.
-        consumer.DidNotReceive().Dispose();
+        // The close is still in flight, so teardown leaves the consumer alone rather than disposing it underneath
+        await consumer.DidNotReceive().DisposeAsync();
     }
 
     [Fact]
@@ -122,11 +127,11 @@ public class bounded_consumer_close_4422 : IDisposable
         // No wedge: the ordinary path must be completely unchanged.
         var consumer = buildConsumer();
 
-        var listener = listenerFor(consumer);
+        var listener = startListener(consumer);
 
         await listener.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
 
-        consumer.Received().Close();
-        consumer.Received().Dispose();
+        await consumer.Received().CloseAsync(Arg.Any<CancellationToken>());
+        await consumer.Received().DisposeAsync();
     }
 }

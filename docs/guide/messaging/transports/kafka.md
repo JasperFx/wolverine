@@ -7,11 +7,15 @@ effectively an inline "Retry"
 
 ## Installing
 
-To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging transport with Wolverine, first install the `WolverineFx.Kafka` library via nuget to your project. Behind the scenes, this package uses the [Confluent.Kafka client library](https://github.com/confluentinc/confluent-kafka-dotnet) managed library for accessing Kafka brokers.
+To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging transport with Wolverine, first install the `WolverineFx.Kafka` library via nuget to your project. Behind the scenes, this package uses the [Dekaf client library](https://thomhurst.github.io/Dekaf/) — a pure C# Kafka client with no native librdkafka dependency — for accessing Kafka brokers. Because Dekaf is fully managed .NET, the transport is also friendly to Native AOT deployments.
 
 ```bash
 dotnet add package WolverineFx.Kafka
 ```
+
+::: warning Kafka 4.0+ broker required
+The Dekaf client speaks only the [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) consumer-group protocol, so the Kafka transport requires a **Kafka 4.0 or later** broker. Wolverine's own docker-compose broker (`confluentinc/confluent-local:8.0.x`) satisfies this. Against an older broker the consumers cannot join their groups.
+:::
 
 ## Aspire Integration
 
@@ -58,7 +62,7 @@ You can still pass optional `configureConsumers` / `configureProducers` callback
 ```csharp
 opts.UseKafkaUsingNamedConnection("kafka",
     configureConsumers: c => c.GroupId = "my-service",
-    configureProducers: p => p.MessageMaxBytes = 1_000_000)
+    configureProducers: p => p.Linger = TimeSpan.FromMilliseconds(5))
     .AutoProvision();
 ```
 
@@ -201,12 +205,21 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L15-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
-and fine tuning the Kafka topic behavior. 
+The `ConfigureClient()` / `ConfigureConsumers()` / `ConfigureProducers()` methods work against Wolverine-owned
+option classes in the `Wolverine.Kafka` namespace — `KafkaClientOptions`, `KafkaConsumerOptions`, and
+`KafkaProducerOptions` (plus `KafkaAdminClientOptions` for `AutoProvision(...)`). The shared `KafkaClientOptions`
+base covers connectivity and security (`BootstrapServers`, `ClientId`, `SecurityProtocol`, `SaslMechanism`,
+`SaslUsername`, `SaslPassword`), consumer options cover the group and fetch settings (`GroupId`,
+`GroupInstanceId`, `AutoOffsetReset`, `EnableAutoCommit`, `EnableAutoOffsetStore`, `AutoCommitInterval`,
+`IsolationLevel`, `MaxPollRecords`, `FetchMaxBytes`, `MaxPartitionFetchBytes`, `SessionTimeout`,
+`HeartbeatInterval`), and producer options cover delivery behavior (`EnableIdempotence`, `Acks`, `Linger`,
+`BatchSize`). Anything beyond these curated options is reachable through `ConfigureConsumerBuilders()` /
+`ConfigureProducerBuilders()` / `ConfigureAdminClientBuilders()`, which hand you Dekaf's fluent
+`ConsumerBuilder<string, byte[]>` / `ProducerBuilder<string, byte[]>` / `AdminClientBuilder` directly.
 
 ## Listener Consumer Settings <Badge type="tip" text="5.16" />
 
-When building a Kafka listener, Wolverine configures the underlying Confluent Kafka `ConsumerConfig` differently
+When building a Kafka listener, Wolverine configures the underlying `KafkaConsumerOptions` differently
 depending on whether the listener endpoint is **durable** (backed by the transactional inbox) and how the listener
 processes messages. Understanding these settings is important for getting the delivery guarantees you need.
 
@@ -248,8 +261,9 @@ message, never the consumer's global position) in these situations:
 
 How and when those offsets are flushed to the broker is controlled by `CommitMode`. The default,
 `StoreThenAutoFlush`, is the idiomatic high-throughput Kafka model: each processed offset is *stored*
-locally (`EnableAutoOffsetStore = false` + `StoreOffset`) and Kafka's background committer flushes them on
-`AutoCommitIntervalMs`. There is **no** synchronous broker round trip per message.
+locally (`EnableAutoOffsetStore = false` plus an explicit store per completed message) and the client's
+background committer flushes them on `AutoCommitInterval`. There is **no** synchronous broker round trip
+per message.
 
 ```csharp
 opts.ListenToKafkaTopic("orders")
@@ -332,27 +346,19 @@ The ceiling is the **partition count**: a topic with _N_ partitions can be proce
 concurrently (extra nodes sit idle as hot standbys). Size your partition count for your target throughput
 and node count.
 
-Two consumer settings make that native assignment stable and production-grade. Both are **opt-in** —
-Wolverine does not change the defaults, because silently switching an existing group's assignment strategy
-breaks live rolling upgrades.
+Rebalancing itself needs no configuration — the transport always runs on Kafka's next-generation
+consumer rebalance protocol ([KIP-848](#rebalance-protocol-kip-848), below), so a rebalance keeps each
+consumer's unaffected partitions instead of a stop-the-world revoke-everything cycle. One **opt-in**
+consumer setting makes the assignment even more stable in production:
 
 ```csharp
 opts.UseKafka(connectionString)
-    // Incremental rebalancing: a rebalance keeps each consumer's unaffected partitions instead of a
-    // stop-the-world revoke-everything cycle.
-    .UseCooperativeStickyAssignment()
-
     // Static membership: rolling restarts/deploys of the same node don't trigger partition churn.
     // The group.instance.id defaults to POD_NAME, then HOSTNAME, then the machine name.
     .UseStaticMembership();
 ```
 
-Both are also available per-listener on `ListenToKafkaTopic(...)` (`UseCooperativeStickyAssignment()` /
-`UseStaticMembership(...)`).
-
-On a **Kafka 4.x cluster**, prefer the [next-generation rebalance protocol](#next-generation-rebalance-protocol-kip-848)
-below over cooperative-sticky — broker-driven incremental rebalancing subsumes what the client-side
-cooperative assignor provides. Static membership pairs with either protocol.
+Also available per-listener on `ListenToKafkaTopic(...).UseStaticMembership(...)`.
 
 ::: warning group.instance.id must be unique per node and stable across restarts
 Static membership only works when each node uses a **distinct** `group.instance.id` that **stays the same**
@@ -368,62 +374,21 @@ Wolverine logs the resolved `group.instance.id` at startup so you can verify per
 if no stable value could be resolved. Avoid a single hard-coded literal applied to every node.
 :::
 
-::: tip Rolling-upgrade path onto cooperative-sticky
-Don't flip an existing, running group straight from the default (eager) assignor to cooperative-sticky — a
-group must not mix eager and cooperative members. Do a two-step deploy: first roll out a build that lists
-**both** strategies (`[CooperativeSticky, Range]`) so every member supports cooperative, then a second
-deploy that drops the eager strategy.
-:::
+### Rebalance Protocol (KIP-848)
 
-### Next-Generation Rebalance Protocol (KIP-848) <Badge type="tip" text="6.21" />
+The Kafka transport is **KIP-848-only**: the Dekaf client speaks only the
+[next-generation consumer rebalance protocol](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol),
+which requires a **Kafka 4.0+ broker** (it is GA and enabled by default on 4.0+). Under KIP-848 the group
+coordinator computes assignments server side and reconciles members one partition at a time over the
+heartbeat — rebalances are always **broker-driven and incremental**, with no stop-the-world
+JoinGroup/SyncGroup barrier and no client-side assignor to choose. The server-side assignor is chosen with
+the broker/group config `group.remote.assignor` (`uniform` by default, or `range`).
 
-Kafka 4.0 brokers ship the **next-generation consumer rebalance protocol**
-([KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol))
-as GA and enabled by default. Rebalances become **broker-driven and incremental**: the group coordinator
-computes assignments server side and reconciles members one partition at a time over the heartbeat, so there
-is no stop-the-world JoinGroup/SyncGroup barrier and rebalance pauses drop dramatically. On a Kafka 4.x
-cluster this is the recommended way to run Wolverine's Kafka consumers:
-
-```csharp
-opts.UseKafka(connectionString)
-    // KIP-848: group.protocol = consumer. Requires a Kafka 4.0+ broker.
-    .UseNextGenerationRebalanceProtocol();
-```
-
-Also available per-listener as `ListenToKafkaTopic(...).UseNextGenerationRebalanceProtocol()` (remember that
-`ConfigureConsumer(...)` replaces the whole per-topic consumer config, so call this after it). Unlike most
-settings, the transport-level `group.protocol` *is* inherited by per-topic `ConfigureConsumer(...)` overrides
-that don't set their own — those overrides also inherit the transport's consumer group id, and a group must
-not run members of both rebalance protocols outside of an active migration. Set
-`GroupProtocol = GroupProtocol.Classic` explicitly on a per-topic config to opt a topic back out.
-
-What changes under KIP-848:
-
-- **Kafka 4.0+ broker required.** Against an older broker the consumer cannot join its group. The protocol
-  is GA on 4.0+ brokers and enabled by default (`group.coordinator.rebalance.protocols=classic,consumer`).
-- **Client-side assignors no longer apply.** Partition assignment is computed on the broker — the
-  server-side assignor is chosen with the broker/group config `group.remote.assignor` (`uniform` by
-  default, or `range`). `UseCooperativeStickyAssignment()` / `partition.assignment.strategy` is a
-  classic-protocol setting; incremental, cooperative-style rebalancing is inherent to KIP-848 anyway.
-- **Session timeout and heartbeat interval are broker-controlled**
-  (`group.consumer.session.timeout.ms` / `group.consumer.heartbeat.interval.ms` on the broker). The
-  client-side `session.timeout.ms` and `heartbeat.interval.ms` settings don't apply.
-- **Static membership still works.** `UseStaticMembership(...)` / `group.instance.id` is fully supported
-  under KIP-848 and remains the right tool for churn-free rolling restarts.
-
-librdkafka outright *rejects* a consumer configured with `group.protocol=consumer` plus any of the
-inapplicable classic-protocol settings (`partition.assignment.strategy`, `session.timeout.ms`,
-`heartbeat.interval.ms`, `group.protocol.type`) — which would otherwise fail every listener at startup. When
-the next-generation protocol is enabled, Wolverine clears any of those conflicting settings during
-bootstrap and logs a warning for each one, so e.g. an existing `UseCooperativeStickyAssignment()` call can
-coexist with `UseNextGenerationRebalanceProtocol()` while you migrate configuration.
-
-::: tip Migrating an existing consumer group
-A consumer group is upgraded from the classic to the consumer protocol by rolling its members — the broker
-supports both member kinds in one group *during* the migration and converts the group when the last classic
-member leaves (and can downgrade the same way). Roll all nodes of a service rather than running mixed
-protocols indefinitely, and don't combine this migration with other consumer-group changes in one deploy.
-:::
+Because incremental, cooperative-style rebalancing is inherent to the protocol, the older opt-ins
+`UseCooperativeStickyAssignment()` and `UseNextGenerationRebalanceProtocol()` are now marked `[Obsolete]`
+and are **no-ops** — calling them is harmless, but they configure nothing and can simply be deleted.
+Static membership (`UseStaticMembership(...)` / `group.instance.id`) is unchanged, fully supported under
+KIP-848, and remains the right tool for churn-free rolling restarts.
 
 ### By-Key Concurrency Within a Partition <Badge type="tip" text="6.8" />
 
@@ -448,8 +413,8 @@ their **Kafka message key** — same key → same slot (strictly ordered), diffe
 This runs in **durable** mode: the Kafka offset is committed as each message is persisted to the inbox in
 consumption order, and the inbox processing is then sharded by key. That **decouples offset commit from
 out-of-order completion** — if key A (offset 5) is still running when key B (offset 6) finishes, the inbox
-owns both, so a crash or rebalance can't lose A. Pairs naturally with cooperative-sticky (above), which
-keeps a rebalance from disrupting unaffected partitions.
+owns both, so a crash or rebalance can't lose A. Pairs naturally with KIP-848's incremental rebalancing
+(above), which keeps a rebalance from disrupting unaffected partitions.
 
 ### Cold Start vs. Live Tail <Badge type="tip" text="6.8" />
 
@@ -496,9 +461,9 @@ A few things to know:
 
 When you need to **reprocess** a window of a topic's history — error recovery, rebuilding downstream
 state, replaying after a bug fix — Wolverine offers a **bounded, one-shot replay** that reads a range of a
-topic back through the **normal handler pipeline**. It uses a throwaway `Assign()`-based consumer with a
-unique group id and **never commits to the live consumer group**, so steady-state consumption is
-completely untouched.
+topic back through the **normal handler pipeline**. It uses a throwaway `Assign()`-based consumer that
+joins **no consumer group** and **never commits offsets**, so steady-state consumption is completely
+untouched.
 
 ```csharp
 // Programmatic API on IHost
@@ -528,17 +493,9 @@ Each replayed record flows through your handlers again, exactly like live consum
 replayed envelopes pass through the same inbox + de-duplication path.
 :::
 
-The throwaway consumer's group id is `{live group}-replay-{guid}`, where the live group is the topic's own
-consumer group id if it has one, otherwise that of a `ListenToKafkaTopics(...)` group subscribing to the
-topic, otherwise the transport's, otherwise the service name. On a broker whose
-ACLs grant consumer groups by prefix — the usual Confluent Cloud setup — the replay is therefore allowed
-wherever the live listener is.
-
-One exception: a `TailFromLatest()` listener consumes under an ephemeral, per-process
-`{ServiceName}-hot-tail-{guid}` group, which is no more likely to be granted by a prefix ACL than the service
-name itself. A replay of such a topic skips that group and falls through to the transport's group id, so
-setting a granted prefix with `ConfigureConsumers(x => x.GroupId = "...")` covers the replay. The hot-tail
-listener itself still names its group after `ServiceName`; that is tracked separately.
+Because the replay consumer joins no group, it needs no consumer group ACL on brokers that grant groups by
+prefix (the usual Confluent Cloud setup). Replayed envelopes carry the `Destination` the live listener would
+have stamped: the topic's own Uri, or that of a `ListenToKafkaTopics(...)` group subscribing to the topic.
 
 Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
@@ -596,7 +553,8 @@ opts.UseKafka(connectionString).UseIdempotentProducer();       // node-wide
 opts.PublishMessage<T>().ToKafkaTopic("t").UseIdempotentProducer();  // per topic
 ```
 
-This sets `enable.idempotence = true` (which implies `acks=all` and bounded in-flight requests). It is
+This sets `EnableIdempotence = true` on the producer options (which implies acks from all in-sync replicas
+and bounded in-flight requests). It is
 **producer→broker** de-duplication only — it does not make consume-process-produce atomic, and it has a
 slight throughput cost. Opt-in; the default is unchanged.
 
@@ -694,8 +652,10 @@ Also see the more generic [Wolverine Guide on Interoperability](/tutorials/inter
 :::
 
 It's a complex world out there, and it's more than likely you'll need your Wolverine application to interact with system
-that aren't also Wolverine applications. At this time, it's possible to send or receive raw JSON through Kafka and Wolverine
-by using the options shown below in test harness code:
+that aren't also Wolverine applications. First, know that the transport is fully wire-compatible with
+applications using Confluent.Kafka or any other Kafka client — keys, values, headers, timestamps, and
+tombstones all round-trip cleanly in both directions. Beyond that, it's possible to send or receive raw JSON
+through Kafka and Wolverine by using the options shown below in test harness code:
 
 <!-- snippet: sample_raw_json_sending_and_receiving_with_kafka -->
 <a id='snippet-sample_raw_json_sending_and_receiving_with_kafka'></a>
@@ -774,17 +734,27 @@ depend on that promotion, register a custom mapper with `UseInterop((runtime, en
 When you need to interoperate with other Kafka clients that use the [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
 wire format, Wolverine provides built-in serializers for both **JSON Schema** and **Avro** that integrate directly with
 the Schema Registry. These serializers handle schema registration, evolution, and the Confluent wire format
-(magic byte + 4-byte schema ID prefix) automatically.
+(magic byte + 4-byte schema ID prefix) automatically. They are built on Dekaf's Schema Registry packages,
+and the registry client is built with `Dekaf.SchemaRegistry`:
+
+```csharp
+using Dekaf.SchemaRegistry;
+
+var schemaRegistry = new SchemaRegistryClient(
+    new SchemaRegistryConfig { Url = "http://localhost:8081" });
+```
 
 ### JSON Schema Serializer
 
-The `SchemaRegistryJsonSerializer` works with any .NET class — no code generation or special interfaces required:
+The `SchemaRegistryJsonSerializer` works with any .NET class — no code generation or special interfaces
+required. The JSON Schema for each message type is generated from the type itself via System.Text.Json's
+`JsonSchemaExporter`:
 
 ```csharp
-using Confluent.SchemaRegistry;
+using Dekaf.SchemaRegistry;
 using Wolverine.Kafka.Serialization;
 
-var schemaRegistry = new CachedSchemaRegistryClient(
+var schemaRegistry = new SchemaRegistryClient(
     new SchemaRegistryConfig { Url = "http://localhost:8081" });
 
 opts.PublishMessage<OrderPlaced>()
@@ -795,14 +765,15 @@ opts.ListenToKafkaTopic("orders")
     .DefaultSerializer(new SchemaRegistryJsonSerializer(schemaRegistry));
 ```
 
-You can also pass a `JsonSerializerConfig` to control schema auto-registration and compatibility settings:
+You can also pass a `JsonSchemaSerializerConfig` to control settings like the subject name strategy
+(`TopicName`, `RecordName`, or `TopicRecordName`), and optionally a `JsonSerializerOptions` to control how
+the message body itself is serialized:
 
 ```csharp
 var serializer = new SchemaRegistryJsonSerializer(schemaRegistry,
-    new JsonSerializerConfig
+    new JsonSchemaSerializerConfig
     {
-        AutoRegisterSchemas = true,
-        SubjectNameStrategy = SubjectNameStrategy.TopicRecord
+        SubjectNameStrategy = SubjectNameStrategy.TopicRecordName
     });
 ```
 
@@ -811,13 +782,14 @@ var serializer = new SchemaRegistryJsonSerializer(schemaRegistry,
 The `SchemaRegistryAvroSerializer` works with Avro-generated classes that implement `Avro.Specific.ISpecificRecord`.
 Use the [Apache Avro tools](https://avro.apache.org/docs/current/getting-started-csharp/) or the
 [Confluent avrogen tool](https://docs.confluent.io/platform/current/schema-registry/serdes-develop/serdes-avro.html)
-to generate C# classes from `.avsc` schema files:
+to generate C# classes from `.avsc` schema files. An optional `Dekaf.SchemaRegistry.Avro.AvroSerializerConfig`
+controls settings like the subject name strategy:
 
 ```csharp
-using Confluent.SchemaRegistry;
+using Dekaf.SchemaRegistry;
 using Wolverine.Kafka.Serialization;
 
-var schemaRegistry = new CachedSchemaRegistryClient(
+var schemaRegistry = new SchemaRegistryClient(
     new SchemaRegistryConfig { Url = "http://localhost:8081" });
 
 opts.PublishMessage<OrderPlacedAvro>()
@@ -831,16 +803,14 @@ opts.ListenToKafkaTopic("orders-avro")
 ### How It Works
 
 Both serializers extend the `SchemaRegistrySerializer` base class which implements Wolverine's `IMessageSerializer`
-interface. Internally, each serializer:
-
-1. Creates Confluent `IAsyncSerializer<T>` / `IAsyncDeserializer<T>` instances per message type on first use
-2. Caches these typed serializer delegates in a `ConcurrentDictionary` for subsequent calls
-3. Delegates all schema negotiation to the Confluent Schema Registry client library
+interface. Internally, each serializer creates and caches a typed serializer per message type on first use,
+and delegates all schema registration and lookup to the Dekaf Schema Registry client
+(`Dekaf.SchemaRegistry.ISchemaRegistryClient`).
 
 The serialized bytes use the standard [Confluent wire format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format):
 a magic byte (`0x00`), followed by a 4-byte big-endian schema ID, followed by the payload. This makes your
 Wolverine producers and consumers fully compatible with any other Kafka client that uses the Schema Registry
-(Java, Python, Go, etc.).
+(Java, Python, Go, applications using the Confluent serdes, etc.).
 
 ::: tip
 The `ReadFromData(byte[])` overload (without a message type) is **not supported** by these serializers because
@@ -1153,20 +1123,24 @@ opts.ListenToKafkaTopics("orders", "invoices", "shipments")
     });
 ```
 
-For full control over topic creation, use `TopicCreation()` which gives you direct access to the Kafka `IAdminClient`:
+For full control over topic creation, use `TopicCreation()` which gives you direct access to Dekaf's
+`IAdminClient`. Topic settings are described with Wolverine's `KafkaTopicSpecification` (`Name`,
+`NumPartitions`, `ReplicationFactor` — both defaulting to `-1`, meaning the broker default — and a `Configs`
+dictionary), whose `ToNewTopic()` method converts to the `Dekaf.Admin.NewTopic` the admin client consumes:
 
 ```csharp
 opts.ListenToKafkaTopics("orders", "invoices")
     .TopicCreation(async (adminClient, topicName) =>
     {
-        var spec = new TopicSpecification
+        var spec = new KafkaTopicSpecification
         {
             Name = topicName,
             NumPartitions = 12,
             ReplicationFactor = 3
         };
 
-        await adminClient.CreateTopicsAsync(new[] { spec });
+        await adminClient.CreateTopicsAsync([spec.ToNewTopic()],
+            new CreateTopicsOptions(), CancellationToken.None);
     });
 ```
 
@@ -1242,7 +1216,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Publisher Batching
 
-When publishing to Kafka through the default (buffered) sender, Wolverine coalesces outgoing envelopes into batches before handing them to the Kafka producer. A batch is flushed when **either** of two thresholds is hit:
+When publishing to Kafka through the default (buffered) sender, Wolverine coalesces outgoing envelopes into batches before handing each batch to the Dekaf producer in a single `ProduceAllAsync` call. A batch is flushed when **either** of two thresholds is hit:
 
 - the batch reaches `MessageBatchSize` envelopes (default **100**), or
 - the `MessageBatchTimeout` elapses since the **most recent** envelope entered the batch (default **250 ms**).
@@ -1382,8 +1356,8 @@ floor batching adds to a route: a batch is sent when it reaches `MessageBatchSiz
 the timeout elapses, so for low-rate streams every message waits up to the timeout (default
 250ms) before hitting the wire. Latency-sensitive routes should shrink both knobs — in
 GH-3490's load rig, going from `(100, 250ms)` to `(1, 1ms)` on a steady 8 msg/s stream took
-publish-to-consume p50 from seconds to parity with a raw Confluent.Kafka producer, and
-`SendInline()` measured at native latency as well.
+publish-to-consume p50 from seconds to parity with a raw Confluent.Kafka producer (used as a
+cross-library baseline), and `SendInline()` measured at native latency as well.
 
 ::: warning
 On versions before the JasperFx fix for wolverine#3490, the batch timeout behaved as a
@@ -1402,8 +1376,9 @@ in flight to the broker.
 Every message sent with the default envelope mapper carries the full set of Wolverine envelope
 headers (roughly 18 headers, written and parsed per message). For very high-volume topics
 where you control both ends — or interop scenarios — a raw JSON mapper (`ReceiveRawJson()` /
-`PublishRawJson()`) or a custom `IKafkaEnvelopeMapper` that carries only what you need reduces
-per-message overhead and payload size.
+`PublishRawJson()`) or a custom `IKafkaEnvelopeMapper` (mapping Dekaf's `ConsumeResult<string, byte[]>` in
+and Wolverine's `OutgoingKafkaRecord` out) that carries only what you need reduces per-message overhead and
+payload size.
 
 ### Interpreting Wolverine's metrics
 

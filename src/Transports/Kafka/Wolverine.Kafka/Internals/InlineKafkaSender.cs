@@ -1,12 +1,16 @@
-using Confluent.Kafka;
+using Dekaf.Producer;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka.Internals;
 
-public class InlineKafkaSender : ISender, IDisposable
+public class InlineKafkaSender : ISender, IAsyncDisposable
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string, byte[]> _producer;
+    // Dekaf producers are built and initialized asynchronously, but senders are constructed on
+    // synchronous paths, so the producer is created lazily on first send.
+    private readonly KafkaTransport _producerTransport;
+    private readonly SemaphoreSlim _producerLock = new(1, 1);
+    private IKafkaProducer<string, byte[]>? _producer;
     private readonly bool _fixedDestination;
 
     public InlineKafkaSender(KafkaTopic topic, bool fixedDestination = false)
@@ -25,10 +29,25 @@ public class InlineKafkaSender : ISender, IDisposable
         Config = ReferenceEquals(producerTransport, topic.Parent)
             ? topic.GetEffectiveProducerConfig()
             : producerTransport.ProducerConfig;
-        _producer = producerTransport.CreateProducer(Config);
+        _producerTransport = producerTransport;
     }
 
-    public ProducerConfig Config { get; }
+    private async ValueTask<IKafkaProducer<string, byte[]>> producerAsync()
+    {
+        if (_producer != null) return _producer;
+
+        await _producerLock.WaitAsync();
+        try
+        {
+            return _producer ??= await _producerTransport.CreateProducerAsync(Config);
+        }
+        finally
+        {
+            _producerLock.Release();
+        }
+    }
+
+    public KafkaProducerOptions Config { get; }
 
     public bool SupportsNativeScheduledSend => false;
     public Uri Destination { get; }
@@ -47,29 +66,37 @@ public class InlineKafkaSender : ISender, IDisposable
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        var message = await _topic.EnvelopeMapper!.CreateMessage(envelope);
+        var record = await _topic.EnvelopeMapper!.CreateMessage(envelope);
 
         var topicName = _fixedDestination ? _topic.TopicName : envelope.TopicName ?? _topic.TopicName;
-        // ProduceAsync only completes once the broker has acked this record, so a Flush() here
-        // is redundant for this message — and worse, it's an unbounded synchronous block that
-        // waits on every OTHER in-flight record from concurrent sends on this shared producer,
-        // defeating librdkafka's linger/batching entirely (GH-3490).
-        await _producer.ProduceAsync(topicName, message);
+        var producer = await producerAsync();
+        // ProduceAsync only completes once the broker has acked this record, so a flush here
+        // would be redundant for this message — and worse, it would wait on every OTHER in-flight
+        // record from concurrent sends on this shared producer, defeating the producer's
+        // linger/batching entirely (GH-3490).
+        await producer.ProduceAsync(record.ToProducerMessage(topicName), CancellationToken.None);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        // Bounded drain for anything still queued in librdkafka (e.g. a send abandoned by a
-        // cancelled caller) before tearing the producer down.
-        try
+        var producer = _producer;
+        _producerLock.Dispose();
+        if (producer == null)
         {
-            _producer.Flush(TimeSpan.FromSeconds(10));
-        }
-        catch (ObjectDisposedException)
-        {
-            // already gone — nothing to drain
+            return;
         }
 
-        _producer.Dispose();
+        // Bounded drain for anything still queued in the producer (e.g. a send abandoned by a
+        // cancelled caller) before tearing the producer down. DisposeAsync flushes pending records.
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await producer.FlushAsync(timeout.Token);
+            await producer.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // already gone or the drain timed out — nothing more to do
+        }
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
+using Dekaf.Errors;
+using Dekaf.Protocol;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
@@ -37,7 +38,7 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
 
     public override bool AutoStartSendingAgent() => false;
 
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
 
@@ -48,12 +49,12 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         // Wire the Kafka client for the configured commit strategy (GH-3150).
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
-        // GH-3454: the tracker is wired into the consumer's error callback (when not claimed by user
-        // configuration) and handed to the listener for IReportConnectionState
+        // GH-3454: consume exceptions feed the tracker, which the listener surfaces through
+        // IReportConnectionState
         var tracker = new KafkaConnectionStateTracker();
-        var listener = new KafkaTopicGroupListener(this, config,
-            Parent.CreateConsumer(config, tracker), receiver,
-            runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
+        var listener = new KafkaListener(this, config,
+            Parent.CreateConsumer(config), TopicNames, receiver,
+            runtime.LoggerFactory.CreateLogger<KafkaListener>(),
             runtime.DurabilitySettings.DrainTimeout, connectionState: tracker);
 
         // Broker-per-tenant (GH-3303): mirror the single-topic listener treatment — a shared listener on the
@@ -68,17 +69,17 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
                 var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
                 var tenantTracker = new KafkaConnectionStateTracker();
-                var tenantListener = new KafkaTopicGroupListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig, tenantTracker), tenantReceiver,
-                    runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
+                var tenantListener = new KafkaListener(this, tenantConfig,
+                    tenant.Transport.CreateConsumer(tenantConfig), TopicNames, tenantReceiver,
+                    runtime.LoggerFactory.CreateLogger<KafkaListener>(),
                     runtime.DurabilitySettings.DrainTimeout, tenant.Transport, tenantTracker);
                 compound.Inner.Add(tenantListener);
             }
 
-            return ValueTask.FromResult((IListener)compound);
+            return compound;
         }
 
-        return ValueTask.FromResult((IListener)listener);
+        return listener;
     }
 
     // GH-4510. The same structural answer the Azure Service Bus subscription now gives: a sticky handler
@@ -113,14 +114,10 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
 
         try
         {
-            using var client = Parent.CreateProducer(Parent.ProducerConfig);
+            await using var client = await Parent.CreateProducerAsync(Parent.ProducerConfig);
             foreach (var topicName in TopicNames)
             {
-                await client.ProduceAsync(topicName, new Message<string, byte[]>
-                {
-                    Key = "ping",
-                    Value = System.Text.Encoding.UTF8.GetBytes("ping")
-                });
+                await client.ProduceAsync(topicName, "ping", "ping"u8.ToArray(), CancellationToken.None);
             }
 
             return true;
@@ -135,15 +132,15 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
     {
         if (IsExternallyOwned) return;
 
-        using var adminClient = Parent.CreateAdminClient();
-        await adminClient.DeleteTopicsAsync(TopicNames);
+        await using var adminClient = Parent.CreateAdminClient();
+        await adminClient.DeleteTopicsAsync(TopicNames, new DeleteTopicsOptions(), CancellationToken.None);
     }
 
     /// <summary>
-    /// Optional action to configure the TopicSpecification for each topic created by this group.
+    /// Optional action to configure the topic specification for each topic created by this group.
     /// The string parameter is the topic name. Applied before topic creation unless <see cref="CreateTopicFunc"/> is overridden.
     /// </summary>
-    public Action<string, TopicSpecification>? SpecificationConfig { get; set; }
+    public Action<string, KafkaTopicSpecification>? SpecificationConfig { get; set; }
 
     /// <summary>
     /// Optional override for topic creation logic. Receives the admin client and topic name.
@@ -155,7 +152,7 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
     {
         if (IsExternallyOwned) return;
 
-        using var adminClient = Parent.CreateAdminClient();
+        await using var adminClient = Parent.CreateAdminClient();
         await SetupOnAsync(adminClient, logger);
     }
 
@@ -177,17 +174,16 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
                 }
                 else
                 {
-                    var spec = new TopicSpecification { Name = topicName };
+                    var spec = new KafkaTopicSpecification { Name = topicName };
                     SpecificationConfig?.Invoke(topicName, spec);
-                    await adminClient.CreateTopicsAsync([spec]);
+                    await adminClient.CreateTopicsAsync([spec.ToNewTopic()], new CreateTopicsOptions(),
+                        CancellationToken.None);
                 }
 
                 logger.LogInformation("Created Kafka topic {Topic}", topicName);
             }
-            catch (CreateTopicsException e)
+            catch (KafkaException e) when (e.ErrorCode == ErrorCode.TopicAlreadyExists)
             {
-                if (e.Results.Count > 0 && e.Results.All(x => x.Error.Code == ErrorCode.TopicAlreadyExists)) continue;
-                throw;
             }
         }
     }
@@ -195,8 +191,8 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
     /// <summary>
     /// Called during transport startup. When AutoProvision is on for the parent
     /// transport, ensure every Kafka topic in this group exists on the broker
-    /// before the listener subscribes. Without this, the KafkaTopicGroupListener's
-    /// consumer raises "Subscribed topic not available" on the first Consume().
+    /// before the listener subscribes. Without this, the group listener's
+    /// consumer raises "Subscribed topic not available" on the first consume.
     /// Overrides the base KafkaTopic.InitializeAsync so the group's multi-topic
     /// SetupAsync is invoked (not the single-topic base version).
     /// Groups marked <see cref="KafkaTopic.IsExternallyOwned"/> are skipped so

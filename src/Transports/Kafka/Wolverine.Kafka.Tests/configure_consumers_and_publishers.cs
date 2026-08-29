@@ -50,7 +50,8 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                     .TopicCreation(async (c, t) =>
                     {
                         t.Specification.NumPartitions = 4;
-                        await c.CreateTopicsAsync([t.Specification]);
+                        await c.CreateTopicsAsync([t.Specification.ToNewTopic()],
+                            new Dekaf.Admin.CreateTopicsOptions(), CancellationToken.None);
                     })
 
                     // Override the producer configuration for just this topic
