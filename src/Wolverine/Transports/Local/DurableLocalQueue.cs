@@ -198,7 +198,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         return _receiver!.EnqueueAsync(envelope);
     }
 
-    int ILocalQueue.QueueCount => _receiver?.QueueCount ?? 0;
+    int IHasQueueDepth.QueueCount => _receiver?.QueueCount ?? 0;
 
     public Uri Destination { get; }
 

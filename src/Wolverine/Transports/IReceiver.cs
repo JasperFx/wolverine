@@ -84,6 +84,11 @@ internal class ReceiverWithRules : IReceiver, ILocalQueue
                                             envelope.Destination);
     }
 
-    public int QueueCount => Inner is ILocalQueue q ? q.QueueCount : 0;
+    // GH-4186: IHasQueueDepth rather than ILocalQueue, so a wrapped InlineReceiver or NativeAckReceiver -- neither
+    // of which is a local queue -- still reports its real depth instead of a constant zero.
+    public int QueueCount => Inner is IHasQueueDepth q ? q.QueueCount : 0;
+
+    public DateTimeOffset? LastReceivedAt => (Inner as IHasQueueDepth)?.LastReceivedAt;
+
     public Uri Uri => Inner is ILocalQueue q ? q.Uri : new Uri("none://none");
 }

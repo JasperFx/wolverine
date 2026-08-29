@@ -45,8 +45,10 @@ public interface IListeningAgent : IListenerCircuit
     Uri Uri { get; }
 
     /// <summary>
-    /// Approximate timestamp of the last time queue activity was observed on this listener.
-    /// Based on QueueCount change detection, not individual message receipt.
+    /// Approximate timestamp of the last time queue activity was observed on this listener. Usually QueueCount
+    /// change detection rather than individual message receipt -- but GH-4186 made the receivers that run
+    /// without a BackPressureAgent (Inline, NativeAck) stamp their own receipts, because for those the change
+    /// detection has no writer at all and the value would otherwise never move off construction time.
     /// </summary>
     DateTimeOffset LastQueueActivityAt { get; }
 
@@ -163,15 +165,35 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// </summary>
     public bool ReceiverHasFaulted => _receiver is IFaultTrackingReceiver { HasFaulted: true };
 
-    public int QueueCount => (_receiver is ILocalQueue q ? q.QueueCount : 0)
+    // GH-4186: IHasQueueDepth, not ILocalQueue. InlineReceiver and NativeAckReceiver both maintain a depth over
+    // the same kind of block a BufferedReceiver does, but neither is a local queue -- deliberately, because a
+    // delivery in those modes settles against the listener that brought it. Reading through ILocalQueue meant
+    // both contributed a constant 0, so a saturated NativeAck listener was indistinguishable from an idle one.
+    public int QueueCount => (_receiver is IHasQueueDepth q ? q.QueueCount : 0)
                              + _runtime.BatchingPendingCounts.PendingFor(Endpoint.Uri);
 
     /// <summary>
-    /// Approximate timestamp of the last time a message was received on this listener,
-    /// tracked by observing QueueCount changes. Updated by BackPressureAgent polling
-    /// or explicit calls to <see cref="UpdateQueueCountObservation"/>.
+    /// Approximate timestamp of the last time a message was received on this listener. Receivers that stamp
+    /// their own receipts (<c>InlineReceiver</c>, <c>NativeAckReceiver</c>) report it directly; everything else
+    /// falls back to observing QueueCount changes, which is driven by BackPressureAgent polling or explicit
+    /// calls to <see cref="UpdateQueueCountObservation"/>.
     /// </summary>
-    public DateTimeOffset LastQueueActivityAt => _lastQueueCountChangeAt;
+    public DateTimeOffset LastQueueActivityAt
+    {
+        get
+        {
+            // GH-4186. The change-detection heuristic has exactly one writer, and that writer is
+            // BackPressureAgent -- which deliberately does not run for Inline or NativeAck endpoints. For those
+            // two the fallback below would return the construction timestamp forever, so prefer whatever the
+            // receiver stamped on receipt when it is the more recent of the two.
+            if (_receiver is IHasQueueDepth { LastReceivedAt: { } received } && received > _lastQueueCountChangeAt)
+            {
+                return received;
+            }
+
+            return _lastQueueCountChangeAt;
+        }
+    }
 
     /// <summary>
     /// Call periodically to update the heuristic for last message received.

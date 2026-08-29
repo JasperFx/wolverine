@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-internal class InlineReceiver : IReceiver, ILatchedReceiver
+internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
 {
     private readonly ILogger _logger;
     private readonly Endpoint _endpoint;
@@ -34,7 +34,33 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver
 
     public IHandlerPipeline Pipeline => _pipeline;
 
+    // GH-4186. Reachable through IHasQueueDepth. There is no queue in this mode -- the count is what is
+    // currently executing -- but that is still the number an operator wants, and it used to contribute a
+    // constant 0 to EndpointHealthSnapshot because nothing read it.
     public int QueueCount => Volatile.Read(ref _inFlightCount);
+
+    /// <summary>
+    /// GH-4186. Stamped on receipt. Inline runs no BackPressureAgent (see
+    /// <see cref="Endpoint.ShouldEnforceBackPressure"/>), and that agent is the only thing that advances
+    /// ListeningAgent's change-detection heuristic, so without this LastQueueActivityAt never moved off the
+    /// listener's construction time.
+    /// </summary>
+    public DateTimeOffset? LastReceivedAt
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref _lastReceivedTicks);
+            return ticks == 0 ? null : new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+    }
+
+    // A DateTimeOffset is too wide to write atomically, so the stamp is kept as UTC ticks.
+    private long _lastReceivedTicks;
+
+    private void stampReceipt()
+    {
+        Interlocked.Exchange(ref _lastReceivedTicks, DateTimeOffset.UtcNow.UtcTicks);
+    }
 
     public void Dispose()
     {
@@ -74,6 +100,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver
     {
         if (messages.Length == 0) return;
 
+        stampReceipt();
         Interlocked.Add(ref _inFlightCount, messages.Length);
 
         foreach (var envelope in messages)
@@ -91,6 +118,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
+        stampReceipt();
         Interlocked.Increment(ref _inFlightCount);
 
         try
