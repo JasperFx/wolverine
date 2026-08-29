@@ -93,6 +93,15 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
         // attempt 20 either -- and it read as a timeout for four months.
         Exception? lastFailure = null;
 
+        // GH-4116. Bounded by a WALL CLOCK, not only by an attempt count. "Twenty attempts" bounds tries,
+        // not time, and one try costs whatever the broker client's own request timeout is -- 60s for
+        // librdkafka -- so an unreachable or degraded broker turned host startup into a ~21 minute hang
+        // with no way out. Measured against a closed port: >20 minutes. Longer than any sane orchestrator
+        // start probe, and longer than our own 20-minute CI job cap, which is what turns a readable startup
+        // failure into an unreadable job cancellation with its logs discarded. See also GH-4100.
+        var budget = runtime.Options.BrokerInitializationTimeout;
+        var deadline = DateTimeOffset.UtcNow + budget;
+
         for (int i = 0; i < 20; i++)
         {
             try
@@ -104,10 +113,32 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
             {
                 lastFailure = e;
                 runtime.Logger.LogError(e, "Error trying to start message broker {Broker} on Attempt {Attempt} of 20", Protocol, i + 1);
+
+                // The attempt just above cannot be interrupted -- broker client SDKs do not take a
+                // CancellationToken on their provisioning calls -- so the budget is checked between
+                // attempts and the real worst case is the budget plus one attempt.
+                if (DateTimeOffset.UtcNow >= deadline)
+                {
+                    runtime.Logger.LogError(
+                        "Giving up on starting message broker {Broker} after {Attempts} attempt(s); the {Budget} budget in WolverineOptions.BrokerInitializationTimeout has elapsed",
+                        Protocol, i + 1, budget);
+                    break;
+                }
+
                 if (i < 19)
                 {
                     runtime.Logger.LogInformation("Will retry to start broker {Broker} in 5 seconds", Protocol);
-                    await Task.Delay(5.Seconds());
+
+                    // Also GH-4116: the delay used to ignore cancellation entirely, so a host being shut
+                    // down -- or a Ctrl-C -- could not break out of this loop either.
+                    try
+                    {
+                        await Task.Delay(5.Seconds(), runtime.Cancellation);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                 }
             }
         }

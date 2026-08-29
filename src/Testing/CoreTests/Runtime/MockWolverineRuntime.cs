@@ -116,7 +116,8 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         throw new NotImplementedException();
     }
 
-    public CancellationToken Cancellation => default;
+    // GH-4116: settable so a test can prove that a startup loop actually observes cancellation.
+    public CancellationToken Cancellation { get; set; } = default;
 
     public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();
