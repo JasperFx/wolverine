@@ -534,6 +534,16 @@ public sealed partial class WolverineOptions
     public TimeSpan DefaultRemoteInvocationTimeout { get; set; } = 5.Seconds();
 
     /// <summary>
+    ///     GH-4116. The wall-clock budget for connecting to and provisioning an external broker at startup.
+    ///     <see cref="Wolverine.Transports.BrokerTransport{TEndpoint}"/> retries a failed attempt every five
+    ///     seconds until this elapses; a single attempt already in flight is not interrupted, so the real
+    ///     worst case is this budget plus one broker client request timeout. Was effectively unbounded before:
+    ///     the loop counted twenty attempts without a clock, and one attempt is as slow as the client's own
+    ///     request timeout -- 60s for librdkafka -- which made an unreachable broker a ~21 minute startup hang.
+    /// </summary>
+    public TimeSpan BrokerInitializationTimeout { get; set; } = 2.Minutes();
+
+    /// <summary>
     ///     Register additional services to the underlying IoC container with either .NET standard IServiceCollection extension
     ///     methods. This usage will have access to the application's
     ///     full ServiceCollection *at the time of this call*
