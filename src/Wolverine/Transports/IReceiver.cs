@@ -13,7 +13,40 @@ public interface IReceiver : IDisposable
     IHandlerPipeline Pipeline { get; }
 }
 
-internal class ReceiverWithRules : IReceiver, ILocalQueue
+/// <summary>
+/// GH-4188. A receiver that delegates to another receiver rather than executing messages itself.
+/// <see cref="ListeningAgent.EnqueueDirectlyAsync"/> and <see cref="ListeningAgent.LatchReceiver"/> both have to
+/// reason about the *real* receiver -- which of NativeAck, Inline, Buffered or Durable it is -- and a wrapper
+/// hides that. Worse than hiding it, <see cref="ReceiverWithRules"/> is itself an <see cref="ILocalQueue"/>, so
+/// a wrapped NativeAck or Inline receiver actively matched the wrong branch. Wrappers can nest
+/// (a GlobalPartitionedInterceptor over a ReceiverWithRules), so unwrap with <see cref="ReceiverExtensions.Unwrap"/>
+/// rather than a single cast.
+/// </summary>
+internal interface IReceiverWrapper : IReceiver
+{
+    IReceiver Inner { get; }
+}
+
+internal static class ReceiverExtensions
+{
+    /// <summary>
+    /// GH-4188. Peel every pass-through wrapper off a receiver to reach the one that actually executes messages.
+    /// Use this for *deciding* what kind of receiver you have; dispatch still belongs on the outer receiver
+    /// wherever the wrappers' own behavior -- applying incoming envelope rules, global-partition re-routing --
+    /// has to happen.
+    /// </summary>
+    internal static IReceiver Unwrap(this IReceiver receiver)
+    {
+        while (receiver is IReceiverWrapper wrapper)
+        {
+            receiver = wrapper.Inner;
+        }
+
+        return receiver;
+    }
+}
+
+internal class ReceiverWithRules : IReceiver, ILocalQueue, IReceiverWrapper
 {
     public ReceiverWithRules(IReceiver inner, IEnumerable<IEnvelopeRule> rules)
     {
