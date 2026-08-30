@@ -4,6 +4,145 @@
 
 ### WolverineFx (core)
 
+- **Logical message deduplication, opt-in, on its own table.** (closes
+  [#4180](https://github.com/JasperFx/wolverine/issues/4180)) `Envelope.Id` identifies one *delivery*.
+  That is the right identity for "the broker handed me this twice" and the wrong one for "the operator
+  clicked Rebuild twice" — those are different deliveries of the same intent, so each carries a
+  different `Envelope.Id` and every one gets through. `Envelope.DeduplicationId` is now a first-class
+  *logical* id with storage, enforcement, and a retention policy behind it.
+
+  Turn it on with `opts.Durability.EnableMessageDeduplication = true`, which provisions a new
+  `wolverine_deduplication` table; leaving it off means no schema change at all on upgrade. Mark a
+  handler, HTTP endpoint, or gRPC method with `[Deduplicated]` and Wolverine refuses to execute it
+  twice for the same id inside `Durability.DeduplicationWindow` (default 24 hours).
+
+  Storage is a separate table rather than a column on `wolverine_incoming_envelopes` on purpose: under
+  `EnableInboxPartitioning` the inbox is `PARTITION BY LIST (status)`, and marking an envelope handled
+  moves the row between partitions, so a `(deduplication_id, status)` index would let one logical id
+  exist as both Incoming and Handled — silently, and only for users who enabled partitioning. A marker
+  also has to outlive the inbox row it came from, and the inbox is reaped on a five-minute default.
+
+  Claiming is an `INSERT` that either succeeds or trips the primary key, never a `SELECT`-then-`INSERT`:
+  the duplicates this exists to stop are concurrent, and a check-then-act would let both through while
+  passing every single-threaded test written against it. A failed non-transactional execution releases
+  its claim, so a retry is not discarded as a duplicate of its own failed attempt.
+
+  Refusals differ per chain type: a message handler discards and acks; HTTP returns 409 with
+  `ProblemDetails` (configurable to 2xx where a replay is benign); gRPC returns `AlreadyExists` /
+  `InvalidArgument` per AIP-193. Storage: PostgreSQL, SQL Server, MySQL, SQLite.
+
+- **The logical deduplication id can now be derived from the message itself.** (closes
+  [#4180](https://github.com/JasperFx/wolverine/issues/4180)) The publishing side no longer has to
+  remember `DeliveryOptions.DeduplicationId` at every call site — the kind of repetition that gets
+  forgotten at exactly one call site and silently un-protects a message, with no failure to see. A
+  message type declares its own logical identity once, the way it already declares a topic name with
+  `[Topic]` or a saga id with `[SagaIdentity]`:
+
+  ```csharp
+  public record ArchiveInvoice([property: DeduplicationIdentity] string InvoiceNumber, DateOnly AsOf);
+
+  [DeduplicationIdentity(nameof(ReceiveShipment.ShipmentId))]   // a contract whose members you cannot decorate
+  public record ReceiveShipment(Guid ShipmentId, string Warehouse);
+  ```
+
+  and where the identity is not a single member, or the message type is generated and cannot carry an
+  attribute at all:
+
+  ```csharp
+  opts.MessageDeduplication.ByMessage<RebuildProjection>(x => $"{x.ProjectionName}|{x.OccurrenceUtc:O}");
+  opts.MessageDeduplication.ByMemberNamed("IdempotencyKey", "DeduplicationId");
+  opts.Policies.ForMessagesOfType<CreateOrder>().DeduplicateBy(x => $"{x.Sku}|{x.Quantity}");
+  ```
+
+  All of these are `IEnvelopeRule` at the message type level, resolved once when the route is built
+  rather than per message, so they reach every transport, the local queues, and the outbox alike, and a
+  rule for an unrelated message type costs nothing on the sending path. Precedence: an explicit
+  `DeliveryOptions.DeduplicationId` always wins, then `opts.MessageDeduplication` registrations, then
+  `[DeduplicationIdentity]`. No rule overwrites an id that is already set, and a rule returning null or
+  empty leaves the message without one — which is how a message opts out. Deriving an id still does not
+  deduplicate anything on its own; enforcement remains `[Deduplicated]` plus
+  `Durability.EnableMessageDeduplication`.
+
+- **Broker startup is bounded by a clock, not just by an attempt count.** (closes
+  [#4116](https://github.com/JasperFx/wolverine/issues/4116)) `BrokerTransport`'s 20-attempt
+  initialization loop had no wall-clock budget and an untokened `Task.Delay`, so a host starting against
+  a dead broker took **21 minutes 38 seconds** to fail — long enough to look like a hang rather than a
+  misconfiguration, and long enough to blow past any orchestrator's startup probe.
+
+- **A `NativeAck` or `Inline` listener reports its real queue depth and last receipt.** (closes
+  [#4186](https://github.com/JasperFx/wolverine/issues/4186)) Both reported `QueueCount` 0 regardless
+  of actual depth, so monitoring could not distinguish a busy listener from an idle one.
+
+- **`ListeningAgent` now sees past its pass-through receiver wrappers before branching on the
+  receiver.** (closes [#4188](https://github.com/JasperFx/wolverine/issues/4188),
+  [#4191](https://github.com/JasperFx/wolverine/issues/4191)) `ReceiverWithRules` — installed for any
+  incoming envelope rule, which includes a bare endpoint-level `MessageType` or `TenantId` — is
+  unconditionally an `ILocalQueue`, so a wrapped `NativeAck` or `Inline` receiver matched the
+  `ILocalQueue` branch ahead of its own and threw on the durability agent's re-entry path (DLQ replay,
+  scheduled-message firing).
+
+  The same blindness defeated fault detection: `IFaultTrackingReceiver` was type-tested against the raw
+  field, which no wrapper implements, so on any non-trivially configured endpoint a terminally faulted
+  receiver reported healthy forever and was never rebuilt — the silently-dead-listener case, defeated
+  on exactly the endpoints most likely to be configured. Disposal now unwraps too, since the wrappers
+  are `IDisposable` only and disposing the outer one would skip `DurableReceiver.DisposeAsync`
+  entirely.
+
+  Separately, `StartAsync` wrapped the receiver in `GlobalPartitionedInterceptor` unconditionally while
+  the receiver rebuild beside it was guarded. `StartAsync` is also the back-pressure *resume* path, so
+  every latch/resume cycle added another interceptor layer with nothing ever removing one — never
+  incorrect, since every layer delegates, but an unbounded chain whose per-message cost grew with the
+  number of cycles the endpoint had been through.
+
+- **An agent command is never forwarded to the node it is already on.** (#4184) `wolverine_nodes` is
+  populated while `NodeController.Agents` is still empty, so during a startup window a node could
+  forward a command to itself. Read as a daemon defect for weeks.
+
+### WolverineFx (core) + event store integrations
+
+- **A locally-owned shard that stopped with nothing to report is restarted.** (closes
+  [#4193](https://github.com/JasperFx/wolverine/issues/4193)) An event-subscription agent that stopped
+  locally with no `Failure` while keeping its assignment row was invisible to *both* recovery paths,
+  because each deferred to the other: the failure sweep saw a null `Failure` and left it to the
+  leader's assignment command, and the leader never built one because `AssignedNode == OriginalNode`
+  and a local stop does not touch the persisted row. The status was correct, the assignment was
+  correct, and nothing joined the two — the shard's sequence simply never moved again.
+
+  Reached through the transient rebuild an operator drives from the console: the rebuild completes,
+  acks success, and leaves the shard dead. Verified on a live fleet — frozen at sequence 554 for 161
+  seconds across five full assignment cycles before the fix, recovering 8.4 seconds after the rebuild
+  with it, three runs out of three.
+
+- **Event Model derivation stops claiming `TriggerLabel`, and reads a collection response as its
+  element type.** (closes [#4181](https://github.com/JasperFx/wolverine/issues/4181),
+  [#4182](https://github.com/JasperFx/wolverine/issues/4182)) An HTTP slice claimed `TriggerLabel` with
+  `"{verb} {route}"` and a gRPC trigger-only slice with `"{service}/{method}"`. Both are *derived*
+  claims, so per-role precedence made them beat any label an overlay declared — and minted a
+  `SourceDisagreement` hotspot per labelled route for the privilege, so five labelled endpoints meant
+  five noise hotspots drowning out any real finding. The claim carried no information either: both
+  facts already ride, structured, on `TriggerOrigin`. A trigger label is a *naming* role — "Customer at
+  the ATM", which the code cannot express — so it is now left unclaimed and a declaration wins it by
+  default. `ApplyExternalSystems` still claims it deliberately, because when a listener triggers a
+  slice that already has an origin the external label lives nowhere else.
+
+  Separately, a query chain's response was taken as its read model verbatim, so
+  `GET => Task<IReadOnlyList<Order>>` reported the closed generic's assembly-qualified CLR string as a
+  canvas node sitting next to the `Order` node its single-document siblings name. A collection response
+  now reads its element type. The unwrap walks interfaces rather than matching a whitelist, so Marten's
+  `IPagedList<Order>` unwraps too; maps, strings, types that enumerate as two things, and scalar
+  elements (a `byte[]` download is not a view over `byte`) are left alone.
+
+### Dependencies
+
+- JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to
+  **2.57.2**. `JasperFx.RuntimeCompiler` stays on its own 5.x line.
+
+### Testing (`TrackedSession`)
+
+- **A tracked test waits on the fact it asserts, not on a count of envelopes.** (closes
+  [#3399](https://github.com/JasperFx/wolverine/issues/3399)) `WaitForExecutionOf` counts *envelopes*,
+  not chains, which made a batching test appear to catch a regression that was never there.
+
 - **Scope priming now fires for every chain that service-locates, not only the ones naming an
   `IServiceProvider`.** (closes [#4171](https://github.com/JasperFx/wolverine/issues/4171),
   [jasperfx#715](https://github.com/JasperFx/jasperfx/pull/715)) When generated code falls back to
