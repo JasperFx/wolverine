@@ -169,7 +169,7 @@ public static class CreateOrderHandler
 `ValueSource.Header` reads an envelope header, and `ValueSource.Anything` uses the chain type's
 natural default.
 
-### Deriving the id on the publishing side <Badge type="tip" text="6.32" />
+### Deriving the id on the publishing side <Badge type="tip" text="6.31" />
 
 Everything above is the *receiving* half. On the publishing side, asking every call site to remember
 `DeliveryOptions.DeduplicationId` is exactly the kind of repetition that eventually gets forgotten at
