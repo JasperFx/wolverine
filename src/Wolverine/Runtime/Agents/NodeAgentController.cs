@@ -51,6 +51,12 @@ public partial class NodeAgentController
     // than on every sweep tick. Only touched from the serialized health-check path.
     private readonly HashSet<Uri> _reportedUnreleasable = new();
 
+    // GH-4193: agents this node has already tried to restart after finding them Stopped with no failure
+    // to report. Dropped the moment the agent is seen Running again, exactly like _reportedFailures, so
+    // a shard that recovers and later wedges anew gets a fresh attempt while one that cannot stay up
+    // does not re-drive a start on every tick. Only touched from the serialized health-check path.
+    private readonly HashSet<Uri> _restartedWedgedAgents = new();
+
     // GH-3970: consecutive failures to BUILD or START an agent here, keyed by agent Uri. A failed build
     // leaves nothing in Agents, so the GH-3888 stall detector -- which sweeps the agents this node is
     // actually running -- structurally cannot see it, and no restart budget is ever consumed. Counting
@@ -538,6 +544,47 @@ public partial class NodeAgentController
     }
 
     /// <summary>
+    /// GH-4193: re-drive a locally-owned agent found <see cref="AgentStatus.Stopped" /> with no failure
+    /// to report. <see cref="StartAgentAsync" /> already knows how to replace a dead registration -- it
+    /// evicts, stops, and starts again with retries -- so this only has to call it; the gap was that
+    /// nothing ever did.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately <see cref="AgentStatus.Stopped" /> only. A <see cref="AgentStatus.Paused" /> agent
+    /// with no failure is one whose owner schedules its own resume -- an error backoff, or the
+    /// blue/green side-effect gate -- and restarting it here would fight that owner, which is the thing
+    /// the anti-thrash guards in this class exist to prevent.
+    /// </remarks>
+    private async Task restartWedgedLocalAgentAsync(Uri agentUri, AgentStatus status)
+    {
+        if (status != AgentStatus.Stopped)
+        {
+            return;
+        }
+
+        // Once per transition into the wedged state, cleared when the agent is next seen Running.
+        if (!_restartedWedgedAgents.Add(agentUri))
+        {
+            return;
+        }
+
+        _logger.LogInformation(
+            "Agent {AgentUri} on node {NodeNumber} is still assigned here but its shard is stopped with no failure reported; restarting it",
+            agentUri, _runtime.Options.Durability.AssignedNodeNumber);
+
+        try
+        {
+            await StartAgentAsync(agentUri);
+        }
+        catch (Exception e)
+        {
+            // A failed start is already counted and escalated by _failedStarts / the release path; the
+            // sweep must not be taken down by one agent.
+            _logger.LogError(e, "Error restarting wedged agent {AgentUri}", agentUri);
+        }
+    }
+
+    /// <summary>
     /// Sweep this node's own agents for any that have stopped or paused underneath us on a reported
     /// failure. Runs on every node on every health-check tick, independently of leadership: the daemon
     /// pauses a shard on the node that owns it, and before this nothing in the assignment plane ever
@@ -571,14 +618,28 @@ public partial class NodeAgentController
             {
                 _reportedFailures.TryRemove(entry.Key, out _);
                 _reportedUnreleasable.Remove(entry.Key);
+                _restartedWedgedAgents.Remove(entry.Key);
                 continue;
             }
 
             var failure = subscription.Failure;
             if (failure == null)
             {
-                // Stopped with nothing to report is the ordinary wedged-shard case; GH-3519's recovery in
-                // StartAgentAsync owns that one, and reporting it here would fire on every stop.
+                // GH-4193: this used to `continue`, on the grounds that GH-3519's recovery in
+                // StartAgentAsync owns the ordinary wedged-shard case. It does not get the chance:
+                // StartAgentAsync only runs when the leader emits an assignment command, and
+                // AssignmentGrid.Agent.TryBuildAssignmentCommand returns false on
+                // `AssignedNode == OriginalNode`. A local stop does not touch the persisted assignment
+                // row, so the two stay equal forever and no command is ever built. Both recovery paths
+                // deferred to each other and the shard's sequence never moved again -- reachable
+                // deliberately through EventStoreAgents.TryRebuildRegisteredProjectionAsync (GH-3163),
+                // whose transient rebuild stops the continuous agent and has no resumeContinuousAsync.
+                //
+                // The old comment's other reason -- "would fire on every stop" -- does not hold for an
+                // agent still present in Agents: StopAgentAsync removes it from the dictionary and drops
+                // the assignment row, so Stopped-and-still-registered is BY CONSTRUCTION a wedged shard
+                // and never a deliberate stop.
+                await restartWedgedLocalAgentAsync(entry.Key, status);
                 continue;
             }
 

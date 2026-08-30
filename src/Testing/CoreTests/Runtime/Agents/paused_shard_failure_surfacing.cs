@@ -378,13 +378,97 @@ public class paused_shard_failure_surfacing
 
             await controller.StartAgentAsync(uri);
 
-            // An ordinary stop, or a wedged shard GH-3519's recovery owns. Reporting it here would fire
-            // on every deliberate stop and drown the signal this whole sweep exists to raise.
+            // A wedged shard with nothing to report is not a FAILURE to surface -- reporting it would
+            // fire on every deliberate stop and drown the signal this whole sweep exists to raise.
+            // GH-4193 does now RESTART it here (see below); this test pins that it is still not
+            // reported as a failure while doing so.
             agent.SimulateFailure(AgentStatus.Stopped, null);
 
             await controller.ReportFailedLocalAgentsAsync();
 
             await _observer.DidNotReceive().AgentPaused(Arg.Any<Uri>(), Arg.Any<ShardFailure?>());
+        }
+
+        // GH-4193. The sweep used to `continue` past a Stopped agent with no failure, on the grounds
+        // that "GH-3519's recovery in StartAgentAsync owns that one". It never got the chance:
+        // StartAgentAsync only runs when the leader emits an assignment command, and
+        // AssignmentGrid.Agent.TryBuildAssignmentCommand returns false while AssignedNode ==
+        // OriginalNode. A local stop leaves the persisted assignment row alone, so the two stay equal
+        // and no command is ever built -- both recovery paths deferred to each other and the shard's
+        // sequence never moved again. Reachable deliberately through
+        // EventStoreAgents.TryRebuildRegisteredProjectionAsync (GH-3163).
+
+        [Fact]
+        public async Task restarts_a_locally_owned_shard_that_stopped_with_nothing_to_report()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+            agent.StartCount.ShouldBe(1);
+
+            agent.SimulateFailure(AgentStatus.Stopped, null);
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(2);
+        }
+
+        [Fact]
+        public async Task restarts_it_once_per_transition_not_once_per_tick()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri) { StaysStoppedAfterStart = true };
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+            agent.SimulateFailure(AgentStatus.Stopped, null);
+
+            // A shard that will not come back up must not be re-driven on every health tick.
+            await controller.ReportFailedLocalAgentsAsync();
+            await controller.ReportFailedLocalAgentsAsync();
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(2);
+        }
+
+        [Fact]
+        public async Task re_arms_the_restart_after_the_shard_is_seen_running_again()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            agent.SimulateFailure(AgentStatus.Stopped, null);
+            await controller.ReportFailedLocalAgentsAsync();   // restart #1
+            await controller.ReportFailedLocalAgentsAsync();   // observes Running, clears the ledger
+
+            agent.SimulateFailure(AgentStatus.Stopped, null);
+            await controller.ReportFailedLocalAgentsAsync();   // restart #2
+
+            agent.StartCount.ShouldBe(3);
+        }
+
+        [Fact]
+        public async Task leaves_a_paused_shard_with_no_reported_reason_to_its_own_owner()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            // Paused with nothing to report is an owner that schedules its own resume -- an error
+            // backoff, or the blue/green side-effect gate. Restarting it here would fight that owner,
+            // which is what every anti-thrash guard in this class exists to prevent.
+            agent.SimulateFailure(AgentStatus.Paused, null);
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(1);
         }
     }
 
@@ -435,10 +519,19 @@ public class paused_shard_failure_surfacing
             Failure = null;
         }
 
+        // GH-4193: a shard that will not stay up. Lets a test hold the agent Stopped ACROSS a restart
+        // attempt, which is the only way to observe the sweep's once-per-transition guard -- otherwise
+        // the very next sweep sees Running, clears the ledger, and re-arms.
+        public bool StaysStoppedAfterStart { get; set; }
+
         public Task StartAsync(CancellationToken cancellationToken)
         {
             StartCount++;
-            Status = AgentStatus.Running;
+            if (!StaysStoppedAfterStart)
+            {
+                Status = AgentStatus.Running;
+            }
+
             Failure = null;
             return Task.CompletedTask;
         }
