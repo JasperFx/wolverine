@@ -163,7 +163,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// CritterWatch#942 — see <see cref="IListeningAgent.ReceiverHasFaulted"/>. True when the
     /// current receiver's execution block has faulted terminally (jasperfx#506).
     /// </summary>
-    public bool ReceiverHasFaulted => _receiver is IFaultTrackingReceiver { HasFaulted: true };
+    // GH-4191: Unwrap() first. Neither pass-through wrapper implements IFaultTrackingReceiver, so reading the raw
+    // field made a terminally faulted receiver behind one report healthy forever -- and this flag is the only
+    // thing BackPressureAgent has to notice it by. ReceiverWithRules is installed for any incoming envelope rule,
+    // which includes a bare endpoint-level MessageType or TenantId, so "behind a wrapper" is the common case.
+    public bool ReceiverHasFaulted => _receiver?.Unwrap() is IFaultTrackingReceiver { HasFaulted: true };
 
     // GH-4186: IHasQueueDepth, not ILocalQueue. InlineReceiver and NativeAckReceiver both maintain a depth over
     // the same kind of block a BufferedReceiver does, but neither is a local queue -- deliberately, because a
@@ -422,11 +426,20 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // block (jasperfx#506) rejects every post and its QueueCount freezes, so reusing it turns a
         // restart into a zombie: the receive loop polls, fails to enqueue, and (for brokers that
         // settle at receipt) drops messages, forever. Rebuild instead.
-        if (_receiver is IFaultTrackingReceiver { HasFaulted: true } faulted)
+        //
+        // GH-4191: detect through Unwrap(), for the same reason ReceiverHasFaulted does. Unlike that flag this
+        // half is mode-independent -- it is reached on any restart, not only via BackPressureAgent -- so before
+        // this a wrapped faulted receiver was re-attached to a fresh listener on every restart.
+        if (_receiver?.Unwrap() is IFaultTrackingReceiver { HasFaulted: true } faulted)
         {
             _logger.LogWarning(
                 "The receiver for {Uri} had terminally faulted and is being rebuilt before the listener restarts",
                 Uri);
+
+            // Deliberately disposing the UNWRAPPED receiver rather than the outer one. The wrappers hold nothing
+            // of their own -- they forward Dispose() to Inner -- but they are IDisposable only, so disposing the
+            // outer would silently take the sync branch below and skip DurableReceiver.DisposeAsync entirely.
+            // Nulling the field drops the wrappers, and the rebuild below re-applies both of them.
             _receiver = null;
             try
             {
@@ -457,9 +470,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             }
         }
         // If there are global partitioned topologies and this is NOT a paired endpoint, intercept matching messages
+        // GH-4191: the `is not GlobalPartitionedInterceptor` guard. Unlike the `??=` above, this wrap used to be
+        // unconditional -- and StartAsync is also the back pressure RESUME path. MarkAsTooBusyAndStopReceivingAsync
+        // deliberately keeps _receiver alive (the queue it holds is exactly what has to drain before the listener
+        // resumes) and only drops the Listener, so every latch/resume cycle added another interceptor layer, with
+        // nothing ever removing one. Each layer only delegates, so it was never wrong -- just an unbounded chain
+        // whose per-message cost grew with the number of cycles the endpoint had been through.
         else if (_runtime.Options.MessagePartitioning.GlobalPartitionedTopologies.Count > 0
                  && !Endpoint.UsedInShardedTopology
-                 && Endpoint.Uri.Scheme != "local")
+                 && Endpoint.Uri.Scheme != "local"
+                 && _receiver is not GlobalPartitionedInterceptor)
         {
             _receiver = new GlobalPartitionedInterceptor(_receiver, _runtime);
         }
