@@ -192,7 +192,10 @@ public class DeliveryOptions
     public string? GroupId { get; set; }
 
     /// <summary>
-    /// MessageDeduplicationId for Amazon SQS FIFO Queue
+    /// GH-4180. The application defined *logical* identity of this message, enforced by
+    /// <c>[Deduplicated]</c> handlers and endpoints. Also used as the native MessageDeduplicationId
+    /// for Amazon SQS/SNS FIFO and GCP Pub/Sub. Setting it here always wins over any rule that
+    /// derives an id from the message itself. See <see cref="Envelope.DeduplicationId"/>.
     /// </summary>
     public string? DeduplicationId { get; set; }
     

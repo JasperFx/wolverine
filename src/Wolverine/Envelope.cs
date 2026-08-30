@@ -396,7 +396,15 @@ public partial class Envelope : IHasTenantId
     public string? GroupId { get; set; }
 
     /// <summary>
-    /// MessageDeduplicationId for Amazon SQS FIFO Queue
+    /// GH-4180. The application defined *logical* identity of this message -- "rebuild projection X
+    /// for tonight's 03:00 run" -- as opposed to <see cref="Id"/>, which identifies one delivery.
+    /// Round-trips on every transport under the "deduplication-id" wire header, and is additionally
+    /// used as the native MessageDeduplicationId for Amazon SQS/SNS FIFO and GCP Pub/Sub.
+    ///
+    /// Set it explicitly with <c>DeliveryOptions.DeduplicationId</c>, or let Wolverine derive it from
+    /// the message with <c>[DeduplicationIdentity]</c> or <c>opts.MessageDeduplication</c>. It is
+    /// enforced by <c>[Deduplicated]</c> handlers when
+    /// <c>opts.Durability.EnableMessageDeduplication</c> is on.
     /// </summary>
     public string? DeduplicationId { get; set; }
 

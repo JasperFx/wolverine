@@ -42,6 +42,11 @@ public class logical_message_deduplication : IAsyncLifetime
 
                 opts.Policies.AutoApplyTransactions();
 
+                // GH-4180 follow up: the id is derived from the message type rather than supplied by
+                // the publisher at each call site
+                opts.MessageDeduplication
+                    .ByMessage<ComposedIdentityMessage>(x => $"{x.Tenant}|{x.Sequence}");
+
                 // Discard rather than retry, so each Send is exactly one handler attempt and the
                 // poison-check assertion below is a count rather than a race.
                 opts.OnException<DivideByZeroException>().Discard();
@@ -51,6 +56,7 @@ public class logical_message_deduplication : IAsyncLifetime
 
         DeduplicatedHandler.Received.Clear();
         UnkeyedHandler.Received.Clear();
+        DerivedIdentityHandler.Received.Clear();
         FailingDeduplicatedHandler.Attempts = 0;
     }
 
@@ -146,6 +152,48 @@ public class logical_message_deduplication : IAsyncLifetime
         FailingDeduplicatedHandler.Attempts.ShouldBe(2);
     }
 
+    // GH-4180 follow up. The publishing-side derivation is only worth anything if the id it stamps is
+    // the same id the receiving handler enforces -- these two halves are wired up in completely
+    // different places, and a routing-level test alone would pass over a handler that never sees it.
+    [Fact]
+    public async Task an_id_derived_from_a_marked_member_is_enforced()
+    {
+        await theHost.SendMessageAndWaitAsync(new MarkedIdentityMessage("invoice-17", "first"));
+
+        // Same identity member, different payload, different Envelope.Id
+        await theHost.SendMessageAndWaitAsync(new MarkedIdentityMessage("invoice-17", "second"));
+
+        await theHost.SendMessageAndWaitAsync(new MarkedIdentityMessage("invoice-18", "third"));
+
+        DerivedIdentityHandler.Received.ShouldBe(["first", "third"]);
+    }
+
+    [Fact]
+    public async Task an_id_derived_from_a_configured_lambda_is_enforced()
+    {
+        await theHost.SendMessageAndWaitAsync(new ComposedIdentityMessage("acme", 1, "first"));
+        await theHost.SendMessageAndWaitAsync(new ComposedIdentityMessage("acme", 1, "second"));
+
+        // Only the tenant differs, so this is a different logical message
+        await theHost.SendMessageAndWaitAsync(new ComposedIdentityMessage("globex", 1, "third"));
+
+        DerivedIdentityHandler.Received.ShouldBe(["first", "third"]);
+    }
+
+    [Fact]
+    public async Task an_explicit_delivery_option_still_wins_over_the_derived_id()
+    {
+        await theHost.SendMessageAndWaitAsync(new MarkedIdentityMessage("invoice-19", "first"),
+            new DeliveryOptions { DeduplicationId = "override" });
+
+        // A DIFFERENT identity member, but the same explicit override -- so if the derived id were
+        // winning, both of these would run
+        await theHost.SendMessageAndWaitAsync(new MarkedIdentityMessage("invoice-20", "second"),
+            new DeliveryOptions { DeduplicationId = "override" });
+
+        DerivedIdentityHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
+
     [Fact]
     public async Task the_reaper_deletes_expired_claims_and_reports_how_many()
     {
@@ -182,6 +230,10 @@ public class logical_message_deduplication : IAsyncLifetime
 
 public record DeduplicatedMessage(string Name);
 
+public record MarkedIdentityMessage([property: DeduplicationIdentity] string InvoiceNumber, string Name);
+
+public record ComposedIdentityMessage(string Tenant, int Sequence, string Name);
+
 public record UnkeyedMessage(string Name);
 
 public record FailingDeduplicatedMessage;
@@ -192,6 +244,23 @@ public static class DeduplicatedHandler
 
     [Deduplicated]
     public static void Handle(DeduplicatedMessage message)
+    {
+        Received.Add(message.Name);
+    }
+}
+
+public static class DerivedIdentityHandler
+{
+    public static readonly List<string> Received = [];
+
+    [Deduplicated]
+    public static void Handle(MarkedIdentityMessage message)
+    {
+        Received.Add(message.Name);
+    }
+
+    [Deduplicated]
+    public static void Handle(ComposedIdentityMessage message)
     {
         Received.Add(message.Name);
     }

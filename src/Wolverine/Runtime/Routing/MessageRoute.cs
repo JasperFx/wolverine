@@ -6,6 +6,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Deduplication;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
@@ -82,6 +83,13 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
 
         Rules.AddRange(endpoint.OutgoingRules);
+
+        // GH-4180 follow up. Explicitly configured deduplication rules go in FIRST so that an
+        // application's own opts.MessageDeduplication registration wins over a [DeduplicationIdentity]
+        // baked into a message contract it merely consumes -- the rules only fill an empty id, so
+        // whichever runs first decides.
+        Rules.AddRange(runtime.Options.MessageDeduplication.RulesFor(messageType));
+
         Rules.AddRange(RulesForMessageType(messageType));
 
         MessageType = messageType;
@@ -294,6 +302,16 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
 
         rules = type.GetAllAttributes<ModifyEnvelopeAttribute>().OfType<IEnvelopeRule>().ToList();
+
+        // GH-4180 follow up. [DeduplicationIdentity] is not a ModifyEnvelopeAttribute because it is
+        // valid on a member as well as on the message type, and a member attribute is never seen by
+        // the type level scan above.
+        var deduplication = DeduplicationIdentity.TryFindRule(type);
+        if (deduplication != null)
+        {
+            rules.Add(deduplication);
+        }
+
         _rulesByMessageType = _rulesByMessageType.AddOrUpdate(type, rules);
 
         return rules;
