@@ -13,6 +13,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.MultiTenancy;
+using Wolverine.Runtime.Deduplication;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
@@ -396,6 +397,17 @@ public sealed partial class WolverineOptions
     /// any explicitly defined Envelope.GroupId
     /// </summary>
     public MessagePartitioningRules MessagePartitioning { get; }
+
+    /// <summary>
+    /// GH-4180 follow up. Use to establish rules for deriving the <see cref="Envelope.DeduplicationId"/>
+    /// -- the *logical* identity of a message -- from the message itself, so that publishers do not
+    /// have to set <c>DeliveryOptions.DeduplicationId</c> by hand at every call site.
+    ///
+    /// These are applied to all outgoing messages, but never override an explicitly set
+    /// <see cref="Envelope.DeduplicationId"/>. See also the <c>[DeduplicationIdentity]</c> attribute
+    /// for declaring the identity on the message type itself.
+    /// </summary>
+    public MessageDeduplicationRules MessageDeduplication { get; } = new();
 
     /// <summary>
     /// List of <see cref="IEnvelopeRule"/> instances applied to every outgoing envelope.

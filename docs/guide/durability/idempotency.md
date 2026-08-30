@@ -25,7 +25,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.KeepAfterMessageHandling = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L188-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L204-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Logical Message Deduplication <Badge type="tip" text="6.31" />
@@ -35,9 +35,13 @@ This is opt-in, and turning it on provisions a new `wolverine_deduplication` tab
 means no schema change at all on upgrade.
 :::
 
-Everything above keys on `Envelope.Id`, which identifies **one delivery**. That is the right identity
-for "the broker handed me this same message twice", and it is the wrong identity for a different
-question:
+Everything above keys on `Envelope.Id`, which identifies **one delivery**. That's helpful to make sure that Wolverine 
+doesn't handle the exact same message more than once, but that's only keying off the Wolverine assigned message identity
+and doesn't really help you when what you're concerned about is some logical message being accidentally sent to Wolverine
+multiple times. Using the new *logical message deduplication* is allowing you to specify business logic concerns as
+the identity for another level of protection.
+
+For example:
 
 > The operator clicked *Rebuild* twice. The console republished the command after a timeout. A
 > scheduling agent pre-published tonight's 03:00 occurrence yesterday, and the scheduler published it
@@ -53,9 +57,33 @@ by Wolverine's own serialization, so it survives Rabbit MQ, Kafka, Azure Service
 rest without any transport-specific configuration. (Two transports also consume it natively: SQS/SNS
 FIFO queues and topics, and GCP Pub/Sub.)
 
+::: info
+We probably should have added this feature ages ago, but we did so in 6.31 to get ready for Wolverine to have a first
+class chron message scheduler and use the deduplication id as a way of preventing multiple executions in a chaotic world.
+:::
+
 ### Turning it on
 
 <!-- snippet: sample_enabling_message_deduplication -->
+<a id='snippet-sample_enabling_message_deduplication'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithPostgresql("connection string");
+
+        // Opt in to logical message deduplication. This provisions a new
+        // "wolverine_deduplication" table -- nothing else about your message
+        // storage changes, and leaving this off means no schema migration at all
+        opts.Durability.EnableMessageDeduplication = true;
+
+        // How long a logical id is honoured before the reaper removes it.
+        // The default is 24 hours. This IS the guarantee, so size it against
+        // how long a duplicate could plausibly arrive
+        opts.Durability.DeduplicationWindow = 24.Hours();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L37-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_message_deduplication' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -74,11 +102,39 @@ process a duplicate.
 ### Deduplicating a message handler
 
 <!-- snippet: sample_deduplicated_message_handler -->
+<a id='snippet-sample_deduplicated_message_handler'></a>
+```cs
+public static class RebuildProjectionHandler
+{
+    // Wolverine will refuse to run this handler twice for the same
+    // Envelope.DeduplicationId within the deduplication window
+    [Deduplicated]
+    public static void Handle(RebuildProjection command)
+    {
+        // rebuild the projection...
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L58-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_message_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and on the publishing side:
 
 <!-- snippet: sample_publishing_with_a_deduplication_id -->
+<a id='snippet-sample_publishing_with_a_deduplication_id'></a>
+```cs
+public static ValueTask ScheduleNightlyRebuild(IMessageBus bus, string projectionName, DateTimeOffset occurrence)
+{
+    return bus.PublishAsync(new RebuildProjection(projectionName, occurrence), new DeliveryOptions
+    {
+        // The logical identity of the WORK, not of this particular delivery.
+        // An operator double-click, a console republish, and an agent that
+        // pre-published this occurrence yesterday all produce this same id
+        DeduplicationId = $"{projectionName}|{occurrence:O}"
+    });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L73-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_with_a_deduplication_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A logical id is a `string` rather than a `Guid` on purpose: it is meant to be legible in the database
@@ -94,10 +150,108 @@ By default a message handler reads `Envelope.DeduplicationId`. You can point at 
 message itself instead, so publishers do not have to set `DeliveryOptions`:
 
 <!-- snippet: sample_deduplicated_from_the_message_body -->
+<a id='snippet-sample_deduplicated_from_the_message_body'></a>
+```cs
+public static class CreateOrderHandler
+{
+    // Derive the logical id from a member of the message itself rather than
+    // asking every publisher to set DeliveryOptions
+    [Deduplicated(ValueSource.InputMember, nameof(CreateOrder.Sku))]
+    public static void Handle(CreateOrder command)
+    {
+        // create the order...
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L88-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_from_the_message_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `ValueSource.Header` reads an envelope header, and `ValueSource.Anything` uses the chain type's
 natural default.
+
+### Deriving the id on the publishing side <Badge type="tip" text="6.32" />
+
+Everything above is the *receiving* half. On the publishing side, asking every call site to remember
+`DeliveryOptions.DeduplicationId` is exactly the kind of repetition that eventually gets forgotten at
+one call site and silently un-protects a message. So a message type can declare its own logical
+identity once, the same way it can already declare a topic name with `[Topic]` or a saga id with
+`[SagaIdentity]`:
+
+<!-- snippet: sample_deduplication_identity_on_a_member -->
+<a id='snippet-sample_deduplication_identity_on_a_member'></a>
+```cs
+// The message type declares its own logical identity once, and every publisher
+// gets it -- no DeliveryOptions at any call site
+public record ArchiveInvoice([property: DeduplicationIdentity] string InvoiceNumber, DateOnly AsOf);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L13-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplication_identity_on_a_member' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+or, for a contract whose members you cannot decorate, name the member from the type:
+
+<!-- snippet: sample_deduplication_identity_naming_a_member -->
+<a id='snippet-sample_deduplication_identity_naming_a_member'></a>
+```cs
+// The same thing for a contract whose members you cannot decorate
+[DeduplicationIdentity(nameof(ReceiveShipment.ShipmentId))]
+public record ReceiveShipment(Guid ShipmentId, string Warehouse);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L21-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplication_identity_naming_a_member' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Either form is applied as an `IEnvelopeRule` when the message is routed, so it reaches every
+transport, the local queues, and the outbox alike. Non-string members are converted with
+`ToString()`.
+
+When the identity is not a single member -- or the message type is generated and you cannot put an
+attribute on it at all -- configure it instead:
+
+<!-- snippet: sample_deriving_deduplication_ids -->
+<a id='snippet-sample_deriving_deduplication_ids'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithPostgresql("connection string");
+        opts.Durability.EnableMessageDeduplication = true;
+
+        // Compose the logical id from more than one member, or from anything
+        // else you can reach from the message
+        opts.MessageDeduplication.ByMessage<RebuildProjection>(
+            x => $"{x.ProjectionName}|{x.OccurrenceUtc:O}");
+
+        // Or, for generated message types you can neither decorate nor be
+        // bothered writing a lambda for, use the first member that matches
+        // one of these names
+        opts.MessageDeduplication.ByMemberNamed("IdempotencyKey", "DeduplicationId");
+
+        // Same thing as ByMessage<T>(), reached through the message type policies
+        opts.Policies.ForMessagesOfType<CreateOrder>()
+            .DeduplicateBy(x => $"{x.Sku}|{x.Quantity}");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L105-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deriving_deduplication_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+Deriving an id does not deduplicate anything by itself. It only *stamps* `Envelope.DeduplicationId`.
+Enforcement is still `[Deduplicated]` on the receiving handler or endpoint, plus
+`Durability.EnableMessageDeduplication`. The two halves are deliberately separate: the publisher and
+the consumer are frequently different applications, and the publisher should not have to know whether
+anyone downstream is deduplicating.
+:::
+
+Precedence, when more than one of these could apply to the same message:
+
+1. An explicit `DeliveryOptions.DeduplicationId` at the call site always wins.
+2. Then anything registered on `opts.MessageDeduplication` (including
+   `Policies.ForMessagesOfType<T>().DeduplicateBy()`), in registration order. Configuration beats the
+   attribute on purpose -- an application should be able to override an identity baked into a
+   contract it merely consumes.
+3. Then `[DeduplicationIdentity]` on the message type.
+
+No rule ever overwrites an id that is already set, and a rule that returns null or an empty string
+leaves the message without one -- which is how you opt a particular message out.
 
 ### Required or optional?
 
@@ -112,6 +266,21 @@ duplicates run, and no log line distinguishes it from a working configuration.
 Set `Required = false` when a mixed stream is genuinely expected:
 
 <!-- snippet: sample_deduplication_with_optional_id -->
+<a id='snippet-sample_deduplication_with_optional_id'></a>
+```cs
+public static class MixedTrafficHandler
+{
+    // Some publishers set a logical id and some do not. Those that do are
+    // protected; those that do not are handled exactly as if the feature
+    // were off, and pay no database round trip
+    [Deduplicated(Required = false)]
+    public static void Handle(CreateOrder command)
+    {
+        // ...
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L151-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplication_with_optional_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Unkeyed messages on such a handler pay no database round trip at all.
@@ -119,6 +288,22 @@ Unkeyed messages on such a handler pay no database round trip at all.
 ### Applying it across many handlers
 
 <!-- snippet: sample_requiring_deduplication_ids_by_policy -->
+<a id='snippet-sample_requiring_deduplication_ids_by_policy'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithPostgresql("connection string");
+        opts.Durability.EnableMessageDeduplication = true;
+
+        // Apply logical deduplication to every handler matching a filter, instead
+        // of decorating each one. Useful when the rule is "every create-style
+        // command is deduplicated" and some of the handlers are not yours
+        opts.Policies.RequireDeduplicationId(chain =>
+            chain.MessageType.CanBeCastTo<ICreateCommand>());
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L133-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requiring_deduplication_ids_by_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The filter is required rather than optional. Applying logical deduplication to *every* handler would
@@ -152,6 +337,10 @@ logical id, every retry would be discarded as a duplicate of its own failed atte
 would silently never happen while the logs reported successful deduplication.
 
 ### Why a separate table
+
+::: info
+This section does not apply to RavenDb or CosmosDb backed message persistence.
+:::
 
 The claims live in `wolverine_deduplication` rather than as a column on
 `wolverine_incoming_envelopes`, for three reasons:

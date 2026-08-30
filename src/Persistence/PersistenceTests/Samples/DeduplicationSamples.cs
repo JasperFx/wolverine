@@ -10,6 +10,22 @@ namespace PersistenceTests.Samples;
 
 public record RebuildProjection(string ProjectionName, DateTimeOffset OccurrenceUtc);
 
+#region sample_deduplication_identity_on_a_member
+
+// The message type declares its own logical identity once, and every publisher
+// gets it -- no DeliveryOptions at any call site
+public record ArchiveInvoice([property: DeduplicationIdentity] string InvoiceNumber, DateOnly AsOf);
+
+#endregion
+
+#region sample_deduplication_identity_naming_a_member
+
+// The same thing for a contract whose members you cannot decorate
+[DeduplicationIdentity(nameof(ReceiveShipment.ShipmentId))]
+public record ReceiveShipment(Guid ShipmentId, string Warehouse);
+
+#endregion
+
 public record CreateOrder(string Sku, int Quantity);
 
 public interface ICreateCommand;
@@ -83,6 +99,34 @@ public static class DeduplicationSamples
     }
 
     #endregion
+
+    public static async Task deriving_the_id_from_the_message()
+    {
+        #region sample_deriving_deduplication_ids
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PersistMessagesWithPostgresql("connection string");
+                opts.Durability.EnableMessageDeduplication = true;
+
+                // Compose the logical id from more than one member, or from anything
+                // else you can reach from the message
+                opts.MessageDeduplication.ByMessage<RebuildProjection>(
+                    x => $"{x.ProjectionName}|{x.OccurrenceUtc:O}");
+
+                // Or, for generated message types you can neither decorate nor be
+                // bothered writing a lambda for, use the first member that matches
+                // one of these names
+                opts.MessageDeduplication.ByMemberNamed("IdempotencyKey", "DeduplicationId");
+
+                // Same thing as ByMessage<T>(), reached through the message type policies
+                opts.Policies.ForMessagesOfType<CreateOrder>()
+                    .DeduplicateBy(x => $"{x.Sku}|{x.Quantity}");
+            }).StartAsync();
+
+        #endregion
+    }
 
     public static async Task blanket_policy()
     {

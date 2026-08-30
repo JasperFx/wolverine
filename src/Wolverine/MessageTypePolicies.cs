@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.RateLimiting;
+using Wolverine.Runtime.Deduplication;
 using Wolverine.Runtime.Serialization.Encryption;
 
 namespace Wolverine;
@@ -185,6 +186,35 @@ public class MessageTypePolicies<T>
             : FaultPublishingMode.DlqOnly;
         _parent.FaultPublishing.SetOverride(
             typeof(T), mode, includeExceptionMessage, includeStackTrace);
+        return this;
+    }
+
+    /// <summary>
+    /// GH-4180 follow up. Derive the <b>logical</b> <see cref="Envelope.DeduplicationId"/> for every
+    /// outgoing message assignable to <typeparamref name="T"/> from the message itself, so publishers
+    /// do not have to set <c>DeliveryOptions.DeduplicationId</c> at every call site.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This never overwrites an id that is already present -- an explicit
+    /// <c>DeliveryOptions.DeduplicationId</c> wins -- and <paramref name="source"/> may return null or
+    /// an empty string to leave a particular message without one.
+    /// </para>
+    /// <para>
+    /// Deriving an id does not deduplicate anything on its own. Enforcement is <c>[Deduplicated]</c>
+    /// on the receiving handler or endpoint, plus
+    /// <see cref="DurabilitySettings.EnableMessageDeduplication"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// opts.Policies.ForMessagesOfType&lt;RebuildProjection&gt;()
+    ///     .DeduplicateBy(x => $"{x.ProjectionName}|{x.Occurrence:O}");
+    /// </code>
+    /// </example>
+    public MessageTypePolicies<T> DeduplicateBy(Func<T, string?> source)
+    {
+        _parent.MessageDeduplication.ByMessage(source);
         return this;
     }
 
