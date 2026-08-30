@@ -113,9 +113,24 @@
   seconds across five full assignment cycles before the fix, recovering 8.4 seconds after the rebuild
   with it, three runs out of three.
 
-- **`[Deduplicated]` reads the trigger label without claiming it, and a collection response is read as
-  its element type.** (closes [#4181](https://github.com/JasperFx/wolverine/issues/4181),
-  [#4182](https://github.com/JasperFx/wolverine/issues/4182))
+- **Event Model derivation stops claiming `TriggerLabel`, and reads a collection response as its
+  element type.** (closes [#4181](https://github.com/JasperFx/wolverine/issues/4181),
+  [#4182](https://github.com/JasperFx/wolverine/issues/4182)) An HTTP slice claimed `TriggerLabel` with
+  `"{verb} {route}"` and a gRPC trigger-only slice with `"{service}/{method}"`. Both are *derived*
+  claims, so per-role precedence made them beat any label an overlay declared — and minted a
+  `SourceDisagreement` hotspot per labelled route for the privilege, so five labelled endpoints meant
+  five noise hotspots drowning out any real finding. The claim carried no information either: both
+  facts already ride, structured, on `TriggerOrigin`. A trigger label is a *naming* role — "Customer at
+  the ATM", which the code cannot express — so it is now left unclaimed and a declaration wins it by
+  default. `ApplyExternalSystems` still claims it deliberately, because when a listener triggers a
+  slice that already has an origin the external label lives nowhere else.
+
+  Separately, a query chain's response was taken as its read model verbatim, so
+  `GET => Task<IReadOnlyList<Order>>` reported the closed generic's assembly-qualified CLR string as a
+  canvas node sitting next to the `Order` node its single-document siblings name. A collection response
+  now reads its element type. The unwrap walks interfaces rather than matching a whitelist, so Marten's
+  `IPagedList<Order>` unwraps too; maps, strings, types that enumerate as two things, and scalar
+  elements (a `byte[]` download is not a view over `byte`) are left alone.
 
 ### Dependencies
 
