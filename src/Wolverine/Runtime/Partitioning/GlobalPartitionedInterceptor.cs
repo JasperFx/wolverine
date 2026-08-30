@@ -11,7 +11,7 @@ namespace Wolverine.Runtime.Partitioning;
 /// that match global partitioning rules and re-route them through Wolverine's
 /// message routing for proper partition assignment.
 /// </summary>
-internal class GlobalPartitionedInterceptor : IReceiver, IHasQueueDepth
+internal class GlobalPartitionedInterceptor : IReceiver, IHasQueueDepth, IReceiverWrapper
 {
     private readonly IReceiver _inner;
     private readonly IWolverineRuntime _runtime;
@@ -27,6 +27,11 @@ internal class GlobalPartitionedInterceptor : IReceiver, IHasQueueDepth
     }
 
     public IHandlerPipeline Pipeline => _inner.Pipeline;
+
+    // GH-4188. ListeningAgent has to be able to see past this wrapper to the receiver that actually executes
+    // messages -- otherwise everything behind it falls through EnqueueDirectlyAsync's type switch onto the throw,
+    // and LatchReceiver silently latches nothing.
+    public IReceiver Inner => _inner;
 
     // GH-4186. A pass-through wrapper has to pass the depth through too. Without this the wrapped receiver's
     // depth stopped at the wrapper and every endpoint in a global-partitioned topology reported a constant 0 --

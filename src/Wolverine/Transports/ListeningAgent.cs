@@ -211,12 +211,25 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
-        if (_receiver is BufferedReceiver)
+        // GH-4188. Branch on the receiver that actually executes messages, not on whatever wrapper happens to be
+        // in front of it. Endpoint.MaybeWrapReceiver wraps in ReceiverWithRules for any incoming envelope rule --
+        // and ReceiverWithRules is unconditionally an ILocalQueue, so a wrapped NativeAck or Inline receiver used
+        // to match the ILocalQueue branch below and throw from inside ReceiverWithRules.EnqueueAsync, exactly
+        // re-creating the GH-4011 failure. A GlobalPartitionedInterceptor is not an ILocalQueue at all, so
+        // anything behind it fell all the way through to the throw.
+        //
+        // Dispatch still goes through the OUTER receiver everywhere it can, so the wrappers keep doing their jobs
+        // (applying the incoming rules, re-routing globally partitioned messages). Only the ILocalQueue branch
+        // enqueues into the unwrapped receiver -- which is what ReceiverWithRules.EnqueueAsync delegates to anyway.
+        // Null until StartAsync has built one; that falls through to the same throw it always did.
+        var actual = _receiver?.Unwrap();
+
+        if (actual is BufferedReceiver)
         {
             // Agent is latched if listener is null
-            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
+            await _receiver!.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
-        else if (_receiver is ILocalQueue queue)
+        else if (actual is ILocalQueue queue)
         {
             var uniqueNodeId = _runtime.DurabilitySettings.AssignedNodeNumber;
             foreach (var envelope in envelopes)
@@ -225,12 +238,12 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 await queue.EnqueueAsync(envelope);
             }
         }
-        else if (_receiver is InlineReceiver inline)
+        else if (actual is InlineReceiver)
         {
             // Agent is latched if listener is null
-            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
+            await _receiver!.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
-        else if (_receiver is NativeAckReceiver nativeAck)
+        else if (actual is NativeAckReceiver)
         {
             // GH-4011. Same shape as the InlineReceiver case above, and for the same reason: a receiver whose
             // settlement rides the listener rather than a local queue. These envelopes come from the message
@@ -240,14 +253,14 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             // also has persistence configured -- durable outbox for sending, native acks on one flooding
             // listener, a perfectly legitimate combination -- threw on any DLQ replay targeting it.
             // Agent is latched if listener is null
-            await nativeAck.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
+            await _receiver!.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
-        else if (_receiver is GlobalPartitionedReceiverBridge bridge)
+        else if (actual is GlobalPartitionedReceiverBridge)
         {
             // Forward to the companion local queue for sequential processing
             foreach (var envelope in envelopes)
             {
-                await bridge.ReceivedAsync(Listener!, envelope);
+                await _receiver!.ReceivedAsync(Listener!, envelope);
             }
         }
         else
@@ -275,7 +288,9 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // so a stop-and-drain closed the transport channel underneath running work, the unsettled deliveries
         // were requeued, and on an exclusive listener handoff the new owner re-ran them concurrently with
         // the old owner. That is exactly the intra-group concurrency the partitioned modes forbid.
-        var actual = _receiver is ReceiverWithRules rwr ? rwr.Inner : _receiver;
+        // GH-4188: Unwrap() rather than a single ReceiverWithRules cast -- the wrappers nest, and a receiver
+        // behind a GlobalPartitionedInterceptor was silently never latched at all.
+        var actual = _receiver?.Unwrap();
         if (actual is ILatchedReceiver latched)
         {
             latched.Latch();
