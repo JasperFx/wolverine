@@ -142,7 +142,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         _onMissing ??= entityDefaults.OnMissing;
         _maybeSoftDeleted ??= entityDefaults.MaybeSoftDeleted;
 
-        if (!rules.TryFindPersistenceFrameProvider(container, parameter.ParameterType, out var provider))
+        if (!tryFindProvider(rules, container, parameter, out var provider))
         {
             throw new InvalidOperationException("Could not determine a matching persistence service for entity " +
                                                 parameter.ParameterType.FullNameInCode());
@@ -162,7 +162,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
             chain.Middleware.Add(identity.Creator);
         }
 
-        var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
+        var frame = determineLoadFrame(provider, container, parameter, identity);
 
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
         entity.OverrideName(parameter.Name!);
@@ -193,6 +193,40 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
+    }
+
+    /// <summary>
+    ///     Chooses the <see cref="IPersistenceFrameProvider" /> that will build this parameter's load frame.
+    ///     This is the <b>only</b> provider-specific decision in <see cref="Modify" />, which is exactly why it is a
+    ///     hook rather than something a subclass reimplements: the explicit per-provider attributes
+    ///     (<c>[FromMarten]</c>, <c>[FromEfCore]</c>, ...) inherit every other behavior — identity discovery,
+    ///     <see cref="Required" />, <see cref="OnMissing" />, <see cref="MissingMessage" />,
+    ///     <see cref="MaybeSoftDeleted" />, the stop-condition frames and the deferred middleware variable — by
+    ///     construction rather than by copying <see cref="Modify" /> and keeping the copies in step.
+    /// </summary>
+    /// <remarks>
+    ///     Takes the whole <see cref="ParameterInfo" /> rather than just the entity type so an overriding attribute
+    ///     can name the offending parameter and its declaring method in the exception it throws — see
+    ///     <see cref="WolverineParameterAttribute.DescribeMember" />. An override is free to throw with a specific
+    ///     diagnostic instead of returning false; returning false yields the generic "no matching persistence
+    ///     service" message from <see cref="Modify" />.
+    /// </remarks>
+    protected virtual bool tryFindProvider(GenerationRules rules, IServiceContainer container,
+        ParameterInfo parameter, out IPersistenceFrameProvider provider)
+    {
+        return rules.TryFindPersistenceFrameProvider(container, parameter.ParameterType, out provider);
+    }
+
+    /// <summary>
+    ///     Builds the frame that actually reads the entity. Overridden by provider-specific subclasses that expose
+    ///     extra loading options their provider alone understands — <c>[FromEfCore(AsNoTracking = true)]</c> and its
+    ///     <c>Include</c> paths, for instance, cannot be expressed through <c>DbContext.FindAsync</c> and need a
+    ///     different query shape.
+    /// </summary>
+    protected virtual Frame determineLoadFrame(IPersistenceFrameProvider provider, IServiceContainer container,
+        ParameterInfo parameter, Variable identity)
+    {
+        return provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
     }
 
     internal static void StoreDeferredMiddlewareVariable(IChain chain, string parameterName, Variable variable)

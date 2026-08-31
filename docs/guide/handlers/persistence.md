@@ -14,6 +14,7 @@ These all speak one vocabulary, and none of it names your database:
 | You want | Use |
 |---|---|
 | A document or entity loaded for you | `[Entity]` |
+| The same, but from a store you name | [`[FromMarten]` / `[FromEfCore]`](#naming-the-store-explicitly) |
 | An event sourced model loaded for **writing**, with concurrency protection | `[WriteModel]` |
 | An event sourced model's current state, read only | `[ReadModel]` |
 | The whole method to be an event sourced command handler | `[DeciderFunction]` |
@@ -228,6 +229,104 @@ public enum ValueSource
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Naming the Store Explicitly <Badge type="tip" text="6.32" />
+
+`[Entity]` is deliberately store-agnostic: it asks every registered persistence provider which of them
+claims the entity type, and the first one that says yes builds the load. That is the right default, and it
+is what lets the same handler compile against Marten, EF Core, or anything else you have configured.
+
+Sometimes you want the store named in the code instead. For those cases there is an explicit attribute
+per provider:
+
+```cs
+public static OrderSummary Handle(
+    ReadOrder command,
+    [FromMarten] Order order)
+    => new(order.Id, order.Total);
+```
+
+There are two reasons to reach for one.
+
+**Explicitness.** Some teams simply prefer a parameter to say where it comes from, especially in a codebase
+where more than one persistence tool is in play and a reader cannot tell from the entity type alone.
+
+**Disambiguation.** More substantially, two registered stores can both be able to claim the same type.
+Marten's provider claims *every* document type, because Marten genuinely can persist any document, so
+Wolverine consults selective providers first — an entity mapped in an EF Core `DbContext` resolves to EF
+Core no matter which integration was registered first. That precedence rule is correct as a default, but if
+the type also lives in Marten and *that* is the copy you wanted, `[Entity]` has no way to know:
+
+```cs
+public static Report Handle(
+    BuildReport command,
+    // Mapped in a DbContext AND stored in Marten. A plain [Entity] would resolve to EF Core;
+    // this says which one was meant.
+    [FromMarten] Coupon coupon)
+    => Report.For(coupon);
+```
+
+These attributes are `[Entity]` in every other respect. They inherit its implementation outright rather
+than reimplementing it, so `Required`, `OnMissing`, `MissingMessage`, `MaybeSoftDeleted`, the identity
+conventions, the explicit argument name constructor, the `ValueSource` options, and availability in
+`Before` / `Validate` methods all behave identically. The one thing that changes is which provider builds
+the load.
+
+### When the Store Cannot Deliver
+
+Because you named the store, Wolverine can tell you exactly what went wrong at code generation time
+instead of quietly falling through to a different provider. There are two distinct failures, and they have
+different remedies:
+
+* **The store is not integrated at all.** `[FromMarten]` in an application that never called
+  `IntegrateWithWolverine()` fails naming the parameter, its declaring method, and the bootstrapping call
+  you are missing.
+* **The store is integrated but does not know the type.** `[FromEfCore]` on a class that no registered
+  `DbContext` maps fails saying exactly that, rather than reporting a generic "could not determine a
+  matching persistence service".
+
+Both are thrown while the handler or endpoint is being compiled, so a mistake surfaces at startup rather
+than on the first message.
+
+### The EF Core Extras <Badge type="tip" text="6.32" />
+
+`[FromEfCore]` adds two loading options that only mean something to EF Core:
+
+```cs
+public static OrderSummary Handle(
+    ReadOrder command,
+    [FromEfCore(AsNoTracking = true, Include = "Lines.Product")] Order order)
+    => OrderSummary.For(order);
+```
+
+`AsNoTracking` loads the entity detached from EF Core's change tracker. It is cheaper for a read-only
+handler or endpoint — but note that mutating a detached entity will **not** be picked up by the
+transactional middleware's `SaveChangesAsync`, which is the entire point of asking for it.
+
+`Include` eagerly loads a navigation property, and `Includes` takes several at once (they combine rather
+than replace each other). A dotted path chains, so `Include = "Lines.Product"` is EF Core's
+`Include(x => x.Lines).ThenInclude(x => x.Product)`. These are strings rather than lambdas because
+attribute arguments have to be compile-time constants; they map onto EF Core's own string `Include`
+overload, which is what makes a `ThenInclude` chain expressible at all.
+
+::: tip What the extras change about the generated code
+With neither option set, `[FromEfCore]` emits the same `DbContext.FindAsync` load that `[Entity]` does,
+which can answer straight from the change tracker without touching the database. `FindAsync` supports
+neither `Include` nor `AsNoTracking`, so asking for either one switches the generated load to a
+`Set<T>()` query terminated by `FirstOrDefaultAsync` on the primary key. That is a real behavioral
+difference, and it is why the attribute only makes the switch when you actually ask for it.
+:::
+
+Every include path is walked against the EF Core model while the chain is being compiled, so a typo is a
+startup error that names the bad segment and lists the navigations that *do* exist on that type — not a
+runtime failure on the first message handled. Nothing is ever silently dropped: a request Wolverine cannot
+honor (an unknown navigation, or a composite primary key, which the query form cannot express) is a
+codegen error rather than a load that quietly ignores half of what you asked for.
+
+### The Rest of the Family
+
+`[FromMarten]` and `[FromEfCore]` ship first, and the family is being extended to the other persistence
+providers on exactly the same shape — same inherited `[Entity]` behavior, same two failure diagnostics.
 
 ## Reading the First of a Type <Badge type="tip" text="6.28" />
 
