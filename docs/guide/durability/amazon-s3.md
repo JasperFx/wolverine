@@ -1,4 +1,4 @@
-# Amazon S3 Integration <Badge type="tip" text="6.31" />
+# Amazon S3 Integration <Badge type="tip" text="6.32" />
 
 ::: tip
 `WolverineFx.AmazonS3` does two independent things, and this page is about the first.
@@ -15,7 +15,7 @@ The two share nothing but a package and an `IAmazonS3`. Use either, or both.
 Sagas are supported too, through their own registration — see [sagas](#sagas).
 :::
 
-::: warning Moved in 6.31
+::: warning Moved in 6.32
 The claim check half used to ship as `WolverineFx.ClaimCheck.AmazonS3`, which is now deprecated.
 The types and their namespace are unchanged, so swapping the package reference is the whole migration.
 :::
@@ -121,7 +121,7 @@ key, so S3 has no insert-versus-update to honour and these are last-write-wins.
 
 You can also take `IS3DocumentSession` directly for the same key mapping outside a handler.
 
-## Sagas <Badge type="tip" text="6.31" />
+## Sagas <Badge type="tip" text="6.32" />
 
 A saga is registered separately from a document, and the difference is not bookkeeping:
 

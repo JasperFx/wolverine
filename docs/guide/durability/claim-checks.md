@@ -154,7 +154,7 @@ The store maps each `ClaimCheckToken.Id` directly to a blob name, and sets `Blob
 dotnet add package WolverineFx.AmazonS3
 ```
 
-::: warning Moved in 6.31
+::: warning Moved in 6.32
 The S3 claim check store now ships in `WolverineFx.AmazonS3`, alongside the
 [S3 document persistence](/guide/durability/amazon-s3). **`WolverineFx.ClaimCheck.AmazonS3` is deprecated**
 and will not be published again.
