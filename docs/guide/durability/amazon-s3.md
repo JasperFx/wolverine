@@ -1,4 +1,4 @@
-# Amazon S3 Integration <Badge type="tip" text="6.31" />
+# Amazon S3 Integration <Badge type="tip" text="6.32" />
 
 ::: tip
 `WolverineFx.AmazonS3` does two independent things, and this page is about the first.
@@ -12,11 +12,10 @@
 
 The two share nothing but a package and an `IAmazonS3`. Use either, or both.
 
-Sagas are **not** persisted to S3. A saga belongs to whichever transactional store owns its chain —
-see [alongside another store](#alongside-another-store).
+Sagas are supported too, through their own registration — see [sagas](#sagas).
 :::
 
-::: warning Moved in 6.31
+::: warning Moved in 6.32
 The claim check half used to ship as `WolverineFx.ClaimCheck.AmazonS3`, which is now deprecated.
 The types and their namespace are unchanged, so swapping the package reference is the whole migration.
 :::
@@ -122,6 +121,37 @@ key, so S3 has no insert-versus-update to honour and these are last-write-wins.
 
 You can also take `IS3DocumentSession` directly for the same key mapping outside a handler.
 
+## Sagas <Badge type="tip" text="6.32" />
+
+A saga is registered separately from a document, and the difference is not bookkeeping:
+
+```csharp
+opts.UseAmazonS3Persistence(s3 =>
+{
+    s3.Saga<OrderSaga>(x =>
+    {
+        x.BucketName = "order-sagas";
+        x.KeyFor = ctx => $"sagas/{ctx.TenantId}/{ctx.Id}.json";
+    });
+});
+```
+
+**Saga writes are conditional; document writes are not.** A document is last-write-wins, because
+`PutObject` overwrites whatever is at the key. A saga is a read-modify-write, so two messages for the
+same saga arriving at once would silently lose one update. Wolverine writes a saga with S3's
+conditional put instead — `If-None-Match: *` when starting one, `If-Match` against the ETag it read
+when updating one — and turns a `412 Precondition Failed` into `SagaConcurrencyException`, which is the
+same exception Marten, EF Core and CosmosDB raise for the same situation. A single
+`OnException<ConcurrencyException>().RetryTimes(...)` policy covers all of them.
+
+`Store<T>()` **refuses** a type deriving from `Saga`, and `Saga<T>()` refuses one that does not. The
+two are not interchangeable: a saga registered as a document would be claimed for its *type* and not
+for its *chain*, so Wolverine would keep it in the in-memory saga persistor while the bucket and key
+function sat unused.
+
+Everything else about sagas is unchanged — `[SagaIdentity]`, `MarkCompleted()`, timeout messages, and
+identities of `string`, `Guid`, `int` or `long` all behave exactly as they do on any other store.
+
 ## Alongside another store
 
 S3 documents and Marten (or Polecat, Fisher, EF Core, RavenDb, CosmosDb) documents coexist in one
@@ -145,9 +175,10 @@ integrations were registered in.
 
 Two consequences worth knowing:
 
-- **Sagas stay with the transactional store.** Saga chains resolve on a different question -- which
-  provider owns this *chain* rather than which owns this *type* -- and this provider claims no chains,
-  so a saga in a mixed application is persisted by Marten or your database exactly as before.
+- **Sagas belong to whoever was asked for them.** Saga chains resolve on a different question — which
+  provider owns this *chain* rather than which owns this *type* — and this provider claims a chain only
+  for a saga you registered with `Saga<T>()`. A saga you did not register that way is persisted by
+  Marten or your database exactly as before.
 - **There is no atomicity across the two.** The Marten write commits in its transaction; the S3 write
   already happened. A handler that writes both and then throws has written the S3 object and not the
   Marten document. If that matters, write the S3 object from a projection or a follow-on message
@@ -166,12 +197,6 @@ there is nothing to commit and nothing to roll back.
 **No querying.** `[All]`, `[FirstOrDefault]` and `[Queryable]` are not supported and fail at
 bootstrapping naming this provider. `ListObjectsV2` over a key prefix is a paged scan, not a query,
 and a scan that looks like a query is worse than an honest refusal.
-
-**No sagas.** `Store<T>()` refuses a type deriving from `Saga`. It would otherwise be silently useless
-*and* dangerous: a saga chain picks its persistence on which provider owns the chain, this one owns
-none, and the fallback is the **in-memory** saga persistor -- so the bucket and key function would be
-ignored and the saga would live in process memory, gone on the next restart and invisible to every
-other node. Keep sagas with a transactional store.
 
 **No soft delete.** `MaybeSoftDeleted` does not apply. Only your serializer knows what deleted means
 for its payload; answer `null` for anything that should count as missing.

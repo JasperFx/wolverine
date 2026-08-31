@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.AmazonS3.Internals;
 
@@ -33,13 +34,26 @@ public class S3PersistenceFrameProvider : IPersistenceFrameProvider
     }
 
     /// <summary>
-    /// S3 has no transaction and no unit of work, so there is nothing to attach to a chain. Claiming
-    /// one would also make <c>AutoApplyTransactions</c> ambiguous for the normal case of S3 documents
-    /// alongside a real transactional store.
+    /// Saga chains only, and only for a type registered through <c>Saga&lt;T&gt;()</c>.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This is the question a saga chain asks -- "which provider owns this CHAIN" -- and the
+    ///         answer has to be yes for an S3-persisted saga, or <c>SagaChain</c> falls through to the
+    ///         default in <c>GenerationRulesExtensions</c>, which is the IN-MEMORY saga persistor.
+    ///     </para>
+    ///     <para>
+    ///         It stays false for everything else on purpose. <c>[Transactional]</c> and
+    ///         <c>AutoApplyTransactions</c> ask the same question, and S3 has no transaction and no unit
+    ///         of work -- so an ordinary chain that merely touches an S3 document must never resolve to
+    ///         this provider as its transaction owner. See GH-4160.
+    ///     </para>
+    /// </remarks>
     public bool CanApply(IChain chain, IServiceContainer container)
     {
-        return false;
+        return chain is SagaChain saga
+               && tryFindConfiguration(container, out var configuration)
+               && configuration.TryFindSagaMapping(saga.SagaType, out _);
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
@@ -79,6 +93,10 @@ public class S3PersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container) => delete(variable);
 
+    /// <summary>
+    /// Nothing to commit: every write already happened, and for a saga it happened as a conditional put
+    /// that either took effect or threw <c>SagaConcurrencyException</c>.
+    /// </summary>
     public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
         return new CommentFrame("S3 writes take effect immediately; there is no unit of work to commit");
