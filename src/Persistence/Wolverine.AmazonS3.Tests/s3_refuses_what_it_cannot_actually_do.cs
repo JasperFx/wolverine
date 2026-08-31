@@ -19,13 +19,14 @@ public class s3_refuses_what_it_cannot_actually_do : IClassFixture<AmazonS3Fixtu
 
     /// <summary>
     /// A saga chain picks its persistence provider on <c>CanApply</c>, not <c>CanPersist</c>, and this
-    /// provider claims no chains. The fallback in <c>GenerationRulesExtensions</c> is the IN-MEMORY
-    /// saga persistor, so a saga registered here would start cleanly, ignore its bucket and key
-    /// function entirely, and keep its state in process memory. Refusing at the registration is the
-    /// difference between an error and silent data loss on the next restart.
+    /// provider claims a chain only for a type registered through <c>Saga&lt;T&gt;()</c>. Through
+    /// <c>Store&lt;T&gt;()</c> the fallback is the IN-MEMORY saga persistor, so the saga would start
+    /// cleanly, ignore its bucket and key function entirely, and keep its state in process memory.
+    /// Refusing at the registration is the difference between an error and silent data loss on the
+    /// next restart.
     /// </summary>
     [Fact]
-    public void refuses_to_register_a_saga_type()
+    public void refuses_to_register_a_saga_type_as_an_ordinary_document()
     {
         var configuration = new AmazonS3Configuration();
 
@@ -35,8 +36,25 @@ public class s3_refuses_what_it_cannot_actually_do : IClassFixture<AmazonS3Fixtu
             x.KeyFor = ctx => $"sagas/{ctx.Id}.json";
         }));
 
-        ex.Message.ShouldContain("not supported yet");
+        ex.Message.ShouldContain("Saga<AnS3Saga>(...)");
         ex.Message.ShouldContain("in-memory saga persistor");
+    }
+
+    /// <summary>
+    /// ...and the mirror, so neither registration silently accepts the other's type.
+    /// </summary>
+    [Fact]
+    public void refuses_to_register_a_non_saga_as_a_saga()
+    {
+        var configuration = new AmazonS3Configuration();
+
+        var ex = Should.Throw<InvalidS3DocumentMappingException>(() => configuration.Saga(typeof(NotASaga), x =>
+        {
+            x.BucketName = "does-not-matter";
+            x.KeyFor = ctx => $"nope/{ctx.Id}.json";
+        }));
+
+        ex.Message.ShouldContain("does not derive from Saga");
     }
 
     /// <summary>
@@ -86,6 +104,11 @@ public class s3_refuses_what_it_cannot_actually_do : IClassFixture<AmazonS3Fixtu
 }
 
 public class AnS3Saga : Saga
+{
+    public string Id { get; set; } = null!;
+}
+
+public class NotASaga
 {
     public string Id { get; set; } = null!;
 }

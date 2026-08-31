@@ -44,6 +44,14 @@ public class S3DocumentMapping
     public IS3DocumentSerializer Serializer { get; set; } = S3DocumentSerializer.Default;
 
     /// <summary>
+    /// True when this type was registered through <c>Saga&lt;T&gt;()</c>. A saga is written with a
+    /// conditional put -- If-None-Match on create, If-Match on update -- because a saga is a
+    /// read-modify-write and two messages for one saga would otherwise silently lose an update.
+    /// Ordinary documents stay last-write-wins. See GH-4160.
+    /// </summary>
+    internal bool IsSaga { get; init; }
+
+    /// <summary>
     /// The CLR type of this document's identity. Leave it unset to take the type of the document's own
     /// identity member.
     /// </summary>
