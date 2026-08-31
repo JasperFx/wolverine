@@ -78,9 +78,11 @@
     <Project Path="src/Persistence/Wolverine.AmazonS3/Wolverine.AmazonS3.csproj" />
     <Project Path="src/Persistence/Wolverine.AmazonS3.Tests/Wolverine.AmazonS3.Tests.csproj" />
   </Folder>
+  <Folder Name="/Persistence/AzureBlobStorage/">
+    <Project Path="src/Persistence/Wolverine.AzureBlobStorage/Wolverine.AzureBlobStorage.csproj" />
+    <Project Path="src/Persistence/Wolverine.AzureBlobStorage.Tests/Wolverine.AzureBlobStorage.Tests.csproj" />
+  </Folder>
   <Folder Name="/Persistence/ClaimCheck/">
-    <Project Path="src/Persistence/Wolverine.ClaimCheck.AzureBlobStorage/Wolverine.ClaimCheck.AzureBlobStorage.csproj" />
-    <Project Path="src/Persistence/Wolverine.ClaimCheck.AzureBlobStorage.Tests/Wolverine.ClaimCheck.AzureBlobStorage.Tests.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.GoogleCloudStorage/Wolverine.ClaimCheck.GoogleCloudStorage.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.GoogleCloudStorage.Tests/Wolverine.ClaimCheck.GoogleCloudStorage.Tests.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.Marten/Wolverine.ClaimCheck.Marten.csproj" />

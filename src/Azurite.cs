@@ -1,8 +1,7 @@
 using System.Runtime.CompilerServices;
-using IntegrationTests;
 using Azure.Storage.Blobs;
 
-namespace Wolverine.ClaimCheck.AzureBlobStorage.Tests;
+namespace IntegrationTests;
 
 /// <summary>
 /// Where Azurite lives, and whether it is up. Tests skip cleanly when it is not.
@@ -29,6 +28,10 @@ internal static class Azurite
     public static BlobContainerClient ContainerClient(string containerName)
         => new(ConnectionString, containerName, new BlobClientOptions(MaxSupportedServiceVersion));
 
+    /// <summary>A <see cref="BlobServiceClient"/> pinned to a service version Azurite accepts.</summary>
+    public static BlobServiceClient CreateClient()
+        => new(ConnectionString, new BlobClientOptions(MaxSupportedServiceVersion));
+
     public const string Host = "127.0.0.1";
     public const int Port = 10000;
 
@@ -36,9 +39,7 @@ internal static class Azurite
 
     public const string SkipReason =
         "Azurite is not running on 127.0.0.1:10000. " +
-        "Start it with `azurite --silent --location ./.azurite --debug ./.azurite/debug.log` " +
-        "or `docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite azurite-blob --blobHost 0.0.0.0` " +
-        "to enable these tests.";
+        "Start it with `docker compose up -d azurite` from the repo root to enable these tests.";
 }
 
 /// <summary>

@@ -63,7 +63,8 @@ services:
       - "4443:4443"
     command: ["-scheme", "http", "-host", "0.0.0.0", "-port", "4443", "-public-host", "localhost:4443"]
 
-  # Azure Storage emulator used by the WolverineFx.ClaimCheck.AzureBlobStorage backend tests.
+  # Azure Storage emulator used by the WolverineFx.AzureBlobStorage tests -- blob document and saga
+  # persistence, and the claim check backend that moved into the same package.
   # Without this service AzuriteFactAttribute skips EVERY test in that suite -- including on a dev
   # machine -- so the Azure Blob claim-check backend had no executed coverage anywhere. See GH-4007.
   # Pinned rather than :latest, for the same reason called out on fake-gcs-server above.
@@ -71,8 +72,8 @@ services:
     image: "mcr.microsoft.com/azure-storage/azurite:3.36.0"
     ports:
       - "10000:10000"
-    # Blob only -- the claim-check store never touches queues or tables. --blobHost 0.0.0.0 is
-    # required for the port publish to be reachable from outside the container.
+    # Blob only -- neither the documents nor the claim-check store ever touch queues or tables.
+    # --blobHost 0.0.0.0 is required for the port publish to be reachable from outside the container.
     command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000"]
 
   rabbitmq:

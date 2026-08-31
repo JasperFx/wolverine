@@ -51,6 +51,7 @@ jobs:
           - CIAWSSqsCompliance
           - CIAWSSns
           - CIAmazonS3
+          - CIAzureBlobStorage
           # Wolverine.AzureServiceBus.Tests is one project sharded three ways by CLASS, balanced on
           # MEASURED per-class durations. Namespaces cannot split it — 264 of its 306 tests are in the
           # root namespace. CIAzureServiceBus is the "everything else" shard, so a newly added class
