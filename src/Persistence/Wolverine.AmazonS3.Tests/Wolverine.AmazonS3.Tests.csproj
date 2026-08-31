@@ -25,11 +25,14 @@
         <Compile Include="../../EmulatorProbe.cs">
             <Link>EmulatorProbe.cs</Link>
         </Compile>
+        <Compile Include="../../LocalStack.cs">
+            <Link>LocalStack.cs</Link>
+        </Compile>
         <Using Include="Xunit" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Wolverine.ClaimCheck.GoogleCloudStorage\Wolverine.ClaimCheck.GoogleCloudStorage.csproj" />
+      <ProjectReference Include="..\Wolverine.AmazonS3\Wolverine.AmazonS3.csproj" />
     </ItemGroup>
 
   <ItemGroup>

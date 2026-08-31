@@ -81,6 +81,11 @@ mechanism, this would be using `IDocumentSession.LoadAsync<Todo2>(id)` to load t
 you were using EF Core and had an `Todo2DbContext` service registered in your system, it would
 be using `Todo2DbContext.FindAsync<Todo2>(id)`. 
 
+The same attribute works against a document stored as an Amazon S3 object, once its type is
+registered with `UseAmazonS3Persistence()` -- see the [Amazon S3 integration](/guide/durability/amazon-s3).
+There the identity is mapped to an object key by the key function you registered, rather than by the
+store.
+
 By default, Wolverine is assuming that any parameter value marked with `[Entity]` is required, so if the `Todo2` entity was not found in the database, then:
 
 * As a message handler, it will just log that the entity could not be found and otherwise exit cleanly without doing any further processing
@@ -95,6 +100,19 @@ You can choose a different answer with the `OnMissing` property:
 | `ProblemDetailsWith404` | Log it and stop | **404** with a `ProblemDetails` body |
 | `EmptyContentWith204` <Badge type="tip" text="6.28" /> | Log it and stop | Empty **204** |
 | `ThrowException` | Throws `RequiredDataMissingException` | Throws `RequiredDataMissingException` |
+
+`MissingMessage` sets the text of that answer -- the `ProblemDetails` detail, or the
+`RequiredDataMissingException` message. Two placeholders are substituted into it:
+
+| Placeholder | Replaced with |
+|---|---|
+| `{0}` | the identity value, through `string.Format` |
+| `{Id}` | the identity value |
+
+The message is escaped on its way into generated code, so a quote, a backslash or a newline in it is
+safe. Where an entity was not addressed by a single identity value there is nothing to substitute, so
+the message is used exactly as written and the stock message names the entity type rather than an id
+it does not have.
 
 If you need or want any other kind of failure handling on the entity not being found, you'll need to
 use explicit code instead, maybe with a `LoadAsync()` "before" method to still keep your main

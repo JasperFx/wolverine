@@ -22,6 +22,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="../../EmulatorProbe.cs">
+            <Link>EmulatorProbe.cs</Link>
+        </Compile>
+        <Compile Include="../../LocalStack.cs">
+            <Link>LocalStack.cs</Link>
+        </Compile>
         <Using Include="Xunit" />
     </ItemGroup>
 
