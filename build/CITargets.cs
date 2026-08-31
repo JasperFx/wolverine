@@ -610,15 +610,17 @@ partial class Build
                 $"Wolverine.ClaimCheck.{name}.Tests.csproj";
 
             var databaseSuites = new[] { suite("Postgresql"), suite("SqlServer"), suite("Marten") };
+            // GH-4160: Amazon S3 is deliberately absent. Its claim check store moved into
+            // WolverineFx.AmazonS3, so its tests run under CIAmazonS3 with the rest of that package.
             var objectStoreSuites = new[]
             {
-                suite("AmazonS3"), suite("AzureBlobStorage"), suite("GoogleCloudStorage"), suite("Nats")
+                suite("AzureBlobStorage"), suite("GoogleCloudStorage"), suite("Nats")
             };
 
             var all = databaseSuites.Concat(objectStoreSuites).ToArray();
 
             BuildTestProjects(all);
-            StartDockerServices("postgresql", "sqlserver", "localstack", "azurite", "fake-gcs-server", "nats");
+            StartDockerServices("postgresql", "sqlserver", "azurite", "fake-gcs-server", "nats");
 
             foreach (var project in all)
             {
@@ -627,8 +629,9 @@ partial class Build
         });
 
     /// <summary>
-    /// GH-4160. WolverineFx.AmazonS3 stores documents and sagas as S3 objects. The suite keeps its own
-    /// LocalStack skip guard so a developer without the emulator still gets a clean local run.
+    /// GH-4160. WolverineFx.AmazonS3 stores documents as S3 objects, and carries the S3 claim check
+    /// store that used to live in WolverineFx.ClaimCheck.AmazonS3. The suite keeps its own LocalStack
+    /// skip guard so a developer without the emulator still gets a clean local run.
     /// </summary>
     Target CIAmazonS3 => _ => _
         .ProceedAfterFailure()

@@ -33,6 +33,17 @@ public class AmazonS3Configuration
             throw new InvalidS3DocumentMappingException(entityType, "Only reference types can be stored as S3 objects.");
         }
 
+        // GH-4160. Registering a saga here would be silently useless and worse than useless: a saga
+        // chain picks its persistence on CanApply rather than CanPersist, this provider claims no
+        // chains, and the fallback is the IN-MEMORY saga persistor. The host would start, the bucket
+        // and key function would be ignored, and the saga would live in process memory -- gone on
+        // restart and invisible to every other node. Refuse it where the mistake is made.
+        if (entityType.CanBeCastTo<Saga>())
+        {
+            throw new InvalidS3DocumentMappingException(entityType,
+                "Saga persistence in S3 is not supported yet. A saga registered here would silently be kept by the in-memory saga persistor instead, so this refuses rather than pretending. Keep the saga with a transactional store.");
+        }
+
         if (!_mappings.TryGetValue(entityType, out var mapping))
         {
             mapping = new S3DocumentMapping(entityType);

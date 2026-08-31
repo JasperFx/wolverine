@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Amazon S3 document and saga persistence for Wolverine applications</Description>
+        <Description>Amazon S3 document persistence and claim check storage for Wolverine applications</Description>
         <PackageId>WolverineFx.AmazonS3</PackageId>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
         <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>

@@ -33,6 +33,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Wolverine.AmazonS3\Wolverine.AmazonS3.csproj" />
+      <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
 
   <ItemGroup>

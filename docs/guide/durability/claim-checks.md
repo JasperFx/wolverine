@@ -151,8 +151,21 @@ The store maps each `ClaimCheckToken.Id` directly to a blob name, and sets `Blob
 ### Amazon S3
 
 ```sh
-dotnet add package WolverineFx.ClaimCheck.AmazonS3
+dotnet add package WolverineFx.AmazonS3
 ```
+
+::: warning Moved in 6.31
+The S3 claim check store now ships in `WolverineFx.AmazonS3`, alongside the
+[S3 document persistence](/guide/durability/amazon-s3). **`WolverineFx.ClaimCheck.AmazonS3` is deprecated**
+and will not be published again.
+
+Nothing in your code changes -- the types and their namespace are the same. Swap the package reference,
+and remove the old one rather than keeping both: two packages carrying the same types in the same
+namespace produce ambiguous-reference compiler errors.
+
+The other object store backends -- Azure Blob Storage, Google Cloud Storage and NATS -- are unaffected
+and stay in the `WolverineFx.ClaimCheck.*` family.
+:::
 
 ```csharp
 using Wolverine.ClaimCheck.AmazonS3;

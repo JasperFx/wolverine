@@ -21,7 +21,7 @@ queues with any number of competing consumers, and what travels through SQS stay
 that anything can consume.
 
 ```bash
-dotnet add package WolverineFx.ClaimCheck.AmazonS3
+dotnet add package WolverineFx.AmazonS3
 ```
 
 ```csharp
