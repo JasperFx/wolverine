@@ -16,7 +16,9 @@ namespace Wolverine.Persistence;
 /// <remarks>
 /// Registered by each store integration through <c>WolverineOptions.ScopingFrameSources</c>. The frame
 /// self-guards: a chain that never created one of this store's sessions emits nothing, which is what
-/// lets a host integrate several stores at once.
+/// lets a host integrate several stores at once. That guard has to be a non-creating lookup, or it
+/// manufactures the very thing it is testing for -- see the note in <see cref="FindVariables" /> and
+/// GH-4198.
 /// </remarks>
 internal sealed class PrimeScopedSessionFrame<TSession, THolder> : SyncFrame, IUsesServiceProviderFrame
     where TSession : class
@@ -31,9 +33,15 @@ internal sealed class PrimeScopedSessionFrame<TSession, THolder> : SyncFrame, IU
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        // The enrolled session the chain's own transactional frame created (NotServices: never the
-        // container's own scoped session registration).
-        _session = chain.TryFindVariable(typeof(TSession), VariableSource.NotServices);
+        // The enrolled session the chain's own transactional frame created -- and ONLY that. This has
+        // to be VariableSource.Existing: All/NotServices run the registered IVariableSource
+        // implementations, and a variable source is a factory, so asking either of those whether the
+        // chain has a session MANUFACTURES one. Every store integration registers such a source (see
+        // Wolverine.Marten's SessionVariableSource), so the creating form gave every chain that
+        // service-locates anything an outbox-enrolled session it never asked for: opened, handed to
+        // the holder below, never read and never committed -- and under sharded multi-tenancy, an
+        // outright throw on a database the chain does not use. See GH-4198.
+        _session = chain.TryFindVariable(typeof(TSession), VariableSource.Existing);
         if (_session != null)
         {
             yield return _session;
