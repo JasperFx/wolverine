@@ -39,6 +39,11 @@
         <Compile Include="..\..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
+        <!-- The persistence suites skip rather than fail when no Redis answers at the address
+             RedisContainerFixture resolved. Shared probe, same as the object-store suites. -->
+        <Compile Include="..\..\..\EmulatorProbe.cs">
+            <Link>EmulatorProbe.cs</Link>
+        </Compile>
     </ItemGroup>
 
 </Project>

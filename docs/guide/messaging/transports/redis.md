@@ -10,6 +10,13 @@ is using the [StackExchange.Redis](https://github.com/StackExchange/StackExchang
 dotnet add package WolverineFx.Redis
 ```
 
+::: tip
+Since 6.32 the same package can also keep **entities and saga state** in Redis — a different feature
+solving a different problem, with a durability caveat worth reading before you reach for it. See
+[Redis Persistence](/guide/durability/redis). The two halves share nothing but the package and a
+`StackExchange.Redis` dependency; use either, or both.
+:::
+
 ## Using as Message Transport
 
 To connect to Redis and configure listeners and senders, use this syntax:
