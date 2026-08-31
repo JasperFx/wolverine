@@ -505,6 +505,11 @@ injected into a service that a handler depends on. Outside a handler scope (host
 tooling, plain `CreateScope()`), nothing is primed and the registration falls back to the store's own
 session factory, so an ordinary DI scope still gets an ordinary scoped session.
 
+Priming only ever hands over a session the handler or endpoint **already has**. A chain with no
+persistence in it — no session parameter, no `[Transactional]`, no storage side effect — does not open
+one just because it happens to service-locate something, and anything resolved from its scope falls
+back to the store's own session factory exactly as it would anywhere else.
+
 ::: warning New in RavenDb
 `Wolverine.RavenDb` previously registered no `IAsyncDocumentSession` in DI at all — RavenDb sessions
 only ever reached a handler through code generation, so a service-located one could not resolve.
