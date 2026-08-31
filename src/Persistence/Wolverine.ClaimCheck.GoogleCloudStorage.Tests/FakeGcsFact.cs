@@ -1,12 +1,10 @@
 using System.Runtime.CompilerServices;
-using System.Net.Sockets;
+using IntegrationTests;
 
 namespace Wolverine.ClaimCheck.GoogleCloudStorage.Tests;
 
 /// <summary>
-/// Probe the fake-gcs-server emulator once per process and cache the result. Any TCP connect
-/// failure on <c>localhost:4443</c> is treated as "not running" so tests skip cleanly. Mirrors
-/// the <c>LocalStackFact</c> pattern used by the Amazon S3 backend tests.
+/// Where the fake-gcs-server emulator lives, and whether it is up. Tests skip cleanly when it is not.
 /// </summary>
 internal static class FakeGcs
 {
@@ -14,29 +12,11 @@ internal static class FakeGcs
     public const int Port = 4443;
     public const string EmulatorHost = "http://localhost:4443";
 
-    private static readonly Lazy<bool> _isRunning = new(Probe);
-
-    public static bool IsRunning => _isRunning.Value;
+    public static bool IsRunning => EmulatorProbe.IsListening(Host, Port);
 
     public const string SkipReason =
         "The fake-gcs-server emulator is not running on localhost:4443. " +
         "Start it with `docker compose up -d fake-gcs-server` from the repo root to enable these tests.";
-
-    private static bool Probe()
-    {
-        try
-        {
-            using var client = new TcpClient();
-            var connect = client.ConnectAsync(Host, Port);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            return connect.Wait(TimeSpan.FromSeconds(2)) && client.Connected;
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
 
 /// <summary>
