@@ -1,10 +1,24 @@
 # Amazon S3 Integration <Badge type="tip" text="6.31" />
 
 ::: tip
-`WolverineFx.AmazonS3` stores **documents and sagas** as S3 objects. It is not the same thing as
-[claim checks](/guide/durability/claim-checks), which off-load a large *message payload* to shared
-storage and ship a token through the broker. Claim checks live in
-`WolverineFx.ClaimCheck.AmazonS3`, and the two are independent — install either or both.
+`WolverineFx.AmazonS3` does two independent things, and this page is about the first.
+
+1. **Document persistence** — registered entity types are read and written as S3 objects, so `[Entity]`
+   and the `Storage.Store()` / `Storage.Delete()` return values work against a bucket. That is the rest
+   of this page.
+2. **[Claim check](/guide/durability/claim-checks) storage** — off-loading a large *message payload* to
+   a bucket and shipping a token through the broker. Different feature, different problem; see the
+   [Amazon S3 claim check section](/guide/durability/claim-checks#amazon-s3).
+
+The two share nothing but a package and an `IAmazonS3`. Use either, or both.
+
+Sagas are **not** persisted to S3. A saga belongs to whichever transactional store owns its chain —
+see [alongside another store](#alongside-another-store).
+:::
+
+::: warning Moved in 6.31
+The claim check half used to ship as `WolverineFx.ClaimCheck.AmazonS3`, which is now deprecated.
+The types and their namespace are unchanged, so swapping the package reference is the whole migration.
 :::
 
 Plenty of real entities are not in any database. An invoice's rendered content, a generated report, a
@@ -131,9 +145,9 @@ integrations were registered in.
 
 Two consequences worth knowing:
 
-- **Sagas stay with the transactional store.** Saga chains resolve on a different question (which
-  provider owns this *chain*), and this provider claims none, so a saga in a mixed application is
-  persisted by Marten or your database exactly as before.
+- **Sagas stay with the transactional store.** Saga chains resolve on a different question -- which
+  provider owns this *chain* rather than which owns this *type* -- and this provider claims no chains,
+  so a saga in a mixed application is persisted by Marten or your database exactly as before.
 - **There is no atomicity across the two.** The Marten write commits in its transaction; the S3 write
   already happened. A handler that writes both and then throws has written the S3 object and not the
   Marten document. If that matters, write the S3 object from a projection or a follow-on message
@@ -152,6 +166,12 @@ there is nothing to commit and nothing to roll back.
 **No querying.** `[All]`, `[FirstOrDefault]` and `[Queryable]` are not supported and fail at
 bootstrapping naming this provider. `ListObjectsV2` over a key prefix is a paged scan, not a query,
 and a scan that looks like a query is worse than an honest refusal.
+
+**No sagas.** `Store<T>()` refuses a type deriving from `Saga`. It would otherwise be silently useless
+*and* dangerous: a saga chain picks its persistence on which provider owns the chain, this one owns
+none, and the fallback is the **in-memory** saga persistor -- so the bucket and key function would be
+ignored and the saga would live in process memory, gone on the next restart and invisible to every
+other node. Keep sagas with a transactional store.
 
 **No soft delete.** `MaybeSoftDeleted` does not apply. Only your serializer knows what deleted means
 for its payload; answer `null` for anything that should count as missing.

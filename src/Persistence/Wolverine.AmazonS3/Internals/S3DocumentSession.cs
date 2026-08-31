@@ -39,10 +39,12 @@ public class S3DocumentSession : IS3DocumentSession
 
             return mapping.Serializer.Deserialize<T>(buffer.ToArray());
         }
-        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.NotFound)
+        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.NotFound && e.ErrorCode == "NoSuchKey")
         {
-            // Only 404. A 403 on a missing permission has to keep propagating, or a misconfigured
-            // bucket looks exactly like an empty one.
+            // Only a missing KEY. A 403 on a missing permission has to keep propagating, or a
+            // misconfigured bucket looks exactly like an empty one -- and so does NoSuchBucket, which
+            // is also a 404: a mistyped bucket name would otherwise read as a document that is
+            // permanently missing rather than as the configuration error it is.
             return null;
         }
     }

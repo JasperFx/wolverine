@@ -178,7 +178,7 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
             _logger.LogError(
                 "Envelope {Id} of message type {MessageType} produced a {Size} byte body for {Uri}, over the {Maximum} bytes Wolverine will send in one SQS message. " +
                 "SQS rejects an oversized message with a permanent SenderFault, so retrying it would fail identically forever - it is being discarded instead. " +
-                "Use a claim check (WolverineFx.ClaimCheck.AmazonS3), or opt this endpoint into FragmentOversizedMessages().",
+                "Use a claim check (WolverineFx.AmazonS3), or opt this endpoint into FragmentOversizedMessages().",
                 envelope.Id, envelope.MessageType, body.Length, _queue.Uri, SqsMessageFragments.MaximumBodyBytes);
             return false;
         }
@@ -189,7 +189,7 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
         {
             _logger.LogError(
                 "Envelope {Id} of message type {MessageType} produced a {Size} byte body for {Uri}, which would need {Needed} fragments against a maximum of {Maximum}. " +
-                "A message this large is a claim check problem rather than a framing one; see WolverineFx.ClaimCheck.AmazonS3. The message is being discarded.",
+                "A message this large is a claim check problem rather than a framing one; see WolverineFx.AmazonS3. The message is being discarded.",
                 envelope.Id, envelope.MessageType, body.Length, _queue.Uri, bodies.Length,
                 SqsMessageFragments.MaximumFragments);
             return false;
