@@ -74,6 +74,28 @@ public sealed record EventModelSliceSeed(
 public static class EventModelRoles
 {
     /// <summary>
+    ///     How a message or request type is named on the Event Model canvas. GH-4205.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <see cref="Type.Name" /> spells a generic in CLR notation, so an <c>IEvent&lt;ClaimReleased&gt;</c>
+    ///         relay handler minted a slice labelled <c>IEvent`1</c> — unreadable, and identical for every
+    ///         closed form of the same open generic. <c>ShortNameInCode()</c> renders it as source would.
+    ///     </para>
+    ///     <para>
+    ///         Deliberately only for generics. A slice name is also the <b>merge key</b> across model
+    ///         sources (GH-3988), and <c>ShortNameInCode()</c> prefixes a nested type with its declaring
+    ///         type — so applying it everywhere would rename every slice whose message is a nested class,
+    ///         for no gain. Every source that names a slice has to agree on this, or the same message
+    ///         reached through a handler and through HTTP would stop merging into one slice.
+    ///     </para>
+    /// </remarks>
+    public static string DisplayNameFor(Type type)
+    {
+        return type.IsGenericType ? type.ShortNameInCode() : type.Name;
+    }
+
+    /// <summary>
     ///     Describe a message handler chain. The slice is named for the message type, triggered by a
     ///     message handler — or by the job scheduler for a <see cref="TimeoutMessage" /> — and the
     ///     command is the message type itself.
@@ -87,7 +109,7 @@ public static class EventModelRoles
         var handlerType = chain.Handlers.FirstOrDefault()?.HandlerType;
 
         return Describe(chain, new EventModelSliceSeed(
-            chain.MessageType.Name,
+            DisplayNameFor(chain.MessageType),
             triggerKind,
             null,
             chain.MessageType,
