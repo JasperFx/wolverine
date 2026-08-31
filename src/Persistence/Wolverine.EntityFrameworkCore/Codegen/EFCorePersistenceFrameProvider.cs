@@ -165,6 +165,103 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return new LoadEntityFrame(dbContextType, sagaType, sagaId);
     }
 
+    /// <summary>
+    ///     The <c>[FromEfCore]</c> load frame for a parameter that asked for <c>AsNoTracking</c> or eager
+    ///     <c>Include</c> paths. Validates every request against the EF Core model at CODEGEN time and throws if
+    ///     any of it cannot be honored, because the alternative — quietly emitting the plain
+    ///     <c>FindAsync</c> load and dropping the request — produces a handler that looks correct, compiles, runs,
+    ///     and hands back an entity with unpopulated navigations.
+    /// </summary>
+    /// <param name="usage">
+    ///     How to name the offending declaration in an exception, supplied by the attribute because only it knows
+    ///     which parameter and method are involved.
+    /// </param>
+    internal Frame DetermineLoadFrameWithQueryOptions(IServiceContainer container, Type entityType, Variable id,
+        string[] includes, bool asNoTracking, string usage)
+    {
+        var dbContextType = DetermineDbContextType(entityType, container);
+
+        using var nested = container.Services.CreateScope();
+        var context = resolveDbContext(nested, dbContextType);
+
+        var efEntityType = context.Model.FindEntityType(entityType);
+        if (efEntityType == null)
+        {
+            throw new InvalidOperationException(
+                $"{usage} cannot be honored. {entityType.FullNameInCode()} is not mapped in DbContext {dbContextType.FullNameInCode()}.");
+        }
+
+        var key = efEntityType.FindPrimaryKey();
+        if (key == null)
+        {
+            throw new InvalidOperationException(
+                $"{usage} cannot be honored. {entityType.FullNameInCode()} has no primary key in DbContext {dbContextType.FullNameInCode()}.");
+        }
+
+        // FindAsync takes params object[] and copes with a composite key; the FirstOrDefaultAsync form that
+        // Include and AsNoTracking require needs a single-valued identity to compare against, and [Entity]
+        // only ever discovers one identity variable anyway.
+        if (key.Properties.Count > 1)
+        {
+            throw new InvalidOperationException(
+                $"{usage} cannot be honored. {entityType.FullNameInCode()} has a composite primary key ({key.Properties.Select(x => x.Name).Join(", ")}), and eager loading or no-tracking requires a single-valued key to query on.");
+        }
+
+        foreach (var include in includes)
+        {
+            validateIncludePath(efEntityType, include, usage);
+        }
+
+        var keyProperty = key.Properties[0];
+        return new LoadEntityWithQueryOptionsFrame(dbContextType, entityType, id, keyProperty.Name,
+            keyProperty.ClrType, includes, asNoTracking);
+    }
+
+    private static DbContext resolveDbContext(IServiceScope scope, Type dbContextType)
+    {
+        var service = scope.ServiceProvider.GetRequiredService(dbContextType);
+
+        // Multi-tenanted registrations resolve through a builder rather than the DbContext itself
+        return service is IDbContextBuilder builder ? builder.BuildForMain() : (DbContext)service;
+    }
+
+    /// <summary>
+    ///     Walks a dotted <c>Include</c> path against the EF Core model. EF's string overload is what makes a
+    ///     <c>ThenInclude</c> chain expressible in an attribute argument at all, but it also means a typo is a
+    ///     runtime <c>InvalidOperationException</c> on the first message handled rather than a compile error. This
+    ///     moves that failure back to codegen and names the alternatives.
+    /// </summary>
+    private static void validateIncludePath(Microsoft.EntityFrameworkCore.Metadata.IEntityType root, string path,
+        string usage)
+    {
+        if (path.IsEmpty() || path.Trim().Length == 0)
+        {
+            throw new InvalidOperationException($"{usage} declares an empty Include path.");
+        }
+
+        var current = root;
+        foreach (var segment in path.Split('.'))
+        {
+            Microsoft.EntityFrameworkCore.Metadata.INavigationBase? navigation = current.FindNavigation(segment);
+            navigation ??= current.FindSkipNavigation(segment);
+
+            if (navigation == null)
+            {
+                var available = current.GetNavigations().Select(x => x.Name)
+                    .Concat(current.GetSkipNavigations().Select(x => x.Name)).ToArray();
+
+                var choices = available.Any()
+                    ? "Known navigations there are: " + available.Join(", ") + "."
+                    : "That type has no navigation properties at all.";
+
+                throw new InvalidOperationException(
+                    $"{usage} asks to Include \"{path}\", but \"{segment}\" is not a navigation property on {current.ClrType.FullNameInCode()}. {choices}");
+            }
+
+            current = navigation.TargetEntityType;
+        }
+    }
+
     public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
