@@ -96,7 +96,7 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
         var resourceType = chain.ResourceType is { } res && res != typeof(void) ? res : null;
 
         var seed = new EventModelSliceSeed(
-            requestType?.Name ?? $"{verb} {route}",
+            (requestType == null ? null : EventModelRoles.DisplayNameFor(requestType)) ?? $"{verb} {route}",
             TriggerKind.Http,
             new PublisherOrigin { HttpRoute = route, HttpMethod = verb, Label = $"{verb} {route}" },
             requestType,
