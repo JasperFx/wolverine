@@ -36,7 +36,19 @@ public static class RequiredTodoEndpoint
     
     // Should error & custom message
     [WolverineGet("/required/todo7/{id}")]
-    public static Todo2 Get7([Entity(OnMissing = OnMissing.ThrowException, MissingMessage = "Id '{0}' is wrong!")] Todo2 todo) 
+    public static Todo2 Get7([Entity(OnMissing = OnMissing.ThrowException, MissingMessage = "Id '{0}' is wrong!")] Todo2 todo)
         => todo;
 
+    // The message reaches generated code as a string literal, so a quote or a backslash in it has to
+    // be escaped there. Both of these would not compile at all if it were not.
+
+    // Should 400 w/ ProblemDetails on missing & a custom message needing escapes
+    [WolverineGet("/required/todo8/{id}")]
+    public static Todo2 Get8([Entity(OnMissing = OnMissing.ProblemDetailsWith400, MissingMessage = "No \"Todo\" for '{0}' under C:\\todos")] Todo2 todo)
+        => todo;
+
+    // Should error & a custom message needing escapes
+    [WolverineGet("/required/todo9/{id}")]
+    public static Todo2 Get9([Entity(OnMissing = OnMissing.ThrowException, MissingMessage = "No \"Todo\" for '{0}' under C:\\todos")] Todo2 todo)
+        => todo;
 }
