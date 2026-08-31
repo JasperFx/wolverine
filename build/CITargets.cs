@@ -610,17 +610,18 @@ partial class Build
                 $"Wolverine.ClaimCheck.{name}.Tests.csproj";
 
             var databaseSuites = new[] { suite("Postgresql"), suite("SqlServer"), suite("Marten") };
-            // GH-4160: Amazon S3 is deliberately absent. Its claim check store moved into
-            // WolverineFx.AmazonS3, so its tests run under CIAmazonS3 with the rest of that package.
+            // GH-4160: Amazon S3 and Azure Blob Storage are deliberately absent. Their claim check
+            // stores moved into WolverineFx.AmazonS3 and WolverineFx.AzureBlobStorage, so their tests
+            // run under CIAmazonS3 and CIAzureBlobStorage with the rest of those packages.
             var objectStoreSuites = new[]
             {
-                suite("AzureBlobStorage"), suite("GoogleCloudStorage"), suite("Nats")
+                suite("GoogleCloudStorage"), suite("Nats")
             };
 
             var all = databaseSuites.Concat(objectStoreSuites).ToArray();
 
             BuildTestProjects(all);
-            StartDockerServices("postgresql", "sqlserver", "azurite", "fake-gcs-server", "nats");
+            StartDockerServices("postgresql", "sqlserver", "fake-gcs-server", "nats");
 
             foreach (var project in all)
             {
@@ -642,6 +643,24 @@ partial class Build
 
             BuildTestProjects(project);
             StartDockerServices("localstack");
+
+            RunTestProject(project);
+        });
+
+    /// <summary>
+    /// GH-4160. WolverineFx.AzureBlobStorage stores documents and sagas as Azure blobs, and carries the
+    /// claim check store that used to live in WolverineFx.ClaimCheck.AzureBlobStorage. The suite keeps
+    /// its own Azurite skip guard so a developer without the emulator still gets a clean local run.
+    /// </summary>
+    Target CIAzureBlobStorage => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var project = RootDirectory / "src" / "Persistence" / "Wolverine.AzureBlobStorage.Tests" /
+                "Wolverine.AzureBlobStorage.Tests.csproj";
+
+            BuildTestProjects(project);
+            StartDockerServices("azurite");
 
             RunTestProject(project);
         });
