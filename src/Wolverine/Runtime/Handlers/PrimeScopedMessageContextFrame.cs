@@ -30,6 +30,13 @@ internal sealed class PrimeScopedMessageContextFrame : SyncFrame, IUsesServicePr
         // Wolverine's codegen creates, and not all of them belong to a message handler or an HTTP
         // endpoint. A handler finds its MessageContext argument and an HTTP chain finds one through
         // MessageBusSource; anything else primes nothing rather than forcing a context into existence.
+        //
+        // NotServices, not Existing, and deliberately so: a variable source is a factory, so this DOES
+        // build a MessageContext for a chain that had no other reason to name one. That is the right
+        // answer here -- the context is the one the chain would use for any message it sends, and
+        // priming the scope with it is the whole point of GH-3001. The persistence sessions in
+        // PrimeScopedSessionFrame are the opposite case: manufacturing one invents a database
+        // connection and an outbox enrolment that nothing in the chain will ever commit. See GH-4198.
         _context = chain.TryFindVariable(typeof(MessageContext), VariableSource.NotServices);
         if (_context != null)
         {

@@ -25,11 +25,15 @@
         <Compile Include="../../EmulatorProbe.cs">
             <Link>EmulatorProbe.cs</Link>
         </Compile>
+        <Compile Include="../../Azurite.cs">
+            <Link>Azurite.cs</Link>
+        </Compile>
         <Using Include="Xunit" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Wolverine.ClaimCheck.AzureBlobStorage\Wolverine.ClaimCheck.AzureBlobStorage.csproj" />
+      <ProjectReference Include="..\Wolverine.AzureBlobStorage\Wolverine.AzureBlobStorage.csproj" />
+      <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
 
   <ItemGroup>

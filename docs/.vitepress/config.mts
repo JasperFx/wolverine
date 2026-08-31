@@ -355,6 +355,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
                         {text: 'CosmosDB Integration', link: '/guide/durability/cosmosdb'},
                         {text: 'Amazon S3 Integration', link: '/guide/durability/amazon-s3'},
+                        {text: 'Azure Blob Storage Integration', link: '/guide/durability/azure-blob-storage'},
                         {text: 'Redis Persistence', link: '/guide/durability/redis'},
                         {text: 'Entity Framework Core Integration', collapsed: false, link: '/guide/durability/efcore', items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/efcore/transactional-middleware'},

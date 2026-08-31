@@ -1,9 +1,11 @@
 using System.Text;
 using Azure.Storage.Blobs;
+using IntegrationTests;
 using Shouldly;
+using Wolverine.ClaimCheck.AzureBlobStorage;
 using Wolverine.Persistence;
 
-namespace Wolverine.ClaimCheck.AzureBlobStorage.Tests;
+namespace Wolverine.AzureBlobStorage.Tests;
 
 public class AzureBlobClaimCheckStoreTests : IAsyncLifetime
 {

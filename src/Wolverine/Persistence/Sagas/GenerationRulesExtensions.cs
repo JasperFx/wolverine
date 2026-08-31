@@ -5,6 +5,30 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
 
+/// <summary>
+///     The outcome of looking a persistence frame provider up by its implementation type with
+///     <see cref="GenerationRulesExtensions.TryFindPersistenceFrameProviderOfType" />.
+/// </summary>
+public enum PersistenceProviderResolution
+{
+    /// <summary>
+    ///     The named provider is registered and claims the entity type.
+    /// </summary>
+    Found,
+
+    /// <summary>
+    ///     No provider of the named type is registered with this application at all — the integration was never
+    ///     added.
+    /// </summary>
+    ProviderNotRegistered,
+
+    /// <summary>
+    ///     The named provider is registered, but its <see cref="IPersistenceFrameProvider.CanPersist" /> declines
+    ///     this entity type.
+    /// </summary>
+    ProviderCannotPersistType
+}
+
 public static class GenerationRulesExtensions
 {
     public static readonly string PersistenceKey = "PERSISTENCE";
@@ -75,6 +99,40 @@ public static class GenerationRulesExtensions
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Finds the registered <see cref="IPersistenceFrameProvider" /> of a <b>named implementation type</b>, as the
+    ///     explicit per-provider entity attributes (<c>[FromMarten]</c>, <c>[FromEfCore]</c>, ...) do, and reports
+    ///     which of the two possible failures happened.
+    /// </summary>
+    /// <remarks>
+    ///     The distinction between the two failures is the whole point of naming a provider explicitly.
+    ///     <see cref="PersistenceProviderResolution.ProviderNotRegistered" /> means the integration is missing from
+    ///     the application altogether and the remedy is a bootstrapping call; the entity type is irrelevant.
+    ///     <see cref="PersistenceProviderResolution.ProviderCannotPersistType" /> means the integration is there but
+    ///     its <see cref="IPersistenceFrameProvider.CanPersist" /> declines this type — for a selective provider
+    ///     that usually means the type was never mapped or registered with it. Collapsing the two into one
+    ///     "couldn't find a provider" message sends the reader looking in the wrong place.
+    /// </remarks>
+    public static PersistenceProviderResolution TryFindPersistenceFrameProviderOfType(this GenerationRules rules,
+        IServiceContainer container, Type providerType, Type entityType, out IPersistenceFrameProvider provider)
+    {
+        provider = default!;
+
+        var candidate = rules.PersistenceProviders().FirstOrDefault(providerType.IsInstanceOfType);
+        if (candidate == null)
+        {
+            return PersistenceProviderResolution.ProviderNotRegistered;
+        }
+
+        if (!candidate.CanPersist(entityType, container, out _))
+        {
+            return PersistenceProviderResolution.ProviderCannotPersistType;
+        }
+
+        provider = candidate;
+        return PersistenceProviderResolution.Found;
     }
 
     /// <summary>

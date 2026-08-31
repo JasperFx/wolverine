@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Azure Blob Storage backend for the Wolverine Claim Check pattern</Description>
-        <PackageId>WolverineFx.ClaimCheck.AzureBlobStorage</PackageId>
+        <Description>Azure Blob Storage document persistence, saga storage, and claim check storage for Wolverine applications</Description>
+        <PackageId>WolverineFx.AzureBlobStorage</PackageId>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
         <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>

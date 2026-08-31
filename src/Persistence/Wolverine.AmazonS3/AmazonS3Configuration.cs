@@ -33,15 +33,15 @@ public class AmazonS3Configuration
             throw new InvalidS3DocumentMappingException(entityType, "Only reference types can be stored as S3 objects.");
         }
 
-        // GH-4160. Registering a saga here would be silently useless and worse than useless: a saga
-        // chain picks its persistence on CanApply rather than CanPersist, this provider claims no
-        // chains, and the fallback is the IN-MEMORY saga persistor. The host would start, the bucket
-        // and key function would be ignored, and the saga would live in process memory -- gone on
-        // restart and invisible to every other node. Refuse it where the mistake is made.
+        // GH-4160. A saga registered through Store<T>() would be silently useless and worse than
+        // useless: a saga chain picks its persistence on CanApply rather than CanPersist, and this
+        // provider claims a chain only for a type registered through Saga<T>(). Through Store<T>() the
+        // fallback is the IN-MEMORY saga persistor -- host starts, bucket and key function ignored,
+        // saga state in process memory. Refuse it where the mistake is made.
         if (entityType.CanBeCastTo<Saga>())
         {
             throw new InvalidS3DocumentMappingException(entityType,
-                "Saga persistence in S3 is not supported yet. A saga registered here would silently be kept by the in-memory saga persistor instead, so this refuses rather than pretending. Keep the saga with a transactional store.");
+                $"Register a saga with Saga<{entityType.NameInCode()}>(...) instead. Store<T>() does not claim saga CHAINS, so a saga registered through it would silently be kept by the in-memory saga persistor -- bucket and key function ignored -- rather than in S3.");
         }
 
         if (!_mappings.TryGetValue(entityType, out var mapping))
@@ -58,7 +58,51 @@ public class AmazonS3Configuration
         return this;
     }
 
+    /// <summary>
+    ///     Persist the saga type <typeparamref name="T" /> in S3, using conditional writes for optimistic
+    ///     concurrency.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately a separate call from <see cref="Store{T}" />, for two reasons. It makes "this saga
+    ///     lives in this bucket" something the application said rather than something it got by accident;
+    ///     and it is what lets <c>CanApply</c> claim saga chains <em>only</em>, so <c>[Transactional]</c>
+    ///     and <c>AutoApplyTransactions</c> can never pick this provider as the transaction owner of an
+    ///     ordinary chain that happens to touch an S3 document. See GH-4160.
+    /// </remarks>
+    public AmazonS3Configuration Saga<T>(Action<S3DocumentMapping> configure) where T : Saga
+    {
+        return Saga(typeof(T), configure);
+    }
+
+    public AmazonS3Configuration Saga(Type sagaType, Action<S3DocumentMapping> configure)
+    {
+        ArgumentNullException.ThrowIfNull(sagaType);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        if (!sagaType.CanBeCastTo<Saga>())
+        {
+            throw new InvalidS3DocumentMappingException(sagaType,
+                $"It does not derive from Saga. Register an ordinary document with Store<{sagaType.NameInCode()}>(...) instead.");
+        }
+
+        if (!_mappings.TryGetValue(sagaType, out var mapping))
+        {
+            mapping = new S3DocumentMapping(sagaType) { IsSaga = true };
+            _mappings[sagaType] = mapping;
+        }
+
+        configure(mapping);
+        mapping.Compile();
+
+        return this;
+    }
+
     internal IReadOnlyCollection<S3DocumentMapping> Mappings => _mappings.Values;
+
+    internal bool TryFindSagaMapping(Type sagaType, out S3DocumentMapping mapping)
+    {
+        return _mappings.TryGetValue(sagaType, out mapping!) && mapping.IsSaga;
+    }
 
     internal bool TryFindMapping(Type entityType, out S3DocumentMapping mapping)
     {

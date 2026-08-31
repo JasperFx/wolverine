@@ -1,6 +1,8 @@
 using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.AmazonS3.Internals;
 
@@ -12,6 +14,11 @@ public class S3DocumentSession : IS3DocumentSession
 {
     private readonly IAmazonS3 _client;
     private readonly AmazonS3Configuration _configuration;
+
+    // GH-4160. The ETag of every saga object this session read, so the matching write can be a
+    // compare-and-swap. Generated code builds one session per handler invocation, so the lifetime of
+    // this is exactly one message -- load, mutate, save -- which is the window a saga needs guarded.
+    private readonly Dictionary<string, string> _etags = new();
 
     public S3DocumentSession(IAmazonS3 client, AmazonS3Configuration configuration)
     {
@@ -28,14 +35,21 @@ public class S3DocumentSession : IS3DocumentSession
 
         try
         {
+            var key = mapping.KeyForIdentity(id, tenantId);
+
             using var response = await _client.GetObjectAsync(new GetObjectRequest
             {
                 BucketName = mapping.BucketName,
-                Key = mapping.KeyForIdentity(id, tenantId)
+                Key = key
             }, token).ConfigureAwait(false);
 
             using var buffer = new MemoryStream();
             await response.ResponseStream.CopyToAsync(buffer, token).ConfigureAwait(false);
+
+            if (mapping.IsSaga && response.ETag.IsNotEmpty())
+            {
+                _etags[key] = response.ETag;
+            }
 
             return mapping.Serializer.Deserialize<T>(buffer.ToArray());
         }
@@ -98,7 +112,39 @@ public class S3DocumentSession : IS3DocumentSession
             request.Headers.ContentEncoding = mapping.Serializer.ContentEncoding;
         }
 
-        await _client.PutObjectAsync(request, token).ConfigureAwait(false);
+        // A saga is a read-modify-write, so its put is a compare-and-swap: If-Match against the ETag
+        // this session read, or If-None-Match: * when it read nothing and believes it is creating one.
+        // An ordinary document stays last-write-wins -- S3 has no insert-versus-update and callers are
+        // told so. See GH-4160.
+        if (mapping.IsSaga)
+        {
+            if (_etags.TryGetValue(key, out var etag))
+            {
+                request.IfMatch = etag;
+            }
+            else
+            {
+                request.IfNoneMatch = "*";
+            }
+        }
+
+        try
+        {
+            var response = await _client.PutObjectAsync(request, token).ConfigureAwait(false);
+
+            // Keep the session's view current: a handler that writes the same saga twice in one message
+            // must compare against what it just wrote, not against what it originally read.
+            if (mapping.IsSaga && response.ETag.IsNotEmpty())
+            {
+                _etags[key] = response.ETag;
+            }
+        }
+        catch (AmazonS3Exception e) when (mapping.IsSaga && e.StatusCode == HttpStatusCode.PreconditionFailed)
+        {
+            throw new SagaConcurrencyException(
+                $"Saga of type {mapping.EntityType.FullNameInCode()} at {mapping.BucketName}/{key} was changed by another message since it was read",
+                e);
+        }
     }
 
     private Task deleteAsync(S3DocumentMapping mapping, string key, CancellationToken token)

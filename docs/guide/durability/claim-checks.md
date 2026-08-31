@@ -126,8 +126,21 @@ Wolverine ships several production-grade storage backends as separate NuGet pack
 ### Azure Blob Storage
 
 ```sh
-dotnet add package WolverineFx.ClaimCheck.AzureBlobStorage
+dotnet add package WolverineFx.AzureBlobStorage
 ```
+
+::: warning Moved in 6.32
+The Azure Blob Storage claim check store now ships in `WolverineFx.AzureBlobStorage`, alongside the
+[blob document and saga persistence](/guide/durability/azure-blob-storage).
+**`WolverineFx.ClaimCheck.AzureBlobStorage` is deprecated** and will not be published again.
+
+Nothing in your code changes -- the types and their namespace are the same. Swap the package reference,
+and remove the old one rather than keeping both: two packages carrying the same types in the same
+namespace produce ambiguous-reference compiler errors.
+
+The remaining object store backends -- Google Cloud Storage and NATS -- are unaffected and stay in the
+`WolverineFx.ClaimCheck.*` family.
+:::
 
 ```csharp
 using Wolverine.ClaimCheck.AzureBlobStorage;
@@ -154,7 +167,7 @@ The store maps each `ClaimCheckToken.Id` directly to a blob name, and sets `Blob
 dotnet add package WolverineFx.AmazonS3
 ```
 
-::: warning Moved in 6.31
+::: warning Moved in 6.32
 The S3 claim check store now ships in `WolverineFx.AmazonS3`, alongside the
 [S3 document persistence](/guide/durability/amazon-s3). **`WolverineFx.ClaimCheck.AmazonS3` is deprecated**
 and will not be published again.
@@ -163,8 +176,8 @@ Nothing in your code changes -- the types and their namespace are the same. Swap
 and remove the old one rather than keeping both: two packages carrying the same types in the same
 namespace produce ambiguous-reference compiler errors.
 
-The other object store backends -- Azure Blob Storage, Google Cloud Storage and NATS -- are unaffected
-and stay in the `WolverineFx.ClaimCheck.*` family.
+The remaining object store backends -- Google Cloud Storage and NATS -- are unaffected and stay in the
+`WolverineFx.ClaimCheck.*` family.
 :::
 
 ```csharp
