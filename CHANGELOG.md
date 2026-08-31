@@ -132,6 +132,31 @@
   `IPagedList<Order>` unwraps too; maps, strings, types that enumerate as two things, and scalar
   elements (a `byte[]` download is not a view over `byte`) are left alone.
 
+### WolverineFx.PostgreSQL
+
+- **A duplicated scheduled identity no longer wedges the scheduled message poller under
+  `EnableInboxPartitioning`.** (closes
+  [#4202](https://github.com/JasperFx/wolverine/issues/4202)) Partitioning puts `status` in the inbox
+  primary key, so uniqueness is only enforced *within* a partition and one identity can legally sit in
+  both the scheduled and the incoming partition — a broker redelivery arriving while the previous
+  attempt is parked as a scheduled retry produces exactly that pair. Promoting the scheduled row then
+  moved it onto an identity the incoming partition already held, and PostgreSQL raised a 23505 unique
+  violation. Because the promotion is one statement covering the whole due batch inside the polling
+  transaction, that single row rolled back every *other* due scheduled message with it, on every poll,
+  indefinitely: scheduled delivery stopped for the whole database until someone deleted the row by
+  hand. The poller now discards the superseded scheduled copy — the same identity has since been
+  received, or already handled, in another partition — logs a warning naming it, and
+  promotes the rest of the batch. Discarding it rather than promoting past a handled row also stops the
+  retry re-executing a completed message into a row that could never be marked handled, because marking
+  it handled is itself a cross-partition move onto the key the retained row still holds.
+
+- **The scheduled-message promotion is qualified by status and by the configured message identity.**
+  This half applies with or without partitioning. The statement previously matched on `id` alone, so it
+  could touch rows the poller's own `SELECT` had not produced — including, under
+  `MessageIdentity.IdAndDestination`, rows belonging to a different destination that merely shared an
+  envelope id. It now matches the key the incoming table was actually built with and promotes only rows
+  still in `Scheduled`.
+
 ### Dependencies
 
 - JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to

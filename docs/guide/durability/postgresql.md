@@ -65,6 +65,38 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+Partitioning also weakens the inbox's uniqueness guarantee. The primary key gains the `status` column,
+so PostgreSQL only enforces uniqueness *within* a status partition and one message identity can legally
+exist as both `Incoming` and `Scheduled` at the same time -- for example when a broker redelivers a
+message while the previous attempt is parked as a scheduled retry. When the scheduled message poller
+finds such a pair it discards the scheduled copy in favor of the row that supersedes it -- in the
+`incoming` partition or in the `handled` one -- and logs a warning naming the envelope. Where the
+superseding row is a handled one the pending retry is dropped and never executed, deliberately:
+promoting past it would re-execute a message that already completed, into a row that could never be
+marked handled because that too is a cross-partition move onto the key the retained row still holds.
+
+Where the superseding row is an incoming one it is executed in the retry's place. The discarded copy carries the retry state of the earlier attempt,
+so the surviving row is executed with the attempt count it was stored with rather than the one the
+retry had reached, so the retry budget restarts and the message can be attempted more times than the
+endpoint's error policy nominally allows. Under `MessageIdentity.IdOnly` the identity is the envelope id
+alone, so such a pair is resolved across listening endpoints rather than within one. This is the same
+weakened uniqueness that keeps deduplication claims in their own table; see
+[Idempotency](./idempotency).
+
+The `Incoming`/`Handled` pair is weakened the same way, and it never reaches the poller. A
+message retained after handling by `KeepAfterMessageHandling` -- the setting whose purpose is to absorb
+a broker redelivery -- sits in the `handled` partition, where it no longer blocks an insert of the same
+identity as `Incoming`. On a durable listening endpoint duplicate detection is that insert failing, so a
+redelivery arriving inside that retention window is stored and handled again rather than discarded --
+and then cannot be marked handled at all, because that too is a cross-partition move onto the key the
+retained row still holds. The redelivery is left sitting in the `incoming` partition owned by the node
+that processed it. Neither pair raises `DuplicateIncomingEnvelopeException`, which is
+the only path to `MaximumBrokerRedeliveries` -- that setting dead-letters a delivery the inbox rejected as
+a duplicate and the listener could not settle, rather than bounding duplicate execution, so it bounds
+neither pair.
+:::
+
 ## Connection Stability for Leader Election
 
 ::: tip

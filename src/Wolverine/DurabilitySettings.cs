@@ -176,7 +176,39 @@ public class DurabilitySettings : IDescribeMyself
     /// <summary>
     /// For persistence mechanisms that support this (PostgreSQL), this directs Wolverine to use partitioning
     /// based on the envelope status for the transactional inbox storage. This can be a performance optimization,
-    /// but does require a database migration if enabled
+    /// but does require a database migration if enabled.
+    ///
+    /// Note that partitioning also weakens the inbox's uniqueness guarantee, because the primary key gains the
+    /// status column and PostgreSQL can only enforce uniqueness within a single partition. One message identity
+    /// can therefore exist as both Incoming and Scheduled at the same time, for example when a broker redelivers
+    /// a message while the previous attempt is parked as a scheduled retry. The scheduled message poller resolves
+    /// such a pair by discarding the scheduled copy in favor of the row that supersedes it, whether that row sits
+    /// in the incoming or in the handled partition.
+    ///
+    /// When the superseding row is a handled one the pending retry is dropped and never executed. That is
+    /// deliberate: promoting past it would re-execute a message that already completed, into a row that could
+    /// never be marked handled because marking it handled is itself a cross-partition move onto the key the
+    /// retained row still holds.
+    ///
+    /// When the superseding row is an incoming one it is executed in the retry's place. The discarded
+    /// copy carries the retry state of the earlier attempt, so the surviving row is executed with the attempt count
+    /// it was stored with rather than the one the retry had reached. The retry budget therefore restarts, and
+    /// the message can be attempted more times than the endpoint's error policy nominally allows.
+    ///
+    /// Under <see cref="MessageIdentity.IdOnly"/> the identity is the envelope id alone, so a pair
+    /// like this is resolved across listening endpoints rather than within one.
+    ///
+    /// The Incoming/Handled pair is weakened in the same way, and the poller never sees it. A message
+    /// retained after handling by <see cref="KeepAfterMessageHandling"/> sits in the handled partition, where it no
+    /// longer blocks an insert of the same identity as Incoming. On a durable listening endpoint duplicate
+    /// detection is that insert failing, so a redelivery arriving inside that retention window is stored and
+    /// handled again rather than discarded, and then cannot be marked handled itself because that is another
+    /// cross-partition move onto the key the retained row still holds.
+    ///
+    /// Neither pair raises <see cref="Persistence.Durability.DuplicateIncomingEnvelopeException"/>, which is the
+    /// only path to <see cref="MaximumBrokerRedeliveries"/>. That setting dead-letters a delivery the inbox
+    /// rejected as a duplicate and the listener could not settle; it does not bound duplicate execution, and
+    /// neither pair reaches it.
     /// </summary>
     public bool EnableInboxPartitioning { get; set; }
 
