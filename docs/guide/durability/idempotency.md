@@ -5,6 +5,16 @@ There is nothing you need to do to opt into idempotent, no more than once messag
 on any Wolverine listening endpoint where you want this behavior. 
 :::
 
+::: warning
+This guarantee is weaker under `Durability.EnableInboxPartitioning` on PostgreSQL. The inbox primary key
+gains the `status` column, so uniqueness is only enforced *within* a status partition. A message still
+inside the `KeepAfterMessageHandling` retention window sits in the `handled` partition, where it no longer
+blocks an insert of the same `Envelope.Id` as `Incoming`. On a durable listening endpoint deduplication is
+that insert failing, so a redelivery is stored and handled again rather than discarded, and then cannot be
+marked handled itself. See
+[PostgreSQL](/guide/durability/postgresql) for the full statement.
+:::
+
 When applying the [durable inbox](/guide/durability/#using-the-inbox-for-incoming-messages) to [message listeners](/guide/messaging/listeners), you also get a no more than once, 
 [idempotent](https://en.wikipedia.org/wiki/Idempotence) message delivery guarantee. This means that Wolverine will discard
 any received message that it can detect has been previously handled. Wolverine does this with its durable inbox storage to check on receipt of a 

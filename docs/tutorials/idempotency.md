@@ -40,6 +40,14 @@ Means that the uniqueness is the message id + the endpoint destination, which Wo
 various envelope storage databases. In all cases, Wolverine simply detects a [primary key](https://en.wikipedia.org/wiki/Primary_key) violation on the incoming envelope
 storage to "know" that the message has already been handled. 
 
+::: warning
+That is not true under `Durability.EnableInboxPartitioning` on PostgreSQL, where the primary key includes
+`status`. Re-inserting the identity of a row sitting in the `handled` partition raises no violation at all,
+so step 3 below is never reached and the message is handled a second time -- and then cannot be marked
+handled itself. See
+[PostgreSQL](/guide/durability/postgresql).
+:::
+
 ::: info
 There are built in error policies in Wolverine (introduced in 5.3) to automatically [discard](/guide/handlers/error-handling.html#discarding-messages) any message that is determined to be a duplicate.
 This is done through exception filters and matching based on exceptions thrown by the underlying message storage database, and there's

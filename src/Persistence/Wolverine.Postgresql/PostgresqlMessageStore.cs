@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx;
@@ -52,6 +52,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _reassignIncomingSql;
+    private readonly string _discardSupersededScheduledSql;
     private DatabaseServerId? _serverId;
 
     private readonly List<ISchemaObject> _externalTables = new();
@@ -91,8 +92,46 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
         ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
         settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance)
     {
+        // The incoming table's key shape follows MessageIdentity: received_at joins the primary key only
+        // under IdAndDestination (see IncomingEnvelopeTable), and EnableInboxPartitioning then adds status
+        // on top. Match the identity the same way ExistsAsync does, so both statements below agree with
+        // whichever key the table was actually built with.
+        string identityMatchClause(string alias, string other) => matchesIncomingById
+            ? $"{alias}.id = {other}.id"
+            : $"{alias}.id = {other}.id and {alias}.{DatabaseConstants.ReceivedAt} = {other}.{DatabaseConstants.ReceivedAt}";
+
+        // With partitioning the same identity can also hold a Handled row, which the identity match on its
+        // own would sweep into the incoming partition alongside the scheduled row.
         _reassignIncomingSql =
-            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
+            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} target " +
+            $"set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+            $"from unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
+            $"where {identityMatchClause("target", "due")} " +
+            $"and target.status = '{EnvelopeStatus.Scheduled}'";
+
+        // With EnableInboxPartitioning the incoming table is PARTITION BY LIST (status) and status is part
+        // of the primary key, so uniqueness is only enforced within a partition and one identity can legally
+        // sit in the scheduled partition and in the incoming or handled partition at once. Promoting the
+        // scheduled row moves it across partitions onto an identity another partition already holds, and
+        // Postgres raises 23505 for the whole polling transaction. Either way the identity is already live in
+        // another partition, so discard the scheduled copy and let the surviving row stand. Typically that copy
+        // is a parked retry, since a locally scheduled send carries a fresh envelope id and cannot collide when
+        // it is written, but the statement matches on the state rather than on how the row got there. Handled
+        // supersedes for a second reason: promoting past it re-executes a message that already completed, and
+        // marking that promotion handled would then collide on the handled partition's own key with nothing
+        // left to try. The DELETE and the promotion are separate statements, so a row another connection commits
+        // in between can still collide with the promotion. That costs one poll rather than every later one,
+        // because the next poll sees the pair and discards it.
+        _discardSupersededScheduledSql =
+            $"delete from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} scheduled " +
+            $"using unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
+            $"where {identityMatchClause("scheduled", "due")} " +
+            $"and scheduled.status = '{EnvelopeStatus.Scheduled}' " +
+            $"and exists (select 1 from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} superseding " +
+            $"where {identityMatchClause("superseding", "scheduled")} " +
+            $"and superseding.status in ('{EnvelopeStatus.Incoming}', '{EnvelopeStatus.Handled}')) " +
+            $"returning scheduled.id, scheduled.{DatabaseConstants.ReceivedAt}";
+
         _deleteOutgoingEnvelopesSql =
             $"delete from {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = ANY(@ids);";
 
@@ -586,13 +625,32 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                     return;
                 }
 
-                await conn.CreateCommand(_reassignIncomingSql)
+                var (promotable, superseded) =
+                    await discardSupersededScheduledEnvelopesAsync(conn, tx, envelopes, cancellationToken);
+
+                if (!promotable.Any())
+                {
+                    await tx.CommitAsync(cancellationToken);
+                    announceSupersededScheduledEnvelopes(logger, superseded);
+                    return;
+                }
+
+                envelopes = promotable;
+
+                var (promotableIds, promotableUris) = toIdAndUriArrays(envelopes);
+
+                await using var reassign = conn.CreateCommand(_reassignIncomingSql);
+                reassign.Transaction = tx;
+                await reassign
                     .With("owner", durabilitySettings.AssignedNodeNumber)
-                    .With("ids", envelopes.Select(x => x.Id).ToArray())
+                    .With("ids", promotableIds)
+                    .With("uris", promotableUris)
                     .ExecuteNonQueryAsync(_cancellation);
 
 
                 await tx.CommitAsync(cancellationToken);
+
+                announceSupersededScheduledEnvelopes(logger, superseded);
 
                 // Stamp the envelope's owning store on each row so the rest of the
                 // pipeline (DelegatingMessageInbox, FlushOutgoingMessagesOnCommit,
@@ -613,6 +671,83 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         finally
         {
             await conn.CloseAsync();
+        }
+    }
+
+    private bool matchesIncomingById => Durability.MessageIdentity == MessageIdentity.IdOnly;
+
+    private static (Guid[] Ids, string[] Uris) toIdAndUriArrays(IReadOnlyList<Envelope> envelopes)
+    {
+        var ids = new Guid[envelopes.Count];
+        var uris = new string[envelopes.Count];
+
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            ids[i] = envelopes[i].Id;
+            uris[i] = envelopes[i].Destination!.ToString();
+        }
+
+        return (ids, uris);
+    }
+
+    private async Task<(IReadOnlyList<Envelope> Promotable, IReadOnlyList<Envelope> Superseded)>
+        discardSupersededScheduledEnvelopesAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
+            IReadOnlyList<Envelope> envelopes, CancellationToken cancellationToken)
+    {
+        if (!Durability.EnableInboxPartitioning) return (envelopes, []);
+
+        var (ids, uris) = toIdAndUriArrays(envelopes);
+
+        await using var command = conn.CreateCommand(_discardSupersededScheduledSql);
+        command.Transaction = tx;
+        command.With("ids", ids).With("uris", uris);
+
+        var discarded = new HashSet<(Guid, string)>();
+
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                discarded.Add(discardKey(await reader.GetFieldValueAsync<Guid>(0, cancellationToken),
+                    await reader.GetFieldValueAsync<string>(1, cancellationToken)));
+            }
+        }
+
+        if (discarded.Count == 0) return (envelopes, []);
+
+        var promotable = new List<Envelope>(envelopes.Count);
+        var superseded = new List<Envelope>();
+
+        foreach (var envelope in envelopes)
+        {
+            if (discarded.Contains(discardKey(envelope.Id, envelope.Destination!.ToString())))
+            {
+                superseded.Add(envelope);
+            }
+            else
+            {
+                promotable.Add(envelope);
+            }
+        }
+
+        return (promotable, superseded);
+    }
+
+    // Keyed the way the DELETE keys its rows: under IdOnly the statement matches on id alone, so folding
+    // received_at into the set would let the in-memory partition disagree with the rows actually removed.
+    private (Guid, string) discardKey(Guid id, string receivedAt)
+        => matchesIncomingById ? (id, string.Empty) : (id, receivedAt);
+
+    // Logged only after the enclosing transaction commits. The DELETE is not durable until then, and a
+    // failure in the promotion that follows it rolls the discard back, so reporting earlier would tell an
+    // operator a row was dropped when it is still there.
+    private static void announceSupersededScheduledEnvelopes(ILogger logger, IReadOnlyList<Envelope> superseded)
+    {
+        foreach (var envelope in superseded)
+        {
+            logger.LogWarning(
+                "Discarded scheduled envelope {EnvelopeId} of type {MessageType} for destination {Destination} after {Attempts} attempts because the same identity is already present in the incoming or handled partition.",
+                envelope.Id, envelope.MessageType, envelope.Destination, envelope.Attempts);
         }
     }
 
