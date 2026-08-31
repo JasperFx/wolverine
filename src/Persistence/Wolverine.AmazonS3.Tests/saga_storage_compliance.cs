@@ -25,7 +25,11 @@ public class AmazonS3SagaHost : ISagaHost
 
     public AmazonS3SagaHost()
     {
-        if (!LocalStack.IsRunning) return;
+        // The skip is taken HERE rather than in BuildHostAsync, and that is not a style choice:
+        // several of the shipped saga specs wrap their body in Should.ThrowAsync, which swallows the
+        // SkipException and reports it as "expected IndeterminateSagaStateIdException, got
+        // SkipException". From the constructor it skips cleanly.
+        Assert.SkipUnless(LocalStack.IsRunning, LocalStack.SkipReason);
 
         try
         {
