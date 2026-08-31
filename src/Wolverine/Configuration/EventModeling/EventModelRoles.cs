@@ -141,7 +141,8 @@ public static class EventModelRoles
         // IEnumerable<object> — says "this handler appends events" even though the element types
         // cannot be read off it. That is enough to classify the chain, so the other return values
         // are read as events rather than as cascaded messages.
-        if (returnTypes.Any(isUntypedEventCollection))
+        var returnsEventCollection = returnTypes.Any(isUntypedEventCollection);
+        if (returnsEventCollection)
         {
             roles.IsEventSourced = true;
         }
@@ -159,7 +160,13 @@ public static class EventModelRoles
 
             if (!isEventOrMessageCandidate(type)) continue;
 
-            if (roles.IsEventSourced)
+            // GH-4204. "This chain is event sourced" does not mean "everything it returns is an event".
+            // A handler holding an IEventStream<T> appends imperatively INTO the stream, so its return
+            // value is a reply or a cascaded message -- Stoat's ClaimResult, for one, was being reported
+            // as an emitted event of the slice. A chain that returns an untyped event collection is the
+            // opposite case and keeps the old reading: the element types cannot be read off the
+            // collection, so the other return values are the events.
+            if (roles.IsEventSourced && (returnsEventCollection || !roles.AppendsThroughStream))
             {
                 roles.EmittedEvents.Add(type);
             }
@@ -307,6 +314,10 @@ public static class EventModelRoles
 
             if (parameterType.Closes(typeof(IEventStream<>)))
             {
+                // GH-4204: remember that the appends go through the STREAM. Without this the chain is
+                // only known to be event sourced, and everything it returns reads as an emitted event --
+                // including the reply DTO of an InvokeAsync<T>, which is not an event at all.
+                roles.AppendsThroughStream = true;
                 roles.AddWrite(parameterType.GetGenericArguments()[0], false);
                 continue;
             }
@@ -477,6 +488,12 @@ public static class EventModelRoles
     private sealed class RoleSet
     {
         public bool IsEventSourced { get; set; }
+
+        /// <summary>
+        /// The chain appends through an <see cref="IEventStream{T}" /> parameter, so its events go into
+        /// the stream and never appear as return values. GH-4204.
+        /// </summary>
+        public bool AppendsThroughStream { get; set; }
         public List<Type> Aggregates { get; } = new();
         public Dictionary<Type, AggregateKind> AggregateKinds { get; } = new();
         public OrderedTypeSet EmittedEvents { get; } = new();
