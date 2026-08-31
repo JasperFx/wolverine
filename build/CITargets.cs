@@ -997,6 +997,10 @@ partial class Build
             RunTestProject(tests);
         });
 
+    // Covers both halves of WolverineFx.Redis: the Streams transport and, since 6.32, the document and
+    // saga persistence under Wolverine.Redis.Tests/Persistence. No new target and no redis-server
+    // service, because RedisContainerFixture starts its own Redis via Testcontainers before Main and
+    // the persistence suites take their address from it -- they skip cleanly if it is not there.
     Target CIRedis => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
