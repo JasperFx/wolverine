@@ -32,7 +32,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Wolverine.ClaimCheck.AmazonS3\Wolverine.ClaimCheck.AmazonS3.csproj" />
+      <ProjectReference Include="..\Wolverine.AmazonS3\Wolverine.AmazonS3.csproj" />
     </ItemGroup>
 
   <ItemGroup>
