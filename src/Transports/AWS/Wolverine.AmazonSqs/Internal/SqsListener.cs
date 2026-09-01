@@ -89,11 +89,20 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
         _reassembler = new SqsFragmentReassembler(queue.FragmentReassemblyTimeout, logger);
 
-        // GH-4012 item 3: a delete that can never succeed must not burn the retry budget
+        // GH-4012 items 3 and 5: a delete that can never succeed must not burn the retry budget, and the
+        // classification lives on the block rather than in a catch inside the callback.
         _singleDeleteBlock = new RetryBlock<Message>(
             (message, token) => SqsSettlement.DeleteAsync(_transport.Client!, _queue.QueueUrl!,
-                message.ReceiptHandle, logger, token),
-            logger, runtime.Cancellation);
+                message.ReceiptHandle, token),
+            logger, runtime.Cancellation)
+        {
+            ShouldRetry = e => !SqsSettlement.IsTerminal(e),
+            OnTerminalFailure = (_, e) =>
+            {
+                SqsSettlement.LogTerminalDelete(logger, _queue.QueueUrl!, e);
+                return Task.CompletedTask;
+            }
+        };
 
         if (_queue.DeleteMessageBatchSize > 1)
         {

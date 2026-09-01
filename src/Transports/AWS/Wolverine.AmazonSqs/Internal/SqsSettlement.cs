@@ -8,7 +8,9 @@ namespace Wolverine.AmazonSqs.Internal;
 /// GH-4012 item 3. Terminal-failure classification for the SQS delete -- the settle on this transport.
 /// </summary>
 /// <remarks>
-/// <para>Without it a permanent failure burns the whole retry budget before being dropped. The same
+/// <para>GH-4012 item 5 moved the classification itself onto the block as <c>ShouldRetry</c>; this type now
+/// owns the predicate and the give-up log rather than a try/catch. Without classification a permanent
+/// failure burns the whole retry budget before being dropped. The same
 /// reasoning as <c>sendOrDiscardAsync</c> (GH-3926) applies in the other direction: a <see cref="RetryBlock{T}" />
 /// retries until it succeeds, so an operation that can never succeed spins the block for nothing.</para>
 ///
@@ -32,21 +34,24 @@ namespace Wolverine.AmazonSqs.Internal;
 /// </remarks>
 internal static class SqsSettlement
 {
-    internal static async Task DeleteAsync(IAmazonSQS client, string queueUrl, string receiptHandle,
-        ILogger logger, CancellationToken token)
+    internal static Task DeleteAsync(IAmazonSQS client, string queueUrl, string receiptHandle,
+        CancellationToken token)
     {
-        try
-        {
-            await client.DeleteMessageAsync(queueUrl, receiptHandle, token);
-        }
-        catch (Exception e) when (IsTerminal(e))
-        {
-            // Swallowing is what stops the RetryBlock. The delivery is simply not deleted; SQS makes it
-            // visible again on its own clock and redelivers it.
-            logger.LogInformation(
-                "Discarding a terminal SQS delete failure ({Failure}) on {QueueUrl}; the message will be redelivered when its visibility window lapses",
-                e.GetType().Name, queueUrl);
-        }
+        // GH-4012 item 5: no catch here any more. The block's ShouldRetry does the classification and its
+        // OnTerminalFailure does the reporting, so this is just the settle.
+        return client.DeleteMessageAsync(queueUrl, receiptHandle, token);
+    }
+
+    /// <summary>
+    /// GH-4012 item 5. Reports a give-up, which the swallow-in-the-callback shape could not: an exception
+    /// caught inside the callback is indistinguishable from success at the block's boundary, so the block
+    /// could never log it differently.
+    /// </summary>
+    internal static void LogTerminalDelete(ILogger logger, string queueUrl, Exception e)
+    {
+        logger.LogInformation(
+            "Discarding a terminal SQS delete failure ({Failure}) on {QueueUrl}; the message will be redelivered when its visibility window lapses",
+            e.GetType().Name, queueUrl);
     }
 
     internal static bool IsTerminal(Exception e)

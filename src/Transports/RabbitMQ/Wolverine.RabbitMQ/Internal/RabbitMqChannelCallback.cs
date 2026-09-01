@@ -36,33 +36,39 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
             // broker round trips for one delivery, with neither block able to see the other's count.
             if (!e.TryRecordAckAttempt(maximumAckAttempts))
             {
-                // Swallowing stops the retry loop. The delivery stays unsettled, the broker
-                // redelivers it, and the durable inbox deduplicates -- the same recovery the
-                // unknown-delivery-tag branch below relies on.
+                // Returning without settling stops the retry loop. The delivery stays unsettled, the
+                // broker redelivers it, and the durable inbox deduplicates -- the same recovery the
+                // unknown-delivery-tag classification below relies on.
                 logger.LogWarning(
                     "Giving up on acking Rabbit MQ delivery for envelope {EnvelopeId} after {AckAttempts} attempts; leaving it for broker redelivery",
                     e.Id, e.AckAttempts);
                 return;
             }
 
-            try
+            // GH-4012 item 5: the classification and the give-up handling moved onto the block below, so
+            // this is the budget check plus the settle.
+            await e.CompleteAsync();
+        }, logger, cancellationToken)
+        {
+            // A closed channel is terminal for this delivery whatever closed it -- the tag belongs to that
+            // channel and no retry on a later one can succeed. This deliberately matches the previous
+            // behaviour exactly: the old catch swallowed EVERY AlreadyClosedException and only made the log
+            // and the quiesce conditional on the delivery tag, so widening or narrowing here would be a
+            // behaviour change rather than the refactor this is.
+            ShouldRetry = e => e is not AlreadyClosedException,
+            OnTerminalFailure = (envelope, exception) =>
             {
-                await e.CompleteAsync();
-            }
-            catch (AlreadyClosedException exception)
-            {
-                // An unknown delivery tag is terminal -- the tag's channel is gone and no retry on any
-                // later channel can succeed. Swallowing it here stops the RetryBlock from burning its
-                // budget; the broker will redeliver and the durable inbox will deduplicate.
-                if (isUnknownDeliveryTag(exception))
+                if (exception is AlreadyClosedException closed && isUnknownDeliveryTag(closed))
                 {
                     logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
 
                     // GH-3950: the broker has already closed that channel. Stop feeding it.
-                    e.RabbitMqListener.QuiesceAfterRejectedSettle(e);
+                    envelope.RabbitMqListener.QuiesceAfterRejectedSettle(envelope);
                 }
+
+                return Task.CompletedTask;
             }
-        }, logger, cancellationToken);
+        };
 
         Defer = new RetryBlock<RabbitMqEnvelope>((e, _) => e.DeferAsync().AsTask(), logger, cancellationToken);
         _deadLetterQueue = new RetryBlock<RabbitMqEnvelope>(moveToErrorQueueAsync, logger, cancellationToken);
