@@ -80,6 +80,12 @@ Currently exercised AOT-clean surface (will fail the smoke build if any of these
 
 As the per-file annotation pass in #2746 progresses, the smoke project expands to exercise the newly-annotated entry points — tightening the regression guard incrementally.
 
+### `Wolverine.AI.AotSmoke`
+
+There's a sister project under the same settings that guards `WolverineFx.AI`'s [LLM callout](/guide/ai#trimming-and-aot) path, covering type resolution, schema generation, and deserialization. It exercises the real `LlmResponseBinder` that `LlmCalloutExecutor` delegates to, rather than a copy of it.
+
+Note that CI *runs* this one as well as building it, which is a bit unusual for a smoke project. That's because the failure it's guarding against is silent -- when schema generation can't see a type it answers with an empty schema instead of throwing, so a build-only check would sail right past the exact regression the project exists to catch.
+
 ## Surfaces that intentionally aren't AOT-clean
 
 A handful of Wolverine APIs **require** runtime codegen by design. They carry `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]` annotations so the trimmer surfaces a clear warning if your AOT-published app reaches them:
@@ -88,6 +94,7 @@ A handful of Wolverine APIs **require** runtime codegen by design. They carry `[
 - Reflective handler / saga / transport discovery (`HandlerDiscovery.IncludeAssembly` type-scan, the saga-type-descriptor `StartingMessages` reflection, transport `IMessageRoutingConvention` reflection). Static-mode + a pre-generated handler manifest avoid these.
 - `MakeGenericType` / `Activator.CreateInstance` driven factories — the few that still exist in core.
 - The `WolverineFx.Newtonsoft` companion package (Newtonsoft.Json itself isn't AOT-friendly; if you need Newtonsoft, you're not on the AOT path).
+- `LlmCallout.Ask(prompt, context)` in `WolverineFx.AI` -- serializing an arbitrary context object means reflecting over its shape, and there's no way around that. Use `.WithContext(context, typeInfo)` instead, which the annotation's message tells you right at the call site.
 
 If you publish AOT in `Dynamic` mode (the default), expect warnings from these surfaces — they tell you what to migrate before you can ship a working AOT binary.
 

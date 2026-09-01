@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test for WolverineFx.AI (GH-4230), alongside Wolverine.AotSmoke.
+
+        The claim being gated: an application that registers its response types with
+        ai.RegisterResponseType() and assigns a source-generated JsonSerializerContext
+        to LlmCalloutOptions.JsonSerializerOptions gets a fully trim-clean callout path.
+        The executor turns an identifier into a Type through the registration table, then
+        builds the model's response schema and deserializes its answer through the type
+        info that context resolves. No reflection at any step.
+
+        This project exercises exactly that surface with trim analysis on and the IL
+        codes as errors, so the day someone reaches for JsonSerializer.Deserialize(text,
+        Type, options) again, or drops a Type.GetType into the resolution path, the
+        build fails here rather than in a consumer's AOT publish.
+
+        Program.cs also RUNS in CIAotSmoke, so a schema that generates as an empty
+        object, which is how this fails when the type info resolver cannot see a type,
+        is caught too. A build-only gate would miss that.
+
+        Surfaces NOT exercised here, on purpose:
+          - LlmCallout.Ask(prompt, context), which serializes an arbitrary object and is
+            annotated. The trim-clean equivalent is WithContext(context, typeInfo), and
+            that is what this project uses.
+          - Handler discovery and runtime codegen, which are Wolverine.AotSmoke.Static's
+            problem rather than this one's.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
+        <TrimMode>full</TrimMode>
+        <WarningsAsErrors>IL2026;IL2046;IL2055;IL2057;IL2065;IL2067;IL2070;IL2072;IL2075;IL2090;IL2091;IL2111;IL3050;IL3051</WarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Extensions\Wolverine.AI\Wolverine.AI.csproj" />
+    </ItemGroup>
+
+</Project>

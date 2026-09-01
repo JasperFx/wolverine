@@ -1218,12 +1218,19 @@ partial class Build
         {
             var smoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke" / "Wolverine.AotSmoke.csproj";
             var staticSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Static" / "Wolverine.AotSmoke.Static.csproj";
+            var aiSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AI.AotSmoke" / "Wolverine.AI.AotSmoke.csproj";
 
             DotNet($"build {smoke} --configuration {Configuration} --framework net9.0");
             DotNet($"run --project {smoke} --no-build --configuration {Configuration} --framework net9.0");
 
             DotNet($"build {staticSmoke} --configuration {Configuration} --framework net9.0");
             DotNet($"run --project {staticSmoke} --no-build --configuration {Configuration} --framework net9.0");
+
+            // GH-4230. Runs as well as builds: the schema generation this gates fails by returning an
+            // empty schema rather than by throwing, so a build-only check would pass over exactly the
+            // regression it exists to catch.
+            DotNet($"build {aiSmoke} --configuration {Configuration} --framework net9.0");
+            DotNet($"run --project {aiSmoke} --no-build --configuration {Configuration} --framework net9.0");
         });
 
     // ─── Azure Service Bus CI Targets ──────────────────────────────────

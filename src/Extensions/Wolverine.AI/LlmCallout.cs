@@ -1,4 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.AI;
@@ -115,6 +118,14 @@ public sealed class LlmCallout
     /// Ask the model for a structured answer, with <paramref name="context" /> serialized to JSON and
     /// appended underneath the prompt.
     /// </summary>
+    /// <remarks>
+    /// Serializing an arbitrary object needs reflection over its shape, which is why this overload is
+    /// annotated. In a trimmed or AOT application use <see cref="Ask{TResponse}(string)" /> and then
+    /// <see cref="WithContext{TContext}(TContext, JsonTypeInfo{TContext})" />, which serializes through
+    /// source generated type info instead.
+    /// </remarks>
+    [RequiresUnreferencedCode("Serializes an arbitrary context object. Use WithContext(context, typeInfo) in trimmed applications.")]
+    [RequiresDynamicCode("Serializes an arbitrary context object. Use WithContext(context, typeInfo) in trimmed applications.")]
     public static LlmCallout Ask<TResponse>(string prompt, object context)
     {
         return new LlmCallout
@@ -137,6 +148,12 @@ public sealed class LlmCallout
     /// Ask the model for a plain text answer, with <paramref name="context" /> serialized to JSON and
     /// appended underneath the prompt. Published as an <see cref="LlmTextResponse" />.
     /// </summary>
+    /// <remarks>
+    /// See <see cref="Ask{TResponse}(string, object)" /> for why this overload is annotated and what a
+    /// trimmed application uses instead.
+    /// </remarks>
+    [RequiresUnreferencedCode("Serializes an arbitrary context object. Use WithContext(context, typeInfo) in trimmed applications.")]
+    [RequiresDynamicCode("Serializes an arbitrary context object. Use WithContext(context, typeInfo) in trimmed applications.")]
     public static LlmCallout Ask(string prompt, object context)
     {
         return new LlmCallout { Prompt = prompt, Context = Serialize(context) };
@@ -149,6 +166,28 @@ public sealed class LlmCallout
     public bool ExpectsResponse<TResponse>()
     {
         return ResponseType == IdentifierFor(typeof(TResponse));
+    }
+
+    /// <summary>
+    /// Attach context that is already JSON, appended underneath the prompt. The trim clean way to give a
+    /// callout context, and the escape hatch when the context is not a CLR object at all — a rendered
+    /// document, a retrieved passage, a diff.
+    /// </summary>
+    public LlmCallout WithContext(string json)
+    {
+        Context = json;
+        return this;
+    }
+
+    /// <summary>
+    /// Attach context serialized through source generated type info, so the whole callout stays trim and
+    /// AOT clean:
+    /// <c>LlmCallout.Ask&lt;IncidentTriage&gt;(prompt).WithContext(snapshot, MyAiContext.Default.IncidentSnapshot)</c>.
+    /// </summary>
+    public LlmCallout WithContext<TContext>(TContext context, JsonTypeInfo<TContext> typeInfo)
+    {
+        Context = JsonSerializer.Serialize(context, typeInfo);
+        return this;
     }
 
     /// <summary>
@@ -231,8 +270,24 @@ public sealed class LlmCallout
         return $"{responseType.FullName}, {responseType.Assembly.GetName().Name}";
     }
 
+    /// <summary>
+    /// Options for rendering a context object into a prompt. Microsoft.Extensions.AI's own
+    /// <see cref="AIJsonUtilities.DefaultOptions" /> matches these except that it sets
+    /// <c>WriteIndented</c>, and indentation in a prompt is billed input tokens buying nothing — it also
+    /// inflates every character against <see cref="LlmBudget.MaximumPromptCharacters" />. The naming
+    /// policy and null handling are kept identical so that what the model is shown does not otherwise
+    /// change.
+    /// </summary>
+    private static readonly JsonSerializerOptions _contextSerialization = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    [RequiresUnreferencedCode("Serializes an arbitrary context object")]
+    [RequiresDynamicCode("Serializes an arbitrary context object")]
     private static string Serialize(object context)
     {
-        return JsonSerializer.Serialize(context, context.GetType(), AIJsonUtilities.DefaultOptions);
+        return JsonSerializer.Serialize(context, context.GetType(), _contextSerialization);
     }
 }

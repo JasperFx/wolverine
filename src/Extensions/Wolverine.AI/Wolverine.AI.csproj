@@ -9,15 +9,23 @@
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
         <!--
-          NOT AOT-compatible. The callout message carries its response type as a
-          string (see LlmCallout.ResponseType), which the executor resolves back to
-          a Type and then feeds to AIJsonUtilities.CreateJsonSchema + JsonSerializer.
-          Both of those are reflection over a type the trimmer cannot see from any
-          static call site. Making this trim-clean needs a source-generated schema +
-          JsonSerializerContext keyed off the registered response types, which is
-          follow-on work rather than a suppression.
+          AOT-compatible as of GH-4230, on one condition the AOT guide spells out:
+          the application registers its response types with ai.RegisterResponseType()
+          and assigns LlmCalloutOptions.JsonSerializerOptions a source-generated
+          JsonSerializerContext over those same types.
+
+          Neither of the two things the executor does with a response type needs
+          reflection once that holds. AIJsonUtilities.CreateJsonSchema(Type, ...) carries
+          no trim annotations at all, because it builds the schema from the JsonTypeInfo
+          the options resolve, and deserialization goes through the JsonTypeInfo overload
+          rather than JsonSerializer.Deserialize(string, Type, options), which is the one
+          that is annotated. Proven by Wolverine.AI.AotSmoke, which is analyzer-gated
+          under TrimMode=full and run in CIAotSmoke.
+
+          The single reflective site left is the Type.GetType fallback for a response
+          type the application never registered, suppressed narrowly at its call site.
         -->
-        <IsAotCompatible>false</IsAotCompatible>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

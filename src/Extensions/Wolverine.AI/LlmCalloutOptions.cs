@@ -70,8 +70,39 @@ public class LlmCalloutOptions
     /// Serializer options used both to build the JSON schema handed to the model and to deserialize its
     /// answer. Defaults to <see cref="AIJsonUtilities.DefaultOptions" />, which is what the rest of
     /// Microsoft.Extensions.AI uses.
+    ///
+    /// <para>
+    /// A trimmed or AOT application assigns options whose <c>TypeInfoResolver</c> is a source generated
+    /// <c>JsonSerializerContext</c> over its response types. Both the schema generation and the
+    /// deserialization run off that resolver, so neither needs reflection. See the AOT guide.
+    /// </para>
     /// </summary>
     public JsonSerializerOptions JsonSerializerOptions { get; set; } = AIJsonUtilities.DefaultOptions;
+
+    /// <summary>
+    /// Response types registered by <see cref="RegisterResponseType{TResponse}" />, keyed by the
+    /// identifier a callout carries on the wire.
+    /// </summary>
+    public IReadOnlyDictionary<string, Type> RegisteredResponseTypes => _registeredResponseTypes;
+
+    private readonly Dictionary<string, Type> _registeredResponseTypes = new();
+
+    /// <summary>
+    /// Declare a response type up front, so the executor can turn a persisted callout's identifier back
+    /// into a <see cref="Type" /> without reflection.
+    ///
+    /// <para>
+    /// Optional for an ordinary application — the executor falls back to the message type registry and
+    /// then to <see cref="Type.GetType(string)" />. <b>Required</b> for a trimmed or AOT one, where
+    /// neither fallback can be trusted: register every response type here, and put those same types in
+    /// the <c>JsonSerializerContext</c> assigned to <see cref="JsonSerializerOptions" />.
+    /// </para>
+    /// </summary>
+    public LlmCalloutOptions RegisterResponseType<TResponse>()
+    {
+        _registeredResponseTypes[LlmCallout.IdentifierFor(typeof(TResponse))] = typeof(TResponse);
+        return this;
+    }
 
     /// <summary>
     /// Claim each callout's <see cref="LlmCallout.DeduplicationId" /> before executing it, so a callout
