@@ -293,6 +293,19 @@ a lost message. Only a delivery that reached a terminal the broker will not undo
 native dead-letter move) is recorded. Duplicate drops are logged at `Debug`, not `Error`: in a mode that
 never settles at receipt, redelivery is expected operational noise rather than a sign that something is wrong.
 
+Both are also metered <Badge type="tip" text="6.32" />, tagged by endpoint:
+
+| Meter | Answers |
+| --- | --- |
+| `wolverine-duplicates-suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
+| `wolverine-idempotency-early-rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
+
+The second is the one to alert on. A non-zero and rising count means the early-rotation row in the table
+above is firing, so the effective suppression window is **shorter than the `window` you configured** — the
+guard is still bounded and still correct, but it is forgetting ids sooner than you asked it to. A deployment
+doing that was previously indistinguishable from one that was not. Rotations the clock caused are deliberately
+not counted, or every long-lived endpoint would report a shrinkage it does not have.
+
 ### Prefer broker-side deduplication where it exists
 
 Some transports can deduplicate at the broker, which is strictly better than anything an in-process guard can
@@ -334,6 +347,56 @@ or `executing` (duplication realized); `wolverine-leases-renewed` and `wolverine
 out the picture. A rising `executing` count means lane depth has outgrown the configured lease — raise the
 lease, raise the slot count, or lower the prefetch.
 :::
+
+## Monitoring a Native Ack or Partitioned Listener <Badge type="tip" text="6.32" />
+
+`EndpointHealthSnapshot` is what a monitoring console reads, and three of its fields exist because the
+ordinary ones are the wrong numbers on these two modes.
+
+### The depth needs the right ceiling
+
+`QueueCount` is real for `Inline` and `NativeAck` — but `BufferLimit` is **null** on both, and that is
+deliberate rather than missing. Neither mode builds a `BackPressureAgent`, so nothing enforces
+`BufferingLimits` there even if you set it; reporting it would render as `234 of 1,000` and offer headroom
+that does not exist.
+
+The ceiling that *does* bound these modes is the broker's prefetch window, reported as `InFlightLimit`:
+
+| Transport | `InFlightLimit` |
+| --- | --- |
+| RabbitMQ | `PreFetchCount` — a genuine cap on unacknowledged deliveries, applied with `BasicQosAsync` |
+| Azure Service Bus | `PrefetchCount`, or null when prefetch is disabled |
+| Everything else | null |
+
+Null means *this transport has no such ceiling*, which is a real answer. Render the depth without a
+denominator rather than inventing one. Redis Streams reports null on purpose: its read batch is a per-read
+size and not a cap on unacked entries, so publishing it would recreate exactly the false headroom this
+avoids.
+
+### On a partitioned listener, the total is the wrong number
+
+`PartitionProcessingByGroupId()` gives you one sequential lane per slot, and the sum across those lanes
+cannot see the failure the lanes exist to bound. 100 messages spread evenly over 10 lanes and 100 messages
+piled into a single lane report the **identical** `QueueCount` — and the second is a stalled listener while
+the first is perfectly healthy. That is the "one dominant group id serializes everything behind it" case.
+
+Three more fields make it visible:
+
+| Field | Meaning |
+| --- | --- |
+| `LaneCount` | Number of partition slots, or null when the listener is not partitioned at all |
+| `BusiestLaneCount` | Depth of the deepest single slot |
+| `ExemptLaneCount` | Depth of the [exempt lane](/guide/messaging/partitioning.html#exempting-message-types-from-partitioned-processing), or null when there are no exemptions |
+
+Compare `BusiestLaneCount` against `QueueCount / LaneCount`. Roughly even is a healthy listener; a busiest
+lane holding most of the total is a hot group id, and the fix is a better group id rather than more slots.
+
+`ExemptLaneCount` is reported separately and is **not** folded into `BusiestLaneCount`, because the exempt
+lane runs at the endpoint's full parallelism rather than as a sequential slot. A healthy exempt lane holding
+plenty of messages is not a hot partition, and folding the two together would report it as one.
+
+A null `LaneCount` means the listener is not partitioned — which is a different state from a listener
+partitioned into a single lane.
 
 ## Buffered Endpoints
 
