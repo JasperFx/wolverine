@@ -98,6 +98,224 @@
   populated while `NodeController.Agents` is still empty, so during a startup window a node could
   forward a command to itself. Read as a daemon defect for weeks.
 
+- **A shutting-down node no longer dead-letters work whose handler never ran.** (closes
+  [#4213](https://github.com/JasperFx/wolverine/issues/4213)) Building the executor for a message type
+  resolves services, so a draining node can reach it after the `IServiceProvider` is already gone —
+  `IHost.Dispose()` flags the provider *before* it disposes `WolverineRuntime`, whose `DisposeAsync`
+  then drains whatever the receiver still holds. Every envelope caught in that window threw
+  `ObjectDisposedException` and landed in the GH-4151 catch, which classifies an unbuildable executor
+  as a permanent configuration error and moves the envelope to the dead letter queue.
+
+  Shutdown is not a configuration error, and the envelope's handler never ran. `InvokeAsync` already
+  had the right guard one level up — leave the envelope unsettled so the broker or the inbox
+  redelivers it to a live node — and the GH-4151 catch was simply intercepting first. Surfaced through
+  the Redis NativeAck suite, where a draining node dead-lettered five entries and the pending entries
+  list went to zero, but the classification is the pipeline's and reaches every transport.
+
+- **A listener whose broker entity was deleted underneath it now heals.** (closes
+  [#4215](https://github.com/JasperFx/wolverine/issues/4215)) A wiped broker — LocalStack or the Azure
+  Service Bus emulator restarting empty, an operator or IaC teardown — permanently killed every
+  listener on it. The receive loop treated every iteration exception the same: log at `Error`, back off
+  capped at one second, retry the same receive forever. The entities were declared by `AutoProvision`
+  at startup, so the application knows how to declare them; nothing re-ran that afterwards. The tight
+  retry also emitted roughly 23 error lines per second across two dead transports.
+
+  `BackgroundReceiveLoop` now takes an optional failure classifier and an optional re-declare step,
+  both unset by default. A classified failure reports the new `ReceiveLoopStatus.EntityMissing`, logs
+  on the first of a streak and then every sixtieth, backs off on a five second floor, and re-declares.
+  Amazon SQS classifies `QueueDoesNotExistException` and Azure Service Bus `MessagingEntityNotFound`.
+  Both re-declares are gated on `AutoProvision`: re-creating an entity the application never created is
+  not Wolverine's call, and without it the loop still reports and backs off.
+
+- **Terminal settle failures are classified on the block rather than swallowed in a callback.** (closes
+  [#4012](https://github.com/JasperFx/wolverine/issues/4012)) All three transports that recognise a
+  permanently-unsettleable delivery did it by swallowing inside the retry block's own callback, which
+  works and hides the give-up: a swallowed exception is indistinguishable from success at the block's
+  boundary, so it could be neither logged differently nor reported. They now declare `ShouldRetry` and
+  report through `OnTerminalFailure`.
+
+  Closing the last of GH-4012's five items also closed a gap the previous shape left: Azure Service Bus
+  applied its classification by routing callbacks through a shared helper, and two of its four
+  listeners — both session listeners — never called it, so they kept burning the full retry budget on
+  failures that could never succeed. All four now build their settle block through one factory.
+
+- **`AddStopConditionIfNull` accepts the null identity its signature declares.**
+  ([#4161](https://github.com/JasperFx/wolverine/pull/4161)) Both implementations dereferenced the
+  nullable identity anyway, so passing the null the signature invites crashed code generation instead
+  of producing a guard. With no identity the stock message is now `Required {Type} was not found`
+  rather than `Unknown {Type} with identity {Id}` — there is no id, so the message must not ask for
+  one. A supplied `MissingMessage` is used verbatim either way, `{Id}` placeholder included: silently
+  deleting the placeholder would hide the mistake.
+
+### WolverineFx.RDBMS (all relational providers)
+
+- **Scheduled promotion matches the whole message identity on every provider.** (closes
+  [#4216](https://github.com/JasperFx/wolverine/issues/4216)) The PostgreSQL fix shipped for
+  [#4202](https://github.com/JasperFx/wolverine/issues/4202) was PostgreSQL-only. Every other relational
+  provider has its own `PollForScheduledMessagesAsync`, and SQLite, SQL Server, MySQL and Oracle all
+  matched on the id alone with no status predicate. Under `MessageIdentity.IdAndDestination` that
+  produced two defects, neither of which needs inbox partitioning: a row sharing the id at another
+  destination had its `owner_id` reassigned by a poll that never selected it, and a scheduled sibling
+  at another destination that was **not due yet** was promoted to `Incoming` — so a message scheduled
+  an hour out executed immediately.
+
+  Each provider now matches `(id, received_at)` as pairs and constrains the update to `Scheduled` rows.
+  The pairs have to be matched as pairs: `id IN (...) AND received_at IN (...)` matches the cross
+  product, which is the same defect in a longer statement.
+
+- **A redelivered inbox row can be retired when its identity is already handled.** (closes
+  [#4216](https://github.com/JasperFx/wolverine/issues/4216)) With `EnableInboxPartitioning` the
+  incoming table is partitioned by status and status is part of the key, so one identity can legally
+  sit in the incoming partition and the handled partition at once. Marking the incoming row handled was
+  then itself a cross-partition move onto a key the handled partition already held, so the row could
+  not be retired at all: it stayed `Incoming`, owned by the node that had already processed it, with
+  nothing left to try. When a handled row already exists for the identity, the incoming row is now
+  deleted instead — the retained handled row is what serves the `KeepAfterMessageHandling` window.
+
+### Diagnostics & telemetry
+
+- **NativeAck and partitioned listeners report numbers an operator can act on.** (closes
+  [#4199](https://github.com/JasperFx/wolverine/issues/4199)) Three gaps that GH-4186 exposed when it
+  made `QueueCount` real for `Inline` and `NativeAck`.
+
+  `EndpointHealthSnapshot.BufferLimit` is now null on the modes that do not enforce it. Neither
+  `Inline` nor `NativeAck` builds a back pressure agent, so filling it in rendered as "234 of 1,000"
+  and offered headroom that did not exist. The ceiling that does bound those modes — the broker's
+  prefetch window — is reported as the new `InFlightLimit`, from RabbitMQ's `PreFetchCount` and Azure
+  Service Bus's `PrefetchCount`.
+
+  A partitioned listener reports `LaneCount`, `BusiestLaneCount` and `ExemptLaneCount`. The aggregate
+  depth cannot see the failure partitioning exists to bound: 100 messages spread over ten lanes and 100
+  messages piled into one lane report the identical `QueueCount`, and the second is a stalled listener.
+  The GH-3899 exempt lane is reported separately because it runs at the endpoint's full parallelism and
+  would otherwise read as a hot partition.
+
+  The opt-in in-memory idempotency guard now meters `wolverine-duplicates-suppressed` and
+  `wolverine-idempotency-early-rotation`. The second answers whether the window is large enough: it
+  counts only rotations forced by the `MaxTracked` ceiling before the window elapsed, which is exactly
+  "the effective window is shorter than you configured".
+
+- **`MaximumBrokerRedeliveries` is documented as the delivery count it actually is.** (closes
+  [#4216](https://github.com/JasperFx/wolverine/issues/4216)) The implementation permits N deliveries
+  and dead-letters the N+1th; the durability guide said so and the XML documentation said "redeliver",
+  describing a limit one delivery more generous. The behaviour is unchanged.
+
+### Documentation
+
+- **RabbitMQ: `AddResourceSetupOnStartup` and `AutoProvision`.**
+  ([#4223](https://github.com/JasperFx/wolverine/pull/4223))
+
+### WolverineFx.AmazonS3
+
+- **S3-backed document and saga persistence.** (closes
+  [#4160](https://github.com/JasperFx/wolverine/issues/4160), from
+  [#4165](https://github.com/JasperFx/wolverine/pull/4165) by Anne Erdtsieck) `[Entity]` parameters and
+  the declarative `Storage.Store()` / `Insert()` / `Update()` / `Delete()` return values resolve
+  against S3 objects. Registration is explicit per type, with the bucket and the key function both
+  required:
+
+  ```csharp
+  opts.UseAmazonS3Persistence(s3 =>
+  {
+      s3.Store<InvoiceContent>(x =>
+      {
+          x.BucketName = "invoice-content";
+          x.KeyFor = ctx => $"invoices/v7/{ctx.TenantId}/{ctx.Id}.json";
+      });
+
+      s3.Saga<OrderSaga>(x =>
+      {
+          x.BucketName = "order-sagas";
+          x.KeyFor = ctx => $"sagas/{ctx.TenantId}/{ctx.Id}.json";
+      });
+  });
+  ```
+
+  `Store<T>()` and `Saga<T>()` are separate registrations and each refuses the other's type. That is
+  what lets the provider claim saga chains *only*: `[Transactional]` and `AutoApplyTransactions` ask
+  the same "who owns this chain's transaction?" question, and S3 has no transaction, so an ordinary
+  chain that merely touches an S3 document must never resolve here as its transaction owner.
+
+  **Saga writes are conditional; document writes are not.** A document is last-write-wins, because
+  `PutObject` overwrites whatever is at the key. A saga is a read-modify-write, so it is written with
+  `If-None-Match: *` when starting and `If-Match` against the ETag the session read when updating; a
+  `412` becomes `SagaConcurrencyException`, the same exception Marten, EF Core and Cosmos DB raise, so
+  one `OnException<ConcurrencyException>` policy still covers every store.
+
+- **The S3 claim check store moves into this package, and
+  `WolverineFx.ClaimCheck.AmazonS3` is deprecated.** The types and their namespace are unchanged, so
+  migration is a package reference swap and nothing else — but keeping both referenced produces
+  ambiguous-type errors. The SQS transport's oversized-message guidance moves with it: two XML comments
+  and two runtime error messages were naming a package we are deprecating.
+
+### WolverineFx.AzureBlobStorage
+
+- **Blob-backed document and saga persistence, plus the Azure Blob claim check store.** (closes
+  [#4160](https://github.com/JasperFx/wolverine/issues/4160)) The Azure sibling of
+  `WolverineFx.AmazonS3`, with the same shape: `blobs.Store<T>()` and `blobs.Saga<T>()` as separate
+  registrations, each refusing the other's type, and saga writes guarded by conditional requests.
+
+  Azure Blob Storage does **not** report conditional-write failures the way S3 does, and a straight
+  port of the S3 check would have let every duplicate saga start through while looking correct:
+
+  | operation | S3 | Azure Blob Storage |
+  |---|---|---|
+  | `If-None-Match: *` over an existing object | 412 | **409 `BlobAlreadyExists`** |
+  | stale `If-Match` | 412 | 412 `ConditionNotMet` |
+  | `If-Match` against a deleted object | 404 | **412 `ConditionNotMet`** |
+
+  Both statuses are translated. The deleted-blob row means completing a saga twice concurrently is a
+  concurrency failure rather than a resurrection, with no special case written for it.
+
+### WolverineFx.Redis
+
+- **Redis-backed document and saga persistence.** (closes
+  [#4160](https://github.com/JasperFx/wolverine/issues/4160)) Folded into the existing
+  `WolverineFx.Redis` rather than shipped as a new package: Wolverine's packages are scoped by
+  technology, not by capability. No new project, `.slnx` entry or CI target, and the transport's public
+  surface is untouched.
+
+  Saga concurrency is a Lua compare-and-swap rather than `WATCH`/`MULTI`/`EXEC`, which is
+  per-connection state that a multiplexed client has to reserve a connection to hold. Redis runs a
+  script to completion, which is exactly the atomic read-compare-write a saga needs: one round trip,
+  no reserved connection, nothing left dangling by a handler that throws between the read and the
+  write. Single key per script, so it is Redis Cluster safe. A create that finds a saga already there,
+  an update against a moved-on revision, a completion racing a write, and an update against an
+  already-completed saga all surface as `SagaConcurrencyException`.
+
+### WolverineFx.Marten / WolverineFx.EntityFrameworkCore
+
+- **Explicit per-provider entity attributes: `[FromMarten]` and `[FromEfCore]`.**
+  ([#4214](https://github.com/JasperFx/wolverine/pull/4214)) `[Entity]` is deliberately store-agnostic,
+  and there are two reasons to want an explicit alternative: some teams want the parameter to say where
+  it comes from, and Marten's `CanPersist` claims *every* document type, so an entity also mapped in a
+  `DbContext` resolves to EF Core by the `IsCatchAll` precedence rule. That default is correct, but
+  `[Entity]` had no way to hear that the Marten copy was the one you wanted. The rest of the family
+  follows on the same shape.
+
+- **Scope priming no longer manufactures the session it is guarding on.** (closes
+  [#4198](https://github.com/JasperFx/wolverine/issues/4198)) Since 6.30.3, every message handler and
+  HTTP endpoint that service-located **anything** — for any reason, with or without persistence —
+  opened an outbox-enrolled Marten session it never asked for. Cascading messages then left through an
+  uncommitted outbox, and under sharded multi-tenancy the session factory threw outright. Requires
+  JasperFx 2.58.0 or later.
+
+### Event model
+
+- **A stream-appending handler's return value is a reply, not an event.** (closes
+  [#4204](https://github.com/JasperFx/wolverine/issues/4204)) A handler that takes an
+  `IEventStream<T>`, appends through it, and returns a DTO for `InvokeAsync<TResponse>` had that DTO
+  reported as an emitted event of the slice.
+
+- **A generic message type's slice reads the way source spells it.** (closes
+  [#4205](https://github.com/JasperFx/wolverine/issues/4205)) An `IEvent<ClaimReleased>` relay minted a
+  slice labelled `` IEvent`1 ``. Unreadable on the canvas, and there was a real problem underneath the
+  cosmetic one: `Type.Name` is identical for every closed form of the same open generic, and a slice
+  name is the merge key across model sources — so two relays carrying different payloads collided on
+  one slice. Only generics are renamed, and all three sources that name a slice go through the same
+  rule, because they have to agree or a message reached through both a handler and an HTTP endpoint
+  stops merging.
+
 ### WolverineFx (core) + event store integrations
 
 - **A locally-owned shard that stopped with nothing to report is restarted.** (closes
