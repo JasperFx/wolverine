@@ -59,6 +59,13 @@ public interface IListeningAgent : IListenerCircuit
     ValueTask LatchPermanently();
 
     /// <summary>
+    /// GH-4199. Per-lane depth when this listener's receiver is group-partitioned, otherwise null. The
+    /// aggregate <see cref="IListenerCircuit.QueueCount"/> cannot distinguish an evenly loaded partitioned
+    /// listener from one where a single dominant group id has everything serialized behind it.
+    /// </summary>
+    PartitionedLaneDepth? LaneDepth => null;
+
+    /// <summary>
     /// CritterWatch#942 — true when this listener's receiver execution block has faulted terminally
     /// (jasperfx#506). A faulted receiver can never make progress: its QueueCount freezes and every
     /// post from the receive loop throws, so the listener looks alive while dropping everything it
@@ -175,6 +182,13 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     // both contributed a constant 0, so a saturated NativeAck listener was indistinguishable from an idle one.
     public int QueueCount => (_receiver is IHasQueueDepth q ? q.QueueCount : 0)
                              + _runtime.BatchingPendingCounts.PendingFor(Endpoint.Uri);
+
+    /// <summary>
+    /// GH-4199. Per-lane depth when this listener's receiver is group-partitioned, otherwise null. Read off
+    /// the OUTER receiver deliberately: both wrappers delegate it, and the outer one is what
+    /// <see cref="QueueCount"/> reads too, so the sum and its breakdown can never come from different layers.
+    /// </summary>
+    public PartitionedLaneDepth? LaneDepth => (_receiver as IHasQueueDepth)?.LaneDepth;
 
     /// <summary>
     /// Approximate timestamp of the last time a message was received on this listener. Receivers that stamp
