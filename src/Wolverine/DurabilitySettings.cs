@@ -132,9 +132,17 @@ public class DurabilitySettings : IDescribeMyself
     public int MaximumAckAttempts { get; set; } = 3;
 
     /// <summary>
-    /// GH-4012 item 4. The most times a broker may redeliver one message before Wolverine stops trying to
+    /// GH-4012 item 4. The most times a broker may <b>deliver</b> one message before Wolverine stops trying to
     /// process it and moves it to the dead letter queue instead. Zero — the default — leaves the broker's
     /// own limit in charge and changes nothing.
+    ///
+    /// <para>
+    /// GH-4216: <b>this is a delivery count, not a redelivery count, despite the property name.</b> The first
+    /// delivery is <c>1</c> on both Azure Service Bus and SQS, and the check is <c>count &gt; limit</c>, so
+    /// <c>MaximumBrokerRedeliveries = 3</c> permits three deliveries and dead-letters on the fourth. A message
+    /// delivered exactly the permitted number of times still gets to run. This summary previously said
+    /// "redeliver", which describes a limit one delivery more generous than the one implemented.
+    /// </para>
     /// </summary>
     /// <remarks>
     /// This is the counterpart to <see cref="MaximumAckAttempts" /> for the failure that one cannot reach.
