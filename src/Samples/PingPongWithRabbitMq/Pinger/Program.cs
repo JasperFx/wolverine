@@ -21,11 +21,12 @@ return await Host.CreateDefaultBuilder(args)
         // Wolverine + Rabbit MQ using Aspire
         opts.UseRabbitMqUsingNamedConnection("rabbit")
             // Directs Wolverine to build any declared queues, exchanges, or
-            // bindings with the Rabbit MQ broker as part of bootstrapping time
+            // bindings with the Rabbit MQ broker as needed
             .AutoProvision();
 
-        // Or you can use this functionality to set up *all* known
-        // Wolverine (or Marten) related resources on application startup
+        // Adds an IHostedService that sets up *all* known JasperFx resources
+        // at application startup, including Wolverine and Marten resources.
+        // This does not require AutoProvision().
         opts.Services.AddResourceSetupOnStartup();
 
         // This will send ping messages on a continuous
