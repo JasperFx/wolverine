@@ -51,8 +51,11 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Durability = settings;
         _cancellation = settings.Cancellation;
 
-        _markEnvelopeAsHandledById =
-            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
+        // GH-4216: deliberately NOT built here. Durability.EnableInboxPartitioning is not reliably set at
+        // construction time -- the batched path reads it per call and got the partitioned shape while this
+        // one, built in the constructor, silently kept the unpartitioned statement. Built lazily on first
+        // use instead, where the setting is settled.
+
         _incrementIncomingEnvelopeAttempts =
             $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set attempts = @attempts where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
