@@ -121,7 +121,22 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // catch -> log -> exponential-backoff -> continue policy, the idle delay when a poll returns nothing, the
         // heartbeat, and safe teardown. The listener just provides one poll-and-process iteration and reports the
         // loop's health through IReportReceiveLoopHealth.
-        _loop = new BackgroundReceiveLoop(_queue.Uri, logger, pollOnceAsync, runtime.Cancellation);
+        _loop = new BackgroundReceiveLoop(_queue.Uri, logger, pollOnceAsync, runtime.Cancellation)
+        {
+            // GH-4215: a wiped broker -- LocalStack or an emulator restarting empty, an operator or IaC
+            // teardown -- used to kill this listener permanently. The queue was declared by AutoProvision at
+            // startup, so the application knows how to declare it; nothing simply re-ran that afterwards.
+            IsEntityMissing = e => e is QueueDoesNotExistException,
+
+            // Gated on AutoProvision: re-creating a queue the application never created is not Wolverine's
+            // call. Without it the loop still reports EntityMissing and backs off, which is the visibility
+            // half of the fix.
+            // SetupAsync re-creates the queue AND reassigns QueueUrl, so the next poll uses the new one --
+            // which matters because a recreated queue is a different entity even when the name is identical.
+            RedeclareAsync = _transport.AutoProvision
+                ? _ => _queue.SetupAsync(_transport.Client!)
+                : null
+        };
         _loop.Start();
     }
 

@@ -32,7 +32,21 @@ public enum ReceiveLoopStatus
     /// The receive loop terminated on an unexpected exception and is no longer consuming. The listener is silently
     /// dead even though its <c>ListeningStatus</c> may still read <c>Accepting</c>.
     /// </summary>
-    Faulted
+    Faulted,
+
+    /// <summary>
+    /// GH-4215. The broker entity this loop reads from does not exist -- it was deleted, or the broker was wiped
+    /// and came back empty, which is what an emulator or LocalStack restart does. The loop is still alive and
+    /// still retrying, but no retry of the receive itself can succeed until the entity exists again.
+    ///
+    /// <para>
+    /// Distinct from <see cref="Faulted"/> on purpose: a faulted loop has stopped and needs a rebuild, while this
+    /// one is running and will heal on its own if the endpoint can be re-declared. It is also distinct from
+    /// <see cref="Running"/>, which is what this used to report -- an operator watching a healthy-looking loop
+    /// retrying once a second forever had nothing to tell them the entity was simply gone.
+    /// </para>
+    /// </summary>
+    EntityMissing
 }
 
 /// <summary>

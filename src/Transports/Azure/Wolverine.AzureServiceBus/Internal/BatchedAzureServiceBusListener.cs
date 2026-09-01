@@ -306,9 +306,37 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                                    ?? TransportConnectionState.Reconnecting;
 
                 failedCount++;
-                var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                if (_endpoint.Role == EndpointRole.Application)
+                // GH-4215. A missing entity is not a transient blip: the emulator restarting empty, an operator
+                // or IaC teardown, a broker wipe. Retrying the receive cannot bring it back, so the old
+                // one-second cadence bought nothing and cost ~23 error lines a second across a fleet. The
+                // entity was declared by AutoProvision at startup, so the application knows how to declare it --
+                // nothing simply re-ran that afterwards.
+                var entityMissing = e is ServiceBusException
+                {
+                    Reason: ServiceBusFailureReason.MessagingEntityNotFound
+                };
+
+                var pauseTime = entityMissing
+                    ? 5.Seconds()
+                    : failedCount > 5
+                        ? 1.Seconds()
+                        : (failedCount * 100).Milliseconds();
+
+                if (entityMissing)
+                {
+                    // First of a streak and then every 60th, rather than every iteration -- the log storm was
+                    // its own outage on top of the one being reported.
+                    if (failedCount == 1 || failedCount % 60 == 0)
+                    {
+                        _logger.LogWarning(e,
+                            "The Azure Service Bus entity for {Uri} does not exist (consecutive failures: {Count}). Retrying the receive cannot succeed until it is re-declared.",
+                            _endpoint.Uri, failedCount);
+                    }
+
+                    await tryRedeclareAsync();
+                }
+                else if (_endpoint.Role == EndpointRole.Application)
                 {
                     _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
                         _endpoint.Uri);
@@ -322,6 +350,28 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
                 await Task.Delay(pauseTime);
             }
+        }
+    }
+
+    /// <summary>
+    /// GH-4215. Re-declare the entity so a wiped broker heals the way a startup does. Gated on AutoProvision:
+    /// re-creating an entity the application never created is not Wolverine's call to make, and without it the
+    /// loop still backs off and reports rather than retrying once a second forever.
+    /// </summary>
+    private async Task tryRedeclareAsync()
+    {
+        if (!_endpoint.Parent.AutoProvision) return;
+
+        try
+        {
+            await _endpoint.SetupAsync(_logger);
+        }
+        catch (Exception redeclare)
+        {
+            // Best-effort by nature: the broker being unreachable is exactly when this fails, and it must
+            // never take the receive loop down with it.
+            _logger.LogWarning(redeclare, "Could not re-declare the Azure Service Bus entity for {Uri}",
+                _endpoint.Uri);
         }
     }
 
