@@ -2,6 +2,8 @@ using System.Diagnostics;
 using JasperFx.Blocks;
 using Wolverine.Transports;
 
+using Wolverine.Runtime.WorkerQueues;
+
 namespace Wolverine.Runtime.Partitioning;
 
 internal class ShardedExecutionBlock : BlockBase<Envelope>
@@ -238,6 +240,17 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
     }
 
     public override uint Count => (uint)allBlocks().Sum(x => x.Count);
+
+    /// <summary>
+    /// GH-4199. The lane distribution behind <see cref="Count"/>. The sum on its own cannot distinguish an
+    /// evenly loaded listener from one where a single dominant group id has everything queued behind it,
+    /// which is the exact failure the slots exist to bound -- and the exempt lane is reported separately
+    /// because it runs with its own parallelism and would misread as a hot partition if folded in.
+    /// </summary>
+    public PartitionedLaneDepth LaneDepth =>
+        new(_numberOfSlots,
+            _slots.Length == 0 ? 0 : (int)_slots.Max(x => x.Count),
+            _exemptLane == null ? null : (int)_exemptLane.Count);
 
     /// <summary>
     /// Propagates to every slot block. Without this, a slot's escaping exception falls to the

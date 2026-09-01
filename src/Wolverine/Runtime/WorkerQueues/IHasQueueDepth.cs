@@ -31,4 +31,36 @@ public interface IHasQueueDepth
     /// nothing else ever would.
     /// </summary>
     DateTimeOffset? LastReceivedAt => null;
+
+    /// <summary>
+    /// GH-4199. Per-lane depth for a receiver whose execution block is partitioned by group id, or null when it
+    /// is not partitioned at all. <see cref="QueueCount"/> alone is the SUM across lanes, and the sum is
+    /// precisely the number that cannot see the failure the partitioning exists to bound: 100 messages spread
+    /// evenly over 10 lanes and 100 messages piled into one lane report the identical depth, and the second is
+    /// a stalled listener while the first is a healthy one.
+    ///
+    /// <para>
+    /// <b>Implementers behind a wrapper must delegate this.</b> <c>ReceiverWithRules</c> is installed for
+    /// something as ordinary as an endpoint-level <c>MessageType</c>, so leaving the default in place there
+    /// would report "not partitioned" for most real endpoints. See <c>ReceiverWithRules</c> and
+    /// <c>GlobalPartitionedInterceptor</c>, which delegate <see cref="QueueCount"/> for the same reason.
+    /// </para>
+    /// </summary>
+    PartitionedLaneDepth? LaneDepth => null;
 }
+
+/// <summary>
+/// GH-4199. A point-in-time read of how work is distributed across a partitioned receiver's lanes.
+/// </summary>
+/// <param name="LaneCount">How many partition slots the block was built with.</param>
+/// <param name="BusiestLaneCount">
+/// The deepest single partition slot. Read against <see cref="LaneCount"/> and the endpoint's total depth,
+/// this is what makes "one dominant GroupId is serializing everything behind it" -- the failure GH-3899's
+/// exempt lane exists to mitigate -- visible from outside the process.
+/// </param>
+/// <param name="ExemptLaneCount">
+/// Depth of the GH-3899 exempt lane, or null when the endpoint has no exemptions. Deliberately NOT folded
+/// into <paramref name="BusiestLaneCount"/>: the exempt lane runs with its own parallelism, so a healthy
+/// multi-worker lane holding plenty of messages would otherwise be misread as a hot partition.
+/// </param>
+public record PartitionedLaneDepth(int LaneCount, int BusiestLaneCount, int? ExemptLaneCount);

@@ -32,6 +32,14 @@ public class MetricsConstants
     public const string LeaseCeilingReached = "wolverine-lease-ceiling-reached";
     public const string LeaseLossStageKey = "lease.loss.stage";
 
+    // GH-4199. Opt-in in-memory duplicate suppression (GH-3710) dropped duplicates with nothing but a
+    // LogDebug, so neither question an operator actually asks was answerable: "is my redelivery rate normal"
+    // and "is the guard's window big enough". EarlyRotation is the second one -- a rotation forced by the
+    // MaxTracked ceiling rather than by the clock means the effective window is SHORTER than the configured
+    // one, which is otherwise indistinguishable from a healthy deployment.
+    public const string DuplicatesSuppressed = "wolverine-duplicates-suppressed";
+    public const string IdempotencyEarlyRotation = "wolverine-idempotency-early-rotation";
+
     public const string MessageTypeKey = "message.type";
     public const string MessageDestinationKey = "message.destination";
     public const string TenantIdKey = "tenant.id";

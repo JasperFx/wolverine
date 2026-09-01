@@ -69,6 +69,14 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     ///     buffer, so an oversized prefetch combined with slow handlers leads to lock-lost
     ///     redeliveries.
     /// </summary>
+    /// <summary>
+    /// GH-4199. Azure Service Bus prefetch is a client-side buffer rather than a hard cap on unsettled
+    /// deliveries, but it is still the bound an operator tunes and the one that governs how many messages can
+    /// be sitting on this endpoint ahead of the handlers. Zero means prefetch is disabled, which is no ceiling
+    /// at all, so report null rather than a denominator of nothing.
+    /// </summary>
+    public override int? InFlightLimit => PrefetchCount > 0 ? PrefetchCount : null;
+
     public int PrefetchCount
     {
         get

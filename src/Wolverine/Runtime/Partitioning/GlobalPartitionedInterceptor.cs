@@ -40,6 +40,10 @@ internal class GlobalPartitionedInterceptor : IReceiver, IHasQueueDepth, IReceiv
 
     public DateTimeOffset? LastReceivedAt => (_inner as IHasQueueDepth)?.LastReceivedAt;
 
+    // GH-4199: delegated for the same reason as QueueCount -- these wrappers NEST, so a partitioned receiver
+    // behind both this and ReceiverWithRules needs every layer to pass the lane depths through.
+    public PartitionedLaneDepth? LaneDepth => (_inner as IHasQueueDepth)?.LaneDepth;
+
     public async ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {
         var passThrough = new List<Envelope>();

@@ -123,5 +123,10 @@ internal class ReceiverWithRules : IReceiver, ILocalQueue, IReceiverWrapper
 
     public DateTimeOffset? LastReceivedAt => (Inner as IHasQueueDepth)?.LastReceivedAt;
 
+    // GH-4199: delegated for the same reason as QueueCount. This wrapper is installed by something as
+    // ordinary as an endpoint-level MessageType, so taking the interface default here would report
+    // "not partitioned" for most real partitioned endpoints.
+    public PartitionedLaneDepth? LaneDepth => (Inner as IHasQueueDepth)?.LaneDepth;
+
     public Uri Uri => Inner is ILocalQueue q ? q.Uri : new Uri("none://none");
 }

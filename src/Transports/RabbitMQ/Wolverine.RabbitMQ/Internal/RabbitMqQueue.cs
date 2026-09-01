@@ -90,6 +90,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     protected override bool supportsNativeAck => true;
 
     /// <summary>
+    /// GH-4199. On RabbitMQ the prefetch window IS the ceiling on unacknowledged deliveries -- it is applied
+    /// with <c>BasicQosAsync</c> and the broker stops delivering once it is reached -- so it is the number a
+    /// monitoring consumer should read <see cref="Wolverine.Configuration.EndpointHealthSnapshot.QueueCount"/>
+    /// against on the modes that build no BackPressureAgent.
+    /// </summary>
+    public override int? InFlightLimit => PreFetchCount;
+
+    /// <summary>
     ///     The number of unacknowledged messages that can be processed concurrently
     /// </summary>
     public ushort PreFetchCount

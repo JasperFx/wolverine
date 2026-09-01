@@ -177,10 +177,19 @@ public class EndpointCollection : IEndpointCollection
                 LastQueueActivityAt: listener.LastQueueActivityAt,
                 LastMessageSentAt: null,
                 SenderLatched: false,
-                BufferLimit: listener.Endpoint.BufferingLimits?.Maximum,
+                // GH-4199: only report the buffering ceiling on the modes that actually enforce it. Inline and
+                // NativeAck build no BackPressureAgent, so filling this in there hands an operator headroom
+                // that does not exist -- invisible until GH-4186 made QueueCount real for those two modes.
+                BufferLimit: listener.Endpoint.ShouldEnforceBackPressure()
+                    ? listener.Endpoint.BufferingLimits?.Maximum
+                    : null,
                 ConnectionState: connectionStateOf(listener),
                 ReceiveLoopStatus: loopHealth?.ReceiveLoopStatus ?? ReceiveLoopStatus.Unknown,
-                LastReceiveLoopActivityAt: loopHealth?.LastReceiveLoopActivityAt));
+                LastReceiveLoopActivityAt: loopHealth?.LastReceiveLoopActivityAt,
+                InFlightLimit: listener.Endpoint.InFlightLimit,
+                LaneCount: listener.LaneDepth?.LaneCount,
+                BusiestLaneCount: listener.LaneDepth?.BusiestLaneCount,
+                ExemptLaneCount: listener.LaneDepth?.ExemptLaneCount));
         }
 
         foreach (var sender in _senders.Enumerate().Select(x => x.Value))

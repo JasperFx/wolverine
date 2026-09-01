@@ -1,3 +1,5 @@
+using System.Diagnostics.Metrics;
+
 namespace Wolverine.Runtime.WorkerQueues;
 
 /// <summary>
@@ -44,6 +46,12 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
     private HashSet<IdempotencyKey> _previousInFlight = new();
     private HashSet<IdempotencyKey> _previousProcessed = new();
 
+    // GH-4199. Instruments alongside plain counters, matching LeaseRenewalTracker: tests and a debugger read
+    // the properties, OTel reads the instruments, and neither has to stand up the other.
+    private readonly Counter<int>? _suppressedCounter;
+    private readonly Counter<int>? _earlyRotationCounter;
+    private readonly KeyValuePair<string, object?>[] _tags;
+
     public GenerationalIdempotencyGuard(InMemoryIdempotencySettings settings, MessageIdentity identity)
         : this(settings, identity, () => DateTimeOffset.UtcNow)
     {
@@ -51,11 +59,25 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
 
     /// <param name="now">Seam for deterministic tests of the rotation policy. Production uses the system clock.</param>
     internal GenerationalIdempotencyGuard(InMemoryIdempotencySettings settings, MessageIdentity identity,
-        Func<DateTimeOffset> now)
+        Func<DateTimeOffset> now, Meter? meter = null, Uri? endpoint = null)
     {
         Settings = settings;
         _identity = identity;
         _now = now;
+
+        _tags = endpoint == null
+            ? []
+            : [new KeyValuePair<string, object?>(MetricsConstants.MessageDestinationKey, endpoint.ToString())];
+
+        if (meter != null)
+        {
+            _suppressedCounter = meter.CreateCounter<int>(MetricsConstants.DuplicatesSuppressed,
+                MetricsConstants.Messages,
+                "Number of duplicate deliveries dropped by the in-memory idempotency guard");
+            _earlyRotationCounter = meter.CreateCounter<int>(MetricsConstants.IdempotencyEarlyRotation,
+                MetricsConstants.Messages,
+                "Number of generation rotations forced by the MaxTracked ceiling rather than by the window elapsing");
+        }
 
         // Half the window, because an id has to survive BOTH generations to be forgotten -- rotating on the
         // full window would remember every id for up to twice as long as advertised.
@@ -65,6 +87,21 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
     }
 
     public InMemoryIdempotencySettings Settings { get; }
+
+    /// <summary>
+    /// GH-4199. How many duplicate deliveries this guard has dropped. The answer to "is my redelivery rate
+    /// normal" -- NativeAckReceiver's own comment pointed at GH-3713 for this number, and GH-3713 closed as a
+    /// flood reproduction rather than as a metric, so it was never actually produced.
+    /// </summary>
+    internal int DuplicatesSuppressed { get; private set; }
+
+    /// <summary>
+    /// GH-4199. How many times a generation rotated because the tracked count hit the ceiling rather than
+    /// because the window elapsed. Non-zero means the effective suppression window is SHORTER than the
+    /// configured one, which is the only way to tell a deployment that is silently evicting early from one
+    /// that is not.
+    /// </summary>
+    internal int EarlyRotations { get; private set; }
 
     /// <summary>Number of ids currently remembered as processed, across both generations. Test seam.</summary>
     internal int TrackedCount
@@ -102,6 +139,10 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
                                                || _currentProcessed.Contains(key) ||
                                                _previousProcessed.Contains(key))
             {
+                // GH-4199: counted here rather than at each caller's drop site so every receiver that uses a
+                // guard -- NativeAck, Inline, Buffered -- reports without having to remember to.
+                DuplicatesSuppressed++;
+                _suppressedCounter?.Add(1, _tags);
                 return false;
             }
 
@@ -150,6 +191,14 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
         if (!byTime && !bySize)
         {
             return;
+        }
+
+        // GH-4199. Only a size-forced rotation is "early": the window did not elapse, so ids are being
+        // forgotten sooner than configured. A rotation that is both is not early -- the clock got there too.
+        if (bySize && !byTime)
+        {
+            EarlyRotations++;
+            _earlyRotationCounter?.Add(1, _tags);
         }
 
         _previousProcessed = _currentProcessed;

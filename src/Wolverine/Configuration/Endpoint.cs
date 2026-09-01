@@ -714,8 +714,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         if (InMemoryIdempotency != null && IdempotencyGuard == null && Mode != EndpointMode.Durable &&
             this is not Transports.Local.LocalQueue)
         {
-            IdempotencyGuard =
-                new GenerationalIdempotencyGuard(InMemoryIdempotency, runtime.DurabilitySettings.MessageIdentity);
+            // GH-4199: the meter and the endpoint tag come in here so the suppression counters are reported
+            // per endpoint, alongside the GH-4048 lease instruments.
+            IdempotencyGuard = new GenerationalIdempotencyGuard(InMemoryIdempotency,
+                runtime.DurabilitySettings.MessageIdentity, () => DateTimeOffset.UtcNow, runtime.Meter, Uri);
         }
 
         _hasCompiled = true;
@@ -937,6 +939,23 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         // the broker stops delivering -- which makes an in-process BackPressureAgent redundant, same as Inline.
         return Mode is not (EndpointMode.Inline or EndpointMode.NativeAck);
     }
+
+    /// <summary>
+    /// GH-4199. The ceiling that actually bounds how many deliveries this endpoint can be holding when
+    /// <see cref="ShouldEnforceBackPressure"/> is false -- normally the broker's prefetch window, which is what
+    /// stands in for a <c>BackPressureAgent</c> on <see cref="EndpointMode.Inline"/> and
+    /// <see cref="EndpointMode.NativeAck"/>. Reported on <see cref="EndpointHealthSnapshot.InFlightLimit"/> so a
+    /// monitoring consumer has something to read the depth against.
+    ///
+    /// <para>
+    /// Null means "this transport has no such ceiling", which is a meaningful answer rather than a missing one:
+    /// a consumer should render the depth with no denominator rather than invent one. Do NOT override this with
+    /// a number that does not bound the unsettled window -- Redis Streams' read batch, for instance, is a
+    /// per-read size and not a cap on unacked entries, so reporting it would recreate exactly the false headroom
+    /// this exists to remove.
+    /// </para>
+    /// </summary>
+    public virtual int? InFlightLimit => null;
 
     /// <summary>
     ///     One time initialization of this endpoint

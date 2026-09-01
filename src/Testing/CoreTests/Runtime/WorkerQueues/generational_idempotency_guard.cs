@@ -249,4 +249,100 @@ public class generational_idempotency_guard
     {
         Should.Throw<ArgumentOutOfRangeException>(() => new InMemoryIdempotencySettings { MaxTracked = 1 });
     }
+
+    #region GH-4199 -- the suppression is countable
+
+    /// <summary>
+    /// GH-4199. The drop used to be a LogDebug and nothing else, so "is my redelivery rate normal" had no
+    /// answer. NativeAckReceiver's own comment pointed at GH-3713 for the number, and GH-3713 closed as a
+    /// flood reproduction rather than as a metric, so it was never actually produced.
+    /// </summary>
+    [Fact]
+    public void counts_every_duplicate_it_drops()
+    {
+        var guard = guardFor();
+        var envelope = envelopeFor();
+
+        guard.TryBeginProcessing(envelope).ShouldBeTrue();
+        guard.DuplicatesSuppressed.ShouldBe(0, "The first delivery is not a duplicate.");
+
+        guard.TryBeginProcessing(envelope).ShouldBeFalse();
+        guard.TryBeginProcessing(envelope).ShouldBeFalse();
+
+        guard.DuplicatesSuppressed.ShouldBe(2);
+    }
+
+    [Fact]
+    public void an_in_flight_duplicate_counts_as_well_as_a_processed_one()
+    {
+        var guard = guardFor();
+        var envelope = envelopeFor();
+
+        guard.TryBeginProcessing(envelope).ShouldBeTrue();
+        guard.TryBeginProcessing(envelope).ShouldBeFalse();   // still in flight
+        guard.MarkProcessed(envelope);
+        guard.TryBeginProcessing(envelope).ShouldBeFalse();   // now processed
+
+        guard.DuplicatesSuppressed.ShouldBe(2);
+    }
+
+    /// <summary>
+    /// Unique traffic must not register as suppression. Without this the counter would climb on a perfectly
+    /// healthy endpoint and be useless as a redelivery-rate signal.
+    /// </summary>
+    [Fact]
+    public void distinct_messages_never_count_as_suppressed()
+    {
+        var guard = guardFor();
+
+        for (var i = 0; i < 50; i++)
+        {
+            guard.TryBeginProcessing(envelopeFor()).ShouldBeTrue();
+        }
+
+        guard.DuplicatesSuppressed.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// GH-4199, the second question: "is the guard's window big enough?" A rotation forced by MaxTracked
+    /// means ids are being forgotten sooner than the configured window, and a deployment doing that was
+    /// indistinguishable from one that is not.
+    /// </summary>
+    [Fact]
+    public void a_size_forced_rotation_is_reported_as_early()
+    {
+        // Rotation happens at MaxTracked / 2, so this rotates every 5 tracked ids with the clock standing still.
+        var guard = guardFor(window: 10.Minutes(), maxTracked: 10);
+
+        guard.EarlyRotations.ShouldBe(0);
+
+        for (var i = 0; i < 20; i++)
+        {
+            guard.TryBeginProcessing(envelopeFor());
+        }
+
+        guard.EarlyRotations.ShouldBeGreaterThan(0,
+            "The ceiling forced rotation while the window had not elapsed, so the effective window is shorter than configured.");
+    }
+
+    /// <summary>
+    /// The control: a rotation the clock caused is NOT early, and must not be reported as one. Otherwise
+    /// every long-lived endpoint reports a shrinking window it does not have.
+    /// </summary>
+    [Fact]
+    public void a_clock_driven_rotation_is_not_early()
+    {
+        var guard = guardFor(window: 10.Minutes(), maxTracked: 100_000);
+
+        guard.TryBeginProcessing(envelopeFor()).ShouldBeTrue();
+
+        // Past half the window, which is where rotation is due.
+        theTime = theTime.Add(6.Minutes());
+
+        guard.TryBeginProcessing(envelopeFor()).ShouldBeTrue();
+
+        guard.EarlyRotations.ShouldBe(0);
+    }
+
+    #endregion
 }

@@ -43,6 +43,10 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     private readonly Endpoint _endpoint;
     private readonly ILogger _logger;
     private readonly IBlock<Envelope> _receivingBlock;
+
+    // GH-4199. Held separately from _receivingBlock because DeserializeFirst wraps the sharded block in an
+    // upstream deserialization stage, so the lane depths are not reachable through _receivingBlock at all.
+    private readonly ShardedExecutionBlock? _sharded;
     private readonly DurabilitySettings _settings;
 
     /// <summary>
@@ -103,6 +107,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // because each delivery settles against the listener that delivered it. Binding a single
             // IChannelCallback for the whole block -- which is all BufferedReceiver ever needed, since its
             // completions are no-ops -- would ack the wrong delivery under ListenerCount > 1.
+            _sharded = sharded;
             _receivingBlock = sharded.DeserializeFirst(pipeline, runtime, channelFor);
         }
 
@@ -118,6 +123,12 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     // brought it -- but its lane depth is exactly the saturation signal an operator wants from this mode, and
     // it used to contribute a constant 0 to EndpointHealthSnapshot.
     public int QueueCount => (int)_receivingBlock.Count;
+
+    /// <summary>
+    /// GH-4199. Null unless this endpoint opted into group partitioning, in which case the sum reported by
+    /// <see cref="QueueCount"/> is the wrong number to judge the listener by on its own.
+    /// </summary>
+    public PartitionedLaneDepth? LaneDepth => _sharded?.LaneDepth;
 
     /// <summary>
     /// GH-4186. Stamped on receipt rather than derived from a depth change, because this mode runs no
