@@ -43,7 +43,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
         _task = Task.Run(listenForMessages, _cancellation.Token);
 
         // GH-4012 item 3: ack budget + terminal-failure classification, shared with the inline listener
-        _complete = new RetryBlock<AzureServiceBusEnvelope>(
+        _complete = AzureServiceBusSettlement.CompleteBlock(
             (e, _) => AzureServiceBusSettlement.CompleteAsync(e, maximumAckAttempts, _logger, _cancellation.Token),
             _logger, _cancellation.Token);
 

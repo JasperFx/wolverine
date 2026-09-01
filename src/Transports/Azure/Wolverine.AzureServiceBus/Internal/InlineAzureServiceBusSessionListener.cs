@@ -47,7 +47,9 @@ public class InlineAzureServiceBusSessionListener : IListener, ISupportDeadLette
         _mapper = mapper;
         _requeue = requeue;
 
-        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) => { return e.CompleteAsync(_cancellation.Token); },
+        // GH-4012 item 5 -- see the note on SessionSpecificListener: neither session listener had terminal
+        // classification, because item 3 applied it by routing through a helper these two never called.
+        _complete = AzureServiceBusSettlement.CompleteBlock((e, _) => e.CompleteAsync(_cancellation.Token),
             _logger, _cancellation.Token);
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>

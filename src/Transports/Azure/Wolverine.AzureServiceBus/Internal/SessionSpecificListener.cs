@@ -152,8 +152,13 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
         _mapper = mapper;
         _logger = logger;
 
-        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) => e.CompleteAsync(_cancellation.Token), _logger,
-            _cancellation.Token);
+        // GH-4012 item 5. This settle had no terminal classification at all: item 3 landed it in
+        // AzureServiceBusSettlement and routed the two non-session listeners through the helper, but both
+        // session listeners call CompleteAsync directly and so kept burning the full retry budget on a
+        // failure that can never succeed. Declaring the predicate ON THE BLOCK is what makes that hard to
+        // forget again -- "remember to call the helper" is exactly what was forgotten here.
+        _complete = AzureServiceBusSettlement.CompleteBlock((e, _) => e.CompleteAsync(_cancellation.Token),
+            _logger, _cancellation.Token);
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {

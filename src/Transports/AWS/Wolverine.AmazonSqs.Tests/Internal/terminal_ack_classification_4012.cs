@@ -27,11 +27,16 @@ public class terminal_ack_classification_4012
     private static Task deleteAsync(IAmazonSQS client)
     {
         return SqsSettlement.DeleteAsync(client, "https://sqs.test/q", "receipt-handle",
-            NullLogger.Instance, CancellationToken.None);
+            CancellationToken.None);
     }
 
+    /// <summary>
+    /// GH-4012 item 5 moved the seam: the callback no longer swallows, so every failure propagates and the
+    /// block's <c>ShouldRetry</c> decides. What is classified as terminal is unchanged, and that is what
+    /// this pins -- <c>SqsListener</c> wires the predicate as <c>e => !SqsSettlement.IsTerminal(e)</c>.
+    /// </summary>
     [Fact]
-    public async Task terminal_failures_are_swallowed_so_the_retry_block_stops()
+    public async Task terminal_failures_are_classified_and_still_propagate_to_the_block()
     {
         Exception[] terminals =
         [
@@ -44,14 +49,14 @@ public class terminal_ack_classification_4012
         {
             SqsSettlement.IsTerminal(terminal).ShouldBeTrue($"{terminal.GetType().Name} should be terminal");
 
-            // Swallowing is what stops the RetryBlock. The message is simply not deleted; SQS makes it
-            // visible again on its own clock and redelivers it
-            await deleteAsync(clientThatThrows(terminal));
+            // The block stops on this rather than the callback hiding it. The message is simply not
+            // deleted; SQS makes it visible again on its own clock and redelivers it.
+            await Should.ThrowAsync<Exception>(() => deleteAsync(clientThatThrows(terminal)));
         }
     }
 
     [Fact]
-    public async Task transient_failures_still_propagate_so_the_retry_block_retries()
+    public async Task transient_failures_are_not_classified_as_terminal()
     {
         Exception[] transients =
         [
