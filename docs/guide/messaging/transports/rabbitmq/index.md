@@ -28,12 +28,13 @@ return await Host.CreateDefaultBuilder(args)
         // named "rabbit" from IConfiguration. This is *a* way to use
         // Wolverine + Rabbit MQ using Aspire
         opts.UseRabbitMqUsingNamedConnection("rabbit")
-            // Directs Wolverine to build any declared queues, exchanges, or
-            // bindings with the Rabbit MQ broker as part of bootstrapping time
+            // Lets Wolverine check for and create declared Rabbit MQ objects
+            // on demand as they are needed
             .AutoProvision();
 
-        // Or you can use this functionality to set up *all* known
-        // Wolverine (or Marten) related resources on application startup
+        // Adds an IHostedService that sets up *all* known JasperFx resources
+        // at application startup, including Wolverine and Marten resources.
+        // This does not require AutoProvision().
         opts.Services.AddResourceSetupOnStartup();
 
         // This will send ping messages on a continuous
@@ -189,8 +190,7 @@ var rabbitmq = builder.AddRabbitMQ("rabbitmq")
 
 builder.AddProject<Projects.MyWorker>("worker")
     .WithReference(rabbitmq)
-    // WaitFor ensures RabbitMQ is healthy before your service starts,
-    // so AutoProvision() will always succeed.
+    // WaitFor ensures RabbitMQ is healthy before your service starts.
     .WaitFor(rabbitmq);
 ```
 
@@ -200,9 +200,8 @@ builder.AddProject<Projects.MyWorker>("worker")
 builder.UseWolverine(opts =>
 {
     opts.UseRabbitMqUsingNamedConnection("rabbitmq")
-        // AutoProvision creates all declared exchanges, queues, and bindings
-        // at startup. This works reliably because Aspire's WaitFor() guarantees
-        // RabbitMQ is healthy before the service starts.
+        // Lets Wolverine provision declared exchanges, queues, and bindings
+        // on demand. WaitFor ensures the broker is healthy when needed.
         .AutoProvision();
 
     opts.ListenToRabbitQueue("my-queue");
@@ -235,8 +234,10 @@ builder.UseWolverine(opts =>
 ### AutoProvision with Aspire
 
 `AutoProvision()` works correctly with Aspire as long as you use `.WaitFor(rabbitmq)` in the AppHost. This tells Aspire not
-to start your service until the RabbitMQ container health check passes, ensuring Wolverine can connect and declare all
-exchanges, queues, and bindings before processing begins.
+to start your service until the RabbitMQ container health check passes, ensuring Wolverine can connect when it needs to
+declare exchanges, queues, and bindings. To force setup of all known JasperFx resources before the application starts
+processing, add `builder.Services.AddResourceSetupOnStartup()` to the service project instead of, or in addition to,
+`AutoProvision()`.
 
 ## Enable Rabbit MQ for Wolverine Control Queues
 

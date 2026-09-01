@@ -5,9 +5,11 @@ Wolverine assumes that exchanges should be "fanout" unless explicitly configured
 otherwise
 :::
 
-Reusing a code sample from up above, the `AutoProvision()` declaration will
-direct Wolverine to create any missing Rabbit MQ [exchanges, queues, or bindings](https://www.rabbitmq.com/tutorials/amqp-concepts.html)
-declared in the application configuration at application bootstrapping time.
+Use `AutoProvision()` to let Wolverine check for and create missing Rabbit MQ
+[exchanges, queues, or bindings](https://www.rabbitmq.com/tutorials/amqp-concepts.html)
+on demand, when it needs them. This enables Wolverine to manage the Rabbit MQ
+objects declared in the application configuration, but does not force every
+resource in the application to be set up during application startup.
 
 <!-- snippet: sample_publish_to_rabbitmq_routing_key -->
 <a id='snippet-sample_publish_to_rabbitmq_routing_key'></a>
@@ -22,9 +24,8 @@ using var host = await Host.CreateDefaultBuilder()
             // control the Rabbit MQ object lifecycle
             .DeclareExchange("exchange1", ex => { ex.BindQueue("queue1", "key1"); })
 
-            // This will direct Wolverine to create any missing Rabbit MQ exchanges,
-            // queues, or binding keys declared in the application at application
-            // start up time
+            // Lets Wolverine create any missing declared Rabbit MQ objects
+            // on demand when it needs them
             .AutoProvision();
 
         opts.PublishAllMessages().ToRabbitExchange("exchange1");
@@ -67,10 +68,16 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L354-L363' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html) model,
-so you can make a generic declaration to auto-provision the Rabbit MQ objects at startup time
-(as well as any other stateful Wolverine resources like envelope storage) with the Oakton
-declarations as shown in the setup below that uses the `AddResourceSetupOnStartup()` declaration:
+To force setup at application startup, use the [JasperFx stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html)
+model instead. `AddResourceSetupOnStartup()` registers an `IHostedService` that
+sets up every known JasperFx resource when the application starts. That includes
+Marten database objects, Wolverine durability database objects, and Wolverine
+message-broker objects. This works independently of `AutoProvision()`.
+
+Use `AutoProvision()` for on-demand Rabbit MQ provisioning, or use
+`AddResourceSetupOnStartup()` to provision all known JasperFx resources eagerly
+at startup. You can use both when you want eager startup setup plus on-demand
+provisioning for resources discovered later.
 
 <!-- snippet: sample_kitchen_sink_bootstrapping -->
 <a id='snippet-sample_kitchen_sink_bootstrapping'></a>
@@ -95,18 +102,14 @@ builder.Host.UseWolverine(opts =>
         // how you *could* customize the connection to Rabbit MQ
         factory.HostName = "localhost";
         factory.Port = 5672;
-    })        
+    })
         
-    // Even when calling AddResourceSetupOnStartup(), we still
-    // need to AutoProvision to ensure any declared queues, exchanges, or
-    // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
-    .AutoProvision();;
+    // Use for on-demand Rabbit MQ provisioning in addition to bootstrap time below
+    .AutoProvision();
 });
 
-// This is actually important, this directs
-// the app to build out all declared Postgresql and
-// Rabbit MQ objects on start up if they do not already
-// exist
+// Registers an IHostedService that sets up every known JasperFx resource
+// at startup, including Marten/Wolverine database objects and Rabbit MQ objects
 builder.Services.AddResourceSetupOnStartup();
 
 // Just pumping out a bunch of messages so we can see
@@ -214,9 +217,10 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
-When `AutoProvision()` is enabled, Wolverine will automatically declare the exchanges and create the 
-exchange-to-exchange bindings at startup. Both the source and destination exchanges are created 
-if they don't already exist.
+When `AutoProvision()` is enabled, Wolverine declares the exchanges and creates the
+exchange-to-exchange bindings when they are needed. Both the source and destination
+exchanges are created if they do not already exist. Alternatively, add
+`AddResourceSetupOnStartup()` to force this setup during application startup.
 
 ## Runtime Declaration
 
@@ -341,4 +345,3 @@ opts.UseRabbitMq()
 ```
 
 The default delimiter between the prefix and the original name is `-` for Rabbit MQ (e.g., `dev-john-orders`).
-

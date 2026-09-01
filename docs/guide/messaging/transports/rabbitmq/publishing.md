@@ -76,9 +76,8 @@ using var host = await Host.CreateDefaultBuilder()
             // control the Rabbit MQ object lifecycle
             .DeclareExchange("exchange1", ex => { ex.BindQueue("queue1", "key1"); })
 
-            // This will direct Wolverine to create any missing Rabbit MQ exchanges,
-            // queues, or binding keys declared in the application at application
-            // start up time
+            // Lets Wolverine create any missing declared Rabbit MQ objects
+            // on demand when it needs them
             .AutoProvision();
 
         opts.PublishAllMessages().ToRabbitExchange("exchange1");
@@ -86,4 +85,3 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L317-L336' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-

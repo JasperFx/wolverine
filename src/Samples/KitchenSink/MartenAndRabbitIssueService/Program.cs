@@ -29,18 +29,14 @@ builder.Host.UseWolverine(opts =>
         // how you *could* customize the connection to Rabbit MQ
         factory.HostName = "localhost";
         factory.Port = 5672;
-    })        
+    })
         
-    // Even when calling AddResourceSetupOnStartup(), we still
-    // need to AutoProvision to ensure any declared queues, exchanges, or
-    // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
-    .AutoProvision();;
+    // Use for on-demand Rabbit MQ provisioning in addition to bootstrap time below
+    .AutoProvision();
 });
 
-// This is actually important, this directs
-// the app to build out all declared Postgresql and
-// Rabbit MQ objects on start up if they do not already
-// exist
+// Registers an IHostedService that sets up every known JasperFx resource
+// at startup, including Marten/Wolverine database objects and Rabbit MQ objects
 builder.Services.AddResourceSetupOnStartup();
 
 // Just pumping out a bunch of messages so we can see
