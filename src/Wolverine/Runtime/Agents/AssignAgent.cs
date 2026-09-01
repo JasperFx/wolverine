@@ -43,7 +43,7 @@ internal record AssignAgent(Uri AgentUri, NodeDestination Destination) : IAgentC
             }
         }
 
-        runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
+        runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeNumber}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
 
         return AgentCommands.Empty;
     }
