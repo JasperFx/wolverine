@@ -64,6 +64,12 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
     /// </summary>
     protected override string QuotedSchemaName => SchemaName.QuoteIdentifier();
 
+    /// <summary>
+    /// GH-4216. PostgreSQL needs its schema name quoted; everything else about the mark-as-handled statement
+    /// is shared, including the partition-aware form that inbox partitioning requires.
+    /// </summary>
+    protected override string MarkAsHandledTableName => $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
+
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
         ILogger<PostgresqlMessageStore> logger) : this(databaseSettings, settings, GetPrimaryNpgsqlNodeIfPossible(dataSource), logger, Array.Empty<SagaTableDefinition>())
@@ -141,9 +147,10 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
                                          $";update {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
 
-        // Rebuild base class SQL strings with properly quoted schema name for PostgreSQL
-        _markEnvelopeAsHandledById =
-            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
+        // GH-4216: _markEnvelopeAsHandledById is no longer rebuilt here. It carries partition-aware logic now,
+        // and rebuilding it in this constructor both dropped that logic and did so in the one provider that
+        // supports inbox partitioning. Only the quoted table name differs, so that is what is overridden --
+        // see MarkAsHandledTableName below.
         _incrementIncomingEnvelopeAttempts =
             $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 

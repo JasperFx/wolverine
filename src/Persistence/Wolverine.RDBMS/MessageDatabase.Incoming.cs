@@ -9,7 +9,7 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
-    protected string _markEnvelopeAsHandledById;
+    protected string? _markEnvelopeAsHandledById;
     protected string _incrementIncomingEnvelopeAttempts;
 
     public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
@@ -80,10 +80,68 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
+    /// <summary>
+    /// GH-4216. The mark-as-handled statement for one identity. Unchanged without inbox partitioning: a single
+    /// UPDATE flipping status to Handled.
+    ///
+    /// <para>
+    /// With <c>EnableInboxPartitioning</c> the incoming table is PARTITION BY LIST (status) and status is part
+    /// of the primary key, so uniqueness is only enforced per partition and one identity can legally sit in
+    /// the incoming partition and the handled partition at once. Flipping status is then a cross-partition
+    /// move -- DELETE + INSERT -- straight onto a key the handled partition already holds, and it fails. The
+    /// consequence is worse than a failed update: a promoted or redelivered row could not be retired AT ALL,
+    /// so it stayed Incoming, owned by the node that had already processed it, with no way forward.
+    /// </para>
+    ///
+    /// <para>
+    /// So when a Handled row already exists for the identity, the incoming row is DELETED rather than flipped.
+    /// The retained Handled row is what serves <c>KeepAfterMessageHandling</c>'s dedup window, and it already
+    /// exists -- keeping the second copy would add nothing and re-create the collision on the next attempt.
+    /// The UPDATE that follows carries the same <c>status &lt;&gt; 'Handled'</c> predicate, so it affects zero
+    /// rows when the DELETE handled it.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// GH-4216. The incoming table as this provider spells it. Overridable because PostgreSQL quotes its
+    /// schema name differently and used to rebuild the whole statement in its constructor to get it -- which
+    /// meant the ONE provider that supports inbox partitioning was also the one bypassing the partition-aware
+    /// statement entirely, and doing it in a constructor where EnableInboxPartitioning is not yet settled.
+    /// Overriding just the name keeps the SQL in one place and lets it be built lazily, at call time.
+    /// </summary>
+    protected virtual string MarkAsHandledTableName => QuotedTableNameFor(DatabaseConstants.IncomingTable);
+
+    protected string MarkAsHandledSql(string idExpression, string uriExpression)
+    {
+        var table = MarkAsHandledTableName;
+
+        var update =
+            $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
+
+        if (!Durability.EnableInboxPartitioning)
+        {
+            return update;
+        }
+
+        // The existence check has to use whichever identity the TABLE was keyed with, not the row-matching
+        // clause above. Under IdOnly a redelivery at a different destination is the SAME identity -- the key is
+        // (id, status) and received_at is not part of it -- so an existence check that also matched received_at
+        // would miss the handled row it is looking for and let the collision through anyway.
+        var handledExists = Durability.MessageIdentity == MessageIdentity.IdOnly
+            ? $"select 1 from {table} h where h.id = {idExpression} and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'"
+            : $"select 1 from {table} h where h.id = {idExpression} and h.{DatabaseConstants.ReceivedAt} = {uriExpression} and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'";
+
+        return
+            $"delete from {table} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' " +
+            $"and exists ({handledExists});" +
+            $"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'";
+    }
+
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         if (HasDisposed) return Task.CompletedTask;
         var keepUntil = DateTimeOffset.UtcNow.Add(Durability.KeepAfterMessageHandling);
+        _markEnvelopeAsHandledById ??= MarkAsHandledSql("@id", "@uri");
+
         return CreateCommand(_markEnvelopeAsHandledById)
             .With("id", envelope.Id)
             .With("keepUntil", keepUntil)
@@ -99,14 +157,49 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
         builder.AddNamedParameter("keepUntil", keepUntil);
 
+        // GH-4216: the batch has to carry the same partition-aware shape as the single-envelope path, or a
+        // coalesced mark-as-handled strands exactly the rows the single one now retires. Each identity's
+        // parameters are appended per occurrence, which is why the same value goes in more than once.
+        var partitioned = Durability.EnableInboxPartitioning;
+        var table = MarkAsHandledTableName;
+
         foreach (var envelope in envelopes)
         {
-            builder.Append($"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
+            var uri = envelope.Destination!.ToString();
+
+            if (partitioned)
+            {
+                builder.Append($"delete from {table} where id = ");
+                builder.AppendParameter(envelope.Id);
+                builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+                builder.AppendParameter(uri);
+                builder.Append(
+                    $" and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' and exists (select 1 from {table} h where h.id = ");
+                builder.AppendParameter(envelope.Id);
+
+                // Same identity rule as MarkAsHandledSql: under IdOnly a redelivery at another destination is
+                // the same identity, so matching received_at here would miss the handled row it looks for.
+                if (Durability.MessageIdentity != MessageIdentity.IdOnly)
+                {
+                    builder.Append($" and h.{DatabaseConstants.ReceivedAt} = ");
+                    builder.AppendParameter(uri);
+                }
+
+                builder.Append($" and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}');");
+            }
+
+            builder.Append($"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append(" and ");
             builder.Append(DatabaseConstants.ReceivedAt);
             builder.Append( " = ");
-            builder.AppendParameter(envelope.Destination!.ToString());
+            builder.AppendParameter(uri);
+
+            if (partitioned)
+            {
+                builder.Append($" and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
+            }
+
             builder.Append(";");
         }
 

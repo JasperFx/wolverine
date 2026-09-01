@@ -137,6 +137,64 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
     }
 
+    /// <summary>
+    /// GH-4216. The worst of the three sibling statements GH-4209 reproduced and deliberately left alone.
+    /// <c>_markEnvelopeAsHandledById</c> matched the identity with no status predicate and SET status, so
+    /// retiring a redelivered row was itself a cross-partition move onto the key the retained handled row
+    /// already held. The row could not be retired AT ALL: it stayed Incoming, owned by the node that had
+    /// already processed it, with nothing left to try.
+    /// </summary>
+    [Fact]
+    public async Task a_redelivered_row_can_be_retired_when_the_identity_is_already_handled()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        var redelivered = ObjectMother.Envelope();
+        redelivered.Id = envelope.Id;
+        redelivered.Destination = redeliveryDestinationFor(envelope);
+        redelivered.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+
+        // Guard: the pair the partitioned key permits, which is the state this statement has to survive.
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
+
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(redelivered);
+
+        // The incoming copy is gone rather than stranded. The retained handled row is what serves the
+        // KeepAfterMessageHandling dedup window, and it was already there.
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled"]);
+    }
+
+    /// <summary>
+    /// The batched mark-as-handled coalesces completions into one statement, so it has to carry the same
+    /// shape -- otherwise a coalesced retire strands exactly the rows the single-envelope path now retires.
+    /// </summary>
+    [Fact]
+    public async Task the_batched_retire_survives_the_same_pair()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        var redelivered = ObjectMother.Envelope();
+        redelivered.Id = envelope.Id;
+        redelivered.Destination = redeliveryDestinationFor(envelope);
+        redelivered.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync([redelivered]);
+
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled"]);
+    }
+
     [Fact]
     public async Task the_unqualified_promotion_statement_raises_a_unique_violation()
     {
