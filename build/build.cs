@@ -95,7 +95,16 @@ partial class Build : NukeBuild
         });
 
     Target TestExtensions => _ => _
-        .DependsOn(FluentValidationTests, DataAnnotationsValidationTests, MemoryPackTests, MessagePackTests);
+        .DependsOn(FluentValidationTests, DataAnnotationsValidationTests, MemoryPackTests, MessagePackTests,
+            AiTests);
+
+    Target AiTests => _ => _
+        .DependsOn(Compile)
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            RunTestProject(Solution.Extensions.Wolverine_AI_Tests);
+        });
     
     Target FluentValidationTests => _ => _
         .DependsOn(Compile)    
@@ -325,6 +334,7 @@ partial class Build : NukeBuild
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_Nats,
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_Postgresql,
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_SqlServer,
+                Solution.Extensions.Wolverine_AI,
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_FluentValidation_Grpc,
                 Solution.Extensions.Wolverine_DataAnnotationsValidation,

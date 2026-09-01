@@ -16,6 +16,8 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("PolicyTests")]
 [assembly: InternalsVisibleTo("CircuitBreakingTests")]
 [assembly: InternalsVisibleTo("Wolverine.ComplianceTests")]
+[assembly: InternalsVisibleTo("Wolverine.AI")]
+[assembly: InternalsVisibleTo("Wolverine.AI.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus")]
