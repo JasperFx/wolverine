@@ -4,6 +4,38 @@
 
 ### WolverineFx.AI (new package)
 
+- **AOT and trim support.** (closes
+  [#4230](https://github.com/JasperFx/wolverine/issues/4230)) `WolverineFx.AI` now sets
+  `IsAotCompatible`, on one condition: register response types with `ai.RegisterResponseType<T>()` and
+  assign `LlmCalloutOptions.JsonSerializerOptions` a source-generated `JsonSerializerContext` covering
+  them.
+
+  This turned out to need no schema generator. `AIJsonUtilities.CreateJsonSchema(Type, ...)` carries no
+  trim annotations at all, because it builds the schema from whatever `JsonTypeInfo` the serializer
+  options resolve — hand it source-generated options and the schema generation is already reflection
+  free. What did need changing was the deserialization, which now goes through the `JsonTypeInfo`
+  overload rather than `JsonSerializer.Deserialize(string, Type, JsonSerializerOptions)`, the one that
+  is annotated; and the identifier-to-`Type` resolution, which now consults the registration table
+  before falling back to the message type registry and `Type.GetType`.
+
+  `LlmCallout.Ask(prompt, context)` keeps `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` — 
+  serializing an arbitrary object needs reflection over its shape, and no amount of plumbing changes
+  that. The trim-clean equivalent is `LlmCallout.Ask<T>(prompt).WithContext(context, typeInfo)`, which
+  serializes through source-generated type info, or `WithContext(json)` for context that is already
+  JSON. The annotation's message names the replacement at the call site.
+
+  Gated by a new `Wolverine.AI.AotSmoke` project under `TrimMode=full`, which CI **runs** as well as
+  builds. Running is the point: a `JsonSerializerContext` that does not cover a response type does not
+  throw — `CreateJsonSchema` returns an *empty* schema, the model is handed a constraint that
+  constrains nothing, and the result looks like a quality problem rather than a configuration one. The
+  smoke test asserts on the rendered schema's contents for exactly that reason.
+
+- **Prompt context is serialized compactly.** `AIJsonUtilities.DefaultOptions` sets `WriteIndented`,
+  so every callout carrying context was pretty-printing it into the prompt. Indentation in a prompt is
+  billed input tokens buying nothing, and it inflated every character counted against
+  `LlmBudget.MaximumPromptCharacters`. The naming policy and null handling are unchanged, so what the
+  model is shown is otherwise identical.
+
 - **LLM callouts as durable messages.** (closes
   [#4227](https://github.com/JasperFx/wolverine/issues/4227)) A handler that awaits a language model
   inline holds a transaction and an envelope open for seconds against a remote service that is slow,

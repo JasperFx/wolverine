@@ -18,12 +18,6 @@ public interface ILlmCalloutExecutor
     Task<object> ExecuteAsync(LlmCallout callout, CancellationToken cancellationToken);
 }
 
-// The whole class is reflection over a Type carried as a string on the message, which is the reason
-// WolverineFx.AI is not marked IsAotCompatible. Suppressions here would claim a guarantee the design
-// cannot make; making it trim clean needs source generated schemas and a JsonSerializerContext keyed
-// off the registered response types. See the csproj comment and GH-4227.
-[RequiresUnreferencedCode("Builds a JSON schema and deserializes an answer for a response type named on the message at runtime")]
-[RequiresDynamicCode("Builds a JSON schema and deserializes an answer for a response type named on the message at runtime")]
 internal class LlmCalloutExecutor : ILlmCalloutExecutor
 {
     private readonly IChatClient _client;
@@ -31,11 +25,8 @@ internal class LlmCalloutExecutor : ILlmCalloutExecutor
     private readonly ILlmBudgetLedger _ledger;
     private readonly ILogger<LlmCalloutExecutor> _logger;
     private readonly IWolverineRuntime _runtime;
+    private readonly LlmResponseBinder _binder;
 
-    // Schema construction walks the response type's properties, which is meaningfully more expensive
-    // than the rest of the per callout work. ImHashMap per the repo's hot path convention: lock free,
-    // non-allocating reads, copy on write.
-    private ImHashMap<Type, JsonElement> _schemas = ImHashMap<Type, JsonElement>.Empty;
     private ImHashMap<string, Type> _responseTypes = ImHashMap<string, Type>.Empty;
 
     private const string chatModelUnknown = "(unspecified)";
@@ -48,6 +39,7 @@ internal class LlmCalloutExecutor : ILlmCalloutExecutor
         _ledger = ledger;
         _logger = logger;
         _runtime = runtime;
+        _binder = new LlmResponseBinder(options);
     }
 
     public async Task<object> ExecuteAsync(LlmCallout callout, CancellationToken cancellationToken)
@@ -65,7 +57,7 @@ internal class LlmCalloutExecutor : ILlmCalloutExecutor
         if (responseType != null)
         {
             chatOptions.ResponseFormat = ChatResponseFormat.ForJsonSchema(
-                SchemaFor(responseType),
+                _binder.SchemaFor(responseType),
                 schemaName: responseType.Name,
                 schemaDescription: $"The structured answer expected for a {callout.Tag ?? "Wolverine"} LLM callout");
         }
@@ -113,12 +105,27 @@ internal class LlmCalloutExecutor : ILlmCalloutExecutor
 
         try
         {
-            return JsonSerializer.Deserialize(text, responseType, _options.JsonSerializerOptions)
+            // JsonSerializer.Deserialize(string, Type, JsonSerializerOptions) carries
+            // [RequiresUnreferencedCode] / [RequiresDynamicCode]; the JsonTypeInfo overload does not.
+            // Resolving the JsonTypeInfo out of the options is what lets an AOT application supply a
+            // source generated JsonSerializerContext and have this whole path be trim clean, while a
+            // reflection-based application sees no difference at all. See GH-4230.
+            return _binder.Deserialize(text, responseType)
                    ?? throw new LlmCalloutException(
                        $"The model returned a JSON null for {callout}, which expects {responseType.FullNameInCode()}")
                    {
                        RawResponse = text
                    };
+        }
+        catch (NotSupportedException e)
+        {
+            throw new LlmCalloutException(
+                $"No JSON type information is available for {responseType.FullNameInCode()}, the response type of " +
+                $"{callout}. In a trimmed or AOT application, add it to a JsonSerializerContext and assign that " +
+                "context to LlmCalloutOptions.JsonSerializerOptions.TypeInfoResolver.", e)
+            {
+                RawResponse = text
+            };
         }
         catch (JsonException e)
         {
@@ -148,16 +155,6 @@ internal class LlmCalloutExecutor : ILlmCalloutExecutor
             usage.OutputTokenCount, total);
     }
 
-    private JsonElement SchemaFor(Type responseType)
-    {
-        if (_schemas.TryFind(responseType, out var schema)) return schema;
-
-        schema = AIJsonUtilities.CreateJsonSchema(responseType, serializerOptions: _options.JsonSerializerOptions);
-        _schemas = _schemas.AddOrUpdate(responseType, schema);
-
-        return schema;
-    }
-
     /// <summary>
     /// Turn the identifier written by <see cref="LlmCallout.IdentifierFor" /> back into a
     /// <see cref="Type" />. Wolverine's message type registry first, so a response type carrying
@@ -168,25 +165,38 @@ internal class LlmCalloutExecutor : ILlmCalloutExecutor
     {
         if (_responseTypes.TryFind(identifier, out var cached)) return cached;
 
-        Type? resolved = null;
-
-        if (_runtime.Options.HandlerGraph.TryFindMessageType(identifier, out var registered))
+        // Explicit registrations first, and they are the only step a trimmed or AOT application can
+        // rely on: the two below both need metadata the trimmer cannot see from any static call site.
+        if (!_binder.TryResolveRegisteredType(identifier, out var resolved))
         {
-            resolved = registered;
+            resolved = _runtime.Options.HandlerGraph.TryFindMessageType(identifier, out var registered)
+                ? registered
+                : ResolveReflectively(identifier);
         }
-
-        resolved ??= Type.GetType(identifier, throwOnError: false);
 
         if (resolved == null)
         {
             throw new LlmCalloutException(
-                $"Cannot resolve the response type '{identifier}' for an LLM callout. The type has most likely " +
-                "been renamed, moved to a different assembly, or removed since this callout was persisted. " +
-                "Use [MessageIdentity] on response types that need to survive being renamed.");
+                $"Cannot resolve the response type '{identifier}' for an LLM callout. Either the type has been " +
+                "renamed, moved to a different assembly, or removed since this callout was persisted, or this is " +
+                "a trimmed application that has not registered it. Register response types with " +
+                "ai.RegisterResponseType<T>(), and use [MessageIdentity] on ones that need to survive a rename.");
         }
 
         _responseTypes = _responseTypes.AddOrUpdate(identifier, resolved);
 
         return resolved;
+    }
+
+    /// <summary>
+    /// Last resort for a callout whose response type was never registered. Kept deliberately narrow so
+    /// that the registered path above stays trim clean and the AOT smoke gate has something honest to
+    /// prove; an application that registers its response types never reaches this.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2057",
+        Justification = "Reflective fallback for a response type the application did not register. Trimmed and AOT applications must call ai.RegisterResponseType<T>(), which is consulted first and needs no reflection; a type trimmed away here simply fails to resolve and the callout is dead lettered with an actionable message. See the AOT guide and GH-4230.")]
+    private static Type? ResolveReflectively(string identifier)
+    {
+        return Type.GetType(identifier, throwOnError: false);
     }
 }

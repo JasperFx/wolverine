@@ -300,6 +300,59 @@ public void the_handler_asks_for_a_triage()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L117-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_unit_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Trimming and AOT
+
+`WolverineFx.AI` is trim and AOT compatible, on one condition: the application has to tell it about its
+response types twice — once for type resolution, once for JSON.
+
+```csharp
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(IncidentTriage))]
+[JsonSerializable(typeof(IncidentSnapshot))]
+internal partial class AiJsonContext : JsonSerializerContext;
+
+opts.AddLlmCallouts(ai =>
+{
+    ai.JsonSerializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+    {
+        TypeInfoResolver = AiJsonContext.Default
+    };
+
+    ai.RegisterResponseType<IncidentTriage>();
+});
+```
+
+`RegisterResponseType<T>()` is what turns the identifier a persisted callout carries back into a `Type`
+without `Type.GetType`. The `JsonSerializerContext` is what lets the response schema and the answer's
+deserialization run off source-generated metadata rather than reflection — `CreateJsonSchema` builds the
+schema from whatever type info the options resolve, so no separate schema generator is needed.
+
+Both are optional outside a trimmed application, where the message type registry and `Type.GetType` cover
+the same ground. Registering them anyway costs a line each and makes a failure loud at startup rather
+than quiet in a dead letter.
+
+One authoring surface has no AOT-clean form, because serializing an arbitrary object needs reflection
+over its shape:
+
+```csharp
+// warns IL2026 / IL3050 under trim analysis
+LlmCallout.Ask<IncidentTriage>(prompt, incident.Snapshot());
+
+// the trim-clean equivalent
+LlmCallout.Ask<IncidentTriage>(prompt)
+    .WithContext(incident.Snapshot(), AiJsonContext.Default.IncidentSnapshot);
+```
+
+`WithContext(string)` takes JSON you produced yourself, which is also the escape hatch when the context
+is not a CLR object at all — a rendered document, a retrieved passage, a diff.
+
+::: warning
+A `JsonSerializerContext` that does not cover a response type does not throw. `CreateJsonSchema` returns
+an *empty* schema, and the model is handed a constraint that constrains nothing — it will usually still
+answer, and the answer will usually still parse, so the failure looks like a quality problem rather than
+a configuration one. If structured answers go vague after a trimmed publish, check the context first.
+:::
+
 ## Why the Callout is Not Generic
 
 `LlmCallout.Ask<TResponse>(...)` is generic but `LlmCallout` itself is not, and the response type rides on the
@@ -320,5 +373,3 @@ middleware. The typing that actually matters — the handler that receives the a
 * **Agents, tools, and model loops.** Tier 2, tracked in [GH-4226](https://github.com/JasperFx/wolverine/issues/4226).
 * **Embedding generation.** `IEmbeddingGenerator<,>` is the obvious seam for event store integrations, but it is
   separate adapter work.
-* **AOT.** `WolverineFx.AI` is not trim or AOT compatible: the response type is named on the message at runtime and
-  its schema is built reflectively. Making it trim-clean needs source-generated schemas and a `JsonSerializerContext`.

@@ -80,6 +80,10 @@ Currently exercised AOT-clean surface (will fail the smoke build if any of these
 
 As the per-file annotation pass in #2746 progresses, the smoke project expands to exercise the newly-annotated entry points — tightening the regression guard incrementally.
 
+### `Wolverine.AI.AotSmoke`
+
+A sister project under the same settings gates `WolverineFx.AI`'s callout path, and is **run** as well as built. Running matters here: the schema generation it covers fails by returning an *empty* schema rather than by throwing, so a build-only check would pass over precisely the regression it exists to catch. It exercises the real `LlmResponseBinder` — the same type `LlmCalloutExecutor` delegates to — across identifier resolution, schema generation, and deserialization. See [LLM Callouts](/guide/ai#trimming-and-aot).
+
 ## Surfaces that intentionally aren't AOT-clean
 
 A handful of Wolverine APIs **require** runtime codegen by design. They carry `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]` annotations so the trimmer surfaces a clear warning if your AOT-published app reaches them:
@@ -88,6 +92,7 @@ A handful of Wolverine APIs **require** runtime codegen by design. They carry `[
 - Reflective handler / saga / transport discovery (`HandlerDiscovery.IncludeAssembly` type-scan, the saga-type-descriptor `StartingMessages` reflection, transport `IMessageRoutingConvention` reflection). Static-mode + a pre-generated handler manifest avoid these.
 - `MakeGenericType` / `Activator.CreateInstance` driven factories — the few that still exist in core.
 - The `WolverineFx.Newtonsoft` companion package (Newtonsoft.Json itself isn't AOT-friendly; if you need Newtonsoft, you're not on the AOT path).
+- `LlmCallout.Ask(prompt, context)` in `WolverineFx.AI` — serializing an arbitrary context object needs reflection over its shape. The trim-clean equivalent is `.WithContext(context, typeInfo)`, and the annotation's message says so at the call site.
 
 If you publish AOT in `Dynamic` mode (the default), expect warnings from these surfaces — they tell you what to migrate before you can ship a working AOT binary.
 
