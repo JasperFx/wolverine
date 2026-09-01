@@ -26,8 +26,8 @@ public class PartitionedItem : ITenanted
     public string? TenantId { get; set; }
 }
 
-// Sagas are excluded from physical partitioning in this release; this type
-// proves the exclusion leaves the saga's identity alone
+// GH-3542: sagas ARE partitioned now, with a real composite (TenantId, Id) identity -- so this type
+// carries the case the exclusion existed to avoid: two tenants reusing one saga id
 [WolverineIgnore]
 public class PartitionedCounterSaga : Saga, ITenanted
 {
@@ -170,13 +170,26 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         }
     }
 
+    /// <summary>
+    /// GH-3542. The two identity models are deliberately different, and this pins both halves of that.
+    ///
+    /// <para>
+    /// An ordinary partitioned entity keeps the db-only composite: the partition column joins the key inside
+    /// the Weasel table customization while the EF model keeps the user's single key, so FindAsync/Attach
+    /// call shapes are unchanged. Its ids are store-generated and cannot collide across tenants.
+    /// </para>
+    ///
+    /// <para>
+    /// A partitioned SAGA gets a real composite <c>(TenantId, Id)</c> in the EF model, because saga ids are
+    /// APP-ASSIGNED. The db-only trick would let two tenants choose the same saga id and collide silently,
+    /// and a constraint that is only documented is one that gets violated in production.
+    /// </para>
+    /// </summary>
     [Fact]
-    public async Task ef_model_keys_stay_single_and_sqlserver_maps_the_ordinal_column()
+    public async Task an_ordinary_entity_keeps_its_single_key_and_a_saga_gets_a_real_composite_one()
     {
         var context = await theBuilder.BuildAsync(CancellationToken.None);
 
-        // The composite (tenant, id) key lives only in the DATABASE; the EF model
-        // keeps the user's own key so FindAsync/Attach and saga loads are unchanged
         var itemType = context.Model.FindEntityType(typeof(PartitionedItem))!;
         itemType.FindPrimaryKey()!.Properties.Select(x => x.Name).ShouldBe([nameof(PartitionedItem.Id)]);
 
@@ -187,10 +200,13 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
             ordinal.IsPrimaryKey().ShouldBeFalse();
         }
 
-        // Saga identity is untouched by partitioning
+        // The saga's own id LEADS and the tenant is appended, which is load-bearing rather than cosmetic:
+        // Wolverine reads the saga id type off FindPrimaryKey(), so leading with the tenant makes it assign
+        // the saga id into TenantId. LoadEntityFrame emits FindAsync's key values in this same order, so the
+        // generated load and this declaration have to agree or every saga load silently misses.
         var sagaType = context.Model.FindEntityType(typeof(PartitionedCounterSaga))!;
         sagaType.FindPrimaryKey()!.Properties.Select(x => x.Name)
-            .ShouldBe([nameof(PartitionedCounterSaga.Id)]);
+            .ShouldBe([nameof(PartitionedCounterSaga.Id), nameof(ITenanted.TenantId)]);
     }
 
     [Fact]
@@ -209,6 +225,63 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
 
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
         (await blue.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(blueId);
+    }
+
+    /// <summary>
+    /// GH-3542, and the reason the identity had to become real rather than documented. Saga ids are
+    /// APP-ASSIGNED, so two tenants choosing the same id is an ordinary occurrence rather than an abuse --
+    /// a per-tenant sequence, a natural key, an imported id. Under the db-only composite the second tenant's
+    /// saga would have collided with the first, and under no partitioning at all the two would have been the
+    /// same row. Each tenant must get its own saga, and each must count only its own messages.
+    /// </summary>
+    [Fact]
+    public async Task two_tenants_can_reuse_one_saga_id_without_colliding()
+    {
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("blue", TestContext.Current.CancellationToken);
+
+        // The SAME id in both tenants -- the whole point.
+        var sharedId = Guid.NewGuid();
+
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new StartCounter(sharedId)));
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new StartCounter(sharedId)));
+
+        // Green gets two increments, blue one. If the saga load ignored the tenant, these would land on one
+        // row and the counts below would be 3 and 3 -- or one tenant would see the other's saga.
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new IncrementCounter(sharedId)));
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new IncrementCounter(sharedId)));
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new IncrementCounter(sharedId)));
+
+        var green = await theBuilder.BuildAsync("green", CancellationToken.None);
+        var greenSagas = await green.Counters.ToListAsync(TestContext.Current.CancellationToken);
+        greenSagas.Count.ShouldBe(1, "The tenant filter must leave each tenant seeing only its own saga.");
+        greenSagas.Single().Id.ShouldBe(sharedId);
+        greenSagas.Single().Count.ShouldBe(2);
+
+        var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
+        var blueSagas = await blue.Counters.ToListAsync(TestContext.Current.CancellationToken);
+        blueSagas.Count.ShouldBe(1);
+        blueSagas.Single().Id.ShouldBe(sharedId);
+        blueSagas.Single().Count.ShouldBe(1,
+            "Blue's saga must not have absorbed green's increments -- that is the silent cross-tenant collision this exists to prevent.");
+    }
+
+    /// <summary>
+    /// GH-3542. The load half on its own: a saga written under one tenant must be invisible to another, even
+    /// though the id is the only thing the handler names. This is what the generated composite FindAsync buys
+    /// -- with the tenant dropped from the key values, this load would find green's row.
+    /// </summary>
+    [Fact]
+    public async Task a_saga_from_another_tenant_is_not_loaded()
+    {
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("blue", TestContext.Current.CancellationToken);
+
+        var sharedId = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new StartCounter(sharedId)));
+
+        var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
+        (await blue.Counters.ToListAsync(TestContext.Current.CancellationToken)).ShouldBeEmpty();
     }
 
     [Fact]
@@ -243,10 +316,10 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         result.Succeeded.ShouldBeTrue();
         result.Failures.ShouldBeEmpty();
 
-        // The partitioned entity table is reported; the saga table is excluded from
-        // physical partitioning, so it is not part of the managed set
+        // GH-3542: the saga table is managed now too. It was excluded from physical partitioning in v1,
+        // which is what this used to assert.
         result.Tables.ShouldContain(x => x.TableName.Contains("partitioned_items"));
-        result.Tables.ShouldNotContain(x => x.TableName.Contains("partitioned_counters"));
+        result.Tables.ShouldContain(x => x.TableName.Contains("partitioned_counters"));
 
         if (_engine == DatabaseEngine.SqlServer)
         {

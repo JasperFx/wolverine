@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -123,9 +124,27 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 $"Could not find entity configuration for {sagaType.FullNameInCode()} in DbContext {context}");
         }
 
-        return config.FindPrimaryKey()?.GetKeyType() ??
-               throw new InvalidOperationException(
-                   $"No known primary key for {sagaType.FullNameInCode()} in DbContext {context}");
+        var key = config.FindPrimaryKey()
+                  ?? throw new InvalidOperationException(
+                      $"No known primary key for {sagaType.FullNameInCode()} in DbContext {context}");
+
+        // GH-3542. A partitioned conjoined saga's primary key is a real composite (Id, TenantId), so
+        // GetKeyType() no longer describes the saga's OWN identity -- and the saga id is what the message
+        // carries and what the handler names. Taking the composite type here makes the whole saga pipeline
+        // treat the tenant as part of the id the message supplies, which surfaces as the saga id being
+        // assigned into TenantId and a CrossTenantWriteException naming a Guid as the tenant. The tenant is
+        // supplied by the ambient context rather than by the message, so it is excluded here and re-joined
+        // in LoadEntityFrame.
+        var identityProperties = key.Properties
+            .Where(x => x.Name != nameof(IHasTenantId.TenantId))
+            .ToArray();
+
+        if (identityProperties.Length == 1 && key.Properties.Count > 1)
+        {
+            return identityProperties[0].ClrType;
+        }
+
+        return key.GetKeyType();
     }
 
     public bool TryBuildAllFrame(Type entityType, IServiceContainer container,

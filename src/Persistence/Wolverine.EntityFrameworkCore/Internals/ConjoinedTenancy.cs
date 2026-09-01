@@ -96,12 +96,31 @@ public static class ConjoinedTenancy
 
     internal static bool IsPartitionedEntity(Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType entityType)
     {
-        // Sagas stay unpartitioned in this release -- the composite primary key
-        // that partitioning requires would change the generated saga load frames
+        // GH-3542: sagas are partitioned too now. They were held back in v1 because the composite primary
+        // key partitioning requires would change the generated saga load frames -- which it does, and
+        // LoadEntityFrame handles it.
         return entityType.ClrType.CanBeCastTo<ITenanted>()
-               && !entityType.ClrType.CanBeCastTo<Saga>()
                && !entityType.IsOwned()
                && entityType.BaseType == null;
+    }
+
+    /// <summary>
+    /// GH-3542. True for a partitioned entity whose composite identity has to be REAL in the EF model rather
+    /// than existing only in the database.
+    ///
+    /// <para>
+    /// Everything else keeps the db-only composite-PK trick -- the partition column joins the key inside the
+    /// Weasel table customization while the EF model keeps the user's single key -- because those ids are
+    /// store-generated and cannot collide across tenants. <b>Saga ids are app-assigned</b>, so the same trick
+    /// would let two tenants pick the same saga id and have the second insert silently overwrite or collide
+    /// with the first. A constraint that is only documented is a constraint that gets violated in production,
+    /// and the failure mode here is a silent cross-tenant saga collision, so the identity is made real
+    /// instead.
+    /// </para>
+    /// </summary>
+    internal static bool NeedsCompositeModelKey(Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType entityType)
+    {
+        return IsPartitionedEntity(entityType) && entityType.ClrType.CanBeCastTo<Saga>();
     }
 
     internal static void Pin(DbContext context, string? tenantId)
