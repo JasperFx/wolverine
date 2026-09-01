@@ -377,6 +377,16 @@ public class HandlerPipeline : IHandlerPipeline
         {
             executor = _executors[envelope.Message!.GetType()];
         }
+        catch (ObjectDisposedException)
+        {
+            // GH-4213: the container is already disposed, which means the node is shutting down rather than
+            // misconfigured -- building the executor resolves services, and IHost.Dispose() flags the
+            // IServiceProvider before it disposes WolverineRuntime and drains. Rethrowing hands this to
+            // InvokeAsync's ObjectDisposedException guard, which leaves the envelope unsettled so the broker
+            // or the inbox redelivers it to a live node. Dead-lettering it here instead would discard work
+            // whose handler never ran, on a shutdown that succeeds everywhere else.
+            throw;
+        }
         catch (Exception e)
         {
             // GH-4151: building the executor happens *before* any HandlerChain instance exists, so there
