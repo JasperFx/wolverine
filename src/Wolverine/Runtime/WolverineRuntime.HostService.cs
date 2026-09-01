@@ -179,7 +179,7 @@ public partial class WolverineRuntime
             }
             else
             {
-                Logger.LogInformation("Wolverine assigned node id for envelope persistence is {NodeId}", Options.Durability.AssignedNodeNumber);
+                Logger.LogInformation("Wolverine assigned node id for envelope persistence is {NodeNumber}", Options.Durability.AssignedNodeNumber);
             }
 
             switch (Options.Durability.Mode)
