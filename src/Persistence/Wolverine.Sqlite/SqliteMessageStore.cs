@@ -337,6 +337,49 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         builder.Append($") order by execution_time LIMIT {Durability.RecoveryBatchSize};");
     }
 
+    /// <summary>
+    /// GH-4216. Builds the promotion statement for the batch the poller just selected. Two things it must
+    /// not do, both of which the previous <c>where lower(id) IN (...)</c> did:
+    ///
+    /// <list type="bullet">
+    /// <item>Under <see cref="MessageIdentity.IdAndDestination"/> the identity is <c>(id, received_at)</c>, so
+    /// matching on the id alone also rewrites a row for a different message that merely shares the id at
+    /// another destination -- reassigning an <c>owner_id</c> the poller never selected. The pairs have to be
+    /// matched together: an <c>id IN (...) and received_at IN (...)</c> pair of lists would match the cross
+    /// product, which is the same bug wearing a longer statement.</item>
+    /// <item>Without a status predicate it also rewrites rows that are already Incoming or Handled, and
+    /// promotes a scheduled sibling that is not due yet -- a message scheduled an hour out executes now. The
+    /// load side already selects only Scheduled rows, so constraining the update to match costs nothing.</item>
+    /// </list>
+    ///
+    /// Mirrors <c>PostgresqlMessageStore._reassignIncomingSql</c>, which does the same job through
+    /// <c>unnest(@ids, @uris)</c>. See GH-4209 for the incident that first exposed the shape.
+    /// </summary>
+    private string writePromotionSql(DbCommand command, string tableName, IReadOnlyList<Envelope> envelopes)
+    {
+        var matchesById = Durability.MessageIdentity == MessageIdentity.IdOnly;
+        var clauses = new List<string>(envelopes.Count);
+
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            // Ids stay inline exactly as before -- Guid "D" formatting is already lower case, which is what
+            // the lower(id) comparison this table has always used expects.
+            var idMatch = $"lower(id) = '{envelopes[i].Id:D}'";
+
+            if (matchesById)
+            {
+                clauses.Add(idMatch);
+                continue;
+            }
+
+            command.With($"uri{i}", envelopes[i].Destination!.ToString());
+            clauses.Add($"({idMatch} and {DatabaseConstants.ReceivedAt} = @uri{i})");
+        }
+
+        return $"update {tableName} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+               $"where status = '{EnvelopeStatus.Scheduled}' and ({string.Join(" or ", clauses)})";
+    }
+
     public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
@@ -365,9 +408,9 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
                 return;
             }
 
-            var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
-            await using var reassign = conn.CreateCommand(
-                $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where lower(id) IN ({ids})");
+            await using var reassign = conn.CreateCommand("");
+            reassign.CommandText = writePromotionSql(reassign, this.TableNameFor(DatabaseConstants.IncomingTable),
+                envelopes);
             reassign.Transaction = tx;
             await reassign.With("owner", durabilitySettings.AssignedNodeNumber)
                 .ExecuteNonQueryAsync(_cancellation);

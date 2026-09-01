@@ -27,6 +27,11 @@ GRANT CREATE ANY INDEX TO wolverine;
 GRANT DROP ANY INDEX TO wolverine;
 GRANT CREATE ANY SEQUENCE TO wolverine;
 GRANT DROP ANY SEQUENCE TO wolverine;
+-- GH-4216: an identity column creates an implicit sequence (ISEQ$$_nnnnn) owned by the schema the table
+-- lives in. Inserting into a table in ANOTHER schema therefore reads a sequence wolverine does not own, and
+-- CREATE/DROP ANY SEQUENCE do not cover reading one -- the insert fails with ORA-41900. Needed by any suite
+-- that owns a schema other than WOLVERINE, e.g. OracleMessageStore_with_IdAndDestination_Identity.
+GRANT SELECT ANY SEQUENCE TO wolverine;
 GRANT CREATE ANY PROCEDURE TO wolverine;
 GRANT DROP ANY PROCEDURE TO wolverine;
 GRANT EXECUTE ANY PROCEDURE TO wolverine;

@@ -337,6 +337,54 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         builder.Append($" ORDER BY execution_time LIMIT {Durability.RecoveryBatchSize}");
     }
 
+    /// <summary>
+    /// GH-4216. Builds the promotion statement for the batch the poller just selected. Two things it must
+    /// not do, both of which the previous <c>WHERE id IN (...)</c> did:
+    ///
+    /// <list type="bullet">
+    /// <item>Under <see cref="MessageIdentity.IdAndDestination"/> the identity is <c>(id, received_at)</c>, so
+    /// matching on the id alone also rewrites a row for a different message that merely shares the id at
+    /// another destination -- reassigning an <c>owner_id</c> the poller never selected. The pairs have to be
+    /// matched together: an <c>id IN (...) AND received_at IN (...)</c> pair of lists would match the cross
+    /// product, which is the same bug wearing a longer statement.</item>
+    /// <item>Without a status predicate it also rewrites rows that are already Incoming or Handled, and
+    /// promotes a scheduled sibling that is not due yet -- a message scheduled an hour out executes now. The
+    /// load side already selects only Scheduled rows, so constraining the update to match costs nothing.</item>
+    /// </list>
+    ///
+    /// Mirrors <c>PostgresqlMessageStore._reassignIncomingSql</c>, which does the same job through
+    /// <c>unnest(@ids, @uris)</c>. See GH-4209 for the incident that first exposed the shape.
+    /// </summary>
+    private string writePromotionSql(DbCommand command, IReadOnlyList<Envelope> envelopes)
+    {
+        var matchesById = Durability.MessageIdentity == MessageIdentity.IdOnly;
+        var clauses = new List<string>(envelopes.Count);
+
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            var idParameter = command.CreateParameter();
+            idParameter.ParameterName = $"@id_{i}";
+            idParameter.Value = envelopes[i].Id;
+            command.Parameters.Add(idParameter);
+
+            if (matchesById)
+            {
+                clauses.Add($"id = @id_{i}");
+                continue;
+            }
+
+            var uriParameter = command.CreateParameter();
+            uriParameter.ParameterName = $"@uri_{i}";
+            uriParameter.Value = envelopes[i].Destination!.ToString();
+            command.Parameters.Add(uriParameter);
+
+            clauses.Add($"(id = @id_{i} AND {DatabaseConstants.ReceivedAt} = @uri_{i})");
+        }
+
+        return $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+               $"WHERE status = '{EnvelopeStatus.Scheduled}' AND ({string.Join(" OR ", clauses)})";
+    }
+
     public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
@@ -382,12 +430,9 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
                     return;
                 }
 
-                var ids = envelopes.Select(x => x.Id).ToArray();
                 await using var reassignCmd = conn.CreateCommand();
                 reassignCmd.Transaction = tx;
-                var placeholders = MySqlCommandExtensions.WithIdList(reassignCmd, "id", ids);
-                reassignCmd.CommandText =
-                    $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET owner_id = @owner, status = '{EnvelopeStatus.Incoming}' WHERE id IN ({placeholders})";
+                reassignCmd.CommandText = writePromotionSql(reassignCmd, envelopes);
                 reassignCmd.Parameters.AddWithValue("@owner", durabilitySettings.AssignedNodeNumber);
                 await reassignCmd.ExecuteNonQueryAsync(_cancellation);
 

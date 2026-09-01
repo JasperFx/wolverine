@@ -331,6 +331,45 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         }
     }
 
+    /// <summary>
+    /// GH-4216. The promotion statement for <see cref="MessageIdentity.IdAndDestination"/>, where the identity
+    /// is <c>(id, received_at)</c>. <c>uspMarkIncomingOwnership</c> cannot express this: its <c>@IDLIST</c> is
+    /// an <c>EnvelopeIdList</c> TVP of ids alone, shared with three other procedures, so matching on it also
+    /// rewrites a row for a different message that merely shares the id at another destination -- reassigning
+    /// an <c>owner_id</c> the poller never selected, and promoting a scheduled sibling that is not due yet so
+    /// a message scheduled an hour out executes now.
+    ///
+    /// The pairs have to be matched together; an <c>id IN (...) AND received_at IN (...)</c> pair of lists
+    /// would match the cross product, which is the same bug wearing a longer statement. Mirrors
+    /// <c>PostgresqlMessageStore._reassignIncomingSql</c>, which does the same job through
+    /// <c>unnest(@ids, @uris)</c>. See GH-4209 for the incident that first exposed the shape.
+    ///
+    /// Under IdOnly the procedure is still exactly right and is still what runs -- an id is the whole identity
+    /// there -- so this path is the composite key's alone.
+    /// </summary>
+    private string writePromotionSql(DbCommand command, IReadOnlyList<Envelope> envelopes)
+    {
+        var clauses = new List<string>(envelopes.Count);
+
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            var idParameter = command.CreateParameter();
+            idParameter.ParameterName = $"@id_{i}";
+            idParameter.Value = envelopes[i].Id;
+            command.Parameters.Add(idParameter);
+
+            var uriParameter = command.CreateParameter();
+            uriParameter.ParameterName = $"@uri_{i}";
+            uriParameter.Value = envelopes[i].Destination!.ToString();
+            command.Parameters.Add(uriParameter);
+
+            clauses.Add($"(id = @id_{i} and {DatabaseConstants.ReceivedAt} = @uri_{i})");
+        }
+
+        return $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+               $"where status = '{EnvelopeStatus.Scheduled}' and ({string.Join(" or ", clauses)})";
+    }
+
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
@@ -461,13 +500,25 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
                     return;
                 }
 
-                await using var reassign = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
-                reassign.CommandType = CommandType.StoredProcedure;
+                if (Durability.MessageIdentity == MessageIdentity.IdOnly)
+                {
+                    await using var reassign =
+                        conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
+                    reassign.CommandType = CommandType.StoredProcedure;
 
-                await reassign
-                    .WithIdList(this, envelopes)
-                    .With("owner", durabilitySettings.AssignedNodeNumber)
-                    .ExecuteNonQueryAsync(_cancellation);
+                    await reassign
+                        .WithIdList(this, envelopes)
+                        .With("owner", durabilitySettings.AssignedNodeNumber)
+                        .ExecuteNonQueryAsync(_cancellation);
+                }
+                else
+                {
+                    await using var reassign = conn.CreateCommand("", tx);
+                    reassign.CommandText = writePromotionSql(reassign, envelopes);
+                    await reassign
+                        .With("owner", durabilitySettings.AssignedNodeNumber)
+                        .ExecuteNonQueryAsync(_cancellation);
+                }
 
                 await tx.CommitAsync(cancellationToken);
 

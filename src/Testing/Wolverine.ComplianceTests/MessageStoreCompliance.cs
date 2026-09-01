@@ -1126,6 +1126,124 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-4216, lifted out of GH-4209's PostgreSQL-only suite because neither case is partitioning-specific.
+    /// Under <see cref="MessageIdentity.IdAndDestination"/> a row that merely shares an id at a *different*
+    /// destination is a different message, and scheduled promotion must treat it as one: it may not be
+    /// superseded, and -- the half that bites hardest -- its <c>owner_id</c> may not be reassigned. Any
+    /// promotion statement that matches on <c>id</c> alone claims a row the poller never selected, which is
+    /// duplicate execution waiting on a node that thinks it owns work it was never handed.
+    ///
+    /// Skipped under IdOnly, where a shared id at another destination is by definition the same identity and
+    /// superseding it is correct.
+    /// </summary>
+    [Fact]
+    public virtual async Task promotion_leaves_a_shared_id_at_another_destination_alone()
+    {
+        if (thePersistence is not IMessageDatabase database) return;
+        if (identityStyle() != MessageIdentity.IdAndDestination) return;
+
+        var scheduled = ObjectMother.Envelope();
+        scheduled.Status = EnvelopeStatus.Incoming;
+        scheduled.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(-1); // already due
+        await thePersistence.Inbox.StoreIncomingAsync(scheduled);
+        await thePersistence.Inbox.ScheduleExecutionAsync(scheduled);
+
+        var elsewhere = ObjectMother.Envelope();
+        elsewhere.Id = scheduled.Id;
+        elsewhere.Destination = new Uri("stub://elsewhere");
+        elsewhere.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(elsewhere);
+
+        var ownerBefore = (await thePersistence.Admin.AllIncomingAsync())
+            .Single(x => x.Id == elsewhere.Id && x.Destination == elsewhere.Destination).OwnerId;
+
+        var captured = await pollForScheduledMessagesAsync(database);
+
+        captured.ShouldContain(x => x.Id == scheduled.Id && x.Destination == scheduled.Destination,
+            "Under IdAndDestination the incoming row at another destination is a different identity, so it must not supersede the scheduled message.");
+
+        var rows = await thePersistence.Admin.AllIncomingAsync();
+
+        rows.Count(x => x.Id == scheduled.Id).ShouldBe(2,
+            "Both identities survive: the promoted one and the unrelated row sharing its id.");
+
+        rows.Single(x => x.Id == elsewhere.Id && x.Destination == elsewhere.Destination).OwnerId
+            .ShouldBe(ownerBefore,
+                "Matching on the id alone would let the promotion claim ownership of a row the poller never selected.");
+    }
+
+    /// <summary>
+    /// GH-4216, the sibling case: two scheduled rows sharing an id at different destinations, one due and one
+    /// not. Only the identity clause can keep the promotion off the row that is not due yet -- a status
+    /// predicate cannot, because both rows are Scheduled.
+    /// </summary>
+    [Fact]
+    public virtual async Task promotion_leaves_a_not_yet_due_scheduled_sibling_at_another_destination_alone()
+    {
+        if (thePersistence is not IMessageDatabase database) return;
+        if (identityStyle() != MessageIdentity.IdAndDestination) return;
+
+        var due = ObjectMother.Envelope();
+        due.Status = EnvelopeStatus.Incoming;
+        due.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(-1);
+        await thePersistence.Inbox.StoreIncomingAsync(due);
+        await thePersistence.Inbox.ScheduleExecutionAsync(due);
+
+        var later = ObjectMother.Envelope();
+        later.Id = due.Id;
+        later.Destination = new Uri("stub://elsewhere");
+        later.Status = EnvelopeStatus.Incoming;
+        later.ScheduledTime = DateTimeOffset.UtcNow.AddHours(1);
+        await thePersistence.Inbox.StoreIncomingAsync(later);
+        await thePersistence.Inbox.ScheduleExecutionAsync(later);
+
+        var captured = await pollForScheduledMessagesAsync(database);
+
+        captured.ShouldContain(x => x.Id == due.Id && x.Destination == due.Destination,
+            "The due scheduled message must still be promoted and dispatched.");
+
+        captured.ShouldNotContain(x => x.Destination == later.Destination,
+            "The sibling is not due yet, so the poller must not have selected it.");
+
+        var rows = await thePersistence.Admin.AllIncomingAsync();
+
+        rows.Single(x => x.Id == due.Id && x.Destination == due.Destination)
+            .Status.ShouldBe(EnvelopeStatus.Incoming, "The due row was promoted.");
+
+        rows.Single(x => x.Id == later.Id && x.Destination == later.Destination)
+            .Status.ShouldBe(EnvelopeStatus.Scheduled, "The sibling that is not due must be left Scheduled.");
+    }
+
+    /// <summary>
+    /// The identity shape this store was configured with. Read off the running host rather than overridden
+    /// per subclass so an IdAndDestination variant needs nothing beyond its own BuildCleanHost.
+    /// </summary>
+    protected MessageIdentity identityStyle()
+    {
+        return theHost.Services.GetRequiredService<DurabilitySettings>().MessageIdentity;
+    }
+
+    /// <summary>
+    /// Runs one promotion pass and hands back whatever the poller dispatched, which is the only place the
+    /// promotion statement's identity matching is externally observable.
+    /// </summary>
+    protected async Task<List<Envelope>> pollForScheduledMessagesAsync(IMessageDatabase database)
+    {
+        var captured = new List<Envelope>();
+        var spyRuntime = Substitute.For<IWolverineRuntime>();
+        spyRuntime
+            .EnqueueDirectlyAsync(Arg.Do<IReadOnlyList<Envelope>>(es => captured.AddRange(es)))
+            .Returns(ValueTask.CompletedTask);
+
+        var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
+
+        await database.PollForScheduledMessagesAsync(
+            spyRuntime, NullLogger.Instance, durabilitySettings, CancellationToken.None);
+
+        return captured;
+    }
+
+    /// <summary>
     /// Sister contract test to <see cref="scheduled_poll_stamps_envelope_with_originating_store"/>:
     /// the inbox-recovery path (which DLQ replay funnels through) must stamp
     /// <c>envelope.Store</c> so downstream mark-as-handled writes route to the
