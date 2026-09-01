@@ -2,6 +2,59 @@
 
 ## Unreleased
 
+### WolverineFx.AI (new package)
+
+- **LLM callouts as durable messages.** (closes
+  [#4227](https://github.com/JasperFx/wolverine/issues/4227)) A handler that awaits a language model
+  inline holds a transaction and an envelope open for seconds against a remote service that is slow,
+  rate limited, and occasionally down. Every one of those problems already has an answer in Wolverine;
+  it just needed the model call to be a message.
+
+  `LlmCallout.Ask<IncidentTriage>(prompt, context)` produces an ordinary Wolverine message. Returned
+  from a handler next to a storage action it is enrolled in the same outbox as the write, so a callout
+  cannot fire for a transaction that did not commit. It executes on a dedicated durable local queue
+  (`llm-callouts`) against the `IChatClient` the application registered, and the model's answer is
+  deserialized into the requested type and published as an ordinary, strongly typed message with its
+  own handler and its own retry policy. Retries, back pressure, scheduling, dead lettering, and the
+  correlation chain are all inherited rather than rebuilt. Turn it on with `opts.AddLlmCallouts(...)`.
+
+  Because the vocabulary is messages, event store integration needed nothing new: `RaiseSideEffects`
+  on the JasperFx.Events projection base already publishes messages atomically with a projection
+  update, so one integration serves Marten, Polecat, and Fisher. Side effects stay suppressed during
+  rebuilds, which is what stops a projection rebuild from re-triaging — and re-billing — two years of
+  history.
+
+  The package references only the **Microsoft.Extensions.AI abstractions**, never a vendor SDK — the
+  same bargain as `ILogger`. Registering the `IChatClient` stays with the application, so the provider
+  and any middleware over it (`UseOpenTelemetry`, `UseDistributedCache`) remain its choice.
+
+- **Spend guardrails as middleware on the callout queue.** `LlmBudget.MaximumPromptCharacters` refuses
+  a callout before the provider is called, so a context accidentally assembled from an unbounded
+  collection costs nothing. `LlmBudget.MaximumTokensPerWindow` refuses callouts once the node has
+  burned through its allowance, counted from the usage the provider actually reported. Both dead letter
+  rather than retry, and so does an answer that cannot be parsed into the requested response type: a
+  callout that is over budget is over budget on every attempt, and a prompt the model cannot answer in
+  the requested shape produces the identical unusable answer every time. Retrying either is precisely
+  the runaway spend the guardrails exist to stop. Token counters are published on a `Wolverine.AI`
+  meter, tagged by the callout's `Tag` and the responding model.
+
+- **A scripted `IChatClient` ships with the package.** `StubChatClient` exercises a callout's whole
+  round trip — outbox, queue, handler, published answer — with no key, no network, and no model. An
+  exhausted script is an error rather than a repeat, because a test that quietly reuses the last answer
+  for a callout it did not know it was making is a test that passes for the wrong reason. And a handler
+  that returns a callout is a pure function, so the most valuable test needs no host at all.
+
+- **The callout message is deliberately not generic.** `Ask<TResponse>` is generic; `LlmCallout` is not,
+  and the response type rides on the message as data. A closed `LlmCallout<T>` recovered from a durable
+  inbox on a cold start has no route back to a `Type` — the message type registry is a flat name lookup,
+  and the recovery sweep runs before the application has published a callout of its own — so a generic
+  wire type would require every response type to be enumerated at bootstrap. One message type also means
+  one handler chain, one dead letter identity, and one place for the budget middleware. See
+  [#4227](https://github.com/JasperFx/wolverine/issues/4227) for the full reasoning.
+
+  `WolverineFx.AI` is not trim or AOT compatible: the response type is named on the message at runtime
+  and its JSON schema is built reflectively.
+
 ### WolverineFx (core)
 
 - **Logical message deduplication, opt-in, on its own table.** (closes

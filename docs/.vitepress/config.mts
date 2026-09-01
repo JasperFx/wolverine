@@ -143,6 +143,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Aspire Dashboard Integration', link: '/guide/aspire'},
                         {text: 'Code Generation', link: '/guide/codegen'},
                         {text: 'AOT Publishing', link: '/guide/aot'},
+                        {text: 'LLM Callouts', link: '/guide/ai'},
                         {text: 'Extensions', link: '/guide/extensions'},
                         {text: 'Sample Projects', link: '/guide/samples'}
                     ]

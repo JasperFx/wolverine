@@ -23,6 +23,8 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/Extensions/">
+    <Project Path="src/Extensions/Wolverine.AI/Wolverine.AI.csproj" />
+    <Project Path="src/Extensions/Wolverine.AI.Tests/Wolverine.AI.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Wolverine.DataAnnotationsValidation.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation/Wolverine.DataAnnotationsValidation.csproj" />
     <Project Path="src/Extensions/Wolverine.FluentValidation.Grpc/Wolverine.FluentValidation.Grpc.csproj" />

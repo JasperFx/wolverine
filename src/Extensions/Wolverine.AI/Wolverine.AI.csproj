@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Durable LLM callouts as Wolverine messages, on top of Microsoft.Extensions.AI</Description>
+        <PackageId>WolverineFx.AI</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          NOT AOT-compatible. The callout message carries its response type as a
+          string (see LlmCallout.ResponseType), which the executor resolves back to
+          a Type and then feeds to AIJsonUtilities.CreateJsonSchema + JsonSerializer.
+          Both of those are reflection over a type the trimmer cannot see from any
+          static call site. Making this trim-clean needs a source-generated schema +
+          JsonSerializerContext keyed off the registered response types, which is
+          follow-on work rather than a suppression.
+        -->
+        <IsAotCompatible>false</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    </ItemGroup>
+
+</Project>
