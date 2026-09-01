@@ -4,88 +4,95 @@
 
 ### WolverineFx.AI (new package)
 
-- **AOT and trim support.** (closes
+- **New package for one shot LLM callouts as durable messages.** (closes
+  [#4227](https://github.com/JasperFx/wolverine/issues/4227)) Awaiting a language model inline in a
+  handler holds a database transaction and an unacked message open for however long the model takes,
+  against a service that is slow, rate limited, and sometimes down. That is the shape of work Wolverine
+  already absorbs everywhere else, so `LlmCallout` makes the model call an ordinary message instead.
+
+  `LlmCallout.Ask<IncidentTriage>(prompt, context)` returns a message you can hand back from a handler,
+  an HTTP endpoint, or a projection's `RaiseSideEffects`. Returned next to a storage action it is
+  enrolled in the same outbox as the write, so a callout cannot fire for a transaction that never
+  committed. It runs on a dedicated durable local queue against whatever `IChatClient` the application
+  registered, and the model's answer is deserialized into the requested type and published as an
+  ordinary, strongly typed message with its own handler and its own retry policy. Retries, back
+  pressure, scheduling, dead lettering, and the correlation chain all come along for free rather than
+  being rebuilt. Turn it on with `opts.AddLlmCallouts(...)`.
+
+  Event store integration needed nothing new, since `RaiseSideEffects` on the JasperFx.Events
+  projection base already publishes messages atomically with a projection update. One integration
+  therefore covers Marten, Polecat, and Fisher. Side effects stay suppressed during rebuilds, which is
+  what keeps a projection rebuild from re-triaging -- and re-billing for -- two years of history.
+
+  The package only references the **Microsoft.Extensions.AI abstractions**, never a vendor SDK, on the
+  same reasoning as binding to `ILogger`. Registering the `IChatClient` stays with the application, so
+  the provider and any middleware over it (`UseOpenTelemetry`, `UseDistributedCache`) remain its call.
+
+- **Added spend guardrails as middleware on the callout queue.** `LlmBudget.MaximumPromptCharacters`
+  refuses a callout before the provider is ever called, so a context accidentally assembled out of an
+  unbounded collection costs nothing. `LlmBudget.MaximumTokensPerWindow` refuses callouts once a node
+  has spent its allowance, counted from the usage the provider reported back. Note that the ledger is
+  per process rather than cluster wide, so treat it as a circuit breaker against a runaway loop rather
+  than as billing enforcement.
+
+  Both limits dead letter rather than retry, and so does an answer that cannot be parsed into the
+  requested response type. A callout that is over budget will be over budget on every attempt, and a
+  prompt the model cannot answer in the requested shape gives back the same unusable answer every time,
+  so retrying either one only spends more money to reach the same place. The raw model output is
+  carried on `LlmCalloutException.RawResponse` so a dead letter can be triaged without a re-run. Token
+  counters are published on a `Wolverine.AI` meter, tagged by the callout's `Tag` and the model that
+  answered.
+
+- **Added a scripted `IChatClient` for testing.** `StubChatClient` exercises a callout's whole round
+  trip -- outbox, queue, handler, published answer -- with no key, no network, and no model. Running
+  out of script is an error rather than a repeat, so a test cannot quietly hand the last answer back
+  for a callout it did not know it was making. `Throw()` scripts a failure and `RespondAfter()` scripts
+  a slow answer for exercising the timeout. A handler that returns a callout is also a pure function,
+  so the test worth writing needs no host at all.
+
+- **`LlmCallout` is deliberately not generic**, contrary to the design of record the issue started
+  with. `Ask<TResponse>` is generic; the message is not, and the response type rides on it as data.
+
+  A closed `LlmCallout<T>` recovered from a durable inbox on a cold start has no route back to a
+  `Type`, because the message type registry is a flat name lookup and the recovery sweep runs before
+  the application has published a callout of its own. A generic wire type would therefore require every
+  response type to be enumerated at bootstrap. The type argument also carries no behavior at all -- its
+  whole job is to name a type twice, once for the schema and once for the deserialization. One message
+  type instead buys one handler chain, one dead letter identity, and one place for the budget
+  middleware to live. Full reasoning is on
+  [#4227](https://github.com/JasperFx/wolverine/issues/4227).
+
+- **Added trim and AOT support.** (closes
   [#4230](https://github.com/JasperFx/wolverine/issues/4230)) `WolverineFx.AI` now sets
   `IsAotCompatible`, on one condition: register response types with `ai.RegisterResponseType<T>()` and
-  assign `LlmCalloutOptions.JsonSerializerOptions` a source-generated `JsonSerializerContext` covering
+  give `LlmCalloutOptions.JsonSerializerOptions` a source generated `JsonSerializerContext` covering
   them.
 
   This turned out to need no schema generator. `AIJsonUtilities.CreateJsonSchema(Type, ...)` carries no
-  trim annotations at all, because it builds the schema from whatever `JsonTypeInfo` the serializer
-  options resolve — hand it source-generated options and the schema generation is already reflection
-  free. What did need changing was the deserialization, which now goes through the `JsonTypeInfo`
-  overload rather than `JsonSerializer.Deserialize(string, Type, JsonSerializerOptions)`, the one that
-  is annotated; and the identifier-to-`Type` resolution, which now consults the registration table
-  before falling back to the message type registry and `Type.GetType`.
+  trim annotations at all, because it builds the schema out of whatever `JsonTypeInfo` the serializer
+  options resolve -- hand it source generated options and schema generation is already reflection free.
+  What did need changing was deserialization, which now goes through the `JsonTypeInfo` overload rather
+  than `JsonSerializer.Deserialize(string, Type, JsonSerializerOptions)`, the one that is annotated; and
+  identifier to `Type` resolution, which now checks the registration table before falling back to the
+  message type registry and `Type.GetType`.
 
-  `LlmCallout.Ask(prompt, context)` keeps `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` — 
-  serializing an arbitrary object needs reflection over its shape, and no amount of plumbing changes
-  that. The trim-clean equivalent is `LlmCallout.Ask<T>(prompt).WithContext(context, typeInfo)`, which
-  serializes through source-generated type info, or `WithContext(json)` for context that is already
-  JSON. The annotation's message names the replacement at the call site.
+  `LlmCallout.Ask(prompt, context)` keeps its `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`
+  annotations, since serializing an arbitrary object means reflecting over its shape and no amount of
+  plumbing changes that. Use `LlmCallout.Ask<T>(prompt).WithContext(context, typeInfo)` instead, which
+  serializes through source generated type info, or `WithContext(json)` for context that is already
+  JSON. The annotation's message names the replacement right at the call site.
 
-  Gated by a new `Wolverine.AI.AotSmoke` project under `TrimMode=full`, which CI **runs** as well as
-  builds. Running is the point: a `JsonSerializerContext` that does not cover a response type does not
-  throw — `CreateJsonSchema` returns an *empty* schema, the model is handed a constraint that
-  constrains nothing, and the result looks like a quality problem rather than a configuration one. The
-  smoke test asserts on the rendered schema's contents for exactly that reason.
+  Guarded by a new `Wolverine.AI.AotSmoke` project under `TrimMode=full`, which CI runs as well as
+  builds. Running matters because the failure is silent: a `JsonSerializerContext` missing a response
+  type does not throw, it makes `CreateJsonSchema` answer with an empty schema, and the model is handed
+  a constraint that constrains nothing. That reads like a model quality problem rather than the
+  configuration problem it is, so the smoke test asserts on the rendered schema's contents.
 
-- **Prompt context is serialized compactly.** `AIJsonUtilities.DefaultOptions` sets `WriteIndented`,
-  so every callout carrying context was pretty-printing it into the prompt. Indentation in a prompt is
-  billed input tokens buying nothing, and it inflated every character counted against
-  `LlmBudget.MaximumPromptCharacters`. The naming policy and null handling are unchanged, so what the
-  model is shown is otherwise identical.
-
-- **LLM callouts as durable messages.** (closes
-  [#4227](https://github.com/JasperFx/wolverine/issues/4227)) A handler that awaits a language model
-  inline holds a transaction and an envelope open for seconds against a remote service that is slow,
-  rate limited, and occasionally down. Every one of those problems already has an answer in Wolverine;
-  it just needed the model call to be a message.
-
-  `LlmCallout.Ask<IncidentTriage>(prompt, context)` produces an ordinary Wolverine message. Returned
-  from a handler next to a storage action it is enrolled in the same outbox as the write, so a callout
-  cannot fire for a transaction that did not commit. It executes on a dedicated durable local queue
-  (`llm-callouts`) against the `IChatClient` the application registered, and the model's answer is
-  deserialized into the requested type and published as an ordinary, strongly typed message with its
-  own handler and its own retry policy. Retries, back pressure, scheduling, dead lettering, and the
-  correlation chain are all inherited rather than rebuilt. Turn it on with `opts.AddLlmCallouts(...)`.
-
-  Because the vocabulary is messages, event store integration needed nothing new: `RaiseSideEffects`
-  on the JasperFx.Events projection base already publishes messages atomically with a projection
-  update, so one integration serves Marten, Polecat, and Fisher. Side effects stay suppressed during
-  rebuilds, which is what stops a projection rebuild from re-triaging — and re-billing — two years of
-  history.
-
-  The package references only the **Microsoft.Extensions.AI abstractions**, never a vendor SDK — the
-  same bargain as `ILogger`. Registering the `IChatClient` stays with the application, so the provider
-  and any middleware over it (`UseOpenTelemetry`, `UseDistributedCache`) remain its choice.
-
-- **Spend guardrails as middleware on the callout queue.** `LlmBudget.MaximumPromptCharacters` refuses
-  a callout before the provider is called, so a context accidentally assembled from an unbounded
-  collection costs nothing. `LlmBudget.MaximumTokensPerWindow` refuses callouts once the node has
-  burned through its allowance, counted from the usage the provider actually reported. Both dead letter
-  rather than retry, and so does an answer that cannot be parsed into the requested response type: a
-  callout that is over budget is over budget on every attempt, and a prompt the model cannot answer in
-  the requested shape produces the identical unusable answer every time. Retrying either is precisely
-  the runaway spend the guardrails exist to stop. Token counters are published on a `Wolverine.AI`
-  meter, tagged by the callout's `Tag` and the responding model.
-
-- **A scripted `IChatClient` ships with the package.** `StubChatClient` exercises a callout's whole
-  round trip — outbox, queue, handler, published answer — with no key, no network, and no model. An
-  exhausted script is an error rather than a repeat, because a test that quietly reuses the last answer
-  for a callout it did not know it was making is a test that passes for the wrong reason. And a handler
-  that returns a callout is a pure function, so the most valuable test needs no host at all.
-
-- **The callout message is deliberately not generic.** `Ask<TResponse>` is generic; `LlmCallout` is not,
-  and the response type rides on the message as data. A closed `LlmCallout<T>` recovered from a durable
-  inbox on a cold start has no route back to a `Type` — the message type registry is a flat name lookup,
-  and the recovery sweep runs before the application has published a callout of its own — so a generic
-  wire type would require every response type to be enumerated at bootstrap. One message type also means
-  one handler chain, one dead letter identity, and one place for the budget middleware. See
-  [#4227](https://github.com/JasperFx/wolverine/issues/4227) for the full reasoning.
-
-  `WolverineFx.AI` is not trim or AOT compatible: the response type is named on the message at runtime
-  and its JSON schema is built reflectively.
+- **Fixed prompt context being serialized with indentation.** `AIJsonUtilities.DefaultOptions` sets
+  `WriteIndented`, so every callout carrying context was pretty printing that context into its prompt.
+  Whitespace in a prompt is billed input tokens buying nothing, and it inflated every character counted
+  against `LlmBudget.MaximumPromptCharacters`. The naming policy and null handling are unchanged, so
+  what the model sees is otherwise identical.
 
 ### WolverineFx (core)
 
