@@ -55,7 +55,14 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
 
         writer.FinishBlock();
         writer.Write($"BLOCK:catch ({typeof(Exception).FullNameInCode()})");
-        writer.Write($"await {_dbContext.Usage}.Database.RollbackTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+
+        // GH-4239: deliberately NOT `RollbackTransactionAsync(cancellation)`. That call threw over the
+        // exception being unwound whenever there was no transaction to roll back (an already-cancelled
+        // token means BeginTransactionAsync never created one), and it silently skipped the rollback
+        // when the token was cancelled after the transaction opened. Either way the real failure never
+        // reached a log or a dead letter queue. See EfCoreTransactionRollback.
+        writer.Write(
+            $"await {typeof(EfCoreTransactionRollback).FullNameInCode()}.{nameof(EfCoreTransactionRollback.SafeRollbackAsync)}({_dbContext.Usage}).ConfigureAwait(false);");
         writer.Write("throw;");
         writer.FinishBlock();
     }
