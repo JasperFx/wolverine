@@ -233,7 +233,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (requirement.Required)
         {
-            Metadata.Produces(400, contentType: "application/problem+json");
+            // Produces<ProblemDetails>, not Produces(..., contentType:). Without a response TYPE the
+            // content type never reaches the generated OpenAPI document -- Swashbuckle emits the status
+            // with no content at all, so a client generating from the spec cannot see that a refusal
+            // carries a problem document. Covered by deduplication_openapi_document.
+            Metadata.Produces<ProblemDetails>(400, "application/problem+json");
         }
 
         var status = effectiveDuplicateStatusCode(requirement);
@@ -244,7 +248,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
         else
         {
-            Metadata.Produces(status, contentType: "application/problem+json");
+            Metadata.Produces<ProblemDetails>(status, "application/problem+json");
         }
     }
 
