@@ -48,7 +48,13 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
             builder.Append(", ");
             builder.AppendParameter(@event.RecordType.ToString());
             builder.Append(", ");
-            builder.AppendParameter(@event.Description!);
+
+            // GH-4246: clamped to the width every bounded description column now declares. An
+            // AssignmentChanged record's description is an agent command's ToString(), which grows with
+            // the agent URI, the schema name and the destination node -- long enough on a real cluster to
+            // overflow the column and fail this insert, which fails the whole AgentCommand batch behind
+            // it. These rows are diagnostics; losing a tail beats losing an assignment.
+            builder.AppendParameter(NodeRecord.TruncateDescription(@event.Description));
             builder.Append(");");
         }
     }

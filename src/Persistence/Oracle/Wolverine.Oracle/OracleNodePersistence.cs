@@ -353,7 +353,9 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
                     "VALUES (:nodeNumber, :eventName, :description)");
                 cmd.With("nodeNumber", record.NodeNumber);
                 cmd.With("eventName", record.RecordType.ToString());
-                cmd.With("description", record.Description ?? string.Empty);
+                // GH-4246: same clamp the shared PersistNodeRecord operation applies -- Oracle writes
+                // node records through this hand-rolled path instead, so it needs it too.
+                cmd.With("description", NodeRecord.TruncateDescription(record.Description));
                 await cmd.ExecuteNonQueryAsync();
             }
         }
