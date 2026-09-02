@@ -94,6 +94,7 @@ jobs:
           - CICircuitBreaking
           - CIClaimCheck
           - CIAotSmoke
+          - CIExtensions
           # NOTE: CISlowTests is deliberately NOT here. It is wall-clock bound by design and blew
           # through the 20 minute cap on its first run; it lives in slow-tests.yml as a manual job.
         # HISTORY: from 2026-08 to 2026-08-24 an `include:` block here carried per-target

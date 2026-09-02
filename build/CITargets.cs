@@ -1425,4 +1425,47 @@ partial class Build
 
     AbsolutePath PolecatIncidentServiceTests => RootDirectory / "src" / "Persistence" / "Polecat" /
                                                 "PolecatIncidentService.Tests" / "PolecatIncidentService.Tests.csproj";
+    /// <summary>
+    /// The extension test projects. Every one of these was outside CI entirely: <c>TestExtensions</c>
+    /// gathers five of them, but only the <c>Test</c> and <c>Full</c> targets depend on it, and no
+    /// workflow invokes either -- dotnet.yml runs <c>ci</c> (CoreTests + CIMessageRouting) and
+    /// tests.yml runs its own CI* matrix.
+    ///
+    /// <para>VerifyCITargetCoverage did not report this, and is not wrong to have missed it: it audits
+    /// targets whose names begin with CI, which is the convention for "this is a lane". <c>AiTests</c>
+    /// and its siblings never claimed to be lanes. Giving them one is the fix, and the guard covers
+    /// them from here on.</para>
+    ///
+    /// <para>What it cost: Wolverine.AI.Tests went red on main and stayed red, with the first
+    /// WolverineFx.AI release in flight. Wolverine.Protobuf.Tests is worse -- it is in wolverine.slnx,
+    /// so it compiles on every build, but it runs in no Nuke target at all, not even TestExtensions.
+    /// It is included here.</para>
+    ///
+    /// <para>No docker services: none of these projects reference a persistence package or touch
+    /// <c>Servers</c>. That is what makes this lane cheap enough to be uncontroversial.</para>
+    /// </summary>
+    Target CIExtensions => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var projects = new[]
+            {
+                extensionTests("Wolverine.AI.Tests"),
+                extensionTests("Wolverine.DataAnnotationsValidation.Tests"),
+                extensionTests("Wolverine.FluentValidation.Tests"),
+                extensionTests("Wolverine.MemoryPack.Tests"),
+                extensionTests("Wolverine.MessagePack.Tests"),
+                extensionTests("Wolverine.Protobuf.Tests")
+            };
+
+            BuildTestProjects(projects);
+
+            foreach (var project in projects)
+            {
+                RunTestProject(project);
+            }
+        });
+
+    AbsolutePath extensionTests(string name) => RootDirectory / "src" / "Extensions" / name / $"{name}.csproj";
+
 }
