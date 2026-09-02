@@ -50,7 +50,7 @@
   which is 768 characters of utf8mb4.
 
   An existing database is widened in place on the next migration, by an `ALTER TABLE ... MODIFY` that
-  keeps the rows -- but only with Weasel 9.30.0. Before that, the schema differ compared column types
+  keeps the rows -- but only with Weasel 9.29.1. Before that, the schema differ compared column types
   with the size stripped off, so a widened `varchar` was invisible to it and an existing table kept
   the narrow column forever.
 
