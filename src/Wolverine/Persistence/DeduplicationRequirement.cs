@@ -61,7 +61,32 @@ public sealed class DeduplicationRequirement
     /// explains. Message handler and gRPC chains ignore it.
     /// </para>
     /// </summary>
-    public int DuplicateStatusCode { get; init; } = 409;
+    public int DuplicateStatusCode
+    {
+        get => _duplicateStatusCode ?? DefaultDuplicateStatusCode;
+        init => _duplicateStatusCode = value;
+    }
+
+    private readonly int? _duplicateStatusCode;
+
+    /// <summary>
+    /// Whether a status code was actually chosen here, as opposed to falling through to the default.
+    /// <see cref="DuplicateStatusCode" /> cannot answer that on its own -- it reports 409 either way --
+    /// and Wolverine.HTTP needs the distinction so that
+    /// <c>WolverineHttpOptions.DefaultDuplicateStatusCode</c> applies to endpoints that did not state a
+    /// preference without overriding the ones that did.
+    /// </summary>
+    internal int? ExplicitDuplicateStatusCode
+    {
+        get => _duplicateStatusCode;
+        init => _duplicateStatusCode = value;
+    }
+
+    /// <summary>
+    /// The built-in default for an already-claimed id: 409 Conflict. An application-wide override for
+    /// HTTP endpoints lives on <c>WolverineHttpOptions.DefaultDuplicateStatusCode</c>.
+    /// </summary>
+    public const int DefaultDuplicateStatusCode = 409;
 
     /// <summary>
     /// The conventional header/metadata name carrying a logical idempotency key, matching the IETF

@@ -86,7 +86,16 @@ public class DeduplicatedAttribute : ModifyChainAttribute
     /// HTTP endpoints only: the status code for an already-claimed id. Default 409 Conflict; use 200 or
     /// 204 where a replayed request is benign. See <see cref="DeduplicationRequirement.DuplicateStatusCode" />.
     /// </summary>
-    public int DuplicateStatusCode { get; set; } = 409;
+    public int DuplicateStatusCode
+    {
+        get => _duplicateStatusCode ?? DeduplicationRequirement.DefaultDuplicateStatusCode;
+        set => _duplicateStatusCode = value;
+    }
+
+    // Null until somebody actually writes DuplicateStatusCode on the attribute. Kept so an endpoint
+    // that said nothing can inherit WolverineHttpOptions.DefaultDuplicateStatusCode while one that
+    // asked for 409 explicitly keeps it even when the application default is something else.
+    private int? _duplicateStatusCode;
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
@@ -98,7 +107,7 @@ public class DeduplicatedAttribute : ModifyChainAttribute
             Source = Source,
             Key = Key,
             Required = Required,
-            DuplicateStatusCode = DuplicateStatusCode
+            ExplicitDuplicateStatusCode = _duplicateStatusCode
         };
     }
 }
