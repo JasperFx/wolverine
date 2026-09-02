@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wolverine.Grpc.Tests.ParameterAttributes.Generated";
+
+package wolverine.grpc.tests.parameter_attributes;
+
+// Test-only service for GH-3935. Its own proto rather than a second stub over an existing one,
+// so this suite's before/after hooks cannot alter what any other suite discovers.
+service ParameterAttributeTest {
+  rpc Echo (ParamRequest) returns (ParamReply);
+}
+
+message ParamRequest {
+  string name = 1;
+}
+
+message ParamReply {
+  string message = 1;
+}

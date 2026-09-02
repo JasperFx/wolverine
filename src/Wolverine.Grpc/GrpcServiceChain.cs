@@ -328,6 +328,14 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
                 foreach (var before in befores)
                 {
                     var call = new MethodCall(StubType, before);
+
+                    // GH-3935: these hooks are the one user-authored parameter list on a gRPC service,
+                    // so they are where [Entity], [All], [Queryable] and the rest of the family belong.
+                    // The RPC methods themselves stay out of scope on purpose -- their signatures are
+                    // proto-defined, there is nowhere to hang an attribute, and the answer for those is
+                    // the downstream message handler, which has supported all of this all along.
+                    WolverineParameterAttribute.TryApply(call, _parent.Container, _parent.Rules, this);
+
                     generatedMethod.Frames.Add(call);
 
                     var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
@@ -370,7 +378,12 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             {
                 // Inline after-hooks declared directly on the stub class.
                 foreach (var after in afters)
-                    generatedMethod.Frames.Add(new MethodCall(StubType, after));
+                {
+                    // GH-3935: same as the before-hooks above.
+                    var call = new MethodCall(StubType, after);
+                    WolverineParameterAttribute.TryApply(call, _parent.Container, _parent.Rules, this);
+                    generatedMethod.Frames.Add(call);
+                }
 
                 // Registered middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
                 foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Postprocessors))

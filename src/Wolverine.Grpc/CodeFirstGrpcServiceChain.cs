@@ -89,6 +89,27 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         new(StringComparer.Ordinal) { "Handle", "HandleAsync", "Consume", "ConsumeAsync" };
 
     /// <summary>
+    ///     GH-3935: the owning graph, for the <see cref="IServiceContainer"/> and
+    ///     <see cref="GenerationRules"/> that <see cref="WolverineParameterAttribute.TryApply"/> needs
+    ///     when the before/after hooks are woven in <c>AssembleTypes</c>. Set by
+    ///     <see cref="GrpcGraph.DiscoverServices"/> after construction, on the same footing as
+    ///     <see cref="ApplicationAssemblies"/> below -- null in unit-test contexts that build the chain
+    ///     directly, in which case parameter attributes are simply not applied.
+    /// </summary>
+    internal GrpcGraph? Parent { get; set; }
+
+    /// <summary>
+    ///     GH-3935: apply any <see cref="WolverineParameterAttribute"/> on a discovered before/after
+    ///     hook's parameters. A no-op when <see cref="Parent"/> was never set, which keeps chains built
+    ///     directly in a unit test working exactly as before.
+    /// </summary>
+    private void applyParameterAttributes(MethodCall call)
+    {
+        if (Parent == null) return;
+        WolverineParameterAttribute.TryApply(call, Parent.Container, Parent.Rules, this);
+    }
+
+    /// <summary>
     ///     The application assemblies to scan for handler types. Set by <see cref="GrpcGraph.DiscoverServices"/>
     ///     after construction. Null in unit-test contexts that build the chain directly.
     /// </summary>
@@ -305,6 +326,13 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                     if (!IsBeforeApplicable(before, rpcRequestType)) continue;
 
                     var call = new MethodCall(before.DeclaringType!, before);
+
+                    // GH-3935: the before/after hooks are the one user-authored parameter list on a
+                    // gRPC service, so this is where [Entity], [All], [Queryable] and the rest of the
+                    // family belong. The RPC methods themselves stay out on purpose -- proto-defined
+                    // signatures leave nowhere to hang an attribute.
+                    applyParameterAttributes(call);
+
                     generatedMethod.Frames.Add(call);
 
                     var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
@@ -348,7 +376,12 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
             if (rpc.Kind == CodeFirstMethodKind.Unary)
             {
                 foreach (var after in afters)
-                    generatedMethod.Frames.Add(new MethodCall(after.DeclaringType!, after));
+                {
+                    // GH-3935: same as the before-hooks above.
+                    var call = new MethodCall(after.DeclaringType!, after);
+                    applyParameterAttributes(call);
+                    generatedMethod.Frames.Add(call);
+                }
             }
 
             // Global middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
@@ -425,6 +458,13 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         foreach (var p in before.GetParameters())
         {
             if (p.ParameterType == typeof(CallContext)) continue;
+
+            // GH-3935: a parameter carrying a WolverineParameterAttribute ([Entity], [All],
+            // [Queryable], ...) is resolved by that attribute, not bound from the RPC request, so it
+            // must not disqualify the hook. Without this the applicability rule silently drops
+            // exactly the before-hooks the attribute family exists to enable -- the attribute would
+            // appear to do nothing at all.
+            if (p.HasAttribute<WolverineParameterAttribute>()) continue;
             if (!p.ParameterType.IsAssignableFrom(rpcRequestType)) return false;
         }
         return true;
