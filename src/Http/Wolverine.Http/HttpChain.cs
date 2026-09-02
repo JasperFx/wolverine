@@ -217,6 +217,16 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         applyMetadata();
     }
 
+    /// <summary>
+    ///     The duplicate status code this endpoint actually answers with: whatever
+    ///     <c>[Deduplicated]</c> asked for, or the application-wide
+    ///     <see cref="WolverineHttpOptions.DefaultDuplicateStatusCode" /> when it asked for nothing.
+    ///     Deliberately keyed off whether a code was stated rather than off its value, so an endpoint
+    ///     that explicitly wants 409 keeps 409 even under an application default of something else.
+    /// </summary>
+    private int effectiveDuplicateStatusCode(DeduplicationRequirement requirement)
+        => requirement.ExplicitDuplicateStatusCode ?? _parent.DefaultDuplicateStatusCode;
+
     private void registerDeduplicationMetadata()
     {
         if (Deduplication is not { } requirement) return;
@@ -226,7 +236,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             Metadata.Produces(400, contentType: "application/problem+json");
         }
 
-        var status = requirement.DuplicateStatusCode;
+        var status = effectiveDuplicateStatusCode(requirement);
 
         if (status is >= 200 and < 300)
         {
@@ -535,7 +545,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             ];
         }
 
-        var status = requirement.DuplicateStatusCode;
+        var status = effectiveDuplicateStatusCode(requirement);
 
         // A success code means the application has declared a replayed request benign, so there is
         // nothing to explain and a problem document would be actively wrong. Anything else is a

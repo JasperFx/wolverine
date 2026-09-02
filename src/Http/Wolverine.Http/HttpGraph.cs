@@ -14,6 +14,8 @@ using Wolverine.Http.Resources;
 using Wolverine.Runtime;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
+using Wolverine.Persistence;
+
 namespace Wolverine.Http;
 
 public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribeMyself
@@ -126,8 +128,19 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         return description;
     }
 
+    /// <summary>
+    ///     The application-wide default duplicate status code, read by each HttpChain while it is being
+    ///     constructed. It has to be available that early: registerDeduplicationMetadata() runs inside the
+    ///     chain constructor, well before IHttpPolicy instances get a look, so a policy-applied default
+    ///     would set the runtime status while OpenAPI still advertised 409.
+    /// </summary>
+    internal int DefaultDuplicateStatusCode { get; private set; } =
+        DeduplicationRequirement.DefaultDuplicateStatusCode;
+
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
+        DefaultDuplicateStatusCode = wolverineHttpOptions.DefaultDuplicateStatusCode;
+
         var source = new HttpChainSource(_options.Assemblies, wolverineHttpOptions.EndpointDiscovery);
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
 

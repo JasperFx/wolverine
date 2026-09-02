@@ -59,6 +59,37 @@ Any 2xx code is written as a bare status with no body. Anything else is written 
 document, so a refusal always carries a machine-readable reason rather than a status code the caller
 has to guess at.
 
+## Changing the default for the whole application
+
+`DuplicateStatusCode` on the attribute is per endpoint. When an application wants a different answer
+everywhere, set it once instead:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.DefaultDuplicateStatusCode = 422;
+});
+```
+
+An endpoint that names a code still wins, **including when it names 409**. The two are told apart by
+whether a code was stated at all rather than by comparing against 409, so an endpoint that deliberately
+insists on 409 keeps it under an application default of something else:
+
+```csharp
+// Answers 422 -- it stated nothing, so it follows the application default
+[Deduplicated]
+[WolverinePost("/orders")]
+public static string PostOrder(CreateOrder command) => "ok";
+
+// Answers 409 -- it asked for 409, and meant it
+[Deduplicated(DuplicateStatusCode = 409)]
+[WolverinePost("/payments")]
+public static string PostPayment(CapturePayment command) => "ok";
+```
+
+The application default reaches the endpoint early enough to be advertised in the OpenAPI document
+too, so the spec and the runtime never disagree about which code a duplicate gets.
+
 ## Using a different key
 
 The header name and the source are both configurable, exactly as for message handlers:

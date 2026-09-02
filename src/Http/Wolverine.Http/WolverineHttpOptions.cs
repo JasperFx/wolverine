@@ -17,6 +17,8 @@ using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Http.Validation.Internals;
 using Wolverine.Middleware;
 
+using Wolverine.Persistence;
+
 namespace Wolverine.Http;
 
 public enum JsonUsage
@@ -166,6 +168,21 @@ public class WolverineHttpOptions
     /// </summary>
     public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
     
+    /// <summary>
+    ///     The status code returned when an endpoint's logical deduplication id has already been claimed
+    ///     and the endpoint itself did not state a preference. Defaults to 409 Conflict.
+    ///
+    ///     <para>
+    ///     This is the application-wide default only. <c>[Deduplicated(DuplicateStatusCode = ...)]</c> on
+    ///     an individual endpoint always wins, including when it asks for the same 409 this defaults to.
+    ///     A 2xx value produces a bare status with no body, on the reasoning that a problem document
+    ///     describing a response the application has declared benign would be actively wrong; anything
+    ///     else is written as a <c>ProblemDetails</c> document so the caller gets a machine-readable
+    ///     reason.
+    ///     </para>
+    /// </summary>
+    public int DefaultDuplicateStatusCode { get; set; } = DeduplicationRequirement.DefaultDuplicateStatusCode;
+
     /// <summary>
     ///     Apply DataAnnotations Validation middleware to all Wolverine HTTP endpoints
     /// </summary>
