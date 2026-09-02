@@ -169,6 +169,14 @@ public partial class NodeAgentController
     private long _commandSequence;
     private readonly ConcurrentDictionary<Uri, long> _stopRevocations = new();
 
+    // GH-4240: agents whose deliberate stop is currently in flight. StopAgentAsync awaits the agent's own
+    // teardown BEFORE it deregisters the agent and drops the assignment row, and a real event-subscription
+    // shard reports Stopped from the moment that teardown begins. So for the whole duration of a stop the
+    // agent is registered, Stopped, and reporting no failure -- indistinguishable, to anything reading
+    // Agents, from the wedged shard ReportFailedLocalAgentsAsync exists to restart. Membership here is what
+    // tells the two apart.
+    private readonly ConcurrentDictionary<Uri, byte> _stoppingAgents = new();
+
     internal long CurrentCommandSequence => Volatile.Read(ref _commandSequence);
 
     private bool isRevokedSince(Uri agentUri, long sequence)
@@ -472,32 +480,49 @@ public partial class NodeAgentController
         // budget the setting promises.
         _failedStarts.TryRemove(agentUri, out _);
 
-        if (Agents.TryGetValue(agentUri, out var agent))
-        {
-            try
-            {
-                await agent.StopAsync(_cancellation.Token);
-                Agents.TryRemove(agentUri, out _);
-                _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri,
-                    _runtime.Options.Durability.AssignedNodeNumber);
-
-                await _observer.AgentStopped(agentUri);
-            }
-            catch (Exception e)
-            {
-                throw new AgentStoppingException(agentUri, _runtime.Options.UniqueNodeId, e);
-            }
-        }
+        // GH-4240: claim the stop before any of it is observable. Deliberately NOT done by deregistering
+        // the agent up front instead: AllRunningAgentUris() is what answers the leader's QueryAgentPresence
+        // probe, and an agent that stays Running through its own teardown must keep answering "still here"
+        // until the teardown finishes, or the leader reads a confirmed stop and starts the agent on the
+        // destination while the source copy is still winding down.
+        _stoppingAgents[agentUri] = default;
 
         try
         {
-            await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
+            if (Agents.TryGetValue(agentUri, out var agent))
+            {
+                try
+                {
+                    await agent.StopAsync(_cancellation.Token);
+                    Agents.TryRemove(agentUri, out _);
+                    _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri,
+                        _runtime.Options.Durability.AssignedNodeNumber);
+
+                    await _observer.AgentStopped(agentUri);
+                }
+                catch (Exception e)
+                {
+                    throw new AgentStoppingException(agentUri, _runtime.Options.UniqueNodeId, e);
+                }
+            }
+
+            try
+            {
+                await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri,
+                    _cancellation.Token);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Error trying to remove the assignment of agent {AgentUri} to Node {NodeId} in persistence",
+                    agentUri, _runtime.Options.UniqueNodeId);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            _logger.LogError(e,
-                "Error trying to remove the assignment of agent {AgentUri} to Node {NodeId} in persistence", agentUri,
-                _runtime.Options.UniqueNodeId);
+            // Released even when the stop threw. A stop that failed leaves an agent this node genuinely
+            // cannot account for, and that is precisely the case the wedge sweep is for.
+            _stoppingAgents.TryRemove(agentUri, out _);
         }
     }
 
@@ -597,6 +622,19 @@ public partial class NodeAgentController
 
         foreach (var entry in Agents.ToArray())
         {
+            // GH-4240: an agent being deliberately stopped right now is not a wedged shard, is not paused,
+            // and is not asking to be placed elsewhere -- it is on its way out. Skipping the whole
+            // evaluation is deliberate: restarting it here resurrects an agent the cluster has already
+            // decided belongs somewhere else, and StartAgentAsync re-upserts the assignment row on the way
+            // through, so the stop's own RemoveAssignmentAsync then lands on a row belonging to an agent
+            // that is running again. The result is one durable assignment row and two live copies, which
+            // the GH-2602 duplicate healer cannot see (it compares two nodes' durable rows) and therefore
+            // never resolves.
+            if (_stoppingAgents.ContainsKey(entry.Key))
+            {
+                continue;
+            }
+
             if (entry.Value is not IEventSubscriptionAgent subscription)
             {
                 continue;
