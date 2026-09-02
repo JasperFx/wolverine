@@ -160,7 +160,19 @@ public partial class NodeAgentController
 
     // GH-3748: background executor for remotely-received batched agent commands, created by
     // WolverineRuntime for Balanced-mode nodes. See DeferredAgentCommandRunner.
-    internal DeferredAgentCommandRunner? DeferredWork { get; set; }
+    private DeferredAgentCommandRunner? _deferredWork;
+
+    internal DeferredAgentCommandRunner? DeferredWork
+    {
+        get => _deferredWork;
+        set => _deferredWork = value;
+    }
+
+    /// <summary>
+    ///     Claim the deferred command runner for disposal, so that only one of two racing teardown
+    ///     passes owns it and the loser gets null rather than a field cleared out from under it.
+    /// </summary>
+    internal DeferredAgentCommandRunner? TakeDeferredWork() => Interlocked.Exchange(ref _deferredWork, null);
 
     // GH-3748: the serial control lane used to guarantee that a stop command arriving after a batch of
     // starts also EXECUTED after those starts. With batch execution deferred off the lane, that ordering

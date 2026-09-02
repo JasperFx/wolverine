@@ -421,27 +421,34 @@ public partial class WolverineRuntime : IAgentRuntime
         _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
 
-        if (_dispatcher != null)
+        // Take each of these once. Re-reading a field after its own null check is what made a
+        // redundant teardown pass throw NullReferenceException instead of no-opping: this method
+        // clears every field it disposes, so the second reader saw the check pass and the
+        // dereference fail. StopAsync latches earlier now, and this no longer depends on it.
+        var dispatcher = Interlocked.Exchange(ref _dispatcher, null);
+        if (dispatcher != null)
         {
-            await _dispatcher.DisposeAsync();
-            _dispatcher = null;
+            await dispatcher.DisposeAsync();
         }
 
-        if (NodeController != null) NodeController.PendingDispatches = null;
+        var controller = NodeController;
+        if (controller == null)
+        {
+            return;
+        }
 
-        if (NodeController?.DeferredWork != null)
+        controller.PendingDispatches = null;
+
+        var deferredWork = controller.TakeDeferredWork();
+        if (deferredWork != null)
         {
             // Safe to await: _agentCancellation is cancelled before teardown, so an in-flight batch
             // lets go at its next cancellation check rather than running to completion.
-            await NodeController.DeferredWork.DisposeAsync();
-            NodeController.DeferredWork = null;
+            await deferredWork.DisposeAsync();
         }
 
-        if (NodeController != null)
-        {
-            var bus = new MessageBus(this);
-            await NodeController.StopAsync(bus);
-        }
+        var bus = new MessageBus(this);
+        await controller.StopAsync(bus);
     }
 
     /// <summary>
@@ -454,27 +461,31 @@ public partial class WolverineRuntime : IAgentRuntime
         _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
 
-        if (_dispatcher != null)
+        // Same single-read discipline as teardownAgentsAsync; a test can run this concurrently with
+        // a host shutdown, and this method additionally clears NodeController itself.
+        var dispatcher = Interlocked.Exchange(ref _dispatcher, null);
+        if (dispatcher != null)
         {
-            await _dispatcher.DisposeAsync();
-            _dispatcher = null;
+            await dispatcher.DisposeAsync();
         }
 
-        if (NodeController != null) NodeController.PendingDispatches = null;
-
-        if (NodeController?.DeferredWork != null)
-        {
-            await NodeController.DeferredWork.DisposeAsync();
-            NodeController.DeferredWork = null;
-        }
-
-        if (NodeController != null)
-        {
-            await NodeController.DisableAgentsAsync();
-            await Storage.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
-        }
-
+        var controller = NodeController;
         NodeController = null;
+        if (controller == null)
+        {
+            return;
+        }
+
+        controller.PendingDispatches = null;
+
+        var deferredWork = controller.TakeDeferredWork();
+        if (deferredWork != null)
+        {
+            await deferredWork.DisposeAsync();
+        }
+
+        await controller.DisableAgentsAsync();
+        await Storage.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
     }
 
     public Task<AgentCommands> StartLocalAgentProcessingAsync()

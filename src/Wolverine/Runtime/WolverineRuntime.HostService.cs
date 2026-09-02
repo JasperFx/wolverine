@@ -398,20 +398,24 @@ public partial class WolverineRuntime
     
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_hasStopped)
-        {
-            return;
-        }
-
         if (DynamicCodeBuilder.WithinCodegenCommand)
         {
             // Don't do anything here
             return;
         }
 
-        await _agentCancellation.CancelAsync();
+        // Latch BEFORE the first await. IHostedService.StopAsync and IAsyncDisposable.DisposeAsync
+        // both land here, and cancelling the agents first left an await between reading the latch and
+        // setting it: two callers could each see "not stopped" and run this whole method concurrently.
+        // Nothing below is written for that -- teardownAgentsAsync in particular nulls the fields it
+        // has just disposed, so the second pass found them cleared and threw NullReferenceException
+        // out of IHost.StopAsync instead of quietly no-opping.
+        if (Interlocked.Exchange(ref _hasStopped, 1) == 1)
+        {
+            return;
+        }
 
-        _hasStopped = true;
+        await _agentCancellation.CancelAsync();
 
         // Latch health checks ASAP
         DisableHealthChecks();

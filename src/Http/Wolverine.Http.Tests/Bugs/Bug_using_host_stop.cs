@@ -58,7 +58,7 @@ public class Bug_using_host_stop
     {
         var field = typeof(WolverineRuntime).GetField("_hasStopped",
             BindingFlags.NonPublic | BindingFlags.Instance);
-        return (bool?)field?.GetValue(runtime) == false;
+        return (int?)field?.GetValue(runtime) == 0;
     }
 
     private static async Task<IHost> CreateHostAsync(HostType hostType) =>

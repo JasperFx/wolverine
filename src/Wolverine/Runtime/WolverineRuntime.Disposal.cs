@@ -6,7 +6,7 @@ public partial class WolverineRuntime : IAsyncDisposable
 {
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        if (!_hasStopped)
+        if (Volatile.Read(ref _hasStopped) == 0)
         {
             await StopAsync(CancellationToken.None);
         }
