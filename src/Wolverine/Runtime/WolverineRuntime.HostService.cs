@@ -396,22 +396,62 @@ public partial class WolverineRuntime
 
     public StopMode StopMode { get; set; } = StopMode.Normal;
     
-    public async Task StopAsync(CancellationToken cancellationToken)
+    /// <summary>
+    ///     Shut Wolverine down. Single-entry and joinable: the first caller drives the shutdown and every
+    ///     later caller gets a task that completes when THAT shutdown has finished.
+    /// </summary>
+    /// <remarks>
+    ///     Both IHostedService.StopAsync and IAsyncDisposable.DisposeAsync route in here. The claim has to
+    ///     happen before the first await: this used to read a "have I stopped" flag, await the agent
+    ///     cancellation, and only then set the flag, so two callers could each see "not stopped", pass the
+    ///     guard, and run this whole method concurrently. Nothing below is written for that --
+    ///     teardownAgentsAsync in particular nulls the fields it has just disposed, so the second pass
+    ///     found them cleared and threw NullReferenceException out of IHost.StopAsync instead of quietly
+    ///     no-opping.
+    /// </remarks>
+    public Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_hasStopped)
-        {
-            return;
-        }
-
         if (DynamicCodeBuilder.WithinCodegenCommand)
         {
-            // Don't do anything here
-            return;
+            // Don't do anything here, and leave the runtime unclaimed for a later real shutdown
+            return Task.CompletedTask;
         }
 
-        await _agentCancellation.CancelAsync();
+        var inFlight = Volatile.Read(ref _stopped);
+        if (inFlight != null)
+        {
+            return inFlight;
+        }
 
-        _hasStopped = true;
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        inFlight = Interlocked.CompareExchange(ref _stopped, completion.Task, null);
+        if (inFlight != null)
+        {
+            return inFlight;
+        }
+
+        return runShutdownAsync(completion);
+    }
+
+    private async Task runShutdownAsync(TaskCompletionSource completion)
+    {
+        try
+        {
+            await shutdownAsync();
+        }
+        finally
+        {
+            // Joiners are waiting to know the shutdown has finished, not to be told a second time about
+            // a failure that was already reported to whoever drove it -- disposal is a joiner, and
+            // turning one failed stop into a failed Dispose() as well helps nobody.
+            completion.TrySetResult();
+        }
+    }
+
+    private async Task shutdownAsync()
+    {
+        await _agentCancellation.CancelAsync();
 
         // Latch health checks ASAP
         DisableHealthChecks();

@@ -34,7 +34,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     private readonly Guid _uniqueNodeId;
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
-    private bool _hasStopped;
+
+    // Non-null the moment a shutdown is claimed, and completes when that shutdown has FINISHED.
+    // Doubles as the single-entry latch for StopAsync: whoever wins the CompareExchange drives the
+    // shutdown and everyone else awaits this. See StopAsync and IAsyncDisposable.DisposeAsync.
+    private Task? _stopped;
 
     private readonly Lazy<MessageStoreCollection> _stores;
 
