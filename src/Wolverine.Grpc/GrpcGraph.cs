@@ -99,13 +99,14 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
             {
                 _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract)
                 {
-                    ApplicationAssemblies = _options.Assemblies
+                    ApplicationAssemblies = _options.Assemblies,
+                    Parent = this // GH-3935
                 });
             }
 
             foreach (var serviceClass in registry.HandWrittenServiceTypes())
             {
-                _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
+                _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass) { Parent = this }); // GH-3935
             }
         }
         else
@@ -136,7 +137,8 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
                 CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
                 var codeFirstChain = new CodeFirstGrpcServiceChain(contract)
                 {
-                    ApplicationAssemblies = _options.Assemblies
+                    ApplicationAssemblies = _options.Assemblies,
+                    Parent = this // GH-3935
                 };
                 _codeFirstChains.Add(codeFirstChain);
             }
@@ -149,7 +151,7 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 
             foreach (var serviceClass in handWritten)
             {
-                _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
+                _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass) { Parent = this }); // GH-3935
             }
         }
 
