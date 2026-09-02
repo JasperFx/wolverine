@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -45,6 +46,32 @@ public enum NodeRecordType
 // any concern about serialization settings
 public class NodeRecord : ISerializable
 {
+    /// <summary>
+    /// The width of the <c>description</c> column in the <c>wolverine_node_records</c> table for every
+    /// store that provisions a bounded one, and therefore the ceiling every description is truncated to
+    /// on the way to the database. GH-4246: MySQL was the one provider that took Weasel's default string
+    /// column instead of declaring a width, so it got <c>VARCHAR(255)</c> while the code assumed 500 --
+    /// and an <c>AssignmentChanged</c> record, whose description is an agent command's ToString() and so
+    /// carries an agent URI plus a node destination, blew past it and failed the insert. Every bounded
+    /// store now declares this width, and <see cref="TruncateDescription"/> guarantees nothing wider is
+    /// ever handed to one.
+    /// </summary>
+    public const int DescriptionLength = 1000;
+
+    /// <summary>
+    /// Clamp a node record description to <see cref="DescriptionLength"/>, marking the tail that was cut.
+    /// These records are append-only diagnostics; a description long enough to overflow the column must
+    /// lose its tail rather than turn the insert into a failure that takes an agent command down with it.
+    /// </summary>
+    public static string TruncateDescription(string? description)
+    {
+        if (description.IsEmpty()) return string.Empty;
+
+        return description!.Length <= DescriptionLength
+            ? description
+            : description[..(DescriptionLength - 3)] + "...";
+    }
+
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public int NodeNumber { get; set; }
     public NodeRecordType RecordType { get; set; }

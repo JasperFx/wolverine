@@ -24,6 +24,36 @@
   shard tears down, because the row cannot be dropped before the agent has actually stopped without
   lying about ownership. Acting on the window was the defect, not the window.
 
+### WolverineFx.RDBMS (all relational providers)
+
+- **Node record descriptions no longer overflow the column and fail the insert.** (closes
+  [#4246](https://github.com/JasperFx/wolverine/issues/4246)) An `AssignmentChanged` record's
+  description is an agent command's `ToString()`, which carries an agent URI, a schema name and a
+  destination node -- long enough on a real cluster to overrun the `description` column on
+  `wolverine_node_records` and fail the insert, taking the whole `AgentCommand` batch behind it down
+  with it. The reporter hit it on MySQL with an overridden `Durability.MessageStorageSchemaName`:
+  "Data too long for column 'description'".
+
+  The bounded `description` columns now declare 1000 characters (`NodeRecord.DescriptionLength`) on
+  MySQL, SQL Server and Oracle, and every write path clamps the description to that width first, so a
+  description long enough to overflow loses its tail rather than failing an insert. These rows are
+  append-only diagnostics; the tail is expendable and the assignment is not.
+
+  MySQL was the provider that failed because it was the only one leaning on Weasel's default string
+  mapping, `VARCHAR(255)` -- narrower than every other provider, and narrower than the calling code
+  assumed. The rest of that node-table family had the same defect waiting in it and is widened to 500
+  to match the widths SQL Server and Oracle have always declared: `wolverine_nodes.uri` and
+  `.description`, `wolverine_node_assignments.id` (an agent URI as the primary key),
+  `wolverine_node_records.event_name`, `wolverine_agent_restrictions.uri` and `.type`, the control
+  queue's `message_type`, the dynamic listener registry's `uri`, and the tenant table's
+  `connection_string`. Widths in a key stay at 500 because InnoDB caps an index key at 3072 bytes,
+  which is 768 characters of utf8mb4.
+
+  An existing database is widened in place on the next migration, by an `ALTER TABLE ... MODIFY` that
+  keeps the rows -- but only with Weasel 9.30.0. Before that, the schema differ compared column types
+  with the size stripped off, so a widened `varchar` was invisible to it and an existing table kept
+  the narrow column forever.
+
 ### WolverineFx.Http
 
 - **DataAnnotations validation works with `ServiceLocationPolicy.NotAllowed`.** (closes

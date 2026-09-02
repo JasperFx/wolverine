@@ -330,7 +330,10 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             eventTable.AddColumn("event_name", "VARCHAR2(500)").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp")
                 .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
-            eventTable.AddColumn("description", "VARCHAR2(500)").AllowNulls();
+            // GH-4246: widened for the same reason as the SQL Server and MySQL stores. Deliberately plain
+            // VARCHAR2 rather than the CHAR length semantics -- Oracle reports data_length in bytes, so a
+            // "1000 CHAR" declaration would read back as 4000 and report drift on every schema check.
+            eventTable.AddColumn("description", $"VARCHAR2({NodeRecord.DescriptionLength})").AllowNulls();
             yield return eventTable;
 
             var restrictionTable = new Table(new OracleObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName.ToUpperInvariant()));

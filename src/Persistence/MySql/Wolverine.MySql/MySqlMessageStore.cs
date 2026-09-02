@@ -545,8 +545,15 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             nodeTable.AddColumn<int>("node_number").NotNull()
                 .AutoIncrement()
                 .AddIndex(idx => idx.IsUnique = true);
-            nodeTable.AddColumn<string>("description").NotNull();
-            nodeTable.AddColumn<string>("uri").NotNull();
+            // GH-4246: every string column in this node-table family used to take Weasel's default
+            // string mapping, which on MySQL is VARCHAR(255) -- the narrowest of any provider, and
+            // narrower than what the SQL Server and Oracle stores have always declared for the same
+            // columns. Declaring the widths explicitly puts MySQL on the same footing instead of leaving
+            // it a provider-specific ceiling nobody sees until an insert fails. Widths stay at or under
+            // 500 for anything in a key: InnoDB caps an index key at 3072 bytes, which is 768 characters
+            // of utf8mb4.
+            nodeTable.AddColumn("description", "varchar(500)").NotNull();
+            nodeTable.AddColumn("uri", "varchar(500)").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("(UTC_TIMESTAMP(6))");
             nodeTable.AddColumn<string>("version");
@@ -555,7 +562,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             yield return nodeTable;
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
-            assignmentTable.AddColumn<string>("id").AsPrimaryKey();
+            assignmentTable.AddColumn("id", "varchar(500)").AsPrimaryKey();
             assignmentTable.AddColumn<Guid>("node_id")
                 .ForeignKeyTo(nodeTable.Identifier, "id", onDelete: Weasel.Core.CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
@@ -566,7 +573,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             {
                 var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
                 queueTable.AddColumn<Guid>("id").AsPrimaryKey();
-                queueTable.AddColumn<string>("message_type").NotNull();
+                queueTable.AddColumn(DatabaseConstants.MessageType, "varchar(500)").NotNull();
                 queueTable.AddColumn<Guid>("node_id").NotNull();
                 queueTable.AddColumn(DatabaseConstants.Body, "LONGBLOB").NotNull();
                 queueTable.AddColumn<DateTimeOffset>("posted").NotNull().DefaultValueByExpression("(UTC_TIMESTAMP(6))");
@@ -579,7 +586,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             {
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
-                tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "varchar(500)").NotNull();
                 tenantTable.AddColumn<bool>(DatabaseConstants.DisabledColumn).DefaultValueByExpression("false").NotNull();
                 yield return tenantTable;
             }
@@ -587,16 +594,16 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AsPrimaryKey().AutoIncrement();
             eventTable.AddColumn<int>("node_number").NotNull();
-            eventTable.AddColumn<string>("event_name").NotNull();
+            eventTable.AddColumn("event_name", "varchar(500)").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
-            eventTable.AddColumn<string>("description").AllowNulls();
+            eventTable.AddColumn("description", $"varchar({NodeRecord.DescriptionLength})").AllowNulls();
             yield return eventTable;
 
             var restrictionTable =
                 new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
             restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
-            restrictionTable.AddColumn<string>("uri").NotNull();
-            restrictionTable.AddColumn<string>("type").NotNull();
+            restrictionTable.AddColumn("uri", "varchar(500)").NotNull();
+            restrictionTable.AddColumn("type", "varchar(500)").NotNull();
             restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
             yield return restrictionTable;
 
@@ -606,7 +613,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             {
                 var listenerTable =
                     new Table(new DbObjectName(SchemaName, DatabaseConstants.ListenersTableName));
-                listenerTable.AddColumn<string>("uri").AsPrimaryKey();
+                listenerTable.AddColumn("uri", "varchar(500)").AsPrimaryKey();
                 yield return listenerTable;
             }
         }

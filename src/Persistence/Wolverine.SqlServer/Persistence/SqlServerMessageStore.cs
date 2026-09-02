@@ -700,7 +700,10 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn("event_name", "varchar(500)").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("GETUTCDATE()").NotNull();
-            eventTable.AddColumn("description", "varchar(500)").AllowNulls();
+            // GH-4246: an AssignmentChanged description is an agent command's ToString(), which carries an
+            // agent URI, a schema name and a destination node -- 500 characters is not the ceiling it
+            // looked like on a real cluster.
+            eventTable.AddColumn("description", $"varchar({NodeRecord.DescriptionLength})").AllowNulls();
             yield return eventTable;
 
             // Dynamic listener registry (GH-2685). Provisioned only when the opt-in

@@ -109,12 +109,6 @@ public interface IWolverineObserver
 
 internal class PersistenceWolverineObserver : IWolverineObserver
 {
-    // The narrowest wolverine_node_records.description column any store provisions.
-    private const int DescriptionLength = 500;
-
-    private static string truncate(string text, int max)
-        => text.Length <= max ? text : text[..(max - 3)] + "...";
-
     private readonly IWolverineRuntime _runtime;
 
     public PersistenceWolverineObserver(IWolverineRuntime runtime)
@@ -219,12 +213,12 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         // AgentUri; the reason is the whole point of this record, so it takes the slot when we have one.
         // Deliberately ShardFailure.ToString() (category + failing event + message) rather than Detail:
         // the full exception text with stack traces belongs in the log line the caller writes, not in a
-        // node-record column every store has to hold. Truncated to the narrowest description column any
-        // store provisions (varchar(500) on SQL Server and Oracle) -- an exception message long enough to
-        // overflow it must not turn this diagnostic record into a failed insert.
+        // node-record column every store has to hold. NodeRecord.TruncateDescription clamps it to the
+        // width every bounded description column declares -- an exception message long enough to overflow
+        // it must not turn this diagnostic record into a failed insert.
         if (failure != null)
         {
-            record.Description = truncate(failure.ToString(), DescriptionLength);
+            record.Description = NodeRecord.TruncateDescription(failure.ToString());
         }
 
         try
@@ -243,10 +237,10 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         var record = NodeRecord.For(_runtime.Options, NodeRecordType.AgentReleased, agentUri);
 
         // Same shape and same reasoning as AgentPaused above: the classified reason takes the
-        // Description slot when there is one, truncated to the narrowest column any store provisions.
+        // Description slot when there is one, clamped to the description column width.
         if (failure != null)
         {
-            record.Description = truncate(failure.ToString(), DescriptionLength);
+            record.Description = NodeRecord.TruncateDescription(failure.ToString());
         }
 
         try
