@@ -1,4 +1,5 @@
-﻿using Shouldly;
+using Wolverine.Tracking;
+using Shouldly;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
@@ -9,6 +10,20 @@ public class use_cascaded_messages_with_http : IntegrationContext
     {
     }
 
+    // GH-4248: every IntegrationContext test shares one host, and a tracked session observes ALL
+    // message activity on that host rather than only what its own HTTP call caused. dead_letter_endpoints
+    // deliberately publishes MessageThatAlwaysGoesToDeadLetter, whose handler always throws; that class
+    // guards its own sessions with DoNotAssertOnExceptionsDetected(), but the exception was still landing
+    // inside whatever OTHER session happened to be open, and failing it. Both tests below were observed
+    // failing that way on unchanged code, with the foreign exception's own message ("replayable-{Guid}",
+    // minted in dead_letter_endpoints) visible in the failure.
+    //
+    // Ignoring that one message type is enough: TrackedSession.Record() returns before it attaches the
+    // exception when the message type is ignored. Deliberately narrow -- these tests still assert on
+    // exceptions from everything else, which is the point of using a tracked session at all.
+    private static TrackedSessionConfiguration ignoreForeignDeadLetters(TrackedSessionConfiguration config)
+        => config.IgnoreMessageType<MessageThatAlwaysGoesToDeadLetter>();
+
     [Fact]
     public async Task send_cascaded_messages_from_tuple_response()
     {
@@ -18,7 +33,7 @@ public class use_cascaded_messages_with_http : IntegrationContext
         var (tracked, result) = await TrackedHttpCall(x =>
         {
             x.Post.Json(new SpawnInput("Chris Jones")).ToUrl("/spawn");
-        });
+        }, ignoreForeignDeadLetters);
 
         var text = await result.ReadAsTextAsync();
         text.ShouldBe("got it");
@@ -38,7 +53,7 @@ public class use_cascaded_messages_with_http : IntegrationContext
         {
             x.Post.Url("/spawn2");
             x.StatusCodeShouldBe(204);
-        });
+        }, ignoreForeignDeadLetters);
 
         tracked.Sent.SingleMessage<HttpMessage1>().ShouldNotBeNull();
         tracked.Sent.SingleMessage<HttpMessage2>().ShouldNotBeNull();
