@@ -56,9 +56,10 @@ public class Bug_using_host_stop
 
     static bool IsRunning(WolverineRuntime runtime)
     {
-        var field = typeof(WolverineRuntime).GetField("_hasStopped",
+        var field = typeof(WolverineRuntime).GetField("_stopped",
             BindingFlags.NonPublic | BindingFlags.Instance);
-        return (int?)field?.GetValue(runtime) == 0;
+        field.ShouldNotBeNull("WolverineRuntime._stopped was renamed; this probe needs updating");
+        return field.GetValue(runtime) is null;
     }
 
     private static async Task<IHost> CreateHostAsync(HostType hostType) =>

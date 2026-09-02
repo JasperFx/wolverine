@@ -6,10 +6,11 @@ public partial class WolverineRuntime : IAsyncDisposable
 {
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        if (Volatile.Read(ref _hasStopped) == 0)
-        {
-            await StopAsync(CancellationToken.None);
-        }
+        // Unconditional, and this is the point of StopAsync being joinable rather than skippable: a
+        // shutdown another caller is still running has to FINISH before the endpoints and transports
+        // below are torn out from under it. StopAsync is single-entry, so this either drives the
+        // shutdown or waits for the one already in flight.
+        await StopAsync(CancellationToken.None);
 
         Replies.Dispose();
 
