@@ -2,6 +2,94 @@
 
 ## Unreleased
 
+### WolverineFx (core)
+
+- **A node no longer sweeps up its own in-flight stop as a wedged shard.** (closes
+  [#4240](https://github.com/JasperFx/wolverine/issues/4240)) An event-subscription agent could end up
+  running on two nodes at once while `wolverine_nodes` credited only one of them, so nothing in the
+  system could ever stop the extra copy. `StopAgentAsync` awaits the agent's own teardown before it
+  deregisters the agent and drops the assignment row, and a real shard reports `Stopped` from the
+  moment that teardown begins -- so for the whole duration of a stop the agent was registered,
+  `Stopped`, and reporting no failure, which is exactly the state the health-check sweep treats as a
+  wedged shard and restarts.
+
+  That sweep runs on every node on every tick independently of leadership, which is why the extra
+  start never appeared in the leader's own command log: the leader does not issue it, the stopping
+  node issues it to itself. The restart also re-upserts the assignment row on its way through, so it
+  re-claimed ownership the stop was about to revoke -- leaving one durable row and two live copies,
+  a shape the GH-2602 duplicate healer compares two nodes' durable rows to find and therefore cannot
+  see at all.
+
+  The window itself is left open deliberately. The durable record has to lag in-process state while a
+  shard tears down, because the row cannot be dropped before the agent has actually stopped without
+  lying about ownership. Acting on the window was the defect, not the window.
+
+### WolverineFx.Http
+
+- **DataAnnotations validation works with `ServiceLocationPolicy.NotAllowed`.** (closes
+  [#4238](https://github.com/JasperFx/wolverine/issues/4238)) Under the Wolverine 6 default the
+  application threw `InvalidServiceLocationException` at bootstrap and could not start. This was
+  fallout from GH-4171: that change deliberately stopped `IServiceProvider` being answered silently
+  out of `httpContext.RequestServices`, which is right for user code, but the DataAnnotations executor
+  takes one to build its `ValidationContext` and so Wolverine's own middleware began tripping the
+  user's policy. The validation policy now supplies that argument itself.
+
+- **An application-wide default for the duplicate status code.**
+  `opts.DefaultDuplicateStatusCode` on `MapWolverineEndpoints` sets the answer for every deduplicated
+  endpoint that did not state one, so an application wanting something other than 409 says it once
+  rather than on every `[Deduplicated]`. An endpoint that names a code still wins, **including when it
+  names 409** -- the two are told apart by whether a code was stated rather than by comparing against
+  409, so an endpoint that deliberately insists on 409 keeps it.
+
+- **Deduplication refusals advertise their problem document in OpenAPI.** The refusal status codes
+  reached the generated document, but the content type did not: `Produces` without a response type
+  leaves Swashbuckle emitting the status with no content at all, so the spec announced that an
+  endpoint could return a 409 while saying nothing about the `ProblemDetails` body it actually
+  returns. A benign 2xx is still advertised as a bare status, deliberately -- a problem document
+  describing a response the application has declared benign would be actively wrong.
+
+### WolverineFx.EntityFrameworkCore
+
+- **A failed rollback no longer displaces the exception that caused it.** (closes
+  [#4239](https://github.com/JasperFx/wolverine/issues/4239)) The generated `catch` for a
+  `[Transactional]` handler under Wolverine-managed multi-tenancy called
+  `RollbackTransactionAsync(cancellation)` unguarded, and lost the original exception two ways. With a
+  token already cancelled on the way in -- which is what `DefaultExecutionTimeout` hands a nested
+  `InvokeAsync` -- `BeginTransactionAsync` threw without creating a transaction and the rollback then
+  threw "The connection does not have any active transactions", escaping the catch so the `throw;`
+  never ran and the real failure reached neither a log nor a dead letter queue. With a token cancelled
+  after the transaction opened, the rollback was handed that same token, threw, and left the
+  transaction open until the `DbContext` was disposed.
+
+  Both now go through a guarded helper: only roll back a transaction that exists, never let the token
+  that caused the failure also cancel the cleanup, and never let a failure of the rollback itself
+  replace the exception being unwound.
+
+### WolverineFx.Grpc
+
+- **Wolverine parameter attributes work on gRPC before/after hooks.** (closes
+  [#3935](https://github.com/JasperFx/wolverine/issues/3935)) `[Entity]`, `[All]`, `[Queryable]`,
+  `[WriteAggregate]`, `[ReadAggregate]`, `[ReadModel]`, `[FromQuerySpecification]` and the DCB
+  attributes were unavailable on gRPC services -- nothing in `Wolverine.Grpc` called
+  `WolverineParameterAttribute.TryApply` at all. The hooks are the only place on a gRPC service
+  carrying a parameter list somebody can decorate; the RPC methods stay out on purpose, since a
+  proto-defined signature leaves nowhere to hang an attribute and the answer there is the downstream
+  message handler, which has supported the whole family all along.
+
+  This also needed the before-hook applicability rule to stop rejecting them. That rule requires every
+  parameter to be assignable from the RPC request type, and an `[Entity] Invoice` parameter is not --
+  so the hook was dropped from codegen entirely, and the attributes would have appeared to do nothing
+  while after-hooks worked fine.
+
+### Dependencies
+
+- JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to
+  **2.60.0**. `JasperFx.RuntimeCompiler` stays on its own 5.x line.
+- Marten, Marten.AspNetCore and Marten.Newtonsoft to **9.30.0**, Polecat to **5.21.1**, Fisher to
+  **1.0.6**, and the Weasel packages to **9.29.0**. Polecat 5.21.1 is the release that adopts the
+  `IEventTenancySource` seam from JasperFx 2.59.0, which closes the async-daemon tenancy gap for a
+  store that is not Marten.
+
 ### WolverineFx.AI (new package)
 
 - **New package for one shot LLM callouts as durable messages.** (closes
