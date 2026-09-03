@@ -187,6 +187,21 @@ WolverineOptions uses partial classes to organize concerns:
 | GCP Pub/Sub | 8085 |
 | Pulsar | 6650 |
 
+## Formal specs (`formal/`)
+
+P model-checker specs for distributed protocols — `formal/leader-election/`
+(`NodeAgentController`'s advisory-lock election: crashes, stops, dropped lock sessions,
+heartbeat blips, partitions) and `formal/agent-assignment/` (single-agent ownership across
+a partition heal: the GH-2602 duplicate healer). Both check a converge-at-quiescence
+monitor. Outside both solutions and CI. `nix develop` at the repo root provides `p` plus
+the .NET 8/9/10 SDKs (`flake.nix`, `nix/p.nix`); each spec's README has the compile/check
+commands and a mutant ledger. The **`formal-specs` skill** (`.claude/skills/formal-specs/`)
+covers the workflow and the P gotchas — notably: use `-s N` (`--schedules`), never `-i N`
+(a misused `-i` produces false liveness failures on correct models). `formal/Directory.Build.props`
+is a deliberate MSBuild barrier so the generated net8.0 checker projects don't inherit the
+repo's TargetFrameworks/CPM — don't delete it. **A change to the election/assignment code
+paths modeled there should update the model (or its README's honesty notes) in the same PR.**
+
 ## Performance Rig (`src/Testing/KafkaPerfRig`)
 
 Multi-transport load rig (Kafka, RabbitMQ, NATS JetStream, Pulsar + native twins) used for the

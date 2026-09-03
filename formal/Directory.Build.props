@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    Barrier file. The P model checker generates net8.0 C# projects under formal/*/
+    (PGenerated/, PChecker/), and MSBuild's upward search would otherwise hand them the
+    repo root's Directory.Build.props — whose TargetFrameworks (net9.0;net10.0) and
+    central package management break the generated projects' restore. An empty-ish props
+    here is the nearest match, so the search stops and the generated projects build the
+    way P expects. Same story for Directory.Build.targets and Directory.Packages.props.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>
