@@ -210,6 +210,19 @@ public abstract class Endpoint<TMapper, TConcreteMapper> : Endpoint
 public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 {
     internal readonly List<IDelayedEndpointConfiguration> DelayedConfiguration = new();
+
+    // GH-4262. DelayedConfiguration is mutated from two places that hold DIFFERENT locks --
+    // RegisterDelayedConfiguration (from the DelayedEndpointConfiguration constructor, which a
+    // routing convention calls under its own _senderRegistrationLock) and the Remove at the end of
+    // DelayedEndpointConfiguration.Apply() -- while Compile() snapshots it under
+    // EndpointCollection._channelLock. One unsynchronized List<T>, so neither excluded the other.
+    //
+    // A List<T> racing its own ToArray() hands back an array containing a NULL element, in BOTH
+    // directions: RemoveAt nulls the vacated slot after decrementing _size, and Add publishes the
+    // incremented _size before writing the element. Compile() then dereferenced that null. The lock
+    // has to be owned by the ENDPOINT, because the per-configuration _locker cannot serialize two
+    // different configurations mutating one endpoint's list.
+    private readonly object _delayedConfigurationLock = new();
     private IMessageSerializer? _defaultSerializer;
 
     private bool _hasCompiled;
@@ -668,7 +681,35 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
-        DelayedConfiguration.Add(configuration);
+        lock (_delayedConfigurationLock)
+        {
+            DelayedConfiguration.Add(configuration);
+        }
+    }
+
+    /// <summary>
+    /// GH-4262. Called by <see cref="DelayedEndpointConfiguration{T}"/> once it has applied itself, so the
+    /// removal shares the endpoint's lock with the Add above and with <see cref="Compile"/>'s snapshot.
+    /// </summary>
+    internal void RemoveDelayedConfiguration(IDelayedEndpointConfiguration configuration)
+    {
+        lock (_delayedConfigurationLock)
+        {
+            DelayedConfiguration.Remove(configuration);
+        }
+    }
+
+    /// <summary>
+    /// GH-4262. Snapshot the pending delayed configuration under the endpoint's lock. Deliberately
+    /// returns rather than applying: Apply() runs user-supplied callbacks and takes its own lock, and
+    /// holding this one across either invites a deadlock.
+    /// </summary>
+    private IDelayedEndpointConfiguration[] snapshotDelayedConfiguration()
+    {
+        lock (_delayedConfigurationLock)
+        {
+            return DelayedConfiguration.ToArray();
+        }
     }
 
     public void Compile(IWolverineRuntime runtime)
@@ -682,7 +723,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
 
-        foreach (var configuration in DelayedConfiguration.ToArray()) configuration.Apply();
+        foreach (var configuration in snapshotDelayedConfiguration()) configuration.Apply();
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
