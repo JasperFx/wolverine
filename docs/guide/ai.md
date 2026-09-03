@@ -41,7 +41,7 @@ public static class TriageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L58-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_from_a_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L63-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_from_a_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `LlmCallout` is an ordinary Wolverine message that happens to be handled by calling a model. Being an ordinary
@@ -110,7 +110,7 @@ public static class Bootstrapping
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L11-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_bootstrapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L16-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_bootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `AddLlmCallouts()` puts every callout in your application on one dedicated, durable local queue named
@@ -201,6 +201,108 @@ the message either way; `DeduplicateCallouts` is what makes Wolverine actually c
 Callouts with no id still execute, since realistically only the republish-prone sources have a natural key to give
 you.
 
+## Controlling How Callouts Are Processed
+
+Callouts execute on their own local queue named `llm-callouts`, and the reason that matters is that a model
+provider is the slowest, flakiest, most expensive thing your application talks to. You almost certainly do not want
+an unbounded number of requests going out at once just because something upstream published a burst of them.
+
+`MaximumParallelCallouts` is the knob for that, and everything else a local queue can do is available through
+`ConfigureQueue`:
+
+<!-- snippet: sample_llm_callout_queue_configuration -->
+<a id='snippet-sample_llm_callout_queue_configuration'></a>
+```cs
+public static class QueueConfiguration
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        opts.AddLlmCallouts(ai =>
+        {
+            // The back pressure knob. Five callouts may be talking to the model at once; the sixth
+            // waits its turn on the queue instead of piling another request onto your provider.
+            ai.MaximumParallelCallouts = 3;
+
+            // How long any single callout may run before it is cancelled and retried.
+            ai.Timeout = 90.Seconds();
+
+            // Anything else you would do to a local queue, you can still do here.
+            ai.ConfigureQueue(queue =>
+            {
+                // Stop calling the model at all once it starts failing consistently, instead of
+                // burning the retry schedule on a provider that is plainly down.
+                queue.CircuitBreaker(cb =>
+                {
+                    cb.MinimumThreshold = 10;
+                    cb.FailurePercentageThreshold = 20;
+                    cb.PauseTime = 2.Minutes();
+                });
+            });
+        });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L139-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_queue_configuration' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+`MaximumParallelCallouts` caps how many calls are *in flight*, not how many are published. Callouts beyond the
+limit sit on the queue and wait their turn, which is exactly what you want -- the queue is durable, so waiting is
+free and losing them is not.
+:::
+
+Some providers are stricter than that, and a per-account rate limit that only lets you have one conversation going
+at a time is not unusual. Take the queue down to strict ordering when that's the situation you're in:
+
+<!-- snippet: sample_llm_callout_sequential_queue -->
+<a id='snippet-sample_llm_callout_sequential_queue'></a>
+```cs
+public static class SequentialCallouts
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        // A provider on a tight per-account rate limit, or a model you are only allowed one
+        // conversation with at a time: process callouts strictly one at a time, in order.
+        opts.AddLlmCallouts(ai => ai.ConfigureQueue(queue => queue.Sequential()));
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L172-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_sequential_queue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### The Answer Has Its Own Queue
+
+Here's the part that's easy to miss. The model's answer comes back as an ordinary cascading message, which means
+it gets routed and handled like anything else in your system -- and it is *not* on the callout queue. Its
+parallelism, its durability, and its ordering are all configured separately, the same way you'd configure them for
+any other message:
+
+<!-- snippet: sample_llm_response_queue_configuration -->
+<a id='snippet-sample_llm_response_queue_configuration'></a>
+```cs
+public static class ResponseQueueConfiguration
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        opts.AddLlmCallouts(ai => ai.MaximumParallelCallouts = 10);
+
+        // The answer is an ordinary message, so the queue it lands on is configured the ordinary
+        // way. Ten callouts can be in flight against the model while the work their answers kick
+        // off -- paging someone, writing to a downstream system -- runs one at a time.
+        opts.LocalQueueFor<IncidentTriage>()
+            .Sequential()
+            .UseDurableInbox();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L186-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_response_queue_configuration' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This is more useful than it sounds. The two sides of a callout have genuinely different constraints: talking to the
+model wants throughput within whatever your provider will tolerate, while the work the answer kicks off might be
+writing to a downstream system that wants one thing at a time. Tuning them together would mean picking the worse of
+the two numbers.
+
 ## Budgets and Failures
 
 The expensive way for this to go wrong is a runaway prompt, or a loop that publishes callouts faster than anyone
@@ -241,6 +343,94 @@ opts.AddLlmCallouts(ai => ai.RetryCooldowns = [1.Seconds(), 5.Seconds(), 15.Seco
 
 `LlmCalloutOptions.Timeout` caps any single callout at two minutes by default. Do note that this depends on your
 registered `IChatClient` honoring its cancellation token, though every HTTP based provider does.
+
+### Bringing Your Own Error Handling
+
+The defaults are opinionated, and eventually you'll want something else. The awkward bit is that the `LlmCallout`
+handler ships inside `WolverineFx.AI` rather than in your assemblies, so there's no handler class of yours to hang
+a `Configure(HandlerChain)` method on. Use an `IHandlerPolicy` instead, which is how Wolverine.AI applies its own
+rules in the first place:
+
+<!-- snippet: sample_llm_callout_error_handling -->
+<a id='snippet-sample_llm_callout_error_handling'></a>
+```cs
+// The LlmCallout handler ships inside WolverineFx.AI, so you cannot drop a Configure(HandlerChain)
+// method onto it the way you would with one of your own handlers. An IHandlerPolicy reaches the same
+// chain, and it is exactly how Wolverine.AI applies its own defaults.
+public class CalloutErrorPolicy : IHandlerPolicy
+{
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains.Where(x => x.MessageType == typeof(LlmCallout)))
+        {
+            // A provider rate limit is worth waiting out rather than hammering.
+            chain.OnException<HttpRequestException>()
+                .RetryWithCooldown(5.Seconds(), 30.Seconds(), 2.Minutes());
+
+            // A callout that timed out may well have cost you a completion you never saw. Give it one
+            // more attempt, then get it out of the queue rather than paying for it a third time.
+            chain.OnException<TaskCanceledException>()
+                .RetryOnce()
+                .Then.MoveToErrorQueue();
+        }
+    }
+}
+
+public static class CalloutErrorHandling
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        // Opt out of the built in cooldown schedule so your rules are the whole story. Leave this
+        // alone and both sets apply, with Wolverine.AI's defaults added first.
+        opts.AddLlmCallouts(ai => ai.RetryCooldowns = []);
+
+        opts.Policies.Add(new CalloutErrorPolicy());
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L205-L241' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_error_handling' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+Setting `RetryCooldowns` to an empty array is what opts you out of the built in schedule. If you leave it alone,
+both sets of rules apply and Wolverine.AI's are added first, which is usually not what you meant when you sat down
+to write your own.
+:::
+
+The answer message is the easy case, since that handler is yours. Configure it the ordinary way:
+
+<!-- snippet: sample_llm_response_error_handling -->
+<a id='snippet-sample_llm_response_error_handling'></a>
+```cs
+// The answer is an ordinary message with an ordinary handler, so its error handling is configured the
+// ordinary way -- and separately from the callout's. That separation is the point: a failure in your
+// own downstream work should not send you back to the provider for a second bill.
+public record OutageSummary(string Headline, string NextStep);
+
+public static class OutageSummaryHandler
+{
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnException<TimeoutException>()
+            .RetryWithCooldown(1.Seconds(), 5.Seconds());
+
+        chain.OnException<InvalidOperationException>()
+            .MoveToErrorQueue();
+    }
+
+    public static void Handle(OutageSummary summary)
+    {
+        // file the incident report, notify the channel, whatever the summary calls for
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L243-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_response_error_handling' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Keeping those two separate is deliberate. If your own downstream work throws -- the ticketing system is down, say
+-- you want to retry *that*, not go back to the provider and pay for the same completion a second time. The model
+already answered you. That answer is a durable message now, and it will still be there when the ticketing system
+comes back.
 
 ## Observability
 
@@ -296,7 +486,7 @@ public async Task triage_an_escalated_incident()
     session.Received.SingleMessage<IncidentTriage>().Severity.ShouldBe("high");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L85-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_testing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L90-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_testing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Answers come back in the order you queued them, and running out of script is an error rather than a repeat. That's
@@ -322,7 +512,7 @@ public void the_handler_asks_for_a_triage()
     callout.Context.ShouldNotBeNull().ShouldContain("INC-1");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L117-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_unit_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L122-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_unit_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Trimming and AOT

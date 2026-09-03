@@ -1,8 +1,13 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.AI.Testing;
+using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Persistence;
 using Wolverine.Tracking;
 
@@ -130,3 +135,133 @@ public class SampleTests
 
     #endregion
 }
+
+#region sample_llm_callout_queue_configuration
+
+public static class QueueConfiguration
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        opts.AddLlmCallouts(ai =>
+        {
+            // The back pressure knob. Five callouts may be talking to the model at once; the sixth
+            // waits its turn on the queue instead of piling another request onto your provider.
+            ai.MaximumParallelCallouts = 3;
+
+            // How long any single callout may run before it is cancelled and retried.
+            ai.Timeout = 90.Seconds();
+
+            // Anything else you would do to a local queue, you can still do here.
+            ai.ConfigureQueue(queue =>
+            {
+                // Stop calling the model at all once it starts failing consistently, instead of
+                // burning the retry schedule on a provider that is plainly down.
+                queue.CircuitBreaker(cb =>
+                {
+                    cb.MinimumThreshold = 10;
+                    cb.FailurePercentageThreshold = 20;
+                    cb.PauseTime = 2.Minutes();
+                });
+            });
+        });
+    }
+}
+
+#endregion
+
+#region sample_llm_callout_sequential_queue
+
+public static class SequentialCallouts
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        // A provider on a tight per-account rate limit, or a model you are only allowed one
+        // conversation with at a time: process callouts strictly one at a time, in order.
+        opts.AddLlmCallouts(ai => ai.ConfigureQueue(queue => queue.Sequential()));
+    }
+}
+
+#endregion
+
+#region sample_llm_response_queue_configuration
+
+public static class ResponseQueueConfiguration
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        opts.AddLlmCallouts(ai => ai.MaximumParallelCallouts = 10);
+
+        // The answer is an ordinary message, so the queue it lands on is configured the ordinary
+        // way. Ten callouts can be in flight against the model while the work their answers kick
+        // off -- paging someone, writing to a downstream system -- runs one at a time.
+        opts.LocalQueueFor<IncidentTriage>()
+            .Sequential()
+            .UseDurableInbox();
+    }
+}
+
+#endregion
+
+#region sample_llm_callout_error_handling
+
+// The LlmCallout handler ships inside WolverineFx.AI, so you cannot drop a Configure(HandlerChain)
+// method onto it the way you would with one of your own handlers. An IHandlerPolicy reaches the same
+// chain, and it is exactly how Wolverine.AI applies its own defaults.
+public class CalloutErrorPolicy : IHandlerPolicy
+{
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains.Where(x => x.MessageType == typeof(LlmCallout)))
+        {
+            // A provider rate limit is worth waiting out rather than hammering.
+            chain.OnException<HttpRequestException>()
+                .RetryWithCooldown(5.Seconds(), 30.Seconds(), 2.Minutes());
+
+            // A callout that timed out may well have cost you a completion you never saw. Give it one
+            // more attempt, then get it out of the queue rather than paying for it a third time.
+            chain.OnException<TaskCanceledException>()
+                .RetryOnce()
+                .Then.MoveToErrorQueue();
+        }
+    }
+}
+
+public static class CalloutErrorHandling
+{
+    public static void Configure(WolverineOptions opts)
+    {
+        // Opt out of the built in cooldown schedule so your rules are the whole story. Leave this
+        // alone and both sets apply, with Wolverine.AI's defaults added first.
+        opts.AddLlmCallouts(ai => ai.RetryCooldowns = []);
+
+        opts.Policies.Add(new CalloutErrorPolicy());
+    }
+}
+
+#endregion
+
+#region sample_llm_response_error_handling
+
+// The answer is an ordinary message with an ordinary handler, so its error handling is configured the
+// ordinary way -- and separately from the callout's. That separation is the point: a failure in your
+// own downstream work should not send you back to the provider for a second bill.
+public record OutageSummary(string Headline, string NextStep);
+
+public static class OutageSummaryHandler
+{
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnException<TimeoutException>()
+            .RetryWithCooldown(1.Seconds(), 5.Seconds());
+
+        chain.OnException<InvalidOperationException>()
+            .MoveToErrorQueue();
+    }
+
+    public static void Handle(OutageSummary summary)
+    {
+        // file the incident report, notify the channel, whatever the summary calls for
+    }
+}
+
+#endregion
