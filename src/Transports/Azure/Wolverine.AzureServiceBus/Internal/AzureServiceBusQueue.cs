@@ -226,15 +226,48 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
         return Parent.BuildSenderForQueue(runtime, this);
     }
 
+    private string? _deadLetterQueueName;
+    private bool _deadLetterQueueNameSetExplicitly;
+
     /// <summary>
-    /// Name of the dead letter queue for this ASB queue where failed messages will be moved
+    /// Name of the dead letter queue for this ASB queue where failed messages will be moved.
+    /// Resolution order:
+    /// <list type="number">
+    ///   <item>If <c>ConfigureDeadLetterQueue</c> or <c>DisableDeadLetterQueueing</c> ran on this
+    ///   endpoint, the explicit value wins -- including <c>null</c>, which means "dead lettering is
+    ///   disabled here".</item>
+    ///   <item>Otherwise <see cref="AzureServiceBusTransport.DefaultDeadLetterQueueName"/> on the
+    ///   parent transport, which is either the name given to
+    ///   <c>UseAzureServiceBus().DefaultDeadLetterQueueName(...)</c> or
+    ///   "wolverine-dead-letter-queue" with any configured
+    ///   <see cref="AzureServiceBusTransport.SystemQueuePrefix"/> prepended.</item>
+    /// </list>
+    /// Because the fallback is resolved on read, the order between the transport level
+    /// configuration and the per endpoint bootstrap calls does not matter.
     /// </summary>
-    public string? DeadLetterQueueName { get; set; } = AzureServiceBusTransport.DeadLetterQueueName;
+    public string? DeadLetterQueueName
+    {
+        get => _deadLetterQueueNameSetExplicitly
+            ? _deadLetterQueueName
+            : Parent.DefaultDeadLetterQueueName;
+        set
+        {
+            _deadLetterQueueName = value;
+            _deadLetterQueueNameSetExplicitly = true;
+        }
+    }
 
 
     internal void ConfigureDeadLetterQueue(Action<AzureServiceBusQueue> configure)
     {
-        var dlq = Parent.Queues[DeadLetterQueueName!];
+        var deadLetterQueueName = DeadLetterQueueName;
+        if (deadLetterQueueName.IsEmpty())
+        {
+            throw new InvalidOperationException(
+                $"Dead letter queueing is disabled for the Azure Service Bus queue '{QueueName}', so there is no dead letter queue to configure. Remove the DisableDeadLetterQueueing() call, or name a dead letter queue with ConfigureDeadLetterQueue(name, ...).");
+        }
+
+        var dlq = Parent.Queues[deadLetterQueueName!];
         configure(dlq);
     }
     

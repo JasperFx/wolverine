@@ -42,7 +42,7 @@ await host.StartAsync();
 
 ### Buffered Endpoints
 
-For buffered endpoints, Wolverine sends failed messages to a designated dead letter queue. By default, this queue is named `wolverine-dead-letter-queue`.
+For buffered endpoints, Wolverine sends failed messages to a designated dead letter queue. By default, this queue is named `wolverine-dead-letter-queue` — or `[prefix].wolverine-dead-letter-queue` if you opted into [prefixing the system queues](/guide/messaging/transports/azureservicebus/#prefixing-system-queues).
 
 To customize the dead letter queue for buffered endpoints:
 
@@ -103,6 +103,57 @@ await host.StartAsync();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L809-L830' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_durable_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Overriding the Default Dead Letter Queue Name <Badge type="tip" text="6.34" />
+
+`wolverine-dead-letter-queue` is fine for a single application, but it carries no service name at all, so several
+applications sharing one Azure Service Bus namespace all dead letter into the same queue. Rather than repeating
+`ConfigureDeadLetterQueue(...)` on every endpoint, override the default for the whole transport in one call — this is
+the Azure Service Bus counterpart of RabbitMQ's `CustomizeDeadLetterQueueing()` and of SQS's method of the same name:
+
+<!-- snippet: sample_asb_default_dead_letter_queue_name -->
+<a id='snippet-sample_asb_default_dead_letter_queue_name'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus")!;
+
+    opts.UseAzureServiceBus(azureServiceBusConnectionString)
+        .AutoProvision()
+
+        // Every endpoint that doesn't configure a dead letter queue of its
+        // own now dead letters to "orders-errors" instead of
+        // "wolverine-dead-letter-queue"
+        .DefaultDeadLetterQueueName("orders-errors");
+
+    // ...but per endpoint configuration still wins
+    opts.ListenToAzureServiceBusQueue("orders")
+        .ConfigureDeadLetterQueue("orders-rejects");
+
+    opts.ListenToAzureServiceBusQueue("notifications")
+        .DisableDeadLetterQueueing();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L983-L1011' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_default_dead_letter_queue_name' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Resolution order, per endpoint:
+
+1. `ConfigureDeadLetterQueue("name")` on the endpoint wins.
+2. `DisableDeadLetterQueueing()` on the endpoint wins — no dead letter queue for that one, and failures fall back to Wolverine's durable dead letter storage.
+3. Otherwise the transport-wide `DefaultDeadLetterQueueName(...)`.
+4. Otherwise `wolverine-dead-letter-queue`, with any [system queue prefix](/guide/messaging/transports/azureservicebus/#prefixing-system-queues) prepended.
+
+The name is resolved when Wolverine reads it rather than when the endpoint is declared, so the order of these calls
+during bootstrapping does not matter. A name you supply here is taken as fully qualified and is *not* prefixed by
+`SystemQueuePrefix()` — only the name Wolverine picks for itself is. It is sanitized to legal Azure Service Bus entity
+characters the same way per-endpoint names are.
+
 ## Disabling Dead Letter Queues
 
 You can disable dead letter queuing for specific endpoints if needed:
@@ -135,7 +186,8 @@ await host.StartAsync();
 
 Azure Service Bus dead letters land in one of two places depending on the endpoint mode: buffered and
 durable endpoints move failures to a Wolverine-managed dead letter **queue** (default
-`wolverine-dead-letter-queue`), while inline endpoints — and Azure Service Bus itself, on TTL or
+`wolverine-dead-letter-queue`, or whatever `DefaultDeadLetterQueueName()` / `SystemQueuePrefix()` resolve it to),
+while inline endpoints — and Azure Service Bus itself, on TTL or
 max-delivery — use the native
 [`$DeadLetterQueue` sub-queue](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues)
 of the source entity. Either way, those messages are only visible through Azure tooling. Tools that

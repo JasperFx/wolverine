@@ -126,6 +126,46 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// </summary>
     public bool SystemQueuesEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Optional prefix prepended to the names of the queues Wolverine creates for its own use --
+    /// the response queue, the retry queue, the node control queue, and the default dead letter
+    /// queue. Null or empty (the default) leaves those names exactly as they have always been.
+    /// Set through <see cref="AzureServiceBusConfiguration.SystemQueuePrefix"/>, which sanitizes
+    /// the value; setting this property directly is also sanitized defensively when the names are
+    /// built, so an illegal entity name can't get through.
+    /// </summary>
+    public string? SystemQueuePrefix { get; set; }
+
+    /// <summary>
+    /// Prepend <see cref="SystemQueuePrefix"/> to a Wolverine system queue name, using the Azure
+    /// Service Bus identifier delimiter ('.'). Returns the name untouched when no prefix is
+    /// configured, so the default naming is byte for byte what it was before the prefix existed.
+    /// </summary>
+    /// <param name="name">The unprefixed Wolverine system queue name</param>
+    /// <returns></returns>
+    public string PrefixSystemQueueName(string name)
+    {
+        if (SystemQueuePrefix.IsEmpty()) return name;
+
+        return $"{SanitizeIdentifier(SystemQueuePrefix!)}{IdentifierDelimiter}{name}";
+    }
+
+    private string? _defaultDeadLetterQueueName;
+
+    /// <summary>
+    /// The transport wide default dead letter queue name used by every Azure Service Bus queue that
+    /// does not configure a dead letter queue of its own. Defaults to
+    /// <see cref="DeadLetterQueueName"/> ("wolverine-dead-letter-queue"), with
+    /// <see cref="SystemQueuePrefix"/> prepended when one is configured. An explicitly assigned
+    /// name is taken as given and is never prefixed. Set through
+    /// <see cref="AzureServiceBusConfiguration.DefaultDeadLetterQueueName"/>.
+    /// </summary>
+    public string DefaultDeadLetterQueueName
+    {
+        get => _defaultDeadLetterQueueName ?? PrefixSystemQueueName(DeadLetterQueueConstants.DefaultQueueName);
+        set => _defaultDeadLetterQueueName = value;
+    }
+
     private int? _prefetchCount;
 
     /// <summary>
@@ -284,7 +324,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
             ? runtime.Options.UniqueNodeId.ToString("N")
             : runtime.DurabilitySettings.AssignedNodeNumber.ToString();
-        var queueName = $"wolverine.response.{runtime.Options.ServiceName}.{responseNode}";
+        var queueName = PrefixSystemQueueName($"wolverine.response.{runtime.Options.ServiceName}.{responseNode}");
 
         var queue = Queues[queueName];
 
@@ -296,7 +336,8 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         queue.Role = EndpointRole.System;
 
 
-        var retryName = SanitizeIdentifier($"wolverine.retries.{runtime.Options.ServiceName}".ToLower());
+        var retryName =
+            SanitizeIdentifier(PrefixSystemQueueName($"wolverine.retries.{runtime.Options.ServiceName}").ToLower());
         var retryQueue = Queues[retryName];
         retryQueue.Mode = EndpointMode.BufferedInMemory;
         retryQueue.IsListener = true;
@@ -315,6 +356,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     }
 
     internal AzureServiceBusQueue? RetryQueue { get; set; }
+
+    /// <summary>
+    /// The node control queue built eagerly by <see cref="AzureServiceBusConfiguration.EnableWolverineControlQueues"/>,
+    /// tracked here rather than on the configuration object because a single transport can be reached through more
+    /// than one AzureServiceBusConfiguration instance. Kept so that a later
+    /// <see cref="AzureServiceBusConfiguration.SystemQueuePrefix"/> call can rebuild it under the prefixed name.
+    /// </summary>
+    internal AzureServiceBusQueue? ControlQueue { get; set; }
 
     /// <summary>
     /// The host name of the connected Azure Service Bus namespace, parsed from the <c>Endpoint</c> segment of

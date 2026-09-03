@@ -10,6 +10,10 @@ public class is_system_endpoint_tests
     [InlineData("rabbitmq://localhost/wolverine.response.abc123", true)]
     [InlineData("rabbitmq://localhost/wolverine.Response.ABC123", true)]
     [InlineData("redis://localhost/wolverine.response.node1", true)]
+    // Azure Service Bus can prepend an application-owned prefix to its system queue names so that
+    // several applications can share one namespace. The "wolverine.response" token survives that,
+    // which is exactly why this check stays a Contains() rather than a StartsWith().
+    [InlineData("asb://queue/my-project.wolverine.response.myapp.1", true)]
     [InlineData("local://replies", true)]
     [InlineData("local://durable", true)]
     [InlineData("rabbitmq://localhost/my-queue", false)]
