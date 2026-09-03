@@ -1,11 +1,16 @@
 <Project>
   <!--
     Barrier file. The P model checker generates net8.0 C# projects under formal/*/
-    (PGenerated/, PChecker/), and MSBuild's upward search would otherwise hand them the
-    repo root's Directory.Build.props — whose TargetFrameworks (net9.0;net10.0) and
-    central package management break the generated projects' restore. An empty-ish props
-    here is the nearest match, so the search stops and the generated projects build the
-    way P expects. Same story for Directory.Build.targets and Directory.Packages.props.
+    (PGenerated/, PChecker/), and MSBuild's upward search for Directory.Build.props would
+    otherwise hand them the repo root's — whose TargetFrameworks (net9.0;net10.0) would
+    override the generated net8.0. Being the nearest match, this file stops that search.
+    Directory.Build.targets next to it does the same for the .targets search.
+
+    Central Package Management is a separate mechanism: the root's Directory.Packages.props
+    is imported whenever CPM is on, wherever the project sits, so a barrier file cannot stop
+    it. Instead we switch CPM OFF for these projects below — the generated projects use
+    classic versioned PackageReferences, which CPM forbids. With CPM off the root
+    Directory.Packages.props is never imported, so no sibling of it is needed here.
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>

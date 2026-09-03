@@ -59,9 +59,12 @@ actually covered.
 
 ## Build isolation
 
-`formal/Directory.Build.props` and `Directory.Build.targets` are deliberate MSBuild
-barriers. The generated P checker projects target net8.0, and without these the upward
-MSBuild search would hand them the repo root's `Directory.Build.props` (which pins
-`net9.0;net10.0` and central package management) and break their restore. Leave them in
-place. The generated `PChecker/`, `PGenerated/`, `PEx/`, and `PCheckerOutput/` directories
-are gitignored — the `.p` sources are the only thing worth keeping.
+The generated P checker projects target net8.0 and use classic versioned PackageReferences,
+which the repo root's build config would break two ways. `formal/Directory.Build.props` and
+`Directory.Build.targets` are the nearest-match barriers that stop the upward search for those
+files, so the root's `TargetFrameworks` (net9.0;net10.0) never overrides net8.0. Central
+Package Management can't be stopped by a barrier file — it is imported wherever CPM is on — so
+`formal/Directory.Build.props` instead switches CPM *off* (`ManagePackageVersionsCentrally=false`);
+that comment has the details. Leave all of it in place. The generated `PChecker/`,
+`PGenerated/`, `PEx/`, and `PCheckerOutput/` directories are gitignored — the `.p` sources are
+the only thing worth keeping.
