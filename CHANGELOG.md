@@ -78,6 +78,21 @@
   returns. A benign 2xx is still advertised as a bare status, deliberately -- a problem document
   describing a response the application has declared benign would be actively wrong.
 
+### WolverineFx.DataAnnotationsValidation
+
+- **DataAnnotations validation works with `ServiceLocationPolicy.NotAllowed` on message handlers too.**
+  ([#4238](https://github.com/JasperFx/wolverine/issues/4238)) The fix above covered HTTP chains and
+  stopped there. A message handler had the identical defect and kept it: `Validate<T>` takes an
+  `IServiceProvider` to build its `ValidationContext`, an unsupplied one is sourced from the container
+  and reported to `ServiceLocationPolicy`, and under the Wolverine 6 default of `NotAllowed` that made
+  the validation middleware unusable on a handler at all. The policy now supplies
+  `context.Runtime.Services` itself, for the same reasons the HTTP twin supplies
+  `httpContext.RequestServices`.
+
+  Six tests in `Wolverine.DataAnnotationsValidation.Tests` had been asserting this and failing. Nobody
+  saw them, because the extension test projects ran in no CI workflow -- `TestExtensions` is reachable
+  only from the `Test` and `Full` targets and no workflow invokes either. They have a lane now.
+
 ### WolverineFx.EntityFrameworkCore
 
 - **A failed rollback no longer displaces the exception that caused it.** (closes
