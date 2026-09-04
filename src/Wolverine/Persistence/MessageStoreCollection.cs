@@ -35,6 +35,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 
     private readonly IWolverineRuntime _runtime;
     private readonly List<MultiTenantedMessageStore> _multiTenanted = new();
+    private readonly Dictionary<MultiTenantedMessageStore, ThrottledTenantRefresh> _tenantRefreshes = new();
     private ImHashMap<Uri, IMessageStore> _services = ImHashMap<Uri, IMessageStore>.Empty;
     private ImHashMap<Type, IMessageStore> _ancillaryStores = ImHashMap<Type, IMessageStore>.Empty;
     private bool _onlyOneDatabase;
@@ -48,6 +49,9 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             if (store is MultiTenantedMessageStore multiTenanted)
             {
                 _multiTenanted.Add(multiTenanted);
+                _tenantRefreshes[multiTenanted] =
+                    new ThrottledTenantRefresh(multiTenanted.Source,
+                        () => _runtime.Options.Durability.TenantDatabaseListStaleTime);
                 categorizeStore(multiTenanted.Main);
             }
             else
@@ -234,9 +238,17 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         return _services.Enumerate().Select(x => x.Value).OfType<T>().ToList();
     }
 
-    private async ValueTask refreshTenantedDatabaseList(MultiTenantedMessageStore tenantedMessageStore)
+    private async ValueTask refreshTenantedDatabaseList(MultiTenantedMessageStore tenantedMessageStore,
+        bool force = false)
     {
-        await tenantedMessageStore.Source.RefreshAsync();
+        // GH-4267. Throttled, because every FindAllAsync() lands here and some of those callers are
+        // retried. Categorizing below is not throttled: it is in-memory, and a store the source
+        // created for a single-tenant lookup has to reach _services either way.
+        //
+        // force=true comes from FindDatabaseAsync, which only refreshes BECAUSE a lookup missed -- see
+        // MaybeRefreshAsync. It still joins an in-flight refresh; it only declines to be answered from a
+        // list the window is vouching for.
+        await _tenantRefreshes[tenantedMessageStore].MaybeRefreshAsync(force);
 
         foreach (var store in tenantedMessageStore.Source.AllActive())
         {
@@ -251,12 +263,13 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             return service;
         }
 
-        // Force dynamic tenanted databases to refresh
+        // Force dynamic tenanted databases to refresh. Genuinely forced: this is the path where a newly
+        // provisioned tenant database has to be found now, and the staleness window must not answer for it.
         foreach (var tenantedMessageStore in _multiTenanted)
         {
             if (tenantedMessageStore.Source.Cardinality == DatabaseCardinality.DynamicMultiple)
             {
-                await refreshTenantedDatabaseList(tenantedMessageStore);
+                await refreshTenantedDatabaseList(tenantedMessageStore, force: true);
             }
         }
         

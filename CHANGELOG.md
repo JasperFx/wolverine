@@ -4,6 +4,27 @@
 
 ### WolverineFx (core)
 
+- **Concurrent callers share one tenant database list refresh.** (closes
+  [#4267](https://github.com/JasperFx/wolverine/issues/4267)) `MessageStoreCollection.FindAllAsync()`
+  re-enumerated a `DynamicMultiple` tenancy source on every call, and it sits on paths that are *retried on
+  failure* -- listener inbox recovery, listener drain, the durability sweeps. With Marten's sharded tenancy
+  that enumeration is a round trip to the tenant registry, so the retry for a connection failure opened
+  another connection to look the databases up again, and concurrent callers each opened their own. On a
+  512-database fleet one 26-minute process logged 233 give-ups over 176 Npgsql connect timeouts and three
+  pool exhaustions, while the master database sat at 0.5% CPU with 150 of its 3600 connections in use -- it
+  is the client-side data source that runs dry, and the retry then asks it for another connection.
+
+  Concurrent callers now join a single in-flight refresh. That sharing is not configurable and is the half
+  that closes the storm: the cost was the fan-out, not the frequency.
+
+  `DurabilitySettings.TenantDatabaseListStaleTime` additionally bounds how often that one refresh happens,
+  and **defaults to zero, so no existing behaviour changes**. Raise it on a large fleet. A non-zero value
+  only ever affects *bulk* enumeration -- a lookup that misses (`FindDatabaseAsync`) always forces past the
+  window, because it is refreshing precisely on account of not having found the database, and answering it
+  from a list the window is vouching for would defeat the call. Forcing skips the freshness check, never the
+  single-flight guard.
+
+
 - **A node no longer sweeps up its own in-flight stop as a wedged shard.** (closes
   [#4240](https://github.com/JasperFx/wolverine/issues/4240)) An event-subscription agent could end up
   running on two nodes at once while `wolverine_nodes` credited only one of them, so nothing in the

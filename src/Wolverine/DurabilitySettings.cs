@@ -84,6 +84,34 @@ public class DurabilitySettings : IDescribeMyself
     public bool TenantRegistryRequired { get; set; }
 
     /// <summary>
+    ///     How long a tenant database list discovered from a dynamic tenancy source stays current before
+    ///     the next bulk enumeration re-reads it. <b>Defaults to zero — every bulk enumeration re-reads
+    ///     the list, exactly as it always has.</b> Raise it to bound how often a large tenant fleet goes
+    ///     back to the tenant registry.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     Concurrent callers always share one refresh regardless of this value, and that sharing is not
+    ///     opt-in. It is also the half that actually closes the connection storm this exists for: the cost
+    ///     was every concurrent caller and every retry opening its own connection to the registry, not the
+    ///     frequency of a single refresh.
+    ///     </para>
+    ///     <para>
+    ///     Only applies to <see cref="DatabaseCardinality.DynamicMultiple" /> sources, where discovery is a
+    ///     round trip to the tenant registry. A lookup that misses — <c>FindDatabaseAsync</c> — always
+    ///     forces past this window, so a newly provisioned tenant database is never invisible to a
+    ///     single-database lookup for this long.
+    ///     </para>
+    ///     <para>
+    ///     A non-zero value does mean a database provisioned moments ago can be missing from a BULK
+    ///     enumeration (<c>FindAllAsync</c>) until the window elapses. That is fine for the durability
+    ///     sweeps, which is what the value is for; it is not fine for an application that provisions a
+    ///     tenant and immediately expects to enumerate it, which is why zero is the default.
+    ///     </para>
+    /// </remarks>
+    public TimeSpan TenantDatabaseListStaleTime { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
     /// If set, this establishes a default database schema name for all registered message
     /// storage databases. Use this with a modular monolith approach where all modules target the same physical database. The default is null.
     /// </summary>
