@@ -24,13 +24,21 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     private const string LastActiveTagKey = "wolverine:last-active";
 
     internal readonly List<AmazonSqsQueue> SystemQueues = new();
+
+    /// <summary>
+    /// GH-4282. The node control queue built eagerly by
+    /// <see cref="AmazonSqsTransportConfiguration.EnableWolverineControlQueues" />, tracked here rather than
+    /// on the configuration object because one transport can be reached through more than one
+    /// configuration instance. Kept so a later <c>SystemQueuePrefix()</c> call can rebuild it under the
+    /// prefixed name.
+    /// </summary>
+    internal AmazonSqsQueue? ControlQueue { get; set; }
     private Task? _keepAliveTask;
 
     public AmazonSqsTransport(string protocol) : base(protocol, "Amazon SQS", ["aws", "sqs"])
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
         IdentifierDelimiter = "-";
-        DefaultDeadLetterQueueName = DeadLetterQueueName;
     }
 
     public AmazonSqsTransport() : this("sqs")
@@ -129,7 +137,41 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     /// win over this default; <c>DisableAllNativeDeadLetterQueues()</c> disables the
     /// whole DLQ surface regardless of what's configured here.
     /// </summary>
-    public string? DefaultDeadLetterQueueName { get; set; }
+    private string? _defaultDeadLetterQueueName;
+
+    public string? DefaultDeadLetterQueueName
+    {
+        // GH-4282: resolved on READ rather than assigned in the constructor, so a SystemQueuePrefix set at
+        // any point during bootstrap reaches the default dead letter queue. An explicitly assigned name is
+        // taken as given and is never prefixed.
+        get => _defaultDeadLetterQueueName ?? PrefixSystemQueueName(DeadLetterQueueName);
+        set => _defaultDeadLetterQueueName = value;
+    }
+
+    /// <summary>
+    /// GH-4282. Optional prefix prepended to the names of the queues Wolverine creates for its own use --
+    /// the response queue, the node control queue, and the default dead letter queue -- so that several
+    /// unrelated applications can share one AWS account and region without colliding. Null or empty (the
+    /// default) leaves those names exactly as they have always been.
+    ///
+    /// <para>Separate from <c>PrefixIdentifiers()</c>, which renames the APPLICATION queues and
+    /// deliberately leaves the system queues alone. The two compose: this one only ever touches names
+    /// Wolverine chooses for itself.</para>
+    /// </summary>
+    public string? SystemQueuePrefix { get; set; }
+
+    /// <summary>
+    /// GH-4282. Prepend <see cref="SystemQueuePrefix" /> to a Wolverine system queue name using the SQS
+    /// identifier delimiter ('-'). Returns the name untouched when no prefix is configured, so the default
+    /// naming is byte for byte what it was before the prefix existed. The result still goes through
+    /// <see cref="SanitizeSqsName" /> at the call sites, which is what enforces the SQS character set.
+    /// </summary>
+    public string PrefixSystemQueueName(string name)
+    {
+        if (SystemQueuePrefix.IsEmpty()) return name;
+
+        return $"{SystemQueuePrefix}{IdentifierDelimiter}{name}";
+    }
 
     /// <summary>
     /// Is this transport connection allowed to build and use response and control queues
@@ -260,7 +302,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
             ? runtime.Options.UniqueNodeId.ToString("N")
             : runtime.DurabilitySettings.AssignedNodeNumber.ToString();
         var responseName = SanitizeSqsName(
-            $"wolverine.response.{runtime.Options.ServiceName}.{responseNode}")
+            PrefixSystemQueueName($"wolverine.response.{runtime.Options.ServiceName}.{responseNode}"))
             .ToLowerInvariant();
 
         var queue = Queues[responseName];

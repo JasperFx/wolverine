@@ -175,6 +175,30 @@
   six attains against a pool of three: unfixed, it spends fifteen seconds queueing on an empty pool;
   fixed, it finishes in well under one.
 
+### WolverineFx.AmazonSqs
+
+- **A configurable prefix for the queues SQS names for itself.** (closes
+  [#4282](https://github.com/JasperFx/wolverine/issues/4282)) The node control queue was composed as
+  `wolverine.control.{node}` with no service name in it, and the default dead letter queue is
+  `wolverine-dead-letter-queue`, so two unrelated applications sharing one AWS account and region -- both
+  running as node 1 -- claimed the same queues. For the dead letter queue that is damaging rather than
+  untidy: `SqsDeadLetterQueueListener` drains broker-side dead letters into the Wolverine message store, so
+  whichever application won the race recorded another service's failure in *its* store, against the wrong
+  service, in the wrong database.
+
+  `SystemQueuePrefix("my-project")` prepends a prefix, joined with the SQS identifier delimiter (`-`), to
+  the response queue, the node control queue, and the default dead letter queue. Without a prefix -- the
+  default -- every name is byte for byte what it has always been. A dead letter queue you name yourself,
+  through either `ConfigureDeadLetterQueue(...)` or `DefaultDeadLetterQueueName(...)`, is taken as fully
+  qualified and is never prefixed.
+
+  Distinct from `PrefixIdentifiers()`, which renames the *application* queues and deliberately leaves the
+  system queues alone -- cooperating applications that message each other cannot rename those. The two
+  compose. `DefaultDeadLetterQueueName` now resolves on read rather than being assigned in the constructor,
+  so bootstrap call order does not matter; and calling `SystemQueuePrefix()` after
+  `EnableWolverineControlQueues()` rebuilds the control queue under the prefixed name, since that queue has
+  to be built eagerly for `NodeControlEndpoint`.
+
 ### WolverineFx.Http
 
 - **A Static-mode endpoint type mismatch is now reported as itself.** (closes
