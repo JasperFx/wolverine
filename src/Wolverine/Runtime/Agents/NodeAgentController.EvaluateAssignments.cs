@@ -102,14 +102,33 @@ public partial class NodeAgentController
             nodes = nodes.Concat(new[] { self }).ToList();
         }
         
+        // GH-3987: does this evaluation trust the roster enough to rebalance? Sampled BEFORE the grid is
+        // built so one consistent answer applies to the whole evaluation.
+        var topologyStable = observeTopology(nodes);
+
         var grid = new AssignmentGrid();
+        grid.OverloadShedBatchSize = Math.Max(1, _runtime.Options.Durability.OverloadShedBatchSize);
 
         var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
         grid.WithAgents(capabilities);
-        
+
+        var capacityAware = _runtime.Options.Durability.CapacityAwareAssignment;
+        var overloadThreshold = _runtime.Options.Durability.NodeOverloadThreshold;
+
         foreach (var node in nodes)
         {
-            grid.WithNode(node);
+            var gridNode = grid.WithNode(node);
+
+            // GH-3959: only the leader flags overload, and only when the feature is on — a node that
+            // advertises no load always counts as having headroom, which keeps stores without load
+            // persistence on today's behavior. The receive line sits a 10-point hysteresis band below
+            // the shed line so placement and shedding never fight around one threshold.
+            gridNode.IsOverloaded = capacityAware
+                                    && gridNode.LoadFactor.HasValue
+                                    && gridNode.LoadFactor.Value >= overloadThreshold;
+            gridNode.IsAcceptingAgents = !capacityAware
+                                         || !gridNode.LoadFactor.HasValue
+                                         || gridNode.LoadFactor.Value < Math.Max(0, overloadThreshold - 10);
         }
 
         // GH-3785: the durability family places each database's agent next to that database's
@@ -142,6 +161,37 @@ public partial class NodeAgentController
             {
                 _logger.LogError(e, "Error trying to reevaluate agent assignments for '{Scheme}' agents",
                     agentFamily.Scheme);
+            }
+        }
+
+        // GH-3987: the stability gate. While the topology is still changing — mid rolling deploy, every
+        // pod replacement re-triggers evaluation — defer pure REBALANCING moves: an agent that is running
+        // somewhere and was only re-placed for evenness stays where it is until the roster has been
+        // unchanged for AssignmentStabilityWindow. Everything urgent flows regardless: first-time
+        // placements (OriginalNode == null), stops for detached agents, operator pins, capacity sheds,
+        // duplicate healing, and moves already dispatched (PendingNode). Reverting the grid assignment —
+        // rather than filtering the command afterwards — means no command is built, the pending ledger
+        // never arms, and no AssignmentChanged row is written for a move that was never going to survive
+        // the next topology change anyway.
+        if (!topologyStable)
+        {
+            var deferred = 0;
+            foreach (var agent in grid.AllAgents)
+            {
+                if (agent.OriginalNode == null || agent.AssignedNode == null) continue;
+                if (ReferenceEquals(agent.AssignedNode, agent.OriginalNode)) continue;
+                if (agent.PendingNode != null) continue;
+                if (agent.IsPinned || agent.SheddedForCapacity) continue;
+
+                agent.OriginalNode.Assign(agent);
+                deferred++;
+            }
+
+            if (deferred > 0)
+            {
+                _logger.LogInformation(
+                    "Deferring {Count} rebalancing move(s) until the cluster topology has been stable for {Window}",
+                    deferred, _runtime.Options.Durability.AssignmentStabilityWindow);
             }
         }
 

@@ -932,6 +932,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("now()");
             nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "text[]").AllowNulls();
+            nodeTable.AddColumn(DatabaseConstants.LoadFactor, "double precision").AllowNulls();
 
             yield return nodeTable;
 

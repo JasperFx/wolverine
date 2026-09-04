@@ -36,9 +36,42 @@ public partial class AssignmentGrid
             return;
         }
 
-        if (_nodes.Count == 1)
+        // Per-node counts must only consider the agents in this pass — otherwise a filtered pass
+        // would detach or count agents that belong to a different pass of the same scheme.
+        var agentSet = agents.ToHashSet();
+        int countOn(Node node) => node.Agents.Count(agentSet.Contains);
+
+        // GH-3959 shed pass: an overloaded node gives up a bounded number of this pass's agents per
+        // evaluation — gradual on purpose, since pressure is re-sampled every heartbeat. The detached
+        // agents join the missing queue below; if no node has headroom they stay unassigned rather
+        // than overloading a peer. An operator's pin outranks the shed: detaching a pinned agent just
+        // makes ApplyRestrictions pin it right back next evaluation, a permanent shed/pin fight.
+        foreach (var node in _nodes.Where(x => x.IsOverloaded))
         {
-            var node = _nodes.Single();
+            foreach (var agent in node.Agents
+                         .Where(x => agentSet.Contains(x) && !x.IsPinned)
+                         .Take(OverloadShedBatchSize).ToArray())
+            {
+                agent.SheddedForCapacity = true;
+                agent.Detach();
+            }
+        }
+
+        // Only nodes with headroom receive placements — and "headroom" sits a hysteresis band below
+        // the shed line (see Node.IsAcceptingAgents), so a node hovering at the boundary doesn't have
+        // this pass place agents that the next pass sheds. When capacity-aware assignment is off, no
+        // node is ever flagged and this is exactly the full node list (today's behavior).
+        var receiving = _nodes.Where(x => x.IsAcceptingAgents).ToList();
+        if (receiving.Count == 0)
+        {
+            // No node has real headroom: leave the unassigned remainder waiting. The next evaluation
+            // re-reads freshly advertised loads and places them as soon as anyone recovers.
+            return;
+        }
+
+        if (receiving.Count == 1 && _nodes.Count == 1)
+        {
+            var node = receiving.Single();
             foreach (var agent in agents)
             {
                 node.Assign(agent);
@@ -47,12 +80,7 @@ public partial class AssignmentGrid
             return;
         }
 
-        // Per-node counts must only consider the agents in this pass — otherwise a filtered pass
-        // would detach or count agents that belong to a different pass of the same scheme.
-        var agentSet = agents.ToHashSet();
-        int countOn(Node node) => node.Agents.Count(agentSet.Contains);
-
-        var spread = (double)agents.Count / _nodes.Count;
+        var spread = (double)agents.Count / receiving.Count;
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
 
@@ -69,15 +97,28 @@ public partial class AssignmentGrid
         // still produces zero commands and this cannot induce reassignment churn. The ordering is a
         // snapshot taken before any assignment, which keeps a single pass filling nodes in blocks rather
         // than round-robining, and AssignedId keeps it deterministic when the foreign load ties.
-        var ordered = _nodes
-            .OrderBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
+        //
+        // GH-3959: advertised load leads the ordering — the least-pressured node with headroom fills
+        // first, Orleans-style. Nodes advertising no load sort as zero, so when capacity-aware
+        // assignment is off this is the original foreign-count/AssignedId ordering unchanged.
+        var ordered = receiving
+            .OrderBy(x => x.LoadFactor ?? 0)
+            .ThenBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
             .ThenBy(x => x.AssignedId)
             .ToList();
 
-        // First, pair down number of running agents if necessary. Might have to steal some later
-        foreach (var node in _nodes)
+        // First, pair down number of running agents if necessary. Might have to steal some later.
+        // Overloaded nodes are exempt: their reduction is the rate-limited shed pass above, not a
+        // ceiling computed over the nodes still accepting work. Pinned agents are never detached —
+        // they count toward the ceiling, so a node carrying pins gives up more of its unpinned
+        // agents instead.
+        foreach (var node in receiving)
         {
-            var extras = node.Agents.Where(agentSet.Contains).Skip(maximum).ToArray();
+            var pinned = node.Agents.Count(x => agentSet.Contains(x) && x.IsPinned);
+            var extras = node.Agents
+                .Where(x => agentSet.Contains(x) && !x.IsPinned)
+                .Skip(Math.Max(0, maximum - pinned))
+                .ToArray();
             foreach (var agent in extras)
             {
                 agent.Detach();
