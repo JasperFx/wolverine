@@ -17,7 +17,7 @@ namespace Wolverine.Grpc;
 ///     and plugs their generated wrapper types into the Wolverine code-generation pipeline.
 ///     Mirrors the role of <c>HandlerGraph</c> / <c>HttpGraph</c> for their respective chain types.
 /// </summary>
-public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
+public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 {
     private readonly List<GrpcServiceChain> _chains = [];
     private readonly List<CodeFirstGrpcServiceChain> _codeFirstChains = [];
@@ -169,6 +169,10 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         {
             policy.Apply(_chains, _codeFirstChains, _handWrittenChains, Rules, Container);
         }
+
+        // GH-4156. Last of the chain-shaping steps, so every chain that will ever exist is checked. In
+        // TypeLoadMode.Static a missing pre-built type used to surface on the first RPC to that service.
+        AssertPreBuiltTypesExist();
     }
 
     /// <summary>

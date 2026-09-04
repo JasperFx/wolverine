@@ -93,6 +93,30 @@
 
 ### WolverineFx.Http
 
+- **A Static-mode endpoint type mismatch is now reported as itself.** (closes
+  [#4156](https://github.com/JasperFx/wolverine/issues/4156)) GH-4151 gave handler chains a startup assertion
+  that every pre-generated type really is in `WolverineOptions.ApplicationAssembly`, because `codegen write`
+  emits into the *entry* project and the two silently disagree when they are different assemblies. HTTP
+  endpoint chains are a separate `ICodeFileCollection` and were left out of that pass.
+
+  The issue expected the HTTP half to be failing lazily, on the first request to each route. It was not:
+  `HttpChain.BuildEndpoint` already forces the handler build for every chain whenever `TypeLoadMode.Static`,
+  independently of `RouteWarmup`, so the mapping already failed. What it failed *with* was the problem --
+  JasperFx's `ExpectedTypeMissingException` on the first chain it happened to reach, naming one generated
+  code file and the assembly it looked in, and nothing else. No count, no route the operator recognizes, and
+  no mention of the one fact that resolves it. `HttpGraph` now asserts before it builds endpoints, so the
+  whole picture arrives at once: every affected route by its route pattern, the assembly that was searched,
+  and -- when the generated types are sitting in the entry assembly instead -- which assembly they are in and
+  what to do about it.
+
+- **gRPC service chains get the same assertion.** `GrpcGraph.DiscoverServices` forces nothing, so unlike HTTP
+  a missing pre-built type here really did wait for the first RPC to that service, with the host reporting
+  healthy the entire time. It now fails discovery, with the same diagnostic.
+
+  Neither is a behaviour change for a correctly configured application: in `TypeLoadMode.Auto` -- the
+  default -- nothing is asserted, because Auto generates what it cannot load.
+
+
 - **DataAnnotations validation works with `ServiceLocationPolicy.NotAllowed`.** (closes
   [#4238](https://github.com/JasperFx/wolverine/issues/4238)) Under the Wolverine 6 default the
   application threw `InvalidServiceLocationException` at bootstrap and could not start. This was

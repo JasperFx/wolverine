@@ -201,6 +201,15 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
         foreach (var policy in wolverineHttpOptions.Policies) policy.Apply(_chains, Rules, Container);
 
+        // GH-4156. BEFORE BuildEndpoint, deliberately. In TypeLoadMode.Static BuildEndpoint already forces
+        // the handler build for every chain -- regardless of RouteWarmup -- so a missing pre-built type does
+        // already fail the mapping rather than the first request. What it fails with is the problem: JasperFx
+        // throws ExpectedTypeMissingException on the FIRST chain it reaches, naming one generated code file
+        // and the assembly it looked in, and nothing else. That leaves the operator without the count, the
+        // routes in a form they recognize, or the one fact that actually resolves this -- that the types are
+        // sitting in the entry assembly instead. Assert here so the whole picture is reported at once.
+        AssertPreBuiltTypesExist();
+
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
     }
 
