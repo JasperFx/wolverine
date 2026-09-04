@@ -413,6 +413,40 @@ public class GlobalPartitionedReceiverBridgeTests
     }
 
     [Fact]
+    public async Task does_not_mark_envelopes_as_persisted_by_default()
+    {
+        // The RabbitMQ/broker case: nothing has touched the inbox yet, so the local
+        // queue's DurableReceiver still has to store the envelope itself
+        var localQueue = Substitute.For<ILocalQueue>();
+        var bridge = new GlobalPartitionedReceiverBridge(localQueue);
+        var listener = Substitute.For<IListener>();
+        var envelope = ObjectMother.Envelope();
+        envelope.WasPersistedInInbox = false;
+
+        await bridge.ReceivedAsync(listener, envelope);
+
+        envelope.WasPersistedInInbox.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task marks_envelopes_as_persisted_when_the_source_endpoint_already_stored_them()
+    {
+        // GH-4288. A durable database-backed queue moves the envelope into the inbox as part of
+        // the dequeue itself, so the bridge has to say so or the companion local queue's
+        // DurableReceiver stores it again and throws DuplicateIncomingEnvelopeException
+        var localQueue = Substitute.For<ILocalQueue>();
+        var bridge = new GlobalPartitionedReceiverBridge(localQueue, envelopesArePersistedInInbox: true);
+        var listener = Substitute.For<IListener>();
+        var envelope = ObjectMother.Envelope();
+        envelope.WasPersistedInInbox = false;
+
+        await bridge.ReceivedAsync(listener, envelope);
+
+        envelope.WasPersistedInInbox.ShouldBeTrue();
+        await localQueue.Received(1).ReceivedAsync(listener, envelope);
+    }
+
+    [Fact]
     public async Task drain_async_returns_completed()
     {
         var localQueue = Substitute.For<ILocalQueue>();

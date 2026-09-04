@@ -278,6 +278,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             // Forward to the companion local queue for sequential processing
             foreach (var envelope in envelopes)
             {
+                // GH-4288. Everything routed through here (inbox recovery, DLQ replay, scheduled
+                // firing) came out of the message store, so the inbox row already exists. Without
+                // this the companion local queue's DurableReceiver re-stored each envelope and the
+                // resulting DuplicateIncomingEnvelopeException kept recovered messages stuck forever.
+                envelope.WasPersistedInInbox = true;
                 await _receiver!.ReceivedAsync(Listener!, envelope);
             }
         }
@@ -480,7 +485,13 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             var localQueue = _runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) as ILocalQueue;
             if (localQueue != null)
             {
-                _receiver = new GlobalPartitionedReceiverBridge(localQueue);
+                // GH-4288. A durable database-backed queue (sharded SQL Server / PostgreSQL slots) moves
+                // each envelope into the inbox as part of the dequeue itself, so the bridge has to mark
+                // the envelopes as already persisted or the companion local queue's DurableReceiver
+                // stores them a second time -- a DuplicateIncomingEnvelopeException per message and
+                // every one of them permanently parked in the inbox instead of executed.
+                var alreadyPersisted = Endpoint is IDatabaseBackedEndpoint && Endpoint.Mode == EndpointMode.Durable;
+                _receiver = new GlobalPartitionedReceiverBridge(localQueue, alreadyPersisted);
             }
         }
         // If there are global partitioned topologies and this is NOT a paired endpoint, intercept matching messages
