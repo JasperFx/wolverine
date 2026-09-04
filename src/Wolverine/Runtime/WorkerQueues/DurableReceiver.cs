@@ -578,7 +578,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         if (_latched)
         {
-            if (!envelope.IsFromLocalDurableQueue())
+            // GH-4288. An envelope already persisted in the inbox (a durable database-backed queue's
+            // dequeue, or store-driven recovery) has a row for the recovery sweeps to find; storing it
+            // again could only throw DuplicateIncomingEnvelopeException to be swallowed below.
+            if (!envelope.IsFromLocalDurableQueue() && !envelope.WasPersistedInInbox)
             {
                 // Persist once as owner id = 0, then get out.
                 await executeWithRetriesAsync(async () =>
@@ -623,7 +626,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             return;
         }
 
-        if (ShouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue())
+        // GH-4288. WasPersistedInInbox: a durable database-backed queue moves the envelope into the
+        // inbox as part of the dequeue, and the GlobalPartitionedReceiverBridge then forwards it to a
+        // companion local queue whose receiver is NOT database-backed -- so the endpoint-level
+        // ShouldPersistBeforeProcessing check alone re-stored an already-persisted row here.
+        if (ShouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue() && !envelope.WasPersistedInInbox)
         {
             try
             {
@@ -880,7 +887,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         var survivors = new List<Envelope>(envelopes.Length);
         foreach (var envelope in envelopes)
         {
-            if (ShouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue())
+            // GH-4288. See receiveOneAsync -- WasPersistedInInbox marks an envelope a durable
+            // database-backed dequeue (or store-driven recovery) already put in the inbox.
+            if (ShouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue() && !envelope.WasPersistedInInbox)
             {
                 try
                 {
@@ -940,17 +949,25 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
 
         var batchSucceeded = false;
-        if (ShouldPersistBeforeProcessing)
+
+        // GH-4288. Leave out envelopes a durable database-backed dequeue already moved into the
+        // inbox -- batch-storing them again would throw DuplicateIncomingEnvelopeException for
+        // the whole batch.
+        var toPersist = ShouldPersistBeforeProcessing
+            ? envelopes.Where(x => !x.WasPersistedInInbox).ToArray()
+            : Array.Empty<Envelope>();
+
+        if (toPersist.Length > 0)
         {
             try
             {
-                assignAncillaryStoreIfNeeded(envelopes);
-                await _inbox.StoreIncomingAsync(envelopes).ConfigureAwait(false);
-                foreach (var envelope in envelopes)
+                assignAncillaryStoreIfNeeded(toPersist);
+                await _inbox.StoreIncomingAsync(toPersist).ConfigureAwait(false);
+                foreach (var envelope in toPersist)
                 {
                     envelope.WasPersistedInInbox = true;
                 }
-                
+
                 batchSucceeded = true;
             }
             catch (DuplicateIncomingEnvelopeException)
