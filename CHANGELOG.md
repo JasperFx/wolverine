@@ -305,6 +305,28 @@
   the prefixed default, then `wolverine-dead-letter-queue` -- and it resolves on read, so the order of
   those calls during bootstrapping does not matter.
 
+### WolverineFx.CosmosDb
+
+- **`DeadLetterQueueExpirationEnabled` actually deletes expired dead letters now.** (closes
+  [#4286](https://github.com/JasperFx/wolverine/issues/4286)) The recovery loop's hourly throttle
+  reset its own timestamp at the top of every iteration and compared against it a few statements
+  later, so the expired dead letter sweep could only ever fire if a single recovery tick took more
+  than an hour — in practice never, and dead letters accumulated without bound with the feature
+  turned on. The throttle now lives outside the loop and is stamped after each sweep, so the first
+  recovery tick sweeps immediately (matching the relational providers, whose expiration timer first
+  fires a minute after startup) and hourly after that.
+
+### WolverineFx.RavenDb
+
+- **`DeadLetterQueueExpirationEnabled` actually deletes expired dead letters now.** (closes
+  [#4286](https://github.com/JasperFx/wolverine/issues/4286)) Same throttle defect as the CosmosDb
+  entry above — the hourly guard compared against a timestamp taken in the same loop iteration, so
+  the sweep never fired. Fixing the throttle also unmasked a second defect on this provider: the
+  sweep was a `DeleteByQueryOperation` against an index named `DeadLetterMessages` that Wolverine
+  never creates, so the first sweep that actually ran would have thrown
+  `IndexDoesNotExistException` and still deleted nothing. The sweep is now a dynamic query in
+  batches of `RecoveryBatchSize`, the same shape the scheduled-message poller already uses.
+
 ### Dependencies
 
 - JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to

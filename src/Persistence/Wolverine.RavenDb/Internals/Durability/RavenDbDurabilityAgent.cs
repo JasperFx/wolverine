@@ -72,10 +72,14 @@ public partial class RavenDbDurabilityAgent : IAgent
             await Task.Delay(recoveryStart, _combined.Token);
             using var timer = new PeriodicTimer(_settings.ScheduledJobPollingTime);
 
+            // GH-4286: this throttle lives OUTSIDE the loop — reset per iteration, the hourly guard
+            // below could only fire if a single recovery tick took more than an hour, so expired dead
+            // letters were never deleted. MinValue makes the first tick sweep immediately, matching the
+            // RDBMS providers' expiration timer that first fires a minute after startup.
+            var lastExpiredTime = DateTimeOffset.MinValue;
+
             while (!_combined.IsCancellationRequested)
             {
-                var lastExpiredTime = DateTimeOffset.UtcNow;
-
                 try
                 {
                     await tryRecoverIncomingMessages();
@@ -88,6 +92,7 @@ public partial class RavenDbDurabilityAgent : IAgent
                         if (now > lastExpiredTime.AddHours(1))
                         {
                             await tryDeleteExpiredDeadLetters();
+                            lastExpiredTime = now;
                         }
                     }
 
@@ -148,13 +153,37 @@ public partial class RavenDbDurabilityAgent : IAgent
 
     private async Task tryDeleteExpiredDeadLetters()
     {
+        // GH-4286: this used to be a DeleteByQueryOperation against an index named "DeadLetterMessages"
+        // that Wolverine never creates, so once the throttle defect above was fixed and the sweep could
+        // actually fire, it threw IndexDoesNotExistException instead of deleting. A dynamic query builds
+        // its own auto index, the same way runScheduledJobs queries IncomingMessage.
         var now = DateTimeOffset.UtcNow;
-        using var session = _store.OpenAsyncSession();
-        var op =
-            await _store.Operations.SendAsync(
-                new DeleteByQueryOperation<DeadLetterMessage>("DeadLetterMessages", x => x.ExpirationTime < now));
- 
-        await op.WaitForCompletionAsync();
+
+        while (!_combined.IsCancellationRequested)
+        {
+            using var session = _store.OpenAsyncSession();
+            var expired = await session.Query<DeadLetterMessage>()
+                .Where(x => x.ExpirationTime < now)
+                .Take(_settings.RecoveryBatchSize)
+                .ToListAsync(_combined.Token);
+
+            if (!expired.Any())
+            {
+                return;
+            }
+
+            foreach (var message in expired)
+            {
+                session.Delete(message);
+            }
+
+            await session.SaveChangesAsync(_combined.Token);
+
+            if (expired.Count < _settings.RecoveryBatchSize)
+            {
+                return;
+            }
+        }
     }
 
 

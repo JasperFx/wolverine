@@ -70,10 +70,14 @@ public partial class CosmosDbDurabilityAgent : IAgent
             await Task.Delay(recoveryStart, _combined.Token);
             using var timer = new PeriodicTimer(_settings.ScheduledJobPollingTime);
 
+            // GH-4286: this throttle lives OUTSIDE the loop — reset per iteration, the hourly guard
+            // below could only fire if a single recovery tick took more than an hour, so expired dead
+            // letters were never deleted. MinValue makes the first tick sweep immediately, matching the
+            // RDBMS providers' expiration timer that first fires a minute after startup.
+            var lastExpiredTime = DateTimeOffset.MinValue;
+
             while (!_combined.IsCancellationRequested)
             {
-                var lastExpiredTime = DateTimeOffset.UtcNow;
-
                 try
                 {
                     await tryRecoverIncomingMessages();
@@ -81,10 +85,12 @@ public partial class CosmosDbDurabilityAgent : IAgent
 
                     if (_settings.DeadLetterQueueExpirationEnabled)
                     {
+                        // Crudely just doing this every hour
                         var now = DateTimeOffset.UtcNow;
                         if (now > lastExpiredTime.AddHours(1))
                         {
                             await tryDeleteExpiredDeadLetters();
+                            lastExpiredTime = now;
                         }
                     }
 
