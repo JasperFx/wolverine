@@ -155,6 +155,24 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
 
         try
         {
+            // Idempotent against repeated calls on the same session. MySQL named locks stack:
+            // GET_LOCK on a name this session already holds succeeds and increments the session's
+            // hold count, and the docs are explicit that "if a lock is obtained a second time, it
+            // must be released twice." The a84d6a262 heartbeat-renewal change calls
+            // TryAttainLeadershipLockAsync every tick — including ticks where the leader already
+            // holds the lock — so without this short-circuit the leader's hold count grows by one
+            // per heartbeat. The single ReleaseLeadershipLockAsync call during DisableAgentsAsync
+            // or stepDownAsync then only decrements once, leaving the lock still held server-side
+            // and _locks non-empty, so the connection is never closed either. Failover stalls
+            // silently: no error logged, just an election a new leader can never win.
+            //
+            // GH-4261: hasLockUnsafe, not HasLock — we already hold the gate, and SemaphoreSlim is
+            // not reentrant.
+            if (hasLockUnsafe(lockId))
+            {
+                return true;
+            }
+
             if (_conn == null)
             {
                 _conn = _source.CreateConnection();

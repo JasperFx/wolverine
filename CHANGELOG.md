@@ -94,6 +94,24 @@
   spurious stepdown. Every close is additionally bounded and abandoned on timeout, so a connection that
   somehow still desyncs costs seconds rather than the process.
 
+- **MySQL leadership no longer stacks its own named lock until failover is impossible.** MySQL named
+  locks stack -- `GET_LOCK` on a name the session already holds succeeds and increments that session's
+  hold count, and the manual is explicit that a lock obtained a second time must be released twice.
+  `MySqlAdvisoryLock.TryAttainLockAsync` was the only one of the five implementations without an
+  "already holds this lock" short-circuit: Postgres, SQL Server and SQLite all return early, MySQL went
+  straight to `GET_LOCK`.
+
+  Since `a84d6a262`, `NodeAgentController.DoHealthChecksInternalAsync` calls
+  `TryAttainLeadershipLockAsync` on *every* tick, including ticks where this node is already the
+  leader. So the leader's hold count grew by one per heartbeat, while the single
+  `ReleaseLeadershipLockAsync` during `stepDownAsync` / `DisableAgentsAsync` called `RELEASE_LOCK` once
+  and removed one duplicate id -- leaving the lock held server-side, and `_locks` non-empty, so the
+  connection was never closed either. A would-be new leader could then never attain, and the election
+  stalled with nothing logged. `MySqlTests.LeaderElection` was red on `main` for exactly this:
+  `take_over_leader_ship_if_leader_becomes_stale` and its racing-nodes twin both failed.
+
+  `TryAttainLockAsync` is now idempotent against a lock this session already holds, matching the
+  Postgres and SQL Server behaviour it had been missing.
 
 - **Node record descriptions no longer overflow the column and fail the insert.** (closes
   [#4246](https://github.com/JasperFx/wolverine/issues/4246)) An `AssignmentChanged` record's
