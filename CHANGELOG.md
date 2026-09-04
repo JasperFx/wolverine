@@ -4,6 +4,13 @@
 
 ### WolverineFx (core)
 
+- **JasperFx dependencies bumped to 2.63.1.** Carries the
+  [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
+  `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one
+  upstream blocker in the [#4287](https://github.com/JasperFx/wolverine/issues/4287) startup-crash chain.
+  With this pin plus the Wolverine-side #4287 fixes, a `PublishAot` application boots through the plain
+  public `UseWolverine` path and dispatches messages.
+
 - **Global partitioning over sharded database queues executes messages again.** (closes
   [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
   `UseShardedSqlServerQueues` (and the PostgreSQL twin), any message that actually round-tripped through a
