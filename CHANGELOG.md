@@ -4,12 +4,15 @@
 
 ### WolverineFx (core)
 
-- **JasperFx dependencies bumped to 2.63.1.** Carries the
+- **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
   `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one
   upstream blocker in the [#4287](https://github.com/JasperFx/wolverine/issues/4287) startup-crash chain.
   With this pin plus the Wolverine-side #4287 fixes, a `PublishAot` application boots through the plain
-  public `UseWolverine` path and dispatches messages.
+  public `UseWolverine` path and dispatches messages. JasperFx 2.63.0 added `QueryStreamStates` to the
+  events read tier (jasperfx gh-740), so every store built on `JasperFx.Events` has to move with it or
+  die at runtime with `TypeLoadException` — Marten/Marten.AspNetCore/Marten.Newtonsoft go to 9.32.0,
+  Polecat to 5.23.0, and Fisher to 1.1.0, all of which are compiled against JasperFx 2.63.
 
 - **Global partitioning over sharded database queues executes messages again.** (closes
   [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
