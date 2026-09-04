@@ -271,6 +271,44 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         return null;
     }
  
+    /// <summary>
+    /// Find every message store that could hold data for one tenant. There is normally exactly one, but a
+    /// modular monolith can have a tenanted ancillary store alongside the main one.
+    /// </summary>
+    /// <remarks>
+    /// The tenant-aware counterpart to <see cref="FindDatabaseAsync" />. Callers that want to work against
+    /// one tenant's storage directly -- querying its dead letters without hydrating every message body, say
+    /// -- would otherwise have to walk <see cref="MultiTenanted" /> and resolve the tenant by hand.
+    /// </remarks>
+    public async ValueTask<IReadOnlyList<IMessageStore>> FindForTenantAsync(string tenantId)
+    {
+        var list = new List<IMessageStore>();
+
+        foreach (var tenantedMessageStore in _multiTenanted)
+        {
+            var store = await tenantedMessageStore.Source.FindAsync(tenantId);
+            if (store != null)
+            {
+                list.Add(store);
+                continue;
+            }
+
+            // A tenant this process has not seen yet may have been added elsewhere since the last refresh.
+            if (tenantedMessageStore.Source.Cardinality == DatabaseCardinality.DynamicMultiple)
+            {
+                await tenantedMessageStore.Source.RefreshAsync();
+            }
+
+            store = await tenantedMessageStore.Source.FindAsync(tenantId);
+            if (store != null)
+            {
+                list.Add(store);
+            }
+        }
+
+        return list;
+    }
+
     public async ValueTask<IReadOnlyList<IMessageStore>> FindDatabasesAsync(Uri[] uris)
     {
         if (_onlyOneDatabase) return [Main];
@@ -534,26 +572,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         }
         else if (request.TenantId != null)
         {
-            foreach (var tenantedMessageStore in _multiTenanted)
-            {
-                var store = await tenantedMessageStore.Source.FindAsync(request.TenantId);
-                if (store != null)
-                {
-                    list.Add(store);
-                    continue;
-                }
-                
-                if (tenantedMessageStore.Source.Cardinality == DatabaseCardinality.DynamicMultiple)
-                {
-                    await tenantedMessageStore.Source.RefreshAsync();
-                }
-            
-                store = await tenantedMessageStore.Source.FindAsync(request.TenantId);
-                if (store != null)
-                {
-                    list.Add(store);
-                }
-            }
+            list.AddRange(await FindForTenantAsync(request.TenantId));
         }
         else
         {
