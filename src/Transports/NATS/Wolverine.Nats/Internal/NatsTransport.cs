@@ -1,3 +1,5 @@
+using System.Text;
+using JasperFx.Core;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -62,6 +64,26 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             : new Uri("nats://localhost:4222");
 
     public string ResponseSubject { get; private set; } = "wolverine.response";
+
+    /// <summary>
+    /// GH-4279. Make an arbitrary string safe to use as ONE token of a NATS subject. Deliberately not a
+    /// <c>SanitizeIdentifier</c> override: that runs over every identifier the user names, and '.' is a
+    /// legal, meaningful token separator in a subject they wrote on purpose. Only a value Wolverine
+    /// splices into a subject it composes -- the service name -- needs flattening, because a '.' there
+    /// would silently add a token and '*' or '>' would turn the reply subject into a wildcard.
+    /// </summary>
+    internal static string sanitizeSubjectToken(string? token)
+    {
+        if (token.IsEmpty()) return "wolverine";
+
+        var builder = new StringBuilder(token!.Length);
+        foreach (var c in token!)
+        {
+            builder.Append(c is '.' or '*' or '>' || char.IsWhiteSpace(c) || char.IsControl(c) ? '_' : c);
+        }
+
+        return builder.ToString();
+    }
 
     public override string? DescribeEndpoint()
     {
@@ -129,7 +151,16 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
             ? runtime.Options.UniqueNodeId.ToString("N")
             : runtime.Options.Durability.AssignedNodeNumber.ToString();
-        ResponseSubject = $"wolverine.response.{responseNode}";
+        // GH-4279: the service name too. AssignedNodeNumber is unique within ONE application's node
+        // cluster -- the election runs against that application's own message store -- so two unrelated
+        // applications sharing a NATS cluster each elect a node 1 and both subscribed to
+        // "wolverine.response.1". Core NATS fans out, so each received the other's reply payloads; and if
+        // both had set the same DefaultQueueGroup, the two subscriptions land in one queue group on one
+        // subject and NATS load-balances instead, so roughly half of one application's replies were
+        // delivered to the other and never reached the caller. Azure Service Bus, SQS and Redis all put
+        // the service name in this name already; NATS was the only transport with neither that nor a
+        // process-unique token.
+        ResponseSubject = $"wolverine.response.{sanitizeSubjectToken(runtime.Options.ServiceName)}.{responseNode}";
         var responseEndpoint = _endpoints[ResponseSubject];
         responseEndpoint.IsUsedForReplies = true;
         responseEndpoint.IsListener = true;
