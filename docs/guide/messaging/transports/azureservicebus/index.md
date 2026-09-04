@@ -125,8 +125,9 @@ overload that takes explicit connection strings, and the opt in namespace cleanu
 ## Request/Reply
 
 [Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the Azure Service Bus transport *if* Wolverine has the ability to auto-provision
-a specific response queue for each node. That queue would be named like `wolverine.response.[application node id]` if you happen
-to notice that in the Azure Portal.
+a specific response queue for each node. That queue would be named like `wolverine.response.[service name].[application node id]` if you happen
+to notice that in the Azure Portal — or `[prefix].wolverine.response.[service name].[application node id]` if you opted into
+[prefixing the system queues](#prefixing-system-queues).
 
 And also see the next section. 
 
@@ -186,6 +187,87 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L242-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Prefixing System Queues <Badge type="tip" text="6.34" />
+
+Wolverine creates a handful of queues for its own use, and by default their names all start with the `wolverine`
+token:
+
+| Queue | Default name |
+|-------|--------------|
+| Response queue (request/reply) | `wolverine.response.[service name].[node]` |
+| Retry queue | `wolverine.retries.[service name]` |
+| Node control queue | `wolverine.control.[node]` |
+| Dead letter queue | `wolverine-dead-letter-queue` |
+
+Only the first two carry the service name. The control queue and the dead letter queue do not, so several unrelated
+applications sharing one Azure Service Bus namespace will happily collide on them — and if you turned on
+[dead letter queue recovery](/guide/messaging/transports/azureservicebus/deadletterqueues), one application's recovery
+listener will merrily drain another application's dead letters into its own storage.
+
+`SystemQueuePrefix()` prepends a prefix of your choosing to all four of those names, so each application owns its own
+set:
+
+<!-- snippet: sample_asb_system_queue_prefix -->
+<a id='snippet-sample_asb_system_queue_prefix'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus")!;
+
+    opts.ServiceName = "Orders";
+
+    opts.UseAzureServiceBus(azureServiceBusConnectionString)
+        .AutoProvision()
+
+        // Every queue that Wolverine creates for its own use is now
+        // prefixed with "my-project.", so this application can share an
+        // Azure Service Bus namespace with unrelated applications:
+        //
+        //   my-project.wolverine.response.Orders.{node}
+        //   my-project.wolverine.retries.orders
+        //   my-project.wolverine.control.{node}
+        //   my-project.wolverine-dead-letter-queue
+        .SystemQueuePrefix("my-project")
+
+        .EnableWolverineControlQueues();
+
+    // Application queue names are untouched, so cooperating applications
+    // still address exactly the same queues
+    opts.ListenToAzureServiceBusQueue("orders");
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L944-L978' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_system_queue_prefix' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The prefix is joined with the Azure Service Bus identifier delimiter (`.`), and the `wolverine` token is kept so the
+queues are still recognizable as Wolverine's in the Azure Portal. Without a prefix — the default — every one of these
+names is exactly what it has always been, so this is safe to leave alone in an existing application.
+
+::: tip
+This is a different thing than [`PrefixIdentifiers()`](/guide/messaging/transports/azureservicebus/object-management#identifier-prefixing-for-shared-brokers),
+which renames your *application* queues, topics, and subscriptions and deliberately leaves Wolverine's system queues
+alone. That distinction matters: two cooperating applications that send messages to each other have to keep addressing
+the same application queue names, so `PrefixIdentifiers()` is not usable there, while each still needs its own control,
+response, retry, and dead letter queues. The two can also be combined when you want full isolation — say, per developer
+against a shared namespace.
+:::
+
+A dead letter queue that you name yourself is taken as fully qualified and is never prefixed. That applies to both
+`ConfigureDeadLetterQueue("x")` on a single endpoint and
+[`DefaultDeadLetterQueueName("x")`](/guide/messaging/transports/azureservicebus/deadletterqueues#overriding-the-default-dead-letter-queue-name)
+across the transport.
+
+Order does not matter with respect to `EnableWolverineControlQueues()`. The control queue has to be built eagerly at
+configuration time, because Wolverine's message stores and node agent read it long before the transports initialize, so
+calling `SystemQueuePrefix()` afterwards rebuilds the control queue under the prefixed name and discards the unprefixed
+one.
 
 ## Connecting To Multiple Namespaces <Badge type="tip" text="5.0" />
 

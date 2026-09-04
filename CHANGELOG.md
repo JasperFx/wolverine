@@ -187,6 +187,40 @@
   so the hook was dropped from codegen entirely, and the attributes would have appeared to do nothing
   while after-hooks worked fine.
 
+### WolverineFx.AzureServiceBus
+
+- **Wolverine's own system queues can carry an application-owned prefix, so several applications can
+  share one Azure Service Bus namespace.** (related:
+  [#3696](https://github.com/JasperFx/wolverine/issues/3696)) `SystemQueuePrefix("my-project")` on the
+  transport configuration prepends that prefix to the four queues Wolverine names for itself:
+  `my-project.wolverine.response.{ServiceName}.{node}`, `my-project.wolverine.retries.{servicename}`,
+  `my-project.wolverine.control.{node}`, and `my-project.wolverine-dead-letter-queue`. Only two of
+  those carry the service name today, so the control queue and the dead letter queue were shared by
+  every Wolverine application pointed at the namespace -- and if you had turned on dead letter queue
+  recovery, one application's recovery listener was quietly draining everybody else's dead letters
+  into its own storage. Nothing changes without the opt in: with no prefix set, every one of those
+  names is byte for byte what it has always been.
+
+  I made this prepend rather than replace so the `wolverine` token survives and the queues are still
+  obviously Wolverine's when you go looking in the Azure Portal. It is deliberately a separate knob
+  from `PrefixIdentifiers()`, which renames your application's own queues and topics and does not
+  reach the system queues -- and should not, because two cooperating applications that message each
+  other have to keep addressing the same application queue names even while each one wants its own
+  control and dead letter queues. Combine the two when you want everything isolated. A name you supply
+  yourself is never prefixed; that is an explicit choice and Wolverine has no business second guessing
+  it. The control queue is built eagerly at configuration time because the message stores read it
+  before the transports initialize, so calling `SystemQueuePrefix()` after
+  `EnableWolverineControlQueues()` rebuilds it under the prefixed name rather than leaving a stale
+  queue behind.
+
+- **A transport-wide default dead letter queue name.** `DefaultDeadLetterQueueName("orders-errors")`
+  changes the fallback for every Azure Service Bus endpoint that does not name a dead letter queue of
+  its own, instead of repeating `ConfigureDeadLetterQueue(...)` on each one. This is the Azure Service
+  Bus counterpart of RabbitMQ's `CustomizeDeadLetterQueueing()` and of the SQS method of the same
+  name. Resolution per endpoint is per-endpoint configuration first, then the transport default, then
+  the prefixed default, then `wolverine-dead-letter-queue` -- and it resolves on read, so the order of
+  those calls during bootstrapping does not matter.
+
 ### Dependencies
 
 - JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to

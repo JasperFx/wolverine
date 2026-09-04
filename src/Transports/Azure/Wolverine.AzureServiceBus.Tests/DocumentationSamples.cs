@@ -938,6 +938,78 @@ opts.ListenToAzureServiceBusQueue("incoming")
 
         #endregion
     }
+
+    public async Task system_queue_prefix()
+    {
+        #region sample_asb_system_queue_prefix
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.ServiceName = "Orders";
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString)
+                .AutoProvision()
+
+                // Every queue that Wolverine creates for its own use is now
+                // prefixed with "my-project.", so this application can share an
+                // Azure Service Bus namespace with unrelated applications:
+                //
+                //   my-project.wolverine.response.Orders.{node}
+                //   my-project.wolverine.retries.orders
+                //   my-project.wolverine.control.{node}
+                //   my-project.wolverine-dead-letter-queue
+                .SystemQueuePrefix("my-project")
+
+                .EnableWolverineControlQueues();
+
+            // Application queue names are untouched, so cooperating applications
+            // still address exactly the same queues
+            opts.ListenToAzureServiceBusQueue("orders");
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task default_dead_letter_queue_name()
+    {
+        #region sample_asb_default_dead_letter_queue_name
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString)
+                .AutoProvision()
+
+                // Every endpoint that doesn't configure a dead letter queue of its
+                // own now dead letters to "orders-errors" instead of
+                // "wolverine-dead-letter-queue"
+                .DefaultDeadLetterQueueName("orders-errors");
+
+            // ...but per endpoint configuration still wins
+            opts.ListenToAzureServiceBusQueue("orders")
+                .ConfigureDeadLetterQueue("orders-rejects");
+
+            opts.ListenToAzureServiceBusQueue("notifications")
+                .DisableDeadLetterQueueing();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
 }
 
 public record OrderPlaced(string OrderId);

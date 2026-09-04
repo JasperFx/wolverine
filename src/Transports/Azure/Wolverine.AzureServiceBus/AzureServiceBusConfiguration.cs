@@ -281,7 +281,99 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
         Transport.SystemQueuesEnabled = enabled;
         return this;
     }
-    
+
+    /// <summary>
+    /// Prepend a prefix to the names of the queues that Wolverine creates for its own use, so that
+    /// several unrelated applications can share one Azure Service Bus namespace without colliding.
+    /// With a prefix of "my-project" the system queues become
+    /// "my-project.wolverine.response.{ServiceName}.{node}", "my-project.wolverine.retries.{servicename}",
+    /// "my-project.wolverine.control.{node}", and "my-project.wolverine-dead-letter-queue". Without a
+    /// prefix -- the default -- those names are exactly what they have always been.
+    ///
+    /// <para>
+    /// Only queues that Wolverine names for itself are affected. A dead letter queue you name
+    /// yourself, through either <c>ConfigureDeadLetterQueue("x")</c> on an endpoint or
+    /// <see cref="DefaultDeadLetterQueueName"/> on the transport, is taken as fully qualified and is
+    /// never prefixed.
+    /// </para>
+    ///
+    /// <para>
+    /// This is a separate concept from <c>PrefixIdentifiers()</c>, which renames the *application*
+    /// queues and topics and deliberately does not reach Wolverine's system queues. The two can be
+    /// combined: use <c>PrefixIdentifiers()</c> when every application queue should be renamed too,
+    /// and this when cooperating applications must keep sharing the same application queue names
+    /// while still each owning their own control, response, retry and dead letter queues.
+    /// </para>
+    ///
+    /// <para>
+    /// Order does not matter with respect to <see cref="EnableWolverineControlQueues"/>: calling
+    /// this afterwards rebuilds the control queue under the prefixed name.
+    /// </para>
+    /// </summary>
+    /// <param name="prefix">
+    /// The prefix. Sanitized to legal Azure Service Bus entity characters, and any trailing
+    /// delimiter is trimmed
+    /// </param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration SystemQueuePrefix(string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            throw new ArgumentException("The system queue prefix must be a non-empty value", nameof(prefix));
+        }
+
+        var sanitized = Transport.SanitizeIdentifier(prefix.Trim()).TrimEnd('.', '/');
+        if (sanitized.IsEmpty())
+        {
+            throw new ArgumentException(
+                $"'{prefix}' does not leave any usable Azure Service Bus entity name characters to use as a system queue prefix",
+                nameof(prefix));
+        }
+
+        Transport.SystemQueuePrefix = sanitized;
+
+        // The control queue has to be built eagerly (see EnableWolverineControlQueues below), so if it
+        // was already built under the unprefixed name, rebuild it here under the new one.
+        if (Transport.ControlQueue != null)
+        {
+            buildControlQueue();
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the transport wide default dead letter queue name, which is otherwise
+    /// "wolverine-dead-letter-queue" with any <see cref="SystemQueuePrefix"/> prepended. The name
+    /// given here is taken as fully qualified and is never prefixed.
+    ///
+    /// <para>
+    /// This is only the default. Per endpoint configuration still wins:
+    /// <c>ConfigureDeadLetterQueue("x")</c> names a different dead letter queue for one endpoint, and
+    /// <c>DisableDeadLetterQueueing()</c> turns the native dead letter queue off for one endpoint
+    /// regardless of what is set here.
+    /// </para>
+    /// </summary>
+    /// <param name="queueName">
+    /// The default dead letter queue name. Must be non-null and non-empty; call
+    /// <c>DisableDeadLetterQueueing()</c> on an endpoint to turn dead letter queueing off instead
+    /// </param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration DefaultDeadLetterQueueName(string queueName)
+    {
+        if (string.IsNullOrWhiteSpace(queueName))
+        {
+            throw new ArgumentException(
+                "The default dead letter queue name must be a non-empty value. Use DisableDeadLetterQueueing() on an endpoint to disable dead letter queueing.",
+                nameof(queueName));
+        }
+
+        Transport.DefaultDeadLetterQueueName = Transport.SanitizeIdentifier(queueName.Trim());
+
+        return this;
+    }
+
+
     /// <summary>
     /// Utilize an Azure Service Bus queue as the control queue between Wolverine nodes
     /// This is more efficient than the built in Wolverine database control
@@ -290,13 +382,31 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     /// <returns></returns>
     public AzureServiceBusConfiguration EnableWolverineControlQueues()
     {
+        buildControlQueue();
+
+        return this;
+    }
+
+    // The control queue is built here and now rather than in tryBuildSystemEndpoints, because
+    // Options.Transports.NodeControlEndpoint is read by the message stores and the node agent
+    // (MessageDatabase, WolverineNode) before the transports ever initialize.
+    private void buildControlQueue()
+    {
         // In Solo mode the assigned node number is always 1 (#3188); key the per-node control queue
         // on the unique node id so multiple Solo hosts on one namespace don't collide. See #3189.
         var controlNode = Options.Durability.Mode == DurabilityMode.Solo
             ? Options.UniqueNodeId.ToString("N")
             : Options.Durability.AssignedNodeNumber.ToString();
-        var queueName = "wolverine.control." + controlNode;
-        
+        var queueName = Transport.PrefixSystemQueueName("wolverine.control." + controlNode);
+
+        // SystemQueuePrefix() can be called after EnableWolverineControlQueues(), in which case the
+        // control queue already exists under the unprefixed name. Take it back out so the transport
+        // doesn't go on to provision and listen to a queue nothing points at anymore.
+        if (Transport.ControlQueue != null && Transport.ControlQueue.QueueName != queueName)
+        {
+            Transport.Queues.Remove(Transport.ControlQueue.QueueName);
+        }
+
         var queue = Transport.Queues[queueName];
 
         queue.Options.AutoDeleteOnIdle = 5.Minutes();
@@ -307,7 +417,6 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
         queue.Role = EndpointRole.System;
 
         Options.Transports.NodeControlEndpoint = queue;
-
-        return this;
+        Transport.ControlQueue = queue;
     }
 }

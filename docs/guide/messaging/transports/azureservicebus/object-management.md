@@ -90,6 +90,28 @@ opts.UseAzureServiceBus("some connection string")
 
 The default delimiter between the prefix and the original name is `.` for Azure Service Bus (e.g., `dev-john.orders`).
 
+### System Queues Are Not Prefixed <Badge type="tip" text="6.34" />
+
+`PrefixIdentifiers()` only touches the queues, topics, and subscriptions that *your application* names. Wolverine's own
+system queues — the response, retry, control, and dead letter queues — keep their names, because two cooperating
+applications that message each other have to keep addressing the same application queue names even while each needs its
+own set of system queues.
+
+Use [`SystemQueuePrefix()`](/guide/messaging/transports/azureservicebus/#prefixing-system-queues) to prefix those
+instead. For full per-developer isolation against a shared namespace, combine the two:
+
+```csharp
+opts.UseAzureServiceBus("some connection string")
+    .AutoProvision()
+
+    // Application queues, topics, and subscriptions
+    .PrefixIdentifiers("dev-john")
+
+    // ...and Wolverine's own response, retry, control,
+    // and dead letter queues
+    .SystemQueuePrefix("dev-john");
+```
+
 ## Configuring Queues
 
 If Wolverine is provisioning the queues for you, you can use one of these options
