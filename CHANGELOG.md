@@ -91,6 +91,22 @@
   with the size stripped off, so a widened `varchar` was invisible to it and an existing table kept
   the narrow column forever.
 
+### WolverineFx.Oracle
+
+- **A failed attempt on the advisory lock gives its connection back.** `OracleAdvisoryLock` is the one
+  implementation that opens a connection per lock rather than keeping a single shared one, and
+  `TryAttainLockAsync` only released that connection on two of its exits: success, where the connection
+  is retained to hold the row lock, and `ORA-00054` contention, which closes and disposes it. Every
+  other failure fell through to the outer `catch`, logged, and returned false with the connection --
+  and, past `BeginTransactionAsync`, an open transaction on it -- owned by nobody.
+
+  That is not a once-per-process cost. `TryAttainLeadershipLockAsync` fires on every health-check tick,
+  so a failure mode that persists rather than resolving -- the lock table's schema missing, credentials
+  expired, a RAC node gone -- leaked one connection per tick until the pool was exhausted, at which
+  point the node could no longer open a connection for anything else either. The regression test drives
+  six attains against a pool of three: unfixed, it spends fifteen seconds queueing on an empty pool;
+  fixed, it finishes in well under one.
+
 ### WolverineFx.Http
 
 - **DataAnnotations validation works with `ServiceLocationPolicy.NotAllowed`.** (closes

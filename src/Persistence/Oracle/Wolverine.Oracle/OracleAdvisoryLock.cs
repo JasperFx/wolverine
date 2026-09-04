@@ -175,9 +175,19 @@ internal class OracleAdvisoryLock : IAdvisoryLock
     {
         await _gate.WaitAsync(token).ConfigureAwait(false);
 
+        // GH-4261 follow-up. Only two paths out of the try below hand these off to somebody else: the
+        // success path, where rememberId retains them, and the ORA-00054 contention path, which tears
+        // them down itself. Every other failure -- a missing schema, expired credentials, a RAC node
+        // going away -- used to fall through to the outer catch and drop the locals on the floor with
+        // the connection still open and, past BeginTransactionAsync, a transaction open on it. Attains
+        // run on the health-check tick, so a failure mode that persists leaks one connection per tick
+        // until the pool is gone. Held in locals so the catch can finish what the try started.
+        OracleConnection? conn = null;
+        OracleTransaction? tx = null;
+
         try
         {
-            var conn = await _source.OpenConnectionAsync(token);
+            conn = await _source.OpenConnectionAsync(token);
 
             // Ensure lock row exists
             await using var ensureCmd = conn.CreateCommand(
@@ -196,7 +206,7 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             }
 
             // Start a transaction to hold the row lock
-            var tx = (OracleTransaction)await conn.BeginTransactionAsync(token);
+            tx = (OracleTransaction)await conn.BeginTransactionAsync(token);
 
             await using var lockCmd = conn.CreateCommand(
                 $"SELECT lock_id FROM {_schemaName}.{LockTable.TableName} WHERE lock_id = :lockId FOR UPDATE NOWAIT");
@@ -220,11 +230,78 @@ internal class OracleAdvisoryLock : IAdvisoryLock
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to attain advisory lock {LockId}", lockId);
+
+            // Reached only when the lock was NOT attained: the success and ORA-00054 paths both return
+            // from inside the try. If the ORA-00054 teardown was itself what threw, this finishes it --
+            // discardFailedAttainAsync is defensive about being handed something already torn down.
+            await discardFailedAttainAsync(lockId, conn, tx).ConfigureAwait(false);
             return false;
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// GH-4261 follow-up. Give back the connection -- and the transaction, if
+    /// <c>BeginTransactionAsync</c> got that far -- that a failed attain opened. Callers MUST hold
+    /// <c>_gate</c>, and MUST NOT call this once <see cref="rememberId"/> has taken ownership. Nothing
+    /// in here is allowed to throw: it runs from a catch block whose whole job is to answer false.
+    /// </summary>
+    private async Task discardFailedAttainAsync(int lockId, OracleConnection? conn, OracleTransaction? tx)
+    {
+        if (conn == null) return;
+
+        if (tx != null)
+        {
+            try
+            {
+                // Bounded like releaseLockUnsafeAsync's rollback, and for the same reason: we are
+                // already on a failure path and cannot afford a second unbounded wait on a connection
+                // that has just misbehaved.
+                using var cancellation = new CancellationTokenSource();
+                cancellation.CancelAfter(1.Seconds());
+
+                await tx.RollbackAsync(cancellation.Token);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e,
+                    "Error rolling back the transaction of a failed attain of advisory lock {LockId} in schema {Schema}",
+                    lockId, _schemaName);
+            }
+
+            try
+            {
+                await tx.DisposeAsync();
+            }
+            catch
+            {
+                // Already broken, and the connection is going with it regardless.
+            }
+        }
+
+        try
+        {
+            await closeWithinBudgetAsync(conn).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e,
+                "Error closing the connection of a failed attain of advisory lock {LockId} in schema {Schema}",
+                lockId, _schemaName);
+        }
+
+        try
+        {
+            await conn.DisposeAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e,
+                "Error disposing the connection of a failed attain of advisory lock {LockId} in schema {Schema}",
+                lockId, _schemaName);
         }
     }
 
