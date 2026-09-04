@@ -4,6 +4,17 @@
 
 ### WolverineFx (core)
 
+- **`FindForTenantAsync` answers for a single-database deployment.** (closes
+  [#4273](https://github.com/JasperFx/wolverine/issues/4273)) The method became public API in #4268 without
+  the `_onlyOneDatabase` guard that `FindAllAsync` and `FindDatabasesAsync` both open with, so on a
+  single-database deployment it returned an **empty list for every tenant** rather than the store that
+  actually holds their data. That is the shape of Marten *conjoined* tenancy -- one database, a `tenant_id`
+  column -- because Marten only builds a `MultiTenantedMessageStore` for master-table tenancy, leaving
+  `_multiTenanted` empty. The failure was silent: the method exists so a caller can query one tenant's dead
+  letters without hydrating every message body, and an empty list reads as "this tenant is clean" while its
+  dead letter table is full. Multi-tenanted collections still resolve through the tenancy source unchanged.
+
+
 - **Concurrent callers share one tenant database list refresh.** (closes
   [#4267](https://github.com/JasperFx/wolverine/issues/4267)) `MessageStoreCollection.FindAllAsync()`
   re-enumerated a `DynamicMultiple` tenancy source on every call, and it sits on paths that are *retried on
