@@ -25,16 +25,24 @@ namespace Wolverine.Nats.Tests;
 /// <para>Azure Service Bus, SQS and Redis all put the service name in this name already; RabbitMQ uses a
 /// per-process guid. NATS was the only transport with neither.</para>
 /// </summary>
-public class Bug_4279_reply_subject_carries_the_service_name
+public class Bug_4279_reply_subject_carries_the_service_name : IClassFixture<NatsContainerFixture>
 {
+    private readonly NatsContainerFixture _fixture;
+
+    public Bug_4279_reply_subject_carries_the_service_name(NatsContainerFixture fixture) => _fixture = fixture;
+
     [Fact]
     public async Task the_reply_subject_names_the_application()
     {
+        // Through a real host, because this is the assertion that ConnectAsync actually USES the new
+        // naming -- the composition tests below cannot see that. The broker comes from the shared
+        // Testcontainers fixture: a hardcoded localhost:4222 works on a developer machine with
+        // docker-compose up and fails in CI, where the container gets a dynamic port.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "Orders";
-                opts.UseNats("nats://localhost:4222");
+                opts.UseNats(_fixture.ConnectionString);
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>()
@@ -84,14 +92,5 @@ public class Bug_4279_reply_subject_carries_the_service_name
         NatsTransport.sanitizeSubjectToken(serviceName).ShouldBe(expected);
     }
 
-    private static async Task<IHost> hostFor(string serviceName)
-    {
-        return await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.ServiceName = serviceName;
-                opts.UseNats("nats://localhost:4222");
-            }).StartAsync(TestContext.Current.CancellationToken);
-    }
 
 }
