@@ -17,6 +17,22 @@
   walk now anchors at the end of the innermost *contiguous* run of Wolverine frames, the call chain that
   actually led to the capture.
 
+- **Global partitioning over sharded database queues executes messages again.** (closes
+  [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
+  `UseShardedSqlServerQueues` (and the PostgreSQL twin), any message that actually round-tripped through a
+  shard queue table -- the exclusive slot listener on another node, or not yet accepting on this one, so
+  the companion-local-queue shortcut did not apply -- was **never executed**. A durable database-backed
+  queue moves each envelope into the inbox as part of the dequeue itself, and the
+  `GlobalPartitionedReceiverBridge` then forwarded it to the companion local queue's `DurableReceiver`,
+  which is not database-backed and stored it a **second** time: a `DuplicateIncomingEnvelopeException` per
+  message, and every envelope permanently parked in `wolverine_incoming_envelopes` as an `Incoming` row
+  owned by a live node that no recovery pass would ever touch. The bridge now marks envelopes a durable
+  database-backed dequeue already persisted -- and everything routed to a bridged listener through
+  store-driven recovery (inbox recovery, DLQ replay, scheduled firing), which is persisted by definition --
+  and `DurableReceiver` skips the second store for a marked envelope while still settling and executing
+  it. Broker-backed topologies (RabbitMQ etc.) are unaffected: their bridge still leaves persistence to
+  the local receiver.
+
 - **`FindForTenantAsync` answers for a single-database deployment.** (closes
   [#4273](https://github.com/JasperFx/wolverine/issues/4273)) The method became public API in #4268 without
   the `_onlyOneDatabase` guard that `FindAllAsync` and `FindDatabasesAsync` both open with, so on a
@@ -356,6 +372,38 @@
   name. Resolution per endpoint is per-endpoint configuration first, then the transport default, then
   the prefixed default, then `wolverine-dead-letter-queue` -- and it resolves on read, so the order of
   those calls during bootstrapping does not matter.
+
+### WolverineFx.CosmosDb
+
+- **`DeadLetterQueueExpirationEnabled` actually deletes expired dead letters now.** (closes
+  [#4286](https://github.com/JasperFx/wolverine/issues/4286)) The recovery loop's hourly throttle
+  reset its own timestamp at the top of every iteration and compared against it a few statements
+  later, so the expired dead letter sweep could only ever fire if a single recovery tick took more
+  than an hour — in practice never, and dead letters accumulated without bound with the feature
+  turned on. The throttle now lives outside the loop and is stamped after each sweep, so the first
+  recovery tick sweeps immediately (matching the relational providers, whose expiration timer first
+  fires a minute after startup) and hourly after that.
+
+### WolverineFx.RavenDb
+
+- **`DeadLetterQueueExpirationEnabled` actually deletes expired dead letters now.** (closes
+  [#4286](https://github.com/JasperFx/wolverine/issues/4286)) Same throttle defect as the CosmosDb
+  entry above — the hourly guard compared against a timestamp taken in the same loop iteration, so
+  the sweep never fired. Fixing the throttle also unmasked a second defect on this provider: the
+  sweep was a `DeleteByQueryOperation` against an index named `DeadLetterMessages` that Wolverine
+  never creates, so the first sweep that actually ran would have thrown
+  `IndexDoesNotExistException` and still deleted nothing. The sweep is now a dynamic query in
+  batches of `RecoveryBatchSize`, the same shape the scheduled-message poller already uses.
+- **Concurrent node startup no longer assigns duplicate node numbers.** (closes
+  [#4285](https://github.com/JasperFx/wolverine/issues/4285)) `PersistAsync` allocated
+  `AssignedNodeNumber` with an unguarded read-modify-write on the shared sequence document, so two
+  nodes starting at the same moment -- initial creation of a multi-replica deployment, a simultaneous
+  restart -- both read count `N` and both wrote `N + 1`, ending up with the same number. The number is
+  more than a label: it becomes the envelope owner id, and shutdown releases ownership *by number*, so
+  one duplicate's clean exit released the other still-running node's in-flight envelopes back to
+  `AnyNode` for redelivery while the original owner was still processing them. The increment is now
+  optimistic-concurrency safe: the replace is guarded by the ETag of the read and retried on a 412
+  (a peer bumped the sequence first) or a 409 (a peer created the missing sequence document first).
 
 ### Dependencies
 
