@@ -14,6 +14,30 @@ namespace Wolverine.Oracle;
 /// </summary>
 internal class OracleAdvisoryLock : IAdvisoryLock
 {
+    // GH-4261. Unlike its four siblings this one keeps a connection PER LOCK rather than one shared
+    // connection, but the hazard is the same: a SYNCHRONOUS HasLock pings held.conn while
+    // ReleaseLockAsync / DisposeAsync concurrently roll back that same transaction, close that same
+    // connection, and drop it from _heldLocks -- with nothing serialising them, and with _locks and
+    // _heldLocks themselves being a plain List and Dictionary mutated from both. Reported against
+    // Postgres, where the interleaving desynced the driver's protocol and parked shutdown forever
+    // inside an uncancellable CloseAsync. The two callers are reachable together: writeHeartbeats /
+    // executeHealthChecks (WolverineRuntime.Agents.cs) run on the runtime-wide Cancellation token,
+    // which shutdownAsync only cancels AFTER teardownAgentsAsync returns, and teardownAgentsAsync
+    // "stops" them with Task.SafeDispose() -- which disposes the Task object and does nothing to the
+    // running loop.
+    //
+    // _gate serialises every touch of the held connections. _locksLock guards the bookkeeping on its
+    // own, so the one path that deliberately does not wait for the gate -- HasLock on timeout -- can
+    // still read it safely. Ordering is always _gate then _locksLock, never the reverse.
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _locksLock = new();
+
+    // Short on purpose: HasLock is synchronous and sits on the health-check tick.
+    private static readonly TimeSpan GateTimeout = 250.Milliseconds();
+
+    // Generous on purpose: this bounds shutdown paths, where the alternative is an unbounded hang.
+    private static readonly TimeSpan CloseBudget = 5.Seconds();
+
     private readonly string _schemaName;
     private readonly List<int> _locks = new();
     private readonly ILogger _logger;
@@ -29,8 +53,40 @@ internal class OracleAdvisoryLock : IAdvisoryLock
 
     public bool HasLock(int lockId)
     {
-        if (!_locks.Contains(lockId)) return false;
-        if (!_heldLocks.TryGetValue(lockId, out var held)) return false;
+        // Cheap negative outside the gate: an id we never took cannot be held.
+        if (!holdsId(lockId)) return false;
+
+        if (!_gate.Wait(GateTimeout))
+        {
+            // GH-4261: a busy gate means another advisory-lock operation on THIS node is in flight, not
+            // that the row lock evaporated. A wrong `false` here is read by
+            // NodeAgentController.DoHealthChecksInternalAsync as lost leadership and fires
+            // stepDownAsync -- exactly the churn GH-2602 and GH-3604 were fighting. Report the last
+            // state we established and skip the keepalive for this tick.
+            _logger.LogDebug(
+                "Advisory lock connection for schema {Schema} was busy; reporting the last known state of lock {LockId} without pinging",
+                _schemaName, lockId);
+            return true;
+        }
+
+        try
+        {
+            return hasLockUnsafe(lockId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping. Callers MUST hold <c>_gate</c> -- it does synchronous I/O on a held
+    /// connection and may tear that connection down.
+    /// </summary>
+    private bool hasLockUnsafe(int lockId)
+    {
+        if (!holdsId(lockId)) return false;
+        if (!tryFindHeld(lockId, out var held)) return false;
 
         // Oracle row-level FOR UPDATE locks are tied to the transaction
         // that took them, which is in turn tied to the holding connection.
@@ -52,8 +108,7 @@ internal class OracleAdvisoryLock : IAdvisoryLock
                 "Lost advisory-lock connection for lock {LockId} in schema {Schema}; clearing held state",
                 lockId, _schemaName);
 
-            _locks.Remove(lockId);
-            _heldLocks.Remove(lockId);
+            forgetId(lockId);
             try
             {
                 held.tx.Dispose();
@@ -74,8 +129,52 @@ internal class OracleAdvisoryLock : IAdvisoryLock
         }
     }
 
+    private bool holdsId(int lockId)
+    {
+        lock (_locksLock) return _locks.Contains(lockId);
+    }
+
+    private int[] heldIds()
+    {
+        lock (_locksLock) return _locks.ToArray();
+    }
+
+    private bool tryFindHeld(int lockId, out (OracleConnection conn, OracleTransaction tx) held)
+    {
+        lock (_locksLock) return _heldLocks.TryGetValue(lockId, out held);
+    }
+
+    private void rememberId(int lockId, OracleConnection conn, OracleTransaction tx)
+    {
+        lock (_locksLock)
+        {
+            _locks.Add(lockId);
+            _heldLocks[lockId] = (conn, tx);
+        }
+    }
+
+    /// <summary>
+    /// Drop a lock id and hand back the connection/transaction that was holding it, so the caller can
+    /// tear those down knowing nobody else can still find them.
+    /// </summary>
+    private bool forgetId(int lockId, out (OracleConnection conn, OracleTransaction tx) held)
+    {
+        lock (_locksLock)
+        {
+            _locks.Remove(lockId);
+            return _heldLocks.Remove(lockId, out held);
+        }
+    }
+
+    private void forgetId(int lockId)
+    {
+        forgetId(lockId, out _);
+    }
+
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
     {
+        await _gate.WaitAsync(token).ConfigureAwait(false);
+
         try
         {
             var conn = await _source.OpenConnectionAsync(token);
@@ -107,14 +206,13 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             try
             {
                 await lockCmd.ExecuteScalarAsync(token);
-                _locks.Add(lockId);
-                _heldLocks[lockId] = (conn, tx);
+                rememberId(lockId, conn, tx);
                 return true;
             }
             catch (OracleException ex) when (ex.Number == 54) // ORA-00054: resource busy
             {
                 await tx.RollbackAsync(token);
-                await conn.CloseAsync();
+                await closeWithinBudgetAsync(conn).ConfigureAwait(false);
                 await conn.DisposeAsync();
                 return false;
             }
@@ -124,43 +222,82 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             _logger.LogError(e, "Error trying to attain advisory lock {LockId}", lockId);
             return false;
         }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task ReleaseLockAsync(int lockId)
     {
-        if (!_locks.Contains(lockId)) return;
+        if (!holdsId(lockId)) return;
 
-        _locks.Remove(lockId);
-
-        if (_heldLocks.TryGetValue(lockId, out var held))
+        // GH-4261: bounded rather than indefinite. If the gate is still held past the budget something
+        // is wedged on the connection, and waiting longer turns a released lock into a hung shutdown.
+        // Oracle drops the row lock when the holding session ends, so an abandoned lock clears itself
+        // when this process exits.
+        if (!await _gate.WaitAsync(CloseBudget).ConfigureAwait(false))
         {
-            _heldLocks.Remove(lockId);
-            try
-            {
-                using var cancellation = new CancellationTokenSource();
-                cancellation.CancelAfter(1.Seconds());
+            _logger.LogWarning(
+                "Timed out waiting to release advisory lock {LockId} in schema {Schema}; leaving it to be released when the session ends",
+                lockId, _schemaName);
+            return;
+        }
 
-                await held.tx.RollbackAsync(cancellation.Token);
-                await held.conn.CloseAsync();
-                await held.conn.DisposeAsync();
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error releasing advisory lock {LockId}", lockId);
-            }
+        try
+        {
+            await releaseLockUnsafeAsync(lockId).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Callers MUST hold <c>_gate</c>. Split out because <see cref="DisposeAsync"/> releases every held
+    /// lock in a loop and SemaphoreSlim is not reentrant -- going back through the public method would
+    /// deadlock against the gate this method's caller already holds.
+    /// </summary>
+    private async Task releaseLockUnsafeAsync(int lockId)
+    {
+        if (!forgetId(lockId, out var held)) return;
+
+        try
+        {
+            using var cancellation = new CancellationTokenSource();
+            cancellation.CancelAfter(1.Seconds());
+
+            await held.tx.RollbackAsync(cancellation.Token);
+            await closeWithinBudgetAsync(held.conn).ConfigureAwait(false);
+            await held.conn.DisposeAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error releasing advisory lock {LockId}", lockId);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var lockId in _locks.ToArray())
+        if (!await _gate.WaitAsync(CloseBudget).ConfigureAwait(false))
         {
-            if (_heldLocks.TryGetValue(lockId, out var held))
+            _logger.LogWarning(
+                "Timed out waiting to dispose the advisory locks for schema {Schema}; abandoning them",
+                _schemaName);
+            return;
+        }
+
+        try
+        {
+            foreach (var lockId in heldIds())
             {
+                if (!forgetId(lockId, out var held)) continue;
+
                 try
                 {
                     await held.tx.RollbackAsync(CancellationToken.None);
-                    await held.conn.CloseAsync();
+                    await closeWithinBudgetAsync(held.conn).ConfigureAwait(false);
                     await held.conn.DisposeAsync();
                 }
                 catch (Exception e)
@@ -169,8 +306,44 @@ internal class OracleAdvisoryLock : IAdvisoryLock
                 }
             }
         }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 
-        _locks.Clear();
-        _heldLocks.Clear();
+    /// <summary>
+    /// GH-4261. <see cref="OracleConnection.CloseAsync"/> takes no <see cref="CancellationToken"/>, so a
+    /// caller's shutdown budget cannot reach it. The gate above should stop a connection ever getting
+    /// into a state where the close does not return; this makes it survivable if one ever does. Returns
+    /// false when the close was abandoned -- the caller's DisposeAsync then runs against a connection
+    /// whose close never completed, which the surrounding catch absorbs.
+    /// </summary>
+    private async Task<bool> closeWithinBudgetAsync(OracleConnection conn)
+    {
+        var closing = conn.CloseAsync();
+
+        using var delay = new CancellationTokenSource();
+        var finished = await Task.WhenAny(closing, Task.Delay(CloseBudget, delay.Token)).ConfigureAwait(false);
+        await delay.CancelAsync().ConfigureAwait(false);
+
+        if (!ReferenceEquals(finished, closing))
+        {
+            _logger.LogWarning(
+                "Timed out after {Budget} closing an advisory lock connection for schema {Schema}; abandoning it",
+                CloseBudget, _schemaName);
+
+            // Observe the abandoned close, so that if it eventually faults the exception cannot resurface
+            // as an UnobservedTaskException on the finalizer thread long after anyone could act on it.
+            _ = closing.ContinueWith(static t => _ = t.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+            return false;
+        }
+
+        // Surface a genuine close failure to the caller's catch rather than swallowing it here.
+        await closing.ConfigureAwait(false);
+        return true;
     }
 }
