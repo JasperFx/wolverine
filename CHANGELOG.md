@@ -128,6 +128,21 @@
   six attains against a pool of three: unfixed, it spends fifteen seconds queueing on an empty pool;
   fixed, it finishes in well under one.
 
+### WolverineFx.Nats
+
+- **The NATS reply subject names the application.** (closes
+  [#4279](https://github.com/JasperFx/wolverine/issues/4279)) The per-node reply subject was
+  `wolverine.response.{node}`, with nothing in it identifying the application. `AssignedNodeNumber` is
+  unique within *one* application's node cluster -- the election runs against that application's own
+  message store -- so two unrelated applications sharing a NATS cluster each elect a node 1 and both
+  subscribed to `wolverine.response.1`. With no queue group (the default) core NATS fans out, so each
+  received the other's reply payloads; if both had set the same `DefaultQueueGroup` the two subscriptions
+  land in one queue group on one subject and NATS load-balances instead, so roughly half of one
+  application's replies went to the other and never reached the caller. Azure Service Bus, SQS and Redis
+  all carry the service name here already and RabbitMQ uses a per-process guid; NATS was the only
+  transport with neither. The Solo path was already correct (it keys on `UniqueNodeId`, #3188/#3189) and
+  is unchanged.
+
 ### WolverineFx.Http
 
 - **A Static-mode endpoint type mismatch is now reported as itself.** (closes
