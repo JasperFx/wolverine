@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using NSubstitute;
 using Shouldly;
 using Wolverine;
@@ -123,6 +125,74 @@ public class delayed_configuration_is_not_raced_by_compile
                 await Task.WhenAll(registering, compiling);
             });
         }
+    }
+
+    /// <summary>
+    /// The other half of GH-4262: <c>Compile</c>'s own <c>_hasCompiled</c> check-then-act. A plain bool
+    /// read at the top and a plain bool write at the bottom, with nothing excluding the body in between,
+    /// so two threads could both read false and both run it. Concurrent Compile on ONE endpoint is
+    /// reachable -- <c>EndpointCollection.EndpointFor</c>, <c>ExclusiveListeners</c>,
+    /// <c>LeaderPinnedListeners</c> and both <c>StartListenerAsync</c> overloads call it with no lock at
+    /// all, while <c>buildSendingAgent</c> calls it under <c>_channelLock</c>.
+    ///
+    /// <para>Counting endpoint-policy applications is the cheapest way to observe the body running twice.
+    /// The damage it stands in for is quieter: the serializer pre-population at the end of Compile is
+    /// <c>_serializers = _serializers.AddOrUpdate(...)</c>, a read-modify-write on an ImHashMap field, so
+    /// a second thread through the body simply drops the first one's entries.</para>
+    /// </summary>
+    [Fact]
+    public async Task compile_runs_its_body_exactly_once_under_concurrent_callers()
+    {
+        var options = new WolverineOptions();
+        var policy = new CountingEndpointPolicy();
+        options.Transports.AddPolicy(policy);
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        runtime.Options.Returns(options);
+        runtime.DurabilitySettings.Returns(options.Durability);
+
+        var token = TestContext.Current.CancellationToken;
+        var endpoints = new List<RacedEndpoint>();
+
+        for (var round = 0; round < Rounds; round++)
+        {
+            var endpoint = new RacedEndpoint(new Uri($"stub://gh4262-compile-{round}"));
+            endpoints.Add(endpoint);
+
+            using var gate = new ManualResetEventSlim();
+
+            var callers = Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
+            {
+                gate.Wait(token);
+                endpoint.Compile(runtime);
+            }, token)).ToArray();
+
+            gate.Set();
+            await Task.WhenAll(callers);
+        }
+
+        // Name a few of the endpoints that were compiled more than once rather than just asserting a
+        // count, so a failure says how badly the body re-ran rather than only that it did. Capped,
+        // because without the fix EVERY round fails -- 8 concurrent callers all ran the body on all 750
+        // endpoints when this was written -- and 750 lines of Shouldly output helps nobody.
+        var overCompiled = endpoints
+            .Where(x => policy.CountFor(x.Uri) != 1)
+            .Select(x => $"{x.Uri} applied {policy.CountFor(x.Uri)} times")
+            .ToArray();
+
+        overCompiled.Take(5).ShouldBeEmpty($"{overCompiled.Length} of {endpoints.Count} endpoints ran Compile's body more than once");
+    }
+
+    public class CountingEndpointPolicy : IEndpointPolicy
+    {
+        private readonly ConcurrentDictionary<Uri, StrongBox<int>> _counts = new();
+
+        public void Apply(Endpoint endpoint, IWolverineRuntime runtime)
+        {
+            Interlocked.Increment(ref _counts.GetOrAdd(endpoint.Uri, _ => new StrongBox<int>()).Value);
+        }
+
+        public int CountFor(Uri uri) => _counts.TryGetValue(uri, out var box) ? box.Value : 0;
     }
 
     public class RacedEndpoint : Endpoint

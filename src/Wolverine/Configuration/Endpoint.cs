@@ -225,7 +225,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private readonly object _delayedConfigurationLock = new();
     private IMessageSerializer? _defaultSerializer;
 
-    private bool _hasCompiled;
+    // GH-4262. volatile, so a thread taking the fast path in Compile() and seeing true is guaranteed
+    // to see everything compile() wrote before it set this. A plain bool gave no such ordering, so a
+    // caller could get a half-compiled endpoint back.
+    private volatile bool _hasCompiled;
     private int _maxDegreeOfParallelism = Math.Max(Environment.ProcessorCount, 5);
     private BufferingLimits _bufferingLimits = new(1000, 500);
 
@@ -712,6 +715,22 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
     }
 
+    // GH-4262. Compile's _hasCompiled check-then-act was a plain read at the top and a plain write at
+    // the bottom, with no mutual exclusion over the body in between. Concurrent Compile on ONE endpoint
+    // is reachable: EndpointFor, ExclusiveListeners, LeaderPinnedListeners and both StartListenerAsync
+    // overloads all call it with no lock at all, while buildSendingAgent calls it under
+    // EndpointCollection._channelLock. Two threads could therefore both read false and both run the
+    // body -- running every endpoint policy twice, and losing entries from the serializer
+    // pre-population below, which is a read-modify-write on an ImHashMap field
+    // (_serializers = _serializers.AddOrUpdate(...)) rather than an atomic one.
+    //
+    // One monitor per endpoint closes it. Per-ENDPOINT deliberately, not shared: compiling two
+    // unrelated endpoints at once is normal on every startup and must stay parallel. The lock is taken
+    // AFTER EndpointCollection._channelLock on the buildSendingAgent path and is never taken while
+    // holding _delayedConfigurationLock (snapshotDelayedConfiguration returns before anything is
+    // applied), so it introduces no cycle among Wolverine's own locks.
+    private readonly object _compileLock = new();
+
     public void Compile(IWolverineRuntime runtime)
     {
         if (_hasCompiled)
@@ -719,6 +738,21 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return;
         }
 
+        lock (_compileLock)
+        {
+            if (_hasCompiled)
+            {
+                return;
+            }
+
+            compile(runtime);
+
+            _hasCompiled = true;
+        }
+    }
+
+    private void compile(IWolverineRuntime runtime)
+    {
         Runtime = runtime;
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
@@ -760,8 +794,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             IdempotencyGuard = new GenerationalIdempotencyGuard(InMemoryIdempotency,
                 runtime.DurabilitySettings.MessageIdentity, () => DateTimeOffset.UtcNow, runtime.Meter, Uri);
         }
-
-        _hasCompiled = true;
     }
 
     /// <summary>
