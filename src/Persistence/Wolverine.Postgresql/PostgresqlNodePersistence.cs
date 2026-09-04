@@ -400,6 +400,39 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
 internal class AdvisoryLock : IAdvisoryLock
 {
+    // GH-4261. Everything below shares ONE long-lived NpgsqlConnection, and Npgsql does not support
+    // concurrent use of a connection. Nothing used to stop that: HasLock ran SYNCHRONOUS I/O on _conn
+    // while ReleaseLockAsync / TryAttainLockAsync / DisposeAsync ran ASYNC I/O on the same field, and
+    // both are reachable at once. writeHeartbeats and executeHealthChecks (WolverineRuntime.Agents.cs)
+    // run on the runtime-wide Cancellation token, which shutdownAsync only cancels AFTER
+    // teardownAgentsAsync has returned; teardownAgentsAsync "stops" them with Task.SafeDispose(), which
+    // disposes the Task object and does nothing to the running loop. So a health check already past its
+    // own cancellation guard runs ejectStaleNodes -> HasLeadershipLock() -> the ping below at the same
+    // moment teardown runs NodeAgentController.StopAsync -> ReleaseLeadershipLockAsync.
+    //
+    // When they interleave the protocol desyncs: the second caller consumes the messages the first
+    // caller's reader was waiting for, and the orphaned reader's Close never completes. Two independent
+    // process dumps caught it parked forever inside NpgsqlConnection.CloseAsync -> CloseOngoingOperations
+    // -> NpgsqlDataReader.Consume -> NextResult, frame-for-frame identical down to every async state
+    // number, with the backend already Idle and the connector unbound from the command. CloseAsync takes
+    // no CancellationToken, so HostOptions.ShutdownTimeout -- correctly threaded down to
+    // WolverineRuntime.StopAsync -- could not break it, and the whole process hung: every test passed
+    // and reported, then nothing exited, because the hang lives in fixture disposal after the last test.
+    //
+    // _gate serialises every touch of _conn. _locksLock guards the held-id list on its own, so the one
+    // path that deliberately does NOT wait for the gate -- HasLock on timeout -- can still read it
+    // safely. Ordering is always _gate then _locksLock, never the reverse: no _locksLock section does
+    // I/O or takes the gate.
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _locksLock = new();
+
+    // Short on purpose. HasLock is synchronous and sits on the health-check tick, so it must not block
+    // behind a slow release; a quarter second covers an ordinary round-trip and nothing more.
+    private static readonly TimeSpan GateTimeout = 250.Milliseconds();
+
+    // Generous on purpose. This bounds shutdown paths, where the alternative is the unbounded hang above.
+    private static readonly TimeSpan CloseBudget = 5.Seconds();
+
     private readonly string _databaseName;
     private readonly List<int> _locks = new();
     private readonly ILogger _logger;
@@ -415,8 +448,43 @@ internal class AdvisoryLock : IAdvisoryLock
 
     public bool HasLock(int lockId)
     {
+        // Cheap negative outside the gate. An id we never took cannot be held no matter what any
+        // concurrent operation is doing.
+        if (!holdsId(lockId)) return false;
+
+        if (!_gate.Wait(GateTimeout))
+        {
+            // GH-4261: the gate is busy only because another advisory-lock operation on THIS node is in
+            // flight -- a release during shutdown, or the re-attain from this same health-check tick.
+            // That is not evidence the server dropped our session, and a wrong `false` here is not
+            // cheap: NodeAgentController.DoHealthChecksInternalAsync reads it as lost leadership and
+            // calls stepDownAsync, which is precisely the churn GH-2602 and GH-3604 were fighting. So
+            // report the last state we actually established and skip the keepalive for this tick. The
+            // next tick pings.
+            _logger.LogDebug(
+                "Advisory lock connection for database {Database} was busy; reporting the last known state of lock {LockId} without pinging",
+                _databaseName, lockId);
+            return true;
+        }
+
+        try
+        {
+            return hasLockUnsafe(lockId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping. Callers MUST hold <c>_gate</c> -- it does synchronous I/O on the
+    /// shared connection and may replace it.
+    /// </summary>
+    private bool hasLockUnsafe(int lockId)
+    {
         if (_conn is null) return false;
-        if (!_locks.Contains(lockId)) return false;
+        if (!holdsId(lockId)) return false;
 
         // Postgres releases session-level advisory locks the moment the
         // backend session ends — network blip, idle-connection cull,
@@ -447,9 +515,9 @@ internal class AdvisoryLock : IAdvisoryLock
         {
             _logger.LogWarning(e,
                 "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
-                _databaseName, _locks);
+                _databaseName, heldIds());
 
-            _locks.Clear();
+            clearIds();
             try
             {
                 _conn.Dispose();
@@ -461,6 +529,36 @@ internal class AdvisoryLock : IAdvisoryLock
             _conn = null;
             return false;
         }
+    }
+
+    private bool holdsId(int lockId)
+    {
+        lock (_locksLock) return _locks.Contains(lockId);
+    }
+
+    private bool anyIdsHeld()
+    {
+        lock (_locksLock) return _locks.Count > 0;
+    }
+
+    private int[] heldIds()
+    {
+        lock (_locksLock) return _locks.ToArray();
+    }
+
+    private void addId(int lockId)
+    {
+        lock (_locksLock) _locks.Add(lockId);
+    }
+
+    private void removeId(int lockId)
+    {
+        lock (_locksLock) _locks.Remove(lockId);
+    }
+
+    private void clearIds()
+    {
+        lock (_locksLock) _locks.Clear();
     }
 
     /// <summary>
@@ -497,89 +595,119 @@ internal class AdvisoryLock : IAdvisoryLock
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
     {
-        // Idempotent against repeated calls on the same session. Postgres
-        // session-level advisory locks STACK ("Multiple lock requests stack,
-        // so that if the same resource is locked three times it must then be
-        // unlocked three times to be released" — Postgres docs). Since the
-        // a84d6a262 heartbeat-renewal change calls TryAttainLeadershipLockAsync
-        // every tick — including ticks where the leader already holds the
-        // lock — without this short-circuit the leader's lock count grows by
-        // one per heartbeat. The single ReleaseLeadershipLockAsync call
-        // during DisableAgentsAsync or stepDownAsync then only decrements
-        // once, leaving the lock still held server-side and silently
-        // blocking failover (no error logged, just a stalled election).
-        if (_locks.Contains(lockId) && HasLock(lockId))
-        {
-            return true;
-        }
+        await _gate.WaitAsync(token).ConfigureAwait(false);
 
-        if (_conn == null)
+        try
         {
-            _conn = _source.CreateConnection();
-            await _conn.OpenAsync(token).ConfigureAwait(false);
-            await tagSessionAsync(_conn, token).ConfigureAwait(false);
-        }
+            // Idempotent against repeated calls on the same session. Postgres
+            // session-level advisory locks STACK ("Multiple lock requests stack,
+            // so that if the same resource is locked three times it must then be
+            // unlocked three times to be released" — Postgres docs). Since the
+            // a84d6a262 heartbeat-renewal change calls TryAttainLeadershipLockAsync
+            // every tick — including ticks where the leader already holds the
+            // lock — without this short-circuit the leader's lock count grows by
+            // one per heartbeat. The single ReleaseLeadershipLockAsync call
+            // during DisableAgentsAsync or stepDownAsync then only decrements
+            // once, leaving the lock still held server-side and silently
+            // blocking failover (no error logged, just a stalled election).
+            //
+            // GH-4261: hasLockUnsafe, not HasLock — we already hold the gate, and SemaphoreSlim is not
+            // reentrant.
+            if (hasLockUnsafe(lockId))
+            {
+                return true;
+            }
 
-        if (_conn.State == ConnectionState.Closed)
-        {
-            try
+            if (_conn == null)
             {
-                await _conn.DisposeAsync().ConfigureAwait(false);
+                _conn = _source.CreateConnection();
+                await _conn.OpenAsync(token).ConfigureAwait(false);
+                await tagSessionAsync(_conn, token).ConfigureAwait(false);
             }
-            catch (Exception e)
+
+            if (_conn.State == ConnectionState.Closed)
             {
-                _logger.LogError(e, "Error trying to clean up and restart an advisory lock connection");
+                try
+                {
+                    await _conn.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error trying to clean up and restart an advisory lock connection");
+                }
+                finally
+                {
+                    _conn = null;
+                }
+
+                return false;
             }
-            finally
+
+            var attained = await _conn.TryGetGlobalLock(lockId, token).ConfigureAwait(false);
+            if (attained == AttainLockResult.Success)
             {
-                _conn = null;
+                addId(lockId);
+                return true;
             }
 
             return false;
         }
-
-
-        var attained = await _conn.TryGetGlobalLock(lockId, token).ConfigureAwait(false);
-        if (attained == AttainLockResult.Success)
+        finally
         {
-            _locks.Add(lockId);
-            return true;
+            _gate.Release();
         }
-
-        return false;
     }
 
     public async Task ReleaseLockAsync(int lockId)
     {
-        if (!_locks.Contains(lockId))
+        if (!holdsId(lockId))
         {
             return;
         }
 
-        if (_conn == null || _conn.State != ConnectionState.Open)
+        // GH-4261: bounded rather than indefinite. If the gate is still held past the budget, something
+        // is wedged on the connection and waiting longer only turns a released lock into a hung
+        // shutdown. Postgres drops every session-level advisory lock when the backend session ends, so
+        // the abandoned lock clears itself the moment this process exits.
+        if (!await _gate.WaitAsync(CloseBudget).ConfigureAwait(false))
         {
-            _locks.Remove(lockId);
+            _logger.LogWarning(
+                "Timed out waiting to release advisory lock {LockId} for database {Identifier}; leaving it to be released when the session ends",
+                lockId, _databaseName);
             return;
         }
 
         try
         {
-            using var cancellation = new CancellationTokenSource();
-            cancellation.CancelAfter(1.Seconds());
+            if (_conn == null || _conn.State != ConnectionState.Open)
+            {
+                removeId(lockId);
+                return;
+            }
 
-            await _conn.ReleaseGlobalLock(lockId, cancellation.Token).ConfigureAwait(false);
+            try
+            {
+                using var cancellation = new CancellationTokenSource();
+                cancellation.CancelAfter(1.Seconds());
+
+                await _conn.ReleaseGlobalLock(lockId, cancellation.Token).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Error trying to release advisory lock {LockId} for database {Identifier}",
+                    lockId, _databaseName);
+            }
+
+            removeId(lockId);
+
+            if (!anyIdsHeld())
+            {
+                await safeCloseConnectionAsync().ConfigureAwait(false);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            _logger.LogDebug(e, "Error trying to release advisory lock {LockId} for database {Identifier}",
-                lockId, _databaseName);
-        }
-
-        _locks.Remove(lockId);
-
-        if (!_locks.Any())
-        {
-            await safeCloseConnectionAsync().ConfigureAwait(false);
+            _gate.Release();
         }
     }
 
@@ -590,55 +718,117 @@ internal class AdvisoryLock : IAdvisoryLock
             return;
         }
 
+        if (!await _gate.WaitAsync(CloseBudget).ConfigureAwait(false))
+        {
+            _logger.LogWarning(
+                "Timed out waiting to dispose the advisory lock connection for database {Identifier}; abandoning it",
+                _databaseName);
+            return;
+        }
+
         try
         {
-            if (_conn.State == ConnectionState.Open)
+            if (_conn == null)
             {
-                foreach (var i in _locks)
-                {
-                    try
-                    {
-                        await _conn.ReleaseGlobalLock(i, CancellationToken.None).ConfigureAwait(false);
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.LogDebug(e,
-                            "Error trying to release advisory lock {LockId} during dispose for database {Identifier}",
-                            i, _databaseName);
-                    }
-                }
+                return;
             }
 
-            await safeCloseConnectionAsync().ConfigureAwait(false);
+            try
+            {
+                if (_conn.State == ConnectionState.Open)
+                {
+                    foreach (var i in heldIds())
+                    {
+                        try
+                        {
+                            await _conn.ReleaseGlobalLock(i, CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogDebug(e,
+                                "Error trying to release advisory lock {LockId} during dispose for database {Identifier}",
+                                i, _databaseName);
+                        }
+                    }
+                }
+
+                await safeCloseConnectionAsync().ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Error trying to dispose of advisory locks for database {Identifier}",
+                    _databaseName);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            _logger.LogDebug(e, "Error trying to dispose of advisory locks for database {Identifier}",
-                _databaseName);
+            _gate.Release();
         }
     }
 
+    /// <summary>
+    /// Callers MUST hold <c>_gate</c>.
+    /// </summary>
     private async Task safeCloseConnectionAsync()
     {
-        if (_conn == null) return;
+        // GH-4261: take the connection off the field FIRST. If the close below has to be abandoned, the
+        // dead connection must not stay reachable for the next caller to find and use.
+        var conn = _conn;
+        _conn = null;
+        if (conn == null) return;
 
         try
         {
-            if (_conn.State == ConnectionState.Open)
+            if (conn.State == ConnectionState.Open && !await closeWithinBudgetAsync(conn).ConfigureAwait(false))
             {
-                await _conn.CloseAsync().ConfigureAwait(false);
+                // Deliberately no DisposeAsync: that would race the CloseAsync still parked on this
+                // connection. Dropping the reference is enough -- the abandoned await sits on a
+                // thread-pool thread, which cannot hold the process open, and the backend session ends
+                // with the process.
+                return;
             }
 
-            await _conn.DisposeAsync().ConfigureAwait(false);
+            await conn.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception e)
         {
             _logger.LogDebug(e, "Error trying to close advisory lock connection for database {Identifier}",
                 _databaseName);
         }
-        finally
+    }
+
+    /// <summary>
+    /// GH-4261. <see cref="NpgsqlConnection.CloseAsync"/> takes no <see cref="CancellationToken"/>, so a
+    /// caller's shutdown budget cannot reach it and a connection whose protocol has desynced parks in
+    /// there forever draining an orphaned reader. The gate above should stop that happening at all; this
+    /// makes it survivable if anything ever produces one anyway. Returns false when the close was
+    /// abandoned.
+    /// </summary>
+    private async Task<bool> closeWithinBudgetAsync(NpgsqlConnection conn)
+    {
+        var closing = conn.CloseAsync();
+
+        using var delay = new CancellationTokenSource();
+        var finished = await Task.WhenAny(closing, Task.Delay(CloseBudget, delay.Token)).ConfigureAwait(false);
+        await delay.CancelAsync().ConfigureAwait(false);
+
+        if (!ReferenceEquals(finished, closing))
         {
-            _conn = null;
+            _logger.LogWarning(
+                "Timed out after {Budget} closing the advisory lock connection for database {Identifier}; abandoning it",
+                CloseBudget, _databaseName);
+
+            // Observe the abandoned close, so that if it eventually faults the exception cannot resurface
+            // as an UnobservedTaskException on the finalizer thread long after anyone could act on it.
+            _ = closing.ContinueWith(static t => _ = t.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+            return false;
         }
+
+        // Surface a genuine close failure to the caller's catch rather than swallowing it here.
+        await closing.ConfigureAwait(false);
+        return true;
     }
 }

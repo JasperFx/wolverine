@@ -26,6 +26,43 @@
 
 ### WolverineFx.RDBMS (all relational providers)
 
+- **The advisory lock no longer shares one connection with nothing guarding it.** (closes
+  [#4261](https://github.com/JasperFx/wolverine/issues/4261)) Every `AdvisoryLock` implementation --
+  Postgres, SQL Server, MySQL, Oracle and SQLite -- kept one long-lived connection and synchronised
+  access to it with nothing at all: no semaphore, no lock, no `Interlocked`. `HasLock` runs
+  *synchronous* I/O on that connection for the GH-2602 liveness ping, while `TryAttainLockAsync`,
+  `ReleaseLockAsync` and `DisposeAsync` run *asynchronous* I/O on the same field, and no ADO.NET
+  provider supports concurrent use of one connection.
+
+  The two sides are reachable together in an ordinary shutdown, which is why this is not theoretical.
+  `writeHeartbeats` and `executeHealthChecks` run on the runtime-wide `Cancellation` token, which
+  `shutdownAsync` only cancels *after* `teardownAgentsAsync` has returned -- and teardown "stops" those
+  loops with `Task.SafeDispose()`, which disposes the `Task` object and does nothing whatsoever to the
+  loop still running. A health check already past its own cancellation guard therefore reaches
+  `ejectStaleNodes` -> `HasLeadershipLock()` at the same moment teardown reaches
+  `NodeAgentController.StopAsync` -> `ReleaseLeadershipLockAsync`.
+
+  It cost two different things. Where the driver *noticed* the concurrent use it threw, and `HasLock`
+  reads any exception as "the server dropped our session": it cleared every held lock id and returned
+  false, which `DoHealthChecksInternalAsync` reads as lost leadership and answers with `stepDownAsync`
+  -- precisely the churn GH-2602 and GH-3604 were fighting. Where the driver did *not* notice, the
+  protocol desynced and shutdown parked forever inside `NpgsqlConnection.CloseAsync()`, which takes no
+  `CancellationToken` and so is beyond the reach of `HostOptions.ShutdownTimeout` even though that
+  timeout is correctly threaded all the way down to `WolverineRuntime.StopAsync`. The reporter caught
+  that one in two independent process dumps with frame-for-frame identical stacks, and its symptom is
+  distinctive: every test passes and is counted, then the process never exits, because the hang lives
+  in fixture disposal after the last test has already reported.
+
+  Each implementation now serialises every touch of its connection behind a semaphore, with the held
+  lock ids guarded separately so the one path that must not wait -- `HasLock`, which is synchronous and
+  sits on the health-check tick -- can still read them. When that path finds the connection busy it
+  reports the last state it actually established rather than `false`, and skips the ping for one tick:
+  a busy connection means another advisory-lock operation is in flight *on this node*, which is no
+  evidence at all that the server dropped the session, and answering `false` there is what fires the
+  spurious stepdown. Every close is additionally bounded and abandoned on timeout, so a connection that
+  somehow still desyncs costs seconds rather than the process.
+
+
 - **Node record descriptions no longer overflow the column and fail the insert.** (closes
   [#4246](https://github.com/JasperFx/wolverine/issues/4246)) An `AssignmentChanged` record's
   description is an agent command's `ToString()`, which carries an agent URI, a schema name and a
