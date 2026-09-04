@@ -130,10 +130,18 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Try to resolve a previously-registered serializer by its content-type.
-    /// Returns null when no serializer is registered under the given content-type.
+    /// Returns null when the content-type is missing, or when no serializer is registered under it.
     /// </summary>
-    internal IMessageSerializer? TryFindSerializer(string contentType)
+    internal IMessageSerializer? TryFindSerializer(string? contentType)
     {
+        // Same guard as Endpoint.TryFindSerializer, which delegates here as its fallback. Without it
+        // the dictionary lookup throws ArgumentNullException on an envelope that carries no content
+        // type, which is not something a Try* method should do to its caller.
+        if (contentType.IsEmpty())
+        {
+            return null;
+        }
+
         if (_serializers.TryGetValue(contentType, out var s))
         {
             return s;
