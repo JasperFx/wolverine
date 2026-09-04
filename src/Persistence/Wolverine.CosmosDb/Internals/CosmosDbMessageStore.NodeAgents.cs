@@ -41,23 +41,52 @@ public partial class CosmosDbMessageStore : INodeAgentPersistence
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         var sequenceId = $"{DocumentTypes.NodeSequence}|sequence";
-        CosmosNodeSequence? sequence;
-        try
-        {
-            var response = await _container.ReadItemAsync<CosmosNodeSequence>(
-                sequenceId, new PartitionKey(DocumentTypes.SystemPartition),
-                cancellationToken: cancellationToken);
-            sequence = response.Resource;
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-        {
-            sequence = new CosmosNodeSequence { Id = sequenceId };
-        }
 
-        node.AssignedNodeNumber = ++sequence.Count;
+        // GH-4285: the node number becomes the envelope owner id, and shutdown releases ownership BY
+        // number — so two nodes sharing a number cross-release each other's in-flight envelopes. The
+        // increment must be optimistic-concurrency safe: replace guarded by the ETag of the read, retry
+        // on 412 (a peer bumped the sequence first) or 409 (a peer created the missing document first).
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                CosmosNodeSequence sequence;
+                try
+                {
+                    var response = await _container.ReadItemAsync<CosmosNodeSequence>(
+                        sequenceId, new PartitionKey(DocumentTypes.SystemPartition),
+                        cancellationToken: cancellationToken);
+                    sequence = response.Resource;
+                    sequence.Count++;
 
-        await _container.UpsertItemAsync(sequence, new PartitionKey(DocumentTypes.SystemPartition),
-            cancellationToken: cancellationToken);
+                    await _container.ReplaceItemAsync(sequence, sequenceId,
+                        new PartitionKey(DocumentTypes.SystemPartition),
+                        new ItemRequestOptions { IfMatchEtag = response.ETag },
+                        cancellationToken);
+                }
+                catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+                {
+                    sequence = new CosmosNodeSequence { Id = sequenceId, Count = 1 };
+                    await _container.CreateItemAsync(sequence, new PartitionKey(DocumentTypes.SystemPartition),
+                        cancellationToken: cancellationToken);
+                }
+
+                node.AssignedNodeNumber = sequence.Count;
+                break;
+            }
+            catch (CosmosException e) when (e.StatusCode is HttpStatusCode.PreconditionFailed
+                                                or HttpStatusCode.Conflict)
+            {
+                if (attempt >= 24)
+                {
+                    throw new InvalidOperationException(
+                        $"Unable to assign a node number for node {node.NodeId} after {attempt + 1} attempts because of contention on the node sequence document",
+                        e);
+                }
+
+                await Task.Delay(Random.Shared.Next(5, 25), cancellationToken);
+            }
+        }
 
         var nodeDoc = new CosmosWolverineNode(node);
         await _container.UpsertItemAsync(nodeDoc, new PartitionKey(DocumentTypes.SystemPartition),

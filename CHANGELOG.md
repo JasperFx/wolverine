@@ -305,6 +305,19 @@
   the prefixed default, then `wolverine-dead-letter-queue` -- and it resolves on read, so the order of
   those calls during bootstrapping does not matter.
 
+### WolverineFx.CosmosDb
+
+- **Concurrent node startup no longer assigns duplicate node numbers.** (closes
+  [#4285](https://github.com/JasperFx/wolverine/issues/4285)) `PersistAsync` allocated
+  `AssignedNodeNumber` with an unguarded read-modify-write on the shared sequence document, so two
+  nodes starting at the same moment -- initial creation of a multi-replica deployment, a simultaneous
+  restart -- both read count `N` and both wrote `N + 1`, ending up with the same number. The number is
+  more than a label: it becomes the envelope owner id, and shutdown releases ownership *by number*, so
+  one duplicate's clean exit released the other still-running node's in-flight envelopes back to
+  `AnyNode` for redelivery while the original owner was still processing them. The increment is now
+  optimistic-concurrency safe: the replace is guarded by the ETag of the read and retried on a 412
+  (a peer bumped the sequence first) or a 409 (a peer created the missing sequence document first).
+
 ### Dependencies
 
 - JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to
