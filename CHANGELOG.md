@@ -4,6 +4,22 @@
 
 ### WolverineFx (core)
 
+- **Global partitioning over sharded database queues executes messages again.** (closes
+  [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
+  `UseShardedSqlServerQueues` (and the PostgreSQL twin), any message that actually round-tripped through a
+  shard queue table -- the exclusive slot listener on another node, or not yet accepting on this one, so
+  the companion-local-queue shortcut did not apply -- was **never executed**. A durable database-backed
+  queue moves each envelope into the inbox as part of the dequeue itself, and the
+  `GlobalPartitionedReceiverBridge` then forwarded it to the companion local queue's `DurableReceiver`,
+  which is not database-backed and stored it a **second** time: a `DuplicateIncomingEnvelopeException` per
+  message, and every envelope permanently parked in `wolverine_incoming_envelopes` as an `Incoming` row
+  owned by a live node that no recovery pass would ever touch. The bridge now marks envelopes a durable
+  database-backed dequeue already persisted -- and everything routed to a bridged listener through
+  store-driven recovery (inbox recovery, DLQ replay, scheduled firing), which is persisted by definition --
+  and `DurableReceiver` skips the second store for a marked envelope while still settling and executing
+  it. Broker-backed topologies (RabbitMQ etc.) are unaffected: their bridge still leaves persistence to
+  the local receiver.
+
 - **`FindForTenantAsync` answers for a single-database deployment.** (closes
   [#4273](https://github.com/JasperFx/wolverine/issues/4273)) The method became public API in #4268 without
   the `_onlyOneDatabase` guard that `FindAllAsync` and `FindDatabasesAsync` both open with, so on a
