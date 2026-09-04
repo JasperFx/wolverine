@@ -125,6 +125,24 @@
 
 ### WolverineFx.Oracle
 
+- **A sitting Oracle leader stops standing down on every tick.** (closes
+  [#4275](https://github.com/JasperFx/wolverine/issues/4275)) Since the heartbeat-renewal change in
+  `a84d6a262`, `NodeAgentController` calls `TryAttainLeadershipLockAsync` on every health-check tick,
+  including ticks where this node is already the leader. Oracle holds its row lock in an *uncommitted*
+  transaction on a dedicated connection -- that is how the lock is held -- so the renewal opened a second
+  connection whose `SELECT ... FOR UPDATE NOWAIT` was blocked by the node's own first transaction and raised
+  `ORA-00054`. The renewal answered `false` for a lock the node holds, and a false renewal is how the
+  controller is told leadership was lost, so it called `stepDownAsync` on the very next tick after being
+  elected -- and never reached `EvaluateAssignmentsAsync`, which sits on the `true` branch, so the leader's
+  actual work of evaluating agent assignments never ran.
+
+  `TryAttainLockAsync` now short-circuits on a lock this node already holds, the same way Postgres, SQL
+  Server and SQLite already did. It still pings the retained connection, so a session that really did die is
+  detected exactly as before (GH-2602). The existing leadership compliance suite could not have caught this:
+  every one of its tests is about a *transition*, and a node that steps down re-attains immediately as the
+  only candidate, leaving the end state they assert on untouched.
+
+
 - **A failed attempt on the advisory lock gives its connection back.** `OracleAdvisoryLock` is the one
   implementation that opens a connection per lock rather than keeping a single shared one, and
   `TryAttainLockAsync` only released that connection on two of its exits: success, where the connection
