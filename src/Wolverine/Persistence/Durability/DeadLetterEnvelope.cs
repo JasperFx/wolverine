@@ -64,7 +64,7 @@ public class DeadLetterEnvelope
         {
             var endpoint = runtime.Endpoints.EndpointFor(Envelope.Destination!);
             var serializer = endpoint?.TryFindSerializer(Envelope.ContentType) ??
-                             runtime.Options.TryFindSerializer(Envelope.ContentType!);
+                             runtime.Options.TryFindSerializer(Envelope.ContentType);
 
             if (serializer != null)
             {
