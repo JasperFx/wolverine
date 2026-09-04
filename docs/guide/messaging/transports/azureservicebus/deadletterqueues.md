@@ -106,7 +106,9 @@ await host.StartAsync();
 ## Overriding the Default Dead Letter Queue Name <Badge type="tip" text="6.34" />
 
 `wolverine-dead-letter-queue` is fine for a single application, but it carries no service name at all, so several
-applications sharing one Azure Service Bus namespace all dead letter into the same queue. Rather than repeating
+applications sharing one Azure Service Bus namespace all dead letter into the same queue. If those applications also
+have dead letter queue recovery turned on, whichever one drains a given message first records it in *its* durable
+storage — so a failure belonging to one service ends up filed against another. Rather than repeating
 `ConfigureDeadLetterQueue(...)` on every endpoint, override the default for the whole transport in one call — this is
 the Azure Service Bus counterpart of RabbitMQ's `CustomizeDeadLetterQueueing()` and of SQS's method of the same name:
 

@@ -264,6 +264,30 @@ A dead letter queue that you name yourself is taken as fully qualified and is ne
 [`DefaultDeadLetterQueueName("x")`](/guide/messaging/transports/azureservicebus/deadletterqueues#overriding-the-default-dead-letter-queue-name)
 across the transport.
 
+::: warning Adopting a prefix in an existing application orphans the queues you already have
+A prefix changes the names Wolverine uses, so an application that has been running without one starts using four new
+queues and stops using the four it had.
+
+Three of those are self-healing and need nothing from you. The control queue carries `AutoDeleteOnIdle`, so Azure
+reaps the old one within minutes, and the response and retry queues hold no lasting state.
+
+The **dead letter queue is the exception**, because it is the one that holds messages somebody wanted. Whatever is
+sitting in `wolverine-dead-letter-queue` stays there, and nothing points at it any more — if you are using
+[dead letter queue recovery](/guide/messaging/transports/azureservicebus/deadletterqueues), the recovery listener
+resolves its sources from the names that resolve *now*, so those older dead letters stop being drained into durable
+storage and disappear from your monitoring.
+
+Before you adopt a prefix in an application that is already running, do one of these:
+
+* let the existing dead letter queue drain first, so there is nothing to strand; or
+* keep pointing at it by name with
+  [`DefaultDeadLetterQueueName("wolverine-dead-letter-queue")`](/guide/messaging/transports/azureservicebus/deadletterqueues#overriding-the-default-dead-letter-queue-name),
+  which is taken as fully qualified and is never prefixed. The control, response, and retry queues still get the
+  prefix, which is where the collisions actually are.
+
+None of this applies to a new application, or to one that has never enabled dead letter queue recovery.
+:::
+
 Order does not matter with respect to `EnableWolverineControlQueues()`. The control queue has to be built eagerly at
 configuration time, because Wolverine's message stores and node agent read it long before the transports initialize, so
 calling `SystemQueuePrefix()` afterwards rebuilds the control queue under the prefixed name and discards the unprefixed
