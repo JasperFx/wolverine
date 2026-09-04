@@ -71,12 +71,38 @@ public sealed partial class WolverineOptions
     {
         var stack = new StackTrace();
         var frames = stack.GetFrames();
-        var wolverineFrame = frames.LastOrDefault(x =>
-            x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly.GetName().Name == "Wolverine");
 
-        var index = Array.IndexOf(frames, wolverineFrame);
+        // Anchor at the end of the INNERMOST contiguous run of Wolverine frames — the call chain that
+        // led here — never at the last Wolverine frame anywhere in the stack. The stack does not always
+        // end at the registering caller: any Wolverine frame deeper in the stack (a callback invoked
+        // from Wolverine code, or an async continuation chain a completing Wolverine task ran inline)
+        // pulled a whole-stack anchor past the real caller, so the walk resolved whoever invoked the
+        // OUTER Wolverine code instead. Captured live in a full CoreTests run: a prior test's
+        // TrackedSession.ExecuteAndTrackAsync completed and ran its continuations inline on the
+        // thread-pool thread, straight through xunit and into the next test's synchronous UseWolverine —
+        // leaving that stale Wolverine frame 200+ frames down, where LastOrDefault anchored, found only
+        // thread-pool frames beyond it, and fell through to Assembly.GetEntryAssembly(). That is why
+        // Module1-registered hosts resolved "CoreTests" in full-suite runs while passing in isolation.
+        var index = -1;
+        for (var i = 0; i < frames.Length; i++)
+        {
+            if (!frames[i].HasMethod() || frames[i].GetMethod() is not { } method)
+            {
+                // A native transition or metadata-less frame neither extends nor ends the run
+                continue;
+            }
 
-        for (var i = index; i < frames.Length; i++)
+            if (method.DeclaringType?.Assembly.GetName().Name == "Wolverine")
+            {
+                index = i;
+                continue;
+            }
+
+            // First method-bearing frame outside Wolverine: the contiguous run has ended
+            break;
+        }
+
+        for (var i = index + 1; i < frames.Length; i++)
         {
             var candidate = frames[i];
             var assembly = candidate.GetMethod()?.DeclaringType?.Assembly;
