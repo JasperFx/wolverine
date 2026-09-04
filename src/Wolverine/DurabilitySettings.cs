@@ -84,6 +84,19 @@ public class DurabilitySettings : IDescribeMyself
     public bool TenantRegistryRequired { get; set; }
 
     /// <summary>
+    ///     How long a tenant database list discovered from a dynamic tenancy source stays current
+    ///     before the next bulk enumeration re-reads it. Concurrent callers always share one refresh
+    ///     regardless of this value. The default is 5 seconds; zero refreshes on every call.
+    /// </summary>
+    /// <remarks>
+    ///     Only applies to <see cref="DatabaseCardinality.DynamicMultiple" /> sources, where discovery
+    ///     is a round trip to the tenant registry. A lookup that misses still forces an immediate
+    ///     refresh, so a newly provisioned tenant database is never invisible for this long: the window
+    ///     only bounds how often the paths that enumerate <em>every</em> database go asking.
+    /// </remarks>
+    public TimeSpan TenantDatabaseListStaleTime { get; set; } = 5.Seconds();
+
+    /// <summary>
     /// If set, this establishes a default database schema name for all registered message
     /// storage databases. Use this with a modular monolith approach where all modules target the same physical database. The default is null.
     /// </summary>
