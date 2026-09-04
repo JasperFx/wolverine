@@ -187,6 +187,24 @@ internal class OracleAdvisoryLock : IAdvisoryLock
 
         try
         {
+            // GH-4275. Idempotent against the renewal the heartbeat drives on every tick. Oracle holds its
+            // row lock in an UNCOMMITTED transaction on a dedicated connection -- that is how the lock is
+            // held -- so without this short-circuit the next attain opens a SECOND connection whose
+            // SELECT ... FOR UPDATE NOWAIT is blocked by this node's OWN first transaction and raises
+            // ORA-00054. TryAttainLeadershipLockAsync answered false for a lock this node holds, and
+            // NodeAgentController reads that as lost leadership: a sitting Oracle leader called
+            // stepDownAsync on the very next tick after being elected, every tick, and never reached
+            // EvaluateAssignmentsAsync -- which is only on the true branch.
+            //
+            // hasLockUnsafe, not HasLock: we already hold _gate and SemaphoreSlim is not reentrant. It
+            // pings the retained connection, so this still distinguishes "we hold it" from "our session
+            // died and the row lock evaporated", which is the GH-2602 property that has to survive.
+            // Postgres, SQL Server and SQLite all open with the same short-circuit.
+            if (hasLockUnsafe(lockId))
+            {
+                return true;
+            }
+
             conn = await _source.OpenConnectionAsync(token);
 
             // Ensure lock row exists

@@ -289,12 +289,24 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
     /// modular monolith can have a tenanted ancillary store alongside the main one.
     /// </summary>
     /// <remarks>
+    /// On a single-database deployment -- including conjoined tenancy, where every tenant shares one
+    /// database -- this is the main store, exactly as <see cref="FindAllAsync()" /> and
+    /// <see cref="FindDatabasesAsync" /> answer for that case.
+    ///
     /// The tenant-aware counterpart to <see cref="FindDatabaseAsync" />. Callers that want to work against
     /// one tenant's storage directly -- querying its dead letters without hydrating every message body, say
     /// -- would otherwise have to walk <see cref="MultiTenanted" /> and resolve the tenant by hand.
     /// </remarks>
     public async ValueTask<IReadOnlyList<IMessageStore>> FindForTenantAsync(string tenantId)
     {
+        // GH-4273. The same guard FindAllAsync and FindDatabasesAsync open with. Without it this returns an
+        // EMPTY list for every tenant on a single-database deployment -- which is exactly the shape of
+        // conjoined tenancy, where every tenant lives in one database behind a tenant_id column and
+        // _multiTenanted is therefore empty. A caller asking for one tenant's storage got nothing back and
+        // no error: for the dead letter query this method exists to serve, that reads as "this tenant is
+        // clean" while its dead letter table is full.
+        if (_onlyOneDatabase) return [Main];
+
         var list = new List<IMessageStore>();
 
         foreach (var tenantedMessageStore in _multiTenanted)

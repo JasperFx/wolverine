@@ -247,6 +247,64 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// <returns></returns>
     public AmazonSqsTransportConfiguration EnableWolverineControlQueues()
     {
+        buildControlQueue();
+
+        return this;
+    }
+
+    /// <summary>
+    /// GH-4282. Prepend a prefix to the names of the queues Wolverine creates for its own use -- the
+    /// response queue, the node control queue, and the default dead letter queue -- so several unrelated
+    /// applications can share one AWS account and region without colliding. Without a prefix (the default)
+    /// those names are exactly what they have always been.
+    ///
+    /// <para>Only queues Wolverine names for itself are affected. A dead letter queue you name yourself,
+    /// through either <c>ConfigureDeadLetterQueue("x")</c> on an endpoint or
+    /// <see cref="DefaultDeadLetterQueueName" /> on the transport, is taken as fully qualified and is never
+    /// prefixed.</para>
+    ///
+    /// <para>This is a separate concept from <c>PrefixIdentifiers()</c>, which renames the *application*
+    /// queues and deliberately does not reach Wolverine's system queues. Use that when every application
+    /// queue should be renamed too, and this when cooperating applications must keep sharing the same
+    /// application queue names while still each owning their own control, response and dead letter
+    /// queues.</para>
+    ///
+    /// <para>Order does not matter with respect to <see cref="EnableWolverineControlQueues" />: calling
+    /// this afterwards rebuilds the control queue under the prefixed name.</para>
+    /// </summary>
+    /// <param name="prefix">The prefix. Sanitized to legal SQS name characters.</param>
+    public AmazonSqsTransportConfiguration SystemQueuePrefix(string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            throw new ArgumentException("The system queue prefix must be a non-empty value", nameof(prefix));
+        }
+
+        var sanitized = AmazonSqsTransport.SanitizeSqsName(prefix.Trim()).Trim('-', '_').ToLowerInvariant();
+        if (sanitized.IsEmpty())
+        {
+            throw new ArgumentException(
+                $"'{prefix}' does not leave any usable Amazon SQS queue name characters to use as a system queue prefix",
+                nameof(prefix));
+        }
+
+        Transport.SystemQueuePrefix = sanitized;
+
+        // The control queue is built eagerly (see below), so if it already exists under the unprefixed
+        // name, rebuild it here under the new one.
+        if (Transport.ControlQueue != null)
+        {
+            buildControlQueue();
+        }
+
+        return this;
+    }
+
+    // Built here and now rather than in tryBuildSystemEndpoints, because Options.Transports
+    // .NodeControlEndpoint is read by the message stores and the node agent before the transports ever
+    // initialize.
+    private void buildControlQueue()
+    {
         Transport.SystemQueuesEnabled = true;
 
         // Lowercase to match URI normalization (see tryBuildSystemEndpoints comment). In Solo mode the
@@ -256,8 +314,17 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
             ? Options.UniqueNodeId.ToString("N")
             : Options.Durability.AssignedNodeNumber.ToString();
         var queueName = AmazonSqsTransport.SanitizeSqsName(
-            "wolverine.control." + controlNode)
+            Transport.PrefixSystemQueueName("wolverine.control." + controlNode))
             .ToLowerInvariant();
+
+        // SystemQueuePrefix() can be called after EnableWolverineControlQueues(), in which case the control
+        // queue already exists under the unprefixed name. Take it back out so the transport does not go on
+        // to provision and listen to a queue nothing points at any more.
+        if (Transport.ControlQueue != null && Transport.ControlQueue.QueueName != queueName)
+        {
+            Transport.Queues.Remove(Transport.ControlQueue.QueueName);
+            Transport.SystemQueues.Remove(Transport.ControlQueue);
+        }
 
         var queue = Transport.Queues[queueName];
         queue.Mode = EndpointMode.BufferedInMemory;
@@ -270,10 +337,9 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
         queue.Configuration.Attributes["MessageRetentionPeriod"] = "300";
 
         Options.Transports.NodeControlEndpoint = queue;
+        Transport.ControlQueue = queue;
 
         Transport.SystemQueues.Add(queue);
-
-        return this;
     }
 
     /// <summary>

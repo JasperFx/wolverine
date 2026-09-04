@@ -4,6 +4,17 @@
 
 ### WolverineFx (core)
 
+- **`FindForTenantAsync` answers for a single-database deployment.** (closes
+  [#4273](https://github.com/JasperFx/wolverine/issues/4273)) The method became public API in #4268 without
+  the `_onlyOneDatabase` guard that `FindAllAsync` and `FindDatabasesAsync` both open with, so on a
+  single-database deployment it returned an **empty list for every tenant** rather than the store that
+  actually holds their data. That is the shape of Marten *conjoined* tenancy -- one database, a `tenant_id`
+  column -- because Marten only builds a `MultiTenantedMessageStore` for master-table tenancy, leaving
+  `_multiTenanted` empty. The failure was silent: the method exists so a caller can query one tenant's dead
+  letters without hydrating every message body, and an empty list reads as "this tenant is clean" while its
+  dead letter table is full. Multi-tenanted collections still resolve through the tenancy source unchanged.
+
+
 - **Concurrent callers share one tenant database list refresh.** (closes
   [#4267](https://github.com/JasperFx/wolverine/issues/4267)) `MessageStoreCollection.FindAllAsync()`
   re-enumerated a `DynamicMultiple` tenancy source on every call, and it sits on paths that are *retried on
@@ -83,6 +94,24 @@
   spurious stepdown. Every close is additionally bounded and abandoned on timeout, so a connection that
   somehow still desyncs costs seconds rather than the process.
 
+- **MySQL leadership no longer stacks its own named lock until failover is impossible.** MySQL named
+  locks stack -- `GET_LOCK` on a name the session already holds succeeds and increments that session's
+  hold count, and the manual is explicit that a lock obtained a second time must be released twice.
+  `MySqlAdvisoryLock.TryAttainLockAsync` was the only one of the five implementations without an
+  "already holds this lock" short-circuit: Postgres, SQL Server and SQLite all return early, MySQL went
+  straight to `GET_LOCK`.
+
+  Since `a84d6a262`, `NodeAgentController.DoHealthChecksInternalAsync` calls
+  `TryAttainLeadershipLockAsync` on *every* tick, including ticks where this node is already the
+  leader. So the leader's hold count grew by one per heartbeat, while the single
+  `ReleaseLeadershipLockAsync` during `stepDownAsync` / `DisableAgentsAsync` called `RELEASE_LOCK` once
+  and removed one duplicate id -- leaving the lock held server-side, and `_locks` non-empty, so the
+  connection was never closed either. A would-be new leader could then never attain, and the election
+  stalled with nothing logged. `MySqlTests.LeaderElection` was red on `main` for exactly this:
+  `take_over_leader_ship_if_leader_becomes_stale` and its racing-nodes twin both failed.
+
+  `TryAttainLockAsync` is now idempotent against a lock this session already holds, matching the
+  Postgres and SQL Server behaviour it had been missing.
 
 - **Node record descriptions no longer overflow the column and fail the insert.** (closes
   [#4246](https://github.com/JasperFx/wolverine/issues/4246)) An `AssignmentChanged` record's
@@ -114,6 +143,24 @@
 
 ### WolverineFx.Oracle
 
+- **A sitting Oracle leader stops standing down on every tick.** (closes
+  [#4275](https://github.com/JasperFx/wolverine/issues/4275)) Since the heartbeat-renewal change in
+  `a84d6a262`, `NodeAgentController` calls `TryAttainLeadershipLockAsync` on every health-check tick,
+  including ticks where this node is already the leader. Oracle holds its row lock in an *uncommitted*
+  transaction on a dedicated connection -- that is how the lock is held -- so the renewal opened a second
+  connection whose `SELECT ... FOR UPDATE NOWAIT` was blocked by the node's own first transaction and raised
+  `ORA-00054`. The renewal answered `false` for a lock the node holds, and a false renewal is how the
+  controller is told leadership was lost, so it called `stepDownAsync` on the very next tick after being
+  elected -- and never reached `EvaluateAssignmentsAsync`, which sits on the `true` branch, so the leader's
+  actual work of evaluating agent assignments never ran.
+
+  `TryAttainLockAsync` now short-circuits on a lock this node already holds, the same way Postgres, SQL
+  Server and SQLite already did. It still pings the retained connection, so a session that really did die is
+  detected exactly as before (GH-2602). The existing leadership compliance suite could not have caught this:
+  every one of its tests is about a *transition*, and a node that steps down re-attains immediately as the
+  only candidate, leaving the end state they assert on untouched.
+
+
 - **A failed attempt on the advisory lock gives its connection back.** `OracleAdvisoryLock` is the one
   implementation that opens a connection per lock rather than keeping a single shared one, and
   `TryAttainLockAsync` only released that connection on two of its exits: success, where the connection
@@ -127,6 +174,30 @@
   point the node could no longer open a connection for anything else either. The regression test drives
   six attains against a pool of three: unfixed, it spends fifteen seconds queueing on an empty pool;
   fixed, it finishes in well under one.
+
+### WolverineFx.AmazonSqs
+
+- **A configurable prefix for the queues SQS names for itself.** (closes
+  [#4282](https://github.com/JasperFx/wolverine/issues/4282)) The node control queue was composed as
+  `wolverine.control.{node}` with no service name in it, and the default dead letter queue is
+  `wolverine-dead-letter-queue`, so two unrelated applications sharing one AWS account and region -- both
+  running as node 1 -- claimed the same queues. For the dead letter queue that is damaging rather than
+  untidy: `SqsDeadLetterQueueListener` drains broker-side dead letters into the Wolverine message store, so
+  whichever application won the race recorded another service's failure in *its* store, against the wrong
+  service, in the wrong database.
+
+  `SystemQueuePrefix("my-project")` prepends a prefix, joined with the SQS identifier delimiter (`-`), to
+  the response queue, the node control queue, and the default dead letter queue. Without a prefix -- the
+  default -- every name is byte for byte what it has always been. A dead letter queue you name yourself,
+  through either `ConfigureDeadLetterQueue(...)` or `DefaultDeadLetterQueueName(...)`, is taken as fully
+  qualified and is never prefixed.
+
+  Distinct from `PrefixIdentifiers()`, which renames the *application* queues and deliberately leaves the
+  system queues alone -- cooperating applications that message each other cannot rename those. The two
+  compose. `DefaultDeadLetterQueueName` now resolves on read rather than being assigned in the constructor,
+  so bootstrap call order does not matter; and calling `SystemQueuePrefix()` after
+  `EnableWolverineControlQueues()` rebuilds the control queue under the prefixed name, since that queue has
+  to be built eagerly for `NodeControlEndpoint`.
 
 ### WolverineFx.Nats
 
