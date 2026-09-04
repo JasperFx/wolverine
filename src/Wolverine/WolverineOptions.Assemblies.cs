@@ -76,6 +76,17 @@ public sealed partial class WolverineOptions
 
         var index = Array.IndexOf(frames, wolverineFrame);
 
+        // GH-4287. Under Native AOT no stack frame carries method metadata, so the search above
+        // finds nothing and index is -1 -- and frames[-1] threw IndexOutOfRangeException out of
+        // EVERY public bootstrap entry point (UseWolverine captures the caller eagerly, and the
+        // parameterless WolverineOptions constructor does the same). When the walk cannot see any
+        // Wolverine frame there is nothing to walk out from; the entry assembly is the best -- and
+        // in an AOT/single-file publish, the correct -- answer.
+        if (index < 0)
+        {
+            return Assembly.GetEntryAssembly();
+        }
+
         for (var i = index; i < frames.Length; i++)
         {
             var candidate = frames[i];
