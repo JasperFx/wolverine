@@ -55,6 +55,19 @@ public interface ITransport
     Endpoint GetOrCreateEndpoint(Uri uri);
     Endpoint? TryGetEndpoint(Uri uri);
 
+    /// <summary>
+    ///     Map an address stamped onto an inbox row as <c>received_at</c> back to the address the listening
+    ///     endpoint is actually registered under, for the transports where the two are not the same thing.
+    ///     The database transports are the case in point: under multi-tenancy by database a single logical
+    ///     queue endpoint listens across every tenant database, and the per-database listener it owns stamps
+    ///     its own, more specific "scheme://queue/database" address onto everything it receives. Inbox
+    ///     recovery groups orphaned rows by <c>received_at</c> and then has to find the listener they belong
+    ///     to, so without this translation those rows are addressed to a listener that was never registered
+    ///     anywhere and are never recovered -- see GH-4296. Return null when the address needs no
+    ///     translation, which is the default and the answer for every broker transport.
+    /// </summary>
+    Uri? TryResolveListenerAddress(Uri receivedAt) => null;
+
     public IEnumerable<Endpoint> Endpoints();
 
     ValueTask InitializeAsync(IWolverineRuntime runtime);

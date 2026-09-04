@@ -121,6 +121,29 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
+    /// <summary>
+    ///     GH-4296. With multi-tenancy by database, the listener registered for a queue is a single
+    ///     <see cref="MultiTenantedQueueListener"/> sitting at the bare "postgresql://queue" address, while the
+    ///     per-database listeners underneath it stamp "postgresql://queue/database" onto every envelope they
+    ///     receive. Map the second shape back to the first so that inbox recovery can find the listener an
+    ///     orphaned row belongs to. Exclusive queues are excluded on purpose: those listen through the sticky
+    ///     per-tenant agents, which DO register the per-database address themselves.
+    /// </summary>
+    public override Uri? TryResolveListenerAddress(Uri receivedAt)
+    {
+        if (Databases == null) return null;
+        if (receivedAt.Scheme != Protocol) return null;
+
+        var queueName = SanitizeIdentifier(receivedAt.Host);
+        if (!Queues.Contains(queueName)) return null;
+
+        var queue = Queues[queueName];
+        if (queue.ListenerScope == ListenerScope.Exclusive) return null;
+
+        // Already the address the queue endpoint itself is registered under, so there is nothing to translate
+        return queue.Uri == receivedAt ? null : queue.Uri;
+    }
+
     protected override PostgresqlQueue findEndpointByUri(Uri uri)
     {
         // A queue reached ONLY by Uri (e.g. ListenForMessagesFrom on "postgresql://my-queue-name")
