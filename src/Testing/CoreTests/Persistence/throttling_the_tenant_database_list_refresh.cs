@@ -79,6 +79,55 @@ public class throttling_the_tenant_database_list_refresh
     }
 
     [Fact]
+    public async Task a_lookup_that_misses_forces_past_the_stale_window()
+    {
+        // GH-4267 follow-up. FindDatabaseAsync refreshes precisely BECAUSE it could not find the database,
+        // so a list the window is vouching for is the one answer it must not accept: the caller is asking
+        // about a database that, by construction, is not in that list. Left throttled, a tenant database
+        // provisioned moments ago is invisible to a single-database lookup until the window elapses -- and
+        // BuildAgentAsync turns that null into "No database with Uri ... supports a durability agent".
+        theRuntime.Options.Durability.TenantDatabaseListStaleTime = 30.Seconds();
+        theSource.RefreshAsync().Returns(Task.CompletedTask);
+
+        // Opens the window.
+        await theStores.FindAllAsync();
+        await theSource.Received(1).RefreshAsync();
+
+        // Well inside it, and a miss.
+        (await theStores.FindDatabaseAsync(new Uri("wolverinedb://fake/provisioned-a-moment-ago")))
+            .ShouldBeNull();
+
+        await theSource.Received(2).RefreshAsync();
+    }
+
+    [Fact]
+    public async Task a_forced_lookup_still_joins_a_refresh_already_under_way()
+    {
+        // Forcing skips the freshness check, NOT the single-flight guard. That guard is the half that
+        // closes the connection storm -- every concurrent caller and every retry opening its own
+        // connection to the registry -- so a miss must never be a licence to open another one.
+        theRuntime.Options.Durability.TenantDatabaseListStaleTime = 30.Seconds();
+
+        var refreshIsRunning = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        theSource.RefreshAsync().Returns(refreshIsRunning.Task);
+
+        var enumerating = theStores.FindAllAsync();
+        var missing = Enumerable
+            .Range(0, 12)
+            .Select(i => theStores.FindDatabaseAsync(new Uri($"wolverinedb://fake/missing-{i}")).AsTask())
+            .ToArray();
+
+        await theSource.Received(1).RefreshAsync();
+
+        refreshIsRunning.SetResult();
+
+        await enumerating;
+        await Task.WhenAll(missing);
+
+        await theSource.Received(1).RefreshAsync();
+    }
+
+    [Fact]
     public async Task a_failed_refresh_is_retried_by_the_next_caller()
     {
         theRuntime.Options.Durability.TenantDatabaseListStaleTime = 30.Seconds();

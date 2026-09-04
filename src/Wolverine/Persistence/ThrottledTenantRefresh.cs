@@ -39,13 +39,20 @@ internal sealed class ThrottledTenantRefresh
         _staleTime = staleTime;
     }
 
-    public Task MaybeRefreshAsync()
+    /// <param name="force">
+    /// Skip the staleness window and go to the source, while still joining a refresh that is already under
+    /// way rather than starting a second one. This is what a LOOKUP THAT MISSED needs:
+    /// <see cref="MessageStoreCollection.FindDatabaseAsync" /> refreshes precisely because it could not find
+    /// a database, so answering it from a list this class already knows is stale-by-assumption defeats the
+    /// call. The single-flight guard is the half that closes the connection storm and is kept either way.
+    /// </param>
+    public Task MaybeRefreshAsync(bool force = false)
     {
         TaskCompletionSource completion;
 
         lock (_locker)
         {
-            if (_hasRefreshed && Stopwatch.GetElapsedTime(_refreshedAt) < _staleTime())
+            if (!force && _hasRefreshed && Stopwatch.GetElapsedTime(_refreshedAt) < _staleTime())
             {
                 return Task.CompletedTask;
             }
