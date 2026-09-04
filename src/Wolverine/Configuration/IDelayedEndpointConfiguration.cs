@@ -58,7 +58,9 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
             {
                 try
                 {
-                    _endpoint.DelayedConfiguration.Remove(this);
+                    // GH-4262: through the endpoint, so this shares the endpoint's lock with
+                    // RegisterDelayedConfiguration and with Endpoint.Compile's snapshot.
+                    _endpoint.RemoveDelayedConfiguration(this);
                 }
                 catch (Exception e)
                 {
@@ -71,6 +73,15 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
 
     protected void add(Action<TEndpoint> action)
     {
-        _configurations.Add(action);
+        // GH-4262. _locker, because Apply() iterates _configurations while holding it. The base
+        // constructor above publishes `this` into the endpoint's DelayedConfiguration list BEFORE the
+        // derived constructor body has finished calling add(), so a concurrent Endpoint.Compile can
+        // legitimately pick this instance up and Apply() it while these adds are still landing. Without
+        // the lock that is one List<T> being iterated and mutated at once, and the torn read surfaces as
+        // a NullReferenceException on `action(endpoint)`.
+        lock (_locker)
+        {
+            _configurations.Add(action);
+        }
     }
 }
