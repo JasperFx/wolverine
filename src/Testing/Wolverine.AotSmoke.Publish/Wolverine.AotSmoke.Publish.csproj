@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #3 (GH-4287).
+
+        The other two smoke projects never leave CoreCLR: Wolverine.AotSmoke is
+        trim ANALYSIS (compile-time IL warnings), and Wolverine.AotSmoke.Static
+        runs the static-load contract under `dotnet run`. Neither executes a
+        real `PublishAot` binary — which is exactly why every crash in GH-4287
+        shipped unseen: GetReferencedAssemblies() throwing, the stack walk with
+        no frame metadata, and Activator.CreateInstance over trimmed closed
+        generics all behave fine under the JIT and only fail in a native image.
+
+        This project closes that gap. CIAotSmoke publishes it with Native AOT
+        and RUNS the produced binary; the program boots a Wolverine host through
+        the ordinary public UseWolverine path (TypeLoadMode.Static, committed
+        pre-gen under Internal/Generated/), dispatches a message, and asserts
+        the handler fired.
+
+        Known upstream blocker: JasperFx.AddJasperFx still crashes under Native
+        AOT (jasperfx#742). Until a JasperFx release with that guard is pinned,
+        the program treats exactly that crash signature as a tolerated,
+        loudly-reported KNOWN BLOCKER and exits 0 — reaching it at all proves
+        the Wolverine-side bootstrap fixes hold, and any OTHER failure exits
+        non-zero. Once the pinned JasperFx moves past #742, the smoke
+        automatically starts asserting the full boot + dispatch.
+
+        Refresh procedure for the committed pre-gen when codegen output drifts
+        (from this project's directory):
+
+          dotnet run codegen write
+
+        then re-check the [DynamicDependency] roots in Program.cs against the
+        regenerated type names and commit. The hand-written roots are today's
+        documented AOT contract; jasperfx#743 tracks emitting them from codegen
+        itself.
+        -->
+        <PublishAot>true</PublishAot>
+        <StripSymbols>false</StripSymbols>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- This smoke exercises RUNTIME behavior of a native image. The trim-analysis
+             warning wall is Wolverine.AotSmoke's job; here it would only obscure the signal. -->
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+</Project>
