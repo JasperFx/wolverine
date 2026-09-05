@@ -203,7 +203,11 @@ SELECT message.{DatabaseConstants.Body} from message;
     {
         var builder = new BatchBuilder();
 
-        builder.Append($"delete FROM {_queueTableName} where id in (select id from {_quotedSchemaName}.{DatabaseConstants.IncomingTable})");
+        // GH-4316: rows this anti-duplicate delete can legitimately hit were put in the inbox by
+        // this queue's own earlier pop (a crash between the inbox INSERT below and the queue
+        // DELETE), and that INSERT always stamps received_at with this listener's address — so
+        // scope the probe instead of correlating against the entire inbox.
+        builder.Append($"delete FROM {_queueTableName} where id in (select id from {_quotedSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.ReceivedAt} = '{Address}')");
         builder.StartNewCommand();
         builder.Append($"create temporary table temp_pop_{_queueName} ON COMMIT DROP as select id, body, message_type, keep_until from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit ");
         builder.AppendParameter(count);

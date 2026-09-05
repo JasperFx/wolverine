@@ -77,7 +77,7 @@ DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
 IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
 SET NOCOUNT ON;
 
-delete FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable});
+delete FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.ReceivedAt} = '{Address}');
 select top(@count) id, body, message_type, keep_until into #temp_pop_{queue.Name}
 FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
 ORDER BY {queueTableIdentifier}.{orderBy};

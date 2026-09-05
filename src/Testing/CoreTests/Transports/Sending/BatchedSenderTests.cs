@@ -114,6 +114,47 @@ public class BatchedSenderTests
         sw.Elapsed.ShouldBeLessThan(500.Milliseconds());
     }
 
+    // The Channels rewrite of this pipeline kept the per-batch decrement of _queued but lost
+    // the enqueue-side increment, so QueuedCount drifted negative on every batched sender.
+    [Fact]
+    public async Task queued_count_tracks_posted_minus_flushed_envelopes()
+    {
+        var endpoint = new TcpEndpoint(2259)
+        {
+            MessageBatchSize = 100,
+            MessageBatchTimeout = 50.Milliseconds()
+        };
+
+        var gate = new TaskCompletionSource();
+        var protocol = Substitute.For<ISenderProtocol>();
+        protocol.SendBatchAsync(Arg.Any<ISenderCallback>(), Arg.Any<OutgoingMessageBatch>())
+            .Returns(_ => gate.Task);
+
+        using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
+        sender.RegisterCallback(Substitute.For<ISenderCallback>());
+
+        sender.QueuedCount.ShouldBe(0);
+
+        for (var i = 0; i < 5; i++)
+        {
+            await sender.SendAsync(Envelope.ForPing(TransportConstants.LocalUri));
+        }
+
+        // The protocol is gated, so all five envelopes are accepted but none has flushed
+        sender.QueuedCount.ShouldBe(5);
+
+        gate.SetResult();
+
+        var deadline = DateTimeOffset.UtcNow.Add(5.Seconds());
+        while (sender.QueuedCount != 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            sender.QueuedCount.ShouldBeGreaterThanOrEqualTo(0);
+            await Task.Delay(25.Milliseconds(), TestContext.Current.CancellationToken);
+        }
+
+        sender.QueuedCount.ShouldBe(0);
+    }
+
     [Fact]
     public void default_batch_timeout_is_250ms()
     {
