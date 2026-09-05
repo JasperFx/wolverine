@@ -234,12 +234,17 @@ internal class Executor : IExecutor
 
         envelope.Attempts++;
 
-        using var timeout = new CancellationTokenSource(_timeout);
-        using var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellation);
+        // GH-4322: one linked source with CancelAfter replaces the previous timeout-CTS +
+        // linked-CTS pair — the token still cancels on whichever of the execution timeout or the
+        // caller's token fires first, at half the per-message allocations and registrations.
+        using var cts = cancellation.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellation)
+            : new CancellationTokenSource();
+        cts.CancelAfter(_timeout);
 
         try
         {
-            await Handler.HandleAsync(context, combined.Token).ConfigureAwait(false);
+            await Handler.HandleAsync(context, cts.Token).ConfigureAwait(false);
 
             if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
