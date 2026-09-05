@@ -1,3 +1,4 @@
+using ImTools;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using Wolverine.Runtime.Serialization;
@@ -7,6 +8,24 @@ namespace Wolverine.Nats.Internal;
 
 public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
 {
+    // GH-4328: one Uri per received message was being parsed from an interpolated string, but the
+    // subject on an incoming message is the listener's own subscribed subject — a small bounded
+    // set. Reply subjects are deliberately NOT cached: request/reply uses ephemeral per-request
+    // _INBOX.* subjects and caching those would grow without bound.
+    private static ImHashMap<string, Uri> _subjectUris = ImHashMap<string, Uri>.Empty;
+
+    internal static Uri UriForIncomingSubject(string subject)
+    {
+        if (_subjectUris.TryFind(subject, out var uri))
+        {
+            return uri;
+        }
+
+        uri = new Uri($"nats://subject/{subject}");
+        _subjectUris = _subjectUris.AddOrUpdate(subject, uri);
+        return uri;
+    }
+
     private readonly ITenantSubjectMapper? _tenantMapper;
     
     public NatsEnvelopeMapper(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper = null)
@@ -19,6 +38,12 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
     {
         headers[key] = value;
     }
+
+    // GH-4328: writeIncomingHeaders copies every wire header into Envelope.Headers with the same
+    // keys and stringification the per-property reader would produce, so let the ~20 reserved
+    // property reads answer from the copied dictionary instead of re-probing (and re-stringifying
+    // from) the transport message on every one. Same opt-in RabbitMQ and Kafka took in GH-3490/92.
+    protected override bool preferCopiedIncomingHeaders => true;
 
     protected override bool tryReadIncomingHeader(
         NatsMsg<byte[]> incoming,
@@ -45,7 +70,7 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
     protected override void writeIncomingHeaders(NatsMsg<byte[]> incoming, Envelope envelope)
     {
         envelope.Data = incoming.Data;
-        envelope.Destination = new Uri($"nats://subject/{incoming.Subject}");
+        envelope.Destination = UriForIncomingSubject(incoming.Subject);
 
         if (_tenantMapper != null)
         {
@@ -90,6 +115,12 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
         headers[key] = value;
     }
 
+    // GH-4328: writeIncomingHeaders copies every wire header into Envelope.Headers with the same
+    // keys and stringification the per-property reader would produce, so let the ~20 reserved
+    // property reads answer from the copied dictionary instead of re-probing (and re-stringifying
+    // from) the transport message on every one. Same opt-in RabbitMQ and Kafka took in GH-3490/92.
+    protected override bool preferCopiedIncomingHeaders => true;
+
     protected override bool tryReadIncomingHeader(
         INatsJSMsg<byte[]> incoming,
         string key,
@@ -115,7 +146,7 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
     protected override void writeIncomingHeaders(INatsJSMsg<byte[]> incoming, Envelope envelope)
     {
         envelope.Data = incoming.Data;
-        envelope.Destination = new Uri($"nats://subject/{incoming.Subject}");
+        envelope.Destination = NatsEnvelopeMapper.UriForIncomingSubject(incoming.Subject);
 
         if (_tenantMapper != null)
         {
