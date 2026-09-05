@@ -42,11 +42,11 @@ public class RecurringMessageSamples
             // Simplest possible usage: a message type with a public, no-argument
             // constructor, published on a cron schedule. The schedule's name defaults
             // to the message type's name
-            opts.Schedules.RecurringMessage<RunNightlyRollup>("0 2 * * *");
+            opts.Schedules.ScheduleRecurring<RunNightlyRollup>("0 2 * * *");
 
             // Or build the message per occurrence — the factory is handed the
             // occurrence time, so a message can describe the window it covers
-            opts.Schedules.RecurringMessage(
+            opts.Schedules.ScheduleRecurring(
                 "daily-report",
                 "0 9 * * *",
                 occurrence => new BuildDailyReport(occurrence.AddDays(-1), occurrence));
@@ -57,7 +57,7 @@ public class RecurringMessageSamples
                 "0 9 * * *",
                 TimeZoneInfo.FindSystemTimeZoneById("America/Chicago"));
 
-            opts.Schedules.RecurringMessage<SendMorningDigest>(nineAmCentral);
+            opts.Schedules.ScheduleRecurring<SendMorningDigest>(nineAmCentral);
         });
 
         #endregion

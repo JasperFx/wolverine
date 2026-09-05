@@ -26,7 +26,7 @@ public class pause_and_resume_on_a_storeless_host
             {
                 // See recurring_messages_on_a_storeless_host for why the assembly pin matters (GH-3521).
                 opts.ApplicationAssembly = typeof(pause_and_resume_on_a_storeless_host).Assembly;
-                opts.Schedules.RecurringMessage<PendingRecurringMessage>("0 9 * * *");
+                opts.Schedules.ScheduleRecurring<PendingRecurringMessage>("0 9 * * *");
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.GetRuntime();

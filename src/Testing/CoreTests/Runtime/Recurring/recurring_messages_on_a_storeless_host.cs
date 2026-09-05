@@ -37,7 +37,7 @@ public class recurring_messages_on_a_storeless_host
                 // Every five seconds — the minimum legal cadence — so this is a REAL end-to-end
                 // run: the agent pre-schedules the next occurrence, the local queue's in-memory
                 // scheduler fires it at its time, and the handler receives it, within seconds.
-                opts.Schedules.RecurringMessage<StorelessRecurringMessage>("*/5 * * * * *");
+                opts.Schedules.ScheduleRecurring<StorelessRecurringMessage>("*/5 * * * * *");
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.GetRuntime();
@@ -87,7 +87,7 @@ public class recurring_messages_on_a_storeless_host
                 // this host then never discovers the handlers below, so the occurrence has no route
                 // and silently never arrives. Pin it, per the divergence warning's own advice.
                 opts.ApplicationAssembly = typeof(recurring_messages_on_a_storeless_host).Assembly;
-                opts.Schedules.RecurringMessage<PendingRecurringMessage>("0 9 * * *");
+                opts.Schedules.ScheduleRecurring<PendingRecurringMessage>("0 9 * * *");
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.GetRuntime();
@@ -121,7 +121,7 @@ public class recurring_messages_on_a_storeless_host
                 // this host then never discovers the handlers below, so the occurrence has no route
                 // and silently never arrives. Pin it, per the divergence warning's own advice.
                 opts.ApplicationAssembly = typeof(recurring_messages_on_a_storeless_host).Assembly;
-                opts.Schedules.RecurringMessage<PendingRecurringMessage>("0 9 * * *");
+                opts.Schedules.ScheduleRecurring<PendingRecurringMessage>("0 9 * * *");
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.GetRuntime();
@@ -144,7 +144,7 @@ public class recurring_messages_on_a_storeless_host
                 .UseWolverine(opts =>
                 {
                     opts.Durability.Mode = DurabilityMode.Serverless;
-                    opts.Schedules.RecurringMessage<PendingRecurringMessage>("0 9 * * *");
+                    opts.Schedules.ScheduleRecurring<PendingRecurringMessage>("0 9 * * *");
                 }).StartAsync(TestContext.Current.CancellationToken);
         });
 
@@ -161,7 +161,7 @@ public class recurring_messages_on_a_storeless_host
                 .UseWolverine(opts =>
                 {
                     opts.Durability.Mode = DurabilityMode.MediatorOnly;
-                    opts.Schedules.RecurringMessage<PendingRecurringMessage>("0 9 * * *");
+                    opts.Schedules.ScheduleRecurring<PendingRecurringMessage>("0 9 * * *");
                 }).StartAsync(TestContext.Current.CancellationToken);
         });
 

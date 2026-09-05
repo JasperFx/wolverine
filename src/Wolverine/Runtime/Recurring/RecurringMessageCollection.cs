@@ -34,17 +34,17 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
     /// Schedule a message with a public no-argument constructor on a cron expression. The schedule
     /// name defaults to the message type's name.
     /// </summary>
-    public RecurringMessage RecurringMessage<T>(string cronExpression, TimeZoneInfo? timeZone = null)
+    public RecurringMessage ScheduleRecurring<T>(string cronExpression, TimeZoneInfo? timeZone = null)
         where T : new()
     {
-        return RecurringMessage<T>(new CronSchedule(cronExpression, timeZone));
+        return ScheduleRecurring<T>(new CronSchedule(cronExpression, timeZone));
     }
 
     /// <summary>
     /// Schedule a message with a public no-argument constructor on an already-parsed
     /// <see cref="CronSchedule" />. The schedule name defaults to the message type's name.
     /// </summary>
-    public RecurringMessage RecurringMessage<T>(CronSchedule schedule) where T : new()
+    public RecurringMessage ScheduleRecurring<T>(CronSchedule schedule) where T : new()
     {
         return register(new RecurringMessage(typeof(T).Name, schedule, typeof(T), _ => new T()!));
     }
@@ -53,16 +53,16 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
     /// Schedule a factory-built message on a cron expression. The factory is handed the occurrence
     /// time, so a message can describe the window it covers.
     /// </summary>
-    public RecurringMessage RecurringMessage<T>(string name, string cronExpression,
+    public RecurringMessage ScheduleRecurring<T>(string name, string cronExpression,
         Func<DateTimeOffset, T> creator, TimeZoneInfo? timeZone = null) where T : class
     {
-        return RecurringMessage(name, new CronSchedule(cronExpression, timeZone), creator);
+        return ScheduleRecurring(name, new CronSchedule(cronExpression, timeZone), creator);
     }
 
     /// <summary>
     /// Schedule a factory-built message on an already-parsed <see cref="CronSchedule" />.
     /// </summary>
-    public RecurringMessage RecurringMessage<T>(string name, CronSchedule schedule,
+    public RecurringMessage ScheduleRecurring<T>(string name, CronSchedule schedule,
         Func<DateTimeOffset, T> creator) where T : class
     {
         if (creator == null)

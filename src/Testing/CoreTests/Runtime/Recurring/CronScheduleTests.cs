@@ -122,7 +122,7 @@ public class CronScheduleTests
     public void the_occurrence_deduplication_id_is_time_zone_independent()
     {
         var message = new WolverineOptions().Schedules
-            .RecurringMessage<SampleRecurringMessage>("0 9 * * *", Chicago);
+            .ScheduleRecurring<SampleRecurringMessage>("0 9 * * *", Chicago);
 
         // The same instant, spelled in two offsets, must produce ONE id — this is what makes a
         // failover re-publish collapse instead of double-firing.

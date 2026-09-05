@@ -167,7 +167,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     {
         var host = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("hourly-compliance", "0 * * * *",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("hourly-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });
 
@@ -204,7 +204,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     {
         var host = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("verified-compliance", "0 * * * *",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("verified-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });
 
@@ -252,7 +252,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     {
         var host = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("paused-compliance", "0 * * * *",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("paused-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });
 
@@ -294,7 +294,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         // be durable state, not agent memory.
         var first = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("restartable-compliance", "0 * * * *",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("restartable-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });
 
@@ -312,7 +312,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         // honours the row, nothing is ever even scheduled.
         var second = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("restartable-compliance",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("restartable-compliance",
                 "*/10 * * * * *", _ => new RecurringComplianceMessage());
         }, clean: false);
 
@@ -360,7 +360,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         // Phase 1: publish an occurrence on a 15s cadence, remember its envelope ids, stop.
         var first = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("adopted-compliance",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("adopted-compliance",
                 "*/15 * * * * *", _ => new RecurringComplianceMessage());
         });
 
@@ -373,7 +373,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         // row rather than double-publish, and the occurrence must actually fire.
         var second = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("adopted-compliance",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("adopted-compliance",
                 "*/15 * * * * *", _ => new RecurringComplianceMessage());
         }, clean: false);
 
@@ -397,7 +397,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     {
         var host = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("known-compliance", "0 * * * *",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("known-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });
 
@@ -437,7 +437,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         // provisions both.
         var with = await buildHost(opts =>
         {
-            opts.Schedules.RecurringMessage<RecurringComplianceMessage>("neutrality-compliance", "0 * * * *",
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("neutrality-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });
 

@@ -28,8 +28,8 @@ public class recurring_schedules_in_capabilities_and_event_model : IAsyncLifetim
                 opts.ApplicationAssembly = typeof(recurring_schedules_in_capabilities_and_event_model).Assembly;
                 opts.ServiceName = "recurring-capabilities";
 
-                opts.Schedules.RecurringMessage<PendingRecurringMessage>("0 9 * * *");
-                opts.Schedules.RecurringMessage("nightly", "0 2 * * *",
+                opts.Schedules.ScheduleRecurring<PendingRecurringMessage>("0 9 * * *");
+                opts.Schedules.ScheduleRecurring("nightly", "0 2 * * *",
                     _ => new NightlyCapabilityMessage(), TimeZoneInfo.Utc);
             }).StartAsync(TestContext.Current.CancellationToken);
     }
