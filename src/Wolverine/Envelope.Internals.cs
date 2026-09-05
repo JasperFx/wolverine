@@ -464,7 +464,7 @@ public partial class Envelope
         // An occurrence published by opts.Schedules carries its schedule's name in a header;
         // surfacing it as a tag is what lets trace consumers (CritterWatch among them) attribute
         // the handler span to the cron job that caused it.
-        if (Headers.TryGetValue(RecurringMessage.HeaderKey, out var scheduleName))
+        if (TryGetHeader(RecurringMessage.HeaderKey, out var scheduleName))
         {
             activity.MaybeSetTag(WolverineTracing.ScheduleName, scheduleName);
         }

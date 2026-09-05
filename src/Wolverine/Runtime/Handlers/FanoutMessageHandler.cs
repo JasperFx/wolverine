@@ -14,7 +14,7 @@ internal class FanoutMessageHandler<T> : MessageHandler<T>
     {
         var incoming = context.Envelope!;
         DeliveryOptions? options = null;
-        if (incoming.Headers.Count > 0)
+        if (incoming.HasHeaders)
         {
             options = new DeliveryOptions();
             foreach (var header in incoming.Headers)
