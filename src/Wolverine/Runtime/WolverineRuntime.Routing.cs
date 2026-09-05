@@ -5,6 +5,7 @@ using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -212,6 +213,30 @@ public partial class WolverineRuntime
 {
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
+    // GH-4287. Router factories for the framework's own message types, closed by DIRECT
+    // construction. Under Native AOT the reflective CloseAndBuildAs miss path below throws
+    // MissingMethodException -- the closed generic's constructor metadata is trimmed -- and
+    // PrepopulateRoutingCache walks every one of these types at startup, so an AOT publish died
+    // on EmptyMessageRouter<Acknowledgement> / MessageRouter<IAgentCommand> before it could
+    // accept a single message. Direct construction roots the instantiations for the AOT
+    // compiler; user message types remain the app's rooting / source-generation story (#2769).
+    // Only consulted on a routing-cache miss, so a plain dictionary is fine here.
+    private static readonly Dictionary<Type, Func<WolverineRuntime, List<IMessageRoute>, IMessageRouter>>
+        _frameworkRouterFactories = new()
+        {
+            [typeof(Envelope)] = routerFactory<Envelope>(),
+            [typeof(Acknowledgement)] = routerFactory<Acknowledgement>(),
+            [typeof(FailureAcknowledgement)] = routerFactory<FailureAcknowledgement>(),
+            [typeof(IAgentCommand)] = routerFactory<IAgentCommand>()
+        };
+
+    private static Func<WolverineRuntime, List<IMessageRoute>, IMessageRouter> routerFactory<T>()
+    {
+        return (runtime, routes) => routes.Count != 0
+            ? new MessageRouter<T>(runtime, routes)
+            : new EmptyMessageRouter<T>(runtime);
+    }
+
 
     // RoutingFor is the per-message-type router-resolution entry point. The cache-
     // miss path closes MessageRouter<T> / EmptyMessageRouter<T> over the runtime-
@@ -246,9 +271,14 @@ public partial class WolverineRuntime
 
         var routes = findRoutes(messageType);
 
-        var router = routes.Count != 0
-            ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
-            : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
+        // See _frameworkRouterFactories above (GH-4287) -- the framework's own message types get
+        // directly-constructed routers so a Native AOT publish never pays (or crashes on) the
+        // reflective close for types the application author cannot root.
+        var router = _frameworkRouterFactories.TryGetValue(messageType, out var factory)
+            ? factory(this, routes)
+            : routes.Count != 0
+                ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
+                : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
 
         // Skip framework-internal types (IAgentCommand, INotToBeRouted, IInternalMessage,
         // and types from assemblies marked [ExcludeFromServiceCapabilities]) so they

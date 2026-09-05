@@ -17,6 +17,27 @@
   walk now anchors at the end of the innermost *contiguous* run of Wolverine frames, the call chain that
   actually led to the capture.
 
+- **A Native AOT publish gets through Wolverine's own bootstrap.** (GH
+  [#4287](https://github.com/JasperFx/wolverine/issues/4287)) Four distinct Wolverine-side crashes killed
+  every `PublishAot` application at startup, all invisible under the JIT: the caller-assembly stack walk
+  read `frames[-1]` when no frame carries method metadata (an `IndexOutOfRangeException` out of **every**
+  public `UseWolverine`/`AddWolverine` path); the module-assembly reference-graph walk called
+  `GetReferencedAssemblies()`, which the Native AOT runtime does not implement; and both
+  `IntrinsicSerializer.Prepopulate` and the routing cache's `RoutingFor` closed generics reflectively over
+  the framework's own message types (`Acknowledgement`, `FailureAcknowledgement`, `Envelope`,
+  `IAgentCommand`), whose trimmed constructor metadata made `Activator.CreateInstance` throw
+  `MissingMethodException` — types no application author can root around. The walk now falls back to the
+  entry assembly, the reference-graph walk stops rather than dying, and the framework message types get
+  directly-constructed serializers and routers, which both roots the closed generics for the AOT compiler
+  and costs nothing under the JIT. A new `Wolverine.AotSmoke.Publish` smoke in the `CIAotSmoke` lane does a
+  REAL `PublishAot` and executes the native binary — the coverage gap that let all of this ship — and
+  currently tolerates (loudly) the one remaining upstream blocker,
+  [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742), deepening to a full boot + dispatch
+  assertion automatically once a fixed JasperFx is pinned. Verified end-to-end against a locally patched
+  JasperFx: the native binary boots through plain `UseWolverine` with automatic extension discovery and
+  handles a message. Emitting the remaining hand-written `[DynamicDependency]` roots from `codegen write`
+  itself is tracked by [jasperfx#743](https://github.com/JasperFx/jasperfx/issues/743).
+
 - **Inbox recovery finds tenanted database-queue listeners.** (closes
   [#4296](https://github.com/JasperFx/wolverine/issues/4296)) A PostgreSQL or SQL Server transport queue that is
   multi-tenanted by database is served by a single `MultiTenantedQueueListener` registered under the bare
