@@ -25,6 +25,18 @@
   handles a message. Emitting the remaining hand-written `[DynamicDependency]` roots from `codegen write`
   itself is tracked by [jasperfx#743](https://github.com/JasperFx/jasperfx/issues/743).
 
+- **Inbox recovery finds tenanted database-queue listeners.** (closes
+  [#4296](https://github.com/JasperFx/wolverine/issues/4296)) A PostgreSQL or SQL Server transport queue that is
+  multi-tenanted by database is served by a single `MultiTenantedQueueListener` registered under the bare
+  `postgresql://queue` address, but the per-database listeners it owns each stamp their **own**, more specific
+  `postgresql://queue/database` address into `received_at`. Inbox recovery groups orphaned rows by `received_at`
+  and then asks the endpoint collection for the listener they belong to, so every envelope a dying node left
+  behind was addressed to a listener that had never been registered under that name. The lookup missed, and
+  those rows sat in the tenant database as `owner_id = 0` forever -- not eventually, ever, on a cluster whose
+  listener for that logical queue was very much alive. `FindListenerCircuit` now asks the transport to translate
+  a `received_at` address back to the address its listener is actually registered under before giving up.
+  Sticky (exclusive) per-tenant listeners are untouched: those register the per-database address themselves.
+
 - **Global partitioning over sharded database queues executes messages again.** (closes
   [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
   `UseShardedSqlServerQueues` (and the PostgreSQL twin), any message that actually round-tripped through a
