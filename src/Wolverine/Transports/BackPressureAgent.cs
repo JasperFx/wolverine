@@ -1,52 +1,44 @@
-using System.Timers;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Agents;
-using Timer = System.Timers.Timer;
 
 namespace Wolverine.Transports;
 
 internal class BackPressureAgent : IDisposable
 {
-    // At the 2 second polling interval, this logs roughly once a minute while latched
+    // At the 2 second sweep interval, this logs roughly once a minute while latched
     internal const int LatchedChecksPerReminder = 30;
 
     private readonly IListeningAgent _agent;
     private readonly Endpoint _endpoint;
     private readonly IWolverineObserver _observer;
     private readonly ILogger _logger;
-    private Timer? _timer;
+    // GH-4321: the shared runtime sweeper replaced the per-endpoint System.Timers.Timer; null in
+    // unit tests that drive CheckNowAsync directly
+    private readonly BackPressureSweeper? _sweeper;
     private int _latchedChecks;
 
-    public BackPressureAgent(IListeningAgent agent, Endpoint endpoint, IWolverineObserver observer, ILogger logger)
+    public BackPressureAgent(IListeningAgent agent, Endpoint endpoint, IWolverineObserver observer, ILogger logger,
+        BackPressureSweeper? sweeper = null)
     {
         _agent = agent;
         _endpoint = endpoint;
         _observer = observer;
         _logger = logger;
+        _sweeper = sweeper;
     }
 
     public void Dispose()
     {
-        _timer?.Dispose();
+        _sweeper?.Unregister(this);
     }
 
     public void Start()
     {
-        _timer = new Timer
-        {
-            AutoReset = true, Enabled = true, Interval = 2000
-        };
-
-        _timer.Elapsed += TimerOnElapsed;
+        _sweeper?.Register(this);
     }
 
-    private void TimerOnElapsed(object? sender, ElapsedEventArgs e)
-    {
-        _ = checkSafelyAsync();
-    }
-
-    private async Task checkSafelyAsync()
+    internal async Task CheckSafelyAsync()
     {
         // An exception escaping CheckNowAsync from the timer used to be an unobserved ValueTask
         // fault — a listener whose restart kept throwing simply never resumed, with nothing in the

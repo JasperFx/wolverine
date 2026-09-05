@@ -116,7 +116,8 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         if (endpoint.ShouldEnforceBackPressure())
         {
-            _backPressureAgent = new BackPressureAgent(this, endpoint, runtime.Observer, _logger);
+            _backPressureAgent = new BackPressureAgent(this, endpoint, runtime.Observer, _logger,
+                runtime.BackPressureSweeper);
             _backPressureAgent.Start();
         }
     }

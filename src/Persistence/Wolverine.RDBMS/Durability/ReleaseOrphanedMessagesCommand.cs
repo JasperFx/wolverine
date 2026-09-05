@@ -66,27 +66,55 @@ internal class ReleaseOrphanedMessagesCommand : IAgentCommand
         var incoming = _database.DbObjectNameFor(DatabaseConstants.IncomingTable);
         var outgoing = _database.DbObjectNameFor(DatabaseConstants.OutgoingTable);
 
-        await sweepAsync(incoming, cancellationToken);
-        await sweepAsync(outgoing, cancellationToken);
-
-        return AgentCommands.Empty;
-    }
-
-    private async Task sweepAsync(DbObjectName table, CancellationToken cancellationToken)
-    {
-        int[] dead;
+        // GH-4321: the inbox and outbox sweeps used to each open their own connection and each
+        // re-read the identical live-node list — 2 connection acquisitions and 4 queries per
+        // polling cycle in a healthy fleet where the sweep finds nothing. One connection and one
+        // node read now serve both. The GH-3850 owners-then-nodes ordering survives intact:
+        // BOTH owner reads happen before the single live-node read, so a node registering in the
+        // gap is in the node list and cannot own anything either owner read saw.
+        int[] deadIncoming;
+        int[] deadOutgoing;
 
         try
         {
-            dead = await findDeadOwnersAsync(table, cancellationToken);
+            await using var conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
+
+            try
+            {
+                var incomingOwners = await fetchNodeNumbersAsync(
+                    conn.CreateCommand(_database.DistinctOwnerIdsSql(incoming)), cancellationToken);
+                var outgoingOwners = await fetchNodeNumbersAsync(
+                    conn.CreateCommand(_database.DistinctOwnerIdsSql(outgoing)), cancellationToken);
+
+                var live = await liveOwnersAsync(conn, cancellationToken);
+                if (live == null)
+                {
+                    return AgentCommands.Empty;
+                }
+
+                deadIncoming = DetermineDeadOwners(incomingOwners, live, _highWaterMark);
+                deadOutgoing = DetermineDeadOwners(outgoingOwners, live, _highWaterMark);
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
         }
         catch (Exception e)
         {
             _logger.LogError(e,
-                "Error determining orphaned message owners in {Table} of database {Database}", table, _database.Name);
-            return;
+                "Error determining orphaned message owners in database {Database}", _database.Name);
+            return AgentCommands.Empty;
         }
 
+        await sweepAsync(incoming, deadIncoming, cancellationToken);
+        await sweepAsync(outgoing, deadOutgoing, cancellationToken);
+
+        return AgentCommands.Empty;
+    }
+
+    private async Task sweepAsync(DbObjectName table, int[] dead, CancellationToken cancellationToken)
+    {
         // The steady state, and the whole point of the change: nothing owned by a departed node, so
         // nothing is read and nothing is written.
         if (dead.Length == 0) return;
@@ -113,37 +141,15 @@ internal class ReleaseOrphanedMessagesCommand : IAgentCommand
         }
     }
 
-    /// <summary>
-    /// The owners present in the table that no live node accounts for.
-    /// </summary>
-    private async Task<int[]> findDeadOwnersAsync(DbObjectName table, CancellationToken cancellationToken)
-    {
-        await using var conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
-
-        try
-        {
-            // ORDER MATTERS: the owners present in the table are read BEFORE the live node list, and the
-            // two reads are not atomic with respect to a node registering in between.
-            //
-            //   owners-then-nodes: a node that registers in the gap cannot have written any envelope the
-            //   first read saw, and IS in the second read, so it is never judged dead.
-            //
-            //   nodes-then-owners: that same node is absent from the node list and its brand-new envelopes
-            //   ARE in the owner list -- so its live, in-flight work gets reset to owner_id = 0 and handed
-            //   to somebody else. That is precisely the failure GH-3850 exists to prevent.
-            var owners = await fetchNodeNumbersAsync(
-                conn.CreateCommand(_database.DistinctOwnerIdsSql(table)), cancellationToken);
-
-            var live = await liveOwnersAsync(conn, cancellationToken);
-            if (live == null) return [];
-
-            return DetermineDeadOwners(owners, live, _highWaterMark);
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
+    // ORDER MATTERS in ExecuteAsync above: the owners present in the tables are read BEFORE the live
+    // node list, and the reads are not atomic with respect to a node registering in between.
+    //
+    //   owners-then-nodes: a node that registers in the gap cannot have written any envelope the
+    //   owner reads saw, and IS in the node read, so it is never judged dead.
+    //
+    //   nodes-then-owners: that same node is absent from the node list and its brand-new envelopes
+    //   ARE in the owner list -- so its live, in-flight work gets reset to owner_id = 0 and handed
+    //   to somebody else. That is precisely the failure GH-3850 exists to prevent.
 
     /// <summary>
     /// Which of the owners actually present in the table have departed. Pure, and deliberately separated

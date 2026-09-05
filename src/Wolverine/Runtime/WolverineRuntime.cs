@@ -20,6 +20,7 @@ using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Stubs;
+using Wolverine.Transports;
 using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime;
@@ -113,6 +114,10 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         Cancellation = DurabilitySettings.Cancellation;
         _agentCancellation = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
 
+        // GH-4321: one shared 2s sweep serves every back-pressure-enforcing listener; its loop
+        // only starts when the first agent registers and dies with Cancellation
+        BackPressureSweeper = new BackPressureSweeper(Logger, Cancellation);
+
         Tracker = new WolverineTracker(Logger);
 
         _endpoints = new EndpointCollection(this);
@@ -189,6 +194,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     /// See wolverine#2726.
     /// </summary>
     internal ObjectPool<Envelope> EnvelopePool { get; }
+
+    internal BackPressureSweeper BackPressureSweeper { get; }
 
     public HandlerGraph Handlers { get; }
 
