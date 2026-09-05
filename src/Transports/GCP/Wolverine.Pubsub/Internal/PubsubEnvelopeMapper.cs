@@ -28,7 +28,10 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>
                     return;
                 }
 
-                m.Data = ByteString.CopyFrom(e.Data);
+                // GH-4327: UnsafeWrap shares the buffer instead of copying it — Wolverine never
+                // mutates Envelope.Data after handing it to the sender, so the wrap is safe and
+                // removes a payload-sized allocation per outgoing message
+                m.Data = UnsafeByteOperations.UnsafeWrap(e.Data);
             }
         );
 
@@ -39,7 +42,7 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>
 
     public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
     {
-        message.Data = ByteString.CopyFrom(outgoing.Data);
+        message.Data = UnsafeByteOperations.UnsafeWrap(outgoing.Data);
         message.Attributes["destination"] = outgoing.Destination.ToString();
         message.Attributes["batched"] = "1";
     }
