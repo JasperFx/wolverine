@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -95,9 +96,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void Received(Envelope envelope)
     {
-        var isExternal = envelope.Destination != null
-                         && !envelope.Destination.Scheme.EqualsIgnoreCase("local")
-                         && !envelope.Destination.Scheme.EqualsIgnoreCase("stub");
+        var isExternal = IsExternalDestination(envelope.Destination);
 
         if (isExternal)
         {
@@ -309,6 +308,45 @@ public sealed partial class WolverineRuntime : IMessageTracker
         }
     }
 
+    // GH-4324: both classifications below are pure functions of a destination Uri drawn from a
+    // small bounded set (endpoints plus per-node reply queues), yet ran per message — the system
+    // check with a full ToString() substring scan, the external check with two case-insensitive
+    // scheme compares, 2-4x per message between them. One lock-free trie probe answers both; a
+    // lost racing update just recomputes the same value next time.
+    private static ImHashMap<Uri, DestinationClassification> _destinationClassifications =
+        ImHashMap<Uri, DestinationClassification>.Empty;
+
+    [Flags]
+    private enum DestinationClassification
+    {
+        None = 0,
+        System = 1,
+        External = 2
+    }
+
+    private static DestinationClassification classifyDestination(Uri destination)
+    {
+        if (_destinationClassifications.TryFind(destination, out var classification))
+        {
+            return classification;
+        }
+
+        var isLocal = destination.Scheme.EqualsIgnoreCase("local");
+
+        if (isLocal || destination.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase))
+        {
+            classification |= DestinationClassification.System;
+        }
+
+        if (!isLocal && !destination.Scheme.EqualsIgnoreCase("stub"))
+        {
+            classification |= DestinationClassification.External;
+        }
+
+        _destinationClassifications = _destinationClassifications.AddOrUpdate(destination, classification);
+        return classification;
+    }
+
     /// <summary>
     /// Returns true if the destination URI belongs to a Wolverine system endpoint
     /// (e.g. wolverine.response reply queues or local:// queues) that should not
@@ -316,8 +354,18 @@ public sealed partial class WolverineRuntime : IMessageTracker
     /// </summary>
     internal static bool IsSystemEndpoint(Uri? destination)
     {
-        if (destination == null) return false;
-        return destination.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase)
-               || destination.Scheme.EqualsIgnoreCase("local");
+        return destination != null &&
+               (classifyDestination(destination) & DestinationClassification.System) != 0;
+    }
+
+    /// <summary>
+    /// Returns true if the destination URI points at an external transport endpoint —
+    /// i.e. anything other than a local queue or a stub — the gate for the external
+    /// send/receive counters.
+    /// </summary>
+    internal static bool IsExternalDestination(Uri? destination)
+    {
+        return destination != null &&
+               (classifyDestination(destination) & DestinationClassification.External) != 0;
     }
 }

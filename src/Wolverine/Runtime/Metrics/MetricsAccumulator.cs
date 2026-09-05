@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -23,6 +24,14 @@ public class MetricsAccumulator : IAsyncDisposable
     private readonly object _syncLock = new();
 
     private ImmutableArray<MessageTypeMetricsAccumulator> _accumulators = ImmutableArray<MessageTypeMetricsAccumulator>.Empty;
+
+    // GH-4324: FindAccumulator runs 2-4x per message, and the array above is only the right shape
+    // for the export loop's iteration. Lookups go through this copy-on-write trie instead — the
+    // previous linear scan paid an ordinal string compare plus a full component-wise Uri.Equals
+    // per entry over the whole (message type x destination) cross-product, per message.
+    private ImHashMap<string, ImHashMap<Uri, MessageTypeMetricsAccumulator>> _byMessageType =
+        ImHashMap<string, ImHashMap<Uri, MessageTypeMetricsAccumulator>>.Empty;
+
     private Task _runner = null!;
 
     /// <summary>
@@ -56,30 +65,26 @@ public class MetricsAccumulator : IAsyncDisposable
     /// <returns>The accumulator for the given message type and destination.</returns>
     public MessageTypeMetricsAccumulator FindAccumulator(string messageTypeName, Uri endpointUri)
     {
-        var snapshot = _accumulators;
-        for (var i = 0; i < snapshot.Length; i++)
+        if (_byMessageType.TryFind(messageTypeName, out var byUri) &&
+            byUri.TryFind(endpointUri, out var accumulator))
         {
-            var acc = snapshot[i];
-            if (acc.MessageType == messageTypeName && acc.Destination == endpointUri)
-            {
-                return acc;
-            }
+            return accumulator;
         }
 
         lock (_syncLock)
         {
-            snapshot = _accumulators;
-            for (var i = 0; i < snapshot.Length; i++)
+            if (_byMessageType.TryFind(messageTypeName, out byUri) &&
+                byUri.TryFind(endpointUri, out accumulator))
             {
-                var acc = snapshot[i];
-                if (acc.MessageType == messageTypeName && acc.Destination == endpointUri)
-                {
-                    return acc;
-                }
+                return accumulator;
             }
 
-            var accumulator = new MessageTypeMetricsAccumulator(messageTypeName, endpointUri);
+            accumulator = new MessageTypeMetricsAccumulator(messageTypeName, endpointUri);
             _accumulators = _accumulators.Add(accumulator);
+
+            byUri ??= ImHashMap<Uri, MessageTypeMetricsAccumulator>.Empty;
+            _byMessageType = _byMessageType.AddOrUpdate(messageTypeName, byUri.AddOrUpdate(endpointUri, accumulator));
+
             return accumulator;
         }
     }
