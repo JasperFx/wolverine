@@ -4,6 +4,17 @@
 
 ### WolverineFx (core)
 
+- **Hot-path cruft sweep.** (closes [#4335](https://github.com/JasperFx/wolverine/issues/4335)) The
+  `Envelope` default constructor carried a leftover `Debug.WriteLine("Being created")` that fired on
+  every envelope in every Debug build — i.e. most local benchmarking and test runs — and
+  `EmptyMessageRouter` a sibling `Debug.WriteLine("Here")`; both are gone. The request/reply response
+  log dropped from Information to Debug to match every other per-message log in `MessageContext`.
+  `tryReadTimestamp` now tries the transport-header exact format before `XmlConvert`, so timestamps
+  written by an `EnvelopeMapper` no longer pay a full exception throw/catch on every read (the
+  XmlConvert-before-TryParse ordering is preserved because the two disagree on offset-less values).
+  The unused `RabbitMqSender._routingType` field is deleted. `ReservedHeaderKeys` deliberately stays
+  a `FrozenSet`: consumers enumerate it, which `ImHashMap` does not model well.
+
 - **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
   `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one

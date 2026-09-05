@@ -314,7 +314,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             else
             {
                 Activity.Current?.SetTag("reply-uri", Envelope!.ReplyUri!.ToString());
-                Runtime.Logger.LogInformation("Sending requested reply of type {MessageType} to reply-uri {ReplyUri}", Envelope!.ReplyRequested, Envelope.ReplyUri);
+                // Debug, not Information: this fires on every request/reply response, and every
+                // sibling per-message log in this class is Debug-level.
+                Runtime.Logger.LogDebug("Sending requested reply of type {MessageType} to reply-uri {ReplyUri}", Envelope!.ReplyRequested, Envelope.ReplyUri);
             }
         }
     }
