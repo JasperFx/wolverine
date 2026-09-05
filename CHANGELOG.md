@@ -328,6 +328,21 @@
 
 ### WolverineFx.Http
 
+- **A postprocessor `[FromQuery]`/`[FromHeader]` parameter binds from the wire instead of whatever
+  same-typed variable was lying around.** (closes
+  [#4314](https://github.com/JasperFx/wolverine/issues/4314)) Postprocessors (`After`/`AfterAsync`/
+  `PostProcess`) are deliberately not run through the HTTP parameter-matching strategies, so nothing
+  produced a variable for a `[FromQuery]` or `[FromHeader]` parameter that didn't collide with a route
+  segment — and JasperFx's `FindVariable` fallback then resolved it by name-then-type to any unrelated
+  variable already in the chain. Concretely: `After([FromQuery] string? audit)` on an endpoint returning
+  `string` compiled cleanly and silently received the endpoint's *response body* as `audit`. GH-4313
+  made codegen honor the route's claim on a postprocessor parameter; this is the query/header half of
+  the same contract the OpenAPI description has published since GH-3601. The binding pass creates its
+  read frames directly (reusing the main method's variable when it already reads the same value) without
+  registering into the description-feeding collections, so the rendered OpenAPI description stays
+  independent of when the chain compiles. Complex `[FromQuery]` types — the flattening shape the
+  description side also declines to describe on a postprocessor — are left alone.
+
 - **A Static-mode endpoint type mismatch is now reported as itself.** (closes
   [#4156](https://github.com/JasperFx/wolverine/issues/4156)) GH-4151 gave handler chains a startup assertion
   that every pre-generated type really is in `WolverineOptions.ApplicationAssembly`, because `codegen write`
