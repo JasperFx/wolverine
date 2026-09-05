@@ -42,7 +42,10 @@ internal class DestinationEndpoint : IDestinationEndpoint
             envelope.Serializer = _parent.Runtime.Options.FindSerializer(options.ContentType);
         }
 
-        foreach (var rule in route.Rules) rule.Modify(envelope);
+        for (var i = 0; i < route.Rules.Count; i++)
+        {
+            route.Rules[i].Modify(envelope);
+        }
 
         // Delivery options win
         options?.Override(envelope);
@@ -85,7 +88,10 @@ internal class DestinationEndpoint : IDestinationEndpoint
             envelope.SetMessageType(messageType);
             
             var route = _endpoint.RouteFor(messageType, _parent.Runtime);
-            foreach (var rule in route.Rules) rule.Modify(envelope);
+            for (var i = 0; i < route.Rules.Count; i++)
+        {
+            route.Rules[i].Modify(envelope);
+        }
         }
         
         configure?.Invoke(envelope);
