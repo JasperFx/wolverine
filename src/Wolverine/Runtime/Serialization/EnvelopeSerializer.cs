@@ -313,9 +313,21 @@ public static class EnvelopeSerializer
         envelope.Data = br.ReadBytes(byteCount);
     }
 
+    // GH-4327: generous fixed allowance for the header/metadata portion of a serialized envelope.
+    // Undershooting only costs one growth doubling; the old unsized stream started at 0 and
+    // doubled its way past the whole body, copying the payload multiple times per persisted
+    // envelope on the way.
+    private const int HeaderSizeEstimate = 512;
+
     public static byte[] Serialize(IList<Envelope> messages)
     {
-        using var stream = new MemoryStream();
+        var size = HeaderSizeEstimate * messages.Count + sizeof(int);
+        for (var i = 0; i < messages.Count; i++)
+        {
+            size += messages[i].Data?.Length ?? 0;
+        }
+
+        using var stream = new MemoryStream(size);
         using var writer = new BinaryWriter(stream);
         writer.Write(messages.Count);
         foreach (var message in messages) writeSingle(writer, message);
@@ -325,11 +337,26 @@ public static class EnvelopeSerializer
 
     public static byte[] Serialize(Envelope env)
     {
-        using var stream = new MemoryStream();
+        using var stream = new MemoryStream((env.Data?.Length ?? 0) + HeaderSizeEstimate);
         using var writer = new BinaryWriter(stream);
         writeSingle(writer, env);
         writer.Flush();
         return stream.ToArray();
+    }
+
+    /// <summary>
+    /// Serialize an envelope straight to a base64 string (the SQS body encoding) without
+    /// materializing the intermediate byte[] that <see cref="Serialize(Envelope)"/> returns.
+    /// </summary>
+    public static string SerializeToBase64(Envelope env)
+    {
+        using var stream = new MemoryStream((env.Data?.Length ?? 0) + HeaderSizeEstimate);
+        using var writer = new BinaryWriter(stream);
+        writeSingle(writer, env);
+        writer.Flush();
+
+        // GetBuffer avoids the ToArray copy; the base64 string is the one unavoidable allocation
+        return Convert.ToBase64String(stream.GetBuffer(), 0, (int)stream.Length);
     }
 
     private static void writeSingle(BinaryWriter writer, Envelope env)

@@ -28,14 +28,22 @@ public class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
 {
     public string BuildMessageBody(Envelope envelope)
     {
-        var data = EnvelopeSerializer.Serialize(envelope);
-        return Convert.ToBase64String(data);
+        // GH-4327: straight to base64 — the old shape paid stream-growth copies, a ToArray, and
+        // then the base64 string, three payload-sized allocations per outgoing message
+        return EnvelopeSerializer.SerializeToBase64(envelope);
     }
+
+    // GH-4327: the attribute set is constant, so don't run a yield-iterator state machine per
+    // outgoing message. Consumers only read the shared value into the outgoing request.
+    private static readonly KeyValuePair<string, MessageAttributeValue>[] _protocolAttributes =
+    [
+        new(TransportConstants.ProtocolVersion,
+            new MessageAttributeValue { StringValue = "1.0", DataType = "String" })
+    ];
 
     public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
     {
-        yield return new KeyValuePair<string, MessageAttributeValue>(TransportConstants.ProtocolVersion,
-            new MessageAttributeValue { StringValue = "1.0", DataType = "String" });
+        return _protocolAttributes;
     }
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody,
