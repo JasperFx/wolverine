@@ -1,4 +1,5 @@
 using System.Collections;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime.Recurring;
 
 namespace Wolverine;
@@ -110,10 +111,16 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
         // failover double-fire window then matches the pre-deduplication status quo.)
         _parent.Durability.EnableMessageDeduplication = true;
 
+        // The other half of the opt-in: the main message store reads this flag to provision the
+        // wolverine_recurring_messages tracking table and build a real IRecurringMessageStore,
+        // which is what makes the agent's guarantee verifiable and pause/resume durable.
+        _parent.Durability.EnableRecurringMessages = true;
+
         if (!_agentRegistered)
         {
             _agentRegistered = true;
             _parent.Services.AddSingularAgent<RecurringMessageAgent>();
+            _parent.Services.AddSingleton<IRecurringScheduleControl, RecurringScheduleControl>();
             _parent.RegisteredPolicies.Add(new RecurringDeduplicationPolicy(this));
         }
 

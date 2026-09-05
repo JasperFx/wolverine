@@ -1,10 +1,37 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
+using Wolverine.Runtime.Recurring;
 
 namespace DocumentationSamples;
 
 public class RecurringMessageSamples
 {
+    public static async Task pause_and_resume(IHost host)
+    {
+        #region sample_pausing_and_resuming_recurring_messages
+
+        // Registered alongside the first schedule — resolve it straight
+        // from the container
+        var control = host.Services.GetRequiredService<IRecurringScheduleControl>();
+
+        // Pause: marks the schedule's durable tracking row AND eagerly cancels
+        // the pre-scheduled next occurrence, so nothing fires in the gap before
+        // the scheduling agent's next pass — even when this code runs on a
+        // different node than the agent
+        await control.PauseAsync("daily-report");
+
+        // Resume: the next occurrence is computed strictly after "now".
+        // The paused window is never back-filled
+        await control.ResumeAsync("daily-report");
+
+        // The tracking rows themselves: which schedule owns which pending
+        // envelope, next fire times, pause state
+        var schedules = await control.QueryAsync();
+
+        #endregion
+    }
+
     public static async Task configure()
     {
         #region sample_registering_recurring_messages

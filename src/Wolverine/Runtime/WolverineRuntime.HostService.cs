@@ -28,6 +28,19 @@ public partial class WolverineRuntime
     private bool _hasStarted;
     private Task? _idleAgentCleanupLoop;
 
+    private readonly TaskCompletionSource _fullyStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes once StartAsync has finished everything — transports started, the routing cache
+    /// pre-populated — as opposed to <c>_hasStarted</c>, which is deliberately flipped early so
+    /// the agent machinery can use a MessageBus during startup. Background work that ROUTES
+    /// messages (the recurring-message agent's loop) must await this rather than publish into a
+    /// half-started runtime: RoutingFor answers computed before the transports start can come
+    /// back empty and are then CACHED for the life of the host.
+    /// </summary>
+    internal Task FullyStarted => _fullyStarted.Task;
+
     /// <summary>
     /// Detects whether Wolverine is running in a metadata-only CLI mode (codegen, OpenAPI
     /// generation via GetDocument.Insider) where persistence and transport connectivity
@@ -282,6 +295,7 @@ public partial class WolverineRuntime
 
             await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
+            _fullyStarted.TrySetResult();
 
             // Freeze fault-publishing policy so per-type overrides cannot be silently
             // mutated from runtime code after host startup completes. All bootstrap

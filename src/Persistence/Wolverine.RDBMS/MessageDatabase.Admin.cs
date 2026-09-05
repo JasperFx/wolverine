@@ -308,6 +308,16 @@ public abstract partial class MessageDatabase<T>
 
             if (_settings.Role == MessageStoreRole.Main)
             {
+                // Recurring-message tracking rows are Main-only bookkeeping (the table only
+                // exists when the feature's opt-in flag is set). A surviving row would let a
+                // later test adopt a previous test's "pending occurrence" or inherit its pause.
+                if (Durability.EnableRecurringMessages)
+                {
+                    await tx.CreateCommand(
+                            $"delete from {QuotedTableNameFor(DatabaseConstants.RecurringMessagesTableName)}")
+                        .ExecuteNonQueryAsync(_cancellation);
+                }
+
                 await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.AgentRestrictionsTableName)}")
                     .ExecuteNonQueryAsync(_cancellation);
 

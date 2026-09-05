@@ -534,6 +534,12 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             yield return new DeduplicationTable(SchemaName);
         }
 
+        // Recurring-message tracking — Main store only, behind the opt-in. See the PostgreSQL twin.
+        if (Durability.EnableRecurringMessages && Role == MessageStoreRole.Main)
+        {
+            yield return new RecurringMessagesTable(SchemaName);
+        }
+
         if (Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));

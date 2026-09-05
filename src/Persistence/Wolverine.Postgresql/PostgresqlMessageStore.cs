@@ -916,6 +916,14 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             yield return new DeduplicationTable(SchemaName);
         }
 
+        // Recurring-message tracking — Main store only (the single cluster-wide agent publishes
+        // through the main store), and only behind the opt-in so a schedule-less upgrade
+        // migrates nothing.
+        if (Durability.EnableRecurringMessages && Role == MessageStoreRole.Main)
+        {
+            yield return new RecurringMessagesTable(SchemaName);
+        }
+
         foreach (var table in _externalTables)
         {
             yield return table;

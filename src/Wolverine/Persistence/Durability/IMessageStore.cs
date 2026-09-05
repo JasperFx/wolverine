@@ -128,6 +128,18 @@ public interface IMessageStore : IAsyncDisposable
     /// </summary>
     IDeduplicationStore Deduplication => NullDeduplicationStore.Instance;
 
+    /// <summary>
+    /// Tracking for recurring (cron) message schedules — schedule name to the envelope id(s) of
+    /// its pre-scheduled next occurrence plus pause state. Opt-in via
+    /// <see cref="DurabilitySettings.EnableRecurringMessages" /> (flipped by registering the first
+    /// schedule through <c>opts.Schedules</c>); providers must return
+    /// <see cref="NullRecurringMessageStore.Instance" /> (and skip provisioning the tracking
+    /// table) when the flag is <c>false</c>, so an upgrade is a no-op for anyone who has not asked
+    /// for the feature. Defaulted rather than abstract for the same reason as
+    /// <see cref="Deduplication" /> — a provider with no answer inherits the graceful no-op.
+    /// </summary>
+    IRecurringMessageStore RecurringMessages => NullRecurringMessageStore.Instance;
+
     IMessageStoreAdmin Admin { get; }
 
     IDeadLetters DeadLetters { get; }

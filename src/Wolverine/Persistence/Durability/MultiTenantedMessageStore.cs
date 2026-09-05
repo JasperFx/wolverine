@@ -368,6 +368,11 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     // authoritative for the registry.
     public IListenerStore Listeners => Main.Listeners;
 
+    // Recurring-message tracking is cluster-level bookkeeping owned by the single recurring
+    // agent, which publishes through the main store — same reasoning as the listener registry
+    // above: the master is authoritative, per-tenant rows would be duplicates.
+    public IRecurringMessageStore RecurringMessages => Main.RecurringMessages;
+
     public IMessageStoreAdmin Admin => this;
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",

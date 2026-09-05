@@ -519,6 +519,12 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             yield return new DeduplicationTable(SchemaName);
         }
 
+        // Recurring-message tracking — Main store only, behind the opt-in. See the PostgreSQL twin.
+        if (Durability.EnableRecurringMessages && Role == MessageStoreRole.Main)
+        {
+            yield return new RecurringMessagesTable(SchemaName);
+        }
+
         foreach (var table in _externalTables)
         {
             yield return table;
