@@ -238,8 +238,12 @@ public class DurabilitySettings : IDescribeMyself
     /// retained after handling by <see cref="KeepAfterMessageHandling"/> sits in the handled partition, where it no
     /// longer blocks an insert of the same identity as Incoming. On a durable listening endpoint duplicate
     /// detection is that insert failing, so a redelivery arriving inside that retention window is stored and
-    /// handled again rather than discarded, and then cannot be marked handled itself because that is another
-    /// cross-partition move onto the key the retained row still holds.
+    /// handled again rather than discarded. Retiring that second copy is a cross-partition move onto the key
+    /// the retained row still holds, so it is discarded outright instead of flipped; the retained handled row
+    /// is what serves the retention window and it is already there. Parking a retry for such an identity is
+    /// the same shape and is resolved the same way -- a retained handled row is never dragged into the
+    /// scheduled partition alongside the row being parked, and a redundant incoming copy gives way to a
+    /// scheduled row that already exists.
     ///
     /// Neither pair raises <see cref="Persistence.Durability.DuplicateIncomingEnvelopeException"/>, which is the
     /// only path to <see cref="MaximumBrokerRedeliveries"/>. That setting dead-letters a delivery the inbox

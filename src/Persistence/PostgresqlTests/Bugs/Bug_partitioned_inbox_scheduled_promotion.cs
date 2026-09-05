@@ -195,6 +195,99 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled"]);
     }
 
+    /// <summary>
+    /// GH-4216. <c>ScheduleExecutionAsync</c> matched the identity with no status predicate and then SET
+    /// status, so under partitioning it moved EVERY row for the identity into the scheduled partition --
+    /// including a retained handled row it was never given. Two rows onto one scheduled key is a 23505, and
+    /// the reschedule that raised it is a retry that never happens. Resurrecting a completed message is the
+    /// worse half of it; the collision is only what made it visible.
+    /// </summary>
+    [Fact]
+    public async Task a_retry_can_be_parked_while_a_handled_row_is_retained()
+    {
+        var handled = ObjectMother.Envelope();
+        handled.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(handled);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(handled);
+
+        var retry = dueScheduledEnvelope();
+        retry.Id = handled.Id;
+        retry.Destination = redeliveryDestinationFor(handled);
+
+        await thePersistence.Inbox.StoreIncomingAsync(retry);
+
+        // Guard: the pair the partitioned key permits, which is the state this statement has to survive.
+        (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Incoming"]);
+
+        await thePersistence.Inbox.ScheduleExecutionAsync(retry);
+
+        (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Scheduled"],
+            "The incoming copy is parked as the retry, and the retained handled row stays where it is.");
+    }
+
+    /// <summary>
+    /// The reschedule path has the same statement and the same exposure, plus a fallback that inserts when
+    /// the update affects nothing -- which would land straight on the handled row's key.
+    /// </summary>
+    [Fact]
+    public async Task a_reschedule_for_retry_can_be_parked_while_a_handled_row_is_retained()
+    {
+        var handled = ObjectMother.Envelope();
+        handled.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(handled);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(handled);
+
+        var retry = dueScheduledEnvelope();
+        retry.Id = handled.Id;
+        retry.Destination = redeliveryDestinationFor(handled);
+
+        await thePersistence.Inbox.StoreIncomingAsync(retry);
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(retry);
+
+        (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Scheduled"]);
+    }
+
+    /// <summary>
+    /// GH-4216, the second way the same statement failed: an earlier retry already sits in the scheduled
+    /// partition -- exactly the state RescheduleExistingEnvelopeForRetryAsync exists to service -- so moving
+    /// the incoming copy onto that key collided with it. One row survives instead, and it is the scheduled
+    /// one, because that is the copy the poller will actually run.
+    /// </summary>
+    [Fact]
+    public async Task a_second_reschedule_converges_on_the_one_scheduled_row()
+    {
+        var envelope = dueScheduledEnvelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        envelope.Attempts = 1;
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Scheduled"]);
+
+        // A broker redelivery lands in the incoming partition alongside the parked retry -- the pair the
+        // partitioned key permits.
+        var redelivered = ObjectMother.Envelope();
+        redelivered.Id = envelope.Id;
+        redelivered.Destination = redeliveryDestinationFor(envelope);
+        redelivered.Status = EnvelopeStatus.Incoming;
+        redelivered.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(-1);
+
+        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Incoming", "Scheduled"]);
+
+        redelivered.Attempts = 2;
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(redelivered);
+
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Scheduled"],
+            "The redundant incoming copy is discarded rather than moved onto the key the scheduled row holds.");
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Scheduled.ShouldBe(1, "Exactly one scheduled row survives for the identity.");
+        counts.Incoming.ShouldBe(0);
+    }
+
     [Fact]
     public async Task the_unqualified_promotion_statement_raises_a_unique_violation()
     {
@@ -301,13 +394,11 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
 
         await thePersistence.Inbox.StoreIncomingAsync(scheduled);
 
-        // ScheduleExecutionAsync cannot build this pair under IdAndDestination, where the retry shares the
-        // handled row's received_at: it matches the identity without a status predicate, so under partitioning
-        // it drags the handled row into the scheduled partition too and hits 23505. Under IdOnly the two
-        // destinations differ and the real call would work; the helper is shared so both fixtures reach the
-        // same state. That is a sibling of the defect fixed here, reported on GH-4202; when it is fixed this
-        // helper should be replaced by the real call so the precondition stays one production can reach.
-        await moveToScheduledAsync(scheduled);
+        // GH-4216: this used to be a raw-SQL helper, because ScheduleExecutionAsync could not build this pair
+        // under IdAndDestination -- it matched the identity with no status predicate, so under partitioning it
+        // dragged the handled row into the scheduled partition too and hit 23505. That is fixed, so the
+        // precondition is now built by the real call and is one production can actually reach.
+        await thePersistence.Inbox.ScheduleExecutionAsync(scheduled);
 
         var captured = await pollAsync();
 
@@ -321,25 +412,6 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         counts.Scheduled.ShouldBe(0, "The superseded retry is discarded rather than left to re-fail on every later poll.");
 
         (await statusesForAsync(handled.Id)).ShouldBe(["Handled"]);
-    }
-
-    private async Task moveToScheduledAsync(Envelope envelope)
-    {
-        var cancellation = TestContext.Current.CancellationToken;
-
-        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync(cancellation);
-
-        await using var command = conn.CreateCommand();
-        command.CommandText =
-            $"update {schemaName}.{DatabaseConstants.IncomingTable} " +
-            $"set status = '{EnvelopeStatus.Scheduled}', {DatabaseConstants.ExecutionTime} = @time " +
-            $"where id = @id and status = '{EnvelopeStatus.Incoming}'";
-        command.Parameters.AddWithValue("time", envelope.ScheduledTime!.Value);
-        command.Parameters.AddWithValue("id", envelope.Id);
-
-        (await command.ExecuteNonQueryAsync(cancellation))
-            .ShouldBe(1, "The precondition must move exactly the one incoming row it was given.");
     }
 
     protected async Task<int> ownerOfAsync(Guid id, Uri destination)

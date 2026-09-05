@@ -75,6 +75,21 @@
   declare `varchar(500)`, and the columns that hold a URI take that width from the new shared
   `AgentUri.MaximumLength` rather than each provider repeating a literal.
 
+- **A retry can be parked while a handled row is retained.** (part of
+  [#4216](https://github.com/JasperFx/wolverine/issues/4216)) The last two of the three sibling statements
+  #4209 reproduced and deliberately left alone -- `ScheduleExecutionAsync` and
+  `RescheduleExistingEnvelopeForRetryAsync` -- matched the identity with no `status` predicate and then *set*
+  `status`. Under `EnableInboxPartitioning` that is a cross-partition move, and the match was wide enough to
+  drag rows the caller never meant to touch along with it: a retained `Handled` row for the same identity was
+  moved into the scheduled partition alongside the row actually being parked, two rows onto one key, 23505.
+  A reschedule that raises is a retry that never happens, and resurrecting a message that already completed
+  is the worse half of it. The second shape is an earlier retry already sitting in the scheduled partition --
+  precisely the state `RescheduleExistingEnvelopeForRetryAsync` exists to service -- which the incoming copy
+  then collided with. Both are now resolved the way the scheduled poller and #4224's mark-as-handled already
+  resolve such a pair: one row survives, the redundant copy is discarded, and the move is never attempted
+  onto an occupied key. Gated on partitioning, so every non-partitioned store issues byte-for-byte the
+  statement it always did.
+
 - **Global partitioning over sharded database queues executes messages again.** (closes
   [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
   `UseShardedSqlServerQueues` (and the PostgreSQL twin), any message that actually round-tripped through a
