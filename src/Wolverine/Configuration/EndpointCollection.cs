@@ -424,8 +424,56 @@ public class EndpointCollection : IEndpointCollection
             return (IListenerCircuit)GetOrBuildSendingAgent(address);
         }
 
-        return FindListeningAgent(address) ??
-               FindListeningAgent(TransportConstants.Durable);
+        var agent = FindListeningAgent(address);
+        if (agent != null)
+        {
+            return agent;
+        }
+
+        // GH-4296. The address on an inbox row is whatever listener stamped it, and that is not always an
+        // address anything is registered under. A database transport that is multi-tenanted by database
+        // registers ONE listening agent for the logical queue and then receives through a per-database
+        // listener that stamps "postgresql://queue/database" -- so every orphaned row from a dead node is
+        // addressed to a listener that does not exist by that name, and inbox recovery walked straight past
+        // it forever. Ask the transport to translate before giving up.
+        var logicalAddress = resolveListenerAddress(address);
+        if (logicalAddress != null)
+        {
+            agent = FindListeningAgent(logicalAddress);
+            if (agent != null)
+            {
+                return agent;
+            }
+        }
+
+        return FindListeningAgent(TransportConstants.Durable);
+    }
+
+    private ImHashMap<Uri, Uri?> _resolvedListenerAddresses = ImHashMap<Uri, Uri?>.Empty;
+
+    // Cached for the same reason IsSingleNodeListener is: this is asked on every durability agent recovery
+    // pass, once per distinct received_at value.
+    private Uri? resolveListenerAddress(Uri address)
+    {
+        if (_resolvedListenerAddresses.TryFind(address, out var resolved))
+        {
+            return resolved;
+        }
+
+        try
+        {
+            resolved = _options.Transports.ForScheme(address.Scheme)?.TryResolveListenerAddress(address);
+        }
+        catch (Exception e)
+        {
+            _runtime.Logger.LogDebug(e, "Unable to resolve a listening address for inbox address {Address}",
+                address);
+            resolved = null;
+        }
+
+        _resolvedListenerAddresses = _resolvedListenerAddresses.AddOrUpdate(address, resolved);
+
+        return resolved;
     }
 
     public async Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)
