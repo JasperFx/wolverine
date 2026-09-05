@@ -102,6 +102,17 @@ npm install && npm run docs
 | Sagas | `src/Wolverine/Saga.cs:8` |
 | HTTP Endpoints | `src/Http/Wolverine.Http/` |
 
+## Do NOT edit CHANGELOG.md
+
+**Never add a `CHANGELOG.md` entry as part of a change.** Every concurrent branch appends to the
+same "Unreleased" section, so every one of them conflicts with every other on merge — a guaranteed
+manual resolution per PR, paid repeatedly, for a file nothing actually reads. The PR description
+and the commit message are where a change explains itself; both are attached to the work forever
+and neither collides.
+
+This applies to bug fixes, features, and perf work alike. If a change genuinely needs release
+notes, that is a release-time activity, not a per-PR one.
+
 ## Handler Conventions
 
 Valid handler method names: `Handle`, `HandleAsync`, `Consume`, `ConsumeAsync` (`HandlerDiscovery.cs:17-22`)
