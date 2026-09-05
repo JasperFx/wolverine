@@ -37,6 +37,31 @@
   a `received_at` address back to the address its listener is actually registered under before giving up.
   Sticky (exclusive) per-tenant listeners are untouched: those register the per-database address themselves.
 
+- **Every message store has to prove it can store a realistic agent URI.** (closes
+  [#4280](https://github.com/JasperFx/wolverine/issues/4280)) The agent restriction and node assignment
+  round trips *are* covered on all seven providers by the shared compliance suites -- they were just never
+  driven with a value long enough to touch a column width. `fake://1` is eight characters and
+  `red://leader` is twelve, so a provider could declare an agent URI column as `varchar(100)` and stay
+  green across the whole cross-provider suite. That is exactly what happened: #4246 widened the MySQL and
+  Oracle columns and SQL Server's `wolverine_agent_restrictions` was missed and stayed at 100 for another
+  release, found by reading a table definition rather than by a test. `MessageStoreCompliance` and
+  `NodePersistenceCompliance` now each carry a fact that round-trips a realistic URI at the full
+  `AgentUri.MaximumLength` width -- through the restriction path an operator's pin or pause actually takes,
+  and through a node's own control URI and its assignment ids, both of which are primary keys -- and assert
+  it comes back byte-identical, because a silently truncated URI never matches its agent again.
+
+- **The SQL Server node tables get the widths the rest of the family already had.** (closes
+  [#4246](https://github.com/JasperFx/wolverine/issues/4246) follow-up) `wolverine_agent_restrictions.uri`
+  and `.type`, `wolverine_nodes.version`, the control queue's `message_type` and the dynamic listener
+  registry's `uri` were each declared with a bare `AddColumn<string>()`, which Weasel.SqlServer maps to
+  `varchar(100)` -- narrower than the `VARCHAR2(4000)` Oracle declares for the same columns and narrower
+  than Postgres's unbounded `varchar`. `wolverine_agent_restrictions` is on a live write path --
+  `ApplyRestrictionsAsync` -> `PersistAgentRestrictionsAsync` -- so pinning or pausing an agent whose URI
+  ran past 100 characters failed the insert outright with "String or binary data would be truncated". An
+  `event-subscriptions://marten/SomeProjectionName@some-tenant-id` gets there without trying. All five now
+  declare `varchar(500)`, and the columns that hold a URI take that width from the new shared
+  `AgentUri.MaximumLength` rather than each provider repeating a literal.
+
 - **Global partitioning over sharded database queues executes messages again.** (closes
   [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +
   `UseShardedSqlServerQueues` (and the PostgreSQL twin), any message that actually round-tripped through a

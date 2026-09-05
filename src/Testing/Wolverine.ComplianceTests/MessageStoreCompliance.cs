@@ -826,6 +826,29 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
     
     [Fact]
+    public async Task persist_and_load_a_restriction_with_a_full_length_agent_uri()
+    {
+        // GH-4280. The restriction round trip above only ever uses "fake://1" -- eight characters -- so a
+        // provider could declare this column varchar(100) and stay green across the whole cross-provider
+        // suite. SQL Server did, for a release. ApplyRestrictionsAsync -> PersistAgentRestrictionsAsync is
+        // a live write path, so an agent whose URI ran past the column width failed the insert outright.
+        await thePersistence.Admin.ClearAllAsync();
+
+        var pinned = new AgentRestriction(Guid.NewGuid(), LongAgentUri.ForAgent(1), AgentRestrictionType.Pinned, 4);
+        var paused = new AgentRestriction(Guid.NewGuid(), LongAgentUri.ForAgent(2), AgentRestrictionType.Paused, 0);
+
+        IReadOnlyList<AgentRestriction> restrictions = [pinned, paused];
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(restrictions, CancellationToken.None);
+
+        var state = await thePersistence.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+
+        // Byte-identical, not merely present: a silently truncated URI never matches an agent again, and
+        // that failure is invisible until an operator wonders why the pin did nothing.
+        state.Restrictions.Current.OrderBy(x => x.AgentUri.ToString())
+            .ShouldBe(restrictions.OrderBy(x => x.AgentUri.ToString()));
+    }
+
+    [Fact]
     public async Task persist_then_overwrite_with_none_restriction_deletes()
     {
         await thePersistence.Admin.ClearAllAsync();
