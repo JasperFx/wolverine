@@ -64,7 +64,11 @@ public class HandlerPipeline : IHandlerPipeline
             return Task.CompletedTask;
         }
 
-        using var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
+        // NOT a `using` declaration: this method is synchronous, so a `using` would dispose --
+        // and therefore Stop() -- the activity as soon as the async overload below hits its
+        // first suspension point, truncating the execution span to the synchronous prefix of
+        // message processing. The 3-arg overload's finally owns the Stop.
+        var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
         // No runtime check for HandlerExecutionDiagnosticsEnabled — diagnostic tag
         // stamping is baked into the generated handler chain via
@@ -75,13 +79,15 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeAsync(Envelope envelope, IChannelCallback channel, Activity? activity)
     {
-        if (_cancellation.IsCancellationRequested)
-        {
-            return;
-        }
-
         try
         {
+            // Inside the try so the early return still stops the activity in the finally;
+            // the 2-arg overload above relies on this method to stop what it started.
+            if (_cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
             var context = _contextPool.Get();
             context.ReadEnvelope(envelope, channel);
 
