@@ -142,19 +142,21 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         // is a no-op (returns `new Envelope()`) for any other agent shape, so the
         // semantics here are unchanged for buffered / durable / local-queue routes.
         var envelope = runtime.AcquireOutgoingEnvelope(sender);
+        var destination = sender.Destination;
         envelope.Message = message;
         envelope.Sender = sender;
         envelope.Serializer = Serializer
             ?? (message is ISerializable ? IntrinsicSerializer.Instance : sender.Endpoint.DefaultSerializer);
         envelope.ContentType = envelope.Serializer?.ContentType;
-        envelope.Destination = sender.Destination;
-        envelope.ReplyUri = sender.ReplyUri?.MaybeCorrectScheme(sender.Destination.Scheme);
+        envelope.Destination = destination;
+        envelope.ReplyUri = sender.ReplyUri?.MaybeCorrectScheme(destination.Scheme);
         envelope.TopicName = topicName;
         envelope.WireTap = _endpoint.WireTap;
         envelope.TenantId = options?.TenantId;
         envelope.GroupId = options?.GroupId;
 
-        if (sender.Endpoint is LocalQueue)
+        // GH-4325: IsLocal is the ctor-computed answer to exactly this type test
+        if (IsLocal)
         {
             envelope.Status = EnvelopeStatus.Incoming;
         }
@@ -170,7 +172,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         // make decisions on the final outgoing envelope metadata.
         envelope.GroupId = _partitioning.DetermineGroupId(envelope);
 
-        foreach (var rule in Rules) rule.Modify(envelope);
+        // GH-4325: indexed loop — foreach over the IList-typed property boxes a List enumerator
+        // per send, even when there are no rules at all (the common case)
+        for (var i = 0; i < Rules.Count; i++)
+        {
+            Rules[i].Modify(envelope);
+        }
 
         // Delivery options win
         options?.Override(envelope);
@@ -256,7 +263,11 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         options?.Override(envelope);
 
-        foreach (var rule in Rules) rule.Modify(envelope);
+        for (var i = 0; i < Rules.Count; i++)
+        {
+            Rules[i].Modify(envelope);
+        }
+
         if (typeof(T) == typeof(Acknowledgement))
         {
             envelope.AckRequested = true;
