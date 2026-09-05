@@ -16,6 +16,27 @@
   instead of three times and reuses the ctor-computed `IsLocal` instead of re-running a type test
   per send. Evaluated and deferred: a single-route fast path to avoid the `Envelope[]` per publish —
   it forks the persist-or-send semantics for one small array and needs its own careful pass.
+- **The execution pipeline sheds four per-message costs.** (closes
+  [#4322](https://github.com/JasperFx/wolverine/issues/4322)) `Executor.ExecuteAsync` (and its
+  tracing twin) allocated a timeout `CancellationTokenSource` — timer registration included — plus a
+  second linked source with two callback registrations, per message, every message; one linked source
+  with `CancelAfter` now carries the identical either-cancels semantics at half the cost.
+  `FlushOutgoingMessagesAsync` awaited `AssertAnyRequiredResponseWasGenerated` unconditionally — an
+  async state machine per message whose body no-ops unless a reply was requested — and the
+  scheduled-message flush ran its own state machine over a nearly-always-empty list; both are now
+  guarded. `HandlerPipeline.executeAsync` returns `ValueTask<IContinuation>` so a synchronously
+  completing handler no longer boxes a `Task` for a singleton continuation. And `RequiresEncryption`
+  answers from two count reads instead of probing the message-type map per envelope when no
+  encryption policy is configured — which is nearly every application.
+- **`DateTimeOffset.Now` is gone from the per-message paths.** (closes
+  [#4326](https://github.com/JasperFx/wolverine/issues/4326)) `BufferedReceiver`, `NativeAckReceiver`,
+  and `BufferedLocalQueue.EnqueueDirectly` — the last of these the highest-frequency call site in the
+  process — stamped receipt and evaluated scheduled-for-later with `DateTimeOffset.Now`, which pays a
+  `TimeZoneInfo.Local` offset resolution on every read, while `DurableReceiver`, `InlineReceiver`, and
+  the neighbouring line in the same file used `UtcNow`. Every comparison downstream is offset-aware, so
+  the swap is behaviorally free. The sweep also covers `Envelope.IsExpired()`, the `ScheduleDelay`
+  setter, the RabbitMQ TTL computation, `WolverineNode.LastHealthCheck`, and the in-memory scheduled
+  job processor — shipped Wolverine code no longer calls `DateTimeOffset.Now` anywhere.
 
 - **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
@@ -182,6 +203,22 @@
   lying about ownership. Acting on the window was the defect, not the window.
 
 ### WolverineFx.RDBMS (all relational providers)
+
+- **The durability recovery poll and expired-handled cleanup finally have indexes they can use.**
+  (closes [#4316](https://github.com/JasperFx/wolverine/issues/4316)) The GH-3971 owner index is
+  partial on `owner_id <> 0` -- and `owner_id = 0` is exactly what the 5-second recovery poll, the
+  per-listener recovery page load, and the outgoing recovery poll all ask for, so every polling
+  cycle was a full scan of an inbox dominated by retained Handled rows, per database, per node. The
+  60-second expired-handled cleanup (`status = 'Handled' and keep_until <= now`) had no supporting
+  index at all. PostgreSQL and SQL Server now provision partial/filtered indexes for the recoverable
+  slices (`received_at where status = 'Incoming' and owner_id = 0`, `keep_until where
+  status = 'Handled'`, and `destination where owner_id = 0` on the outbox); on a 2-million-row test
+  inbox the recovery poll went from a 37ms parallel seq scan touching ~25k buffers to a 0.04ms
+  index-only scan touching 2, and both degrade to an empty index read when there is nothing to
+  recover. MySQL and Oracle already carried a plain owner index the `owner_id = 0` equality can use.
+  The database queue transports' anti-duplicate delete also now scopes its inbox probe to the rows
+  this queue's own pop could have stranded (`received_at = <queue address>`) instead of correlating
+  against the entire inbox.
 
 - **The advisory lock no longer shares one connection with nothing guarding it.** (closes
   [#4261](https://github.com/JasperFx/wolverine/issues/4261)) Every `AdvisoryLock` implementation --

@@ -268,8 +268,12 @@ WHERE id IN (SELECT id FROM temp_move_{_queueName})");
                 return cmd;
             }
 
-            // First, delete any messages that are already in the incoming table (deduplication)
-            await using var dedupCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_schemaName}.{DatabaseConstants.IncomingTable})");
+            // First, delete any messages that are already in the incoming table (deduplication).
+            // GH-4316: rows this can legitimately hit were put in the inbox by this queue's own
+            // earlier pop, which always stamps received_at with this listener's address — scope
+            // the probe instead of correlating against the entire inbox.
+            await using var dedupCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_schemaName}.{DatabaseConstants.IncomingTable} WHERE {DatabaseConstants.ReceivedAt} = @receivedAt)");
+            dedupCmd.Parameters.AddWithValue("@receivedAt", Address.ToString());
             await dedupCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Create temp table for this operation
