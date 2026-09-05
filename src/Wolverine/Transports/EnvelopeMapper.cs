@@ -307,11 +307,17 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     /// </summary>
     protected virtual bool preferCopiedIncomingHeaders => false;
 
+    // GH-4323: the one canonical accepted-content-types array, shared with Envelope's own default
+    // so the write-side reference check below also hits for round-tripped envelopes
+    private static readonly string[] DefaultAcceptedContentTypeArray = (string[])Envelope.DefaultAcceptedContentTypes!;
+
     private delegate bool ReadHeader(Envelope env, TIncoming incoming, string key, out string? value);
 
     private bool tryReadCopiedOrIncomingHeader(Envelope env, TIncoming incoming, string key, out string? value)
     {
-        if (env.Headers.TryGetValue(key, out value) && value != null)
+        // HasHeaders first: this probe runs once per reserved property (~20x) per incoming
+        // message, and must not be the thing that forces the lazy dictionary into existence
+        if (env.HasHeaders && env.Headers.TryGetValue(key, out value) && value != null)
         {
             return true;
         }
@@ -390,7 +396,13 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         if (propType == typeof(string[]))
         {
             var typed = (Action<Envelope, string[]>)setter.CreateDelegate(typeof(Action<Envelope, string[]>));
-            return (env, inc) => typed(env, read(env, inc, headerKey, out var raw) ? raw!.Split(',') : []);
+            // GH-4323: the value is virtually always the default accepted-content-types header
+            // that every Wolverine sender writes — hand back the canonical shared array instead
+            // of allocating a fresh one-element array plus a copied string per message. Nothing
+            // in the framework mutates the array's elements.
+            return (env, inc) => typed(env, read(env, inc, headerKey, out var raw)
+                ? raw == EnvelopeConstants.JsonContentType ? DefaultAcceptedContentTypeArray : raw!.Split(',')
+                : []);
         }
 
         // Fallback: treat as string — matches the original expression-tree code
@@ -464,7 +476,9 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     protected void writeOutgoingOtherHeaders(TOutgoing outgoing, Envelope envelope)
     {
-        if (envelope.Headers.Count == 0)
+        // GH-4323: this runs first in the outgoing dispatch on every broker send — touching
+        // envelope.Headers here allocated the lazy dictionary just to observe it is empty
+        if (!envelope.HasHeaders)
         {
             return;
         }
@@ -532,7 +546,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (value != null)
         {
-            writeOutgoingHeader(outgoing, key, value.Join(","));
+            // GH-4323: virtually every envelope carries the shared default accepted-content-types
+            // array — write the constant instead of re-joining it per message
+            writeOutgoingHeader(outgoing, key,
+                ReferenceEquals(value, Envelope.DefaultAcceptedContentTypes)
+                    ? EnvelopeConstants.JsonContentType
+                    : value.Join(","));
         }
     }
 
@@ -554,7 +573,13 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     protected void writeInt(TOutgoing outgoing, string key, int value)
     {
-        writeOutgoingHeader(outgoing, key, value.ToString());
+        // GH-4323: skip the default just like writeGuid skips Guid.Empty — an absent header reads
+        // back as 0, and `attempts` is 0 on every first send, so this was a per-message string.
+        // The binary EnvelopeSerializer already guards the same way; the two writers now agree.
+        if (value != 0)
+        {
+            writeOutgoingHeader(outgoing, key, value.ToString());
+        }
     }
 
     protected void writeGuid(TOutgoing outgoing, string key, Guid value)

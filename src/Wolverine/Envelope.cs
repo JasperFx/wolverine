@@ -64,6 +64,12 @@ public partial class Envelope : IHasTenantId
     }
 
     /// <summary>
+    /// True if any headers have been recorded on this envelope. Unlike touching
+    /// <see cref="Headers"/>, this never forces the lazy dictionary to allocate.
+    /// </summary>
+    public bool HasHeaders => _headers is { Count: > 0 };
+
+    /// <summary>
     /// Try to read a header value by key without forcing dictionary allocation.
     /// Returns true if the header exists and has a non-null value.
     /// </summary>
