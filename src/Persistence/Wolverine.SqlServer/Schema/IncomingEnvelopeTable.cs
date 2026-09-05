@@ -46,5 +46,26 @@ internal class IncomingEnvelopeTable : Table
             Predicate = $"[{DatabaseConstants.OwnerId}]<>0"
         });
 
+        // GH-4316: the owner index above deliberately excludes owner_id = 0, but that is exactly
+        // what the 5-second recovery poll asks for (`status = 'Incoming' and owner_id = 0 group by
+        // received_at`) and what the per-listener recovery page load filters on — so recovery was
+        // a full scan of an inbox dominated by retained Handled rows, every cycle, per database,
+        // per node. Filtered on the recoverable predicate so the index holds only unowned incoming
+        // rows and the poll degrades to an empty index seek when there is nothing to recover.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.IncomingTable}_recover")
+        {
+            Columns = [DatabaseConstants.ReceivedAt],
+            Predicate = $"[{DatabaseConstants.Status}]='Incoming' AND [{DatabaseConstants.OwnerId}]=0"
+        });
+
+        // GH-4316: the 60-second expired-handled cleanup probes `status = 'Handled' and
+        // keep_until <= now`, which had no supporting index — a full scan of the largest slice of
+        // the inbox on every cycle. Filtered on the Handled slice so the probe only ever touches
+        // rows the sweep could delete.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.IncomingTable}_keep_until")
+        {
+            Columns = [DatabaseConstants.KeepUntil],
+            Predicate = $"[{DatabaseConstants.Status}]='Handled'"
+        });
     }
 }

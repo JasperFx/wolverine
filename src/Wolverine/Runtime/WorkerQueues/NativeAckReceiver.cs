@@ -185,7 +185,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             throw new OperationCanceledException();
         }
 
-        var now = DateTimeOffset.Now;
+        var now = DateTimeOffset.UtcNow;
         stampReceipt(now);
 
         // GH-4091. TWO passes, deliberately. Posting blocks once the execution block is at capacity, so a
@@ -210,7 +210,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        var now = DateTimeOffset.Now;
+        var now = DateTimeOffset.UtcNow;
         stampReceipt(now);
 
         if (await admitAsync(listener, envelope, now).ConfigureAwait(false) is { } entry)

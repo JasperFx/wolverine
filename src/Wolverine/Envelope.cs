@@ -421,7 +421,7 @@ public partial class Envelope : IHasTenantId
     /// <returns></returns>
     public Envelope ScheduleDelayed(TimeSpan delay)
     {
-        ScheduledTime = DateTimeOffset.Now.Add(delay);
+        ScheduledTime = DateTimeOffset.UtcNow.Add(delay);
         return this;
     }
     
@@ -532,7 +532,7 @@ public partial class Envelope : IHasTenantId
     /// <returns></returns>
     public bool IsExpired()
     {
-        return DeliverBy.HasValue && DeliverBy <= DateTimeOffset.Now;
+        return DeliverBy.HasValue && DeliverBy <= DateTimeOffset.UtcNow;
     }
 
     internal string GetMessageTypeName()

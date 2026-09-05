@@ -56,7 +56,7 @@ public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, I
         {
             if (e.DeliverBy.HasValue)
             {
-                var ttl = Convert.ToInt32(e.DeliverBy.Value.Subtract(DateTimeOffset.Now).TotalMilliseconds);
+                var ttl = Convert.ToInt32(e.DeliverBy.Value.Subtract(DateTimeOffset.UtcNow).TotalMilliseconds);
                 props.Expiration = ttl.ToString();
             }
         });

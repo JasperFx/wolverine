@@ -64,7 +64,11 @@ public class HandlerPipeline : IHandlerPipeline
             return Task.CompletedTask;
         }
 
-        using var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
+        // NOT a `using` declaration: this method is synchronous, so a `using` would dispose --
+        // and therefore Stop() -- the activity as soon as the async overload below hits its
+        // first suspension point, truncating the execution span to the synchronous prefix of
+        // message processing. The 3-arg overload's finally owns the Stop.
+        var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
         // No runtime check for HandlerExecutionDiagnosticsEnabled — diagnostic tag
         // stamping is baked into the generated handler chain via
@@ -75,13 +79,15 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeAsync(Envelope envelope, IChannelCallback channel, Activity? activity)
     {
-        if (_cancellation.IsCancellationRequested)
-        {
-            return;
-        }
-
         try
         {
+            // Inside the try so the early return still stops the activity in the finally;
+            // the 2-arg overload above relies on this method to stop what it started.
+            if (_cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
             var context = _contextPool.Get();
             context.ReadEnvelope(envelope, channel);
 
@@ -328,6 +334,15 @@ public class HandlerPipeline : IHandlerPipeline
     {
         var options = _runtime.Options;
 
+        // GH-4322: for the overwhelmingly common no-encryption configuration, answer from two
+        // count reads instead of paying the message-type map probe below on every envelope. Read
+        // per call rather than cached at construction because policies may register encrypted
+        // types lazily after this pipeline is built.
+        if (options.RequiredEncryptedListenerUris.Count == 0 && options.RequiredEncryptedTypes.Count == 0)
+        {
+            return false;
+        }
+
         // Use the listener's own URI, not envelope.Destination: the latter is sender-
         // controlled and not populated on broker transports (Rabbit/Kafka/SB).
         // For per-type enforcement, defer to IsEncryptionRequired so the check
@@ -340,7 +355,10 @@ public class HandlerPipeline : IHandlerPipeline
                     && options.IsEncryptionRequired(type));
     }
 
-    private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
+    // GH-4322: ValueTask because the deserialization pre-checks complete synchronously for the
+    // common already-deserialized case and the success result is a singleton — Task<IContinuation>
+    // was one box per message.
+    private async ValueTask<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
     {
         if (envelope.IsExpired())
         {

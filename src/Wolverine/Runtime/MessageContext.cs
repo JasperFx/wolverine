@@ -185,7 +185,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
         }
 
-        await AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
+        // GH-4322: the assertion no-ops unless a reply was requested, but awaiting the async
+        // method still built a state machine per message — the overwhelmingly common
+        // fire-and-forget case now skips it outright.
+        if (hasRequestedReply())
+        {
+            await AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
+        }
 
         // Snapshot under lock so concurrent publishes from a Marten projection
         // (Block parallelism = 10 in AggregationRunner) cannot corrupt the list
@@ -250,7 +256,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
         }
 
-        if (ReferenceEquals(Transaction, this))
+        if (Scheduled.Count > 0 && ReferenceEquals(Transaction, this))
         {
             await flushScheduledMessagesAsync().ConfigureAwait(false);
         }

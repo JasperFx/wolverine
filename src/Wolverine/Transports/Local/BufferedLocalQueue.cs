@@ -115,7 +115,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         _messageTracker.Sent(envelope);
         envelope.ReplyUri = envelope.ReplyUri ?? ReplyUri;
 
-        if (envelope.IsScheduledForLater(DateTimeOffset.Now))
+        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
         {
             ScheduleExecution(envelope);
         }
