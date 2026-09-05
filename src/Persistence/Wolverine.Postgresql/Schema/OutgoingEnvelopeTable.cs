@@ -37,5 +37,14 @@ internal class OutgoingEnvelopeTable : Table
             Predicate = $"{DatabaseConstants.OwnerId} <> 0"
         });
 
+        // GH-4316: the outgoing recovery poll (`select distinct destination where owner_id = 0`)
+        // and the per-destination recovery load ask for exactly the value the owner index above
+        // excludes, so both were full scans every 5-second cycle. Partial on unowned rows so the
+        // poll reads only what is actually recoverable.
+        Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{DatabaseConstants.OutgoingTable}_recover"))
+        {
+            Columns = [DatabaseConstants.Destination],
+            Predicate = $"{DatabaseConstants.OwnerId} = 0"
+        });
     }
 }

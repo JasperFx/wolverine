@@ -170,6 +170,22 @@
 
 ### WolverineFx.RDBMS (all relational providers)
 
+- **The durability recovery poll and expired-handled cleanup finally have indexes they can use.**
+  (closes [#4316](https://github.com/JasperFx/wolverine/issues/4316)) The GH-3971 owner index is
+  partial on `owner_id <> 0` -- and `owner_id = 0` is exactly what the 5-second recovery poll, the
+  per-listener recovery page load, and the outgoing recovery poll all ask for, so every polling
+  cycle was a full scan of an inbox dominated by retained Handled rows, per database, per node. The
+  60-second expired-handled cleanup (`status = 'Handled' and keep_until <= now`) had no supporting
+  index at all. PostgreSQL and SQL Server now provision partial/filtered indexes for the recoverable
+  slices (`received_at where status = 'Incoming' and owner_id = 0`, `keep_until where
+  status = 'Handled'`, and `destination where owner_id = 0` on the outbox); on a 2-million-row test
+  inbox the recovery poll went from a 37ms parallel seq scan touching ~25k buffers to a 0.04ms
+  index-only scan touching 2, and both degrade to an empty index read when there is nothing to
+  recover. MySQL and Oracle already carried a plain owner index the `owner_id = 0` equality can use.
+  The database queue transports' anti-duplicate delete also now scopes its inbox probe to the rows
+  this queue's own pop could have stranded (`received_at = <queue address>`) instead of correlating
+  against the entire inbox.
+
 - **The advisory lock no longer shares one connection with nothing guarding it.** (closes
   [#4261](https://github.com/JasperFx/wolverine/issues/4261)) Every `AdvisoryLock` implementation --
   Postgres, SQL Server, MySQL, Oracle and SQLite -- kept one long-lived connection and synchronised
