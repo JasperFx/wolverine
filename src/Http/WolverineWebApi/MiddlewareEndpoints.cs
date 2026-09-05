@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -89,6 +90,23 @@ public class BeforeAndAfterEndpoint
     {
         recorder.Actions.Add("Action");
         return "okay";
+    }
+}
+
+// GH-4308: a postprocessor parameter whose name collides with a route segment on a route-bindable
+// type is claimed by the route — OpenAPI renders only the single Path parameter (GH-3601), and the
+// generated code must make the same claim by binding the parameter from the parsed route value. Before
+// the fix this shape didn't compile at all: nothing produced a `long` variable for After's parameter
+// and codegen died with an UnResolvableVariableException (which is what failed `codegen preview` on
+// WolverineWebApi, so this endpoint also keeps the Nuke CodegenPreviewCommand guarding the shape).
+public static class PostprocessorRouteCollisionRecordingEndpoint
+{
+    [WolverineGet("/middleware/postprocessor-route/{orderId:long}")]
+    public static string Get() => "ok";
+
+    public static void After(Recorder recorder, [FromQuery] long orderId)
+    {
+        recorder.Actions.Add($"After: {orderId}");
     }
 }
 
