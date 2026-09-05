@@ -190,22 +190,6 @@
   shard tears down, because the row cannot be dropped before the agent has actually stopped without
   lying about ownership. Acting on the window was the defect, not the window.
 
-### WolverineFx.SqlServer
-
-- **The metrics sampler stops scanning; per-status counts come from index metadata.** (closes
-  [#4318](https://github.com/JasperFx/wolverine/issues/4318)) `FetchCountsAsync` ran a
-  `group by status` scan of the inbox plus two bare `count(*)` scans (outbox, dead letters) on
-  every 5-second `UpdateMetricsPeriod` tick — on a multi-million-row inbox with handled-message
-  retention, likely the most expensive recurring query in a SQL Server deployment. One
-  `sys.dm_db_partition_stats` metadata query now answers everything with zero scans at any size:
-  unlike PostgreSQL's sampled `reltuples`, `row_count` is transactionally-maintained and exact, the
-  GH-4316 `keep_until` filtered index supplies the Handled slice, and a new
-  `idx_wolverine_incoming_scheduled` filtered index supplies the Scheduled slice — an index that
-  also gives the scheduled-message promotion poll (`status = 'Scheduled' and execution_time <= now`)
-  an index seek instead of its own full scan every recovery cycle. Principals without
-  VIEW DATABASE STATE and schemas that predate the filtered indexes fall back to the old scanning
-  form automatically.
-
 ### WolverineFx.RDBMS (all relational providers)
 
 - **The durability recovery poll and expired-handled cleanup finally have indexes they can use.**
