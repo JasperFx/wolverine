@@ -42,6 +42,7 @@ public class EnvelopeTables_recovery_index_creation : IAsyncLifetime
 
         table.Indexes.ShouldContain(x => x.Name.Contains("recover"));
         table.Indexes.ShouldContain(x => x.Name.Contains("keep_until"));
+        table.Indexes.ShouldContain(x => x.Name.Contains("scheduled"));
 
         await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 

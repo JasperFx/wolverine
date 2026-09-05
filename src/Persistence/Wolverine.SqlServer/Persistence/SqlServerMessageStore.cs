@@ -222,6 +222,97 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
 
     public override async Task<PersistedCounts> FetchCountsAsync()
     {
+        // GH-4318: this runs on every UpdateMetricsPeriod tick (5s default), and the scanning
+        // form below pays three full scans of tables that can hold millions of retained rows.
+        // sys.dm_db_partition_stats.row_count is transactionally-maintained metadata — exact,
+        // unlike PostgreSQL's sampled reltuples — and the GH-4316/GH-4318 filtered indexes carry
+        // the per-status split (Handled and Scheduled slices) as their own row counts, so one
+        // metadata query answers everything with zero scans at any table size. Reading the DMV
+        // needs VIEW DATABASE STATE, and an old schema may lack the filtered indexes; both cases
+        // fall back to the scanning form.
+        try
+        {
+            var counts = await tryFetchCountsFromPartitionStatsAsync();
+            if (counts != null)
+            {
+                return counts;
+            }
+        }
+        catch (SqlException)
+        {
+            // Most likely a principal without VIEW DATABASE STATE — pay for the scans instead
+        }
+
+        return await fetchCountsWithScansAsync();
+    }
+
+    private async Task<PersistedCounts?> tryFetchCountsFromPartitionStatsAsync()
+    {
+        var sql = $@"
+select o.name, ps.index_id, isnull(i.name, ''), sum(ps.row_count)
+from sys.dm_db_partition_stats ps
+join sys.objects o on ps.object_id = o.object_id
+join sys.schemas s on o.schema_id = s.schema_id
+join sys.indexes i on ps.object_id = i.object_id and ps.index_id = i.index_id
+where s.name = @schema
+  and o.name in ('{DatabaseConstants.IncomingTable}', '{DatabaseConstants.OutgoingTable}', '{DatabaseConstants.DeadLetterTable}')
+group by o.name, ps.index_id, i.name";
+
+        long incomingTotal = 0;
+        long? handled = null;
+        long? scheduled = null;
+        var counts = new PersistedCounts();
+
+        await using (var reader = await CreateCommand(sql).With("schema", SchemaName).ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var tableName = await reader.GetFieldValueAsync<string>(0);
+                var indexId = await reader.GetFieldValueAsync<int>(1);
+                var indexName = await reader.GetFieldValueAsync<string>(2);
+                var rows = await reader.GetFieldValueAsync<long>(3);
+
+                if (tableName == DatabaseConstants.OutgoingTable)
+                {
+                    if (indexId <= 1) counts.Outgoing = (int)rows;
+                }
+                else if (tableName == DatabaseConstants.DeadLetterTable)
+                {
+                    if (indexId <= 1) counts.DeadLetter = (int)rows;
+                }
+                else if (indexId <= 1)
+                {
+                    incomingTotal = rows;
+                }
+                else if (indexName == $"idx_{DatabaseConstants.IncomingTable}_keep_until")
+                {
+                    handled = rows;
+                }
+                else if (indexName == $"idx_{DatabaseConstants.IncomingTable}_scheduled")
+                {
+                    scheduled = rows;
+                }
+            }
+
+            await reader.CloseAsync();
+        }
+
+        // Without both filtered indexes there is no per-status split — an older schema that was
+        // never migrated. Let the caller take the scanning path.
+        if (handled == null || scheduled == null)
+        {
+            return null;
+        }
+
+        counts.Handled = (int)handled.Value;
+        counts.Scheduled = (int)scheduled.Value;
+        counts.Incoming = (int)Math.Max(0, incomingTotal - handled.Value - scheduled.Value);
+
+        return counts;
+    }
+
+    private async Task<PersistedCounts> fetchCountsWithScansAsync()
+    {
         var counts = new PersistedCounts();
 
         await using (var reader = await CreateCommand($"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
