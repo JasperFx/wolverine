@@ -1236,9 +1236,9 @@ partial class Build
             // AOT startup crash in that issue shipped unseen: GetReferencedAssemblies() throwing,
             // the stack walk with no frame metadata, and Activator.CreateInstance over trimmed
             // closed generics all behave fine under the JIT and only fail in a native image. This
-            // one does a REAL PublishAot and executes the produced native binary. See the smoke's
-            // csproj for the tolerated jasperfx#742 upstream blocker and how the assertion deepens
-            // automatically once a fixed JasperFx is pinned.
+            // one does a REAL PublishAot and executes the produced native binary, asserting the
+            // full boot + one dispatched message. The pinned JasperFx (2.63.1+) carries the
+            // jasperfx#742 bootstrap guard, so any regression here fails the lane outright.
             var publishSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Publish" /
                                "Wolverine.AotSmoke.Publish.csproj";
             var publishSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Publish" /

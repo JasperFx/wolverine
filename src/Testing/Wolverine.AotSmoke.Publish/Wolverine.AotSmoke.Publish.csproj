@@ -23,13 +23,9 @@
         pre-gen under Internal/Generated/), dispatches a message, and asserts
         the handler fired.
 
-        Known upstream blocker: JasperFx.AddJasperFx still crashes under Native
-        AOT (jasperfx#742). Until a JasperFx release with that guard is pinned,
-        the program treats exactly that crash signature as a tolerated,
-        loudly-reported KNOWN BLOCKER and exits 0 — reaching it at all proves
-        the Wolverine-side bootstrap fixes hold, and any OTHER failure exits
-        non-zero. Once the pinned JasperFx moves past #742, the smoke
-        automatically starts asserting the full boot + dispatch.
+        The pinned JasperFx (2.63.1+) carries the jasperfx#742 bootstrap guard,
+        so this smoke asserts the FULL boot + dispatch: any startup crash or a
+        handler that never fires exits non-zero and fails the lane.
 
         Refresh procedure for the committed pre-gen when codegen output drifts
         (from this project's directory):
