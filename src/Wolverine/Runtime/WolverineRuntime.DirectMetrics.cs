@@ -54,9 +54,7 @@ public partial class WolverineRuntime
 
         public void Received(Envelope envelope)
         {
-            var isExternal = envelope.Destination != null
-                             && !envelope.Destination.Scheme.EqualsIgnoreCase("local")
-                             && !envelope.Destination.Scheme.EqualsIgnoreCase("stub");
+            var isExternal = IsExternalDestination(envelope.Destination);
 
             if (isExternal && envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
             {
