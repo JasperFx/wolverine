@@ -67,5 +67,16 @@ internal class IncomingEnvelopeTable : Table
             Columns = [DatabaseConstants.KeepUntil],
             Predicate = $"[{DatabaseConstants.Status}]='Handled'"
         });
+
+        // GH-4318: earns its keep twice. The scheduled-message promotion poll
+        // (`status = 'Scheduled' and execution_time <= now order by execution_time`) gets an
+        // index seek instead of a full scan every recovery cycle, and the filtered index's own
+        // sys.dm_db_partition_stats row count gives FetchCountsAsync the Scheduled slice for
+        // free — the per-status metrics split no longer needs a `group by status` scan.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.IncomingTable}_scheduled")
+        {
+            Columns = [DatabaseConstants.ExecutionTime],
+            Predicate = $"[{DatabaseConstants.Status}]='Scheduled'"
+        });
     }
 }
