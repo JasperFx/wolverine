@@ -215,7 +215,10 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
 
         if (await admitAsync(listener, envelope, now).ConfigureAwait(false) is { } entry)
         {
-            await postAllAsync([entry]).ConfigureAwait(false);
+            // GH-4332: RabbitMQ and Pub/Sub deliver one at a time, so this is the dominant
+            // native-ack path -- postAllAsync([entry]) allocated a single-element tuple array and
+            // boxed it behind IReadOnlyList per message
+            await postOneAsync(entry.Envelope, entry.Activity).ConfigureAwait(false);
         }
 
         _logger.IncomingReceived(envelope, Uri);
@@ -270,6 +273,28 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     /// what separates this mode from BufferedInMemory: the delivery stays unacknowledged until the pipeline
     /// settles it.
     /// </summary>
+    /// <summary>
+    /// The single-delivery twin of <see cref="postAllAsync" />, with identical failure semantics:
+    /// a failed post releases what tracking admitAsync registered, leaves the delivery unsettled
+    /// for the broker to redeliver, and rethrows. See GH-4091.
+    /// </summary>
+    private async ValueTask postOneAsync(Envelope envelope, Activity? activity)
+    {
+        try
+        {
+            await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
+        }
+        catch
+        {
+            _leases?.Untrack(envelope);
+            _idempotency?.Release(envelope);
+            activity?.Stop();
+            throw;
+        }
+
+        activity?.Stop();
+    }
+
     private async ValueTask postAllAsync(IReadOnlyList<(Envelope Envelope, Activity? Activity)> admitted)
     {
         for (var i = 0; i < admitted.Count; i++)

@@ -25,7 +25,11 @@ internal class InboxCompletionCoalescer
     private readonly ILogger _logger;
     private readonly Uri _uri;
     private readonly object _lock = new();
-    private readonly List<Pending> _pending = new();
+
+    // GH-4332: a Queue, not a List. Draining a List with RemoveRange(0, n) memmoves everything
+    // behind the batch on every flush, so a deep backlog costs O(N) per flush of _maximumBatchSize
+    // -- quadratic overall exactly when the system is most behind.
+    private readonly Queue<Pending> _pending = new();
     private bool _flushing;
     private Task? _flushLoop;
 
@@ -69,7 +73,7 @@ internal class InboxCompletionCoalescer
         var startLoop = false;
         lock (_lock)
         {
-            _pending.Add(pending);
+            _pending.Enqueue(pending);
             if (!_flushing)
             {
                 _flushing = true;
@@ -121,8 +125,11 @@ internal class InboxCompletionCoalescer
                 }
 
                 var take = Math.Min(_maximumBatchSize, _pending.Count);
-                batch = _pending.GetRange(0, take).ToArray();
-                _pending.RemoveRange(0, take);
+                batch = new Pending[take];
+                for (var i = 0; i < take; i++)
+                {
+                    batch[i] = _pending.Dequeue();
+                }
             }
 
             await flushAsync(batch).ConfigureAwait(false);
@@ -139,7 +146,15 @@ internal class InboxCompletionCoalescer
             }
             else
             {
-                await _markBatch(batch.Select(x => x.Envelope).ToList()).ConfigureAwait(false);
+                // Pre-sized array rather than a LINQ projection into a List: this runs once per
+                // flush on every durable endpoint
+                var envelopes = new Envelope[batch.Length];
+                for (var i = 0; i < batch.Length; i++)
+                {
+                    envelopes[i] = batch[i].Envelope;
+                }
+
+                await _markBatch(envelopes).ConfigureAwait(false);
             }
         }
         catch (Exception e)
