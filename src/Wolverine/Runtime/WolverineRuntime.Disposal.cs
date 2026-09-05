@@ -25,6 +25,13 @@ public partial class WolverineRuntime : IAsyncDisposable
             await DurableScheduledJobs.StopAsync(CancellationToken.None);
         }
 
+        // The recurring-message agent started directly on a storeless host (no node coordination
+        // to own its lifecycle). Null everywhere else — the agent runtime stops it there.
+        if (InMemoryRecurringAgent != null)
+        {
+            await InMemoryRecurringAgent.StopAsync(CancellationToken.None);
+        }
+
         if (ScheduledJobs != null)
         {
             ScheduledJobs.Dispose();

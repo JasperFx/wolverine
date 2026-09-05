@@ -43,6 +43,9 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.ObjectPool" />
+        <!-- Cron expression parsing for opts.Schedules (recurring messages). See the note in
+             Directory.Packages.props for why this lives in core rather than a satellite. -->
+        <PackageReference Include="Cronos" />
         <PackageReference Include="NewId" />
         <!--
           Newtonsoft.Json was removed from the core WolverineFx package in 6.0.

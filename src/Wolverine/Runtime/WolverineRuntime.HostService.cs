@@ -99,6 +99,44 @@ public partial class WolverineRuntime
                     "Configure a message store (e.g. PersistMessagesWithPostgresql) to make the policy effective.");
             }
 
+            if (Options.Schedules.Any())
+            {
+                // "Silently never fires" is not a degradation, it is a refusal: these modes run no
+                // agents at all, so a registered schedule would be accepted and then simply never
+                // happen — the exact class of quiet failure the recurring feature exists to avoid.
+                if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.MediatorOnly)
+                {
+                    var names = Options.Schedules.Select(x => x.Name).Join(", ");
+                    throw new InvalidOperationException(
+                        $"Recurring messages are registered ({names}) but Durability.Mode is " +
+                        $"{Options.Durability.Mode}, which runs no agents — the schedules would never " +
+                        "fire. Remove the registrations from this host, or run it in Solo or Balanced mode.");
+                }
+
+                // No message store is a SUPPORTED mode, not a refusal: the agent runs on the
+                // in-memory scheduled model. What degrades — and is deliberately named here rather
+                // than discovered in production — is (a) an occurrence inside a restart window is
+                // lost (the schedule itself survives; the agent re-establishes the next occurrence
+                // from the registrations) and (b) there is no store-backed deduplication, so an
+                // agent restart can double-fire an occurrence where a native broker id does not
+                // cover it.
+                if (Storage is NullMessageStore)
+                {
+                    Logger.LogWarning(
+                        "Recurring messages are registered but no message store is configured, so they run " +
+                        "on the in-memory scheduled model: an occurrence inside a restart window is lost, " +
+                        "and occurrence deduplication is unavailable. Configure a message store to make " +
+                        "recurring messages durable.");
+                }
+                else if (Storage.Deduplication.Enabled == false)
+                {
+                    Logger.LogWarning(
+                        "Recurring messages are registered but the configured message store does not " +
+                        "support logical message deduplication, so an agent restart or failover can " +
+                        "publish the same occurrence twice.");
+                }
+            }
+
             if (!Options.ExternalTransportsAreStubbed)
             {
                 foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())

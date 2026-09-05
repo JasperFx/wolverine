@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -234,6 +235,23 @@ public partial class WolverineRuntime : IAgentRuntime
                 Options.Durability.AssignedNodeNumber = 1;
             }
 
+            // With no message store there is no node coordination for the recurring-message agent
+            // to ride — but no cluster to coordinate either, so "single agent per cluster" is
+            // satisfied by starting it directly. Recurring messages then run on the in-memory
+            // scheduled model: the schedule itself survives a restart (the agent re-establishes
+            // the next occurrence from the registrations), but an occurrence inside the restart
+            // window is lost and nothing dedupes — the startup warning in HostService names both.
+            if (Options.Schedules.Any())
+            {
+                InMemoryRecurringAgent = _container.GetAllInstances<IAgentFamily>()
+                    .OfType<Recurring.RecurringMessageAgent>().FirstOrDefault();
+
+                if (InMemoryRecurringAgent != null)
+                {
+                    await ((IHostedService)InMemoryRecurringAgent).StartAsync(_agentCancellation.Token);
+                }
+            }
+
             return;
         }
 
@@ -264,6 +282,12 @@ public partial class WolverineRuntime : IAgentRuntime
     }
 
     internal IAgent? DurableScheduledJobs { get; private set; }
+
+    /// <summary>
+    /// Set only on a storeless host, where the recurring-message agent is started directly rather
+    /// than through node coordination. See the note in <c>startAgentsAsync</c>.
+    /// </summary>
+    internal IAgent? InMemoryRecurringAgent { get; private set; }
 
     private void startNodeAgentController()
     {

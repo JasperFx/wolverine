@@ -179,6 +179,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                     items: [
                         {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
                         {text: 'Sending Messages', link: '/guide/messaging/message-bus'},
+                        {text: 'Recurring Messages', link: '/guide/messaging/recurring'},
                         {text: 'Message Routing', link: '/guide/messaging/subscriptions'},
                         {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {

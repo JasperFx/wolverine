@@ -176,6 +176,13 @@ public static class WolverineTracing
     public const string MessageScheduled = "wolverine.message.scheduled";
 
     /// <summary>
+    /// The name of the opts.Schedules recurring schedule that published this envelope, carried on
+    /// every activity for an occurrence (and consumed downstream by CritterWatch). Absent for
+    /// everything that is not a recurring-message occurrence.
+    /// </summary>
+    public const string ScheduleName = "wolverine.schedule.name";
+
+    /// <summary>
     /// Activity tag for the saga type full name when processing a saga message
     /// </summary>
     public const string SagaType = "wolverine.saga.type";
