@@ -109,6 +109,25 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
                 return lanes * 2;
             }
 
+            // GH-4331. Buffered and Durable were the two modes left at Azure Service Bus's shipping
+            // default of 0 -- no prefetch at all -- so the batched listener paid a full AMQP round
+            // trip per batch with nothing buffered client-side. They are also the two modes where
+            // prefetch is SAFEST: buffered settles at receipt and durable settles right after the
+            // inbox insert, so neither holds a lock across handler execution the way NativeAck does.
+            //
+            // Not risk-free, and that is why this is one batch rather than a throughput-only number:
+            // a prefetched message ages against its lock from the moment the CLIENT buffers it, with
+            // no Envelope yet and so no lease renewal. The exposure is (buffer depth / consumption
+            // rate), so sizing the buffer to exactly one receive batch bounds it at roughly the time
+            // to drain one batch.
+            //
+            // Inline deliberately keeps 0: it runs the handler before settling, so a prefetch buffer
+            // there ages against a lock behind arbitrarily slow user code.
+            if (Mode is EndpointMode.BufferedInMemory or EndpointMode.Durable)
+            {
+                return MaximumMessagesToReceive;
+            }
+
             return Parent.PrefetchCount;
         }
         set
