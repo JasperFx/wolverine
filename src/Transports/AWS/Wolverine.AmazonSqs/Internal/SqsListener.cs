@@ -169,7 +169,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
         var results = await _transport.Client!.ReceiveMessageAsync(request, token);
 
-        if (results.Messages == null || !results.Messages.Any())
+        // GH-4332: .Count, not .Any() -- the latter boxes an enumerator on a List
+        if (results.Messages == null || results.Messages.Count == 0)
         {
             // No work — the loop applies its idle delay before polling again.
             return false;
@@ -219,11 +220,15 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         }
 
         // ReSharper disable once CoVariantArrayConversion
-        if (envelopes.Any())
+        if (envelopes.Count > 0)
         {
+            // GH-4332: materialize the array once and reuse it on both branches; the heartbeat
+            // branch used to build it twice for the same list
+            var batch = envelopes.ToArray();
+
             if (_heartbeat == null)
             {
-                await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                await _receiver.ReceivedAsync(this, batch);
             }
             else
             {
@@ -233,7 +238,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
                 _heartbeat.Track(inFlight);
                 try
                 {
-                    await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                    await _receiver.ReceivedAsync(this, batch);
                 }
                 finally
                 {

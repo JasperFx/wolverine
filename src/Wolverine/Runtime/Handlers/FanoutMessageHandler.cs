@@ -6,7 +6,11 @@ internal class FanoutMessageHandler<T> : MessageHandler<T>
 
     public FanoutMessageHandler(Uri[] localQueueUris, HandlerChain chain)
     {
-        _localQueueUris = localQueueUris;
+        // GH-4332 / GH-2303: deduplicate ONCE here. The safety net against a sticky handler
+        // queue reachable by multiple paths is a property of this fixed array, so recomputing it
+        // per message (a HashSet<Uri> allocation plus a full-string Uri.GetHashCode per entry)
+        // only ever produced the same answer.
+        _localQueueUris = localQueueUris.Distinct().ToArray();
         Chain = chain;
     }
 
@@ -23,16 +27,10 @@ internal class FanoutMessageHandler<T> : MessageHandler<T>
             }
         }
 
-        // Safety net: deduplicate target URIs to prevent double delivery
-        // when the same sticky handler queue is reachable via multiple paths.
-        // See https://github.com/JasperFx/wolverine/issues/2303
-        var sent = new HashSet<Uri>();
+        // _localQueueUris is already distinct -- see the constructor
         foreach (var uri in _localQueueUris)
         {
-            if (sent.Add(uri))
-            {
-                await context.EndpointFor(uri).SendAsync(message, options);
-            }
+            await context.EndpointFor(uri).SendAsync(message, options);
         }
     }
 }
