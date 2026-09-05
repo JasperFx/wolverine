@@ -14,6 +14,19 @@
   die at runtime with `TypeLoadException` — Marten/Marten.AspNetCore/Marten.Newtonsoft go to 9.32.0,
   Polecat to 5.23.0, and Fisher to 1.1.0, all of which are compiled against JasperFx 2.63.
 
+- **The registration-assembly stack walk no longer anchors on stale Wolverine frames.**
+  `determineCallingAssembly` -- the walk behind `RegistrationCallingAssembly` (GH-3778) and the implicit
+  `ApplicationAssembly` inference -- anchored at the last frame in assembly `Wolverine` *anywhere* in the
+  stack. But the stack does not always end at the registering caller: a callback invoked from Wolverine
+  code, or an async continuation chain that a completing Wolverine task ran inline, leaves Wolverine frames
+  *deeper* in the stack, and the anchor jumped past the real caller to resolve whoever invoked the outer
+  Wolverine code instead. Captured live in a CoreTests full-suite run: one test's
+  `TrackedSession.ExecuteAndTrackAsync` completed and ran its continuations inline straight through xunit
+  into the next test's synchronous `UseWolverine`, so a host registered from `Module1` resolved `CoreTests`
+  -- the suite-order-dependent failure of `Bug_4156_static_mode_with_a_class_library_composition_root`. The
+  walk now anchors at the end of the innermost *contiguous* run of Wolverine frames, the call chain that
+  actually led to the capture.
+
 - **A Native AOT publish gets through Wolverine's own bootstrap.** (GH
   [#4287](https://github.com/JasperFx/wolverine/issues/4287)) Four distinct Wolverine-side crashes killed
   every `PublishAot` application at startup, all invisible under the JIT: the caller-assembly stack walk
@@ -46,6 +59,31 @@
   listener for that logical queue was very much alive. `FindListenerCircuit` now asks the transport to translate
   a `received_at` address back to the address its listener is actually registered under before giving up.
   Sticky (exclusive) per-tenant listeners are untouched: those register the per-database address themselves.
+
+- **Every message store has to prove it can store a realistic agent URI.** (closes
+  [#4280](https://github.com/JasperFx/wolverine/issues/4280)) The agent restriction and node assignment
+  round trips *are* covered on all seven providers by the shared compliance suites -- they were just never
+  driven with a value long enough to touch a column width. `fake://1` is eight characters and
+  `red://leader` is twelve, so a provider could declare an agent URI column as `varchar(100)` and stay
+  green across the whole cross-provider suite. That is exactly what happened: #4246 widened the MySQL and
+  Oracle columns and SQL Server's `wolverine_agent_restrictions` was missed and stayed at 100 for another
+  release, found by reading a table definition rather than by a test. `MessageStoreCompliance` and
+  `NodePersistenceCompliance` now each carry a fact that round-trips a realistic URI at the full
+  `AgentUri.MaximumLength` width -- through the restriction path an operator's pin or pause actually takes,
+  and through a node's own control URI and its assignment ids, both of which are primary keys -- and assert
+  it comes back byte-identical, because a silently truncated URI never matches its agent again.
+
+- **The SQL Server node tables get the widths the rest of the family already had.** (closes
+  [#4246](https://github.com/JasperFx/wolverine/issues/4246) follow-up) `wolverine_agent_restrictions.uri`
+  and `.type`, `wolverine_nodes.version`, the control queue's `message_type` and the dynamic listener
+  registry's `uri` were each declared with a bare `AddColumn<string>()`, which Weasel.SqlServer maps to
+  `varchar(100)` -- narrower than the `VARCHAR2(4000)` Oracle declares for the same columns and narrower
+  than Postgres's unbounded `varchar`. `wolverine_agent_restrictions` is on a live write path --
+  `ApplyRestrictionsAsync` -> `PersistAgentRestrictionsAsync` -- so pinning or pausing an agent whose URI
+  ran past 100 characters failed the insert outright with "String or binary data would be truncated". An
+  `event-subscriptions://marten/SomeProjectionName@some-tenant-id` gets there without trying. All five now
+  declare `varchar(500)`, and the columns that hold a URI take that width from the new shared
+  `AgentUri.MaximumLength` rather than each provider repeating a literal.
 
 - **Global partitioning over sharded database queues executes messages again.** (closes
   [#4288](https://github.com/JasperFx/wolverine/issues/4288)) With `GlobalPartitioned` +

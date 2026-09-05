@@ -553,7 +553,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             // 500 for anything in a key: InnoDB caps an index key at 3072 bytes, which is 768 characters
             // of utf8mb4.
             nodeTable.AddColumn("description", "varchar(500)").NotNull();
-            nodeTable.AddColumn("uri", "varchar(500)").NotNull();
+            nodeTable.AddColumn("uri", $"varchar({AgentUri.MaximumLength})").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("(UTC_TIMESTAMP(6))");
             nodeTable.AddColumn<string>("version");
@@ -562,7 +562,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             yield return nodeTable;
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
-            assignmentTable.AddColumn("id", "varchar(500)").AsPrimaryKey();
+            assignmentTable.AddColumn("id", $"varchar({AgentUri.MaximumLength})").AsPrimaryKey();
             assignmentTable.AddColumn<Guid>("node_id")
                 .ForeignKeyTo(nodeTable.Identifier, "id", onDelete: Weasel.Core.CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
@@ -602,8 +602,8 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             var restrictionTable =
                 new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
             restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
-            restrictionTable.AddColumn("uri", "varchar(500)").NotNull();
-            restrictionTable.AddColumn("type", "varchar(500)").NotNull();
+            restrictionTable.AddColumn("uri", $"varchar({AgentUri.MaximumLength})").NotNull();
+            restrictionTable.AddColumn("type", $"varchar({AgentUri.MaximumLength})").NotNull();
             restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
             yield return restrictionTable;
 
@@ -613,7 +613,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             {
                 var listenerTable =
                     new Table(new DbObjectName(SchemaName, DatabaseConstants.ListenersTableName));
-                listenerTable.AddColumn("uri", "varchar(500)").AsPrimaryKey();
+                listenerTable.AddColumn("uri", $"varchar({AgentUri.MaximumLength})").AsPrimaryKey();
                 yield return listenerTable;
             }
         }

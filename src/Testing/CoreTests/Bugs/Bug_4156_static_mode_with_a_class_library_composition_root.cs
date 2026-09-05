@@ -50,6 +50,32 @@ public class Bug_4156_static_mode_with_a_class_library_composition_root
     }
 
     [Fact]
+    public void registration_capture_survives_wolverine_frames_deeper_in_the_stack()
+    {
+        // Deterministic reconstruction of how the_class_library_is_what_registers_wolverine failed in
+        // full-suite runs while passing in isolation. determineCallingAssembly used to anchor its walk at
+        // the LAST frame in assembly "Wolverine" anywhere in the stack. The stack does not always end at
+        // the registering caller: captured live in a full run, a prior test's
+        // TrackedSession.ExecuteAndTrackAsync completed and ran its continuation chain inline on the
+        // thread-pool thread, straight through xunit and into the next test's synchronous UseWolverine.
+        // That stale Wolverine frame 200+ frames down pulled the anchor past Module1.BuildHost, nothing
+        // but thread-pool frames remained beyond it, and the walk fell through to
+        // Assembly.GetEntryAssembly(): CoreTests.
+        //
+        // Registering the Module1 host from inside another host's UseWolverine callback puts Wolverine
+        // frames below the registering caller on every run, no suite timing required. The anchor must stay
+        // on the innermost contiguous Wolverine call chain and resolve Module1 regardless.
+        Assembly? captured = null;
+        using var outer = Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            using var host = CompositionRootInAClassLibrary.BuildHost();
+            captured = host.Services.GetRequiredService<WolverineOptions>().RegistrationCallingAssembly;
+        }).Build();
+
+        captured!.GetName().Name.ShouldBe(TheClassLibrary.GetName().Name);
+    }
+
+    [Fact]
     public async Task auto_mode_starts_cleanly_in_this_layout()
     {
         // The reporter's passing test, and the working configuration for this shape: Auto generates what it
