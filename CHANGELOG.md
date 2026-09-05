@@ -4,6 +4,17 @@
 
 ### WolverineFx (core)
 
+- **Metric accumulator lookups stop scanning; destination classification is cached.** (closes
+  [#4324](https://github.com/JasperFx/wolverine/issues/4324)) `MetricsAccumulator.FindAccumulator`
+  ran 2-4x per message on the CritterWatch/Hybrid metrics modes and scanned the whole
+  (message type x destination) accumulator array with an ordinal string compare plus a full
+  component-wise `Uri.Equals` per entry; lookups now go through a copy-on-write `ImHashMap` trie
+  keyed message-type-then-Uri, with the immutable array kept solely for the export loop's
+  iteration. On the same paths, `IsSystemEndpoint` re-ran a `ToString()` substring scan and the
+  external-destination gate re-ran two case-insensitive scheme compares per message — both are pure
+  functions of a destination Uri drawn from a small bounded set and are now answered by one cached
+  classification probe.
+
 - **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
   `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one
