@@ -98,6 +98,7 @@ public partial class NodeAgentController
         node.AssignedNodeNumber = _runtime.Options.Durability.AssignedNodeNumber;
         node.Capabilities.AddRange(_capabilities.Where(x => !_releasedAgents.ContainsKey(x)));
         node.AssignAgents(Agents.Keys.ToArray());
+        node.LoadFactor = sampleLoad();
         return node;
     }
 
@@ -112,7 +113,11 @@ public partial class NodeAgentController
         // skeleton and only build the full identity picture (node number, capabilities, every running agent)
         // on the rare miss. buildLocalNode enumerates every agent on the node, so calling it every heartbeat
         // would be a real cost on the thousands-of-agents nodes this whole fix is about.
-        var existed = await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), token);
+        // GH-3959: the load sample rides the skeleton so capacity advertisement refreshes on EVERY
+        // heartbeat — the leader must never place agents against a stale reading.
+        var skeleton = WolverineNode.For(_runtime.Options);
+        skeleton.LoadFactor = sampleLoad();
+        var existed = await _persistence.MarkHealthCheckAsync(skeleton, token);
         if (existed)
         {
             return;
@@ -197,6 +202,20 @@ public partial class NodeAgentController
 
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
+
+        // GH-3987: node-side assigned-vs-running reconciliation, follower-capable by design — the
+        // divergences it heals live on the node that has them, and the leader structurally cannot see
+        // them (a row with no runner looks assigned; a runner with no row is invisible to the grid).
+        // Wrapped so a fault here can never cost this node its heartbeat or its leadership lease.
+        try
+        {
+            await ReconcileLocalAgentsAsync(nodes, restrictions);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error reconciling local agents on node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
 
         // Detect lost leadership: we *thought* we were the leader (from a
         // previous heartbeat tick) but our underlying advisory lock has been

@@ -85,7 +85,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         var nodes = new List<WolverineNode>();
 
         await using var cmd = _dataSource.CreateCommand(
-            $"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};");
+            $"select {NodeColumns}, {LoadFactor} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};");
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -151,7 +151,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         var restrictions = new List<AgentRestriction>();
         
         await using var cmd = _dataSource.CreateCommand(
-            $"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};select id, uri, type, node from {_restrictionTable}");
+            $"select {NodeColumns}, {LoadFactor} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};select id, uri, type, node from {_restrictionTable}");
         
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -199,7 +199,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         }
 
         await using var cmd = _dataSource.CreateCommand(
-                $"select {NodeColumns} from {_nodeTable} where id = :id;select {Id}, {NodeId}, {Started} from {_assignmentTable} where node_id = :id;")
+                $"select {NodeColumns}, {LoadFactor} from {_nodeTable} where id = :id;select {Id}, {NodeId}, {Started} from {_assignmentTable} where node_id = :id;")
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
@@ -270,8 +270,13 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
-        var count = await _dataSource.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
-            .With("id", node.NodeId).ExecuteNonQueryAsync(token);
+        // GH-3959: the load advertisement rides the same single-statement heartbeat write, so the
+        // leader never places agents against a reading older than one HealthCheckPollingTime.
+        var count = await _dataSource
+            .CreateCommand($"update {_nodeTable} set health_check = now(), {LoadFactor} = :load where id = :id")
+            .With("id", node.NodeId)
+            .With("load", (object?)node.LoadFactor ?? DBNull.Value)
+            .ExecuteNonQueryAsync(token);
 
         // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
         // instead of blindly re-inserting a skeleton (fresh node_number, empty capabilities) here.
@@ -285,13 +290,14 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         var strings = node.Capabilities.Select(x => x.ToString()).ToArray();
 
         await _dataSource.CreateCommand(
-                $"insert into {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) values (:id, :number, :uri, :capabilities, :description, :version, now()) on conflict (id) do update set node_number = :number, uri = :uri, capabilities = :capabilities, description = :description, version = :version, health_check = now()")
+                $"insert into {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check, {LoadFactor}) values (:id, :number, :uri, :capabilities, :description, :version, now(), :load) on conflict (id) do update set node_number = :number, uri = :uri, capabilities = :capabilities, description = :description, version = :version, health_check = now(), {LoadFactor} = :load")
             .With("id", node.NodeId)
             .With("number", node.AssignedNodeNumber)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
             .With("capabilities", strings)
             .With("description", node.Description)
             .With("version", node.Version.ToString())
+            .With("load", (object?)node.LoadFactor ?? DBNull.Value)
             .ExecuteNonQueryAsync(token);
     }
 
@@ -378,6 +384,14 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
         var capabilities = await reader.GetFieldValueAsync<string[]>(7);
         node.Capabilities.AddRange(capabilities.Select(x => new Uri(x)));
+
+        // GH-3959: resolved by name -- every node select in this store includes the column, and one
+        // that stops doing so should fail loudly here rather than read a wrong hard-coded ordinal.
+        var loadFactor = reader.GetOrdinal(LoadFactor);
+        if (!await reader.IsDBNullAsync(loadFactor))
+        {
+            node.LoadFactor = await reader.GetFieldValueAsync<double>(loadFactor);
+        }
 
         return node;
     }

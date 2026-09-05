@@ -96,5 +96,10 @@ public class DatabaseConstants
     public static readonly string Started = "started";
     public static readonly string HealthCheck = "health_check";
     public static readonly string Capabilities = "capabilities";
+
+    // GH-3959: per-node load advertisement. Deliberately NOT part of NodeColumns -- every store's
+    // readNode is a positional read over that shared list, and only PostgreSQL persists this column.
+    public static readonly string LoadFactor = "load_factor";
+
     public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Version}, {Capabilities}";
 }

@@ -16,8 +16,15 @@ public class WolverineNode
     public string Description { get; set; } = Environment.MachineName;
 
     public List<Uri> Capabilities { get; set; } = new();
-    
+
     public List<Uri> ActiveAgents { get; set; } = new();
+
+    /// <summary>
+    ///     This node's self-reported load percentage (see <see cref="INodeLoadMonitor" />), refreshed
+    ///     on every heartbeat. Null when the node is not advertising load, in which case the leader
+    ///     treats it as always having headroom.
+    /// </summary>
+    public double? LoadFactor { get; set; }
     public DateTimeOffset Started { get; set; }
     public DateTimeOffset LastHealthCheck { get; set; } = DateTimeOffset.Now;
     

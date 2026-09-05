@@ -71,6 +71,13 @@ public partial class AssignmentGrid
         internal bool PendingRetryDue { get; set; }
 
         /// <summary>
+        ///     GH-3959: this agent was detached from an overloaded node by the capacity shed pass in
+        ///     this evaluation. The resulting move or stop is urgent and is never deferred by the
+        ///     stability gate.
+        /// </summary>
+        internal bool SheddedForCapacity { get; set; }
+
+        /// <summary>
         /// Possible nodes that can support this agent. NOTE: this is only applied through
         /// MatchAgentsToNodesFor()
         /// </summary>
