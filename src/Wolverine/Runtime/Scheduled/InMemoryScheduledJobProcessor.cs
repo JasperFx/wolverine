@@ -104,7 +104,7 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
                 _task = Task.Delay(delayTime, _cancellation.Token).ContinueWith(_ => publish(), TaskScheduler.Default);
             }
 
-            ReceivedAt = DateTimeOffset.Now;
+            ReceivedAt = DateTimeOffset.UtcNow;
         }
 
         public DateTimeOffset ExecutionTime { get; }

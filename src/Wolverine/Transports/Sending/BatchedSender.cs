@@ -93,6 +93,9 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
             throw new InvalidOperationException("This agent has not been started");
         }
 
+        // Paired with the per-batch decrement in SendBatchAsync's finally, so
+        // QueuedCount reflects envelopes accepted but not yet flushed to the protocol
+        Interlocked.Increment(ref _queued);
         return _serializing.PostAsync(message);
     }
 
