@@ -151,7 +151,13 @@ internal class LeaseRenewalTracker : IAsyncDisposable
     public void Untrack(Envelope envelope)
     {
         _inFlight.TryRemove(envelope.Id, out _);
-        _lost.TryRemove(envelope.Id, out _);
+
+        // GH-4321: runs per message in native-ack mode, and _lost is empty except during an
+        // actual lease-loss incident — skip the bucket probe rather than paying it every time
+        if (!_lost.IsEmpty)
+        {
+            _lost.TryRemove(envelope.Id, out _);
+        }
     }
 
     private async Task runAsync()

@@ -4,6 +4,22 @@
 
 ### WolverineFx (core)
 
+- **Idle polling stops hammering.** (closes [#4321](https://github.com/JasperFx/wolverine/issues/4321))
+  Three sources of steady-state chatter learned to be quiet. The database control queue polled at a
+  hard 1 Hz — a connection, a transaction, a DELETE and a SELECT per tick per node, ~86k
+  transactions/day against an almost-always-empty queue; it now stays at 1s while control traffic is
+  flowing and relaxes to 5s after ten quiet seconds. The orphaned-message sweep opened two
+  connections and read the identical live-node list twice per cycle; one connection and one node
+  read now serve both tables, with the GH-3850 owners-before-nodes ordering preserved (both owner
+  reads still precede the single node read). And every back-pressure-enforcing listener owned its
+  own 2-second `System.Timers.Timer` — an `ElapsedEventArgs`, a state machine, and a fire-and-forget
+  `Task` per endpoint per tick forever; one shared `PeriodicTimer` sweep now walks all of them.
+  `LeaseRenewalTracker.Untrack` also stops probing the lease-lost dictionary per message when it is
+  empty, which is any time there is no active lease-loss incident. Deliberately NOT touched: the
+  twice-per-interval node heartbeat — the second write also carries the GH-3604/D2 row-restoration
+  duty, not just the GH-2682 invariant, so deduplicating it is cluster-liveness surgery that needs
+  its own design pass.
+
 - **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
   `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one

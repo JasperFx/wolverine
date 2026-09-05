@@ -16,6 +16,21 @@ internal class DatabaseControlListener : IListener
     private readonly RetryBlock<Envelope> _retryBlock;
     private readonly DatabaseControlTransport _transport;
 
+    // GH-4321: the control queue is empty almost all of the time, but this listener polled it at
+    // a hard 1 Hz — a connection, a transaction, a DELETE and a SELECT per tick per node,
+    // ~86k transactions/day/node against the main store. The loop stays at 1s while there has
+    // been recent traffic and relaxes to 5s once the queue has been quiet, so a burst of agent
+    // commands is still consumed promptly while a quiet cluster stops hammering the database.
+    private static readonly TimeSpan ActivePollInterval = 1.Seconds();
+    private static readonly TimeSpan IdlePollInterval = 5.Seconds();
+    private const long IdleAfterMilliseconds = 10_000;
+    private long _lastActivityTicks = Environment.TickCount64;
+
+    internal void MarkActivity()
+    {
+        Interlocked.Exchange(ref _lastActivityTicks, Environment.TickCount64);
+    }
+
     public DatabaseControlListener(DatabaseControlTransport transport, DatabaseControlEndpoint endpoint,
         IReceiver receiver, ILogger<DatabaseControlListener> logger, CancellationToken cancellationToken)
     {
@@ -44,7 +59,8 @@ internal class DatabaseControlListener : IListener
                     logger.LogError(e, "Error trying to poll for messages from the database control queue");
                 }
 
-                await Task.Delay(1.Seconds());
+                var idleFor = Environment.TickCount64 - Interlocked.Read(ref _lastActivityTicks);
+                await Task.Delay(idleFor < IdleAfterMilliseconds ? ActivePollInterval : IdlePollInterval);
             }
         }, _cancellation.Token);
 

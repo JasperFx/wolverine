@@ -26,6 +26,10 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
+        // GH-4321: only runs when the poll actually found envelopes — keep the listener at its
+        // active polling cadence while traffic is flowing
+        _listener.MarkActivity();
+
         await _receiver.ReceivedAsync(_listener, _envelopes.ToArray());
 
         await _transport.DeleteEnvelopesAsync(_envelopes, cancellationToken);
