@@ -11,6 +11,7 @@ using Wolverine.Configuration.EventModeling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -105,6 +106,17 @@ public class ServiceCapabilities : OptionsDescription
     /// </summary>
     public List<SagaDescriptor> Sagas { get; set; } = [];
 
+    /// <summary>
+    /// One <see cref="RecurringScheduleDescriptor" /> per recurring (cron) message schedule
+    /// registered through <c>opts.Schedules</c> — name, cron expression, time zone, message
+    /// type, plus the runtime pause state and pending next occurrence read best-effort from the
+    /// message store's recurring tracking extension. First-class rather than an
+    /// <c>AdditionalCapabilities</c> entry so consumers (CritterWatch) get typed fields and a
+    /// schedule change participates in capability change detection. Empty when no schedules are
+    /// registered.
+    /// </summary>
+    public List<RecurringScheduleDescriptor> RecurringSchedules { get; set; } = [];
+
     public List<MessageStore> MessageStores { get; set; } = [];
 
     /// <summary>
@@ -198,6 +210,9 @@ public class ServiceCapabilities : OptionsDescription
         readSection(runtime, nameof(MessagingEndpoints), token, () => readEndpoints(runtime, capabilities, token));
 
         readSection(runtime, nameof(Sagas), token, () => readSagas(runtime, capabilities));
+
+        await readSectionAsync(runtime, nameof(RecurringSchedules), token,
+            () => readRecurringSchedules(runtime, token, capabilities));
 
         readSection(runtime, nameof(AdditionalCapabilities), token,
             () => readAdditionalCapabilities(runtime, capabilities));
@@ -527,6 +542,53 @@ public class ServiceCapabilities : OptionsDescription
     {
         capabilities.EventModel =
             await WolverineEventModelExport.AssembleAsync(runtime.Services, runtime.Options.ServiceName, token);
+    }
+
+    /// <summary>
+    /// One descriptor per registered recurring (cron) schedule. Definition data comes straight
+    /// off the code-first registrations; the runtime half (paused, the actually-pending next
+    /// occurrence) is read from the message store's recurring tracking extension with its own
+    /// inner best-effort guard — an unreachable database costs the snapshot the runtime fields,
+    /// never the schedule definitions themselves.
+    /// </summary>
+    private static async Task readRecurringSchedules(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        var schedules = runtime.Options.Schedules;
+        if (!schedules.Any()) return;
+
+        var rows = new Dictionary<string, RecurringMessageRecord>();
+        try
+        {
+            foreach (var row in await runtime.Storage.RecurringMessages.LoadAllAsync(token))
+            {
+                rows[row.Name] = row;
+            }
+        }
+        catch (Exception e)
+        {
+            token.ThrowIfCancellationRequested();
+            runtime.Logger.LogWarning(e,
+                "Wolverine was unable to read the recurring-message tracking rows for the ServiceCapabilities snapshot. Schedule definitions are still reported; pause state and pending occurrences are not.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var schedule in schedules.OrderBy(x => x.Name, StringComparer.Ordinal))
+        {
+            var row = rows.GetValueOrDefault(schedule.Name);
+            capabilities.RecurringSchedules.Add(new RecurringScheduleDescriptor
+            {
+                Name = schedule.Name,
+                CronExpression = schedule.Schedule.Expression,
+                TimeZoneId = schedule.Schedule.TimeZone.Id,
+                MessageType = TypeDescriptor.For(schedule.MessageType),
+                Paused = row?.Paused ?? false,
+                PausedAt = row?.PausedAt,
+                NextOccurrence = row?.Paused == true
+                    ? null
+                    : row?.NextOccurrence ?? schedule.Schedule.NextOccurrence(now)
+            });
+        }
     }
 
     private static void readAdditionalCapabilities(IWolverineRuntime runtime, ServiceCapabilities capabilities)

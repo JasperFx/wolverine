@@ -76,7 +76,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
         foreach (var chain in DescribedChains(options))
         {
-            var slice = EventModelRoles.ForHandlerChain(chain);
+            var slice = applyRecurringTrigger(EventModelRoles.ForHandlerChain(chain), chain.MessageType, options);
             slices.Add(slice);
 
             knownTypes.TryAdd(chain.MessageType.FullName!, chain.MessageType);
@@ -108,6 +108,32 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         model = ApplyGrpcTriggers(model, grpc);
         model = ApplyExternalSystems(model, options, stickyEndpoints, knownTypes, includeInbound: true);
         return FinishModel(model);
+    }
+
+    /// <summary>
+    ///     A slice whose message type has a registered recurring (cron) schedule is triggered by the job
+    ///     scheduler, not an ad-hoc message publish — same treatment <see cref="EventModelRoles.ForHandlerChain" />
+    ///     gives <see cref="TimeoutMessage" /> — and the trigger origin's label documents itself as the
+    ///     cron expression, populated from the registration rather than invented as a parallel surface.
+    /// </summary>
+    private static EventModelSliceDescriptor applyRecurringTrigger(EventModelSliceDescriptor slice,
+        Type messageType, WolverineOptions options)
+    {
+        if (!options.Schedules.Any()) return slice;
+
+        var expressions = options.Schedules
+            .Where(x => x.MessageType == messageType)
+            .Select(x => x.Schedule.Expression)
+            .Distinct()
+            .ToArray();
+
+        if (expressions.Length == 0) return slice;
+
+        return slice with
+        {
+            TriggerKind = TriggerKind.JobScheduler,
+            TriggerOrigin = slice.TriggerOrigin ?? new PublisherOrigin { Label = string.Join("; ", expressions) }
+        };
     }
 
     /// <summary>

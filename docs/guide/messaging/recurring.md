@@ -172,6 +172,23 @@ process, are lost on restart, and cannot cancel an occurrence that is already pr
 that one will still fire. This is a documented degradation of the same kind as the
 [no-message-store mode](#running-without-a-message-store) below.
 
+## Diagnostics
+
+Registered schedules surface in three places, all populated from the registrations themselves —
+there is no parallel configuration surface to keep in sync:
+
+* **The service capabilities snapshot** (`ServiceCapabilities.RecurringSchedules`) carries one
+  typed descriptor per schedule — name, cron expression, time zone, message type, plus the live
+  pause state and pending next occurrence read from the tracking extension — so monitoring
+  consoles (CritterWatch) can render and manage schedules without parsing deduplication-id
+  strings. The read is best-effort: an unreachable database costs the snapshot the runtime
+  fields, never the schedule definitions.
+* **`wolverine describe`** renders a Recurring Messages table (name, cron, time zone, message
+  type, computed next occurrence).
+* **The Event Model**: a slice whose command type has a registered schedule is triggered by the
+  job scheduler — the same treatment `TimeoutMessage` gets — with the cron expression as the
+  trigger origin's label.
+
 ## Failure semantics
 
 All of these are deliberate, and worth knowing before relying on the feature:
