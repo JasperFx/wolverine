@@ -4,6 +4,19 @@
 
 ### WolverineFx (core)
 
+- **The registration-assembly stack walk no longer anchors on stale Wolverine frames.**
+  `determineCallingAssembly` -- the walk behind `RegistrationCallingAssembly` (GH-3778) and the implicit
+  `ApplicationAssembly` inference -- anchored at the last frame in assembly `Wolverine` *anywhere* in the
+  stack. But the stack does not always end at the registering caller: a callback invoked from Wolverine
+  code, or an async continuation chain that a completing Wolverine task ran inline, leaves Wolverine frames
+  *deeper* in the stack, and the anchor jumped past the real caller to resolve whoever invoked the outer
+  Wolverine code instead. Captured live in a CoreTests full-suite run: one test's
+  `TrackedSession.ExecuteAndTrackAsync` completed and ran its continuations inline straight through xunit
+  into the next test's synchronous `UseWolverine`, so a host registered from `Module1` resolved `CoreTests`
+  -- the suite-order-dependent failure of `Bug_4156_static_mode_with_a_class_library_composition_root`. The
+  walk now anchors at the end of the innermost *contiguous* run of Wolverine frames, the call chain that
+  actually led to the capture.
+
 - **A Native AOT publish gets through Wolverine's own bootstrap.** (GH
   [#4287](https://github.com/JasperFx/wolverine/issues/4287)) Four distinct Wolverine-side crashes killed
   every `PublishAot` application at startup, all invisible under the JIT: the caller-assembly stack walk
