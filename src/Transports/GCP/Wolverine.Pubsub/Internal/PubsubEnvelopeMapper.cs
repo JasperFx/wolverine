@@ -49,6 +49,12 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>
         outgoing.Attributes[key] = value;
     }
 
+    // GH-4328: writeIncomingHeaders copies every wire header into Envelope.Headers with the same
+    // keys and stringification the per-property reader would produce, so let the ~20 reserved
+    // property reads answer from the copied dictionary instead of re-probing (and re-stringifying
+    // from) the transport message on every one. Same opt-in RabbitMQ and Kafka took in GH-3490/92.
+    protected override bool preferCopiedIncomingHeaders => true;
+
     protected override void writeIncomingHeaders(PubsubMessage incoming, Envelope envelope)
     {
         if (incoming.Attributes is null)

@@ -15,8 +15,20 @@ public class RedisEnvelopeMapper : EnvelopeMapper<StreamEntry, List<NameValueEnt
 
     public RedisEnvelopeMapper(Endpoint endpoint) : base(endpoint)
     {
-        MapProperty(x => x.Data!, 
-            (e, m) => e.Data = m.Values.FirstOrDefault(x => x.Name == "payload").Value,
+        MapProperty(x => x.Data!,
+            // GH-4328: plain loop — FirstOrDefault allocated an enumerator + predicate delegate
+            // per received message for a single-field probe
+            (e, m) =>
+            {
+                foreach (var entry in m.Values)
+                {
+                    if (entry.Name == "payload")
+                    {
+                        e.Data = entry.Value;
+                        return;
+                    }
+                }
+            },
             (e, m) => m.Add(new NameValueEntry("payload", e.Data)));
     }
 
@@ -28,6 +40,12 @@ public class RedisEnvelopeMapper : EnvelopeMapper<StreamEntry, List<NameValueEnt
 
         outgoing.Add(new NameValueEntry($"{HeaderPrefix}{key}", value));
     }
+
+    // GH-4328: writeIncomingHeaders copies every wire header into Envelope.Headers with the same
+    // keys and stringification the per-property reader would produce, so let the ~20 reserved
+    // property reads answer from the copied dictionary instead of re-probing (and re-stringifying
+    // from) the transport message on every one. Same opt-in RabbitMQ and Kafka took in GH-3490/92.
+    protected override bool preferCopiedIncomingHeaders => true;
 
     protected override bool tryReadIncomingHeader(StreamEntry incoming, string key, out string? value)
     {
