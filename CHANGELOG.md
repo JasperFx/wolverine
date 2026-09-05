@@ -4,6 +4,16 @@
 
 ### WolverineFx (core)
 
+- **`DateTimeOffset.Now` is gone from the per-message paths.** (closes
+  [#4326](https://github.com/JasperFx/wolverine/issues/4326)) `BufferedReceiver`, `NativeAckReceiver`,
+  and `BufferedLocalQueue.EnqueueDirectly` — the last of these the highest-frequency call site in the
+  process — stamped receipt and evaluated scheduled-for-later with `DateTimeOffset.Now`, which pays a
+  `TimeZoneInfo.Local` offset resolution on every read, while `DurableReceiver`, `InlineReceiver`, and
+  the neighbouring line in the same file used `UtcNow`. Every comparison downstream is offset-aware, so
+  the swap is behaviorally free. The sweep also covers `Envelope.IsExpired()`, the `ScheduleDelay`
+  setter, the RabbitMQ TTL computation, `WolverineNode.LastHealthCheck`, and the in-memory scheduled
+  job processor — shipped Wolverine code no longer calls `DateTimeOffset.Now` anywhere.
+
 - **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
   `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one

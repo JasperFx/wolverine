@@ -321,7 +321,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     async ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
     {
-        var now = DateTimeOffset.Now;
+        var now = DateTimeOffset.UtcNow;
 
         if (_settings.Cancellation.IsCancellationRequested)
         {
@@ -344,7 +344,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        var now = DateTimeOffset.Now;
+        var now = DateTimeOffset.UtcNow;
         envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
         if (envelope.IsExpired())
