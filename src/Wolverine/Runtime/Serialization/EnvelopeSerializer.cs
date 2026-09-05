@@ -98,7 +98,10 @@ public static class EnvelopeSerializer
                     break;
 
                 case EnvelopeConstants.AcceptedContentTypesKey:
-                    env.AcceptedContentTypes = value.Split(',');
+                    // GH-4323: virtually always the default — reuse the shared array
+                    env.AcceptedContentTypes = value == EnvelopeConstants.JsonContentType
+                        ? Envelope.DefaultAcceptedContentTypes
+                        : value.Split(',');
                     break;
 
                 case EnvelopeConstants.IdKey:
@@ -371,8 +374,11 @@ public static class EnvelopeSerializer
 
         if (env.AcceptedContentTypes.Length != 0)
         {
+            // GH-4323: the shared default joins to the constant — skip the per-envelope Join
             writer.WriteProp(ref count, EnvelopeConstants.AcceptedContentTypesKey,
-                string.Join(",", env.AcceptedContentTypes));
+                ReferenceEquals(env.AcceptedContentTypes, Envelope.DefaultAcceptedContentTypes)
+                    ? EnvelopeConstants.JsonContentType
+                    : string.Join(",", env.AcceptedContentTypes));
         }
 
         writer.WriteProp(ref count, EnvelopeConstants.IdKey, env.Id);
@@ -403,6 +409,11 @@ public static class EnvelopeSerializer
 
         writer.WriteProp(ref count, EnvelopeConstants.AttemptsKey, env.Attempts);
         writer.WriteProp(ref count, EnvelopeConstants.DeliverByKey, env.DeliverBy);
+
+        if (!env.HasHeaders)
+        {
+            return count;
+        }
 
         foreach (var pair in env.Headers)
         {

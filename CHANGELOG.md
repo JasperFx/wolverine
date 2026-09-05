@@ -4,6 +4,20 @@
 
 ### WolverineFx (core)
 
+- **The lazy header dictionary stays lazy, and the mapper stops manufacturing strings.** (closes
+  [#4323](https://github.com/JasperFx/wolverine/issues/4323)) `Envelope.Headers` allocates on first
+  touch, and the hottest call sites were the ones touching it: the first action of every outgoing
+  broker dispatch forced the dictionary into existence just to see it was empty, the reserved-header
+  reader probed it ~20x per incoming message, the binary serializer walked it per persisted envelope,
+  and the tracing tags probed it per span. A new `Envelope.HasHeaders` answers without allocating and
+  every one of those sites now uses it (or `TryGetHeader`). The accepted-content-types header — the
+  literal `application/json` on virtually every message — no longer round-trips through a `Join` per
+  send and a `Split` plus fresh array per receive on every transport; both sides short-circuit to the
+  shared canonical value. And the mapper's `writeInt` now skips zero the way `writeGuid` skips
+  `Guid.Empty`, so `attempts` stops stringifying `0` on every first-send — the binary writer already
+  guarded this way, and an absent header reads back as 0, so the wire round-trip is unchanged. The
+  O(reserved)→O(present) incoming-loop inversion stays on the issue pending mapper benchmarks.
+
 - **JasperFx dependencies bumped to 2.63.1, with the event-store family in lockstep.** Carries the
   [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742) guard — `AddJasperFx` no longer calls
   `GetReferencedAssemblies()` into a `PlatformNotSupportedException` under Native AOT, which was the one
