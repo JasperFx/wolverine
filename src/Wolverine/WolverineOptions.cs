@@ -410,6 +410,16 @@ public sealed partial class WolverineOptions
     public MessageDeduplicationRules MessageDeduplication { get; } = new();
 
     /// <summary>
+    /// Recurring (cron) message registrations. A single agent per cluster keeps the NEXT occurrence
+    /// of each registered schedule pre-scheduled through the existing scheduled-message machinery;
+    /// registering the first schedule is the feature's opt-in (nothing store-affecting activates on
+    /// a host with zero schedules). See <see cref="RecurringMessageCollection" />.
+    /// </summary>
+    public RecurringMessageCollection Schedules => _schedules ??= new RecurringMessageCollection(this);
+
+    private RecurringMessageCollection? _schedules;
+
+    /// <summary>
     /// List of <see cref="IEnvelopeRule"/> instances applied to every outgoing envelope.
     /// </summary>
     public List<IEnvelopeRule> MetadataRules { get; } = new();

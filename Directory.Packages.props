@@ -83,6 +83,11 @@
     <PackageVersion Include="MQTTnet.Server" Version="5.2.0.1603" />
     <PackageVersion Include="MySqlConnector" Version="2.4.0" />
     <PackageVersion Include="NATS.Net" Version="2.8.2" />
+    <!-- The cron EXPRESSION PARSER behind opts.Schedules (recurring messages). A parser, not a
+         scheduling engine — Wolverine's own scheduled-message machinery is the engine. MIT, zero
+         transitive dependencies, correct DST handling. In core by explicit decision (CritterWatch
+         planning 2026-09-04) rather than a satellite package. -->
+    <PackageVersion Include="Cronos" Version="0.11.0" />
     <PackageVersion Include="NewId" Version="4.0.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageVersion Include="Npgsql" Version="9.0.3" />

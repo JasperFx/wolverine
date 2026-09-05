@@ -355,6 +355,21 @@ public class DurabilitySettings : IDescribeMyself
     public int DeduplicationCleanupBatchSize { get; set; } = 5000;
 
     /// <summary>
+    ///     Is the recurring (cron) message feature active on this application? Flipped by
+    ///     registering the first schedule through <c>opts.Schedules</c> — never set this by hand.
+    ///
+    ///     <para>
+    ///     It exists as a durability setting because the message stores read it: when
+    ///     <see langword="true" />, the main store provisions the <c>wolverine_recurring_messages</c>
+    ///     tracking table and builds a real <see cref="Persistence.Durability.IRecurringMessageStore" />.
+    ///     When <see langword="false" /> — every application that has not registered a schedule —
+    ///     providers return the null store and the schema is byte-identical to a Wolverine version
+    ///     without the feature, so an upgrade forces no migration on anyone who has not asked for it.
+    ///     </para>
+    /// </summary>
+    public bool EnableRecurringMessages { get; set; }
+
+    /// <summary>
     ///     Governs the page size for how many persisted incoming or outgoing messages
     ///     will be loaded at one time for attempted retries or scheduled jobs
     /// </summary>
@@ -773,6 +788,8 @@ public class DurabilitySettings : IDescribeMyself
             desc.AddValue(nameof(DeduplicationWindow), DeduplicationWindow);
             desc.AddValue(nameof(DeduplicationCleanupPollingTime), DeduplicationCleanupPollingTime);
         }
+
+        desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);

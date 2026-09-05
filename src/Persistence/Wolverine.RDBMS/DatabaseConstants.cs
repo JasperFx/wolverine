@@ -80,6 +80,24 @@ public class DatabaseConstants
 
     public const string Expires = "expires";
 
+    /// <summary>
+    /// Tracking table for recurring (cron) message schedules — one row per registered schedule,
+    /// mapping the schedule name to the envelope id(s) of its pre-scheduled next occurrence plus
+    /// pause state. Bookkeeping beside the inbox, never a delivery path: the scheduled inbox row
+    /// IS the materialized next occurrence. Provisioned only on the Main store and only when
+    /// <c>DurabilitySettings.EnableRecurringMessages</c> is set (i.e. at least one schedule is
+    /// registered), so an upgrade forces no migration on applications without the feature.
+    /// </summary>
+    public const string RecurringMessagesTableName = "wolverine_recurring_messages";
+
+    public const string ScheduleName = "schedule_name";
+    public const string CronExpression = "cron_expression";
+    public const string EnvelopeIds = "envelope_ids";
+    public const string NextOccurrence = "next_occurrence";
+    public const string Paused = "paused";
+    public const string PausedAt = "paused_at";
+    public const string LastUpdated = "last_updated";
+
     public static readonly string IncomingFields =
         $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}";
 

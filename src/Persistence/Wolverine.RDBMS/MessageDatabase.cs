@@ -18,6 +18,7 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Wolverine.RDBMS.Deduplication;
+using Wolverine.RDBMS.Recurring;
 using Wolverine.RDBMS.DynamicListeners;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -108,6 +109,17 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             // ReSharper disable once VirtualMemberCallInConstructor
             Deduplication = BuildDeduplicationStore();
         }
+
+        // Recurring-message tracking (see IRecurringMessageStore) — Main store only, like the
+        // listener registry: the single cluster-wide recurring agent publishes through the main
+        // store, so that is where the bookkeeping beside its inbox lives. Gated on the opt-in
+        // flag (flipped by registering the first schedule) so existing apps see no schema
+        // migration churn on upgrade.
+        if (settings.EnableRecurringMessages && Role == MessageStoreRole.Main)
+        {
+            // ReSharper disable once VirtualMemberCallInConstructor
+            RecurringMessages = BuildRecurringMessageStore();
+        }
     }
 
     /// <summary>
@@ -126,6 +138,25 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     /// <inheritdoc />
     public IDeduplicationStore Deduplication { get; private set; } = NullDeduplicationStore.Instance;
+
+    /// <summary>
+    /// Factory hook for the per-database <see cref="IRecurringMessageStore" /> when
+    /// <see cref="DurabilitySettings.EnableRecurringMessages" /> is set on a
+    /// <see cref="MessageStoreRole.Main" /> store. The default returns
+    /// <see cref="RdbmsRecurringMessageStore" />, portable across every provider that uses
+    /// <c>@</c>-prefixed bind variables and <see cref="DbDataSource" />-driven command creation
+    /// (Postgres, SqlServer, MySQL, SQLite).
+    /// </summary>
+    protected virtual IRecurringMessageStore BuildRecurringMessageStore()
+    {
+        return new RdbmsRecurringMessageStore(_dataSource,
+            QuotedTableNameFor(DatabaseConstants.RecurringMessagesTableName),
+            QuotedTableNameFor(DatabaseConstants.IncomingTable),
+            IsUniqueConstraintViolation);
+    }
+
+    /// <inheritdoc />
+    public IRecurringMessageStore RecurringMessages { get; private set; } = NullRecurringMessageStore.Instance;
 
     /// <summary>
     /// Factory hook for constructing the per-database <see cref="IListenerStore"/> when

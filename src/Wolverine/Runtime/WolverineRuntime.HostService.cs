@@ -28,6 +28,19 @@ public partial class WolverineRuntime
     private bool _hasStarted;
     private Task? _idleAgentCleanupLoop;
 
+    private readonly TaskCompletionSource _fullyStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes once StartAsync has finished everything — transports started, the routing cache
+    /// pre-populated — as opposed to <c>_hasStarted</c>, which is deliberately flipped early so
+    /// the agent machinery can use a MessageBus during startup. Background work that ROUTES
+    /// messages (the recurring-message agent's loop) must await this rather than publish into a
+    /// half-started runtime: RoutingFor answers computed before the transports start can come
+    /// back empty and are then CACHED for the life of the host.
+    /// </summary>
+    internal Task FullyStarted => _fullyStarted.Task;
+
     /// <summary>
     /// Detects whether Wolverine is running in a metadata-only CLI mode (codegen, OpenAPI
     /// generation via GetDocument.Insider) where persistence and transport connectivity
@@ -97,6 +110,44 @@ public partial class WolverineRuntime
                     "Policies.AlwaysMakeScheduledMessagesDurable() is set but no message store is configured. " +
                     "Scheduled messages will continue to use in-process scheduling and will be lost on restart. " +
                     "Configure a message store (e.g. PersistMessagesWithPostgresql) to make the policy effective.");
+            }
+
+            if (Options.Schedules.Any())
+            {
+                // "Silently never fires" is not a degradation, it is a refusal: these modes run no
+                // agents at all, so a registered schedule would be accepted and then simply never
+                // happen — the exact class of quiet failure the recurring feature exists to avoid.
+                if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.MediatorOnly)
+                {
+                    var names = Options.Schedules.Select(x => x.Name).Join(", ");
+                    throw new InvalidOperationException(
+                        $"Recurring messages are registered ({names}) but Durability.Mode is " +
+                        $"{Options.Durability.Mode}, which runs no agents — the schedules would never " +
+                        "fire. Remove the registrations from this host, or run it in Solo or Balanced mode.");
+                }
+
+                // No message store is a SUPPORTED mode, not a refusal: the agent runs on the
+                // in-memory scheduled model. What degrades — and is deliberately named here rather
+                // than discovered in production — is (a) an occurrence inside a restart window is
+                // lost (the schedule itself survives; the agent re-establishes the next occurrence
+                // from the registrations) and (b) there is no store-backed deduplication, so an
+                // agent restart can double-fire an occurrence where a native broker id does not
+                // cover it.
+                if (Storage is NullMessageStore)
+                {
+                    Logger.LogWarning(
+                        "Recurring messages are registered but no message store is configured, so they run " +
+                        "on the in-memory scheduled model: an occurrence inside a restart window is lost, " +
+                        "and occurrence deduplication is unavailable. Configure a message store to make " +
+                        "recurring messages durable.");
+                }
+                else if (Storage.Deduplication.Enabled == false)
+                {
+                    Logger.LogWarning(
+                        "Recurring messages are registered but the configured message store does not " +
+                        "support logical message deduplication, so an agent restart or failover can " +
+                        "publish the same occurrence twice.");
+                }
             }
 
             if (!Options.ExternalTransportsAreStubbed)
@@ -244,6 +295,7 @@ public partial class WolverineRuntime
 
             await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
+            _fullyStarted.TrySetResult();
 
             // Freeze fault-publishing policy so per-type overrides cannot be silently
             // mutated from runtime code after host startup completes. All bootstrap

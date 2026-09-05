@@ -58,6 +58,8 @@ internal class WolverineSystemPart : SystemPartBase
             AnsiConsole.WriteLine();
             WriteMessageSubscriptions();
             AnsiConsole.WriteLine();
+            WriteRecurringSchedules();
+            AnsiConsole.WriteLine();
             WriteSendingEndpoints();
             AnsiConsole.WriteLine();
             WriteListeners();
@@ -103,6 +105,34 @@ internal class WolverineSystemPart : SystemPartBase
             }
             
 
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    public void WriteRecurringSchedules()
+    {
+        var schedules = _runtime.Options.Schedules;
+        if (!schedules.Any()) return;
+
+        // Static configuration only, deliberately — this runs in description mode, possibly with
+        // no reachable database, so the durable pause/tracking state is out of scope here. The
+        // capabilities snapshot (ServiceCapabilities.RecurringSchedules) carries the live half.
+        var table = new Table
+        {
+            Title = new TableTitle("Recurring Messages") { Style = new Style(decoration: Decoration.Bold) }
+        }.AddColumns("Schedule", "Cron", "Time Zone", "Message Type", "Next Occurrence (UTC)");
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var schedule in schedules.OrderBy(x => x.Name, StringComparer.Ordinal))
+        {
+            var next = schedule.Schedule.NextOccurrence(now);
+            table.AddRow(
+                schedule.Name.EscapeMarkup(),
+                schedule.Schedule.Expression.EscapeMarkup(),
+                schedule.Schedule.TimeZone.Id.EscapeMarkup(),
+                schedule.MessageType.FullNameInCode().EscapeMarkup(),
+                next?.ToUniversalTime().ToString("u").EscapeMarkup() ?? "none");
         }
 
         AnsiConsole.Write(table);
