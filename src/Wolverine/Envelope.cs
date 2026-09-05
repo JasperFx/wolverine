@@ -43,7 +43,6 @@ public partial class Envelope : IHasTenantId
     
     public Envelope()
     {
-        Debug.WriteLine("Being created");
     }
 
     public Envelope(object message)

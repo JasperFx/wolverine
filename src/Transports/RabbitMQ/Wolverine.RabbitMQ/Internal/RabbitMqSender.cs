@@ -11,7 +11,6 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 {
     private readonly RabbitMqEndpoint _endpoint;
-    private readonly RoutingMode _routingType;
     private readonly IWolverineRuntime _runtime;
     private readonly CachedString _exchangeName;
     private readonly bool _isDurable;
@@ -35,7 +34,6 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
-        _routingType = routingType;
         _runtime = runtime;
     }
 

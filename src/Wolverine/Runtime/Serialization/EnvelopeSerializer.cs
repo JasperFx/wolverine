@@ -205,6 +205,17 @@ public static class EnvelopeSerializer
     /// </summary>
     private static bool tryReadTimestamp(string value, out DateTimeOffset parsed)
     {
+        // The transport-header format goes first because it is the one common input XmlConvert
+        // rejects: with the old order, every timestamp written by an EnvelopeMapper paid a full
+        // exception throw/catch per read (GH-4335). An exact-format parse can never claim a value
+        // meant for the parses below, so the reorder changes cost, not semantics.
+        if (DateTimeOffset.TryParseExact(value, EnvelopeConstants.TransportHeaderDateTimeFormat,
+                CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out parsed))
+        {
+            return true;
+        }
+
         try
         {
             parsed = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
@@ -212,18 +223,11 @@ public static class EnvelopeSerializer
         }
         catch (Exception)
         {
-            // Not an xsd/round-trip value; fall through to the looser attempts below.
+            // Not an xsd/round-trip value; fall through to the loosest attempt below. XmlConvert
+            // stays ahead of TryParse because the two disagree on offset-less values (Utc vs local).
         }
 
-        if (DateTimeOffset.TryParse(value, out parsed))
-        {
-            return true;
-        }
-
-        // EnvelopeMapper's transport-header format, which neither of the parses above accepts.
-        return DateTimeOffset.TryParseExact(value, EnvelopeConstants.TransportHeaderDateTimeFormat,
-            CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-            out parsed);
+        return DateTimeOffset.TryParse(value, out parsed);
     }
 
     public static Envelope[] ReadMany(byte[] buffer)
