@@ -50,6 +50,20 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
     public void Configure(WolverineOptions options)
     {
+        // GH-4310: a bare SubscribeToEvent<T>() registers nothing — it only opens a
+        // transformation that TransformedTo() has to finish. Left alone without event
+        // forwarding, the "subscription" is silently dead: no forwarding occurs, the handler
+        // never fires, and nothing anywhere says so. Fail at bootstrap with the two real
+        // options instead.
+        if (EventRouter.BareSubscriptions.Any() && !UseFastEventForwarding)
+        {
+            var names = EventRouter.BareSubscriptions.Select(x => x.Name).Join(", ");
+            throw new InvalidOperationException(
+                $"SubscribeToEvent<T>() was called for [{names}] but nothing completes the subscription, so these events would never reach a handler. " +
+                $"SubscribeToEvent<T>() only defines a transformation of a forwarded event — either finish it with .TransformedTo(...), " +
+                $"or, to simply have Wolverine handlers receive the event after commit, set {nameof(UseFastEventForwarding)} = true on this integration instead.");
+        }
+
         // Duplicate incoming messages
         options.OnException<MartenCommandException>(e =>
             {
@@ -188,8 +202,17 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public AutoCreate? AutoCreate { get; set; }
 
+    /// <summary>
+    /// Define a <em>transformation</em> of a forwarded event: complete the returned builder with
+    /// <see cref="EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
+    /// transformed message under Wolverine's normal routing rules. ⚠️ This is not an on-switch for
+    /// event forwarding, and a bare call registers nothing (GH-4310 — the bootstrap rejects it):
+    /// to simply have Wolverine handlers receive an event after commit, set
+    /// <see cref="UseFastEventForwarding"/> = true instead.
+    /// </summary>
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
+        EventRouter.BareSubscriptions.Add(typeof(T));
         return new EventForwardingTransform<T>(EventRouter);
     }
 }
@@ -327,6 +350,13 @@ internal class MartenEventRouter : IMessageRouteSource
 
     public bool IsAdditive => false;
     public List<IMessageTransformation> Transformers { get; } = [];
+
+    /// <summary>
+    /// GH-4310: SubscribeToEvent&lt;T&gt;() calls whose transformation was never completed with
+    /// TransformedTo(). Checked at bootstrap — bare entries with no event forwarding enabled are
+    /// a configuration error, because nothing would ever deliver those events.
+    /// </summary>
+    internal List<Type> BareSubscriptions { get; } = [];
 }
 
 internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T> where T : notnull
@@ -362,6 +392,9 @@ public class EventForwardingTransform<TSource> where TSource : notnull
 
     public void TransformedTo<TDestination>(Func<IEvent<TSource>, TDestination> transformer)
     {
+        // The subscription is now completed — see MartenEventRouter.BareSubscriptions (GH-4310).
+        _martenEventWrapper.BareSubscriptions.Remove(typeof(TSource));
+
         var transformation = new MessageTransformation<IEvent<TSource>, TDestination>(transformer);
         _martenEventWrapper.Transformers.Add(transformation);
     }
