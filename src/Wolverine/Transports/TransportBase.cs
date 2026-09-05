@@ -77,6 +77,14 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
         return findEndpointByUri(uri);
     }
 
+    /// <summary>
+    ///     See <see cref="ITransport.TryResolveListenerAddress"/>. Declared here as a virtual rather than left to
+    ///     the interface's default implementation because a derived transport that does not re-list
+    ///     <see cref="ITransport"/> in its own base list inherits this class's interface map, and a matching method
+    ///     it declares would silently never be called.
+    /// </summary>
+    public virtual Uri? TryResolveListenerAddress(Uri receivedAt) => null;
+
     public virtual bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
     {
         resource = default;
