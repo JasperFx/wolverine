@@ -226,10 +226,53 @@ public partial class HttpChain
             yield return new RecordEndpointCausationFrame(origin, Method.HandlerType.FullNameInCode());
         }
 
+        // GH-4308: postprocessors are deliberately NOT run through the full parameter-matching
+        // strategies (see the middleware-only loop in this chain's constructor and the GH-3601 notes
+        // in HttpChain.ApiDescription), but a parameter the ROUTE claims — an explicit [FromRoute],
+        // or a name collision with a route-template segment on a route-bindable type — still has to
+        // resolve to the route value, or codegen dies in FindVariable (an UnResolvableVariableException
+        // for a parsed type like long). The OpenAPI side already makes exactly this claim in
+        // isBoundFromRouteValue, rendering only the Path parameter; this is the codegen half of that
+        // decision, matched case-sensitively through FindRouteVariable(ParameterInfo) so the two
+        // halves cannot diverge (GH-3586).
+        foreach (var call in Postprocessors.OfType<MethodCall>().Concat(PostCommitPostprocessors.OfType<MethodCall>()))
+        {
+            tryApplyRouteVariablesToPostprocessor(call);
+        }
+
         foreach (var frame in Postprocessors) yield return frame;
 
         // GH-3975: after EVERY postprocessor, including the persistence provider's commit frame.
         foreach (var frame in PostCommitPostprocessors) yield return frame;
+    }
+
+    private void tryApplyRouteVariablesToPostprocessor(MethodCall call)
+    {
+        var parameters = call.Method.GetParameters();
+        for (var i = 0; i < call.Arguments.Length; i++)
+        {
+            // Never override an argument something else has already bound
+            if (call.Arguments[i] != null) continue;
+
+            var parameter = parameters[i];
+
+            // Mirrors RouteParameterStrategy.TryMatch: an explicit [FromRoute(Name = ...)] names the
+            // route segment directly rather than matching on the parameter's own name
+            if (parameter.TryGetAttribute<FromRouteAttribute>(out var att) && att.Name.IsNotEmpty())
+            {
+                if (FindRouteVariable(parameter.ParameterType, att.Name!, out var named))
+                {
+                    call.Arguments[i] = named;
+                }
+
+                continue;
+            }
+
+            if (FindRouteVariable(parameter, out var variable))
+            {
+                call.Arguments[i] = variable;
+            }
+        }
     }
 
     private bool requiresFlush(Frame[] actionsOnOtherReturnValues)
