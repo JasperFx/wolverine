@@ -162,12 +162,15 @@ internal class TracingExecutor : IExecutor
 
         envelope.Attempts++;
 
-        using var timeout = new CancellationTokenSource(_timeout);
-        using var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellation);
+        // GH-4322: same single-CTS shape as Executor.ExecuteAsync — see the comment there.
+        using var cts = cancellation.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellation)
+            : new CancellationTokenSource();
+        cts.CancelAfter(_timeout);
 
         try
         {
-            await Handler.HandleAsync(context, combined.Token);
+            await Handler.HandleAsync(context, cts.Token);
             if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
                 await context.AssertAnyRequiredResponseWasGenerated();
