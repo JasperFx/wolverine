@@ -12,8 +12,31 @@ public class IntrinsicSerializer : IMessageSerializer
     private ImHashMap<Type, IMessageSerializer> _inner = ImHashMap<Type, IMessageSerializer>.Empty;
 
     public static readonly IntrinsicSerializer Instance = new();
-    
-    private IntrinsicSerializer(){}
+
+    private IntrinsicSerializer()
+    {
+        // GH-4287. Seed the framework's own ISerializable message types by DIRECT construction.
+        // Under Native AOT the reflective CloseAndBuildAs below throws MissingMethodException --
+        // the closed generic's constructor metadata is trimmed -- and HandlerGraph.Compile's
+        // Prepopulate call hit exactly that for Acknowledgement/FailureAcknowledgement, killing
+        // startup for every AOT-published app. Direct construction both roots the closed generics
+        // for the AOT compiler and makes the seeding free at JIT time. User-defined ISerializable
+        // message types under AOT remain the source-generated pre-discovery story (#2769).
+        _inner = _inner
+            .AddOrUpdate(typeof(RemoteInvocation.Acknowledgement), new IntrinsicSerializer<RemoteInvocation.Acknowledgement>())
+            .AddOrUpdate(typeof(RemoteInvocation.FailureAcknowledgement), new IntrinsicSerializer<RemoteInvocation.FailureAcknowledgement>())
+            .AddOrUpdate(typeof(PlaceHolder), new IntrinsicSerializer<PlaceHolder>())
+            .AddOrUpdate(typeof(Agents.NodeRecord), new IntrinsicSerializer<Agents.NodeRecord>())
+            .AddOrUpdate(typeof(Agents.AgentsStarted), new IntrinsicSerializer<Agents.AgentsStarted>())
+            .AddOrUpdate(typeof(Agents.AgentsStopped), new IntrinsicSerializer<Agents.AgentsStopped>())
+            .AddOrUpdate(typeof(Agents.StartAgents), new IntrinsicSerializer<Agents.StartAgents>())
+            .AddOrUpdate(typeof(Agents.StopAgents), new IntrinsicSerializer<Agents.StopAgents>())
+            .AddOrUpdate(typeof(Agents.StartAgent), new IntrinsicSerializer<Agents.StartAgent>())
+            .AddOrUpdate(typeof(Agents.StopAgent), new IntrinsicSerializer<Agents.StopAgent>())
+            .AddOrUpdate(typeof(Agents.QueryAgentPresence), new IntrinsicSerializer<Agents.QueryAgentPresence>())
+            .AddOrUpdate(typeof(Agents.AgentPresenceReport), new IntrinsicSerializer<Agents.AgentPresenceReport>())
+            .AddOrUpdate(typeof(Agents.CheckAgentHealth), new IntrinsicSerializer<Agents.CheckAgentHealth>());
+    }
 
     public string ContentType => MimeType;
 

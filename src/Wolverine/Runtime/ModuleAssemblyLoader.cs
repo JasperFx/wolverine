@@ -111,7 +111,21 @@ internal static class ModuleAssemblyLoader
 
         while (queue.Count > 0)
         {
-            foreach (var reference in queue.Dequeue().GetReferencedAssemblies())
+            // GH-4287. Under Native AOT the runtime does not surface TRUSTED_PLATFORM_ASSEMBLIES,
+            // so this fallback is reached -- and GetReferencedAssemblies() unconditionally throws
+            // PlatformNotSupportedException there. An AOT publish links its modules statically, so
+            // there is nothing for this walk to load anyway; stop walking rather than kill startup.
+            AssemblyName[] references;
+            try
+            {
+                references = queue.Dequeue().GetReferencedAssemblies();
+            }
+            catch (PlatformNotSupportedException)
+            {
+                return;
+            }
+
+            foreach (var reference in references)
             {
                 var name = reference.Name;
                 if (name == null || seen.Contains(name) || isNonModuleAssembly(name))

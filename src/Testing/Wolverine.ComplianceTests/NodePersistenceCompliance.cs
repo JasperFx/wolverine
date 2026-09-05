@@ -121,6 +121,41 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task persist_a_node_and_write_assignments_at_full_agent_uri_length()
+    {
+        // GH-4280. write_assignments above uses "red://leader" -- twelve characters -- for a value that is
+        // the PRIMARY KEY of wolverine_node_assignments, and Environment.MachineName for a node uri column
+        // that really holds a "wolverinedb://sqlserver/host/schema/database". Neither ever came close to a
+        // column width, so a provider that declared either one narrow stayed green across every store.
+        var id = Guid.NewGuid();
+        var node = new WolverineNode
+        {
+            NodeId = id,
+            // wolverine_nodes.uri is the node's control uri, and on a database control queue that is a
+            // "wolverinedb://sqlserver/host/schema/database" -- not the twelve characters this suite used.
+            ControlUri = LongAgentUri.ForNode(),
+            Description = Environment.MachineName
+        };
+
+        await _database.Nodes.PersistAsync(node, CancellationToken.None);
+
+        var agent1 = LongAgentUri.ForAgent(1);
+        var agent2 = LongAgentUri.ForAgent(2);
+        var agent3 = LongAgentUri.ForAgent(3);
+
+        await _database.Nodes.AssignAgentsAsync(id, [agent1, agent2, agent3], CancellationToken.None);
+
+        var persisted = (await _database.Nodes.LoadAllNodesAsync(CancellationToken.None)).Single();
+
+        persisted.ControlUri.ShouldBe(node.ControlUri);
+
+        // Byte-identical on the way back out. A truncated assignment id is worse than a failed insert: the
+        // agent looks assigned and never matches the agent it was supposed to name.
+        persisted.ActiveAgents.OrderBy(x => x.ToString())
+            .ShouldBe(new[] { agent1, agent2, agent3 }.OrderBy(x => x.ToString()));
+    }
+
+    [Fact]
     public async Task add_assignments_one_at_a_time()
     {
         var id = Guid.NewGuid();

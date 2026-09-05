@@ -650,16 +650,19 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
             nodeTable.AddColumn<int>("node_number").AutoNumber().NotNull();
             nodeTable.AddColumn("description", "varchar(max)").NotNull();
-            nodeTable.AddColumn("uri", "varchar(500)").NotNull();
+            nodeTable.AddColumn("uri", $"varchar({AgentUri.MaximumLength})").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").DefaultValueByExpression("GETUTCDATE()").NotNull();
-            nodeTable.AddColumn<string>("version");
+            // GH-4246: a bare AddColumn<string>() lands on Weasel.SqlServer's varchar(100) default, which
+            // is narrower than the VARCHAR2(4000) Oracle declares here and narrower than Postgres's
+            // unbounded varchar. 500 is the width the rest of this node-table family already uses.
+            nodeTable.AddColumn("version", "varchar(500)");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
 
             yield return nodeTable;
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
-            assignmentTable.AddColumn("id", "varchar(500)").AsPrimaryKey();
+            assignmentTable.AddColumn("id", $"varchar({AgentUri.MaximumLength})").AsPrimaryKey();
             assignmentTable.AddColumn<Guid>("node_id").ForeignKeyTo(nodeTable.Identifier, "id", onDelete:CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
 
@@ -669,7 +672,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             {
                 var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
                 queueTable.AddColumn<Guid>("id").AsPrimaryKey();
-                queueTable.AddColumn<string>("message_type").NotNull();
+                // GH-4246: varchar(100) again, against Oracle's VARCHAR2(4000) and MySQL's varchar(500).
+                queueTable.AddColumn(DatabaseConstants.MessageType, "varchar(500)").NotNull();
                 queueTable.AddColumn<Guid>("node_id").NotNull();
                 queueTable.AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
                 queueTable.AddColumn<DateTimeOffset>("posted").NotNull().DefaultValueByExpression("GETUTCDATE()");
@@ -690,8 +694,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             var restrictionTable =
                 new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
             restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
-            restrictionTable.AddColumn<string>("uri").NotNull();
-            restrictionTable.AddColumn<string>("type").NotNull();
+            // GH-4246: same varchar(100) default, and these two hold an agent URI and an agent type name.
+            // An "event-subscriptions://marten/SomeProjection@some-tenant" or a
+            // "wolverinedb://sqlserver/host/schema/database" goes past 100 characters without trying.
+            restrictionTable.AddColumn("uri", $"varchar({AgentUri.MaximumLength})").NotNull();
+            restrictionTable.AddColumn("type", $"varchar({AgentUri.MaximumLength})").NotNull();
             restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
             yield return restrictionTable;
 
@@ -712,7 +719,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             {
                 var listenerTable =
                     new Table(new DbObjectName(SchemaName, DatabaseConstants.ListenersTableName));
-                listenerTable.AddColumn<string>("uri").AsPrimaryKey();
+                // GH-4246: a listener URI is at least as long as an agent URI, and this one is the
+                // primary key. MySQL and Oracle both declare varchar(500) here.
+                listenerTable.AddColumn("uri", $"varchar({AgentUri.MaximumLength})").AsPrimaryKey();
                 yield return listenerTable;
             }
         }

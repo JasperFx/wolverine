@@ -4,6 +4,27 @@
 
 ### WolverineFx (core)
 
+- **A Native AOT publish gets through Wolverine's own bootstrap.** (GH
+  [#4287](https://github.com/JasperFx/wolverine/issues/4287)) Four distinct Wolverine-side crashes killed
+  every `PublishAot` application at startup, all invisible under the JIT: the caller-assembly stack walk
+  read `frames[-1]` when no frame carries method metadata (an `IndexOutOfRangeException` out of **every**
+  public `UseWolverine`/`AddWolverine` path); the module-assembly reference-graph walk called
+  `GetReferencedAssemblies()`, which the Native AOT runtime does not implement; and both
+  `IntrinsicSerializer.Prepopulate` and the routing cache's `RoutingFor` closed generics reflectively over
+  the framework's own message types (`Acknowledgement`, `FailureAcknowledgement`, `Envelope`,
+  `IAgentCommand`), whose trimmed constructor metadata made `Activator.CreateInstance` throw
+  `MissingMethodException` — types no application author can root around. The walk now falls back to the
+  entry assembly, the reference-graph walk stops rather than dying, and the framework message types get
+  directly-constructed serializers and routers, which both roots the closed generics for the AOT compiler
+  and costs nothing under the JIT. A new `Wolverine.AotSmoke.Publish` smoke in the `CIAotSmoke` lane does a
+  REAL `PublishAot` and executes the native binary — the coverage gap that let all of this ship — and
+  currently tolerates (loudly) the one remaining upstream blocker,
+  [jasperfx#742](https://github.com/JasperFx/jasperfx/issues/742), deepening to a full boot + dispatch
+  assertion automatically once a fixed JasperFx is pinned. Verified end-to-end against a locally patched
+  JasperFx: the native binary boots through plain `UseWolverine` with automatic extension discovery and
+  handles a message. Emitting the remaining hand-written `[DynamicDependency]` roots from `codegen write`
+  itself is tracked by [jasperfx#743](https://github.com/JasperFx/jasperfx/issues/743).
+
 - **Inbox recovery finds tenanted database-queue listeners.** (closes
   [#4296](https://github.com/JasperFx/wolverine/issues/4296)) A PostgreSQL or SQL Server transport queue that is
   multi-tenanted by database is served by a single `MultiTenantedQueueListener` registered under the bare
@@ -15,6 +36,31 @@
   listener for that logical queue was very much alive. `FindListenerCircuit` now asks the transport to translate
   a `received_at` address back to the address its listener is actually registered under before giving up.
   Sticky (exclusive) per-tenant listeners are untouched: those register the per-database address themselves.
+
+- **Every message store has to prove it can store a realistic agent URI.** (closes
+  [#4280](https://github.com/JasperFx/wolverine/issues/4280)) The agent restriction and node assignment
+  round trips *are* covered on all seven providers by the shared compliance suites -- they were just never
+  driven with a value long enough to touch a column width. `fake://1` is eight characters and
+  `red://leader` is twelve, so a provider could declare an agent URI column as `varchar(100)` and stay
+  green across the whole cross-provider suite. That is exactly what happened: #4246 widened the MySQL and
+  Oracle columns and SQL Server's `wolverine_agent_restrictions` was missed and stayed at 100 for another
+  release, found by reading a table definition rather than by a test. `MessageStoreCompliance` and
+  `NodePersistenceCompliance` now each carry a fact that round-trips a realistic URI at the full
+  `AgentUri.MaximumLength` width -- through the restriction path an operator's pin or pause actually takes,
+  and through a node's own control URI and its assignment ids, both of which are primary keys -- and assert
+  it comes back byte-identical, because a silently truncated URI never matches its agent again.
+
+- **The SQL Server node tables get the widths the rest of the family already had.** (closes
+  [#4246](https://github.com/JasperFx/wolverine/issues/4246) follow-up) `wolverine_agent_restrictions.uri`
+  and `.type`, `wolverine_nodes.version`, the control queue's `message_type` and the dynamic listener
+  registry's `uri` were each declared with a bare `AddColumn<string>()`, which Weasel.SqlServer maps to
+  `varchar(100)` -- narrower than the `VARCHAR2(4000)` Oracle declares for the same columns and narrower
+  than Postgres's unbounded `varchar`. `wolverine_agent_restrictions` is on a live write path --
+  `ApplyRestrictionsAsync` -> `PersistAgentRestrictionsAsync` -- so pinning or pausing an agent whose URI
+  ran past 100 characters failed the insert outright with "String or binary data would be truncated". An
+  `event-subscriptions://marten/SomeProjectionName@some-tenant-id` gets there without trying. All five now
+  declare `varchar(500)`, and the columns that hold a URI take that width from the new shared
+  `AgentUri.MaximumLength` rather than each provider repeating a literal.
 
 - **A retry can be parked while a handled row is retained.** (part of
   [#4216](https://github.com/JasperFx/wolverine/issues/4216)) The last two of the three sibling statements
