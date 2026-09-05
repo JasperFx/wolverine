@@ -4,6 +4,18 @@
 
 ### WolverineFx (core)
 
+- **Routing and send-path trims.** (closes [#4325](https://github.com/JasperFx/wolverine/issues/4325))
+  The outstanding-envelope bookkeeping used JasperFx `Fill` — Contains-then-Add, i.e. a closure, a
+  `Where` iterator, and an O(list) scan per envelope, quadratic when a batch handler or Marten
+  projection cascades hundreds of messages — on lists that only ever receive freshly-minted router
+  output; the two router-fed sites now use plain `Add`/`AddRange`, while the `IEnvelopeTransaction`
+  entry points deliberately keep `Fill` as defensive integration surface. Envelope-rule application
+  loops (`MessageRoute.CreateForSending`, the remote-invoke path, and `DestinationEndpoint`) switch
+  from `foreach` over an `IList`-typed property — which boxes a `List` enumerator per send, even
+  with zero rules — to indexed loops. `CreateForSending` also reads `sender.Destination` once
+  instead of three times and reuses the ctor-computed `IsLocal` instead of re-running a type test
+  per send. Evaluated and deferred: a single-route fast path to avoid the `Envelope[]` per publish —
+  it forks the persist-or-send semantics for one small array and needs its own careful pass.
 - **The execution pipeline sheds four per-message costs.** (closes
   [#4322](https://github.com/JasperFx/wolverine/issues/4322)) `Executor.ExecuteAsync` (and its
   tracing twin) allocated a timeout `CancellationTokenSource` — timer registration included — plus a

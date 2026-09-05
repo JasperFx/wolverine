@@ -356,7 +356,8 @@ public partial class MessageBus : IMessageBus, IMessageContext
         {
             lock (_outstandingLock)
             {
-                _outstanding.Fill(envelope);
+                // GH-4325: Add, not Fill — see the comment in PersistOrSendAsync(Envelope[])
+                _outstanding.Add(envelope);
             }
 
             await envelope.PersistAsync(Transaction).ConfigureAwait(false);
@@ -472,7 +473,13 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
             lock (_outstandingLock)
             {
-                _outstanding.Fill(outgoing);
+                // GH-4325: AddRange, not Fill. Fill is Contains-then-Add — a closure, a Where
+                // iterator, and an O(list) scan per envelope, quadratic when a batch handler or
+                // projection cascades hundreds. Every envelope here is freshly minted by the
+                // router with its own Id, so the dedup could never hit. The IEnvelopeTransaction
+                // entry points below deliberately keep Fill: they are integration surface where
+                // a caller could legitimately persist the same envelope twice.
+                _outstanding.AddRange(outgoing);
             }
         }
         else
