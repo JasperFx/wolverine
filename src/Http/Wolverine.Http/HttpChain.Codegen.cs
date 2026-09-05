@@ -226,18 +226,20 @@ public partial class HttpChain
             yield return new RecordEndpointCausationFrame(origin, Method.HandlerType.FullNameInCode());
         }
 
-        // GH-4308: postprocessors are deliberately NOT run through the full parameter-matching
-        // strategies (see the middleware-only loop in this chain's constructor and the GH-3601 notes
-        // in HttpChain.ApiDescription), but a parameter the ROUTE claims — an explicit [FromRoute],
-        // or a name collision with a route-template segment on a route-bindable type — still has to
-        // resolve to the route value, or codegen dies in FindVariable (an UnResolvableVariableException
-        // for a parsed type like long). The OpenAPI side already makes exactly this claim in
-        // isBoundFromRouteValue, rendering only the Path parameter; this is the codegen half of that
-        // decision, matched case-sensitively through FindRouteVariable(ParameterInfo) so the two
-        // halves cannot diverge (GH-3586).
+        // GH-4308 / GH-4314: postprocessors are deliberately NOT run through the full
+        // parameter-matching strategies (see the middleware-only loop in this chain's constructor and
+        // the GH-3601 notes in HttpChain.ApiDescription), but any parameter the OpenAPI description
+        // side claims an HTTP binding for still has to actually get that binding, or JasperFx's
+        // FindVariable falls back to name-then-type resolution and either dies (an
+        // UnResolvableVariableException for a parsed type like long) or, worse, silently hands the
+        // parameter an unrelated variable of the same type — e.g. the endpoint's response body into a
+        // [FromQuery] string. The claims mirrored here are exactly the description side's: a route
+        // claim (explicit [FromRoute], or a name collision with a route-template segment on a
+        // route-bindable type, matched case-sensitively per GH-3586), then simple-typed
+        // [FromQuery]/[FromHeader] per tryDescribePostprocessorBinding.
         foreach (var call in Postprocessors.OfType<MethodCall>().Concat(PostCommitPostprocessors.OfType<MethodCall>()))
         {
-            tryApplyRouteVariablesToPostprocessor(call);
+            tryApplyHttpBindingsToPostprocessor(call);
         }
 
         foreach (var frame in Postprocessors) yield return frame;
@@ -246,7 +248,7 @@ public partial class HttpChain
         foreach (var frame in PostCommitPostprocessors) yield return frame;
     }
 
-    private void tryApplyRouteVariablesToPostprocessor(MethodCall call)
+    private void tryApplyHttpBindingsToPostprocessor(MethodCall call)
     {
         var parameters = call.Method.GetParameters();
         for (var i = 0; i < call.Arguments.Length; i++)
@@ -268,11 +270,101 @@ public partial class HttpChain
                 continue;
             }
 
+            // GH-4314: [FromQuery]/[FromHeader] bind from the query string / header — unless the
+            // route claims the name (isBoundFromRouteValue, the same case-sensitive test the
+            // description side uses), in which case the route wins below exactly as the description
+            // renders only the Path parameter. A complex [FromQuery] is the flattening shape the
+            // description side also refuses to describe on a postprocessor, so it is deliberately
+            // left alone here.
+            if (!isBoundFromRouteValue(parameter))
+            {
+                if (parameter.TryGetAttribute<FromQueryAttribute>(out var fromQuery))
+                {
+                    if (!FromQueryAttributeUsage.IsComplexQueryStringType(parameter.ParameterType))
+                    {
+                        var key = fromQuery.Name.IsNotEmpty() ? fromQuery.Name! : parameter.Name!;
+                        if (tryFindOrCreatePostprocessorQuerystringValue(parameter.ParameterType,
+                                parameter.Name!, key, out var queryValue))
+                        {
+                            call.Arguments[i] = queryValue;
+                        }
+                    }
+
+                    continue;
+                }
+
+                if (parameter.TryGetAttribute<FromHeaderAttribute>(out var fromHeader))
+                {
+                    var headerName = fromHeader.Name.IsNotEmpty() ? fromHeader.Name! : parameter.Name!;
+                    call.Arguments[i] = findOrCreatePostprocessorHeaderValue(parameter, headerName);
+                    continue;
+                }
+            }
+
             if (FindRouteVariable(parameter, out var variable))
             {
                 call.Arguments[i] = variable;
             }
         }
+    }
+
+    // Variables bound ONLY for postprocessor parameters (GH-4314). Deliberately kept out of
+    // _querystringVariables/_headerVariables: those collections feed the OpenAPI description, and
+    // this pass runs at codegen time, which is lazy — registering here would change the rendered
+    // description depending on whether the chain compiled before or after the ApiDescription was
+    // read. Postprocessor parameters are instead described straight from the method signature by
+    // tryDescribePostprocessorBinding.
+    private readonly List<HttpElementVariable> _postprocessorQuerystringVariables = [];
+    private readonly List<HttpElementVariable> _postprocessorHeaderVariables = [];
+
+    private bool tryFindOrCreatePostprocessorQuerystringValue(Type parameterType, string parameterName,
+        string key, [NotNullWhen(true)] out Variable? variable)
+    {
+        // When the main method or a middleware method already reads this query string value, reuse
+        // its variable rather than reading the same key into a second, identically-named local
+        var existing = _querystringVariables.FirstOrDefault(x => x.Name == key)
+                       ?? _postprocessorQuerystringVariables.FirstOrDefault(x => x.Name == key);
+
+        if (existing is not null)
+        {
+            if (existing.VariableType != parameterType)
+            {
+                throw new InvalidOperationException(
+                    $"The query string parameter '{key}' cannot be used for multiple target types");
+            }
+
+            variable = existing;
+            return true;
+        }
+
+        var created = createQuerystringValue(parameterType, parameterName, key);
+        if (created is null)
+        {
+            variable = null;
+            return false;
+        }
+
+        _postprocessorQuerystringVariables.Add(created);
+        variable = created;
+        return true;
+    }
+
+    private Variable findOrCreatePostprocessorHeaderValue(ParameterInfo parameter, string headerName)
+    {
+        var existing = _headerVariables
+                           .FirstOrDefault(x => x.Name == headerName && x.VariableType == parameter.ParameterType)
+                       ?? _postprocessorHeaderVariables
+                           .FirstOrDefault(x => x.Name == headerName && x.VariableType == parameter.ParameterType);
+
+        if (existing is not null) return existing;
+
+        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name!)
+        {
+            Key = headerName
+        };
+
+        _postprocessorHeaderVariables.Add(frame.Variable);
+        return frame.Variable;
     }
 
     private bool requiresFlush(Frame[] actionsOnOtherReturnValues)

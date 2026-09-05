@@ -110,6 +110,24 @@ public static class PostprocessorRouteCollisionRecordingEndpoint
     }
 }
 
+// GH-4314: a postprocessor [FromQuery]/[FromHeader] parameter that does NOT collide with any route
+// segment must bind from the query string / header, exactly as the OpenAPI description has claimed
+// since GH-3601. Before the fix nothing produced a variable for these parameters at all, and
+// JasperFx's name-then-type fallback silently handed `audit` the endpoint's response body — the only
+// other string in the chain — so user code documented to receive a query value received the response
+// instead. The `string` response return is deliberate bait for that fallback.
+public static class PostprocessorQueryHeaderRecordingEndpoint
+{
+    [WolverineGet("/middleware/postprocessor-query-header")]
+    public static string Get() => "ok";
+
+    public static void After(Recorder recorder, [FromQuery] string? audit, [FromQuery] int attempts,
+        [FromHeader(Name = "x-trace")] string? trace)
+    {
+        recorder.Actions.Add($"After: audit={audit ?? "null"}, attempts={attempts}, trace={trace ?? "null"}");
+    }
+}
+
 public interface IAmAuthenticated
 {
     bool Authenticated { get; set; }

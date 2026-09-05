@@ -989,61 +989,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
         if (variable == null)
         {
-            if (parameterType == typeof(string))
+            variable = createQuerystringValue(parameterType, parameterName, key);
+            if (variable != null)
             {
-                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
-                variable.Name = key;
-
-                if (variable.Usage == "tenantId")
-                {
-                    variable.OverrideName("tenantIdString");
-                }
-                
-                _querystringVariables.Add(variable);
-            }
-
-            if (parameterType == typeof(string[]))
-            {
-                variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
-                variable.Name = key;
-                _querystringVariables.Add(variable);
-            }
-
-            if (parameterType.IsNullable())
-            {
-                var inner = parameterType.GetInnerTypeFromNullable();
-                if (RouteParameterStrategy.CanParse(inner))
-                {
-                    //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
-                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key,
-                        rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
-                    variable.Name = key;
-                    _querystringVariables.Add(variable);
-                }
-            }
-
-            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
-            {
-                variable = new ParsedArrayQueryStringValue(parameterType, key,
-                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
-                variable.Name = key;
-                _querystringVariables.Add(variable);
-            }
-
-            if (ParsedCollectionQueryStringValue.CanParse(parameterType))
-            {
-                variable = new ParsedCollectionQueryStringValue(parameterType, key,
-                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
-                variable.Name = key;
-                _querystringVariables.Add(variable);
-            }
-
-            if (RouteParameterStrategy.CanParse(parameterType))
-            {
-                //variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
-                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName,
-                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
-                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
         }
@@ -1051,6 +999,72 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             throw new InvalidOperationException(
                 $"The query string parameter '{key}' cannot be used for multiple target types");
+        }
+
+        return variable;
+    }
+
+    /// <summary>
+    /// Creates the reading frame + variable for a query string value WITHOUT registering it in
+    /// <c>_querystringVariables</c>. GH-4314: the postprocessor binding pass in HttpChain.Codegen.cs
+    /// needs exactly this creation logic, but that pass runs at codegen time, which is lazy — and
+    /// <c>_querystringVariables</c> feeds the OpenAPI description (fillQuerystringParameters), so
+    /// registering from codegen would make the rendered description depend on whether the chain
+    /// happened to compile before or after the ApiDescription was read.
+    /// </summary>
+    private HttpElementVariable? createQuerystringValue(Type parameterType, string parameterName, string key)
+    {
+        HttpElementVariable? variable = null;
+
+        if (parameterType == typeof(string))
+        {
+            variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
+            variable.Name = key;
+
+            if (variable.Usage == "tenantId")
+            {
+                variable.OverrideName("tenantIdString");
+            }
+        }
+
+        if (parameterType == typeof(string[]))
+        {
+            variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
+            variable.Name = key;
+        }
+
+        if (parameterType.IsNullable())
+        {
+            var inner = parameterType.GetInnerTypeFromNullable();
+            if (RouteParameterStrategy.CanParse(inner))
+            {
+                //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
+                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key,
+                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
+                variable.Name = key;
+            }
+        }
+
+        if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
+        {
+            variable = new ParsedArrayQueryStringValue(parameterType, key,
+                rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
+            variable.Name = key;
+        }
+
+        if (ParsedCollectionQueryStringValue.CanParse(parameterType))
+        {
+            variable = new ParsedCollectionQueryStringValue(parameterType, key,
+                rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
+            variable.Name = key;
+        }
+
+        if (RouteParameterStrategy.CanParse(parameterType))
+        {
+            //variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
+            variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName,
+                rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
+            variable.Name = key;
         }
 
         return variable;
