@@ -134,13 +134,25 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
         {
             var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);
 
-            yield return new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
+            var append = new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
             {
                 Arguments =
                 {
                     [0] = _variable
                 }
             };
+
+            // GH-4309: a handler that sometimes has nothing to append says so by returning null —
+            // the same no-op shape a null cascaded message has always had. Guard the append the
+            // way the Events/EventsToAppend path already does with WrapIfNotNull, rather than
+            // letting the null reach IEventStream.AppendOne, which throws ArgumentNullException
+            // from inside the store.
+            yield return couldBeNull(_variable.VariableType) ? append.WrapIfNotNull(_variable) : append;
         }
+
+        // A non-nullable struct event can never be null, and `!= null` against one is not even
+        // legal C# — emit the guard only where a null is representable.
+        private static bool couldBeNull(Type type)
+            => !type.IsValueType || Nullable.GetUnderlyingType(type) is not null;
     }
 }
