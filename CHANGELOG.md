@@ -4,6 +4,18 @@
 
 ### WolverineFx (core)
 
+- **The execution pipeline sheds four per-message costs.** (closes
+  [#4322](https://github.com/JasperFx/wolverine/issues/4322)) `Executor.ExecuteAsync` (and its
+  tracing twin) allocated a timeout `CancellationTokenSource` — timer registration included — plus a
+  second linked source with two callback registrations, per message, every message; one linked source
+  with `CancelAfter` now carries the identical either-cancels semantics at half the cost.
+  `FlushOutgoingMessagesAsync` awaited `AssertAnyRequiredResponseWasGenerated` unconditionally — an
+  async state machine per message whose body no-ops unless a reply was requested — and the
+  scheduled-message flush ran its own state machine over a nearly-always-empty list; both are now
+  guarded. `HandlerPipeline.executeAsync` returns `ValueTask<IContinuation>` so a synchronously
+  completing handler no longer boxes a `Task` for a singleton continuation. And `RequiresEncryption`
+  answers from two count reads instead of probing the message-type map per envelope when no
+  encryption policy is configured — which is nearly every application.
 - **`DateTimeOffset.Now` is gone from the per-message paths.** (closes
   [#4326](https://github.com/JasperFx/wolverine/issues/4326)) `BufferedReceiver`, `NativeAckReceiver`,
   and `BufferedLocalQueue.EnqueueDirectly` — the last of these the highest-frequency call site in the
