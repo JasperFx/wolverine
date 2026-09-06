@@ -68,12 +68,16 @@ public static class NativeAckPartitionedProcessing
     /// One factory per host, not one bus per host: an <see cref="IMessageBus" /> is scoped and is not built to
     /// be shared across concurrent invocations, so each parallel publisher below resolves its own.
     /// </param>
+    /// <param name="slotCount">
+    /// The topology's slot count, for callers that go on to assert <see cref="AssertEverySlotWasUsed" />. Leave
+    /// it at zero when slot coverage is not asserted.
+    /// </param>
     public static async Task<IReadOnlyList<(string GroupId, int Sequence)>> PumpOutLettersAsync(
-        IReadOnlyList<Func<IMessageBus>> busSources, int groupCount, int messagesPerGroup)
+        IReadOnlyList<Func<IMessageBus>> busSources, int groupCount, int messagesPerGroup, int slotCount = 0)
     {
         var published = new ConcurrentQueue<(string, int)>();
 
-        var groups = Enumerable.Range(0, groupCount).Select(_ => Guid.NewGuid().ToString()).ToArray();
+        var groups = buildGroupIds(groupCount, slotCount);
 
         await Parallel.ForEachAsync(groups, async (groupId, _) =>
         {
@@ -90,6 +94,43 @@ public static class NativeAckPartitionedProcessing
         });
 
         return published.ToArray();
+    }
+
+    /// <summary>
+    /// The group ids for one run. When <paramref name="slotCount" /> is supplied, the first id drawn for each
+    /// slot is one that hashes to it, so every slot is guaranteed at least one group; any remaining ids are
+    /// free. Ids stay freshly random either way, so runs do not reuse group ids.
+    /// </summary>
+    /// <remarks>
+    /// Purely random ids do not cover the slots reliably, and the shortfall is not rare: 24 random ids over 6
+    /// slots leave at least one slot empty 7.5% of the time by simulation, measured at 8.5% (17 of 200 runs)
+    /// against the real broker. That is a property of the birthday problem rather than of the system under
+    /// test, and it was the whole of the 6.34.0 gate flake. Seeding one id per slot removes the lottery without
+    /// weakening <see cref="AssertEverySlotWasUsed" />: the assertion still fails if routing does not land a
+    /// group on the slot its group id hashes to.
+    /// </remarks>
+    private static string[] buildGroupIds(int groupCount, int slotCount)
+    {
+        var groups = new List<string>(groupCount);
+
+        // Mirrors PartitionedMessagingExtensions.SlotForSending(), which is what actually picks the slot.
+        for (var slot = 0; slot < Math.Min(slotCount, groupCount); slot++)
+        {
+            string candidate;
+            do
+            {
+                candidate = Guid.NewGuid().ToString();
+            } while (Math.Abs(candidate.GetDeterministicHashCode() % slotCount) != slot);
+
+            groups.Add(candidate);
+        }
+
+        while (groups.Count < groupCount)
+        {
+            groups.Add(Guid.NewGuid().ToString());
+        }
+
+        return groups.ToArray();
     }
 
     /// <summary>
@@ -142,6 +183,11 @@ public static class NativeAckPartitionedProcessing
     /// Every slot in the topology must have actually executed something, otherwise a "no concurrency"
     /// result would be trivially satisfied by everything landing on one slot.
     /// </summary>
+    /// <remarks>
+    /// Callers must pass the slot count to <see cref="PumpOutLettersAsync" /> as well, so the run's group ids
+    /// actually reach every slot. Without that this assertion is a coin flip on the group ids rather than a
+    /// statement about routing -- see <c>buildGroupIds</c>.
+    /// </remarks>
     public static void AssertEverySlotWasUsed(int numberOfSlots)
     {
         var destinations = Ledger.Handled.Select(x => x.Destination).Distinct().ToArray();

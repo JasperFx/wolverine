@@ -177,7 +177,8 @@ public class native_ack_global_partitioning_cluster : IAsyncLifetime
         assertSlotsAreNativeAckWithNoCompanionQueue(node1, baseName, slotCount);
 
         var published = await NativeAckPartitionedProcessing.PumpOutLettersAsync(
-            [node1.MessageBus, node2.MessageBus, node3.MessageBus], groupCount: 24, messagesPerGroup: 4);
+            [node1.MessageBus, node2.MessageBus, node3.MessageBus], groupCount: 24, messagesPerGroup: 4,
+            slotCount: slotCount);
 
         (await NativeAckPartitionedProcessing.WaitForCompletionAsync(published, 90.Seconds()))
             .ShouldBeTrue("Not every published letter was handled inside the timeout");
