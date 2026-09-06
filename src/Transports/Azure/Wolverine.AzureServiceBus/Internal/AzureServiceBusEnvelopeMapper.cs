@@ -24,7 +24,11 @@ public class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMe
     {
         MapProperty(x => x.ContentType!, (e, m) => e.ContentType = m.ContentType,
             (e, m) => m.ContentType = e.ContentType);
-        MapProperty(x => x.Data!, (e, m) => e.Data = m.Body.ToArray(), (e, m) => m.Body = new BinaryData(e.Data!));
+        // GH-4333: CopyBodyFrom on the way in so a large payload lands in a pooled buffer rather than on
+        // the LOH. The outgoing direction still needs a real array for BinaryData, and reading Data there
+        // materializes one exactly as before.
+        MapProperty(x => x.Data!, (e, m) => e.CopyBodyFrom(m.Body.ToMemory().Span),
+            (e, m) => m.Body = new BinaryData(e.Data!));
         MapProperty(x => x.Id, (e, m) =>
         {
             if (Guid.TryParse(m.MessageId, out var id))

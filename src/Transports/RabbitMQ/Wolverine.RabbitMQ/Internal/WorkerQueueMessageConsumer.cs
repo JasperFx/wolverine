@@ -165,7 +165,11 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
 
         try
         {
-            envelope.Data = body.ToArray();
+            // GH-4333. The copy itself is not optional -- the RabbitMQ client's buffer is only valid for
+            // the duration of this callback -- but above Envelope.PooledBodyThreshold it lands in a
+            // pooled array instead of a fresh LOH allocation. Below the threshold this is byte-for-byte
+            // the ToArray() it replaces.
+            envelope.CopyBodyFrom(body.Span);
             _mapper.MapIncomingToEnvelope(envelope, properties);
 
             // GH-4012 item 4. Read AFTER the mapper so a custom envelope mapper cannot clear it -- this is

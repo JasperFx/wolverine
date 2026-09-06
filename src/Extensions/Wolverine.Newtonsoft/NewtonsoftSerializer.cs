@@ -37,10 +37,12 @@ public class NewtonsoftSerializer : IMessageSerializer
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        using var stream = new MemoryStream(envelope.Data!)
-        {
-            Position = 0
-        };
+        // GH-4333: read straight out of the body rather than through Data, which on a pooled payload
+        // would materialize the whole thing into an array purely to wrap it in a stream
+        var body = envelope.Body;
+        using var stream = System.Runtime.InteropServices.MemoryMarshal.TryGetArray(body, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(body.ToArray());
 
         using var streamReader = new StreamReader(stream, Encoding.UTF8, true, _bufferSize, true);
         using var jsonReader = new JsonTextReader(streamReader)

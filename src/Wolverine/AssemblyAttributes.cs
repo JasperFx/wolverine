@@ -12,6 +12,8 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("MessageRoutingTests")]
 [assembly: InternalsVisibleTo("Wolverine.CritterWatch")]
 [assembly: InternalsVisibleTo("DataGenerator")]
+// GH-4333: the payload benchmarks measure the pooled receive path, which ends at Envelope.Reset()
+[assembly: InternalsVisibleTo("Benchmarks")]
 [assembly: InternalsVisibleTo("DiagnosticsTests")]
 [assembly: InternalsVisibleTo("PolicyTests")]
 [assembly: InternalsVisibleTo("CircuitBreakingTests")]

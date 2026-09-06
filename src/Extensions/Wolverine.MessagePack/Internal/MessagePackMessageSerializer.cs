@@ -33,6 +33,8 @@ internal class MessagePackMessageSerializer : IMessageSerializer
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        return MessagePackSerializer.Deserialize(messageType, envelope.Data, _options)!;
+        // GH-4333: MessagePack reads ReadOnlyMemory natively, so there is no reason to make a pooled
+        // payload materialize an array first
+        return MessagePackSerializer.Deserialize(messageType, envelope.Body, _options)!;
     }
 }

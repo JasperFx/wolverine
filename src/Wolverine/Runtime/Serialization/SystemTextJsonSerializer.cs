@@ -55,7 +55,10 @@ public class SystemTextJsonSerializer : IMessageSerializer
         Justification = "Default JSON serializer; AOT consumers wrap JsonSerializer with JsonTypeInfo. See AOT guide.")]
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        return JsonSerializer.Deserialize(envelope.Data, messageType, _options)!;
+        // GH-4333: deserialize from the body span. Passing envelope.Data here would materialize the
+        // whole payload into a fresh array first, which on a large message is exactly the LOH allocation
+        // the pooled receive path exists to avoid -- and STJ only ever reads it.
+        return JsonSerializer.Deserialize(envelope.Body.Span, messageType, _options)!;
     }
 
     public object ReadFromData(byte[]? data)
