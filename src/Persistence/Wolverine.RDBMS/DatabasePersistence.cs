@@ -37,21 +37,23 @@ public static class DatabasePersistence
     private static void ConfigureOutgoingCommand(IMessageDatabase settings, DbCommandBuilder builder, Envelope envelope,
         DbParameter owner)
     {
-        var list = new List<DbParameter>
-        {
-            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
-            builder.AddParameter(envelope.Id),
-            owner,
-            builder.AddParameter(envelope.Destination!.ToString()),
-            builder.AddParameter(envelope.DeliverBy),
-            builder.AddParameter(envelope.Attempts),
-            builder.AddParameter(envelope.MessageType)
-        };
-
-        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
-
+        // GH-4320: AppendParameter registers the parameter AND writes its placeholder, so the
+        // per-envelope List<DbParameter> plus the LINQ projection and string join that only
+        // existed to rebuild "@p0, @p1, ..." are gone. Emitted SQL is byte-for-byte identical.
         builder.Append(
-            $"insert into {settings.TableNameFor(DatabaseConstants.OutgoingTable)} ({DatabaseConstants.OutgoingFields}) values ({parameterList});");
+            $"insert into {settings.TableNameFor(DatabaseConstants.OutgoingTable)} ({DatabaseConstants.OutgoingFields}) values (");
+        builder.AppendParameter(EnvelopeSerializer.Serialize(envelope));
+        builder.Append(", ");
+        builder.AppendParameter(envelope.Id);
+        builder.Append($", @{owner.ParameterName}, ");
+        builder.AppendParameter(envelope.Destination!.ToString());
+        builder.Append(", ");
+        builder.AppendParameter(envelope.DeliverBy);
+        builder.Append(", ");
+        builder.AppendParameter(envelope.Attempts);
+        builder.Append(", ");
+        builder.AppendParameter((object?)envelope.MessageType);
+        builder.Append(");");
     }
 
     public static DbCommand BuildIncomingStorageCommand(IEnumerable<Envelope> envelopes,
@@ -70,23 +72,28 @@ public static class DatabasePersistence
         // Don't store any data if the envelope is already marked as handled
         var data = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         
-        var list = new List<DbParameter>
-        {
-            builder.AddParameter(data),
-            builder.AddParameter(envelope.Id),
-            builder.AddParameter(envelope.Status.ToString()),
-            builder.AddParameter(envelope.OwnerId),
-            builder.AddParameter(envelope.ScheduledTime),
-            builder.AddParameter(envelope.Attempts),
-            builder.AddParameter(envelope.MessageType),
-            builder.AddParameter(envelope.Destination?.ToString()),
-            builder.AddParameter(envelope.KeepUntil)
-        };
-
-        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
-
+        // GH-4320: see ConfigureOutgoingCommand -- same removal of the per-envelope
+        // List<DbParameter> + LINQ + string.Join that only rebuilt the placeholder list.
         builder.Append(
-            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) values ({parameterList});");
+            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) values (");
+        builder.AppendParameter(data);
+        builder.Append(", ");
+        builder.AppendParameter(envelope.Id);
+        builder.Append(", ");
+        builder.AppendParameter(envelope.Status.ToString());
+        builder.Append(", ");
+        builder.AppendParameter(envelope.OwnerId);
+        builder.Append(", ");
+        builder.AppendParameter(envelope.ScheduledTime);
+        builder.Append(", ");
+        builder.AppendParameter(envelope.Attempts);
+        builder.Append(", ");
+        builder.AppendParameter((object?)envelope.MessageType);
+        builder.Append(", ");
+        builder.AppendParameter((object?)envelope.Destination?.ToString());
+        builder.Append(", ");
+        builder.AppendParameter(envelope.KeepUntil);
+        builder.Append(");");
     }
 
     public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
