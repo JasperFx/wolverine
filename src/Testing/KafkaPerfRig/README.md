@@ -106,6 +106,38 @@ Watch the machine before trusting a round here. These runs had eight orphaned Co
 containers resident, which is visible in the p95 spread (PostgreSQL sequential p95 319ms against a
 57ms p50) even though the p50 gap is far too large to be noise.
 
+### Fixed-arity batched inserts (GH-4320) — measured 2026-09-06: premise REFUTED, change kept
+
+Same `outbox-store` role, with two additions: an in-build **legacy-shape arm** that runs
+`DatabasePersistence.BuildOutgoingStorageCommand` (the per-envelope values-clause form) against the
+same database in the same process, and `RIG_VARY_BATCH=1`.
+
+`RIG_VARY_BATCH` exists because of a flaw found in this harness while using it. **A constant batch
+size cannot test a plan-cache claim at all**: at a fixed size even the per-envelope form has stable
+command text and is auto-prepared like anything else. The defect GH-4320 described is that the text
+varies *with* the batch size — and a coalescer produces varying sizes by construction. The flag walks
+the size from 2 to 100 on a fixed seed so both arms see the same sequence.
+
+| cell (varying batch size, legacy → fixed arity) | r1 | r2 |
+|---|---|---|
+| `Max Auto Prepare` unset — **Wolverine's default** | 1.318 → 0.988ms, **1.33x** | 1.057 → 0.771ms, **1.37x** |
+| `Max Auto Prepare=20` | 1.100 → 1.138ms, 0.97x | 1.179 → 0.987ms, 1.19x |
+
+**The change is a consistent ~1.35x on the batched insert, and the reason GH-4320 gave for it is
+wrong.** Two things sank the plan-cache premise. Wolverine never sets `Max Auto Prepare` and Npgsql
+defaults it to 0, so no Wolverine command was being auto-prepared either way. And when it *is* switched
+on, the fixed-arity advantage disappears into noise rather than growing — prepared-statement reuse was
+never where the cost was. The saving is the smaller command and the parameter count: binding 900
+parameters client-side and parsing them server-side is more work than binding 9.
+
+Kept anyway, on the measurement rather than the theory. The structural benefit that holds regardless:
+parameter count no longer scales with batch size, so a batch cannot walk towards a provider's
+parameter ceiling.
+
+⚠️ **Do not compare absolute numbers across sessions here.** The same sequential arm measured 57.30ms
+with eight orphaned emulator containers resident and 29.6ms once they were gone. That is why the legacy
+arm is built into the run.
+
 ### Durable local queue (GH-4319) — measured 2026-09-06
 
 The only lane with no broker in it: one process publishes into a durable local queue backed by

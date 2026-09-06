@@ -29,7 +29,7 @@ using Table = Weasel.Postgresql.Tables.Table;
 
 namespace Wolverine.Postgresql;
 
-internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConnectionBudgetProbe
+internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConnectionBudgetProbe
 {
     /// <summary>
     /// Row-count threshold below which <see cref="FetchCountsAsync"/> abandons the cheap

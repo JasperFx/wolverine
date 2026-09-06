@@ -264,11 +264,24 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
+    /// <summary>
+    /// GH-4320. The batched inbox INSERT, as one command. Virtual because the default shape -- one
+    /// <c>insert ... values (@p0..@p8);</c> per envelope -- makes both the command text and the
+    /// parameter count scale with the batch size. A provider that can express the batch at FIXED arity
+    /// overrides this; PostgreSQL does, with <c>unnest</c>, and measures ~1.35x faster on the insert.
+    /// The saving is the smaller command and the parameter count, not plan caching -- see the note on
+    /// PostgresqlMessageStore.BatchedInserts for why the plan-cache premise did not survive measurement.
+    /// </summary>
+    protected virtual DbCommand BuildBatchedIncomingCommand(IReadOnlyList<Envelope> envelopes)
+    {
+        return DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
+    }
+
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
         if (envelopes.Count == 0) return;
 
-        await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
+        await using var cmd = BuildBatchedIncomingCommand(envelopes);
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         try
