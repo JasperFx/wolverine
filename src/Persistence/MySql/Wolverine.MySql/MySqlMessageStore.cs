@@ -29,6 +29,13 @@ namespace Wolverine.MySql;
 
 internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
 {
+    /// <summary>
+    /// GH-4375. MySQL's placeholder count is a uint16 on the wire, so 65,535. A multi-row insert of
+    /// 65,536 parameters was accepted against the docker-compose MySQL, which means the practical limit
+    /// there is packet size rather than placeholder count -- this stays at the protocol number.
+    /// </summary>
+    public override int MaximumParameterCount => 65_535;
+
     private readonly string _findAtLargeEnvelopesSql;
 
     private ImHashMap<Type, IDatabaseSagaSchema> _sagaStorage = ImHashMap<Type, IDatabaseSagaSchema>.Empty;

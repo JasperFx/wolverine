@@ -104,6 +104,28 @@ public class DatabaseConstants
     public static readonly string OutgoingFields =
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";
 
+    /// <summary>
+    /// GH-4375. Parameters the per-envelope builders add for ONE envelope. Used to work out how many
+    /// envelopes fit under a provider's parameter ceiling before a batch has to be split.
+    /// </summary>
+    /// <remarks>
+    /// Kept next to the field lists above because that is what they count, and pinned by
+    /// <c>batched_command_parameter_counts</c> so adding a column fails a test rather than silently
+    /// moving a chunk boundary. Outgoing is one fewer than its field list: <c>owner_id</c> is a single
+    /// shared parameter reused by every values-clause.
+    /// </remarks>
+    public const int IncomingParametersPerEnvelope = 9;
+
+    /// <inheritdoc cref="IncomingParametersPerEnvelope" />
+    public const int OutgoingParametersPerEnvelope = 6;
+
+    /// <summary>
+    /// Parameters the outgoing builder adds ONCE for the whole batch rather than per envelope: the
+    /// shared <c>owner_id</c>. Subtracted from the budget before dividing, or the chunk boundary lands
+    /// one envelope past what fits.
+    /// </summary>
+    public const int OutgoingSharedParameters = 1;
+
     public static readonly string DeadLetterFields =
         $"{Id}, {ExecutionTime}, {Body}, {MessageType}, {ReceivedAt}, {Source}, {ExceptionType}, {ExceptionMessage}, {SentAt}, {Replayable}";
 

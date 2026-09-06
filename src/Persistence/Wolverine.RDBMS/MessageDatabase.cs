@@ -27,6 +27,60 @@ namespace Wolverine.RDBMS;
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport where T : DbConnection, new()
 {
+    /// <summary>
+    /// GH-4375. The most parameters this provider accepts in one command. Batched durability commands
+    /// are split so they never exceed it.
+    /// </summary>
+    /// <remarks>
+    /// The default is SQL Server's 2,100 -- the tightest limit of any provider Wolverine ships -- so a
+    /// provider that does not override it chunks more than it strictly needs to and is never wrong.
+    /// Getting this too LOW costs an extra round trip; getting it too high throws at the driver, so the
+    /// default leans the safe way.
+    ///
+    /// <para>
+    /// Measured against the containers in docker-compose, by walking a multi-row insert across the
+    /// boundary: SQL Server 2,100 (349 outgoing envelopes, 233 incoming), SQLite 32,766, MySQL at least
+    /// 65,536. PostgreSQL's wire protocol caps it at 65,535.
+    /// </para>
+    /// </remarks>
+    public virtual int MaximumParameterCount => 2100;
+
+    /// <summary>
+    /// GH-4375. True when this provider's batched builders use a FIXED number of parameters regardless
+    /// of batch size, so no amount of batching can approach <see cref="MaximumParameterCount" />.
+    /// PostgreSQL sets this, having moved to <c>unnest</c> in GH-4320.
+    /// </summary>
+    protected virtual bool BuildsFixedArityBatches => false;
+
+    /// <summary>
+    /// GH-4375. Split a batch so each slice stays under <see cref="MaximumParameterCount" />.
+    /// </summary>
+    /// <remarks>
+    /// Always yields at least one envelope per slice: a single envelope that cannot fit is a problem no
+    /// amount of chunking solves, and silently yielding nothing would drop messages.
+    /// </remarks>
+    protected IEnumerable<ArraySegment<Envelope>> chunkByParameterLimit(Envelope[] envelopes,
+        int parametersPerEnvelope, int sharedParameters = 0)
+    {
+        // The shared parameters have to come off the budget BEFORE the division. Leaving them out puts
+        // the chunk boundary exactly one envelope past what fits: the outgoing builder is 6N + 1 (owner
+        // is shared), so 2100/6 = 350 chunks to precisely the size that was already known to fail.
+        var budget = Math.Max(1, MaximumParameterCount - sharedParameters);
+        var perChunk = Math.Max(1, budget / Math.Max(1, parametersPerEnvelope));
+
+        if (envelopes.Length <= perChunk)
+        {
+            yield return new ArraySegment<Envelope>(envelopes);
+            yield break;
+        }
+
+        for (var offset = 0; offset < envelopes.Length; offset += perChunk)
+        {
+            yield return new ArraySegment<Envelope>(envelopes, offset,
+                Math.Min(perChunk, envelopes.Length - offset));
+        }
+    }
+
     // ReSharper disable once InconsistentNaming
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;

@@ -33,6 +33,13 @@ namespace Wolverine.SqlServer.Persistence;
 
 public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe
 {
+    /// <summary>
+    /// GH-4375. SQL Server's hard limit, and the tightest of any provider Wolverine ships. Measured:
+    /// 349 outgoing envelopes in one transaction succeed (2,095 parameters) and 350 fail (2,101); 233
+    /// incoming succeed (2,097) and 234 fail (2,106).
+    /// </summary>
+    public override int MaximumParameterCount => 2100;
+
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _scheduledLockId;
     private DatabaseServerId? _serverId;

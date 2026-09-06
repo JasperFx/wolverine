@@ -34,20 +34,34 @@ public abstract partial class MessageDatabase<T>
         return executeCommandBatch(builder, _cancellation);
     }
 
+    /// <summary>
+    /// GH-4375. Chunked for the same reason as the outgoing transactional path: this array is sized by
+    /// the caller's transaction rather than by any batch-size setting, and 234 envelopes was enough to
+    /// exceed SQL Server's 2,100-parameter ceiling.
+    /// </summary>
+    /// <remarks>
+    /// Chunks run on the CALLER'S transaction, so a duplicate in a later chunk still rolls the whole
+    /// thing back with the caller's other work -- the atomicity this had before, at more commands. The
+    /// exception still reports the whole batch, because a rolled-back multi-row insert cannot say which
+    /// row collided.
+    /// </remarks>
     public async Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
-
-        cmd.Transaction = tx;
-        cmd.Connection = tx.Connection;
-
-        try
+        foreach (var chunk in chunkByParameterLimit(envelopes, DatabaseConstants.IncomingParametersPerEnvelope))
         {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        catch (Exception e) when (IsDuplicateEnvelopeException(e))
-        {
-            throw new DuplicateIncomingEnvelopeException(envelopes);
+            await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(chunk.ToArray(), this);
+
+            cmd.Transaction = tx;
+            cmd.Connection = tx.Connection;
+
+            try
+            {
+                await cmd.ExecuteNonQueryAsync(_cancellation);
+            }
+            catch (Exception e) when (IsDuplicateEnvelopeException(e))
+            {
+                throw new DuplicateIncomingEnvelopeException(envelopes);
+            }
         }
     }
 
@@ -281,7 +295,14 @@ public abstract partial class MessageDatabase<T>
     {
         if (envelopes.Count == 0) return;
 
-        await using var cmd = BuildBatchedIncomingCommand(envelopes);
+        // GH-4375: this one already runs in an explicit transaction (see below), so chunking it keeps
+        // the all-or-nothing guarantee the duplicate handling below depends on. A provider that
+        // overrides BuildBatchedIncomingCommand with a fixed-arity form -- PostgreSQL, since GH-4320 --
+        // has no ceiling to hit and gets a single chunk regardless.
+        var chunks = BuildsFixedArityBatches
+            ? [new ArraySegment<Envelope>(envelopes as Envelope[] ?? envelopes.ToArray())]
+            : chunkByParameterLimit(envelopes as Envelope[] ?? envelopes.ToArray(),
+                DatabaseConstants.IncomingParametersPerEnvelope).ToArray();
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         try
@@ -296,9 +317,14 @@ public abstract partial class MessageDatabase<T>
             await using var tx = await conn.BeginTransactionAsync(_cancellation);
             try
             {
-                cmd.Connection = conn;
-                cmd.Transaction = tx;
-                await cmd.ExecuteNonQueryAsync(_cancellation);
+                foreach (var chunk in chunks)
+                {
+                    await using var cmd = BuildBatchedIncomingCommand(chunk);
+                    cmd.Connection = conn;
+                    cmd.Transaction = tx;
+                    await cmd.ExecuteNonQueryAsync(_cancellation);
+                }
+
                 await tx.CommitAsync(_cancellation);
             }
             catch (Exception e) when (IsDuplicateEnvelopeException(e))
