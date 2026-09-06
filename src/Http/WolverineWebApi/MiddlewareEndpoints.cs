@@ -235,3 +235,76 @@ public class ShortCircuitFinallyEndpoints
         return "ok";
     }
 }
+// GH-4339: the same silent-misbind class as GH-4308/GH-4314, one door further in. A [FromQuery] /
+// [FromHeader] / [FromRoute] parameter on a MIDDLEWARE Finally method was never given an HTTP
+// binding: MiddlewarePolicy.buildFinals creates the MethodCall without chain.ApplyParameterMatching,
+// and the call is nested inside TryFinallyWrapperFrame, so neither the route-variable loop in
+// HttpChain.DetermineFrames nor the GH-4314 postprocessor pass ever reached it. JasperFx's
+// name-then-type fallback then handed the parameter an unrelated variable of the same type. A
+// Finally on the ENDPOINT type is unaffected -- Chain.ApplyImpliedMiddlewareFromHandlers already
+// runs those through ApplyParameterMatching.
+//
+// Both middleware shapes matter, because the finals are built in two different places: a middleware
+// WITH a Before goes through MiddlewarePolicy.wrapBeforeFrame, one WITHOUT goes through buildFinals.
+public class FinallyQueryHeaderMiddleware
+{
+    public static void Finally(Recorder recorder, [FromQuery] string? audit, [FromQuery] int attempts,
+        [FromHeader(Name = "x-trace")] string? trace)
+    {
+        recorder.Actions.Add($"Finally: audit={audit ?? "null"}, attempts={attempts}, trace={trace ?? "null"}");
+    }
+}
+
+public class FinallyWithBeforeQueryHeaderMiddleware
+{
+    public static void Before(Recorder recorder)
+    {
+        recorder.Actions.Add("Before");
+    }
+
+    public static void Finally(Recorder recorder, [FromQuery] string? audit,
+        [FromHeader(Name = "x-trace")] string? trace)
+    {
+        recorder.Actions.Add($"FinallyWithBefore: audit={audit ?? "null"}, trace={trace ?? "null"}");
+    }
+}
+
+// The GH-4308 half: a parsed route-bindable type on a Finally. Nothing produces a `long`, so this
+// shape died at codegen with an UnResolvableVariableException rather than binding wrongly -- which
+// also means this endpoint keeps the Nuke CodegenPreviewCommand guarding it.
+public class FinallyRouteMiddleware
+{
+    public static void Finally(Recorder recorder, [FromRoute] long orderId)
+    {
+        recorder.Actions.Add($"FinallyRoute: {orderId}");
+    }
+}
+
+public class FinallyBindingEndpoints
+{
+    // The `string` return is deliberate bait for the name-then-type fallback, exactly as in the
+    // GH-4314 postprocessor endpoint.
+    [Wolverine.Attributes.Middleware(typeof(FinallyQueryHeaderMiddleware))]
+    [WolverineGet("/middleware/finally-query-header")]
+    public string Get(Recorder recorder)
+    {
+        recorder.Actions.Add("Action");
+        return "ok";
+    }
+
+    [Wolverine.Attributes.Middleware(typeof(FinallyWithBeforeQueryHeaderMiddleware))]
+    [WolverineGet("/middleware/finally-with-before-query-header")]
+    public string GetWithBefore(Recorder recorder)
+    {
+        recorder.Actions.Add("Action");
+        return "ok";
+    }
+
+    [Wolverine.Attributes.Middleware(typeof(FinallyRouteMiddleware))]
+    [WolverineGet("/middleware/finally-route/{orderId:long}")]
+    public string GetRoute(Recorder recorder)
+    {
+        recorder.Actions.Add("Action");
+        return "ok";
+    }
+}

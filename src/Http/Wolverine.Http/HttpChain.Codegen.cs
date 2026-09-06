@@ -170,6 +170,20 @@ public partial class HttpChain
             }
         }
 
+        // GH-4339: a middleware type's Finally calls are nested INSIDE the try/finally wrapper frames
+        // below, not laid out in Middleware, so the `frame is MethodCall` loop that follows never sees
+        // them -- and unlike every sibling method kind (Before, After, AfterCommit, OnException), they
+        // are built without chain.ApplyParameterMatching. Both omissions together left a
+        // [FromQuery]/[FromHeader]/[FromRoute] parameter on a Finally with no binding at all, so
+        // JasperFx's name-then-type fallback either died on a parsed type or, worse, silently handed the
+        // parameter an unrelated variable of the same type (httpContext.TraceIdentifier for a string).
+        // Bound here from the method signature, exactly as GH-4308/GH-4314 bind postprocessors, so an
+        // unattributed parameter still resolves the way it does today.
+        foreach (var finallyCall in FinallyCalls())
+        {
+            tryApplyHttpBindingsFromSignature(finallyCall);
+        }
+
         var index = 0;
         foreach (var frame in Middleware)
         {
@@ -239,7 +253,7 @@ public partial class HttpChain
         // [FromQuery]/[FromHeader] per tryDescribePostprocessorBinding.
         foreach (var call in Postprocessors.OfType<MethodCall>().Concat(PostCommitPostprocessors.OfType<MethodCall>()))
         {
-            tryApplyHttpBindingsToPostprocessor(call);
+            tryApplyHttpBindingsFromSignature(call);
         }
 
         foreach (var frame in Postprocessors) yield return frame;
@@ -248,7 +262,37 @@ public partial class HttpChain
         foreach (var frame in PostCommitPostprocessors) yield return frame;
     }
 
-    private void tryApplyHttpBindingsToPostprocessor(MethodCall call)
+    /// <summary>
+    /// GH-4339: every <see cref="MethodCall" /> this chain will generate into a <c>finally</c> block.
+    /// They live nested one level inside the wrapper frames in <see cref="IChain.Middleware" /> --
+    /// <see cref="Wolverine.Middleware.TryFinallyWrapperFrame" /> for a middleware type's Finally methods, and
+    /// <see cref="Wolverine.Middleware.TryCatchFinallyFrame" /> once that middleware (or the endpoint type) also contributes
+    /// OnException methods -- so walking Middleware does not reach them. Both the codegen binding pass
+    /// and the OpenAPI description side enumerate them from here so the two cannot drift apart. The
+    /// endpoint type's own Finally methods are already parameter-matched by
+    /// <c>Chain.ApplyImpliedMiddlewareFromHandlers</c>; they come back through here too, and both
+    /// consumers are idempotent for an argument that is already bound.
+    /// </summary>
+    internal IEnumerable<MethodCall> FinallyCalls()
+    {
+        // Both frame types are qualified because JasperFx.CodeGeneration.Frames has its own,
+        // unrelated TryFinallyWrapperFrame and that namespace is imported here.
+        foreach (var frame in Middleware)
+        {
+            switch (frame)
+            {
+                case Wolverine.Middleware.TryFinallyWrapperFrame wrapper:
+                    foreach (var call in wrapper.Finallys.OfType<MethodCall>()) yield return call;
+                    break;
+
+                case Wolverine.Middleware.TryCatchFinallyFrame tryCatchFinally:
+                    foreach (var call in tryCatchFinally.FinallyBlocks.OfType<MethodCall>()) yield return call;
+                    break;
+            }
+        }
+    }
+
+    private void tryApplyHttpBindingsFromSignature(MethodCall call)
     {
         var parameters = call.Method.GetParameters();
         for (var i = 0; i < call.Arguments.Length; i++)

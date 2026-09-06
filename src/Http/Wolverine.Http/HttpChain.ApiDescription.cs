@@ -638,7 +638,14 @@ public partial class HttpChain
     /// </summary>
     private void fillChainBoundParameters(ApiDescription apiDescription)
     {
-        foreach (var call in Postprocessors.OfType<MethodCall>())
+        // GH-4339: a middleware type's Finally methods are the second binder that is derived from the
+        // method signature rather than from a produced variable. They are nested inside the try/finally
+        // wrapper frames rather than laid out in Middleware, so they were described by nothing at all --
+        // which was self-consistent only while the generated code did not read them either. Now that the
+        // codegen pass binds them, the description has to make the same claim or the two halves split.
+        // FinallyCalls() is the single enumeration both sides use. A value another binder already
+        // described is de-duplicated by addChainBoundParameter on the way in.
+        foreach (var call in Postprocessors.OfType<MethodCall>().Concat(FinallyCalls()))
         {
             foreach (var parameter in call.Method.GetParameters())
             {
