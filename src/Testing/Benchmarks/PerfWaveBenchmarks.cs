@@ -201,6 +201,14 @@ public class PerfWaveBenchmarks
 
     // ─────────────────────────────────────────────────────────────────────────
     // GH-4325 — envelope-rule loop, per outgoing message (empty is the common case)
+    //
+    // MEASURED (net9.0, --job short --inProcess): 0.585 ns before, 0.000 ns after. The indexed
+    // loop over a concrete array with no rules to run is eliminated outright; the foreach over
+    // IList still pays for the interface enumerator's setup. A gain, but a ~0.6 ns one -- recorded
+    // so nobody has to re-derive it, not because it moves anything on its own.
+    //
+    // Note the OTHER half of GH-4325 did not survive: #4353 had to restore an outstanding-envelope
+    // Fill dedup this issue removed, which silently dropped replies. See the ground rules.
     // ─────────────────────────────────────────────────────────────────────────
 
     [BenchmarkCategory("GH-4325 Rules"), Benchmark(Baseline = true, Description = "Rules: foreach over IList (before)")]
