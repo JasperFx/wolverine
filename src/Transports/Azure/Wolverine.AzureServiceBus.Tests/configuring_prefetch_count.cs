@@ -7,46 +7,28 @@ namespace Wolverine.AzureServiceBus.Tests;
 public class configuring_prefetch_count
 {
     [Fact]
-    public void the_transport_wide_default_is_still_zero()
+    public void prefetch_is_disabled_by_default()
     {
-        // The transport-level value is the explicit opt-in knob and is unchanged; what varies is
-        // what an endpoint computes when nothing was configured (see the per-mode tests below)
-        new AzureServiceBusTransport().PrefetchCount.ShouldBe(0);
+        var transport = new AzureServiceBusTransport();
+
+        transport.PrefetchCount.ShouldBe(0);
+        transport.Queues["incoming"].PrefetchCount.ShouldBe(0);
     }
 
-    // GH-4331: Buffered and Durable settle at receipt / right after the inbox insert, so a modest
-    // prefetch buffer does not age against a lock across handler execution. Inline does run the
-    // handler before settling, so it keeps zero.
+    // GH-4331 gave these two modes a computed default of one receive batch on the reasoning that
+    // they settle early and so do not hold a lock across handler execution. The rig lane measured
+    // no benefit, and prefetch is not free -- a buffered message ages against its lock with no
+    // Envelope and therefore no lease renewal -- so the default went back to zero. This test is the
+    // guard on that reversal, not a claim that prefetch is useless.
     [Theory]
     [InlineData(EndpointMode.BufferedInMemory)]
     [InlineData(EndpointMode.Durable)]
-    public void settle_early_modes_prefetch_one_receive_batch_by_default(EndpointMode mode)
+    [InlineData(EndpointMode.Inline)]
+    public void no_mode_other_than_native_ack_computes_a_prefetch_default(EndpointMode mode)
     {
         var queue = new AzureServiceBusTransport().Queues["incoming"];
         queue.Mode = mode;
 
-        queue.PrefetchCount.ShouldBe(queue.MaximumMessagesToReceive);
-    }
-
-    [Fact]
-    public void inline_still_disables_prefetch_by_default()
-    {
-        var queue = new AzureServiceBusTransport().Queues["incoming"];
-        queue.Mode = EndpointMode.Inline;
-
-        queue.PrefetchCount.ShouldBe(0);
-    }
-
-    [Fact]
-    public void an_explicit_transport_wide_zero_still_wins_over_the_computed_default()
-    {
-        var transport = new AzureServiceBusTransport();
-        transport.PrefetchCount = 0;
-
-        var queue = transport.Queues["incoming"];
-        queue.Mode = EndpointMode.Durable;
-
-        // Setting it explicitly to 0 is a deliberate "no prefetch", not an absence of configuration
         queue.PrefetchCount.ShouldBe(0);
     }
 

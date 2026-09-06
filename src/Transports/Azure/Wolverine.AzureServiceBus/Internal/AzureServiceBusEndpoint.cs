@@ -109,25 +109,15 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
                 return lanes * 2;
             }
 
-            // GH-4331. Buffered and Durable were the two modes left at Azure Service Bus's shipping
-            // default of 0 -- no prefetch at all -- so the batched listener paid a full AMQP round
-            // trip per batch with nothing buffered client-side. They are also the two modes where
-            // prefetch is SAFEST: buffered settles at receipt and durable settles right after the
-            // inbox insert, so neither holds a lock across handler execution the way NativeAck does.
-            //
-            // Not risk-free, and that is why this is one batch rather than a throughput-only number:
-            // a prefetched message ages against its lock from the moment the CLIENT buffers it, with
-            // no Envelope yet and so no lease renewal. The exposure is (buffer depth / consumption
-            // rate), so sizing the buffer to exactly one receive batch bounds it at roughly the time
-            // to drain one batch.
-            //
-            // Inline deliberately keeps 0: it runs the handler before settling, so a prefetch buffer
-            // there ages against a lock behind arbitrarily slow user code.
-            if (Mode is EndpointMode.BufferedInMemory or EndpointMode.Durable)
-            {
-                return MaximumMessagesToReceive;
-            }
-
+            // GH-4331 briefly gave BufferedInMemory and Durable a computed default of one receive
+            // batch. Reverted: the rig lane in src/Testing/KafkaPerfRig measured a NULL RESULT
+            // (35.0/s before, 32.9/s after, the post-change arm's own spread wider than the gap),
+            // and the change is not free -- a prefetched message ages against its Azure Service Bus
+            // lock from the moment the CLIENT buffers it, with no Envelope yet and therefore no
+            // LeaseRenewalTracker renewal. Unmeasured benefit is not worth that exposure by default.
+            // The emulator cannot see prefetch (near-zero round-trip latency is exactly what
+            // prefetch exists to hide), so this stays at 0 until a real Azure namespace says
+            // otherwise. See GH-4331.
             return Parent.PrefetchCount;
         }
         set
