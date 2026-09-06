@@ -28,6 +28,12 @@ public partial class RavenDbMessageStore : IMessageOutbox
         
         await session.StoreAsync(outgoing);
         await session.SaveChangesAsync();
+
+        // GH-4371. Nothing on RavenDB reads this today -- there is no RavenDB queue transport -- but
+        // the flag means "this envelope is in the outbox", and a store that has written the row and
+        // reports otherwise is wrong. Oracle carried exactly that lie until its queue sender's move
+        // branch turned out to have been unreachable for its whole life.
+        envelope.WasPersistedInOutbox = true;
     }
 
     /// <summary>
@@ -49,6 +55,11 @@ public partial class RavenDbMessageStore : IMessageOutbox
         }
 
         await session.SaveChangesAsync();
+
+        foreach (var envelope in envelopes)
+        {
+            envelope.WasPersistedInOutbox = true;
+        }
     }
 
     public async Task DeleteOutgoingAsync(Envelope[] envelopes)

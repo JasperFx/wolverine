@@ -48,12 +48,21 @@ internal partial class OracleMessageStore
         }
         catch (OracleException e) when (e.Number == 1)
         {
-            // Idempotent
+            // Idempotent -- the row is in the outgoing table either way, which is what the flag below
+            // reports, so a duplicate insert still counts as persisted
         }
         finally
         {
             await conn.CloseAsync();
         }
+
+        // GH-4371. OracleQueueSender.SendAsync branches on this to decide between MOVING the row from
+        // outgoing into the queue table in one transaction and writing the queue row separately. Oracle
+        // never set it, so the move branch was unreachable and every durable send took the two-step
+        // route -- where a crash between the queue insert and the outgoing delete leaves the message in
+        // both, and the durability agent sends it again. Every MessageDatabase<T> store has always set
+        // this; Oracle alone did not.
+        envelope.WasPersistedInOutbox = true;
     }
 
     /// <summary>
@@ -118,11 +127,13 @@ internal partial class OracleMessageStore
             await conn.CloseAsync();
         }
 
-        // Deliberately NOT stamping WasPersistedInOutbox here. Neither Oracle store path has ever set
-        // it -- while OracleQueueSender reads it to decide whether to skip a store -- so setting it on
-        // the batch path alone would make batched and unbatched sends behave differently on a flag
-        // that gates a write. Whether Oracle should set it at all is a real question, and a separate
-        // one from this round-trip change. Filed rather than fixed in passing.
+        // GH-4371 settled the question this deliberately left open: Oracle does stamp the flag, on
+        // every store path, exactly as MessageDatabase<T> does. A coalesced send has to reach the same
+        // move branch a single send reaches.
+        foreach (var envelope in envelopes)
+        {
+            envelope.WasPersistedInOutbox = true;
+        }
     }
 
     public async Task DeleteOutgoingAsync(Envelope[] envelopes)
@@ -209,6 +220,10 @@ internal partial class OracleMessageStore
             {
                 // Idempotent
             }
+
+            // GH-4371, same reasoning as the connection-owning overload above, and the same place
+            // MessageDatabase<T>.StoreOutgoingAsync(DbTransaction, Envelope[]) sets it
+            envelope.WasPersistedInOutbox = true;
         }
     }
 }

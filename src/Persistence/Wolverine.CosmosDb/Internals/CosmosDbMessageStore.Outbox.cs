@@ -39,6 +39,12 @@ public partial class CosmosDbMessageStore : IMessageOutbox
         };
 
         await _container.UpsertItemAsync(outgoing, new PartitionKey(outgoing.PartitionKey));
+
+        // GH-4371. Nothing on Cosmos DB reads this today -- there is no Cosmos queue transport -- but
+        // the flag means "this envelope is in the outbox", and a store that has written the row and
+        // reports otherwise is wrong. Oracle carried exactly that lie until its queue sender's move
+        // branch turned out to have been unreachable for its whole life.
+        envelope.WasPersistedInOutbox = true;
     }
 
     // Azure Cosmos DB's own limits on a TransactionalBatch: at most 100 operations, and 2MB of
@@ -107,6 +113,11 @@ public partial class CosmosDbMessageStore : IMessageOutbox
                         response.StatusCode, 0, response.ActivityId, response.RequestCharge);
                 }
             }
+        }
+
+        foreach (var envelope in envelopes)
+        {
+            envelope.WasPersistedInOutbox = true;
         }
     }
 
