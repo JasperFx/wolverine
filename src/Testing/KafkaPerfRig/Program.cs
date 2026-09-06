@@ -83,6 +83,10 @@ switch (role)
         await WolverineRedis.RunPublisherAsync(cfg);
         break;
 
+    case "local-queue":
+        await WolverineLocalQueue.RunAsync(cfg);
+        break;
+
     case "asb-consumer":
         await WolverineAsb.RunConsumerAsync(cfg);
         break;

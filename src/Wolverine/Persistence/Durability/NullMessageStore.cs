@@ -117,6 +117,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
         return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());

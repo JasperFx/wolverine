@@ -48,6 +48,11 @@ public class RigConfig
 
     public string PostgresSchema { get; } = env("RIG_PG_SCHEMA", "kafka_rig");
 
+    // GH-4319. Durable local queue publishes now coalesce into one batched inbox INSERT.
+    // 0 leaves Wolverine's default (100); 1 gives every publish its own round trip, which is the
+    // pre-GH-4319 shape reproduced INSIDE the same build -- the A/B this lane exists for.
+    public int StoreIncomingBatchSize { get; } = envInt("RIG_STORE_BATCH", 0);
+
     // 0 = leave the endpoint's default listener count
     public int ListenerCount { get; } = envInt("RIG_LISTENER_COUNT", 0);
 

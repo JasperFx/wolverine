@@ -211,6 +211,34 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.Outbox.StoreOutgoingAsync(envelope, ownerId);
     }
 
+    // GH-4319. A coalesced outbox batch can span tenants, so it is split by tenant before it reaches
+    // any one database -- the same rule StoreIncomingAsync and DeleteOutgoingAsync already follow.
+    async Task IMessageOutbox.StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
+    {
+        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+
+        if (groups.Length == 1)
+        {
+            var database = await GetDatabaseAsync(groups[0].Key);
+            await database.Outbox.StoreOutgoingAsync(envelopes, ownerId);
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            try
+            {
+                var database = await GetDatabaseAsync(group.Key);
+                await database.Outbox.StoreOutgoingAsync(group.ToArray(), ownerId);
+            }
+            catch (UnknownTenantIdException e)
+            {
+                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store outgoing envelopes",
+                    group.Key);
+            }
+        }
+    }
+
     async Task IMessageOutbox.DeleteOutgoingAsync(Envelope[] envelopes)
     {
         var groups = envelopes.GroupBy(x => x.TenantId).ToArray();

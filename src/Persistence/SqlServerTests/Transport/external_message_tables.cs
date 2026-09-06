@@ -27,6 +27,13 @@ public class external_message_tables : IAsyncLifetime
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync("outside");
+
+        // end_to_end_default_variable_message_types listens on outgoing.incoming1, and only "outside"
+        // was ever dropped -- so any row that run did not consume stayed there forever and the NEXT
+        // run's SingleEnvelope<Message2>() saw it too. Observed as "Received 4 messages of type
+        // Message2" from a test that published exactly one, then passing again once the backlog had
+        // been drained, which is the signature that makes this kind of flake read as someone's diff.
+        await conn.DropSchemaAsync("outgoing");
     }
     
     public ValueTask DisposeAsync()

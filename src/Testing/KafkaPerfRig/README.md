@@ -74,6 +74,52 @@ two worktrees.
 **+159% (2.6x)**, rounds within 0.6% of each other. The durable Redis endpoint had been paying one
 inbox-insert round trip per message.
 
+### Durable local queue (GH-4319) — measured 2026-09-06
+
+The only lane with no broker in it: one process publishes into a durable local queue backed by
+PostgreSQL and handles the messages itself. That isolates exactly what GH-4319 changes —
+`DurableLocalQueue.StoreAndForwardAsync`'s inbox `INSERT`, which used to open its own pooled
+connection for one row on every publish.
+
+`RIG_STORE_BATCH=1` sets `StoreIncomingBatchSize` to 1, which is the pre-GH-4319 one-INSERT-per-publish
+path **inside the same build**. Run it as `dotnet run -c Release -- local-queue`.
+
+**Coalescing only happens where the application publishes concurrently.** There is no timer, so a
+single awaited publish loop never has two writes in flight and forms no batches at all — it pays
+nothing and gains nothing. The saturated cell therefore runs `RIG_PUBLISHERS=16`, which is the shape
+a server handling concurrent requests actually has. A rig cell at `RIG_PUBLISHERS=1` would measure
+this change as a null result, correctly and uselessly.
+
+Two cells, two rounds each, interleaved, `RIG_HANDLER_MS=0 RIG_SEQ=none`:
+
+**Saturated** (`RIG_SMALL_RATE=-1 RIG_PUBLISHERS=16`, 15s warmup + 45s):
+
+| cell | r1 | r2 | mean | publish p50 | publish p99 |
+|---|---|---|---|---|---|
+| `RIG_STORE_BATCH=1` (pre-GH-4319) | 7,297/s | 7,413/s | **7,355/s** | 2.29ms | 3.69ms |
+| default batch 100 (post-GH-4319) | 9,156/s | 9,164/s | **9,160/s** | **1.70ms** | **2.71ms** |
+
+**+24.5% throughput, and latency went DOWN 26% at p50 / 27% at p99.** Round spread inside each arm
+is 1.6% and 0.1%, well under the 24% gap. The latency direction is the point, not a bonus: a
+time-windowed coalescer here would have moved p50 the other way, which is precisely the shape
+GH-3490 measured at a 5,767ms transit p50. Batching that forms only from concurrency takes pressure
+off the connection pool instead of adding delay.
+
+**Trickle** (`RIG_SMALL_RATE=8 RIG_LARGE_RATE=0.6`, 20s warmup + 60s) — the safety cell:
+
+| cell | r1 publish p50 | r2 publish p50 | mean |
+|---|---|---|---|
+| `RIG_STORE_BATCH=1` (pre-GH-4319) | 2.091ms | 2.057ms | **2.07ms** |
+| default batch 100 (post-GH-4319) | 2.094ms | 2.130ms | **2.11ms** |
+
+**No measurable change**, and that is the result being looked for: at 8/s the publishes are ~125ms
+apart, nothing is ever concurrent, every write goes straight down the per-envelope path. The 0.04ms
+gap is inside the round-to-round spread of the *before* arm alone (0.034ms). Throughput is identical
+by construction — both arms are rate-controlled and handled all 640 messages.
+
+Measure both cells for any future change here. Throughput alone cannot tell a coalescer that helps
+under load from one that quietly taxes a lone publish.
+
 ### Azure Service Bus (GH-4331) — measured 2026-09-06: NULL RESULT → **change reverted**
 
 `RIG_ASB_PREFETCH=-1` sets an explicit transport-wide 0, which by design still beat the computed
