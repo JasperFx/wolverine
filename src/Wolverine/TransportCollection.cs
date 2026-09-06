@@ -77,9 +77,19 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
     public ITransport? ForScheme(string scheme)
     {
-        return _transports.TryGetValue(scheme.ToLowerInvariant(), out var transport)
-            ? transport
-            : null;
+        var key = scheme.ToLowerInvariant();
+        if (_transports.TryGetValue(key, out var transport))
+        {
+            return transport;
+        }
+
+        // GH-4200: a transport may answer to more than one scheme -- HTTP declares `https` but `http://…`
+        // is an ordinary address on a container network. Deliberately a fallback scan rather than extra
+        // dictionary keys: registering one transport under several keys would make it appear twice in
+        // this collection's own enumeration, double-initializing it and double-counting its endpoints in
+        // AllEndpoints(). The scan only runs on a miss, which previously threw outright, and there are
+        // never more than a handful of transports.
+        return _transports.Values.FirstOrDefault(x => x.AdditionalProtocols.Contains(key));
     }
 
     public void Add(ITransport transport)

@@ -15,6 +15,14 @@ public class HttpTransport : TransportBase<HttpEndpoint>
     }
 
     /// <summary>
+    ///     GH-4200. `https` is the declared protocol, but a plain `http://…` destination is perfectly
+    ///     ordinary — services talking to each other over a container network, or a sidecar on localhost —
+    ///     and no other transport owns that scheme. Without this, ToHttpEndpoint("http://…") built the
+    ///     endpoint happily and then died on the subscription with "Unknown Transport scheme 'http'".
+    /// </summary>
+    public override IEnumerable<string> AdditionalProtocols => ["http"];
+
+    /// <summary>
     /// Name of the transport's own <see cref="IHttpClientFactory"/> client, registered by
     /// <c>AddWolverineHttp()</c>. Transport sends resolve it whenever the destination has no named client
     /// of its own, so envelope traffic carries transport configuration instead of inheriting whatever the
