@@ -356,8 +356,8 @@ public partial class MessageBus : IMessageBus, IMessageContext
         {
             lock (_outstandingLock)
             {
-                // GH-4325: Add, not Fill — see the comment in PersistOrSendAsync(Envelope[])
-                _outstanding.Add(envelope);
+                // Fill, NOT Add. The dedup is load-bearing -- see PersistOrSendAsync(Envelope[]).
+                _outstanding.Fill(envelope);
             }
 
             await envelope.PersistAsync(Transaction).ConfigureAwait(false);
@@ -473,13 +473,19 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
             lock (_outstandingLock)
             {
-                // GH-4325: AddRange, not Fill. Fill is Contains-then-Add — a closure, a Where
-                // iterator, and an O(list) scan per envelope, quadratic when a batch handler or
-                // projection cascades hundreds. Every envelope here is freshly minted by the
-                // router with its own Id, so the dedup could never hit. The IEnvelopeTransaction
-                // entry points below deliberately keep Fill: they are integration surface where
-                // a caller could legitimately persist the same envelope twice.
-                _outstanding.AddRange(outgoing);
+                // Fill, NOT AddRange. GH-4325 replaced this with AddRange on the reasoning that
+                // every envelope here is freshly minted by the router and so the Contains check
+                // could never hit. That reasoning was WRONG and it broke request/reply over the
+                // database transports: an envelope can reach this list twice in one context, and
+                // the second entry makes FlushOutgoingMessagesAsync store-and-forward the same
+                // envelope Id a second time. The duplicate insert throws, the catch in the flush
+                // loop logs "Unable to send an outgoing message" and swallows it, and the reply is
+                // silently never sent -- a green-looking system that drops responses.
+                //
+                // Caught by PostgresqlTests.Transport.end_to_end_from_scratch. If the O(n^2) cost
+                // of Fill is ever worth removing, it needs a dedup that is still a dedup (a HashSet
+                // of ids alongside the list), not the removal of one.
+                _outstanding.Fill(outgoing);
             }
         }
         else
