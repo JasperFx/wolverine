@@ -16,6 +16,8 @@
         <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
         <ProjectReference Include="..\..\Transports\NATS\Wolverine.Nats\Wolverine.Nats.csproj" />
         <ProjectReference Include="..\..\Transports\Pulsar\Wolverine.Pulsar\Wolverine.Pulsar.csproj" />
+        <ProjectReference Include="..\..\Transports\Redis\Wolverine.Redis\Wolverine.Redis.csproj" />
+        <ProjectReference Include="..\..\Transports\Azure\Wolverine.AzureServiceBus\Wolverine.AzureServiceBus.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
