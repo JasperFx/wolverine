@@ -382,8 +382,12 @@ public static class EnvelopeSerializer
         writer.Write(count);
         writer.BaseStream.Position = endPosition;
 
-        writer.Write(env.Data!.Length);
-        writer.Write(env.Data);
+        // GH-4333: write straight from the body rather than through Data. On the pooled path Data would
+        // materialize an independent array first -- a full copy of the payload -- purely to hand it to a
+        // writer that only reads it. This is the copy the durable inbox insert used to pay per message.
+        var body = env.Body;
+        writer.Write(body.Length);
+        writer.Write(body.Span);
     }
 
     private static int writeHeaders(BinaryWriter writer, Envelope env)

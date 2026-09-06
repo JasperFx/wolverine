@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers;
+using System.Diagnostics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
@@ -16,6 +17,13 @@ public partial class Envelope : IHasTenantId
 {
     public static readonly string PingMessageType = "wolverine-ping";
     private byte[]? _data;
+
+    // GH-4333. Non-null only when a payload arrived over the pooled path, i.e. was at least
+    // PooledBodyThreshold bytes. _data and _pooledBody are never both meaningful: reading Data while
+    // this is set materializes an INDEPENDENT array into _data and leaves the rental in place, so a
+    // caller that stashed Data keeps working after the buffer goes back to the pool.
+    private byte[]? _pooledBody;
+    private int _pooledLength;
     private DateTimeOffset? _deliverBy;
 
     private TimeSpan? _deliverWithin;
@@ -162,6 +170,7 @@ public partial class Envelope : IHasTenantId
         {
             try
             {
+                releasePooledBody();
                 _data = await asyncMessaeSerializer.WriteAsync(this);
             }
             catch (Exception e)
@@ -183,6 +192,15 @@ public partial class Envelope : IHasTenantId
         {
             if (_data != null)
             {
+                return _data;
+            }
+
+            if (_pooledBody != null)
+            {
+                // GH-4333. Materialize ONCE into an independent array and keep it. The rental stays
+                // where it is: a caller who reads Data is allowed to stash the result, so the array they
+                // get back must not be one the pool can hand to somebody else.
+                _data = _pooledBody.AsSpan(0, _pooledLength).ToArray();
                 return _data;
             }
 
@@ -211,7 +229,96 @@ public partial class Envelope : IHasTenantId
 
             return _data;
         }
-        set => _data = value;
+        set
+        {
+            releasePooledBody();
+            _data = value;
+        }
+    }
+
+    /// <summary>
+    ///     GH-4333. The serialized message data as a <see cref="ReadOnlyMemory{T}" />, without forcing the
+    ///     copy that reading <see cref="Data" /> can. Prefer this on any hot path that only needs to READ
+    ///     the payload -- writing it to a broker, hashing it, measuring it.
+    /// </summary>
+    /// <remarks>
+    ///     The memory is only valid for the lifetime of this envelope. When the payload came in over the
+    ///     pooled path the underlying array goes back to <see cref="ArrayPool{T}" /> when the envelope is
+    ///     reset, and anything still holding this <c>ReadOnlyMemory</c> is then reading a buffer somebody
+    ///     else owns. To keep the bytes, read <see cref="Data" /> -- it materializes an independent array
+    ///     that outlives the pool.
+    /// </remarks>
+    public ReadOnlyMemory<byte> Body
+    {
+        get
+        {
+            if (_data != null)
+            {
+                return _data;
+            }
+
+            if (_pooledBody != null)
+            {
+                return _pooledBody.AsMemory(0, _pooledLength);
+            }
+
+            // No payload yet: fall through to Data, which serializes the message on demand exactly as it
+            // does for any other reader, and hand back whatever that produced
+            return Data ?? ReadOnlyMemory<byte>.Empty;
+        }
+    }
+
+    /// <summary>
+    ///     GH-4333. Payloads at or above this size are copied into a pooled buffer on the receive path
+    ///     instead of a fresh array.
+    /// </summary>
+    /// <remarks>
+    ///     85,000 bytes is the large-object-heap threshold, and it is the gate for a reason. Below it a
+    ///     per-message <c>byte[]</c> is a cheap gen-0 bump -- the measured prize at 1 KB is ~26ns, which
+    ///     does not pay for a rental, a length field and a lifetime to get wrong. At and above it the
+    ///     allocation changes character: it lands on the LOH, is not compacted, and drives gen-2
+    ///     collections. That is where pooling is worth its complexity, and nowhere else.
+    /// </remarks>
+    public const int PooledBodyThreshold = 85_000;
+
+    /// <summary>
+    ///     GH-4333. Take a copy of a broker's delivery buffer, using a pooled array when the payload is
+    ///     large enough to be worth it. The copy itself is not optional -- a client's buffer is only valid
+    ///     for the duration of its callback -- so this changes where the bytes land, not how many times
+    ///     they are copied.
+    /// </summary>
+    public void CopyBodyFrom(ReadOnlySpan<byte> body)
+    {
+        releasePooledBody();
+
+        if (body.Length < PooledBodyThreshold)
+        {
+            // Small payloads keep exactly the shape they have always had. No rental, no length field,
+            // no lifetime: the gate exists so the overwhelming majority of messages never meet any of it.
+            _data = body.ToArray();
+            return;
+        }
+
+        _data = null;
+        _pooledBody = ArrayPool<byte>.Shared.Rent(body.Length);
+        _pooledLength = body.Length;
+        body.CopyTo(_pooledBody);
+    }
+
+    /// <summary>
+    ///     Hand the pooled buffer back. Deliberately only called from <see cref="Reset" /> and from the
+    ///     <see cref="Data" /> setter -- both points where this envelope demonstrably no longer refers to
+    ///     the buffer. Never returning is merely a missed optimization; returning too early hands a live
+    ///     buffer to the next renter, so the bias is always towards not returning.
+    /// </summary>
+    private void releasePooledBody()
+    {
+        if (_pooledBody == null) return;
+
+        var buffer = _pooledBody;
+        _pooledBody = null;
+        _pooledLength = 0;
+        ArrayPool<byte>.Shared.Return(buffer);
     }
 
     private void assertMessage()
@@ -222,7 +329,9 @@ public partial class Envelope : IHasTenantId
         }
     }
 
-    internal int? MessagePayloadSize => _data?.Length;
+    // GH-4333: a pooled payload has a length even though _data is still null, and reading Data to find
+    // it out would force the very copy the pooled path exists to avoid
+    internal int? MessagePayloadSize => _data?.Length ?? (_pooledBody != null ? _pooledLength : null);
 
     /// <summary>
     ///     The actual message to be sent or being received

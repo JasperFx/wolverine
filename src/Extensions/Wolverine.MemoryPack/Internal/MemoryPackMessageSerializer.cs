@@ -36,6 +36,8 @@ internal class MemoryPackMessageSerializer : IMessageSerializer
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        return MemoryPackSerializer.Deserialize(messageType, envelope.Data, _options)!;
+        // GH-4333: MemoryPack reads a span natively, so there is no reason to make a pooled
+        // payload materialize an array first
+        return MemoryPackSerializer.Deserialize(messageType, envelope.Body.Span, _options)!;
     }
 }

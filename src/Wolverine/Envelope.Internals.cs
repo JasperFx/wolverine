@@ -540,6 +540,10 @@ public partial class Envelope
     internal void Reset()
     {
         // Private backing fields (Envelope.cs)
+        // GH-4333: hand any pooled payload buffer back BEFORE dropping the reference to it. Reset is
+        // the one point the runtime has already decided this envelope is finished with -- the same
+        // decision that makes re-pooling the envelope itself safe.
+        releasePooledBody();
         _data = null;
         _deliverBy = null;
         _deliverWithin = null;
