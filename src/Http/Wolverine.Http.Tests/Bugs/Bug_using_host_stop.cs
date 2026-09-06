@@ -1,12 +1,14 @@
-﻿using Alba;
+using Alba;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using System;
 
 namespace Wolverine.Http.Tests.Bugs;
 
@@ -77,8 +79,20 @@ public class Bug_using_host_stop
 
     private static async Task<IHost> CreateAlbaHostWithWithFactory()
     {
-        return await AlbaHost.For<WolverineWebApi.Program>(x =>
-            x.ConfigureServices(ConfigureWolverine));
+        // Some macOS systems have the AirPlay Receiver bound to port 5000 by default.
+        // Force the ASP.NET Core host to bind to an ephemeral port (0) to avoid collisions.
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://127.0.0.1:0");
+        try
+        {
+            return await AlbaHost.For<WolverineWebApi.Program>(x =>
+                x.ConfigureServices(ConfigureWolverine));
+        }
+        finally
+        {
+            // Restore previous value to avoid surprising other tests
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", previous);
+        }
     }
 
     private static async Task<IHost> CreateHostWithWebApplicationBuilder()
@@ -94,6 +108,11 @@ public class Bug_using_host_stop
         var builder = WebApplication.CreateBuilder([]);
         ConfigureWolverine(builder.Services);
         builder.Services.AddWolverine(_ => { });
+
+        // Bind to an ephemeral port to avoid binding to the platform default (5000)
+        // which on macOS can be occupied by the AirPlay Receiver.
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+
         return builder;
     }
 
