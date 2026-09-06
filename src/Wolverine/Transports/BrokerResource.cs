@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
@@ -101,11 +102,35 @@ public class BrokerResource : IStatefulResource
             }
         }
 
-        if (failures.Count != 0)
+        if (failures.Count == 0)
         {
-            throw new AggregateException(
-                $"Unable to set up {failures.Count} of the {_transport.Name} broker endpoints", failures);
+            return;
         }
+
+        // GH-4119: the same failure policy Wolverine already applies to its own message storage migration
+        // on startup (WolverineRuntime.HostService), and for the same reason -- this resource is swept by
+        // BOTH `resources setup` and JasperFx's AddResourceSetupOnStartup() hosted service, and those two
+        // want opposite things from an unprovisionable broker. FailFast (the default) keeps the behavior
+        // above: a deploy step that provisions ahead of its hosts must not exit 0 having created nothing.
+        // ContinueOnFailures is for the host that treats its broker topology as externally owned -- an
+        // Azure Service Bus emulator with no administration API at all, queues declared in the emulator's
+        // own config -- where an unreachable admin endpoint is an expected fact about the environment
+        // rather than a reason to refuse to start.
+        //
+        // Deliberately NOT keyed off AutoProvision. AddResourceSetupOnStartup() is the documented way to
+        // provision a broker WITHOUT AutoProvision (see the Redis listener's own error message), so
+        // skipping the resource whenever AutoProvision is off would break that supported path.
+        if (_runtime.Options.ResourceMigrationFailureMode == ResourceMigrationFailureMode.ContinueOnFailures)
+        {
+            _runtime.Logger.LogError(new AggregateException(failures),
+                "Unable to set up {Count} of the {Name} broker endpoints. Continuing anyway because ResourceMigrationFailureMode is ContinueOnFailures.",
+                failures.Count, _transport.Name);
+
+            return;
+        }
+
+        throw new AggregateException(
+            $"Unable to set up {failures.Count} of the {_transport.Name} broker endpoints", failures);
     }
 
     public async Task<IRenderable> DetermineStatus(CancellationToken token)

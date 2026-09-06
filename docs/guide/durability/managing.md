@@ -57,6 +57,13 @@ Note that Wolverine already serializes migrations across processes with a global
 migration once after a short delay, so a genuine race between two nodes starting at the same instant is resolved
 without this setting.
 
+The same setting governs **broker** resources — the queues, topics, and subscriptions a transport provisions. Both
+`resources setup` and `AddResourceSetupOnStartup()` sweep those, and by default a broker object that cannot be
+provisioned fails the sweep, so a deploy step that provisions ahead of its hosts cannot exit 0 having created nothing.
+`ContinueOnFailures` is the setting for a host whose broker topology is owned externally and whose broker may not
+expose an administration API at all — an Azure Service Bus emulator, for instance, with its queues declared in the
+emulator's own configuration. Such a host logs the provisioning failure and starts.
+
 ## Disable Automatic Storage Migration
 
 To disable the automatic storage migration, just flip this flag:
