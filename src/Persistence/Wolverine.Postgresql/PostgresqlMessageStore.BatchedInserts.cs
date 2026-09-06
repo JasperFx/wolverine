@@ -40,6 +40,12 @@ namespace Wolverine.Postgresql;
 /// </summary>
 internal partial class PostgresqlMessageStore
 {
+    // GH-4375. PostgreSQL's wire protocol caps parameters at 65,535 (an int16 count).
+    public override int MaximumParameterCount => 65_535;
+
+    // GH-4320 moved both batched builders to unnest, so parameter count no longer scales with batch size
+    protected override bool BuildsFixedArityBatches => true;
+
     private string? _batchedIncomingSql;
     private string? _batchedOutgoingSql;
 

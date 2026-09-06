@@ -5,13 +5,28 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
+    /// <summary>
+    /// GH-4375. Chunked, because this array is NOT governed by any batch-size setting: it is however
+    /// many messages the handler published inside the caller's transaction. A handler that fans out to
+    /// 350 recipients used to fail on SQL Server with "The incoming request has too many parameters",
+    /// an error that mentions neither Wolverine nor message counts.
+    /// </summary>
+    /// <remarks>
+    /// Every chunk runs on the CALLER'S transaction, so the batch is still all-or-nothing exactly as it
+    /// was -- more commands, same atomicity.
+    /// </remarks>
     public async Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.AssignedNodeNumber, this);
-        cmd.Connection = tx.Connection;
-        cmd.Transaction = tx;
+        foreach (var chunk in chunkByParameterLimit(envelopes, DatabaseConstants.OutgoingParametersPerEnvelope,
+                     DatabaseConstants.OutgoingSharedParameters))
+        {
+            await using var cmd = DatabasePersistence.BuildOutgoingStorageCommand(chunk.ToArray(),
+                Durability.AssignedNodeNumber, this);
+            cmd.Connection = tx.Connection;
+            cmd.Transaction = tx;
 
-        await cmd.ExecuteNonQueryAsync(_cancellation);
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
 
         foreach (var envelope in envelopes)
         {
@@ -71,14 +86,47 @@ public abstract partial class MessageDatabase<T>
         if (HasDisposed || envelopes.Count == 0) return;
 
         var array = envelopes as Envelope[] ?? envelopes.ToArray();
-        var command = BuildBatchedOutgoingCommand(array, ownerId);
+
+        // GH-4375: chunk so a large batch cannot exceed the provider's parameter ceiling, and run the
+        // chunks in one explicit transaction so the batch stays all-or-nothing. The coalescer that feeds
+        // this falls back to storing each envelope individually when a batch fails, which is only safe
+        // if a failed batch wrote nothing.
+        var chunks = BuildsFixedArityBatches
+            ? [new ArraySegment<Envelope>(array)]
+            : chunkByParameterLimit(array, DatabaseConstants.OutgoingParametersPerEnvelope,
+                DatabaseConstants.OutgoingSharedParameters).ToArray();
 
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
 
         try
         {
-            command.Connection = conn;
-            await command.ExecuteNonQueryAsync(_cancellation);
+            if (chunks.Length == 1)
+            {
+                await using var single = BuildBatchedOutgoingCommand(chunks[0].ToArray(), ownerId);
+                single.Connection = conn;
+                await single.ExecuteNonQueryAsync(_cancellation);
+            }
+            else
+            {
+                await using var tx = await conn.BeginTransactionAsync(_cancellation);
+                try
+                {
+                    foreach (var chunk in chunks)
+                    {
+                        await using var command = BuildBatchedOutgoingCommand(chunk.ToArray(), ownerId);
+                        command.Connection = conn;
+                        command.Transaction = tx;
+                        await command.ExecuteNonQueryAsync(_cancellation);
+                    }
+
+                    await tx.CommitAsync(_cancellation);
+                }
+                catch
+                {
+                    await tx.RollbackAsync(_cancellation);
+                    throw;
+                }
+            }
         }
         finally
         {

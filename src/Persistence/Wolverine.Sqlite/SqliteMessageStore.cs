@@ -27,6 +27,13 @@ namespace Wolverine.Sqlite;
 
 internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 {
+    /// <summary>
+    /// GH-4375. SQLITE_MAX_VARIABLE_NUMBER, measured at 32,766 against the bundled SQLite 3.50.4 by
+    /// walking a multi-row insert to "too many SQL variables". Older SQLite builds default to 999, so
+    /// this is deliberately the measured value rather than the theoretical one.
+    /// </summary>
+    public override int MaximumParameterCount => 32_766;
+
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
