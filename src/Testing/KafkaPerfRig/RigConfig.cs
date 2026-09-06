@@ -70,6 +70,21 @@ public class RigConfig
     public ushort RabbitPrefetch { get; } = (ushort)envInt("RIG_RABBIT_PREFETCH", 100);
 
     // --- NATS JetStream (GH-4026) ---
+    // GH-4329: Redis Streams lane. Per-run stream keys so concurrent/aborted cells never share
+    // entries; the consumer deletes both keys on shutdown.
+    public string RedisConnection { get; } = env("RIG_REDIS", "localhost:6379");
+    public string RedisSmallStream => $"rig-{RunId}-small";
+    public string RedisLargeStream => $"rig-{RunId}-large";
+
+    // GH-4331: Azure Service Bus lane. Defaults to the local emulator connection string.
+    public string AsbConnection { get; } = env("RIG_ASB",
+        "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
+    public string AsbSmallQueue => $"rig-{RunId}-small";
+    public string AsbLargeQueue => $"rig-{RunId}-large";
+    // 0 leaves the endpoint's computed default (GH-4331 gives Buffered/Durable one receive batch);
+    // set explicitly to A/B the prefetch value inside one build.
+    public int AsbPrefetch { get; } = envInt("RIG_ASB_PREFETCH", 0);
+
     public string NatsUrl { get; } = env("RIG_NATS_URL", "nats://localhost:4222");
     // Stream names are uppercase identifiers; subjects are dotted. Both suffixed with the run id so every
     // run starts on a fresh stream + consumers.
