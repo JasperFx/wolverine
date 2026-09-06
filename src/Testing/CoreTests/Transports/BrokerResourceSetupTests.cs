@@ -1,4 +1,5 @@
 using CoreTests.Runtime;
+using JasperFx;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Wolverine.Configuration;
@@ -55,6 +56,40 @@ public class BrokerResourceSetupTests
         await new BrokerResource(transportWith(endpoints), theRuntime).Setup(CancellationToken.None);
 
         endpoints.ShouldAllBe(x => x.WasSetUp);
+    }
+
+    /// <summary>
+    ///     GH-4119. This resource is swept by BOTH `resources setup` and JasperFx's
+    ///     AddResourceSetupOnStartup() hosted service, and those two want opposite things from a broker that
+    ///     cannot be provisioned. A host whose broker topology is externally owned — the reported case was an
+    ///     Azure Service Bus emulator, which has no administration API at all — died at startup on the throw
+    ///     above, once per endpoint, and never reached "Application started". Same failure policy Wolverine
+    ///     already applies to its own message storage migration, so one knob governs both.
+    /// </summary>
+    [Fact]
+    public async Task continues_past_a_setup_failure_when_the_failure_mode_says_to()
+    {
+        theRuntime.Options.ResourceMigrationFailureMode = ResourceMigrationFailureMode.ContinueOnFailures;
+
+        var failing = new StubBrokerEndpoint { WillFail = true };
+        var succeeding = new StubBrokerEndpoint();
+
+        var resource = new BrokerResource(transportWith(failing, succeeding), theRuntime);
+
+        await resource.Setup(CancellationToken.None);
+
+        // and every other endpoint is still attempted, exactly as under FailFast
+        succeeding.WasSetUp.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task fail_fast_is_still_the_default()
+    {
+        theRuntime.Options.ResourceMigrationFailureMode.ShouldBe(ResourceMigrationFailureMode.FailFast);
+
+        var resource = new BrokerResource(transportWith(new StubBrokerEndpoint { WillFail = true }), theRuntime);
+
+        await Should.ThrowAsync<AggregateException>(() => resource.Setup(CancellationToken.None));
     }
 
     private static IBrokerTransport transportWith(params StubBrokerEndpoint[] endpoints)
