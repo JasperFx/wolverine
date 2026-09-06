@@ -230,22 +230,28 @@ public class PerfWaveBenchmarks
     // ─────────────────────────────────────────────────────────────────────────
     // GH-4332 — InboxCompletionCoalescer drain under backlog.
     //
-    // MEASURED, and the answer has a crossover worth knowing (net9.0, --job short):
+    // MEASURED across depths, three arms, net9.0 --job short --inProcess:
     //
-    //   depth      List (before)     Queue (after)    ratio
-    //     100          586 ns            677 ns       1.15x SLOWER
-    //   1,000        5,922 ns          7,315 ns       1.24x SLOWER
-    //  10,000      103,131 ns         69,552 ns       0.67x faster
-    //  50,000    1,954,797 ns        400,482 ns       0.20x faster (4.9x)
+    //   depth   List GetRange (orig)   Queue (GH-4332)      List CopyTo (shipping)
+    //     100     540.8 ns / 4.82 KB    692.1 ns  1.28x      483.6 ns  0.89x / 0.83x alloc
+    //   1,000   5,932.1 ns / 47.7 KB  7,674.1 ns  1.29x    5,538.5 ns  0.93x / 0.82x alloc
+    //  10,000    94,612 ns             74,014 ns  0.78x       88,920 ns  0.94x / 0.82x alloc
+    //  50,000 1,812,535 ns            370,377 ns  0.20x    1,780,025 ns  0.98x / 0.82x alloc
     //
-    // The quadratic claim holds: the List goes superlinear (5x more depth costs 19x more time
-    // between 10k and 50k) while the Queue stays linear (5.8x). But below ~5k the memmove is
-    // cheaper than Queue.Dequeue's per-item overhead, so the Queue is marginally SLOWER in the
-    // common shallow case -- by ~90ns at depth 100, which is noise next to the database round
-    // trip the flush is about to make. Allocation is 18% lower at every depth.
+    // GH-4332's quadratic claim holds: between 10k and 50k the List costs 19x more time for 5x
+    // more depth while the Queue stays linear (5.8x), and at 50k the Queue is 4.9x faster. But the
+    // crossover sits near 5,000 pending completions, and 100-1,000 is the depth a healthy node
+    // actually runs at -- so in the common case the Queue is the SLOWER of the three, by ~29%.
     //
-    // Net: the right trade, because it bounds the pathological case (a node far behind, which is
-    // exactly when completions must not get slower) at a negligible cost when things are healthy.
+    // Hence the revert. What shipped is NOT the original "before": that drained with
+    // GetRange(0, n).ToArray(), which allocates a List of n, copies n, allocates an array of n and
+    // copies n again. CopyTo straight into the pre-sized array the flush already needs does it in
+    // one allocation and one copy. That third arm is the best of both -- fastest of the three at
+    // every depth below the crossover, and it keeps the Queue's ~18% allocation reduction at every
+    // depth, which was the one thing GH-4332 won outright.
+    //
+    // Keep this benchmark. If a deployment is ever found sitting 10,000+ completions behind, the
+    // table says exactly what to switch to and what it buys.
     // ─────────────────────────────────────────────────────────────────────────
 
     [BenchmarkCategory("GH-4332 Drain"), Benchmark(Baseline = true, Description = "Drain 1000 via List GetRange+RemoveRange (before)")]
@@ -266,7 +272,7 @@ public class PerfWaveBenchmarks
         return drained;
     }
 
-    [BenchmarkCategory("GH-4332 Drain"), Benchmark(Description = "Drain 1000 via Queue.Dequeue (after)")]
+    [BenchmarkCategory("GH-4332 Drain"), Benchmark(Description = "Drain 1000 via Queue.Dequeue (GH-4332, reverted)")]
     public int DrainAfter()
     {
         var pending = new Queue<object>(BacklogDepth);
@@ -278,6 +284,27 @@ public class PerfWaveBenchmarks
             var take = Math.Min(FlushBatch, pending.Count);
             var batch = new object[take];
             for (var i = 0; i < take; i++) batch[i] = pending.Dequeue();
+            drained += batch.Length;
+        }
+
+        return drained;
+    }
+
+    // What actually shipped after the revert: the List the shallow numbers favour, minus the
+    // intermediate List that GetRange().ToArray() allocated on every flush.
+    [BenchmarkCategory("GH-4332 Drain"), Benchmark(Description = "Drain 1000 via List CopyTo+RemoveRange (reverted-to)")]
+    public int DrainReverted()
+    {
+        var pending = new List<object>(BacklogDepth);
+        for (var i = 0; i < BacklogDepth; i++) pending.Add(i);
+
+        var drained = 0;
+        while (pending.Count > 0)
+        {
+            var take = Math.Min(FlushBatch, pending.Count);
+            var batch = new object[take];
+            pending.CopyTo(0, batch, 0, take);
+            pending.RemoveRange(0, take);
             drained += batch.Length;
         }
 
