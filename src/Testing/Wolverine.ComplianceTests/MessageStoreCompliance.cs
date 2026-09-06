@@ -259,6 +259,38 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
 
+    /// <summary>
+    /// GH-4371. <c>WasPersistedInOutbox</c> is not decoration: the database-queue senders
+    /// (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) branch on it to decide between MOVING the row
+    /// from outgoing into the queue table in one transaction and writing the queue row separately and
+    /// deleting outgoing afterwards. Oracle never set it, so its move branch was unreachable for as
+    /// long as it existed -- and nothing in the suite noticed, because nothing held the stores to the
+    /// contract. This is that check. Every store runs it, including the ones with no queue transport
+    /// today: a store that has written the row and reports otherwise is simply wrong, and the next
+    /// queue transport should not have to rediscover that.
+    /// </summary>
+    [Fact]
+    public async Task storing_outgoing_envelopes_marks_them_as_persisted_in_the_outbox()
+    {
+        var single = ObjectMother.Envelope();
+        single.Status = EnvelopeStatus.Outgoing;
+        single.WasPersistedInOutbox.ShouldBeFalse("precondition: a fresh envelope has not been stored");
+
+        await thePersistence.Outbox.StoreOutgoingAsync(single, 111);
+        single.WasPersistedInOutbox.ShouldBeTrue();
+
+        var batch = new List<Envelope>();
+        for (var i = 0; i < 3; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Outgoing;
+            batch.Add(envelope);
+        }
+
+        await thePersistence.Outbox.StoreOutgoingAsync(batch, 111);
+        batch.ShouldAllBe(x => x.WasPersistedInOutbox);
+    }
+
     [Fact]
     public async Task store_an_empty_batch_of_outgoing_envelopes_is_a_no_op()
     {
