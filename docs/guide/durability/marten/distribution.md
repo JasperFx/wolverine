@@ -221,6 +221,37 @@ Only `Other` is treated as potentially self-healing, so it is the only category 
 will auto-restart. The rest are left alone until you resolve the underlying problem, at which point
 restarting or rewinding the agent picks it back up.
 
+## Waiting for the Node Set to Settle <Badge type="tip" text="6.x" />
+
+A rolling deploy brings pods up one at a time. The leader assigns agents against whatever nodes exist at
+that instant, so every pod that joins afterwards triggers another rebalance that moves agents again. On a
+large agent universe — database-per-tenant Marten with one subscription agent per tenant per projection —
+each of those waves is thousands of agent starts and stops, and the fleet is below full throughput until
+the last one lands.
+
+`AssignmentSettlePeriod` makes the leader wait for the node set to go quiet before it assigns:
+
+```csharp
+opts.Durability.AssignmentSettlePeriod = TimeSpan.FromSeconds(30);  // default: TimeSpan.Zero, off
+opts.Durability.MaxAssignmentSettleTime = TimeSpan.FromMinutes(1);  // default
+opts.Durability.AssignmentSettleNodeCount = 0;                      // default, off
+```
+
+Only nodes *joining* are waited out. A node that leaves has taken its agents with it, so that work is
+running nowhere — a departure is assigned immediately and cancels any wait in progress, which is what keeps
+a real node loss (or a leader takeover) as responsive as it was before. `MaxAssignmentSettleTime` bounds the
+wait from the first join, so a cluster that keeps gaining nodes — an autoscaler ramping up, or a node
+flapping — is still served.
+
+`AssignmentSettleNodeCount` ends the wait early: once that many nodes are live the leader assigns without
+waiting the period out. Use it on a cold start of a deployment whose replica count you know, where the timer
+is then only the fallback for a pod that never arrives. Leave it off for a rolling deploy — the outgoing
+pods are still live and counted, so the target is met on the first tick and nothing is ever waited out.
+
+The cost of a non-zero settle period is that a cold start runs no agents at all until it elapses, which is
+why the default is off. Size it against the rollout it is meant to absorb: tens of seconds for a deploy whose pods
+come up within a minute of each other.
+
 ## Agent Start Retries <Badge type="tip" text="6.x" />
 
 An agent's very first assignment can race the subsystems it depends on coming up — an event-subscription

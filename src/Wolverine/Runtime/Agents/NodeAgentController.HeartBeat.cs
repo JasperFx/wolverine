@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -195,6 +195,12 @@ public partial class NodeAgentController
             nodes = nodes.Concat(new[] { WolverineNode.For(_runtime.Options) }).ToList();
         }
 
+        // The node list is final for this tick, so record the membership now -- on every node, whatever its
+        // role. A follower that keeps this warm knows the cluster it inherits the moment it wins an
+        // election, which is what lets a new leader tell "the old leader died" from "the cluster is still
+        // coming up". Only the leader branches below act on the answer.
+        var waitForNodeSetToSettle = trackMembershipAndDecideWait(nodes);
+
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
 
@@ -221,10 +227,12 @@ public partial class NodeAgentController
             {
                 if (IsLeader)
                 {
-                    return await EvaluateAssignmentsAsync(nodes, restrictions);
+                    return waitForNodeSetToSettle
+                        ? AgentCommands.Empty
+                        : await EvaluateAssignmentsAsync(nodes, restrictions);
                 }
 
-                return await tryStartLeadershipAsync(nodes, restrictions);
+                return await tryStartLeadershipAsync(nodes, restrictions, waitForNodeSetToSettle);
             }
 
             if (IsLeader)
@@ -294,7 +302,7 @@ public partial class NodeAgentController
     }
 
     private async Task<AgentCommands> tryStartLeadershipAsync(IReadOnlyList<WolverineNode> nodes,
-        AgentRestrictions restrictions)
+        AgentRestrictions restrictions, bool waitForNodeSetToSettle = false)
     {
         try
         {
@@ -319,8 +327,99 @@ public partial class NodeAgentController
         // This is important, some of the assignment logic depends on knowing what the leader is
         var self = nodes.FirstOrDefault(x => x.NodeId == _runtime.Options.UniqueNodeId);
         self!.AssignAgents([LeaderUri]);
-        
-        return await EvaluateAssignmentsAsync(nodes, restrictions);
+
+        // The pass a brand new leader would run right here is the one AssignmentSettlePeriod exists to
+        // hold back: it sees the pods that happen to be up at this instant, and every later arrival costs
+        // another rebalance. Leadership itself is already taken, so nothing is lost by letting the next
+        // health-check tick place the agents.
+        return waitForNodeSetToSettle
+            ? AgentCommands.Empty
+            : await EvaluateAssignmentsAsync(nodes, restrictions);
+    }
+
+    // The node ids seen on the previous health-check tick, and the timestamps that bound the current wait.
+    // Only ever touched from the serialized health-check path.
+    private HashSet<Guid> _knownNodes = [];
+    private DateTimeOffset? _lastNodeJoin;
+    private DateTimeOffset? _waitingSince;
+
+    /// <summary>
+    ///     Record this tick's cluster membership and answer whether the leader should hold its assignment
+    ///     pass back until the node set stops changing. See
+    ///     <see cref="DurabilitySettings.AssignmentSettlePeriod" /> for why, and
+    ///     <see cref="DurabilitySettings.MaxAssignmentSettleTime" /> for the cap that keeps a cluster which
+    ///     never goes quiet from never being assigned. The wait also ends the moment
+    ///     <see cref="DurabilitySettings.AssignmentSettleNodeCount" /> nodes are live. A node leaving is
+    ///     never waited out -- its agents are running nowhere.
+    /// </summary>
+    private bool trackMembershipAndDecideWait(IReadOnlyList<WolverineNode> nodes)
+    {
+        var current = nodes.Select(x => x.NodeId).ToHashSet();
+        var joined = current.Count(x => !_knownNodes.Contains(x));
+        var departed = _knownNodes.Count(x => !current.Contains(x));
+        _knownNodes = current;
+
+        var settlePeriod = _runtime.Options.Durability.AssignmentSettlePeriod;
+        if (settlePeriod <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        if (departed > 0)
+        {
+            endWait();
+            return false;
+        }
+
+        var expectedNodes = _runtime.Options.Durability.AssignmentSettleNodeCount;
+        if (expectedNodes > 0 && current.Count >= expectedNodes)
+        {
+            endWait();
+            return false;
+        }
+
+        var now = TimeProvider.GetUtcNow();
+
+        if (joined > 0)
+        {
+            _lastNodeJoin = now;
+            _waitingSince ??= now;
+        }
+
+        if (_lastNodeJoin is null || _waitingSince is null)
+        {
+            return false;
+        }
+
+        if (now - _lastNodeJoin.Value >= settlePeriod)
+        {
+            endWait();
+            return false;
+        }
+
+        var cap = _runtime.Options.Durability.MaxAssignmentSettleTime;
+        var waited = now - _waitingSince.Value;
+        if (cap > TimeSpan.Zero && waited >= cap)
+        {
+            _logger.LogInformation(
+                "Node {NodeNumber} is assigning agents without waiting for the node set to settle; the cluster has kept changing for {Waited} (MaxAssignmentSettleTime)",
+                _runtime.Options.Durability.AssignedNodeNumber, waited);
+
+            endWait();
+            return false;
+        }
+
+        _logger.LogDebug(
+            "Node {NodeNumber} is holding agent assignment back for {Waited} while the node set settles; {Joined} node(s) joined on this tick",
+            _runtime.Options.Durability.AssignedNodeNumber, waited, joined);
+
+        return true;
+    }
+
+    private void endWait()
+    {
+        _lastNodeJoin = null;
+        _waitingSince = null;
     }
 
     // GH-3604 / D1: consecutive stale-observation counts per node id, used to add hysteresis to the

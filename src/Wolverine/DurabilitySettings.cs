@@ -1,4 +1,4 @@
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence;
@@ -520,6 +520,46 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
 
     /// <summary>
+    ///     How long the cluster's node set must be unchanged before the leader runs its first agent
+    ///     assignment pass. A rolling deploy brings pods up one at a time, and the leader assigns against
+    ///     whatever nodes exist at that moment, so every pod that joins afterwards triggers another
+    ///     rebalance. On a large agent universe -- database-per-tenant Marten with one subscription agent
+    ///     per tenant per projection -- each wave is thousands of agent starts and stops, and the fleet is
+    ///     below full throughput until the last one lands. Waiting for the node set to go quiet collapses
+    ///     those waves into a single pass.
+    ///
+    ///     Only nodes <i>joining</i> are waited out. A node that leaves has taken its agents with it, so
+    ///     that work is running nowhere and waiting would be exactly wrong -- a departure assigns
+    ///     immediately and cancels any wait in progress. <see cref="MaxAssignmentSettleTime" /> bounds the
+    ///     wait so a cluster that keeps gaining nodes is still served.
+    ///
+    ///     Zero (the default) keeps the previous behavior: assign on the first tick after leadership,
+    ///     however new the node set is. The cost of a non-zero value is that a cold start runs no agents at
+    ///     all until it elapses, so size it against the rollout it is meant to absorb -- tens of seconds for
+    ///     a rolling deploy whose pods come up within a minute of each other.
+    /// </summary>
+    public TimeSpan AssignmentSettlePeriod { get; set; } = 0.Seconds();
+
+    /// <summary>
+    ///     The longest the leader will hold agent assignment back waiting for
+    ///     <see cref="AssignmentSettlePeriod" /> of quiet. A cluster that gains a node every few seconds --
+    ///     an autoscaler ramping up, or a node flapping in and out -- would otherwise never settle and never
+    ///     be assigned. Measured from the first join of the current wait, not from process start. Ignored
+    ///     when <see cref="AssignmentSettlePeriod" /> is zero. Default 1 minute.
+    /// </summary>
+    public TimeSpan MaxAssignmentSettleTime { get; set; } = 1.Minutes();
+
+    /// <summary>
+    ///     The node count that ends a <see cref="AssignmentSettlePeriod" /> wait early: once at least this
+    ///     many nodes are live, the leader assigns without waiting the period out. This is the fast path for
+    ///     a cold start of a deployment whose replica count you know — the timer is then only the fallback
+    ///     for a pod that never arrives. Leave it at zero (the default, off) for a rolling deploy where the
+    ///     outgoing pods are still live and counted, since the target would already be met on the first tick
+    ///     and nothing would ever be waited out. Ignored when <see cref="AssignmentSettlePeriod" /> is zero.
+    /// </summary>
+    public int AssignmentSettleNodeCount { get; set; }
+
+    /// <summary>
     ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
     ///     <c>StartAgents</c> control message to a node. A node running a very large agent universe
     ///     (e.g. database-per-tenant Marten with thousands of subscription shards) cannot start
@@ -792,6 +832,9 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(HealthCheckPollingTime), HealthCheckPollingTime);
         desc.AddValue(nameof(StaleNodeTimeout), StaleNodeTimeout);
         desc.AddValue(nameof(CheckAssignmentPeriod), CheckAssignmentPeriod);
+        desc.AddValue(nameof(AssignmentSettlePeriod), AssignmentSettlePeriod);
+        desc.AddValue(nameof(MaxAssignmentSettleTime), MaxAssignmentSettleTime);
+        desc.AddValue(nameof(AssignmentSettleNodeCount), AssignmentSettleNodeCount);
         desc.AddValue(nameof(TenantCheckPeriod), TenantCheckPeriod);
         desc.AddValue(nameof(UpdateMetricsPeriod), UpdateMetricsPeriod);
         desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);
