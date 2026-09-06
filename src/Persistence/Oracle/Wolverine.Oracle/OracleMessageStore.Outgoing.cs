@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine.Oracle.Util;
@@ -53,6 +54,75 @@ internal partial class OracleMessageStore
         {
             await conn.CloseAsync();
         }
+    }
+
+    /// <summary>
+    /// GH-4369. One <c>INSERT ALL</c> for the whole batch instead of one INSERT per envelope --
+    /// deliberately not Oracle array binding, which does not carry a BLOB bind as cleanly and turns a
+    /// duplicate row into a partial-apply that has to be unpicked.
+    ///
+    /// <para>
+    /// An <c>INSERT ALL</c> is one statement, so ORA-00001 fails the whole batch and nothing is
+    /// written. That is the right shape: the caller's coalescer then stores each envelope on its own,
+    /// where <see cref="StoreOutgoingAsync(Envelope, int)" />'s existing ORA-00001 swallow makes the
+    /// duplicate idempotent exactly as it was before this overload existed. The batch is a fast path,
+    /// never the only path.
+    /// </para>
+    /// </summary>
+    public async Task StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
+    {
+        if (HasDisposed || envelopes.Count == 0) return;
+
+        if (envelopes.Count == 1)
+        {
+            await StoreOutgoingAsync(envelopes[0], ownerId);
+            return;
+        }
+
+        await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
+        await using var cmd = conn.CreateCommand("");
+
+        var sql = new StringBuilder("INSERT ALL");
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            var envelope = envelopes[i];
+
+            sql.Append($" INTO {SchemaName}.{DatabaseConstants.OutgoingTable} ({DatabaseConstants.OutgoingFields}) ")
+                .Append($"VALUES (:body_{i}, :id_{i}, :ownerId_{i}, :destination_{i}, :deliverBy_{i}, :attempts_{i}, :messageType_{i})");
+
+            cmd.Parameters.Add(new OracleParameter($"body_{i}", OracleDbType.Blob)
+            {
+                Value = EnvelopeSerializer.Serialize(envelope)
+            });
+            cmd.With($"id_{i}", envelope.Id);
+            cmd.With($"ownerId_{i}", ownerId);
+            cmd.With($"destination_{i}", envelope.Destination!.ToString());
+            cmd.Parameters.Add(new OracleParameter($"deliverBy_{i}", OracleDbType.TimeStampTZ)
+            {
+                Value = (object?)envelope.DeliverBy ?? DBNull.Value
+            });
+            cmd.With($"attempts_{i}", envelope.Attempts);
+            cmd.With($"messageType_{i}", envelope.MessageType!);
+        }
+
+        // INSERT ALL is a multi-table insert and needs a driving query; SELECT 1 FROM dual runs it once
+        sql.Append(" SELECT 1 FROM dual");
+        cmd.CommandText = sql.ToString();
+
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        // Deliberately NOT stamping WasPersistedInOutbox here. Neither Oracle store path has ever set
+        // it -- while OracleQueueSender reads it to decide whether to skip a store -- so setting it on
+        // the batch path alone would make batched and unbatched sends behave differently on a flag
+        // that gates a write. Whether Oracle should set it at all is a real question, and a separate
+        // one from this round-trip change. Filed rather than fixed in passing.
     }
 
     public async Task DeleteOutgoingAsync(Envelope[] envelopes)

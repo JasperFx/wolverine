@@ -19,6 +19,10 @@
         <ProjectReference Include="..\..\Transports\Redis\Wolverine.Redis\Wolverine.Redis.csproj" />
         <ProjectReference Include="..\..\Transports\Azure\Wolverine.AzureServiceBus\Wolverine.AzureServiceBus.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
+        <!-- GH-4369: the outbox-store lane A/Bs StoreOutgoingAsync per store -->
+        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+        <ProjectReference Include="..\..\Persistence\Oracle\Wolverine.Oracle\Wolverine.Oracle.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.RavenDb\Wolverine.RavenDb.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 

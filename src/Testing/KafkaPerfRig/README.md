@@ -74,6 +74,38 @@ two worktrees.
 **+159% (2.6x)**, rounds within 0.6% of each other. The durable Redis endpoint had been paying one
 inbox-insert round trip per message.
 
+### Outbox store, per store (GH-4369) — measured 2026-09-06
+
+Role `outbox-store`, selected with `RIG_STORE`. Not an end-to-end cell on purpose: GH-4369 changes
+exactly one method on three stores, so the honest instrument is that method against the real
+database. An end-to-end cell would bury a per-store round-trip change under broker time.
+
+Each round stores a fresh batch of `RIG_STORE_BATCH` (default 100) envelopes twice — once as N calls
+to the single-envelope overload (the pre-GH-4369 shape, and still the default-interface behaviour for
+any store that does not override the batch), once as one call to the batch overload. **The two arms
+alternate order round to round** so neither systematically owns the cold cache, each arm builds its
+own envelopes so neither is re-writing rows the other wrote, and the outgoing table is cleared
+between rounds so a steadily growing table cannot flatter whichever arm runs first. 20 rounds after
+5 warmup rounds.
+
+| store | sequential p50 | batched p50 | speedup |
+|---|---|---|---|
+| PostgreSQL — the control, batched since GH-4319 | 57.30ms | 2.46ms | **23.3x** |
+| Oracle — new `INSERT ALL` | 49.75ms | 3.81ms | **13.1x** |
+| RavenDB — new one-session batch | 348.81ms | 5.69ms | **61.4x** |
+
+PostgreSQL is in the table as a **control, not a result**: it already had the batch override, so it
+says the harness measures what it claims to. RavenDB is the largest because the un-batched path
+opened its own `IAsyncDocumentSession` — and therefore its own HTTP round trip — per envelope.
+
+**Cosmos DB is deliberately absent.** The only Cosmos here is the emulator, and GH-4331 above is the
+standing lesson about quoting a number an emulator produced. Its `TransactionalBatch` implementation
+is verified by the shared `MessageStoreCompliance` suite; it is not given a throughput claim.
+
+Watch the machine before trusting a round here. These runs had eight orphaned Cosmos emulator
+containers resident, which is visible in the p95 spread (PostgreSQL sequential p95 319ms against a
+57ms p50) even though the p50 gap is far too large to be noise.
+
 ### Durable local queue (GH-4319) — measured 2026-09-06
 
 The only lane with no broker in it: one process publishes into a durable local queue backed by
