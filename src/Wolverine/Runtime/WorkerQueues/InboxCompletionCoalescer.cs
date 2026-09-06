@@ -26,10 +26,22 @@ internal class InboxCompletionCoalescer
     private readonly Uri _uri;
     private readonly object _lock = new();
 
-    // GH-4332: a Queue, not a List. Draining a List with RemoveRange(0, n) memmoves everything
-    // behind the batch on every flush, so a deep backlog costs O(N) per flush of _maximumBatchSize
-    // -- quadratic overall exactly when the system is most behind.
-    private readonly Queue<Pending> _pending = new();
+    // GH-4332 swapped this for a Queue on the theory that List.RemoveRange(0, n) memmoves the
+    // remainder and so goes quadratic under a deep backlog. The theory is right -- and irrelevant
+    // at the depths this actually runs at. PerfWaveBenchmarks ("GH-4332 Drain", swept across
+    // depths) puts the crossover near 5,000 pending completions: below it the memmove is CHEAPER
+    // than Queue.Dequeue's per-item overhead, and the Queue measured 1.28x SLOWER at depth 100 and
+    // 1.29x at 1,000 -- which is the shape a healthy node runs at. So the Queue was reverted.
+    //
+    // The drain below is not what preceded GH-4332 either. That was GetRange(0, n).ToArray():
+    // a List of n allocated and copied, then an array of n allocated and copied again. CopyTo
+    // straight into the array the flush already needs is one allocation and one copy, and measures
+    // fastest of the three at every depth below the crossover while keeping the ~18% allocation
+    // reduction the Queue won at all of them.
+    //
+    // If a deployment is ever found sitting 10,000+ completions behind, the Queue is the right
+    // answer there -- 4.9x faster at 50,000 -- and the benchmark table says so.
+    private readonly List<Pending> _pending = new();
     private bool _flushing;
     private Task? _flushLoop;
 
@@ -73,7 +85,7 @@ internal class InboxCompletionCoalescer
         var startLoop = false;
         lock (_lock)
         {
-            _pending.Enqueue(pending);
+            _pending.Add(pending);
             if (!_flushing)
             {
                 _flushing = true;
@@ -126,10 +138,8 @@ internal class InboxCompletionCoalescer
 
                 var take = Math.Min(_maximumBatchSize, _pending.Count);
                 batch = new Pending[take];
-                for (var i = 0; i < take; i++)
-                {
-                    batch[i] = _pending.Dequeue();
-                }
+                _pending.CopyTo(0, batch, 0, take);
+                _pending.RemoveRange(0, take);
             }
 
             await flushAsync(batch).ConfigureAwait(false);
