@@ -520,6 +520,16 @@ public class TryFinallyWrapperFrame : Frame
         creates.AddRange(inner.Creates.Select(x => new Variable(x.VariableType, x.Usage)));
     }
 
+    /// <summary>
+    ///     The middleware <c>Finally</c> calls generated inside this frame's <c>finally</c> block. Exposed
+    ///     because these are the only <see cref="MethodCall" />s in a chain's <see cref="IChain.Middleware" />
+    ///     that are NOT reachable by walking that list -- they are nested one level in here. A chain type that
+    ///     has to bind or describe every method call it will generate (Wolverine.HTTP does both) cannot see
+    ///     them otherwise, which is how GH-4339's silently-inert [FromQuery]/[FromHeader]/[FromRoute]
+    ///     parameters went unnoticed.
+    /// </summary>
+    public IReadOnlyList<Frame> Finallys => _finallys;
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         _inner.GenerateCode(method, writer);
