@@ -74,6 +74,20 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         }
     }
 
+    /// <summary>
+    /// GH-4330. Set when the iteration blocks a thread synchronously rather than awaiting — the
+    /// Kafka consumer's <c>Consume(CancellationToken)</c> being the case this exists for. Such a
+    /// loop occupies its thread for the listener's entire lifetime, and on the default
+    /// <see cref="Task.Run(Func{Task})" /> path that thread is a pool worker, permanently removed
+    /// from the pool the handler pipeline and every other transport's continuations share.
+    ///
+    /// <para>
+    /// Leave false for genuinely async iterations (SQS, Redis, the database queues): they release
+    /// their thread at every await, so a dedicated thread would waste one.
+    /// </para>
+    /// </summary>
+    public bool UsesBlockingIteration { get; init; }
+
     /// <summary>Start iterating on a background task. Idempotent — a second call is a no-op.</summary>
     public void Start()
     {
@@ -83,7 +97,11 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         }
 
         _status = ReceiveLoopStatus.Running;
-        _task = Task.Run(runAsync, _cancellation.Token);
+
+        _task = UsesBlockingIteration
+            ? Task.Factory.StartNew(runAsync, _cancellation.Token, TaskCreationOptions.LongRunning,
+                TaskScheduler.Default).Unwrap()
+            : Task.Run(runAsync, _cancellation.Token);
     }
 
     private async Task runAsync()
