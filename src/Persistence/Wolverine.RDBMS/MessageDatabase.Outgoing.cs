@@ -71,7 +71,7 @@ public abstract partial class MessageDatabase<T>
         if (HasDisposed || envelopes.Count == 0) return;
 
         var array = envelopes as Envelope[] ?? envelopes.ToArray();
-        var command = DatabasePersistence.BuildOutgoingStorageCommand(array, ownerId, this);
+        var command = BuildBatchedOutgoingCommand(array, ownerId);
 
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
 
@@ -89,6 +89,16 @@ public abstract partial class MessageDatabase<T>
         {
             envelope.WasPersistedInOutbox = true;
         }
+    }
+
+    /// <summary>
+    /// GH-4320. Virtual for the same reason as <c>BuildBatchedIncomingCommand</c>: the default emits one
+    /// values-clause per envelope, so both the command text and the parameter count scale with the
+    /// batch size.
+    /// </summary>
+    protected virtual DbCommand BuildBatchedOutgoingCommand(Envelope[] envelopes, int ownerId)
+    {
+        return DatabasePersistence.BuildOutgoingStorageCommand(envelopes, ownerId, this);
     }
 
     protected abstract string

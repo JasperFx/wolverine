@@ -13,6 +13,7 @@ using Wolverine;
 using Wolverine.Oracle;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.RavenDb;
 using Wolverine.SqlServer;
 
@@ -52,6 +53,14 @@ public static class OutboxStoreLane
         var rounds = envInt("RIG_ROUNDS", 20);
         var warmup = envInt("RIG_WARMUP_ROUNDS", 5);
 
+        // GH-4320. A CONSTANT batch size is the wrong shape for testing the plan-cache claim: at a fixed
+        // size even the per-envelope form has stable command text and can be auto-prepared like anything
+        // else. The defect is that its text varies WITH the batch size -- and a coalescer produces varying
+        // sizes by construction, because batches form from whatever concurrency happened to be in flight.
+        // RIG_VARY_BATCH=1 walks the size the way real traffic does, which is the only way the difference
+        // between "one cached plan" and "a new plan per size" can show up at all.
+        var varyBatch = envInt("RIG_VARY_BATCH", 0) == 1;
+
         using var host = await buildHostAsync(store, cfg);
         var messageStore = host.Services.GetRequiredService<IMessageStore>();
         var outbox = messageStore.Outbox;
@@ -64,23 +73,35 @@ public static class OutboxStoreLane
 
         var sequential = new List<double>();
         var batched = new List<double>();
+        var legacyBatch = new List<double>();
+
+        var sizes = new Random(20260906);
 
         for (var round = 0; round < rounds + warmup; round++)
         {
             var measured = round >= warmup;
+
+            // Deterministic seed: both arms see the SAME sequence of sizes, so the comparison stays fair
+            // while the sizes themselves vary the way a coalescer's do.
+            if (varyBatch)
+            {
+                batchSize = sizes.Next(2, 101);
+            }
 
             // Alternate which arm goes first so neither one systematically owns the cold cache
             if (round % 2 == 0)
             {
                 var a = await timeSequentialAsync(outbox, batchSize);
                 var b = await timeBatchedAsync(outbox, batchSize);
-                if (measured) { sequential.Add(a); batched.Add(b); }
+                var c = await timeLegacyBatchAsync(messageStore, batchSize);
+                if (measured) { sequential.Add(a); batched.Add(b); if (c > 0) legacyBatch.Add(c); }
             }
             else
             {
+                var c = await timeLegacyBatchAsync(messageStore, batchSize);
                 var b = await timeBatchedAsync(outbox, batchSize);
                 var a = await timeSequentialAsync(outbox, batchSize);
-                if (measured) { sequential.Add(a); batched.Add(b); }
+                if (measured) { sequential.Add(a); batched.Add(b); if (c > 0) legacyBatch.Add(c); }
             }
 
             // Keep the table from growing across rounds; a table that gets steadily larger is a
@@ -91,11 +112,16 @@ public static class OutboxStoreLane
         var summary = new Dictionary<string, object>
         {
             ["store"] = store,
-            ["batchSize"] = batchSize,
+            ["batchSize"] = varyBatch ? "varying 2-100" : batchSize.ToString(),
             ["rounds"] = rounds,
             ["sequential_ms"] = describe(sequential),
+            ["legacy_batch_ms"] = describe(legacyBatch),
             ["batched_ms"] = describe(batched),
-            ["speedup_at_p50"] = Math.Round(percentile(sequential, 50) / Math.Max(percentile(batched, 50), 0.0001), 2)
+            ["speedup_at_p50_vs_sequential"] =
+                Math.Round(percentile(sequential, 50) / Math.Max(percentile(batched, 50), 0.0001), 2),
+            ["speedup_at_p50_vs_legacy_batch"] = legacyBatch.Count == 0
+                ? 0
+                : Math.Round(percentile(legacyBatch, 50) / Math.Max(percentile(batched, 50), 0.0001), 2)
         };
 
         Directory.CreateDirectory(cfg.OutDir);
@@ -113,6 +139,40 @@ public static class OutboxStoreLane
         foreach (var envelope in envelopes)
         {
             await outbox.StoreOutgoingAsync(envelope, 1);
+        }
+
+        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+    }
+
+    /// <summary>
+    /// GH-4320's before-shape, executed IN THIS BUILD. The shared
+    /// <c>DatabasePersistence.BuildOutgoingStorageCommand</c> still emits one values-clause per envelope,
+    /// which is exactly what PostgreSQL used to run, so this arm is the old plan-cache-defeating command
+    /// against the same database in the same process as the new one.
+    ///
+    /// <para>
+    /// This exists because comparing across sessions is not sound: the same sequential arm measured
+    /// 57.30ms while eight orphaned emulator containers were resident and 29.6ms once they were gone.
+    /// An in-build arm is immune to that.
+    /// </para>
+    /// </summary>
+    private static async Task<double> timeLegacyBatchAsync(IMessageStore store, int count)
+    {
+        if (store is not IMessageDatabase database) return 0;
+
+        var envelopes = buildEnvelopes(count);
+        var start = Stopwatch.GetTimestamp();
+
+        await using var command = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, 1, database);
+        await using var conn = await database.DataSource.OpenConnectionAsync();
+        try
+        {
+            command.Connection = conn;
+            await command.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
 
         return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
