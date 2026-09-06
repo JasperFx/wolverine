@@ -34,24 +34,43 @@ public static class DatabasePersistence
         return builder.Compile();
     }
 
+    /// <summary>
+    /// GH-4320. Register a parameter and write its placeholder, WITHOUT touching parameter typing.
+    ///
+    /// <para>
+    /// Deliberately <c>AddParameter(value)</c> with no dbType, exactly as the original code did:
+    /// that path never calls <c>SetParameterType</c>, so ADO.NET infers the type from the value.
+    /// The first attempt at this optimization (#4356, reverted in #4358) used Weasel's
+    /// <c>AppendParameter</c> helpers instead, which resolve to typed overloads that DO set an
+    /// explicit provider type -- and through the generic DbCommandBuilder a Guid then reached SQL
+    /// Server as <c>sql_variant</c> against a <c>uniqueidentifier</c> column. The saving here is
+    /// the per-envelope List + LINQ + string.Join, nothing more.
+    /// </para>
+    /// </summary>
+    private static void appendValue(DbCommandBuilder builder, object? value)
+    {
+        var parameter = builder.AddParameter(value);
+        builder.Append('@');
+        builder.Append(parameter.ParameterName);
+    }
+
     private static void ConfigureOutgoingCommand(IMessageDatabase settings, DbCommandBuilder builder, Envelope envelope,
         DbParameter owner)
     {
-        var list = new List<DbParameter>
-        {
-            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
-            builder.AddParameter(envelope.Id),
-            owner,
-            builder.AddParameter(envelope.Destination!.ToString()),
-            builder.AddParameter(envelope.DeliverBy),
-            builder.AddParameter(envelope.Attempts),
-            builder.AddParameter(envelope.MessageType)
-        };
-
-        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
-
         builder.Append(
-            $"insert into {settings.TableNameFor(DatabaseConstants.OutgoingTable)} ({DatabaseConstants.OutgoingFields}) values ({parameterList});");
+            $"insert into {settings.TableNameFor(DatabaseConstants.OutgoingTable)} ({DatabaseConstants.OutgoingFields}) values (");
+        appendValue(builder, EnvelopeSerializer.Serialize(envelope));
+        builder.Append(", ");
+        appendValue(builder, envelope.Id);
+        builder.Append($", @{owner.ParameterName}, ");
+        appendValue(builder, envelope.Destination!.ToString());
+        builder.Append(", ");
+        appendValue(builder, envelope.DeliverBy);
+        builder.Append(", ");
+        appendValue(builder, envelope.Attempts);
+        builder.Append(", ");
+        appendValue(builder, envelope.MessageType);
+        builder.Append(");");
     }
 
     public static DbCommand BuildIncomingStorageCommand(IEnumerable<Envelope> envelopes,
@@ -70,23 +89,26 @@ public static class DatabasePersistence
         // Don't store any data if the envelope is already marked as handled
         var data = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         
-        var list = new List<DbParameter>
-        {
-            builder.AddParameter(data),
-            builder.AddParameter(envelope.Id),
-            builder.AddParameter(envelope.Status.ToString()),
-            builder.AddParameter(envelope.OwnerId),
-            builder.AddParameter(envelope.ScheduledTime),
-            builder.AddParameter(envelope.Attempts),
-            builder.AddParameter(envelope.MessageType),
-            builder.AddParameter(envelope.Destination?.ToString()),
-            builder.AddParameter(envelope.KeepUntil)
-        };
-
-        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
-
         builder.Append(
-            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) values ({parameterList});");
+            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) values (");
+        appendValue(builder, data);
+        builder.Append(", ");
+        appendValue(builder, envelope.Id);
+        builder.Append(", ");
+        appendValue(builder, envelope.Status.ToString());
+        builder.Append(", ");
+        appendValue(builder, envelope.OwnerId);
+        builder.Append(", ");
+        appendValue(builder, envelope.ScheduledTime);
+        builder.Append(", ");
+        appendValue(builder, envelope.Attempts);
+        builder.Append(", ");
+        appendValue(builder, envelope.MessageType);
+        builder.Append(", ");
+        appendValue(builder, envelope.Destination?.ToString());
+        builder.Append(", ");
+        appendValue(builder, envelope.KeepUntil);
+        builder.Append(");");
     }
 
     public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
