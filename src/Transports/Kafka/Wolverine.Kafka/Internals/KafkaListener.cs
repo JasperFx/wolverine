@@ -61,7 +61,14 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
             topic.CommitBatchInterval, logger);
 
         _consumer.Subscribe(topic.TopicName);
-        _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token);
+        // GH-4330: IConsumer.Consume(CancellationToken) blocks synchronously, so this loop holds
+        // its thread for the listener's whole lifetime. On the pool that is one worker gone per
+        // Kafka listener -- multiply by topics and ListenerCount and it eats into the same pool
+        // the handler pipeline and every other transport's continuations run on.
+        _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token)
+        {
+            UsesBlockingIteration = true
+        };
         _loop.Start();
     }
 

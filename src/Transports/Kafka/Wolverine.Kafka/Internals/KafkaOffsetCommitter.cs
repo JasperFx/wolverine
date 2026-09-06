@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
@@ -45,6 +46,18 @@ internal sealed class KafkaOffsetCommitter
 
     private readonly object _lock = new();
     private readonly Dictionary<TopicPartition, OffsetWatermark> _watermarks = new();
+
+    // GH-4330: Track runs per consumed record and Complete per handled record, and both were
+    // allocating a TopicPartition (a class) just to key the watermark lookup. The set of
+    // (topic, partition) pairs a listener sees is small and fixed by the assignment, so intern them.
+    private readonly ConcurrentDictionary<(string Topic, int Partition), TopicPartition> _topicPartitions = new();
+
+    private TopicPartition topicPartitionFor(string topic, int partition)
+    {
+        return _topicPartitions.TryGetValue((topic, partition), out var existing)
+            ? existing
+            : _topicPartitions.GetOrAdd((topic, partition), key => new TopicPartition(key.Topic, new Partition(key.Partition)));
+    }
     private int _sinceLastCommit;
     private long _lastCommitTimestamp;
 
@@ -127,7 +140,7 @@ internal sealed class KafkaOffsetCommitter
             return;
         }
 
-        var tp = new TopicPartition(topic, new Partition(partition));
+        var tp = topicPartitionFor(topic, partition);
         lock (_lock)
         {
             WatermarkFor(tp).Track(offset);
@@ -147,7 +160,7 @@ internal sealed class KafkaOffsetCommitter
             return;
         }
 
-        var tp = new TopicPartition(topic, new Partition(partition));
+        var tp = topicPartitionFor(topic, partition);
 
         List<TopicPartitionOffset>? toCommit = null;
         List<TopicPartitionOffset>? toStore = null;
