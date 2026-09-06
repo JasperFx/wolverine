@@ -74,10 +74,10 @@ two worktrees.
 **+159% (2.6x)**, rounds within 0.6% of each other. The durable Redis endpoint had been paying one
 inbox-insert round trip per message.
 
-### Azure Service Bus (GH-4331) — measured 2026-09-06: NULL RESULT
+### Azure Service Bus (GH-4331) — measured 2026-09-06: NULL RESULT → **change reverted**
 
-`RIG_ASB_PREFETCH=-1` sets an explicit transport-wide 0, which by design still beats the computed
-per-mode default — that is the pre-GH-4331 shape, again inside one build. Preferred over two
+`RIG_ASB_PREFETCH=-1` sets an explicit transport-wide 0, which by design still beat the computed
+per-mode default — that was the pre-GH-4331 shape, again inside one build. Preferred over two
 worktrees here because the emulator's throughput drifts across container restarts.
 
 The emulator caps around 50 queues and wedges if its objects are deleted underneath it, so this
@@ -94,6 +94,19 @@ the gap. Read this as "the cell cannot see it", not "the change is worthless": t
 out near 35 msg/s with near-zero round-trip latency, and prefetch exists precisely to hide network
 latency. Testing it properly needs a real Azure namespace. **Do not quote a throughput number for
 GH-4331.**
+
+**Outcome: the change was reverted.** No measured benefit, and prefetch is not free — a buffered
+message ages against its Azure Service Bus lock from the moment the *client* holds it, with no
+Envelope yet and therefore no `LeaseRenewalTracker` renewal. A default that trades real lock
+exposure for an unmeasured gain does not earn its place. The lane and the knob stay; the knob's
+polarity flipped. `RIG_ASB_PREFETCH=0` (the default) is now the shipping shape, and a **positive**
+value reproduces what GH-4331 proposed — `RIG_ASB_PREFETCH=20` is one receive batch. Re-run this
+against a real namespace to settle the issue.
+
+GH-4331 also shipped with a red unit test: `native_ack_prefetch_defaults_4051.every_other_mode_
+keeps_the_shipping_default_of_zero` asserts 0 for Buffered/Durable/Inline and was never updated,
+so `main` carried a failing Azure Service Bus unit test from #4351 until the revert. The lesson is
+in the ledger's own ground rules — run the covering lane, not just the one you were thinking about.
 
 The emulator also needs BOTH connection strings — AMQP on 5673 and management on 5300 — because
 AutoProvision goes through the management API. `UseAzureServiceBusEmulator(amqp, management)` is

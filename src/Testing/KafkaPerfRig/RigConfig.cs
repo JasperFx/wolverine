@@ -90,8 +90,9 @@ public class RigConfig
         env("RIG_ASB_MANAGEMENT", Servers.AzureServiceBusManagementConnectionString);
     public string AsbSmallQueue => $"rig-{RunId}-small";
     public string AsbLargeQueue => $"rig-{RunId}-large";
-    // 0 leaves the endpoint's computed default (GH-4331 gives Buffered/Durable one receive batch);
-    // set explicitly to A/B the prefetch value inside one build.
+    // 0 is the shipping shape: no prefetch on anything but NativeAck, after GH-4331's computed
+    // Buffered/Durable default measured as a null result here and was reverted. Set a positive value
+    // to A/B the GH-4331 proposal inside one build (20 == one receive batch).
     public int AsbPrefetch { get; } = envInt("RIG_ASB_PREFETCH", 0);
 
     public string NatsUrl { get; } = env("RIG_NATS_URL", "nats://localhost:4222");

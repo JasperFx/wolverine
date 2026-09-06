@@ -9,18 +9,25 @@ namespace KafkaPerfRig;
 
 /// <summary>
 /// Azure Service Bus twin of <see cref="WolverineNats" />, sharing the corpus, rate loops, stage clock
-/// and recorder. Added for GH-4331, which gave <c>BufferedInMemory</c> and <c>Durable</c> endpoints a
-/// computed <c>PrefetchCount</c> default of one receive batch; before that only NativeAck had one and
-/// the other two sat at Azure's shipping default of 0 — no client-side buffering at all, so the batched
-/// listener paid a full AMQP round trip per batch.
+/// and recorder. Added for GH-4331, which briefly gave <c>BufferedInMemory</c> and <c>Durable</c>
+/// endpoints a computed <c>PrefetchCount</c> default of one receive batch. This lane measured that
+/// change as a NULL RESULT against the emulator and it was reverted, so every mode but NativeAck is
+/// back at Azure's shipping default of 0. The lane is what will settle GH-4331 for real.
 ///
 /// <para>
-/// <b>A/B inside one build</b> via <c>RIG_ASB_PREFETCH</c>: 0 leaves the endpoint's computed default
-/// (the GH-4331 behaviour) and an explicit <c>RIG_ASB_PREFETCH=1</c>... is not the same as the old
-/// default. To reproduce the pre-GH-4331 shape set the transport-wide value to 0 explicitly, which
-/// still wins over the computed default by design — that is what <c>RIG_ASB_PREFETCH=-1</c> does here.
-/// Preferring an in-build A/B over two worktrees matters more for this transport than most: the
-/// emulator's throughput drifts between container restarts.
+/// <b>A/B inside one build</b> via <c>RIG_ASB_PREFETCH</c>: 0 (the default) is now the shipping shape
+/// — no client-side buffering on Buffered/Durable — and a positive value reproduces what GH-4331
+/// proposed, e.g. <c>RIG_ASB_PREFETCH=20</c> for one receive batch. <c>-1</c> sets an explicit
+/// transport-wide 0, which is indistinguishable from the default now that the computed default is
+/// gone; it is kept so the ledger's original cells stay reproducible. Preferring an in-build A/B over
+/// two worktrees matters more for this transport than most: the emulator's throughput drifts between
+/// container restarts.
+/// </para>
+///
+/// <para>
+/// <b>The emulator cannot see this knob.</b> It tops out near 35 msg/s with near-zero round-trip
+/// latency, and prefetch exists to hide latency. Run this lane against a real namespace
+/// (<c>RIG_ASB</c>) before quoting any prefetch number.
 /// </para>
 ///
 /// <para>
