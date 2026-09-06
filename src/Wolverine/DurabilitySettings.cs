@@ -197,6 +197,30 @@ public class DurabilitySettings : IDescribeMyself
     public int MarkAsHandledBatchSize { get; set; } = 100;
 
     /// <summary>
+    /// GH-4319. The most concurrent durable local queue publishes Wolverine coalesces into one batched
+    /// inbox <c>INSERT</c>. Same shape as <see cref="MarkAsHandledBatchSize" /> and deliberately timer-free:
+    /// one flush is in flight at a time, every publish that arrives while it runs joins the next flush, and
+    /// a lone publish is written immediately -- so trickle traffic pays exactly the one round trip it paid
+    /// before and batches can only form where there was already a flush to hide behind. Every publisher
+    /// still waits for its own row to land before <c>StoreAndForwardAsync</c> returns. A batch that fails
+    /// rolls back whole and falls back to storing each envelope individually, so a duplicate envelope
+    /// still raises <c>DuplicateIncomingEnvelopeException</c> for itself alone. Set to 1 to give every
+    /// publish its own round trip as before. Default 100.
+    /// </summary>
+    public int StoreIncomingBatchSize { get; set; } = 100;
+
+    /// <summary>
+    /// GH-4319. The most concurrent non-transactional outbox stores Wolverine coalesces into one batched
+    /// outgoing <c>INSERT</c>, and the most successful single-envelope sends it coalesces into one batched
+    /// <c>DELETE</c>. Timer-free for a reason that matters more here than anywhere else in Wolverine: the
+    /// outbox store <i>gates the send</i>, so a max-age window in front of it would delay delivery rather
+    /// than bookkeeping -- GH-3490 measured that shape at a 5,767ms transit p50. A lone send is therefore
+    /// stored and forwarded immediately and batches form only from concurrency. Set to 1 to give every
+    /// send its own round trip as before. Default 100.
+    /// </summary>
+    public int StoreOutgoingBatchSize { get; set; } = 100;
+
+    /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>

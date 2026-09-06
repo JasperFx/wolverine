@@ -40,8 +40,8 @@ internal class DelegatingMessageInbox : IMessageInbox
         return (envelope.Store?.Inbox ?? _inner).StoreIncomingAsync(envelope);
     }
 
-    // This would only be coming from a batch receipt and not from any kind of
-    // local queueing
+    // Reached from a batch receipt and, since GH-4319, from the durable local queue's coalesced
+    // publish as well -- which is why the grouping below is load-bearing rather than defensive.
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
         // Route by ancillary store exactly like the single-envelope overload above —

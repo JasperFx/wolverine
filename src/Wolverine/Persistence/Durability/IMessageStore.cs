@@ -56,6 +56,22 @@ public interface IMessageOutbox
     Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination);
 
     Task StoreOutgoingAsync(Envelope envelope, int ownerId);
+
+    /// <summary>
+    ///     GH-4319. Store a batch of outgoing envelopes in one round trip. The default implementation
+    ///     stores them one at a time, which is correct for every store and is exactly what the outbox
+    ///     did before this overload existed -- so an implementation that does not override it loses the
+    ///     batching and nothing else. Wrapping stores (ancillary, multi-tenanted) DO override it, because
+    ///     a batch that spans two databases has to be split before it reaches either of them.
+    /// </summary>
+    async Task StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
+    {
+        foreach (var envelope in envelopes)
+        {
+            await StoreOutgoingAsync(envelope, ownerId);
+        }
+    }
+
     Task DeleteOutgoingAsync(Envelope[] envelopes);
     Task DeleteOutgoingAsync(Envelope envelope);
 

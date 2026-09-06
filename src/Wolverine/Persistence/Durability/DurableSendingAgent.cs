@@ -19,6 +19,12 @@ internal class DurableSendingAgent : SendingAgent
     private readonly SemaphoreSlim _queueLock = new(1, 1);
     private readonly RetryBlock<Envelope> _storeAndForward;
 
+    // GH-4319. Null when the batch sizes are 1. The store gates the send, so these coalescers are
+    // strictly timer-free: a lone envelope is written immediately and batches only ever form behind a
+    // flush that was already in flight.
+    private readonly EnvelopeStoreCoalescer? _storeCoalescer;
+    private readonly EnvelopeStoreCoalescer? _deleteCoalescer;
+
     private IList<Envelope> _queued = new List<Envelope>();
 
     public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
@@ -45,9 +51,33 @@ internal class DurableSendingAgent : SendingAgent
         _enqueueForRetry = new RetryBlock<OutgoingMessageBatch>((batch, _) => enqueueForRetryAsync(batch), _logger,
             _settings.Cancellation);
 
+        if (settings.StoreOutgoingBatchSize > 1)
+        {
+            _storeCoalescer = new EnvelopeStoreCoalescer(
+                envelopes => _outbox.StoreOutgoingAsync(envelopes, settings.AssignedNodeNumber),
+                envelope => _outbox.StoreOutgoingAsync(envelope, settings.AssignedNodeNumber),
+                settings.StoreOutgoingBatchSize, endpoint.Uri, logger);
+
+            // GH-4319. The success path already had a many-envelope DELETE -- OutgoingMessageBatch has
+            // used it since it existed -- but a single-envelope send paid its own round trip to remove
+            // one row. Same coalescer, same guarantee: MarkSuccessfulAsync does not return until this
+            // envelope's row is gone, which is what makes releasing a pooled envelope afterwards safe.
+            _deleteCoalescer = new EnvelopeStoreCoalescer(
+                envelopes => _outbox.DeleteOutgoingAsync(envelopes as Envelope[] ?? envelopes.ToArray()),
+                envelope => _deleteOutgoingOne.PostAsync(envelope),
+                settings.StoreOutgoingBatchSize, endpoint.Uri, logger);
+        }
+
         _storeAndForward = new RetryBlock<Envelope>(async (e, _) =>
         {
-            await _outbox.StoreOutgoingAsync(e, _settings.AssignedNodeNumber);
+            if (_storeCoalescer != null)
+            {
+                await _storeCoalescer.StoreAsync(e);
+            }
+            else
+            {
+                await _outbox.StoreOutgoingAsync(e, _settings.AssignedNodeNumber);
+            }
 
             await _sending.PostAsync(e);
         }, _logger, settings.Cancellation);
@@ -59,6 +89,16 @@ internal class DurableSendingAgent : SendingAgent
 
     protected override async Task drainOtherAsync()
     {
+        if (_storeCoalescer != null)
+        {
+            await _storeCoalescer.DrainAsync();
+        }
+
+        if (_deleteCoalescer != null)
+        {
+            await _deleteCoalescer.DrainAsync();
+        }
+
         await _deleteOutgoingMany.DrainAsync();
         await _deleteOutgoingOne.DrainAsync();
         await _enqueueForRetry.DrainAsync();
@@ -201,6 +241,11 @@ internal class DurableSendingAgent : SendingAgent
 
     public override Task MarkSuccessfulAsync(Envelope outgoing)
     {
+        if (_deleteCoalescer != null)
+        {
+            return _deleteCoalescer.StoreAsync(outgoing);
+        }
+
         return _deleteOutgoingOne.PostAsync(outgoing);
     }
 

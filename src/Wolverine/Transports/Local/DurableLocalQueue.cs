@@ -21,6 +21,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private readonly IMessageSerializer _serializer;
     private readonly DurabilitySettings _settings;
     private readonly RetryBlock<Envelope> _storeAndEnqueue;
+
+    // GH-4319. The local durable queue was the last per-message inbox INSERT that never batched: every
+    // publish opened its own pooled connection for one row. Null when StoreIncomingBatchSize is 1.
+    private readonly EnvelopeStoreCoalescer? _storeCoalescer;
     private DurableReceiver? _receiver;
     private Restarter? _restarter;
 
@@ -68,6 +72,14 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver = new DurableReceiver(endpoint, runtime, Pipeline);
 
         _storeAndEnqueue = new RetryBlock<Envelope>((e, _) => storeAndEnqueueAsync(e), _logger, _runtime.Cancellation);
+
+        if (_settings.StoreIncomingBatchSize > 1)
+        {
+            _storeCoalescer = new EnvelopeStoreCoalescer(
+                envelopes => _inbox.StoreIncomingAsync(envelopes),
+                envelope => _inbox.StoreIncomingAsync(envelope),
+                _settings.StoreIncomingBatchSize, Uri, _logger);
+        }
     }
 
     public CircuitBreaker? CircuitBreaker { get; }
@@ -184,6 +196,13 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         receiver?.Latch();
         await _storeAndEnqueue.DrainAsync();
 
+        // The RetryBlock's own action awaits the coalescer, so draining it already covers any flush the
+        // block itself started. This catches a flush that a caller abandoned mid-await.
+        if (_storeCoalescer != null)
+        {
+            await _storeCoalescer.DrainAsync();
+        }
+
         if (receiver != null)
             await receiver.DrainAsync();
     }
@@ -280,8 +299,20 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
                 ? TransportConstants.AnyNode
                 : _settings.AssignedNodeNumber;
 
+            // The ancillary store has to be stamped BEFORE the envelope joins a batch: both
+            // DelegatingMessageInbox and MultiTenantedMessageStore group the batched overload by
+            // Store/TenantId, and they can only group on what is already on the envelope.
             assignAncillaryStoreIfNeeded(envelope);
-            await _inbox.StoreIncomingAsync(envelope);
+
+            if (_storeCoalescer != null)
+            {
+                await _storeCoalescer.StoreAsync(envelope);
+            }
+            else
+            {
+                await _inbox.StoreIncomingAsync(envelope);
+            }
+
             envelope.WasPersistedInInbox = true;
         }
         catch (DuplicateIncomingEnvelopeException e)

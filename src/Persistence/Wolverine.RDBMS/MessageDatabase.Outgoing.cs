@@ -60,6 +60,37 @@ public abstract partial class MessageDatabase<T>
         envelope.WasPersistedInOutbox = true;
     }
 
+    /// <summary>
+    /// GH-4319. The batched twin of the single-envelope overload above: one pooled connection and one
+    /// multi-statement command for the whole batch instead of one of each per envelope. The batch
+    /// command builder was already here -- <c>DurableSendingAgent</c> simply had no way to reach it
+    /// outside an ambient transaction.
+    /// </summary>
+    public async Task StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
+    {
+        if (HasDisposed || envelopes.Count == 0) return;
+
+        var array = envelopes as Envelope[] ?? envelopes.ToArray();
+        var command = DatabasePersistence.BuildOutgoingStorageCommand(array, ownerId, this);
+
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+
+        try
+        {
+            command.Connection = conn;
+            await command.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        foreach (var envelope in array)
+        {
+            envelope.WasPersistedInOutbox = true;
+        }
+    }
+
     protected abstract string
         determineOutgoingEnvelopeSql(DurabilitySettings settings);
 }
