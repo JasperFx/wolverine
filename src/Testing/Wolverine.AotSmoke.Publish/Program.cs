@@ -10,6 +10,7 @@ using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
+using Wolverine.Transports.Tcp;
 
 var isCli = args.Length > 0 && args[0] is "codegen" or "describe" or "help" or "?";
 
@@ -20,6 +21,15 @@ var builder = Host.CreateDefaultBuilder(args)
         opts.ApplicationAssembly = typeof(AotPublishPingHandler).Assembly;
         opts.Durability.Mode = DurabilityMode.Solo;
         opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(AotPublishPingHandler));
+
+        // GH-4232: an EXTERNAL sending endpoint, which is what makes the host build real
+        // MessageRoutes at startup -- including routes for the framework's own ISerializable
+        // reply types. Closing IntrinsicSerializer<FailureAcknowledgement> reflectively on that
+        // path threw MissingMethodException in a native image, so every AOT app with any external
+        // transport died at startup. A purely local smoke never builds one of these routes, which
+        // is exactly why this shipped unseen past GH-4287. No listener is needed -- nothing is
+        // actually sent, the route construction is the thing under test.
+        opts.PublishAllMessages().ToPort(59_999);
 
         if (!isCli)
         {
