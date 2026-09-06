@@ -291,12 +291,20 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         {
             if (!envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) || string.IsNullOrEmpty(idString))
             {
-                _logger.LogDebug("No Redis stream id header present for envelope {EnvelopeId}; skipping ACK", envelope.Id);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("No Redis stream id header present for envelope {EnvelopeId}; skipping ACK", envelope.Id);
+                }
+
                 return;
             }
 
             await acknowledgeAsync(getDatabase(), idString!);
-            _logger.LogDebug("Acknowledged Redis stream message {StreamId} on {StreamKey}", idString, _endpoint.StreamKey);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Acknowledged Redis stream message {StreamId} on {StreamKey}", idString, _endpoint.StreamKey);
+            }
         }
         catch (Exception ex)
         {
@@ -452,15 +460,27 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                 return false;
             }
 
-            // Process each message
-            foreach (var message in streamResults)
+            // GH-4329: a Durable listener hands the whole read to the receiver at once so the
+            // inbox persists it with ONE batched insert instead of a round trip per message --
+            // the same batched-arrival shape RabbitMQ got in GH-3492 and Kafka/NATS/Pulsar in
+            // GH-4026. (The branch for that wave was even named for Redis, but never touched it.)
+            // Every other mode keeps strict one-at-a-time dispatch: their settlement is
+            // per-message and there is no shared round trip to amortize.
+            if (_endpoint.Mode == EndpointMode.Durable && streamResults.Length > 1)
             {
-                if (token.IsCancellationRequested)
+                await processBatchAsync(streamResults, token);
+            }
+            else
+            {
+                foreach (var message in streamResults)
                 {
-                    break;
-                }
+                    if (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
 
-                await ProcessMessage(message);
+                    await ProcessMessage(message);
+                }
             }
 
             return true;
@@ -485,6 +505,44 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         }
     }
 
+    /// <summary>
+    /// GH-4329. One receiver call for the whole read, so a durable endpoint's inbox insert is
+    /// batched. An entry that cannot be mapped is skipped rather than failing its neighbours --
+    /// unacknowledged, so the consumer group redelivers it, exactly as the per-message path does.
+    /// </summary>
+    private async Task processBatchAsync(StreamEntry[] streamResults, CancellationToken token)
+    {
+        _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
+
+        var envelopes = new List<Envelope>(streamResults.Length);
+        foreach (var streamEntry in streamResults)
+        {
+            if (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            try
+            {
+                var envelope = new Envelope { TopicName = _endpoint.StreamKey };
+                _endpoint.EnvelopeMapper.MapIncomingToEnvelope(envelope, streamEntry);
+                envelopes.Add(envelope);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to read message {MessageId} from Redis stream {StreamKey}",
+                    streamEntry.Id, _endpoint.StreamKey);
+            }
+        }
+
+        if (envelopes.Count == 0)
+        {
+            return;
+        }
+
+        await _receiver.ReceivedAsync(this, envelopes.ToArray());
+    }
+
     private async Task ProcessMessage(StreamEntry streamEntry)
     {
         try
@@ -495,14 +553,22 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             var envelope = new Envelope { TopicName = _endpoint.StreamKey };
             _endpoint.EnvelopeMapper.MapIncomingToEnvelope(envelope, streamEntry);
 
-            _logger.LogDebug("Received message {EnvelopeId} from Redis stream {StreamKey} (stream message ID: {StreamMessageId})",
-                envelope.Id, _endpoint.StreamKey, streamEntry.Id);
+            // GH-4329: guarded — these run per message, and the params object[] plus the boxed
+            // Guid are allocated at the call site before ILogger ever checks IsEnabled
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Received message {EnvelopeId} from Redis stream {StreamKey} (stream message ID: {StreamMessageId})",
+                    envelope.Id, _endpoint.StreamKey, streamEntry.Id);
+            }
 
             // Send to Wolverine for processing (this will invoke continuations that may call Complete/Defer)
             await _receiver.ReceivedAsync(this, envelope);
 
             // Do not ACK here; CompleteAsync/DeferAsync will handle ACK or requeue as appropriate
-            _logger.LogDebug("Processed message {EnvelopeId} from Redis stream {StreamKey}", envelope.Id, _endpoint.StreamKey);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Processed message {EnvelopeId} from Redis stream {StreamKey}", envelope.Id, _endpoint.StreamKey);
+            }
         }
         catch (Exception ex)
         {
