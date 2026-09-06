@@ -29,6 +29,19 @@ public interface ITransport
     public string Protocol { get; }
 
     /// <summary>
+    ///     Additional URI schemes this transport answers to besides <see cref="Protocol" />, for a broker whose
+    ///     addresses legitimately come in more than one scheme. The HTTP transport is the motivating case
+    ///     (GH-4200): it declares <c>https</c>, but <c>http://…</c> is an ordinary address inside a container
+    ///     network, and there is no separate transport to own that scheme.
+    ///
+    ///     Empty by default. Implement it on a <see cref="TransportBase{TEndpoint}" /> subclass by OVERRIDING
+    ///     the virtual there, not by re-declaring this member -- a derived transport that does not re-list
+    ///     <see cref="ITransport" /> in its own base list inherits the base class's interface map, and a
+    ///     matching method it declares would silently never be called.
+    /// </summary>
+    IEnumerable<string> AdditionalProtocols => [];
+
+    /// <summary>
     ///     Strictly a diagnostic name for this transport type
     /// </summary>
     public string Name { get; }

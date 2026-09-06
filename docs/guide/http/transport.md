@@ -53,6 +53,10 @@ using var host = await Host.CreateDefaultBuilder()
     .StartAsync();
 ```
 
+Both `https://` and `http://` destinations are supported. Plain `http` is the normal shape for services
+talking to each other inside a container network or over localhost, where TLS is terminated elsewhere;
+prefer `https` for anything crossing a trust boundary.
+
 ## Security and Authentication
 
 Since the HTTP transport uses standard ASP.NET Core Minimal API endpoints, you can use **all of ASP.NET Core's

@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.Resources;
 using Wolverine.Configuration;
@@ -34,6 +35,14 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
 
     public string Protocol { get; }
 
+    /// <summary>
+    ///     See <see cref="ITransport.AdditionalProtocols" />. Declared here as a virtual rather than left to the
+    ///     interface's default implementation for the same reason as
+    ///     <see cref="TryResolveListenerAddress" />: a derived transport inherits this class's interface map,
+    ///     so an override it declares against the interface default would never be called.
+    /// </summary>
+    public virtual IEnumerable<string> AdditionalProtocols => [];
+
     public IEnumerable<Endpoint> Endpoints()
     {
         return endpoints();
@@ -64,9 +73,10 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
 
     public Endpoint GetOrCreateEndpoint(Uri uri)
     {
-        if (uri.Scheme != Protocol)
+        if (uri.Scheme != Protocol && !AdditionalProtocols.Contains(uri.Scheme))
         {
-            throw new ArgumentOutOfRangeException($"Uri must have scheme '{Protocol}', but received {uri.Scheme}");
+            var accepted = new[] { Protocol }.Concat(AdditionalProtocols).Select(x => $"'{x}'").Join(" or ");
+            throw new ArgumentOutOfRangeException($"Uri must have scheme {accepted}, but received {uri.Scheme}");
         }
 
         return findEndpointByUri(uri);
