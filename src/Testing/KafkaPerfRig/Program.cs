@@ -83,6 +83,10 @@ switch (role)
         await WolverineRedis.RunPublisherAsync(cfg);
         break;
 
+    case "outbox-store":
+        await OutboxStoreLane.RunAsync(cfg);
+        break;
+
     case "local-queue":
         await WolverineLocalQueue.RunAsync(cfg);
         break;

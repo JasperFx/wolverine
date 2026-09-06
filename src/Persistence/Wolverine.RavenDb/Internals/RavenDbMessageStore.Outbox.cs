@@ -30,6 +30,27 @@ public partial class RavenDbMessageStore : IMessageOutbox
         await session.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// GH-4369. One session, one SaveChangesAsync: RavenDB sends everything staged in a session as a
+    /// single batch command, so this is one HTTP round trip for the whole batch instead of one per
+    /// envelope. Exactly the shape <see cref="DeleteOutgoingAsync(Envelope[])" /> below has always had.
+    /// </summary>
+    public async Task StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
+    {
+        if (envelopes.Count == 0) return;
+
+        using var session = _store.OpenAsyncSession();
+        foreach (var envelope in envelopes)
+        {
+            await session.StoreAsync(new OutgoingMessage(envelope)
+            {
+                OwnerId = ownerId
+            });
+        }
+
+        await session.SaveChangesAsync();
+    }
+
     public async Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
         using var session = _store.OpenAsyncSession();

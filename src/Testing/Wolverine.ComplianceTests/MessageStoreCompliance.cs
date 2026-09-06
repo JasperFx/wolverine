@@ -209,6 +209,64 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
 
+    /// <summary>
+    /// GH-4319 added StoreOutgoingAsync(IReadOnlyList&lt;Envelope&gt;, int) as a DEFAULT interface
+    /// method, so a store that overrides it and a store that does not must be indistinguishable from
+    /// the outside. GH-4369 then gave Oracle, RavenDB and Cosmos DB real batch implementations. This
+    /// test is what holds them to the single-envelope path's behaviour -- every store runs it,
+    /// overridden or not.
+    /// </summary>
+    [Fact]
+    public async Task store_a_batch_of_outgoing_envelopes()
+    {
+        var envelopes = new List<Envelope>();
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Outgoing;
+            envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+            envelopes.Add(envelope);
+        }
+
+        await thePersistence.Outbox.StoreOutgoingAsync(envelopes, 5890);
+
+        var stored = (await thePersistence.Admin.AllOutgoingAsync()).ToArray();
+
+        stored.Length.ShouldBe(envelopes.Count);
+        stored.Select(x => x.Id).OrderBy(x => x).ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x));
+        stored.ShouldAllBe(x => x.OwnerId == 5890);
+    }
+
+    /// <summary>
+    /// The batch has to be a fast path, never a different path. A caller that hands over one envelope
+    /// gets exactly what the single-envelope overload would have written -- this is also the shape a
+    /// coalescer produces constantly, since a lone write never waits for company.
+    /// </summary>
+    [Fact]
+    public async Task store_a_batch_of_one_outgoing_envelope()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Outgoing;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+
+        await thePersistence.Outbox.StoreOutgoingAsync(new[] { envelope }, 5890);
+
+        var stored = (await thePersistence.Admin.AllOutgoingAsync()).Single();
+
+        stored.Id.ShouldBe(envelope.Id);
+        stored.OwnerId.ShouldBe(5890);
+        stored.Status.ShouldBe(envelope.Status);
+        stored.SentAt.ShouldBe(envelope.SentAt);
+    }
+
+    [Fact]
+    public async Task store_an_empty_batch_of_outgoing_envelopes_is_a_no_op()
+    {
+        await thePersistence.Outbox.StoreOutgoingAsync(Array.Empty<Envelope>(), 5890);
+
+        (await thePersistence.Admin.AllOutgoingAsync()).ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task mark_envelope_as_handled()
     {
