@@ -17,6 +17,11 @@ namespace Wolverine.SqlServer.Transport;
 
 public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStorageBackedQueue
 {
+    // GH-4334: mirrors DurabilitySettings.RecoveryBatchSize's default. These statements are built
+    // in the constructor, before any DurabilitySettings is in hand, so the bound is a constant here;
+    // the listener's own copy of this SQL uses the configured value.
+    private const int ScheduledPromotionBatchSize = 100;
+
     internal static Uri ToUri(string name, string? databaseName)
     {
         return databaseName.IsEmpty()
@@ -376,16 +381,24 @@ WHERE {DatabaseConstants.Id} = @id;
 DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
 ";
 
+        // GH-4334: table variable instead of a per-call #temp_move (tempdb churn + a statement
+        // recompile each time), and a TOP bound so a large due backlog is promoted in bounded
+        // batches rather than one enormous lock-holding transaction.
         _moveScheduledToReadyQueueSql = $@"
-select id, body, message_type, keep_until into #temp_move_{Name}
-FROM {ScheduledTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {QueueTable.Identifier})
-ORDER BY {ScheduledTable.Identifier}.{orderBy};
-delete from {ScheduledTable.Identifier} where id in (select id from #temp_move_{Name});
+DECLARE @moved TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset);
+
+WITH due AS (
+    SELECT TOP({ScheduledPromotionBatchSize}) id, body, message_type, keep_until
+    FROM {ScheduledTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
+    WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {QueueTable.Identifier})
+    ORDER BY {ScheduledTable.Identifier}.{orderBy})
+DELETE FROM due
+OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until INTO @moved;
+
 INSERT INTO {QueueTable.Identifier}
 (id, body, message_type, keep_until)
- SELECT id, body, message_type, keep_until FROM #temp_move_{Name};
-select count(*) from #temp_move_{Name}
+ SELECT id, body, message_type, keep_until FROM @moved;
+select count(*) from @moved
 ";
 
         _deleteExpiredSql =
@@ -413,14 +426,20 @@ IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
 SET NOCOUNT ON;
 
 delete FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.ReceivedAt} = '{Uri}');
-select top(@count) id, body, message_type, keep_until into #temp_pop_{Name}
-FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-ORDER BY {QueueTable.Identifier}.{orderBy};
-delete from {QueueTable.Identifier} where id in (select id from #temp_pop_{Name});
+-- GH-4334: table variable + DELETE ... OUTPUT instead of SELECT ... INTO #temp_pop
+DECLARE @popped TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset);
+
+WITH message AS (
+    SELECT TOP(@count) id, body, message_type, keep_until
+    FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
+    ORDER BY {QueueTable.Identifier}.{orderBy})
+DELETE FROM message
+OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until INTO @popped;
+
 INSERT INTO {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}
 (id, status, owner_id, body, message_type, received_at, keep_until)
- SELECT id, 'Incoming', @node, body, message_type, '{Uri}', keep_until FROM #temp_pop_{Name};
-select body from #temp_pop_{Name};
+ SELECT id, 'Incoming', @node, body, message_type, '{Uri}', keep_until FROM @popped;
+select body from @popped;
 
 IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
 IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";

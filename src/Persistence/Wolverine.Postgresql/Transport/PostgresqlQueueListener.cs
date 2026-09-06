@@ -151,14 +151,29 @@ SELECT message.{DatabaseConstants.Body} from message;
 
         try
         {
+            // GH-4334: same temp-table removal as the durable pop, plus a bound. The move was
+            // unbounded -- every due scheduled message promoted in one statement, which on a large
+            // backlog is one enormous transaction holding locks the receive path needs. Capped at
+            // RecoveryBatchSize per cycle; the poller runs again immediately after a full batch.
             var builder = new BatchBuilder();
-            builder.Append($"create temporary table temp_move_{_queueName} on commit drop as select id, body, message_type, keep_until from {_scheduledTableName} WHERE {DatabaseConstants.ExecutionTime} <= (now() at time zone 'utc') AND ID NOT IN (select id from {_queueTableName}) for update skip locked");
-            builder.StartNewCommand();
-            builder.Append($"INSERT INTO {_queueTableName} (id, body, message_type, keep_until) SELECT id, body, message_type, keep_until FROM temp_move_{_queueName}");
-            builder.StartNewCommand();
-            builder.Append($"DELETE from {_scheduledTableName} where id in (select id from temp_move_{_queueName})");
-            builder.StartNewCommand();
-            builder.Append($"select count(*) from temp_move_{_queueName}");
+            var parameters = builder.AppendWithParameters($@"
+WITH moved AS (
+    DELETE FROM {_scheduledTableName} WHERE CTID IN (
+        SELECT ctid FROM {_scheduledTableName}
+        WHERE {DatabaseConstants.ExecutionTime} <= (now() at time zone 'utc')
+          AND id NOT IN (SELECT id FROM {_queueTableName})
+        ORDER BY {DatabaseConstants.ExecutionTime}
+        LIMIT ? FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, body, message_type, keep_until
+), promoted AS (
+    INSERT INTO {_queueTableName} (id, body, message_type, keep_until)
+    SELECT id, body, message_type, keep_until FROM moved
+)
+SELECT count(*) FROM moved");
+
+            parameters[0].Value = _settings.RecoveryBatchSize;
+            parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
 
             await using var batch = builder.Compile();
             batch.Connection = conn;
@@ -209,19 +224,30 @@ SELECT message.{DatabaseConstants.Body} from message;
         // scope the probe instead of correlating against the entire inbox.
         builder.Append($"delete FROM {_queueTableName} where id in (select id from {_quotedSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.ReceivedAt} = '{Address}')");
         builder.StartNewCommand();
-        builder.Append($"create temporary table temp_pop_{_queueName} ON COMMIT DROP as select id, body, message_type, keep_until from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit ");
-        builder.AppendParameter(count);
-        builder.Append(" for update skip locked");
 
-        builder.StartNewCommand();
-        builder.Append($"delete from {_queueTableName} where id in (select id from temp_pop_{_queueName})");
-        builder.StartNewCommand();
-        var parameters = builder.AppendWithParameters($"INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until) SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM temp_pop_{_queueName}");
-        parameters[0].Value = settings.AssignedNodeNumber;
+        // GH-4334: one CTE instead of create-temp-table / delete / insert / select. The old shape
+        // created and dropped `temp_pop_{queue}` on EVERY poll of every queue -- a pg_class and
+        // pg_attribute insert-and-delete per poll (catalog churn), and a fresh relation each time
+        // means the plan is never reused. This is the same DELETE ... RETURNING shape the
+        // non-durable pop above already uses, extended with the inbox insert as a second CTE.
+        var parameters = builder.AppendWithParameters($@"
+WITH popped AS (
+    DELETE FROM {_queueTableName} WHERE CTID IN (
+        SELECT ctid FROM {_queueTableName} ORDER BY {_queueTableName}.timestamp LIMIT ? FOR UPDATE SKIP LOCKED
+    )
+    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}
+), inserted AS (
+    INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
+        (id, status, owner_id, body, message_type, received_at, keep_until)
+    SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
+)
+SELECT {DatabaseConstants.Body} FROM popped");
+
+        parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
+        parameters[1].Value = settings.AssignedNodeNumber;
+        parameters[1].NpgsqlDbType = NpgsqlDbType.Integer;
 
-        builder.StartNewCommand();
-        builder.Append($"select body from temp_pop_{_queueName}");
         await using var batch = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
