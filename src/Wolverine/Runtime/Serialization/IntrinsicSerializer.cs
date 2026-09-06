@@ -40,46 +40,46 @@ public class IntrinsicSerializer : IMessageSerializer
 
     public string ContentType => MimeType;
 
-    // IntrinsicSerializer<T> closes over the message type via reflection so
-    // user message types that implement ISerializable can be serialized without
-    // an additional registration. The CloseAndBuildAs<T> escape valve is
-    // dynamic-code-by-design; suppressing at the leaf rather than annotating
-    // IMessageSerializer keeps the cascade contained. AOT-clean apps avoid
-    // this path: their message types implement ISerializable AND get
-    // pre-discovered into _inner before any message is processed (the AOT
-    // pillar's source-generated registration story will land that
-    // pre-discovery — see #2746 / the AOT publishing guide).
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closed generic resolved from runtime message type; AOT consumers pre-discover into _inner. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed generic resolved from runtime message type; AOT consumers pre-discover into _inner. See AOT guide.")]
+    // Serialization goes through SerializerFor, which is the single place that may close
+    // IntrinsicSerializer<T> over a runtime message type and the only place carrying the
+    // dynamic-code suppression for it.
     public byte[] Write(Envelope envelope)
     {
-        var messageType = envelope.Message!.GetType();
-        if (_inner.TryFind(messageType, out var serializer))
-        {
-            return serializer.Write(envelope);
-        }
-
-        serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
-        _inner = _inner.AddOrUpdate(messageType, serializer);
-        return serializer.Write(envelope);
+        return SerializerFor(envelope.Message!.GetType()).Write(envelope);
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closed generic resolved from messageType; AOT consumers pre-discover into _inner. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed generic resolved from messageType; AOT consumers pre-discover into _inner. See AOT guide.")]
     public object ReadFromData(Type messageType, Envelope envelope)
+    {
+        return SerializerFor(messageType).ReadFromData(envelope.Data!);
+    }
+
+    /// <summary>
+    ///     The <see cref="IntrinsicSerializer{T}" /> for this message type, from the cache when it is already
+    ///     known and by closing the open generic when it is not.
+    ///
+    ///     GH-4232: every caller has to come through here rather than closing the generic itself. The
+    ///     framework's own ISerializable types are seeded into the cache by DIRECT construction in the
+    ///     constructor above precisely because the reflective close throws MissingMethodException under
+    ///     Native AOT, and a caller that skips the cache throws for those types even though a perfectly
+    ///     good instance is sitting in it. <see cref="Wolverine.Runtime.Routing.MessageRoute" /> did exactly
+    ///     that, so every AOT-published app with any external endpoint died building the route for
+    ///     FailureAcknowledgement -- past the GH-4287 fixes, and past the boot the AOT publish smoke asserts,
+    ///     because that smoke only dispatches locally and never builds an external route.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed generic resolved from a runtime message type; the framework's own types are pre-seeded and AOT consumers pre-discover the rest into _inner. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed generic resolved from a runtime message type; the framework's own types are pre-seeded and AOT consumers pre-discover the rest into _inner. See AOT guide.")]
+    internal IMessageSerializer SerializerFor(Type messageType)
     {
         if (_inner.TryFind(messageType, out var serializer))
         {
-            return serializer.ReadFromData(envelope.Data!);
+            return serializer;
         }
 
         serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
         _inner = _inner.AddOrUpdate(messageType, serializer);
-        return serializer.ReadFromData(envelope.Data!);
+        return serializer;
     }
 
     public object ReadFromData(byte[] data)
@@ -107,10 +107,6 @@ public class IntrinsicSerializer : IMessageSerializer
     /// Tolerates duplicates and a null source.
     /// </remarks>
     /// <param name="messageTypes">Message types to resolve and cache.</param>
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Pre-populating the IntrinsicSerializer<T> cache at handler-graph compile time; same suppression as Write/ReadFromData. See AOT guide / #2769.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Pre-populating the IntrinsicSerializer<T> cache at handler-graph compile time; same suppression as Write/ReadFromData. See AOT guide / #2769.")]
     internal void Prepopulate(IEnumerable<Type>? messageTypes)
     {
         if (messageTypes == null) return;
@@ -119,10 +115,7 @@ public class IntrinsicSerializer : IMessageSerializer
         {
             if (messageType == null) continue;
             if (!messageType.CanBeCastTo(typeof(ISerializable))) continue;
-            if (_inner.TryFind(messageType, out _)) continue;
-
-            var serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
-            _inner = _inner.AddOrUpdate(messageType, serializer);
+            SerializerFor(messageType);
         }
     }
 }

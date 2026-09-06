@@ -71,7 +71,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         if (messageType.CanBeCastTo(typeof(ISerializable)))
         {
-            Serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
+            // GH-4232: through the cache, never closing the generic here. IntrinsicSerializer seeds the
+            // framework's own ISerializable types by direct construction because the reflective close
+            // throws MissingMethodException under Native AOT -- and this route is built for
+            // FailureAcknowledgement on any app with an external endpoint, so closing it here killed
+            // every AOT-published app at startup.
+            Serializer = IntrinsicSerializer.Instance.SerializerFor(messageType);
         }
         else if (WolverineSystemPart.WithinDescription)
         {
