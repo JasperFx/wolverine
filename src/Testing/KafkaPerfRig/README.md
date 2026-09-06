@@ -74,7 +74,7 @@ two worktrees.
 **+159% (2.6x)**, rounds within 0.6% of each other. The durable Redis endpoint had been paying one
 inbox-insert round trip per message.
 
-### Azure Service Bus (GH-4331) — lane added, NOT yet measured
+### Azure Service Bus (GH-4331) — measured 2026-09-06: NULL RESULT
 
 `RIG_ASB_PREFETCH=-1` sets an explicit transport-wide 0, which by design still beats the computed
 per-mode default — that is the pre-GH-4331 shape, again inside one build. Preferred over two
@@ -83,6 +83,21 @@ worktrees here because the emulator's throughput drifts across container restart
 The emulator caps around 50 queues and wedges if its objects are deleted underneath it, so this
 lane deliberately does **not** tear down its per-run queues the way Redis and NATS do. Restart the
 emulator between long sweeps instead.
+
+| buffered cell | r1 | r2 | mean |
+|---|---|---|---|
+| `RIG_ASB_PREFETCH=-1` (pre-GH-4331) | 34.9/s | 35.1/s | **35.0/s** |
+| computed default (post-GH-4331) | 34.7/s | 31.1/s | **32.9/s** |
+
+**No benefit detected.** The post-change arm is marginally lower and its own spread (~11%) exceeds
+the gap. Read this as "the cell cannot see it", not "the change is worthless": the emulator tops
+out near 35 msg/s with near-zero round-trip latency, and prefetch exists precisely to hide network
+latency. Testing it properly needs a real Azure namespace. **Do not quote a throughput number for
+GH-4331.**
+
+The emulator also needs BOTH connection strings — AMQP on 5673 and management on 5300 — because
+AutoProvision goes through the management API. `UseAzureServiceBusEmulator(amqp, management)` is
+the wiring; `UseAzureServiceBus(amqp)` alone fails at startup with an HTTP connect error.
 
 Measured findings and the experiment ledgers live in the deep-dive issues (GH-3490/3492/3493/
 3494, all closed with their ledgers) and the `*-PERF-DEEP-DIVE-PLAN.md` documents at the repo

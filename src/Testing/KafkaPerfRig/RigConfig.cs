@@ -1,3 +1,5 @@
+using IntegrationTests;
+
 namespace KafkaPerfRig;
 
 /// <summary>
@@ -77,8 +79,15 @@ public class RigConfig
     public string RedisLargeStream => $"rig-{RunId}-large";
 
     // GH-4331: Azure Service Bus lane. Defaults to the local emulator connection string.
-    public string AsbConnection { get; } = env("RIG_ASB",
-        "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
+    // Defaults to the canonical emulator string from Servers.cs -- note port 5673, not 5672:
+    // docker-compose maps the emulator's AMQP port there to stay clear of RabbitMQ.
+    public string AsbConnection { get; } = env("RIG_ASB", Servers.AzureServiceBusConnectionString);
+
+    // The emulator serves AMQP on 5673 and its management API on a DIFFERENT port (5300), and
+    // AutoProvision goes through management -- so the emulator needs both strings. Empty means
+    // "a real namespace", where one connection string covers both.
+    public string AsbManagementConnection { get; } =
+        env("RIG_ASB_MANAGEMENT", Servers.AzureServiceBusManagementConnectionString);
     public string AsbSmallQueue => $"rig-{RunId}-small";
     public string AsbLargeQueue => $"rig-{RunId}-large";
     // 0 leaves the endpoint's computed default (GH-4331 gives Buffered/Durable one receive batch);

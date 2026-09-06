@@ -53,7 +53,12 @@ public static class WolverineAsb
                 opts.ApplicationAssembly = typeof(RigHandlers).Assembly;
                 opts.Discovery.IncludeType<RigHandlers>();
 
-                var transport = opts.UseAzureServiceBus(cfg.AsbConnection).AutoProvision();
+                // UseAzureServiceBusEmulator when a management string is supplied: AutoProvision
+                // talks to the management API, which the emulator exposes on its own port.
+                var transport = (cfg.AsbManagementConnection.Length > 0
+                        ? opts.UseAzureServiceBusEmulator(cfg.AsbConnection, cfg.AsbManagementConnection)
+                        : opts.UseAzureServiceBus(cfg.AsbConnection))
+                    .AutoProvision();
 
                 // -1 means "explicit transport-wide 0", i.e. the pre-GH-4331 shape: an explicitly
                 // configured 0 still beats the computed per-mode default, by design.
@@ -129,7 +134,10 @@ public static class WolverineAsb
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.ApplicationAssembly = typeof(RigHandlers).Assembly;
 
-                opts.UseAzureServiceBus(cfg.AsbConnection).AutoProvision();
+                _ = (cfg.AsbManagementConnection.Length > 0
+                        ? opts.UseAzureServiceBusEmulator(cfg.AsbConnection, cfg.AsbManagementConnection)
+                        : opts.UseAzureServiceBus(cfg.AsbConnection))
+                    .AutoProvision();
 
                 // Inline sends so every publish is a real AMQP send; the receive side is what these
                 // cells measure
