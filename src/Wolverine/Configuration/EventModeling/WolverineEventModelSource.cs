@@ -286,7 +286,10 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             // An external system on the inbound side makes this a translation slice. On the outbound side
             // a slice keeps its own pattern (a command slice that also notifies Stripe is still a command
             // slice) unless it is a pure relay — no aggregate, no events of its own.
-            var pattern = flipPattern || (slice.AggregateTypes.Count == 0 && slice.EmittedEvents.Count == 0 && slice.Pattern == SlicePattern.Command)
+            // GH-4387: a message-handler slice leaves Pattern unclaimed, so "still a plain command slice"
+            // is now null OR Command.
+            var pattern = flipPattern || (slice.AggregateTypes.Count == 0 && slice.EmittedEvents.Count == 0 &&
+                                          slice.Pattern is null or SlicePattern.Command)
                 ? SlicePattern.Translation
                 : slice.Pattern;
 
@@ -357,7 +360,11 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         => slice with
         {
             TriggerKind = TriggerKind.Grpc,
-            TriggerOrigin = slice.TriggerOrigin ?? origin
+            TriggerOrigin = slice.TriggerOrigin ?? origin,
+            // GH-4387: the slice behind an RPC is derived off a message handler chain, which no longer
+            // claims Pattern. An RPC is an inbound request somebody made, exactly as an HTTP route is, so
+            // the trigger answers the question the handler signature could not.
+            Pattern = slice.Pattern ?? SlicePattern.Command
         };
 
     private static EventModelSliceDescriptor grpcTriggerOnlySlice(GrpcEndpointDescriptor endpoint, PublisherOrigin origin)
@@ -392,9 +399,11 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
         if (emitted.Count == 0) return model;
 
+        // GH-4387: an unclaimed Pattern is the message-handler default now, and this is exactly the
+        // evidence that lets the derived rung claim it — the command IS an event something else raises.
         var slices = model.Slices
             .Select(slice => slice.CommandType is { } command && emitted.Contains(command.FullName) &&
-                             slice.Pattern == SlicePattern.Command
+                             slice.Pattern is null or SlicePattern.Command
                 ? slice with { Pattern = SlicePattern.Automation }
                 : slice)
             .ToList();

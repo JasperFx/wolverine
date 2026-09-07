@@ -367,6 +367,70 @@ What is deliberately *not* visible here: imperative `session.Events.Append(...)`
 invisible at runtime, so only declarative returns are reported; CritterWatch's source generator covers the
 imperative case.
 
+### Naming the events a signature cannot carry
+
+Two of the shapes the Critter Stack scaffolds for a modelled slice hand back a *collection* of events or a
+stream side effect, and both erase the element types on the way out:
+
+```cs
+public static (ConfirmAppointmentResponse, EventsToAppend) Post(ConfirmAppointmentRequest request, [WriteModel] Appointment appointment)
+public static StartStream Handle(HomeCheckAssignmentAccepted trigger)
+```
+
+The slice is known to append events; the events themselves are built in the method body, so nothing on the
+signature says what they are. Put `[Emits]` on the handler method (or on the handler type, when every method
+of it emits the same events) to say it:
+
+```cs
+[Emits(typeof(AppointmentConfirmed))]
+public static (ConfirmAppointmentResponse, EventsToAppend) Post(
+    ConfirmAppointmentRequest request, [WriteModel] Appointment appointment)
+{
+    var events = new EventsToAppend { new AppointmentConfirmed(request.Id) };
+    return (new ConfirmAppointmentResponse(request.Id), events);
+}
+```
+
+It is additive — everything the signature already says still holds — and purely diagnostic: nothing about
+dispatch, codegen or persistence reads it. Without it, `emittedEvents` on those slices is empty, which is
+indistinguishable from a slice that emits nothing at all.
+
+::: tip
+`[Emits]` is worth reaching for precisely when a declared model says a slice emits an event. An empty derived
+list cannot *contradict* a declaration, so drift goes unseen; a declared one can, and the merge raises it.
+:::
+
+### What the derived source will not claim
+
+Two roles are deliberately left unclaimed rather than guessed at, so a declaration wins them by default:
+
+| Role | Why the code cannot answer |
+| --- | --- |
+| `TriggerLabel` | A trigger label is a naming concern ("Customer at the ATM"). The structural facts already ride on `TriggerOrigin`. |
+| `Pattern`, for a message handler | An inbound message that appends events is a `Command` or an `Automation` depending on *why* it arrived — a person asked, or the system reacted. A handler signature cannot tell the two apart. |
+
+`Pattern` is still claimed wherever the code genuinely answers it: an HTTP `GET` is a `View`, a `TimeoutMessage`
+or a cron-scheduled message is an `Automation`, a gRPC RPC is a `Command`, an inbound external system makes the
+slice a `Translation`, and a slice whose command is an event another slice emits is promoted to `Automation`
+because the assembled model says so.
+
+### Meeting a declared model
+
+A declared model — a curated board file, an overlay — names a slice for the behaviour: `ConfirmAppointment`.
+Wolverine's derived sources name it for what they can see: the message type `ConfirmAppointmentRequest`, the
+triggering event `HomeCheckAssignmentAccepted`, the route `GET /api/appointmentsqueue/{id}`. Slice names are
+the merge key, so left alone the two never meet and an eleven-slice application assembles as twenty-two slices
+with no disagreements — not because the sources agree, but because they were never compared.
+
+`HandlerType` is the one role both kinds of source fill and mean the same thing by, so the export aligns on it:
+where a declaration and the code describe the same handler type under different names, the **declared** name
+wins and both fold into one slice. Neither side has to rename anything, and the real disagreements surface as
+`SourceDisagreement` hotspots instead of duplicate slices.
+
+Nothing is aligned between two sources on the *same* rung (Wolverine core and Wolverine.HTTP already agree on
+how they name things), a handler type carrying more than one slice inside a source identifies none of them, and
+a rename that would collide with a slice already in that source is dropped.
+
 ### The slice next to the route
 
 The assembled model is one picture of the whole service. A monitoring console often wants the other view —
