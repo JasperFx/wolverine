@@ -80,7 +80,9 @@ jobs:
           grep -q '"slices"' "$out"
           grep -q '"name": "CreateIssue"' "$out"
           grep -q '"triggerKind": "MessageHandler"' "$out"
-          grep -q '"pattern": "Command"' "$out"
+          # GH-4387: a message handler leaves "pattern" unclaimed -- it cannot tell a Command slice
+          # from an Automation slice -- so the derived roles it CAN read are what this asserts.
+          grep -q '"handlerType"' "$out"
           grep -q '"elements"' "$out"
           echo "::endgroup::"
 

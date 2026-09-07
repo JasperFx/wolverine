@@ -84,7 +84,9 @@ public class event_model_roles_3988 : PostgresqlContext, IAsyncLifetime
         var model = WolverineEventModelSource.Describe(theHost.GetRuntime());
         var slice = model.Slices.Single(x => x.Name == nameof(EndTrip));
 
-        slice.Pattern.ShouldBe(SlicePattern.Command);
+        // GH-4387: a message handler cannot tell a Command slice from an Automation slice, so it says
+        // nothing and a declared pattern survives. The roles it CAN read are all still here.
+        slice.Pattern.ShouldBeNull();
         slice.TriggerKind.ShouldBe(TriggerKind.MessageHandler);
         slice.CommandType!.Name.ShouldBe(nameof(EndTrip));
         slice.HandlerType!.Name.ShouldBe(nameof(EndTripHandler));
