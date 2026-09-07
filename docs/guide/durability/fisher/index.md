@@ -118,6 +118,69 @@ Each store is **its own file**, which is what gets two concurrent writers out of
 having them contend on one. Wolverine's durability tables for an ancillary store live in that
 store's file, alongside its documents and events.
 
+## Operation Side Effects <Badge type="tip" text="6.35" />
+
+`FisherOps` is the Fisher twin of [`MartenOps`](../marten/operations) and
+[`PolecatOps`](../polecat/operations): a handler returns a *value* describing the write instead of
+taking an `IDocumentSession` and doing it, which keeps the handler a pure function you can unit test
+on its return values alone.
+
+```csharp
+public static IEnumerable<IFisherOp> Handle(PurgeAccount command)
+{
+    yield return FisherOps.HardDelete<Account>(command.AccountId);
+    yield return FisherOps.UndoDeleteWhere<Invitation>(x => x.AccountId == command.AccountId);
+    yield return FisherOps.Patch<Account>(command.AccountId, p => p.Set(x => x.Locked, true));
+    yield return FisherOps.QueueSqlCommand("delete from audit where account = ?", command.AccountId);
+    yield return FisherOps.Append(command.AuditStreamId, new AccountPurged(command.AccountId));
+    yield return FisherOps.ArchiveStream(command.AccountStreamId);
+}
+```
+
+Alongside `Store` / `StoreMany` / `StoreObjects` / `Insert` / `Update` / `Delete` / `StartStream`,
+the set covers:
+
+| Op | What it reaches |
+|---|---|
+| `HardDelete(doc)`, `HardDelete<T>(id)`, `HardDeleteWhere<T>(filter)` | `HardDelete` / `HardDeleteWhere` |
+| `UndoDeleteWhere<T>(filter)` | `UndoDeleteWhere` |
+| `UpdateRevision`, `TryUpdateRevision` | same names |
+| `Patch<T>(id, ...)`, `PatchWhere<T>(filter, ...)` | `Patch<T>()` fluent API |
+| `QueueSqlCommand(sql, ...)` (+ a custom placeholder overload) | `QueueSqlCommand` |
+| `Append(streamId \| streamKey, ...)`, with an optional expected version | `Events.Append` |
+| `ArchiveStream(streamId \| streamKey)` | `Events.ArchiveStream` |
+
+Every op implements `ITenantedFisherOp`, so one extension scopes any of them while preserving the
+concrete return type:
+
+```csharp
+FisherOps.ArchiveStream(command.OrderId).ForTenant(command.TenantId);
+FisherOps.StoreMany(items).ForTenant(tenantId).With(oneMore);
+```
+
+Two invariants are enforced at construction rather than at `SaveChangesAsync()` time, where a
+handler that returned a side effect looking perfectly valid would otherwise blow up much later:
+`HardDelete<T>()` and `Patch<T>()` reject an id that is not a `string`, `Guid`, `int` or `long`
+(Fisher has no `object`-typed overload to fall back on), and `Append` / `ArchiveStream` refuse
+`Guid.Empty` and an empty stream key — the Guid/string discrimination is on `Guid.Empty`, the same
+sentinel `StartStream<T>` uses, so an empty id would otherwise silently take the string branch.
+
+::: warning
+`UpdateRevision` and `TryUpdateRevision` only actually guard on a document type that implements
+`JasperFx.IRevisioned`. A type configured through `Schema.For<T>().UseNumericRevisions()` instead
+records a revision but enforces nothing — a stale write lands silently, and `TryUpdateRevision`
+drops nothing. The two routes are documented as equivalent in Fisher and are not; tracked as
+[JasperFx/fisher#228](https://github.com/JasperFx/fisher/issues/228). Use `IRevisioned` until that
+is fixed.
+:::
+
+::: tip
+Fisher has no `InsertObjects` / `DeleteObjects`, no `UpdateExpectedVersion`, and no
+`UnArchiveStream` / `TombstoneStream` (those last two are Polecat's own), so there is no `FisherOps`
+factory for any of them. Its revision API is `int`-based rather than `long`, and `FisherOps` takes
+`int` to match rather than widening it to a value the store cannot hold.
+:::
+
 ## What is not supported yet
 
 Wolverine.Fisher is deliberately narrower than the Marten and Polecat integrations in its first

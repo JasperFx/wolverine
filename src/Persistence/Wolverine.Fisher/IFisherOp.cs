@@ -21,6 +21,39 @@ public interface IFisherOp : ISideEffect
     void Execute(IDocumentSession session);
 }
 
+/// <summary>
+/// A Fisher side effect that can be pointed at a tenant other than the one the current
+/// session belongs to
+/// </summary>
+public interface ITenantedFisherOp : IFisherOp
+{
+    /// <summary>
+    /// Optional tenant id. When set, the operation is applied through IDocumentSession.ForTenant()
+    /// </summary>
+    string? TenantId { get; set; }
+}
+
+public static class FisherOpExtensions
+{
+    /// <summary>
+    /// Scope this Fisher side effect to a specific tenant, as an alternative to the
+    /// tenantId overloads on the FisherOps factory methods
+    /// </summary>
+    /// <param name="op"></param>
+    /// <param name="tenantId"></param>
+    /// <returns>The same op, so this can be chained onto a FisherOps call</returns>
+    public static TOp ForTenant<TOp>(this TOp op, string tenantId) where TOp : ITenantedFisherOp
+    {
+        if (tenantId == null)
+        {
+            throw new ArgumentNullException(nameof(tenantId));
+        }
+
+        op.TenantId = tenantId;
+        return op;
+    }
+}
+
 internal class FisherOpPolicy : IChainPolicy
 {
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
@@ -69,7 +102,7 @@ internal class ForEachFisherOpFrame : SyncFrame
 /// <summary>
 /// Access to Fisher related side effect return values from message handlers
 /// </summary>
-public static class FisherOps
+public static partial class FisherOps
 {
     /// <summary>
     /// Begin a fluent declaration of a data requirement against a Fisher document. Pair with
@@ -318,7 +351,7 @@ public interface IStartStream : IFisherOp
     IReadOnlyList<object> Events { get; }
 }
 
-public class StartStream<T> : IStartStream where T : class
+public class StartStream<T> : IStartStream, ITenantedFisherOp where T : class
 {
     public string StreamKey { get; } = string.Empty;
     public Guid StreamId { get; }
@@ -502,7 +535,7 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
     public override void Execute(IDocumentSession session) { ResolveSession(session).Delete(_document); }
 }
 
-public class DeleteDocById<T> : IFisherOp where T : class
+public class DeleteDocById<T> : ITenantedFisherOp where T : class
 {
     private readonly object _id;
 
@@ -528,7 +561,7 @@ public class DeleteDocById<T> : IFisherOp where T : class
     }
 }
 
-public class DeleteDocWhere<T> : IFisherOp where T : class
+public class DeleteDocWhere<T> : ITenantedFisherOp where T : class
 {
     private readonly Expression<Func<T, bool>> _expression;
 
@@ -547,7 +580,7 @@ public class DeleteDocWhere<T> : IFisherOp where T : class
     }
 }
 
-public abstract class DocumentOp : IFisherOp
+public abstract class DocumentOp : ITenantedFisherOp
 {
     public object Document { get; }
 
@@ -570,7 +603,7 @@ public abstract class DocumentOp : IFisherOp
     public abstract void Execute(IDocumentSession session);
 }
 
-public interface IDocumentsOp : IFisherOp
+public interface IDocumentsOp : ITenantedFisherOp
 {
     IReadOnlyList<object> Documents { get; }
 }
