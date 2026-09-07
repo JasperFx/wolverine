@@ -541,6 +541,33 @@
   optimistic-concurrency safe: the replace is guarded by the ETag of the read and retried on a 412
   (a peer bumped the sequence first) or a 409 (a peer created the missing sequence document first).
 
+### WolverineFx.Marten
+
+- **`MartenOps` closes the gap with Marten's own `IDocumentOperations`.** `MartenOps` covered
+  store/insert/update/delete plus `StartStream`, so a handler wanting any of the rest of Marten's
+  session API had to inject an `IDocumentSession` and give up being a pure function. Added side
+  effects for everything on `IDocumentOperations` that fits the synchronous `IMartenOp` shape:
+  `HardDelete` (document or `string`/`Guid`/`int`/`long` id) and `HardDeleteWhere`,
+  `UndoDeleteWhere`, `InsertObjects` and `DeleteObjects` alongside the existing `StoreObjects`,
+  `UpdateExpectedVersion` / `UpdateRevision` / `TryUpdateRevision`, `Patch` and `PatchWhere` over
+  Marten's fluent patch API, `QueueSqlCommand` in both its `?` and custom-placeholder forms, and
+  `Append` (optionally with an expected stream version) and `ArchiveStream` for a stream that
+  already exists. `QueueOperation(IStorageOperation)` and `Events.OverwriteEvent` are deliberately
+  left to a hand-written `IMartenOp`.
+- **Tenant scoping is one mechanism instead of an overload per factory.** The existing pattern is a
+  `tenantId` overload on each factory - 12 extra methods for the original 6 ops, and the parameter
+  lands in a different position depending on the method because `params` has to come last. Every op
+  now implements `ITenantedMartenOp`, and a single generic `ForTenant()` extension scopes it while
+  preserving the concrete return type, so it still chains with `With()`. The existing overloads are
+  untouched.
+- **Two invariants moved to construction time.** Marten's `HardDelete<T>()` and `Patch<T>()` have no
+  `object`-typed id overload to fall back on the way `Delete<T>()` does, so an id type they cannot
+  dispatch is now rejected by the factory rather than surfacing inside `SaveChangesAsync()` long
+  after the handler returned a side effect that looked valid. And `Append` / `ArchiveStream`
+  discriminate Guid identity from string identity on `StreamId == Guid.Empty` - the same sentinel
+  `StartStream<T>` uses - so both refuse `Guid.Empty` and an empty stream key instead of silently
+  taking the wrong branch.
+
 ### Dependencies
 
 - JasperFx, JasperFx.Events, JasperFx.Events.SourceGenerator and JasperFx.SourceGenerator to

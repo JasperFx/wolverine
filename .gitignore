@@ -252,3 +252,6 @@ JasperSamples
 
 .nuke/build.schema.json
 .claude/scheduled_tasks.lock
+
+# git worktrees created inside the repo
+.claude/worktrees/
