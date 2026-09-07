@@ -239,6 +239,63 @@ get full access to gRPC-specific properties (`ProtoServiceName`, `ServiceContrac
 without casting. It is called after `AddMiddleware<T>()` weaving, during the same bootstrapping
 pass as handler and HTTP chain policies.
 
+## Endpoint metadata and `[Authorize]`
+
+Everything above runs *inside* the generated method — which is the wrong side of the router for
+authorization. `AuthorizationMiddleware` decides from the endpoint's own metadata, before the
+method is entered, so a gRPC `Interceptor` or a Wolverine middleware can only re-implement the
+decision, not participate in it: the endpoint carries no policy, a fallback policy cannot back it
+up, and default-deny stops being a router guarantee.
+
+Wolverine generates the type that gets mapped, so an `[Authorize]` on your hand-written service
+class is never seen by the router either. `ConfigureEndpoints` is the seam that reaches the real
+ASP.NET endpoint — the gRPC counterpart to
+[`WolverineHttpOptions.ConfigureEndpoints`](../http/policies):
+
+```csharp
+builder.Services.AddWolverineGrpc(grpc =>
+{
+    // every Wolverine-managed gRPC endpoint, one line
+    grpc.RequireAuthorizeOnAll("scanner");
+
+    // or reach the endpoint yourself
+    grpc.ConfigureEndpoints(chain =>
+    {
+        if (chain.ServiceType == typeof(IScannerService))
+        {
+            chain.RequireAuthorization("scanner");
+        }
+    });
+});
+```
+
+The lambda takes `IGrpcChain`, which is what the three chain kinds have in common for this purpose:
+an `IChain` for the middleware pipeline, an `IEndpointConventionBuilder` for endpoint metadata, and
+`ServiceType` — the stub, the `[ServiceContract]` interface, or the service class the chain was
+built from. Per-RPC targeting needs nothing new, because every gRPC endpoint already carries
+`GrpcMethodMetadata`:
+
+```csharp
+grpc.ConfigureEndpoints(chain => chain.Add(builder =>
+{
+    var method = builder.Metadata.OfType<GrpcMethodMetadata>().FirstOrDefault();
+    if (method?.Method.Name == "MatchTemplates")
+    {
+        builder.Metadata.Add(new AuthorizeAttribute("scanner"));
+    }
+}));
+```
+
+With this, `[Authorize]` and the constants that name your policies can move off the
+`[ServiceContract]` assembly your clients reference, and ASP.NET's `AuthorizationMiddleware` stays
+the enforcer.
+
+::: warning
+This reaches the chains Wolverine *generates* a type for. A hand-written service class that
+Wolverine maps directly — one with no `HandWrittenGrpcServiceChain` — has no chain to configure;
+put conventions on it where you map it.
+:::
+
 ## Observability
 
 The service shim invokes `IMessageBus` on the same `ExecutionContext` as the inbound gRPC request,

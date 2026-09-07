@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Grpc.Core;
+using Microsoft.AspNetCore.Builder;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Grpc.MultiTenancy;
@@ -104,6 +105,56 @@ public sealed class WolverineGrpcOptions
         Policies.Add(policy);
         return this;
     }
+
+    /// <summary>
+    ///     Apply an ASP.NET endpoint convention to every Wolverine-managed gRPC chain — proto-first,
+    ///     code-first and hand-written alike. The gRPC counterpart to
+    ///     <c>WolverineHttpOptions.ConfigureEndpoints</c> (GH-4383).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The lambda takes <see cref="IGrpcChain"/> because the three chain kinds close
+    ///         <c>Chain&lt;TSelf, TAttribute&gt;</c> over different attribute types and share no ancestor
+    ///         of their own. <see cref="IGrpcChain.ServiceType"/> is the type the chain was built from,
+    ///         so a convention can target one service; per-RPC targeting needs nothing new, because
+    ///         every gRPC endpoint already carries <c>GrpcMethodMetadata</c> and a convention can match
+    ///         on <c>Method.Name</c> without any route-string matching.
+    ///     </para>
+    ///     <para>
+    ///         ⚠️ This reaches the chains Wolverine <em>generates</em> a type for. A hand-written service
+    ///         class that Wolverine maps directly — one with no <c>HandWrittenGrpcServiceChain</c> — has
+    ///         no chain to configure and is untouched; put conventions on it where you map it.
+    ///     </para>
+    /// </remarks>
+    /// <param name="configure">The convention, applied to each chain before its endpoint is mapped.</param>
+    public WolverineGrpcOptions ConfigureEndpoints(Action<IGrpcChain> configure)
+    {
+        return AddPolicy(new LambdaGrpcChainPolicy((protoFirst, codeFirst, handWritten, _, _) =>
+        {
+            foreach (var chain in protoFirst) configure(chain);
+            foreach (var chain in codeFirst) configure(chain);
+            foreach (var chain in handWritten) configure(chain);
+        }));
+    }
+
+    /// <summary>
+    ///     Equivalent of calling <c>RequireAuthorization()</c> on every Wolverine-managed gRPC endpoint,
+    ///     mirroring <c>WolverineHttpOptions.RequireAuthorizeOnAll</c>.
+    /// </summary>
+    /// <remarks>
+    ///     This puts the policy on the <em>endpoint</em>, so ASP.NET's <c>AuthorizationMiddleware</c>
+    ///     is the enforcer and a fallback policy still backs it up. A gRPC <c>Interceptor</c> or
+    ///     Wolverine middleware cannot do that job: both run inside the generated method, long after
+    ///     the router has decided.
+    /// </remarks>
+    /// <param name="policyNames">Authorization policy names, or none for the default policy.</param>
+    public WolverineGrpcOptions RequireAuthorizeOnAll(params string[] policyNames)
+    {
+        return policyNames.Length == 0
+            ? ConfigureEndpoints(c => c.RequireAuthorization())
+            : ConfigureEndpoints(c => c.RequireAuthorization(policyNames));
+    }
+
 
     // Ordered list so the most-recently-registered entry wins on overlap;
     // we walk it in reverse so callers can add more-specific entries after generic ones.
