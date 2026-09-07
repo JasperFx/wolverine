@@ -204,7 +204,7 @@ public static class WolverineGrpcExtensions
                     + $"Generated source was:\n{chain.SourceCode}");
             }
 
-            MapGrpcServiceMethod.MakeGenericMethod(chain.GeneratedType).Invoke(null, [endpoints]);
+            mapAndApplyConventions(endpoints, chain.GeneratedType, chain.ApplyEndpointConventions);
         }
 
         foreach (var chain in graph.CodeFirstChains)
@@ -218,7 +218,7 @@ public static class WolverineGrpcExtensions
                     + $"Generated source was:\n{chain.SourceCode}");
             }
 
-            MapGrpcServiceMethod.MakeGenericMethod(chain.GeneratedType).Invoke(null, [endpoints]);
+            mapAndApplyConventions(endpoints, chain.GeneratedType, chain.ApplyEndpointConventions);
         }
 
         foreach (var chain in graph.HandWrittenChains)
@@ -232,8 +232,26 @@ public static class WolverineGrpcExtensions
                     + $"Generated source was:\n{chain.SourceCode}");
             }
 
-            MapGrpcServiceMethod.MakeGenericMethod(chain.GeneratedType).Invoke(null, [endpoints]);
+            mapAndApplyConventions(endpoints, chain.GeneratedType, chain.ApplyEndpointConventions);
         }
+    }
+
+    /// <summary>
+    ///     GH-4383. <c>MapGrpcService&lt;T&gt;</c> hands back a
+    ///     <c>GrpcServiceEndpointConventionBuilder</c>, and all three mapping loops used to drop it on the
+    ///     floor -- which is why there was no way, from anywhere, to attach a convention to a
+    ///     Wolverine-mapped gRPC endpoint. Wolverine generates the type that gets mapped, so an
+    ///     <c>[Authorize]</c> on a hand-written service class is invisible to the router and the only
+    ///     place a policy was ever picked up was the <c>[ServiceContract]</c> interface.
+    /// </summary>
+    private static void mapAndApplyConventions(IEndpointRouteBuilder endpoints, Type generatedType,
+        Action<IEndpointConventionBuilder> applyConventions)
+    {
+        var builder = (IEndpointConventionBuilder)MapGrpcServiceMethod
+            .MakeGenericMethod(generatedType)
+            .Invoke(null, [endpoints])!;
+
+        applyConventions(builder);
     }
 
     /// <summary>

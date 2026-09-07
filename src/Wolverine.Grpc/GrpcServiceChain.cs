@@ -21,7 +21,7 @@ namespace Wolverine.Grpc;
 ///     <see cref="IMessageBus.StreamAsync{T}"/>, client streaming →
 ///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}"/>.
 /// </summary>
-public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAttribute>, ICodeFile
+public partial class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAttribute>, ICodeFile
 {
     private readonly GrpcGraph _parent;
     private GeneratedType? _generatedType;

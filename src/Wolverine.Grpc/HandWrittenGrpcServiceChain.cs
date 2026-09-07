@@ -23,7 +23,7 @@ namespace Wolverine.Grpc;
 ///     <c>[WolverineBefore]</c> / <c>[WolverineAfter]</c> middleware, then delegates each call to
 ///     an injected instance of the user's class.
 /// </summary>
-public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, ModifyHandWrittenGrpcServiceChainAttribute>,
+public partial class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, ModifyHandWrittenGrpcServiceChainAttribute>,
     ICodeFile
 {
     private GeneratedType? _generatedType;

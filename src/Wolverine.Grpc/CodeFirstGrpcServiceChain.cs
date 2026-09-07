@@ -28,7 +28,7 @@ namespace Wolverine.Grpc;
 ///             <see cref="IMessageBus.StreamAsync{TRequest, TResponse}"/></item>
 ///     </list>
 /// </summary>
-public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, ModifyCodeFirstGrpcServiceChainAttribute>,
+public partial class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, ModifyCodeFirstGrpcServiceChainAttribute>,
     ICodeFile
 {
     private static readonly PropertyInfo CallContextCancellationTokenProperty =
