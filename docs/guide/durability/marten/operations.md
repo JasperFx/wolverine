@@ -123,6 +123,23 @@ public static DeleteDocWhere<TempRecord> Handle(CleanupTenant command)
 
 All existing method signatures are unchanged — the tenant overloads are purely additive.
 
+### Scoping Any Operation to a Tenant <Badge type="tip" text="6.35" />
+
+Rather than growing a parallel `tenantId` overload for every factory method, any `MartenOps`
+operation can be pointed at a tenant with `ForTenant()`:
+
+```csharp
+public static IMartenOp Handle(ArchiveTenantOrder command)
+{
+    return MartenOps.ArchiveStream(command.OrderId).ForTenant(command.TenantId);
+}
+```
+
+`ForTenant()` returns the same operation with its concrete type intact, so it composes with the
+fluent `With()` methods and can still be returned as a specific type. It works on every built-in
+operation and on your own `IMartenOp` implementations as soon as they implement
+`ITenantedMartenOp`.
+
 There's also a specific helper for starting a new event stream as shown below:
 
 <!-- snippet: sample_using_start_stream_side_effect -->
@@ -183,6 +200,160 @@ type of `IMartenOp` is a side effect.
 
 Like any other "side effect", you could technically return this as the main return type of a method or as part of a
 tuple.
+
+## Hard Deletes and Undoing Soft Deletes <Badge type="tip" text="6.35" />
+
+For a [soft-deleted](https://martendb.io/documents/deletes.html#soft-deletes) document type,
+`MartenOps.Delete()` only marks the document as deleted. Use `MartenOps.HardDelete()` to remove
+the underlying database row, and `MartenOps.UndoDeleteWhere()` to reverse a soft deletion:
+
+```csharp
+// Hard delete by document
+public static IMartenOp Handle(PurgeInvoice command, Invoice invoice)
+{
+    return MartenOps.HardDelete(invoice);
+}
+
+// Hard delete by id - string, Guid, int, and long ids are all supported
+public static IMartenOp Handle(PurgeInvoiceById command)
+{
+    return MartenOps.HardDelete<Invoice>(command.InvoiceId);
+}
+
+// Hard delete everything matching a filter
+public static IMartenOp Handle(PurgeOldInvoices command)
+{
+    return MartenOps.HardDeleteWhere<Invoice>(x => x.CreatedAt < command.Cutoff);
+}
+
+// Bring soft-deleted documents back
+public static IMartenOp Handle(RestoreInvoices command)
+{
+    return MartenOps.UndoDeleteWhere<Invoice>(x => x.CustomerId == command.CustomerId);
+}
+```
+
+::: warning
+Marten's `HardDelete<T>()` only accepts `string`, `Guid`, `int`, and `long` identities — it has no
+`object` overload to fall back on the way `Delete<T>()` does. Passing anything else (a strongly
+typed id, say) throws an `ArgumentOutOfRangeException` from the `MartenOps` factory rather than
+failing later inside `SaveChangesAsync()`.
+:::
+
+## Mixed Document Batches <Badge type="tip" text="6.35" />
+
+`MartenOps.InsertObjects()` and `MartenOps.DeleteObjects()` are the insert and delete counterparts
+of `StoreObjects()`, and support the same fluent `With()` methods:
+
+```csharp
+public static IMartenOp Handle(CreateOrder command)
+{
+    return MartenOps.InsertObjects(new Order { Id = command.OrderId })
+        .With(new AuditLog { Action = "Created" });
+}
+```
+
+Where `StoreObjects()` upserts, `InsertObjects()` will fail the transaction if any of the documents
+already exist.
+
+## Revision-Checked Updates <Badge type="tip" text="6.35" />
+
+For document types using Marten's [numeric revisioning](https://martendb.io/documents/concurrency.html),
+these operations carry the expected revision into the update:
+
+```csharp
+// Fails with a ConcurrencyException if the stored revision is >= the supplied one
+public static IMartenOp Handle(ReviseInvoice command, Invoice invoice)
+{
+    return MartenOps.UpdateRevision(invoice, command.Revision);
+}
+
+// Same check, but silently does nothing instead of throwing
+public static IMartenOp Handle(MaybeReviseInvoice command, Invoice invoice)
+{
+    return MartenOps.TryUpdateRevision(invoice, command.Revision);
+}
+
+// The Guid-versioned equivalent for types using Marten's optimistic concurrency
+public static IMartenOp Handle(UpdateInvoice command, Invoice invoice)
+{
+    return MartenOps.UpdateExpectedVersion(invoice, command.Version);
+}
+```
+
+## Patching <Badge type="tip" text="6.35" />
+
+`MartenOps.Patch()` and `MartenOps.PatchWhere()` wrap Marten's
+[patching API](https://martendb.io/documents/patching.html), so a handler can modify a stored
+document without loading it first. The lambda is applied to Marten's fluent patch expression when
+the side effect executes:
+
+```csharp
+// Patch a single document by id
+public static IMartenOp Handle(MarkInvoicePaid command)
+{
+    return MartenOps.Patch<Invoice>(command.InvoiceId, x => x.Set(i => i.Paid, true));
+}
+
+// Patch every document matching a filter
+public static IMartenOp Handle(ReassignInvoices command)
+{
+    return MartenOps.PatchWhere<Invoice>(
+        x => x.CustomerId == command.OldCustomerId,
+        x => x.Set(i => i.CustomerId, command.NewCustomerId));
+}
+```
+
+As with `HardDelete()`, the by-id overloads accept `string`, `Guid`, `int`, and `long` identities.
+
+## Raw SQL <Badge type="tip" text="6.35" />
+
+`MartenOps.QueueSqlCommand()` enlists a raw SQL statement into the same batched unit of work as the
+rest of the handler's Marten operations, so it commits or rolls back with them. Use `?` for
+positional parameters, or supply your own placeholder character:
+
+```csharp
+public static IMartenOp Handle(RecordInvoiceMetric command)
+{
+    return MartenOps.QueueSqlCommand(
+        "insert into invoice_metrics (invoice_id, amount) values (?, ?)",
+        command.InvoiceId, command.Amount);
+}
+```
+
+## Appending to and Archiving an Existing Stream <Badge type="tip" text="6.35" />
+
+`MartenOps.StartStream()` covers new streams. To append to a stream that already exists, or to
+archive one, use `MartenOps.Append()` and `MartenOps.ArchiveStream()`:
+
+```csharp
+// Append to a stream, by Guid id or string key
+public static IMartenOp Handle(RecordShipment command)
+{
+    return MartenOps.Append(command.OrderId, new OrderShipped(command.ShippedAt));
+}
+
+// Append with an optimistic concurrency check on the stream version
+public static IMartenOp Handle(RecordShipmentAtVersion command)
+{
+    return MartenOps.Append(command.OrderId, command.ExpectedVersion,
+        new OrderShipped(command.ShippedAt));
+}
+
+// Archive a completed stream
+public static IMartenOp Handle(CloseOrder command)
+{
+    return MartenOps.ArchiveStream(command.OrderId);
+}
+```
+
+::: tip
+If the handler is working on an aggregate of its own, prefer the
+[aggregate handler workflow](/guide/durability/marten/event-sourcing) — `[WriteAggregate]` and the
+`Events` return type give you the aggregate state and its concurrency protection as well. These
+side effects are for the other case: touching some *other* stream from a handler that has no
+aggregate of its own.
+:::
 
 ## Data Requirements <Badge type="tip" text="5.13" />
 

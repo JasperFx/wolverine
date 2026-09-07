@@ -28,6 +28,39 @@ public interface IMartenOp : ISideEffect
 
 #endregion
 
+/// <summary>
+/// A Marten side effect that can be pointed at a tenant other than the one the current
+/// session belongs to
+/// </summary>
+public interface ITenantedMartenOp : IMartenOp
+{
+    /// <summary>
+    /// Optional tenant id. When set, the operation is applied through IDocumentSession.ForTenant()
+    /// </summary>
+    string? TenantId { get; set; }
+}
+
+public static class MartenOpExtensions
+{
+    /// <summary>
+    /// Scope this Marten side effect to a specific tenant, as an alternative to the
+    /// tenantId overloads on the MartenOps factory methods
+    /// </summary>
+    /// <param name="op"></param>
+    /// <param name="tenantId"></param>
+    /// <returns>The same op, so this can be chained onto a MartenOps call</returns>
+    public static TOp ForTenant<TOp>(this TOp op, string tenantId) where TOp : ITenantedMartenOp
+    {
+        if (tenantId == null)
+        {
+            throw new ArgumentNullException(nameof(tenantId));
+        }
+
+        op.TenantId = tenantId;
+        return op;
+    }
+}
+
 internal class MartenOpPolicy : IChainPolicy
 {
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
@@ -110,7 +143,7 @@ internal class ForEachMartenOpFrame : SyncFrame
 /// <summary>
 /// Access to Marten related side effect return values from message handlers
 /// </summary>
-public static class MartenOps
+public static partial class MartenOps
 {
     /// <summary>
     /// Return a side effect of storing the specified document in Marten
@@ -509,7 +542,7 @@ public interface IStartStream : IMartenOp
     IReadOnlyList<object> Events { get; }
 }
 
-public class StartStream<T> : IStartStream where T : class
+public class StartStream<T> : IStartStream, ITenantedMartenOp where T : class
 {
     public string StreamKey { get; } = string.Empty;
     public Guid StreamId { get; }
@@ -723,7 +756,7 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
     }
 }
 
-public class DeleteDocById<T> : IMartenOp where T : notnull
+public class DeleteDocById<T> : ITenantedMartenOp where T : notnull
 {
     private readonly object _id;
 
@@ -766,7 +799,7 @@ public class DeleteDocById<T> : IMartenOp where T : notnull
     }
 }
 
-public class DeleteDocWhere<T> : IMartenOp where T : notnull
+public class DeleteDocWhere<T> : ITenantedMartenOp where T : notnull
 {
     private readonly Expression<Func<T, bool>> _expression;
 
@@ -792,7 +825,7 @@ public class DeleteDocWhere<T> : IMartenOp where T : notnull
     }
 }
 
-public abstract class DocumentOp : IMartenOp
+public abstract class DocumentOp : ITenantedMartenOp
 {
     public object Document { get; }
 
@@ -823,7 +856,7 @@ public abstract class DocumentOp : IMartenOp
     public abstract void Execute(IDocumentSession session);
 }
 
-public interface IDocumentsOp : IMartenOp
+public interface IDocumentsOp : ITenantedMartenOp
 {
     IReadOnlyList<object> Documents { get; }
 }
