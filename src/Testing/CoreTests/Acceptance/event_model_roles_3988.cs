@@ -23,12 +23,14 @@ public class event_model_roles_on_chains_3988
         => HandlerChain.For(expression, new HandlerGraph());
 
     [Fact]
-    public void a_plain_handler_with_a_cascading_message_is_a_command_slice_publishing_a_message()
+    public void a_plain_handler_with_a_cascading_message_publishes_a_message_and_leaves_the_pattern_unclaimed()
     {
         var slice = EventModelRoles.ForHandlerChain(chainFor<PlaceOrderHandler>(x => PlaceOrderHandler.Handle(null!)));
 
         slice.Name.ShouldBe(nameof(PlaceOrder));
-        slice.Pattern.ShouldBe(SlicePattern.Command);
+        // GH-4387: a message handler cannot say whether it is a Command or an Automation, so it says
+        // nothing and an overlay's declaration survives
+        slice.Pattern.ShouldBeNull();
         slice.TriggerKind.ShouldBe(TriggerKind.MessageHandler);
         slice.CommandType!.Name.ShouldBe(nameof(PlaceOrder));
         slice.HandlerType!.Name.ShouldBe(nameof(PlaceOrderHandler));
@@ -45,7 +47,7 @@ public class event_model_roles_on_chains_3988
         slice.AggregateTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });
         slice.EmittedEvents.Select(x => x.Name).ShouldBe(new[] { nameof(OrderShipped) });
         slice.PublishedMessages.ShouldBeEmpty();
-        slice.Pattern.ShouldBe(SlicePattern.Command);
+        slice.Pattern.ShouldBeNull(); // GH-4387
     }
 
     [Fact]
@@ -125,12 +127,14 @@ public class event_model_roles_on_chains_3988
     {
         var ship = EventModelRoles.ForHandlerChain(chainFor<ShipOrderHandler>(x => ShipOrderHandler.Handle(null!, null!)));
         var reaction = EventModelRoles.ForHandlerChain(chainFor<OrderShippedHandler>(x => OrderShippedHandler.Handle(null!)));
-        reaction.Pattern.ShouldBe(SlicePattern.Command); // on its own it looks like a command slice
+        reaction.Pattern.ShouldBeNull(); // on its own the chain cannot tell you which pattern it is
 
         var model = WolverineEventModelSource.FinishModel(new EventModelDescriptor("app", new[] { ship, reaction }));
 
+        // the whole model is the evidence: this slice's command is an event another slice emits
         model.Slices.Single(x => x.Name == nameof(OrderShipped)).Pattern.ShouldBe(SlicePattern.Automation);
-        model.Slices.Single(x => x.Name == nameof(ShipOrder)).Pattern.ShouldBe(SlicePattern.Command);
+        // and nothing says that about this one, so it stays unclaimed rather than guessing Command
+        model.Slices.Single(x => x.Name == nameof(ShipOrder)).Pattern.ShouldBeNull();
     }
 
     [Fact]
@@ -269,7 +273,9 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
 
         // the wire shape CritterWatch serialises: camelCase, enums as strings, rendering contract present
         json.ShouldContain("\"triggerKind\": \"MessageHandler\"");
-        json.ShouldContain("\"pattern\": \"Command\"");
+        // GH-4387: the scheduled slice is the one that claims a pattern here; a plain message handler
+        // does not, so the enum-as-string check rides on the timeout handler
+        json.ShouldContain("\"pattern\": \"Automation\"");
         json.ShouldContain("\"elements\"");
         json.ShouldContain("\"edges\"");
 
@@ -279,7 +285,7 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
         var slice = back.Slices.Single(x => x.Name == nameof(PlaceOrder));
         slice.CommandType!.FullName.ShouldBe(typeof(PlaceOrder).FullName);
         slice.TriggerKind.ShouldBe(TriggerKind.MessageHandler);
-        slice.Pattern.ShouldBe(SlicePattern.Command);
+        slice.Pattern.ShouldBeNull(); // GH-4387
         slice.PublishedMessages.Select(x => x.Name).ShouldBe(new[] { nameof(OrderPlacedNotification) });
         slice.TriggerLabel.ShouldBe("UI: Place order");
         slice.Elements.Count.ShouldBe(model.Slices.Single(x => x.Name == nameof(PlaceOrder)).Elements.Count);

@@ -39,12 +39,24 @@ public static class WolverineEventModelExport
     ///     <see cref="EventModelDiscovery" /> and fold the result into one model named for the service
     ///     (or <paramref name="modelName" />).
     /// </summary>
+    /// <remarks>
+    ///     GH-4385: the descriptors go through <see cref="EventModelSliceAlignment" /> first, so a declared
+    ///     model and the code it describes merge on the handler type they agree about rather than sliding
+    ///     past each other on names they were never going to compute the same way.
+    ///     <para>
+    ///     This walks <see cref="EventModelDiscovery.DiscoverAsync" /> rather than its <c>AssembleAsync</c>
+    ///     sibling for that reason alone — <c>AssembleAsync</c> folds by model name on the way out, and the
+    ///     alignment has to see the sources before anything merges. Everything lands in one model named for
+    ///     the service either way, so the assembled result is the same.
+    ///     </para>
+    /// </remarks>
     public static async Task<EventModelDescriptor> AssembleAsync(IServiceProvider services, string? modelName = null,
         CancellationToken token = default)
     {
-        var assembled = await EventModelDiscovery.AssembleAsync(services, token).ConfigureAwait(false);
+        var discovered = await EventModelDiscovery.DiscoverAsync(services, token).ConfigureAwait(false);
+        var aligned = EventModelSliceAlignment.AlignSliceNames(discovered);
         var name = modelName ?? services.GetService<WolverineOptions>()?.ServiceName ?? "Wolverine";
-        return EventModelDescriptor.Merge(name, assembled);
+        return EventModelDescriptor.Merge(name, aligned);
     }
 
     /// <summary>Serialize a model with <see cref="SerializerOptions" />.</summary>

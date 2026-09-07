@@ -147,6 +147,16 @@ public static class EventModelRoles
             roles.IsEventSourced = true;
         }
 
+        // GH-4386. StartStream / AppendEvents are ISideEffectAware, so isEventOrMessageCandidate
+        // rejects them and the chain was not even recorded as appending events. It plainly does.
+        // Kept apart from IsEventSourced on purpose: this says nothing about how the chain's OTHER
+        // return values should read, and folding it in would flip a cascaded message of a handler
+        // that only starts a stream into an emitted event of it.
+        if (returnTypes.Any(isEventAppendingSideEffect))
+        {
+            roles.AppendsThroughSideEffect = true;
+        }
+
         foreach (var type in returnTypes)
         {
             if (isUntypedEventCollection(type)) continue;
@@ -176,8 +186,8 @@ public static class EventModelRoles
             }
         }
 
-        var pattern = SlicePattern.Command;
-        if (seed.IsQuery && !roles.IsEventSourced && roles.EmittedEvents.Count == 0 &&
+        SlicePattern? pattern = SlicePattern.Command;
+        if (seed.IsQuery && !roles.AppendsEvents && roles.EmittedEvents.Count == 0 &&
             roles.PublishedMessages.Count == 0)
         {
             pattern = SlicePattern.View;
@@ -185,6 +195,29 @@ public static class EventModelRoles
             {
                 roles.ReadModels.Add(readModelOf(response));
             }
+        }
+        else if (seed.TriggerKind == TriggerKind.JobScheduler)
+        {
+            // A schedule with nobody in the loop is the textbook Automation: "events *or a schedule*
+            // → processor → command / message", in SlicePattern's own words. Derived, not guessed —
+            // the trigger kind says it outright.
+            pattern = SlicePattern.Automation;
+        }
+        else if (seed.TriggerKind == TriggerKind.MessageHandler)
+        {
+            // GH-4387. Pattern is deliberately NOT claimed for a message handler, for the reason
+            // GH-4181 left TriggerLabel unclaimed. An inbound message that appends events is a Command
+            // slice or an Automation slice depending on *why* it arrived — a person asked for it, or
+            // the system reacted to something — and a handler signature cannot tell the two apart.
+            // Claiming Command unconditionally put the Derived rung on a role only a declaration can
+            // fill, where per-role precedence (jasperfx#703) made the guess beat the board and minted
+            // a SourceDisagreement hotspot per automation for the privilege.
+            //
+            // Nothing is lost where the code CAN answer: WolverineEventModelSource.FinishModel still
+            // promotes a slice whose command is an event another slice emits to Automation, and an
+            // inbound external system still makes the slice a Translation. Both claim the role from
+            // evidence rather than from the absence of it.
+            pattern = null;
         }
 
         // GH-4181. TriggerLabel is deliberately NOT claimed here. Every structural fact a derived
@@ -298,6 +331,20 @@ public static class EventModelRoles
         Justification = "Handler, message and return types come from handler discovery, which already roots them; Closes() only reads interfaces. Diagnostic surface only.")]
     private static void readSignature(IChain chain, MethodCall call, RoleSet roles)
     {
+        // GH-4386. [Emits] is the one *declaration* this reader honours, and only because the fact it
+        // carries cannot be read any other way: the events a handler returns through EventsToAppend,
+        // the store's Events collection or StartStream are constructed in the method body, so the
+        // element types are erased before reflection ever sees them. Additive — the signature still
+        // says everything it can — and read from the method and the handler type alike.
+        foreach (var emits in call.Method.GetCustomAttributes<EmitsAttribute>(true)
+                     .Concat(call.HandlerType.GetCustomAttributes<EmitsAttribute>(true)))
+        {
+            foreach (var eventType in emits.EventTypes)
+            {
+                if (eventType != null) roles.EmittedEvents.Add(eventType);
+            }
+        }
+
         // [DeciderFunction] / [AggregateHandler] on the method or the handler type: the aggregate
         // is the one the attribute names, else the one the workflow would infer from the signature
         var decider = call.Method.GetAttribute<DeciderFunctionAttribute>()
@@ -456,6 +503,15 @@ public static class EventModelRoles
         }
     }
 
+    /// <summary>
+    ///     A return value that appends events as a <em>side effect</em> — the store-agnostic
+    ///     <see cref="StartStream" /> and <see cref="AppendEvents" />. The events ride inside the object and
+    ///     are constructed in the handler body, so they cannot be read here; <c>[Emits]</c> is how a handler
+    ///     names them. GH-4386.
+    /// </summary>
+    private static bool isEventAppendingSideEffect(Type type)
+        => type.CanBeCastTo<StartStream>() || type.CanBeCastTo<AppendEvents>();
+
     private static bool isUntypedEventCollection(Type type)
     {
         if (type == typeof(IAsyncEnumerable<object>)) return true;
@@ -494,6 +550,19 @@ public static class EventModelRoles
         /// the stream and never appear as return values. GH-4204.
         /// </summary>
         public bool AppendsThroughStream { get; set; }
+
+        /// <summary>
+        /// The chain returns a <see cref="StartStream" /> / <see cref="AppendEvents" /> side effect, so it
+        /// appends events even though nothing on the signature is an event. GH-4386.
+        /// </summary>
+        public bool AppendsThroughSideEffect { get; set; }
+
+        /// <summary>
+        /// Does this chain append events at all, however it does it? <see cref="IsEventSourced" /> answers
+        /// the narrower question the return-value classification asks — "is the chain event sourced in a way
+        /// that makes its other returns events?" — and is deliberately not the same thing.
+        /// </summary>
+        public bool AppendsEvents => IsEventSourced || AppendsThroughSideEffect;
         public List<Type> Aggregates { get; } = new();
         public Dictionary<Type, AggregateKind> AggregateKinds { get; } = new();
         public OrderedTypeSet EmittedEvents { get; } = new();

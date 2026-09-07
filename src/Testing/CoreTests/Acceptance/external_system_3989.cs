@@ -126,9 +126,10 @@ public class external_system_3989 : IAsyncLifetime
         // a pure relay — no aggregate, no events of its own — is a translation slice
         slice.Pattern.ShouldBe(SlicePattern.Translation);
 
-        // an internal subscriber is not an external system
+        // an internal subscriber is not an external system, and nothing about it claims a pattern the
+        // message handler could not derive for itself (GH-4387)
         model.Slices.Single(x => x.Name == nameof(PlaceOrder)).ExternalSystems.ShouldBeEmpty();
-        model.Slices.Single(x => x.Name == nameof(PlaceOrder)).Pattern.ShouldBe(SlicePattern.Command);
+        model.Slices.Single(x => x.Name == nameof(PlaceOrder)).Pattern.ShouldBeNull();
     }
 
     [Fact]
