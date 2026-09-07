@@ -80,9 +80,11 @@ jobs:
           grep -q '"slices"' "$out"
           grep -q '"name": "CreateIssue"' "$out"
           grep -q '"triggerKind": "MessageHandler"' "$out"
-          # GH-4387: a message handler leaves "pattern" unclaimed -- it cannot tell a Command slice
-          # from an Automation slice -- so the derived roles it CAN read are what this asserts.
           grep -q '"handlerType"' "$out"
+          # GH-4387: a message handler no longer guesses "Command" -- it cannot tell a Command slice
+          # from an Automation slice. The MODEL can, though: IssueCreated only ever arrives because
+          # CreateIssueHandler cascaded it, which is an Automation.
+          grep -q '"pattern": "Automation"' "$out"
           grep -q '"elements"' "$out"
           echo "::endgroup::"
 

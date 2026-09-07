@@ -387,27 +387,65 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         };
 
     /// <summary>
-    ///     Model-wide derivations that need every slice at once: a slice whose command is an event some
-    ///     other slice emits is an <see cref="SlicePattern.Automation" /> — the "when X, do Y" reaction — not
-    ///     a command slice.
+    ///     Model-wide derivations that need every slice at once: a slice whose command only ever arrives
+    ///     because <em>another</em> slice hands it off is an <see cref="SlicePattern.Automation" /> — the
+    ///     "when X, do Y" reaction — not a command slice.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         GH-4387: this is the evidence that lets the derived rung claim <c>Pattern</c> for a message
+    ///         handler, which <see cref="EventModelRoles.Describe" /> otherwise leaves unclaimed because a
+    ///         handler signature cannot tell a Command from an Automation. Here the <em>model</em> can:
+    ///         nothing else in this application originates the message.
+    ///     </para>
+    ///     <para>
+    ///         <b>An emitted event and a cascaded message count the same.</b> The distinction the pattern
+    ///         turns on is "did a person ask for this, or did the system react", and a message that only
+    ///         reaches a handler because another handler returned it is a reaction either way. Reading only
+    ///         <c>EmittedEvents</c> meant an application with no event sourcing at all — the shape of the
+    ///         <c>Quickstart</c> sample, and of most Wolverine services — derived no pattern on any slice.
+    ///     </para>
+    ///     <para>
+    ///         <b>Only a message-handler trigger is promoted.</b> An HTTP route, a gRPC RPC or a named
+    ///         listener already names its initiator, and a person invoking a route that some handler also
+    ///         cascades has not thereby made the route an automation. A slice whose only producer is
+    ///         <em>itself</em> is a loop, which says nothing about how the message first arrives.
+    ///     </para>
+    /// </remarks>
     public static EventModelDescriptor FinishModel(EventModelDescriptor model)
     {
-        var emitted = new HashSet<string>(
-            model.Slices.SelectMany(x => x.EmittedEvents).Select(x => x.FullName),
-            StringComparer.Ordinal);
+        // What each message type is handed off by, so a slice that merely re-publishes what it handles
+        // cannot promote itself
+        var producers = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var slice in model.Slices)
+        {
+            foreach (var type in slice.EmittedEvents.Concat(slice.PublishedMessages))
+            {
+                if (!producers.TryGetValue(type.FullName, out var names))
+                {
+                    names = new List<string>();
+                    producers[type.FullName] = names;
+                }
 
-        if (emitted.Count == 0) return model;
+                if (!names.Contains(slice.Name)) names.Add(slice.Name);
+            }
+        }
 
-        // GH-4387: an unclaimed Pattern is the message-handler default now, and this is exactly the
-        // evidence that lets the derived rung claim it — the command IS an event something else raises.
-        var slices = model.Slices
-            .Select(slice => slice.CommandType is { } command && emitted.Contains(command.FullName) &&
-                             slice.Pattern is null or SlicePattern.Command
-                ? slice with { Pattern = SlicePattern.Automation }
-                : slice)
-            .ToList();
+        if (producers.Count == 0) return model;
+
+        var slices = model.Slices.Select(promote).ToList();
 
         return model with { Slices = slices };
+
+        EventModelSliceDescriptor promote(EventModelSliceDescriptor slice)
+        {
+            if (slice.Pattern is not (null or SlicePattern.Command)) return slice;
+            if (slice.TriggerKind != TriggerKind.MessageHandler) return slice;
+            if (slice.CommandType is not { } command) return slice;
+            if (!producers.TryGetValue(command.FullName, out var names)) return slice;
+            if (names.All(x => string.Equals(x, slice.Name, StringComparison.Ordinal))) return slice;
+
+            return slice with { Pattern = SlicePattern.Automation };
+        }
     }
 }

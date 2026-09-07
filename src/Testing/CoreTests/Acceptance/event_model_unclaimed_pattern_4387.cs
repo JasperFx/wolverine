@@ -52,13 +52,70 @@ public class unclaimed_pattern_for_message_handlers_4387
 
         var react = EventModelSliceDescriptor.Named("react") with
         {
-            CommandType = TypeDescriptor.For(typeof(HomeCheckAppointmentProposed))
+            CommandType = TypeDescriptor.For(typeof(HomeCheckAppointmentProposed)),
+            TriggerKind = TriggerKind.MessageHandler
         };
 
         var model = WolverineEventModelSource.FinishModel(
             new EventModelDescriptor("app", new[] { propose, react }));
 
         model.Slices.Single(x => x.Name == "react").Pattern.ShouldBe(SlicePattern.Automation);
+    }
+
+    [Fact]
+    public void a_cascaded_message_promotes_its_handler_the_same_way_an_emitted_event_does()
+    {
+        // The shape of most Wolverine services, and of the Quickstart sample: no event sourcing at
+        // all, one handler returning a message another handler picks up. Reading only EmittedEvents
+        // meant an application like this derived no pattern on any slice.
+        var create = EventModelRoles.ForHandlerChain(chainFor<CreateIssueHandler>(
+            x => CreateIssueHandler.Handle(null!)));
+        create.PublishedMessages.Select(x => x.Name).ShouldBe(new[] { nameof(IssueCreated) });
+
+        var react = EventModelRoles.ForHandlerChain(chainFor<IssueCreatedHandler>(
+            x => IssueCreatedHandler.Handle(null!)));
+        react.Pattern.ShouldBeNull();
+
+        var model = WolverineEventModelSource.FinishModel(
+            new EventModelDescriptor("app", new[] { create, react }));
+
+        model.Slices.Single(x => x.Name == nameof(IssueCreated)).Pattern.ShouldBe(SlicePattern.Automation);
+        // nothing in the model originates CreateIssue, so that one stays unclaimed
+        model.Slices.Single(x => x.Name == nameof(CreateIssue)).Pattern.ShouldBeNull();
+    }
+
+    [Fact]
+    public void a_slice_that_republishes_what_it_handles_does_not_promote_itself()
+    {
+        // A loop says nothing about how the message first arrives, and self-promotion would make
+        // every retry-ish handler an automation
+        var loop = EventModelRoles.ForHandlerChain(chainFor<EchoHandler>(x => EchoHandler.Handle(null!)));
+
+        var model = WolverineEventModelSource.FinishModel(
+            new EventModelDescriptor("app", new[] { loop }));
+
+        model.Slices.Single().Pattern.ShouldBeNull();
+    }
+
+    [Fact]
+    public void an_http_route_is_not_promoted_just_because_a_handler_also_cascades_its_request()
+    {
+        // A person invoking a route has not been turned into an automation by something elsewhere
+        // cascading the same message
+        var create = EventModelRoles.ForHandlerChain(chainFor<CreateIssueHandler>(
+            x => CreateIssueHandler.Handle(null!)));
+
+        var route = EventModelSliceDescriptor.Named(nameof(IssueCreated)) with
+        {
+            CommandType = TypeDescriptor.For(typeof(IssueCreated)),
+            TriggerKind = TriggerKind.Http,
+            Pattern = SlicePattern.Command
+        };
+
+        var model = WolverineEventModelSource.FinishModel(
+            new EventModelDescriptor("app", new[] { create, route }));
+
+        model.Slices.Single(x => x.TriggerKind == TriggerKind.Http).Pattern.ShouldBe(SlicePattern.Command);
     }
 
     [Fact]
@@ -113,6 +170,29 @@ public class SweepStaleAppointmentsHandler
     public static void Handle(AppointmentSweepDue due)
     {
     }
+}
+
+public record CreateIssue(string Title);
+
+public record IssueCreated(Guid Id);
+
+public record Echo(string Text);
+
+public class CreateIssueHandler
+{
+    public static IssueCreated Handle(CreateIssue command) => new(Guid.NewGuid());
+}
+
+public class IssueCreatedHandler
+{
+    public static void Handle(IssueCreated created)
+    {
+    }
+}
+
+public class EchoHandler
+{
+    public static Echo Handle(Echo echo) => echo;
 }
 
 #endregion
