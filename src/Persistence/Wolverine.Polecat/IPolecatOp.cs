@@ -21,6 +21,39 @@ public interface IPolecatOp : ISideEffect
     void Execute(IDocumentSession session);
 }
 
+/// <summary>
+/// A Polecat side effect that can be pointed at a tenant other than the one the current
+/// session belongs to
+/// </summary>
+public interface ITenantedPolecatOp : IPolecatOp
+{
+    /// <summary>
+    /// Optional tenant id. When set, the operation is applied through IDocumentSession.ForTenant()
+    /// </summary>
+    string? TenantId { get; set; }
+}
+
+public static class PolecatOpExtensions
+{
+    /// <summary>
+    /// Scope this Polecat side effect to a specific tenant, as an alternative to the
+    /// tenantId overloads on the PolecatOps factory methods
+    /// </summary>
+    /// <param name="op"></param>
+    /// <param name="tenantId"></param>
+    /// <returns>The same op, so this can be chained onto a PolecatOps call</returns>
+    public static TOp ForTenant<TOp>(this TOp op, string tenantId) where TOp : ITenantedPolecatOp
+    {
+        if (tenantId == null)
+        {
+            throw new ArgumentNullException(nameof(tenantId));
+        }
+
+        op.TenantId = tenantId;
+        return op;
+    }
+}
+
 internal class PolecatOpPolicy : IChainPolicy
 {
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
@@ -81,7 +114,7 @@ internal class ForEachPolecatOpFrame : SyncFrame
 /// <summary>
 /// Access to Polecat related side effect return values from message handlers
 /// </summary>
-public static class PolecatOps
+public static partial class PolecatOps
 {
     /// <summary>
     /// Begin a fluent declaration of a data requirement against a Polecat document. Pair with
@@ -330,7 +363,7 @@ public interface IStartStream : IPolecatOp
     IReadOnlyList<object> Events { get; }
 }
 
-public class StartStream<T> : IStartStream where T : class
+public class StartStream<T> : IStartStream, ITenantedPolecatOp where T : class
 {
     public string StreamKey { get; } = string.Empty;
     public Guid StreamId { get; }
@@ -514,7 +547,7 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
     public override void Execute(IDocumentSession session) { ResolveSession(session).Delete(_document); }
 }
 
-public class DeleteDocById<T> : IPolecatOp where T : class
+public class DeleteDocById<T> : ITenantedPolecatOp where T : class
 {
     private readonly object _id;
 
@@ -540,7 +573,7 @@ public class DeleteDocById<T> : IPolecatOp where T : class
     }
 }
 
-public class DeleteDocWhere<T> : IPolecatOp where T : class
+public class DeleteDocWhere<T> : ITenantedPolecatOp where T : class
 {
     private readonly Expression<Func<T, bool>> _expression;
 
@@ -559,7 +592,7 @@ public class DeleteDocWhere<T> : IPolecatOp where T : class
     }
 }
 
-public abstract class DocumentOp : IPolecatOp
+public abstract class DocumentOp : ITenantedPolecatOp
 {
     public object Document { get; }
 
@@ -582,7 +615,7 @@ public abstract class DocumentOp : IPolecatOp
     public abstract void Execute(IDocumentSession session);
 }
 
-public interface IDocumentsOp : IPolecatOp
+public interface IDocumentsOp : ITenantedPolecatOp
 {
     IReadOnlyList<object> Documents { get; }
 }
