@@ -165,6 +165,15 @@ handler that returned a side effect looking perfectly valid would otherwise blow
 `Guid.Empty` and an empty stream key — the Guid/string discrimination is on `Guid.Empty`, the same
 sentinel `StartStream<T>` uses, so an empty id would otherwise silently take the string branch.
 
+::: warning
+`UpdateRevision` and `TryUpdateRevision` only actually guard on a document type that implements
+`JasperFx.IRevisioned`. A type configured through `Schema.For<T>().UseNumericRevisions()` instead
+records a revision but enforces nothing — a stale write lands silently, and `TryUpdateRevision`
+drops nothing. The two routes are documented as equivalent in Fisher and are not; tracked as
+[JasperFx/fisher#228](https://github.com/JasperFx/fisher/issues/228). Use `IRevisioned` until that
+is fixed.
+:::
+
 ::: tip
 Fisher has no `InsertObjects` / `DeleteObjects`, no `UpdateExpectedVersion`, and no
 `UnArchiveStream` / `TombstoneStream` (those last two are Polecat's own), so there is no `FisherOps`

@@ -36,10 +36,6 @@ public class handler_actions_with_expanded_fisher_operations : IAsyncLifetime
                         m.Connection(theDatabase.ConnectionString);
                         m.AutoCreateSchemaObjects = AutoCreate.All;
                         m.Schema.For<SoftDeletedDoc>().SoftDeleted();
-                        // TryUpdateRevision only has anything to compare against on a type that
-                        // actually tracks a numeric revision; on any other type the revision is
-                        // simply ignored, which would make the assertion below vacuous
-                        m.Schema.For<RevisionedDoc>().UseNumericRevisions();
                     })
                     .ApplyAllDatabaseChangesOnStartup()
                     .IntegrateWithWolverine();
@@ -117,12 +113,6 @@ public class handler_actions_with_expanded_fisher_operations : IAsyncLifetime
     {
         var id = Guid.NewGuid();
 
-        await using (var session = theStore.LightweightSession())
-        {
-            session.Store(new RevisionedDoc { Id = id, Name = "seed" });
-            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
         // moving the revision forward writes
         await _host.InvokeMessageAndWaitAsync(new TryReviseIt(id, "v7", 7));
 
@@ -132,17 +122,29 @@ public class handler_actions_with_expanded_fisher_operations : IAsyncLifetime
             moved!.Name.ShouldBe("v7");
         }
 
-        // NOT asserted here: that a revision the store has already passed is DROPPED, which is the
-        // documented distinction from UpdateRevision. Fisher does not do that today -- a stale
-        // TryUpdateRevision lands -- and it is Fisher's behaviour rather than this op's: driving
-        // session.TryUpdateRevision() directly, with no Wolverine in the picture, writes the stale
-        // document too. Pinning the documented behaviour here would just make this suite red on
-        // someone else's bug; pinning the current behaviour would enshrine it. See the PR notes.
-        await _host.InvokeMessageAndWaitAsync(new TryReviseIt(id, "later", 9));
+        // and a revision the store has already passed is dropped rather than failing the unit of
+        // work, which is the whole distinction from UpdateRevision
+        await _host.InvokeMessageAndWaitAsync(new TryReviseIt(id, "stale", 3));
 
         await using var after = theStore.QuerySession();
         var loaded = await after.LoadAsync<RevisionedDoc>(id, TestContext.Current.CancellationToken);
-        loaded!.Name.ShouldBe("later");
+        loaded!.Name.ShouldBe("v7");
+    }
+
+    [Fact]
+    public async Task update_revision_fails_the_unit_of_work_on_a_stale_revision()
+    {
+        var id = Guid.NewGuid();
+
+        await _host.InvokeMessageAndWaitAsync(new ReviseIt(id, "v7", 7));
+
+        // the loud half of the same guard: a stale UpdateRevision aborts rather than dropping
+        await Should.ThrowAsync<Exception>(async () =>
+            await _host.InvokeMessageAndWaitAsync(new ReviseIt(id, "stale", 3)));
+
+        await using var after = theStore.QuerySession();
+        var loaded = await after.LoadAsync<RevisionedDoc>(id, TestContext.Current.CancellationToken);
+        loaded!.Name.ShouldBe("v7");
     }
 
     [Fact]
@@ -184,10 +186,14 @@ public class PatchableDoc
     public string Name { get; set; } = null!;
 }
 
-public class RevisionedDoc
+// IRevisioned rather than Schema.For<T>().UseNumericRevisions(): the two are documented as
+// equivalent routes to numeric revisions, but only the interface is actually enforced today --
+// a UseNumericRevisions() type takes a stale write silently. See JasperFx/fisher#228.
+public class RevisionedDoc : IRevisioned
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
+    public int Version { get; set; }
 }
 
 public record HardDeleteIt(Guid Id);
@@ -197,6 +203,8 @@ public record UndoTheDelete(string Name);
 public record PatchIt(Guid Id, string Name);
 
 public record TryReviseIt(Guid Id, string Name, int Revision);
+
+public record ReviseIt(Guid Id, string Name, int Revision);
 
 public record AppendToIt(Guid Id);
 
@@ -218,6 +226,9 @@ public static class ExpandedOpsHandler
 
     public static TryUpdateDocRevision<RevisionedDoc> Handle(TryReviseIt command)
         => FisherOps.TryUpdateRevision(new RevisionedDoc { Id = command.Id, Name = command.Name }, command.Revision);
+
+    public static UpdateDocRevision<RevisionedDoc> Handle(ReviseIt command)
+        => FisherOps.UpdateRevision(new RevisionedDoc { Id = command.Id, Name = command.Name }, command.Revision);
 
     public static AppendToStream Handle(AppendToIt command)
         => FisherOps.Append(command.Id, new ExpandedEventA());
