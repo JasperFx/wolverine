@@ -290,9 +290,20 @@ public static class WolverineTracing
     public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope,
         ActivityKind kind = ActivityKind.Internal)
     {
+        ActivityLink[]? links = null;
+        if (envelope.PreviousAttemptActivityId.IsNotEmpty() &&
+            ActivityContext.TryParse(envelope.PreviousAttemptActivityId, null, out var previousAttempt))
+        {
+            links = [new ActivityLink(previousAttempt)];
+
+            // Single-use. A stale link from an attempt several retries back is not useful once this
+            // attempt has been linked to the one immediately before it.
+            envelope.PreviousAttemptActivityId = null;
+        }
+
         var activity = envelope.ParentId.IsNotEmpty()
-            ? ActivitySource.StartActivity(spanName, kind, envelope.ParentId)
-            : ActivitySource.StartActivity(spanName, kind);
+            ? ActivitySource.StartActivity(spanName, kind, envelope.ParentId, links: links)
+            : ActivitySource.StartActivity(spanName, kind, default(ActivityContext), links: links);
 
         if (activity == null)
         {

@@ -58,4 +58,23 @@ public class RetryNowContinuationTester
 
         ((IJitterable)RetryInlineContinuation.Instance).TrySetJitter(strategy).ShouldBeFalse();
     }
+
+    [Fact]
+    public async Task links_the_retried_envelope_to_the_failed_attempt_activity()
+    {
+        var continuation = RetryInlineContinuation.Instance;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Attempts = 1;
+
+        var context = Substitute.For<IEnvelopeLifecycle>();
+        context.Envelope.Returns(envelope);
+
+        var activity = new Activity("process");
+        activity.Start();
+
+        await continuation.ExecuteAsync(context, new MockWolverineRuntime(), DateTimeOffset.Now, activity);
+
+        envelope.PreviousAttemptActivityId.ShouldBe(activity.Id);
+    }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CoreTests.Runtime;
 using NSubstitute;
 using Shouldly;
@@ -38,5 +39,21 @@ public class RequeueContinuationTester
         var strategy = new FixedMultiplierJitter(2.0);
 
         ((IJitterable)RequeueContinuation.Instance).TrySetJitter(strategy).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task links_the_requeued_envelope_to_the_failed_attempt_activity()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        var context = Substitute.For<IEnvelopeLifecycle>();
+        context.Envelope.Returns(envelope);
+
+        var activity = new Activity("process");
+        activity.Start();
+
+        await RequeueContinuation.Instance.ExecuteAsync(context, new MockWolverineRuntime(), DateTime.Now, activity);
+
+        envelope.PreviousAttemptActivityId.ShouldBe(activity.Id);
     }
 }

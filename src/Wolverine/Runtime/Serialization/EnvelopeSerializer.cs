@@ -30,6 +30,7 @@ public static class EnvelopeSerializer
         EnvelopeConstants.AcceptedContentTypesKey,
         EnvelopeConstants.IdKey,
         EnvelopeConstants.ParentIdKey,
+        EnvelopeConstants.PreviousAttemptActivityIdKey,
         EnvelopeConstants.GroupIdKey,
         EnvelopeConstants.DeduplicationIdKey,
         EnvelopeConstants.ReplyRequestedKey,
@@ -114,6 +115,10 @@ public static class EnvelopeSerializer
 
                 case EnvelopeConstants.ParentIdKey:
                     env.ParentId = value;
+                    break;
+
+                case EnvelopeConstants.PreviousAttemptActivityIdKey:
+                    env.PreviousAttemptActivityId = value;
                     break;
 
                 case EnvelopeConstants.GroupIdKey:
@@ -403,6 +408,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.DestinationKey, env.Destination);
         writer.WriteProp(ref count, EnvelopeConstants.SagaIdKey, env.SagaId);
         writer.WriteProp(ref count, EnvelopeConstants.ParentIdKey, env.ParentId);
+        writer.WriteProp(ref count, EnvelopeConstants.PreviousAttemptActivityIdKey, env.PreviousAttemptActivityId);
         writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
         writer.WriteProp(ref count, EnvelopeConstants.TopicNameKey, env.TopicName);
         writer.WriteProp(ref count, EnvelopeConstants.UserNameKey, env.UserName);

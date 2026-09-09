@@ -20,6 +20,7 @@ public static class EnvelopeConstants
     public const string AcceptedContentTypesKey = "accepted-content-types";
     public const string DeliverByKey = "deliver-by";
     public const string ParentIdKey = "parent-id";
+    public const string PreviousAttemptActivityIdKey = "previous-attempt-activity-id";
     public const string IsResponseKey = "is-response";
     public const string TenantIdKey = "tenant-id";
     public const string GroupIdKey = "group-id";

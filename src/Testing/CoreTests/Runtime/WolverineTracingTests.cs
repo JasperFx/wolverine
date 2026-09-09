@@ -30,6 +30,66 @@ public class WolverineTracingTests
 
         activity.ParentId.ShouldBe(envelope.ParentId);
     }
+
+    [Fact]
+    public void links_to_the_previous_attempt_activity_when_set_on_envelope()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.PreviousAttemptActivityId = "00-25d8f5709b569a1f61bcaf79b9450ed4-f293c0545fc237a1-01";
+
+        using var tracerProvider = Sdk.CreateTracerProviderBuilder()
+            .AddSource("Wolverine")
+            .SetResourceBuilder(
+                ResourceBuilder.CreateDefault()
+                    .AddService("Wolverine", serviceVersion: "1.0"))
+            .AddConsoleExporter()
+            .Build();
+
+        using var activity = WolverineTracing.StartEnvelopeActivity("process", envelope);
+        activity.ShouldNotBeNull();
+
+        var link = activity.Links.ShouldHaveSingleItem();
+        link.Context.TraceId.ToString().ShouldBe("25d8f5709b569a1f61bcaf79b9450ed4");
+        link.Context.SpanId.ToString().ShouldBe("f293c0545fc237a1");
+    }
+
+    [Fact]
+    public void clears_previous_attempt_activity_id_after_starting_the_activity()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.PreviousAttemptActivityId = "00-25d8f5709b569a1f61bcaf79b9450ed4-f293c0545fc237a1-01";
+
+        using var tracerProvider = Sdk.CreateTracerProviderBuilder()
+            .AddSource("Wolverine")
+            .SetResourceBuilder(
+                ResourceBuilder.CreateDefault()
+                    .AddService("Wolverine", serviceVersion: "1.0"))
+            .AddConsoleExporter()
+            .Build();
+
+        using var activity = WolverineTracing.StartEnvelopeActivity("process", envelope);
+
+        envelope.PreviousAttemptActivityId.ShouldBeNull();
+    }
+
+    [Fact]
+    public void does_not_add_links_when_previous_attempt_activity_id_is_not_set()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        using var tracerProvider = Sdk.CreateTracerProviderBuilder()
+            .AddSource("Wolverine")
+            .SetResourceBuilder(
+                ResourceBuilder.CreateDefault()
+                    .AddService("Wolverine", serviceVersion: "1.0"))
+            .AddConsoleExporter()
+            .Build();
+
+        using var activity = WolverineTracing.StartEnvelopeActivity("process", envelope);
+        activity.ShouldNotBeNull();
+
+        activity.Links.ShouldBeEmpty();
+    }
 }
 
 public class when_creating_an_execution_activity

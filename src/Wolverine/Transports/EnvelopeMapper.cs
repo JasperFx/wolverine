@@ -117,6 +117,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.Id, EnvelopeConstants.IdKey);
         MapPropertyToHeader(x => x.ConversationId, EnvelopeConstants.ConversationIdKey);
         MapPropertyToHeader(x => x.ParentId!, EnvelopeConstants.ParentIdKey);
+        MapPropertyToHeader(x => x.PreviousAttemptActivityId!, EnvelopeConstants.PreviousAttemptActivityIdKey);
         MapPropertyToHeader(x => x.ContentType!, EnvelopeConstants.ContentTypeKey);
         MapPropertyToHeader(x => x.Source!, EnvelopeConstants.SourceKey);
         MapPropertyToHeader(x => x.ReplyRequested!, EnvelopeConstants.ReplyRequestedKey);

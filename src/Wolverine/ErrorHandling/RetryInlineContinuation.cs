@@ -40,6 +40,11 @@ internal class RetryInlineContinuation : IContinuation, IContinuationSource, IIn
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRetry));
 
+        if (activity != null && lifecycle.Envelope != null)
+        {
+            lifecycle.Envelope.PreviousAttemptActivityId = activity.Id;
+        }
+
         await lifecycle.RetryExecutionNowAsync().ConfigureAwait(false);
     }
 

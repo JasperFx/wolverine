@@ -453,6 +453,17 @@ public partial class Envelope : IHasTenantId
     public string? ParentId { get; set; }
 
     /// <summary>
+    ///     The open telemetry activity id of the immediately preceding failed attempt at processing this
+    ///     envelope, if any. Set by error handling continuations that reschedule or retry an envelope
+    ///     (<see cref="Wolverine.ErrorHandling.RetryInlineContinuation"/>, <see cref="Wolverine.ErrorHandling.ScheduledRetryContinuation"/>,
+    ///     <see cref="Wolverine.ErrorHandling.RequeueContinuation"/>) so that the next attempt's activity can
+    ///     be linked back to it instead of being reparented under it. A retry does not temporally contain the
+    ///     attempt that preceded it, so OpenTelemetry's own guidance is to express that relationship with an
+    ///     <see cref="System.Diagnostics.ActivityLink"/> rather than a parent/child span.
+    /// </summary>
+    public string? PreviousAttemptActivityId { get; set; }
+
+    /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is
     ///     part of metrics reporting and message correlation
     /// </summary>

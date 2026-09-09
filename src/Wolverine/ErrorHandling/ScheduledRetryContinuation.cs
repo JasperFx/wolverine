@@ -25,6 +25,12 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource, 
         Activity? activity)
     {
         activity?.AddEvent(new ActivityEvent(WolverineTracing.ScheduledRetry));
+
+        if (activity != null && lifecycle.Envelope != null)
+        {
+            lifecycle.Envelope.PreviousAttemptActivityId = activity.Id;
+        }
+
         var effective = _jitter?.Apply(_delay, lifecycle.Envelope?.Attempts ?? 1) ?? _delay;
         var scheduledTime = now.Add(effective);
 
