@@ -76,7 +76,12 @@
     <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="9.0.5" />
     <PackageVersion Include="Microsoft.FeatureManagement" Version="3.2.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <!-- SourceLink 8.0.0 pulls Microsoft.Build.Tasks.Git 8.0.0 exactly, which carries
+         GHSA-23fw-v26w-5fgq. It arrives with PrivateAssets="All" from Directory.Build.props, so the
+         transitive cannot be pinned around; the SourceLink version is the only lever. 10.0.401
+         resolves it to Microsoft.Build.Tasks.Git 10.0.401; the lowest stable clear of the advisory
+         is 10.0.204, so there is no smaller step. Build-time only, nothing ships from it. -->
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.0.64" />
     <PackageVersion Include="MQTTnet.Extensions.ManagedClient" Version="4.3.7.1207" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
@@ -126,7 +131,8 @@
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.7" />
+    <!-- 10.0.7 carries a known HIGH severity advisory (NU1903). -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
     <!-- Testcontainers pulls SSH.NET [2025.1.0, ); everything through 2025.1.0 carries
          GHSA-q939-rpr3-3284. The test projects that use Testcontainers reference this directly so
          the patched version wins. -->
