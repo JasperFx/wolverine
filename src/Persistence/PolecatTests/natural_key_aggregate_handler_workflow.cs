@@ -46,6 +46,16 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
         // Ensure the Polecat event store schema is created
         var store = (DocumentStore)_store;
         await store.Database.ApplyAllConfiguredChangesToDatabaseAsync();
+
+        // Every test below claims a hardcoded natural key. A natural key identifies ONE stream, so
+        // without this the fixture passes exactly once against a given database and every rerun fails
+        // with DuplicateNaturalKeyException -- the guard firing correctly on a mapping the previous run
+        // left behind. Invisible in CI, which gets a fresh database, and thoroughly misleading locally:
+        // it reads as a regression in the natural-key workflow itself.
+        //
+        // CleanAllEventDataAsync clears the mapping table too: Polecat deletes every pc_natural_key_%
+        // table ahead of streams, because SQL Server has no cascading truncate to lean on.
+        await store.Advanced.CleanAllEventDataAsync();
     }
 
     public async ValueTask DisposeAsync()

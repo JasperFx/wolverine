@@ -45,6 +45,16 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         });
 
         _store = _host.Services.GetRequiredService<IDocumentStore>();
+
+        // Every test below claims a hardcoded natural key. A natural key identifies ONE stream, so
+        // without this the fixture passes exactly once against a given database and every rerun fails
+        // with DuplicateNaturalKeyException -- the guard firing correctly on a mapping the previous run
+        // left behind. Invisible in CI, which gets a fresh database, and thoroughly misleading locally:
+        // it reads as a regression in the natural-key workflow itself.
+        //
+        // DeleteAllEventDataAsync clears the mapping table too: Marten's NaturalKeyTable carries a real
+        // foreign key to mt_streams, so truncating streams cascades into it.
+        await _store.Advanced.Clean.DeleteAllEventDataAsync();
     }
 
     public async ValueTask DisposeAsync()
