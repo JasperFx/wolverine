@@ -30,6 +30,63 @@ public class WolverineTracingTests
 
         activity.ParentId.ShouldBe(envelope.ParentId);
     }
+
+    [Fact]
+    public void links_to_the_previous_attempt_and_consumes_the_header()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey] =
+            "00-25d8f5709b569a1f61bcaf79b9450ed4-f293c0545fc237a1-01";
+
+        using var activity = new Activity("process").Start();
+
+        WolverineTracing.LinkToPreviousAttempt(activity, envelope);
+
+        var link = activity.Links.ShouldHaveSingleItem();
+        link.Context.TraceId.ToString().ShouldBe("25d8f5709b569a1f61bcaf79b9450ed4");
+        link.Context.SpanId.ToString().ShouldBe("f293c0545fc237a1");
+
+        // Single-use: nothing this attempt sends or schedules next may carry it onward
+        envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void no_link_for_an_envelope_that_was_never_retried()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        using var activity = new Activity("process").Start();
+
+        WolverineTracing.LinkToPreviousAttempt(activity, envelope);
+
+        activity.Links.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void drops_the_header_when_there_is_no_activity_to_link()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey] =
+            "00-25d8f5709b569a1f61bcaf79b9450ed4-f293c0545fc237a1-01";
+
+        WolverineTracing.LinkToPreviousAttempt(null, envelope);
+
+        envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ignores_a_malformed_previous_attempt_id()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey] = "not-a-traceparent";
+
+        using var activity = new Activity("process").Start();
+
+        WolverineTracing.LinkToPreviousAttempt(activity, envelope);
+
+        activity.Links.ShouldBeEmpty();
+        envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out _).ShouldBeFalse();
+    }
 }
 
 public class when_creating_an_execution_activity

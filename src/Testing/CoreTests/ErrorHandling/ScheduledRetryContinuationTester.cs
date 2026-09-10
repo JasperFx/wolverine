@@ -51,4 +51,39 @@ public class ScheduledRetryContinuationTester
 
         await lifecycle.Received(1).ReScheduleAsync(now.AddSeconds(10));
     }
+
+    [Fact]
+    public async Task records_the_failed_attempt_so_the_next_attempt_can_link_to_it()
+    {
+        var continuation = new ScheduledRetryContinuation(TimeSpan.FromSeconds(10));
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Attempts = 1;
+
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+        lifecycle.Envelope.Returns(envelope);
+
+        using var activity = new Activity("process").Start();
+
+        await continuation.ExecuteAsync(lifecycle, new MockWolverineRuntime(), DateTimeOffset.UtcNow, activity);
+
+        envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out var previous).ShouldBeTrue();
+        previous.ShouldBe(activity.Id);
+    }
+
+    [Fact]
+    public async Task records_nothing_when_there_is_no_activity()
+    {
+        var continuation = new ScheduledRetryContinuation(TimeSpan.FromSeconds(10));
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Attempts = 1;
+
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+        lifecycle.Envelope.Returns(envelope);
+
+        await continuation.ExecuteAsync(lifecycle, new MockWolverineRuntime(), DateTimeOffset.UtcNow, null);
+
+        envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out _).ShouldBeFalse();
+    }
 }

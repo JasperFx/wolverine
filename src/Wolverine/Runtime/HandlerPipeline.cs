@@ -88,6 +88,8 @@ public class HandlerPipeline : IHandlerPipeline
                 return;
             }
 
+            WolverineTracing.LinkToPreviousAttempt(activity, envelope);
+
             var context = _contextPool.Get();
             context.ReadEnvelope(envelope, channel);
 
