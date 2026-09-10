@@ -101,6 +101,82 @@ public class batch_processing
     }
 
     [Fact]
+    public async Task pending_count_covers_locally_published_members_on_durable_local_queues()
+    {
+        // GH-4397, the reporter's shape: in-process publishes onto durable local queues. Those members have
+        // no listener, so only the per-pipeline count sees them, and it must not reach zero until the batch
+        // handler's transaction has committed.
+        using var theHost = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                {
+                    m.DisableNpgsqlLogging = true;
+                    m.DatabaseSchemaName = "batch_pending";
+                    m.Connection(Servers.PostgresConnectionString);
+                }).IntegrateWithWolverine();
+
+                opts.Policies.AutoApplyTransactions();
+                opts.Policies.UseDurableLocalQueues();
+
+                opts.BatchMessagesOf<BatchItem>(batching =>
+                {
+                    batching.TriggerTime = 1.Seconds();
+                    batching.BatchSize = 8;
+                }).Sequential();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BatchItemHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        await theHost.CleanAllMartenDataAsync();
+        await theHost.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
+
+        var counts = theHost.GetRuntime().BatchingPendingCounts;
+        var items = new[]
+        {
+            new BatchItem("one", Guid.NewGuid()),
+            new BatchItem("two", Guid.NewGuid()),
+            new BatchItem("three", Guid.NewGuid())
+        };
+
+        var bus = theHost.MessageBus();
+        foreach (var item in items)
+        {
+            await bus.PublishAsync(item);
+        }
+
+        await waitUntil(() => counts.PendingForBatchedMessage<BatchItem>() == items.Length,
+            "every published member to be counted as pending");
+
+        await waitUntil(() => counts.PendingForBatchedMessage<BatchItem>() == 0,
+            "the batch to reach its terminal");
+
+        // Zero means the batch handler ran AND its transaction committed
+        using var session = theHost.DocumentStore().LightweightSession();
+        var ids = items.Select(x => x.Id).ToArray();
+        var stored = await session.Query<BatchItem>().Where(x => x.Id.IsOneOf(ids))
+            .CountAsync(token: TestContext.Current.CancellationToken);
+
+        stored.ShouldBe(items.Length);
+    }
+
+    private static async Task waitUntil(Func<bool> condition, string description)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"Timed out waiting for {description}");
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    [Fact]
     public async Task end_to_end_with_tenancy()
     {
         using var theHost = await Host.CreateDefaultBuilder()

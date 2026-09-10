@@ -197,6 +197,19 @@ internal static class BatchReplay
             GroupId = batchEnvelope.GroupId
         };
 
-        await queue.EnqueueAsync(reduced).ConfigureAwait(false);
+        // GH-4397 — a reduced batch is still work its pipeline owes, so it counts as pending until its own
+        // terminal. The original batch's terminal releases the original members; these are new ones.
+        var pendingCounts = (runtime as WolverineRuntime)?.BatchingPendingCounts;
+        pendingCounts?.CountReplayedBatch(reduced);
+
+        try
+        {
+            await queue.EnqueueAsync(reduced).ConfigureAwait(false);
+        }
+        catch
+        {
+            pendingCounts?.SettleBatch(reduced);
+            throw;
+        }
     }
 }
