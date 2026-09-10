@@ -310,6 +310,26 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        // GH-4407: insert only if nobody owns the agent yet, then report whether the row is ours
+        await conn.CreateCommand(
+                $"insert or ignore into {_assignmentTable} (id, node_id) values (@id, @node)")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId.ToString())
+            .ExecuteNonQueryAsync(cancellationToken);
+
+        var owned = await conn.CreateCommand(
+                $"select count(*) from {_assignmentTable} where id = @id and node_id = @node")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId.ToString())
+            .ExecuteScalarAsync(cancellationToken);
+
+        return Convert.ToInt64(owned) > 0;
+    }
+
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);

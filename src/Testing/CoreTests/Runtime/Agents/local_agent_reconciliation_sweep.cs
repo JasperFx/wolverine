@@ -127,6 +127,11 @@ public class local_agent_reconciliation_sweep
 
         await tick();
         agent.StopCount.ShouldBe(1);
+
+        // GH-4407: and the owner's row goes nowhere. A stop that took it along -- on a store whose delete was
+        // not owner-scoped -- made the leader read the agent as unassigned and place it again.
+        await _persistence.DidNotReceive()
+            .RemoveAssignmentAsync(Arg.Any<Guid>(), uri, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -137,6 +142,8 @@ public class local_agent_reconciliation_sweep
 
         await _controller.StartAgentAsync(uri);
         _persistence.ClearReceivedCalls();
+        _persistence.TryClaimAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>())
+            .Returns(true);
 
         // The row vanished entirely (peer ejection cascade). Nobody else claims the agent, so the
         // running copy is the one true copy: restore the claim, never stop the work.
@@ -145,8 +152,75 @@ public class local_agent_reconciliation_sweep
         await tick(3);
 
         agent.StopCount.ShouldBe(0);
+
+        // GH-4407: through the claim-if-absent path, never the last-writer-wins upsert
         await _persistence.Received()
+            .TryClaimAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>());
+        await _persistence.DidNotReceive()
             .AddAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task leaves_the_row_to_a_peer_that_claimed_it_first()
+    {
+        var uri = new Uri("test-family://one");
+        var agent = _family.Add(uri);
+
+        await _controller.StartAgentAsync(uri);
+        _persistence.ClearReceivedCalls();
+
+        // GH-4407: the snapshot showed no row anywhere, but a peer claimed the agent before this node's
+        // restore landed. The claim reports the loss rather than overwriting the peer's row.
+        _persistence.TryClaimAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>())
+            .Returns(false);
+        ClusterIs(Self(), Row(Guid.NewGuid(), 2));
+
+        await tick(3);
+
+        agent.StopCount.ShouldBe(0);
+        await _persistence.DidNotReceive()
+            .AddAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task never_starts_an_agent_again_while_its_first_start_is_still_in_flight()
+    {
+        var uri = new Uri("test-family://one");
+        var agent = _family.Add(uri);
+        agent.StartGate = new TaskCompletionSource();
+
+        // GH-4407: an agent is registered only once its start completes, so for the whole of a slow start
+        // the row says "here" and nothing is running. That is a start in flight, not a wedge.
+        var inFlight = _controller.StartAgentAsync(uri);
+        ClusterIs(Self(uri));
+
+        await tick(5);
+        agent.StartCount.ShouldBe(1);
+
+        agent.StartGate.SetResult();
+        await inFlight;
+        agent.StartCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task caps_the_actions_taken_per_tick_and_works_through_the_rest_on_later_ticks()
+    {
+        _options.Durability.MaxLocalAgentReconciliationsPerTick = 1;
+
+        var agents = new[] { "one", "two", "three" }
+            .Select(x => _family.Add(new Uri($"test-family://{x}")))
+            .ToArray();
+
+        ClusterIs(Self(agents.Select(x => x.Uri).ToArray()));
+
+        await tick(3);
+        agents.Count(x => x.StartCount == 1).ShouldBe(1);
+
+        await tick();
+        agents.Count(x => x.StartCount == 1).ShouldBe(2);
+
+        await tick();
+        agents.ShouldAllBe(x => x.StartCount == 1);
     }
 
     [Fact]
@@ -207,6 +281,8 @@ public class local_agent_reconciliation_sweep
         await tick(5);
         await _persistence.DidNotReceive()
             .AddAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>());
+        await _persistence.DidNotReceive()
+            .TryClaimAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -282,6 +358,9 @@ public class local_agent_reconciliation_sweep
         public int StartCount { get; private set; }
         public int StopCount { get; private set; }
 
+        // When set, StartAsync does not complete until the test releases it -- a slow start in flight
+        public TaskCompletionSource? StartGate { get; set; }
+
         public Uri Uri { get; }
         public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 
@@ -289,7 +368,7 @@ public class local_agent_reconciliation_sweep
         {
             StartCount++;
             Status = AgentStatus.Running;
-            return Task.CompletedTask;
+            return StartGate?.Task ?? Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

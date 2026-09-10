@@ -165,6 +165,10 @@ public partial class NodeAgentController
                 _runtime.Options.Durability.AssignedNodeNumber);
         }
 
+        // GH-4407: taken BEFORE the snapshot is read, so a stop stamped after it -- one this snapshot cannot
+        // know about -- revokes whatever the reconciliation sweep decides from it
+        var snapshotSequence = CurrentCommandSequence;
+
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
 
 
@@ -220,7 +224,7 @@ public partial class NodeAgentController
         {
             if (selfRowIsPersisted)
             {
-                await ReconcileLocalAgentsAsync(nodes, restrictions);
+                await ReconcileLocalAgentsAsync(nodes, restrictions, snapshotSequence);
             }
         }
         catch (Exception e)

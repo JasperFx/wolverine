@@ -246,6 +246,120 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         host3.RunningAgents().ShouldContain(expected[0]);
     }
 
+    // GH-4407: the divergences the GH-3987 reconciliation sweep exists to heal, each fabricated directly on a
+    // real cluster against real storage. Every provider has to come back to exactly one copy of every agent.
+
+    private static Guid nodeIdOf(IHost host) => host.GetRuntime().Options.UniqueNodeId;
+
+    private async Task<Guid?> assignmentOwnerOfAsync(Uri agentUri)
+    {
+        var nodes = await _hosts.First().GetRuntime().Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        return nodes.FirstOrDefault(x => x.ActiveAgents.Contains(agentUri))?.NodeId;
+    }
+
+    private async Task settledTwoNodeClusterAsync()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
+        await startHostAsync();
+        await expectExactlyOneCopyOfEachAsync(AllFakeAgents, [], 30.Seconds());
+    }
+
+    /// <summary>
+    /// Polls until <paramref name="agentUri" /> runs on exactly one node AND its assignment row names that node,
+    /// then asserts the same so a timeout reports the actual state. Deliberately does not assert WHICH node ends
+    /// up with it: the leader is free to re-place or rebalance an agent while a divergence heals, and does.
+    /// </summary>
+    private async Task expectOneCopyWithARowNamingItsNodeAsync(Uri agentUri, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout);
+        while (!cancellation.IsCancellationRequested)
+        {
+            var runners = _hosts.Where(x => x.RunningAgents().Contains(agentUri)).ToArray();
+            if (runners.Length == 1 && await assignmentOwnerOfAsync(agentUri) == nodeIdOf(runners[0]))
+            {
+                return;
+            }
+
+            await Task.Delay(250.Milliseconds());
+        }
+
+        var finalRunners = _hosts.Where(x => x.RunningAgents().Contains(agentUri)).ToArray();
+        finalRunners.Length.ShouldBe(1, $"{agentUri} should be running on exactly one node");
+        (await assignmentOwnerOfAsync(agentUri)).ShouldBe(nodeIdOf(finalRunners[0]),
+            $"The assignment row for {agentUri} should name the node running it");
+    }
+
+    [Fact]
+    public async Task a_copy_on_a_node_the_table_does_not_name_converges_to_one_copy_with_a_matching_row()
+    {
+        await settledTwoNodeClusterAsync();
+
+        var agentUri = AllFakeAgents[0];
+        var owner = FindHostRunning(agentUri);
+        var intruder = _hosts.First(x => x != owner);
+
+        // The leadership-handover duplicate: a second copy comes up on a node the table does not name.
+        // Starting it there upserts the intruder's row, so put the owner's claim straight back, leaving the
+        // intruder running a copy no row accounts for. The intruder's sweep stops it without touching the
+        // owner's row; on a store whose delete was not owner-scoped that stop took the row too and the cluster
+        // kept re-placing the agent. The store half of that is pinned deterministically by
+        // NodePersistenceCompliance.removing_an_assignment_owned_by_another_node_is_a_no_op.
+        await intruder.GetRuntime().NodeController!.StartAgentAsync(agentUri);
+        await owner.GetRuntime().Storage.Nodes.AddAssignmentAsync(nodeIdOf(owner), agentUri, CancellationToken.None);
+
+        await expectOneCopyWithARowNamingItsNodeAsync(agentUri, 30.Seconds());
+        await expectExactlyOneCopyOfEachAsync(AllFakeAgents, [], 30.Seconds());
+    }
+
+    [Fact]
+    public async Task an_agent_assigned_to_a_node_but_not_running_there_ends_up_running_again()
+    {
+        await settledTwoNodeClusterAsync();
+
+        var agentUri = AllFakeAgents[0];
+        var owner = FindHostRunning(agentUri);
+
+        // The GH-3987 wedge: the agent goes away on its owner while the owner's row stays put, so the leader
+        // reads it as placed and never places it again. The owner's own sweep restarts it -- unless the leader
+        // gets there first and re-places it, which is just as good.
+        owner.GetRuntime().NodeController!.Agents.TryRemove(agentUri, out var agent).ShouldBeTrue();
+        await agent!.StopAsync(CancellationToken.None);
+
+        await expectOneCopyWithARowNamingItsNodeAsync(agentUri, 30.Seconds());
+        await expectExactlyOneCopyOfEachAsync(AllFakeAgents, [], 30.Seconds());
+    }
+
+    [Fact]
+    public async Task a_running_agent_whose_row_is_lost_ends_up_running_once_with_a_row_naming_its_node()
+    {
+        await settledTwoNodeClusterAsync();
+
+        var agentUri = AllFakeAgents[0];
+        var owner = FindHostRunning(agentUri);
+
+        // The peer-ejection cascade: the row goes, the running copy stays. The leader now reads the agent as
+        // unplaced and may place it again while the owner's sweep restores its claim -- either way the cluster
+        // has to come back to one copy and one row naming the node that runs it.
+        await owner.GetRuntime().Storage.Nodes.RemoveAssignmentAsync(nodeIdOf(owner), agentUri, CancellationToken.None);
+
+        await expectOneCopyWithARowNamingItsNodeAsync(agentUri, 30.Seconds());
+        await expectExactlyOneCopyOfEachAsync(AllFakeAgents, [], 30.Seconds());
+    }
+
+    [Fact]
+    public async Task every_agent_runs_exactly_once_after_the_leader_dies_with_its_starts_in_flight()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
+
+        // New nodes join and the leader starts rebalancing onto them -- then dies before those starts have
+        // settled, with no chance to finish or retract them. The next leader inherits whatever landed.
+        await startHostAsync();
+        await startHostAsync();
+        await shutdownHostAsync(_originalHost);
+
+        await expectExactlyOneCopyOfEachAsync(AllFakeAgents, [], 60.Seconds());
+    }
+
     /***** NEW TESTS END HERE **********************************************/
 
     [Fact]
@@ -499,11 +613,14 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         var nodes = runtime.Storage.Nodes;
         await nodes.LogRecordsAsync(records);
 
-        var count = 0;
-        while (count < 10)
+        // The attempt counter was never incremented, so a store that did not persist the records spun here
+        // forever -- a 40-minute hang on the SharedMemory variant -- instead of failing
+        for (var attempt = 0; attempt < 10; attempt++)
         {
             var persisted = await nodes.FetchRecentRecordsAsync(10);
             if (persisted.Count >= 4) return;
+
+            await Task.Delay(250.Milliseconds());
         }
 
         throw new Exception("No persisted node records!");

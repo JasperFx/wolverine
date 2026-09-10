@@ -189,6 +189,12 @@ public partial class NodeAgentController
     // tells the two apart.
     private readonly ConcurrentDictionary<Uri, byte> _stoppingAgents = new();
 
+    // GH-4407: agents whose start is currently in flight on this node. StartAgentAsync only registers an agent
+    // once its (possibly retried) start completes, and the wedged-restart path deregisters it first, so for
+    // the whole start the agent reads as "assigned here but not running" to the reconciliation sweep.
+    // Membership here keeps the sweep from starting it a second time.
+    private readonly ConcurrentDictionary<Uri, byte> _startingAgents = new();
+
     internal long CurrentCommandSequence => Volatile.Read(ref _commandSequence);
 
     private bool isRevokedSince(Uri agentUri, long sequence)
@@ -349,6 +355,8 @@ public partial class NodeAgentController
                 "Agent {AgentUri} is still registered on node {NodeNumber} but its shard is stopped; restarting it",
                 agentUri, _runtime.Options.Durability.AssignedNodeNumber);
 
+            // GH-4407: marked before the registration disappears, so the sweep never sees a gap
+            _startingAgents[agentUri] = default;
             Agents.TryRemove(agentUri, out _);
             try
             {
@@ -360,10 +368,13 @@ public partial class NodeAgentController
             }
         }
 
-        IAgent agent;
+        _startingAgents[agentUri] = default;
         try
         {
-            agent = await startWithRetriesAsync(agentUri);
+            var agent = await startWithRetriesAsync(agentUri);
+
+            // Registered before the in-flight marker is released, so there is no moment the agent is neither
+            Agents[agentUri] = agent;
         }
         catch (Exception e)
         {
@@ -375,8 +386,10 @@ public partial class NodeAgentController
             _failedStarts.AddOrUpdate(agentUri, _ => new FailedStartRecord(1, e), (_, existing) => existing.Next(e));
             throw;
         }
-
-        Agents[agentUri] = agent;
+        finally
+        {
+            _startingAgents.TryRemove(agentUri, out _);
+        }
 
         // GH-3638: a start that succeeded supersedes whatever failure was last reported for this agent, so
         // a later failure alerts again instead of being swallowed as a duplicate of the old one.
@@ -480,7 +493,22 @@ public partial class NodeAgentController
         }
     }
 
-    public async Task StopAgentAsync(Uri agentUri)
+    // GH-4407: claim agentUri for this node only if no node owns it yet, and report whether the row is this
+    // node's afterwards. Like upsertAssignmentAsync, registers the node row first so the assignment's FK holds.
+    private async Task<bool> claimAssignmentAsync(Uri agentUri)
+    {
+        await ensureLocalNodeRegisteredAsync(_cancellation.Token);
+        return await _persistence.TryClaimAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri,
+            _cancellation.Token);
+    }
+
+    public Task StopAgentAsync(Uri agentUri) => stopAgentAsync(agentUri, removeAssignment: true);
+
+    // GH-4407: removeAssignment is false only for the reconciliation sweep stopping a copy whose row another
+    // node owns. That row is the owner's claim, not this node's, so the stop must leave it alone -- on a store
+    // whose delete was not owner-scoped, taking it along made the leader read the agent as unassigned and
+    // place it again, which started the next duplicate.
+    private async Task stopAgentAsync(Uri agentUri, bool removeAssignment)
     {
         // GH-3748: stamped before the attempt, so even a stop that finds nothing running revokes any
         // deferred start still queued or in flight for this agent. See StartAgentGuardedAsync.
@@ -518,16 +546,19 @@ public partial class NodeAgentController
                 }
             }
 
-            try
+            if (removeAssignment)
             {
-                await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri,
-                    _cancellation.Token);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e,
-                    "Error trying to remove the assignment of agent {AgentUri} to Node {NodeId} in persistence",
-                    agentUri, _runtime.Options.UniqueNodeId);
+                try
+                {
+                    await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri,
+                        _cancellation.Token);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e,
+                        "Error trying to remove the assignment of agent {AgentUri} to Node {NodeId} in persistence",
+                        agentUri, _runtime.Options.UniqueNodeId);
+                }
             }
         }
         finally

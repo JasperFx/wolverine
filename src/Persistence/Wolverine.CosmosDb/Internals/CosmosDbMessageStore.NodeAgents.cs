@@ -260,14 +260,54 @@ public partial class CosmosDbMessageStore : INodeAgentPersistence
 
     public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
+        // GH-4407: only this node's own claim. Deleting by id alone let a node stopping a copy it did not own
+        // delete the owner's row, which the leader then read as an unassigned agent and placed again. The
+        // delete is conditioned on the ETag of the read, so a row that changes hands in between survives.
+        var id = CosmosAgentAssignment.ToId(agentUri);
+        var partition = new PartitionKey(DocumentTypes.SystemPartition);
+
         try
         {
-            await _container.DeleteItemAsync<dynamic>(
-                CosmosAgentAssignment.ToId(agentUri), new PartitionKey(DocumentTypes.SystemPartition),
+            var existing = await _container.ReadItemAsync<CosmosAgentAssignment>(id, partition,
                 cancellationToken: cancellationToken);
+            if (existing.Resource.NodeId != nodeId.ToString())
+            {
+                return;
+            }
+
+            await _container.DeleteItemAsync<CosmosAgentAssignment>(id, partition,
+                new ItemRequestOptions { IfMatchEtag = existing.ETag }, cancellationToken);
         }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        catch (CosmosException e) when (e.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.PreconditionFailed)
         {
+            // Already gone, or it changed hands between the read and the delete -- not ours to remove
+        }
+    }
+
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        var partition = new PartitionKey(DocumentTypes.SystemPartition);
+
+        try
+        {
+            // GH-4407: create, never upsert, so a peer's existing claim is never overwritten
+            await _container.CreateItemAsync(new CosmosAgentAssignment(agentUri, nodeId), partition,
+                cancellationToken: cancellationToken);
+            return true;
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
+        {
+            try
+            {
+                var existing = await _container.ReadItemAsync<CosmosAgentAssignment>(
+                    CosmosAgentAssignment.ToId(agentUri), partition, cancellationToken: cancellationToken);
+                return existing.Resource.NodeId == nodeId.ToString();
+            }
+            catch (CosmosException missing) when (missing.StatusCode == HttpStatusCode.NotFound)
+            {
+                // Deleted again between the conflict and the read; nobody can be said to own it for us
+                return false;
+            }
         }
     }
 

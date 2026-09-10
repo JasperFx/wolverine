@@ -260,6 +260,24 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        // GH-4407: insert only if nobody owns the agent yet, then report whether the row is ours
+        await _dataSource.CreateCommand(
+                $"insert into {_assignmentTable} (id, node_id) values (:id, :node) on conflict (id) do nothing;")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteNonQueryAsync(cancellationToken);
+
+        var owned = await _dataSource.CreateCommand(
+                $"select count(*) from {_assignmentTable} where id = :id and node_id = :node")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteScalarAsync(cancellationToken);
+
+        return Convert.ToInt64(owned) > 0;
+    }
+
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await _dataSource.CreateCommand($"update {_nodeTable} set health_check = :now where id = :id")

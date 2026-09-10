@@ -21,8 +21,27 @@ public interface INodeAgentPersistence
 
     Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Remove <paramref name="agentUri" />'s assignment row, but only if it belongs to <paramref name="nodeId" />.
+    /// A row another node owns must be left alone: a node stopping a copy it does not own must never take the
+    /// owner's claim with it (GH-4407).
+    /// </summary>
     Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Assign <paramref name="agentUri" /> to <paramref name="nodeId" />, replacing any existing row for the
+    /// agent -- the last writer wins.
+    /// </summary>
     Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// GH-4407: claim <paramref name="agentUri" /> for <paramref name="nodeId" /> only if no node owns it yet.
+    /// Unlike <see cref="AddAssignmentAsync" /> this never takes over a row a peer wrote. Returns <c>true</c>
+    /// when the row belongs to <paramref name="nodeId" /> afterwards -- inserted now, or already this node's --
+    /// and <c>false</c> when another node owns it. Deliberately has no default implementation: a store wrapper
+    /// that forwarded every other member but not this one would silently fall back to a last-writer-wins upsert.
+    /// </summary>
+    Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken);
 
     Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken);
 
