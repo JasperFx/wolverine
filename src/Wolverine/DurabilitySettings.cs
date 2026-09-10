@@ -656,6 +656,35 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxLocalAgentReconciliationsPerTick { get; set; } = 50;
 
     /// <summary>
+    ///     Opt in to capacity-aware agent assignment. Each node advertises its current load (see
+    ///     <see cref="NodeLoadMonitor" />) on every heartbeat; the leader prefers the least-loaded
+    ///     nodes, never places onto a node at or above <see cref="NodeOverloadThreshold" />, sheds
+    ///     agents off overloaded nodes, and leaves agents unassigned when no node has headroom.
+    ///     Requires a message store that persists the load advertisement (PostgreSQL today). Off by
+    ///     default.
+    /// </summary>
+    public bool CapacityAwareAssignment { get; set; }
+
+    /// <summary>
+    ///     Advertised load percentage at or above which a node is considered overloaded: it begins
+    ///     shedding agents, and stops receiving new ones starting 10 points below this value.
+    ///     Default 90.
+    /// </summary>
+    public double NodeOverloadThreshold { get; set; } = 90;
+
+    /// <summary>
+    ///     Maximum number of agents per scheme the leader detaches from an overloaded node in one
+    ///     assignment evaluation. Default 1.
+    /// </summary>
+    public int OverloadShedBatchSize { get; set; } = 1;
+
+    /// <summary>
+    ///     Sampler for this node's own load when <see cref="CapacityAwareAssignment" /> is enabled.
+    ///     Null (the default) uses the built-in memory pressure monitor.
+    /// </summary>
+    public Runtime.Agents.INodeLoadMonitor? NodeLoadMonitor { get; set; }
+
+    /// <summary>
     ///     GH-3970: how many consecutive assignment ticks may fail to <i>build or start</i> an agent on this
     ///     node before the node releases it to a capable peer, using the same embargo as
     ///     <see cref="MaxLocalAgentRestartsBeforeRelease" />.
@@ -854,6 +883,9 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(AssignmentSettleNodeCount), AssignmentSettleNodeCount);
         desc.AddValue(nameof(LocalAgentReconciliationThreshold), LocalAgentReconciliationThreshold);
         desc.AddValue(nameof(MaxLocalAgentReconciliationsPerTick), MaxLocalAgentReconciliationsPerTick);
+        desc.AddValue(nameof(CapacityAwareAssignment), CapacityAwareAssignment);
+        desc.AddValue(nameof(NodeOverloadThreshold), NodeOverloadThreshold);
+        desc.AddValue(nameof(OverloadShedBatchSize), OverloadShedBatchSize);
         desc.AddValue(nameof(TenantCheckPeriod), TenantCheckPeriod);
         desc.AddValue(nameof(UpdateMetricsPeriod), UpdateMetricsPeriod);
         desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);
