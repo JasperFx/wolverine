@@ -253,6 +253,44 @@ that refers to the original message is completely processed. See [Durability and
 settlement](#durability-and-message-settlement) above for the full settlement model and why a durable listener
 is required for guaranteed delivery.
 
+<!-- DRAFT (GH-4397): wording for Jeremy to review before merge -->
+## Waiting for batches to finish <Badge type="tip" text="6.35" />
+
+Let's say you've got an integration test that causes some batched messages, and before the next test resets
+the database you want to be sure every one of those batches has actually run. Otherwise a batch sitting out its
+`TriggerTime` can fire *after* the reset and fail against data that's no longer there.
+
+Wolverine keeps a running count of every member message that's somewhere inside a batching pipeline -- waiting
+to be batched, sitting in an assembled batch, or executing in your batch handler -- and you can ask for it through
+`BatchingPendingCounts` on the Wolverine runtime:
+
+```csharp
+var counts = host.GetRuntime().BatchingPendingCounts;
+
+// Members of BatchMessagesOf<Item>() that haven't finished yet, however they arrived
+var pending = counts.PendingForBatchedMessage<Item>();
+
+// Or across every batching pipeline in the application
+var total = counts.TotalPendingBatchMembers;
+```
+
+A member is released when the batch it belongs to reaches its terminal, success or failure, so a count of
+zero means the batch handler has finished (including committing its transaction if you're using transactional
+middleware).
+
+::: warning
+A member is only counted once the batching processor picks it up from the element type's local queue. Right after
+you publish, the count can still read zero because the message hasn't gotten there yet, so wait for the count to
+go up before you wait for it to come back down -- or just use a [tracked session](/guide/testing), which handles
+all of this for you.
+:::
+
+::: info
+`BatchingPendingCounts.PendingFor(Uri)` is a different number. It only counts members that arrived through a
+specific transport listener, because it exists to feed that listener's back-pressure. Members you publish
+in-process, including cascading messages, never show up there.
+:::
+
 ## Message expiration (`DeliverBy` / `DeliverWithin`) <Badge type="tip" text="6.26" />
 
 Batched messages honor member-level [message expiration](/guide/messages) the same way unbatched messages do,

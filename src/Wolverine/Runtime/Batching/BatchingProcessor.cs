@@ -14,6 +14,9 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
 
     private readonly BatchingPendingCounts? _pendingCounts;
 
+    // GH-4397 — this pipeline's own count of every member, however it arrived
+    private readonly BatchPipelineCounter? _pipeline;
+
     private readonly IBatchExecutionQueues _queues;
 
     private readonly ILogger? _logger;
@@ -31,6 +34,10 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         _pendingCounts = pendingCounts;
         _logger = logger;
         Chain = chain ?? throw new ArgumentOutOfRangeException(nameof(chain));
+
+        // Keyed by the batch chain's TypeName because that is what every batch envelope this processor
+        // assembles carries as its MessageType, so a terminal can find the counter without a new field
+        _pipeline = pendingCounts?.RegisterPipeline(typeof(T), chain.TypeName);
 
         _options = options;
         Batcher = batcher ?? throw new ArgumentNullException(nameof(batcher));
@@ -69,6 +76,10 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         // grouped batch envelope at its terminal (BatchingPendingCounts.SettleBatch).
         _pendingCounts?.Increment(envelope.Listener?.Address);
 
+        // GH-4397 — and count it against this pipeline no matter where it came from, so a caller can ask
+        // whether any batch of T is still pending or executing -- local publishes and cascades included
+        _pipeline?.Increment();
+
         try
         {
             await _batchingBlock.PostAsync(envelope).ConfigureAwait(false);
@@ -76,6 +87,7 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         catch
         {
             _pendingCounts?.Decrement(envelope.Listener?.Address);
+            _pipeline?.Decrement();
             throw;
         }
     }
@@ -102,6 +114,7 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
             carrier.Destination = carrierQueue.Uri;
             carrier.MessageType = Chain!.TypeName;
             carrier.SentAt = DateTimeOffset.UtcNow;
+            carrier.BatchPipelineCounted = _pipeline != null;
 
             await carrierQueue.EnqueueAsync(carrier);
         }
@@ -116,6 +129,7 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
             grouped.Destination = queue.Uri;
             grouped.MessageType = Chain!.TypeName;
             grouped.SentAt = DateTimeOffset.UtcNow;
+            grouped.BatchPipelineCounted = _pipeline != null;
 
             // GH-3898 — whole-batch backstop for expiry that elapses while the assembled batch waits
             // on the (deliberately unbounded, GH-3287) execution queue. Only the LATEST member expiry

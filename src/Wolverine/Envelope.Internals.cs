@@ -152,7 +152,16 @@ public partial class Envelope
     /// drive the pending count negative.
     /// </summary>
     internal bool BatchPendingSettled { get; set; }
-    
+
+    /// <summary>
+    /// GH-4397 — true on a grouped batch envelope whose members were counted into their batching
+    /// pipeline's total in <see cref="Runtime.Batching.BatchingPendingCounts"/>, so its terminal releases
+    /// them. Set by whoever built the batch and counted it: <c>BatchingProcessor</c> for assembled batches
+    /// and expired-member carriers, <c>BatchReplay</c> for a reduced batch. A batch nobody counted must
+    /// not subtract members it never added.
+    /// </summary>
+    internal bool BatchPipelineCounted { get; set; }
+
     [JsonIgnore]
     internal bool HasBeenAcked { get; set; }
 
@@ -608,6 +617,7 @@ public partial class Envelope
         Failure = null;
         Batch = null;
         BatchPendingSettled = false;
+        BatchPipelineCounted = false;
         HasBeenAcked = false;
         AckAttempts = 0;
         WireTap = null;
