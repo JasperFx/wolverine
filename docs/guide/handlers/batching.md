@@ -253,7 +253,6 @@ that refers to the original message is completely processed. See [Durability and
 settlement](#durability-and-message-settlement) above for the full settlement model and why a durable listener
 is required for guaranteed delivery.
 
-<!-- DRAFT (GH-4397): wording for Jeremy to review before merge -->
 ## Waiting for batches to finish <Badge type="tip" text="6.35" />
 
 Let's say you've got an integration test that causes some batched messages, and before the next test resets
