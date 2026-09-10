@@ -414,6 +414,33 @@ or a cron-scheduled message is an `Automation`, a gRPC RPC is a `Command`, an in
 slice a `Translation`, and a slice whose command is an event another slice emits is promoted to `Automation`
 because the assembled model says so.
 
+### Declaring the pattern of a message handler
+
+That still leaves a gap. A message handler whose message has *no* producer anywhere in the model -- it comes in
+from another service over a broker, or from a hosted service, or from a controller that isn't a Wolverine
+endpoint -- carries no pattern at all, and those are usually exactly the slices you most want colored in. If you
+know the answer, say so on the handler with `[SlicePattern]`, the same way `[Emits]` names events:
+
+```cs
+[SlicePattern(SlicePattern.Command)]
+public static IssueAssigned Handle(AssignIssue command, IssueRepository issues)
+{
+    // ...
+}
+```
+
+Put it on the handler method, or on the handler type when every method of it has the same pattern. A declaration
+on the method wins over one on the type.
+
+::: tip
+`[SlicePattern]` only fills a gap. An HTTP route, a gRPC RPC, a schedule and an inbound external system all
+derive the pattern from the trigger itself, and the attribute won't override any of them. On a plain message
+handler it *does* take precedence over the `Automation` promotion for a message another slice cascades, because
+a cascaded message can also arrive from outside the model, and that's precisely the question you're answering.
+Like `[Emits]`, it's purely diagnostic, and a stale declaration shows up as a disagreement with a declared model
+rather than going unnoticed.
+:::
+
 ### Meeting a declared model
 
 A declared model — a curated board file, an overlay — names a slice for the behaviour: `ConfirmAppointment`.

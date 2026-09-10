@@ -364,7 +364,9 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             // GH-4387: the slice behind an RPC is derived off a message handler chain, which no longer
             // claims Pattern. An RPC is an inbound request somebody made, exactly as an HTTP route is, so
             // the trigger answers the question the handler signature could not.
-            Pattern = slice.Pattern ?? SlicePattern.Command
+            // GH-4395: unconditionally, so a [SlicePattern] on the handler behind the RPC fills no gap
+            // here -- the trigger outranks a declaration, the same as an HTTP route's derived pattern does.
+            Pattern = SlicePattern.Command
         };
 
     private static EventModelSliceDescriptor grpcTriggerOnlySlice(GrpcEndpointDescriptor endpoint, PublisherOrigin origin)
@@ -411,6 +413,13 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     ///         cascades has not thereby made the route an automation. A slice whose only producer is
     ///         <em>itself</em> is a loop, which says nothing about how the message first arrives.
     ///     </para>
+    ///     <para>
+    ///         <b>A declared pattern is never promoted.</b> <see cref="EventModelRoles.Describe" /> leaves a
+    ///         message-handler slice's pattern unclaimed unless the handler declares one with
+    ///         <c>[SlicePattern]</c> (GH-4395), so a pattern already on such a slice here is a declaration. It
+    ///         answers the very question this rule infers -- a message another slice cascades may also arrive
+    ///         from outside the model -- so it stands.
+    ///     </para>
     /// </remarks>
     public static EventModelDescriptor FinishModel(EventModelDescriptor model)
     {
@@ -439,8 +448,8 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
         EventModelSliceDescriptor promote(EventModelSliceDescriptor slice)
         {
-            if (slice.Pattern is not (null or SlicePattern.Command)) return slice;
             if (slice.TriggerKind != TriggerKind.MessageHandler) return slice;
+            if (slice.Pattern is not null) return slice; // GH-4395: declared with [SlicePattern]
             if (slice.CommandType is not { } command) return slice;
             if (!producers.TryGetValue(command.FullName, out var names)) return slice;
             if (names.All(x => string.Equals(x, slice.Name, StringComparison.Ordinal))) return slice;
