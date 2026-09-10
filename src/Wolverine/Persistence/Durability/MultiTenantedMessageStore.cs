@@ -604,6 +604,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return Main.Nodes.AddAssignmentAsync(nodeId, agentUri, cancellationToken);
     }
 
+    Task<bool> INodeAgentPersistence.TryClaimAssignmentAsync(Guid nodeId, Uri agentUri,
+        CancellationToken cancellationToken)
+    {
+        return Main.Nodes.TryClaimAssignmentAsync(nodeId, agentUri, cancellationToken);
+    }
+
     Task<WolverineNode?> INodeAgentPersistence.LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         return Main.Nodes.LoadNodeAsync(nodeId, cancellationToken);

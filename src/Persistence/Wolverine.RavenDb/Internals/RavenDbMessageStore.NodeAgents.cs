@@ -227,10 +227,59 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
     public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
+        // GH-4407: only this node's own claim. Deleting by id alone let a node stopping a copy it did not own
+        // delete the owner's row, which the leader then read as an unassigned agent and placed again.
         using var session = _store.OpenAsyncSession();
-        session.Delete(AgentAssignment.ToId(agentUri));
+        session.Advanced.UseOptimisticConcurrency = true;
 
-        await session.SaveChangesAsync(token: cancellationToken);
+        var existing = await session.LoadAsync<AgentAssignment>(AgentAssignment.ToId(agentUri), cancellationToken);
+        if (existing == null || existing.NodeId != nodeId)
+        {
+            return;
+        }
+
+        session.Delete(existing);
+
+        try
+        {
+            await session.SaveChangesAsync(token: cancellationToken);
+        }
+        catch (ConcurrencyException)
+        {
+            // The row changed hands between the load and the delete, so it is no longer ours to remove
+        }
+    }
+
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        var id = AgentAssignment.ToId(agentUri);
+
+        using (var session = _store.OpenAsyncSession())
+        {
+            var existing = await session.LoadAsync<AgentAssignment>(id, cancellationToken);
+            if (existing != null)
+            {
+                return existing.NodeId == nodeId;
+            }
+
+            // GH-4407: an empty change vector means "only if the document does not exist yet", so a peer that
+            // claims the agent between the load and the save wins instead of being overwritten
+            await session.StoreAsync(new AgentAssignment(agentUri, nodeId), string.Empty, id, cancellationToken);
+
+            try
+            {
+                await session.SaveChangesAsync(token: cancellationToken);
+                return true;
+            }
+            catch (ConcurrencyException)
+            {
+                // Lost the race; fall through and report who did win
+            }
+        }
+
+        using var reread = _store.OpenAsyncSession();
+        var winner = await reread.LoadAsync<AgentAssignment>(id, cancellationToken);
+        return winner?.NodeId == nodeId;
     }
 
     public async Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)

@@ -646,6 +646,16 @@ public class DurabilitySettings : IDescribeMyself
     public int LocalAgentReconciliationThreshold { get; set; } = 3;
 
     /// <summary>
+    ///     GH-4407: the most reconciliation actions (starts, stops, restored claims) one node takes on a single
+    ///     health-check tick. The sweep runs inside the serialized health check, ahead of the leader's
+    ///     assignment pass on the leader node, so after something like a leader crash on a large fleet an
+    ///     unbounded sweep could hold that pass back for as long as hundreds of agent starts take. Anything over
+    ///     the cap keeps its place and is handled on a later tick, longest-standing first. Set to 0 or a
+    ///     negative number for no cap. Default 50.
+    /// </summary>
+    public int MaxLocalAgentReconciliationsPerTick { get; set; } = 50;
+
+    /// <summary>
     ///     GH-3970: how many consecutive assignment ticks may fail to <i>build or start</i> an agent on this
     ///     node before the node releases it to a capable peer, using the same embargo as
     ///     <see cref="MaxLocalAgentRestartsBeforeRelease" />.
@@ -843,6 +853,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(MaxAssignmentSettleTime), MaxAssignmentSettleTime);
         desc.AddValue(nameof(AssignmentSettleNodeCount), AssignmentSettleNodeCount);
         desc.AddValue(nameof(LocalAgentReconciliationThreshold), LocalAgentReconciliationThreshold);
+        desc.AddValue(nameof(MaxLocalAgentReconciliationsPerTick), MaxLocalAgentReconciliationsPerTick);
         desc.AddValue(nameof(TenantCheckPeriod), TenantCheckPeriod);
         desc.AddValue(nameof(UpdateMetricsPeriod), UpdateMetricsPeriod);
         desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);

@@ -300,6 +300,25 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        // GH-4407: insert only if nobody owns the agent yet (the duplicate-key branch is a no-op), then report
+        // whether the row is ours
+        await _dataSource.CreateCommand(
+                $"INSERT INTO {_assignmentTable} (id, node_id) VALUES (@id, @node) ON DUPLICATE KEY UPDATE id = id")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteNonQueryAsync(cancellationToken);
+
+        var owned = await _dataSource.CreateCommand(
+                $"SELECT COUNT(*) FROM {_assignmentTable} WHERE id = @id AND node_id = @node")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteScalarAsync(cancellationToken);
+
+        return Convert.ToInt64(owned) > 0;
+    }
+
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await _dataSource.CreateCommand($"UPDATE {_nodeTable} SET health_check = @now WHERE id = @id")

@@ -220,6 +220,88 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         persisted.ActiveAgents.OrderBy(x => x.ToString()).ShouldBe([agent3, agent2]);
     }
 
+    // GH-4407: assignment ownership. The table holds one row per agent, so these pin down who may change
+    // whose row. A delete that was not owner-scoped let a node stopping a copy it did not own take the
+    // owner's claim with it -- and nothing here used to say that was wrong.
+
+    private async Task<Guid> persistNodeAsync()
+    {
+        var node = createNode();
+        await _database.Nodes.PersistAsync(node, CancellationToken.None);
+        return node.NodeId;
+    }
+
+    private async Task<Guid?> ownerOfAsync(Uri agentUri)
+    {
+        var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        return nodes.FirstOrDefault(x => x.ActiveAgents.Contains(agentUri))?.NodeId;
+    }
+
+    [Fact]
+    public async Task removing_an_assignment_owned_by_another_node_is_a_no_op()
+    {
+        var owner = await persistNodeAsync();
+        var other = await persistNodeAsync();
+        var agent = new Uri("red://one");
+
+        await _database.Nodes.AddAssignmentAsync(owner, agent, CancellationToken.None);
+
+        await _database.Nodes.RemoveAssignmentAsync(other, agent, CancellationToken.None);
+
+        (await ownerOfAsync(agent)).ShouldBe(owner);
+    }
+
+    [Fact]
+    public async Task add_assignment_moves_the_row_to_the_new_node()
+    {
+        var first = await persistNodeAsync();
+        var second = await persistNodeAsync();
+        var agent = new Uri("red://one");
+
+        await _database.Nodes.AddAssignmentAsync(first, agent, CancellationToken.None);
+        await _database.Nodes.AddAssignmentAsync(second, agent, CancellationToken.None);
+
+        (await ownerOfAsync(agent)).ShouldBe(second);
+    }
+
+    [Fact]
+    public async Task claiming_an_unowned_assignment_takes_it()
+    {
+        var node = await persistNodeAsync();
+        var agent = new Uri("red://one");
+
+        (await _database.Nodes.TryClaimAssignmentAsync(node, agent, CancellationToken.None)).ShouldBeTrue();
+
+        (await ownerOfAsync(agent)).ShouldBe(node);
+    }
+
+    [Fact]
+    public async Task claiming_an_assignment_a_peer_owns_leaves_it_alone()
+    {
+        var owner = await persistNodeAsync();
+        var claimant = await persistNodeAsync();
+        var agent = new Uri("red://one");
+
+        await _database.Nodes.AddAssignmentAsync(owner, agent, CancellationToken.None);
+
+        (await _database.Nodes.TryClaimAssignmentAsync(claimant, agent, CancellationToken.None)).ShouldBeFalse();
+
+        (await ownerOfAsync(agent)).ShouldBe(owner);
+    }
+
+    [Fact]
+    public async Task claiming_an_assignment_this_node_already_owns_succeeds()
+    {
+        var node = await persistNodeAsync();
+        var agent = new Uri("red://one");
+
+        await _database.Nodes.AddAssignmentAsync(node, agent, CancellationToken.None);
+
+        (await _database.Nodes.TryClaimAssignmentAsync(node, agent, CancellationToken.None)).ShouldBeTrue();
+
+        (await ownerOfAsync(agent)).ShouldBe(node);
+    }
+
     private int _count = 0;
     private WolverineNode createNode()
     {

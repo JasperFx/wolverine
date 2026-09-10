@@ -374,6 +374,25 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.CloseAsync();
     }
 
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // GH-4407: insert only if nobody owns the agent yet -- UPDLOCK/HOLDLOCK so two claimants can't both pass
+        // the NOT EXISTS -- then report whether the row is ours
+        var owned = await conn.CreateCommand(
+                $"insert into {_assignmentTable} (id, node_id) select @id, @node where not exists (select 1 from {_assignmentTable} with (updlock, holdlock) where id = @id);" +
+                $"select count(*) from {_assignmentTable} where id = @id and node_id = @node;")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteScalarAsync(cancellationToken);
+
+        await conn.CloseAsync();
+
+        return Convert.ToInt64(owned) > 0;
+    }
+
     public Task LogRecordsAsync(params NodeRecord[] records)
     {
         if (records.Any())

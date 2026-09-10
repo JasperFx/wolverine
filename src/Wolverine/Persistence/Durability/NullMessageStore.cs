@@ -354,6 +354,12 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.CompletedTask;
     }
 
+    // There are no rows, so there is no peer whose claim could win
+    public Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(true);
+    }
+
     public Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         return Task.FromResult(default(WolverineNode?));

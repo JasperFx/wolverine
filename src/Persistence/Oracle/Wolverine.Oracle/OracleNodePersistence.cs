@@ -285,6 +285,39 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         await conn.CloseAsync();
     }
 
+    public async Task<bool> TryClaimAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+
+        // GH-4407: insert only if nobody owns the agent yet, then report whether the row is ours
+        await using (var insert = conn.CreateCommand(
+                         $"MERGE INTO {_assignmentTable} t USING DUAL ON (t.id = :id) " +
+                         "WHEN NOT MATCHED THEN INSERT (id, node_id) VALUES (:id, :node)"))
+        {
+            insert.With("id", agentUri.ToString());
+            insert.With("node", nodeId);
+
+            try
+            {
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (global::Oracle.ManagedDataAccess.Client.OracleException e) when (e.Number == 1)
+            {
+                // ORA-00001: a peer inserted between the MERGE's match and its insert, so it owns the row
+            }
+        }
+
+        await using var select = conn.CreateCommand(
+            $"SELECT COUNT(*) FROM {_assignmentTable} WHERE id = :id AND node_id = :node");
+        select.With("id", agentUri.ToString());
+        select.With("node", nodeId);
+        var owned = await select.ExecuteScalarAsync(cancellationToken);
+
+        await conn.CloseAsync();
+
+        return Convert.ToInt64(owned) > 0;
+    }
+
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await using var conn = await _dataSource.OpenConnectionAsync();

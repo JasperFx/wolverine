@@ -32,8 +32,15 @@ public partial class NodeAgentController
     ///     read omits it, and skips this sweep on those ticks — a fabricated empty claim list is not a
     ///     transient the consecutive-tick threshold can filter, and acting on it would stop or re-claim
     ///     agents against state that was never real.</para>
+    ///
+    ///     <para>GH-4407: every action is decided from a snapshot, so each one defers to anything newer. A
+    ///     stop stamped after <paramref name="snapshotSequence" /> wins over a start or a restored claim, a
+    ///     start already in flight here is never started again, a stopped orphan leaves the owner's row where
+    ///     it is, and a restored claim only takes a row nobody owns. Actions per tick are capped by
+    ///     <see cref="DurabilitySettings.MaxLocalAgentReconciliationsPerTick" />.</para>
     /// </summary>
-    internal async Task ReconcileLocalAgentsAsync(IReadOnlyList<WolverineNode> nodes, AgentRestrictions restrictions)
+    internal async Task ReconcileLocalAgentsAsync(IReadOnlyList<WolverineNode> nodes, AgentRestrictions restrictions,
+        long snapshotSequence)
     {
         var threshold = _runtime.Options.Durability.LocalAgentReconciliationThreshold;
         if (threshold <= 0)
@@ -67,6 +74,9 @@ public partial class NodeAgentController
             if (running.Contains(uri)) continue;
             if (_stoppingAgents.ContainsKey(uri)) continue;
 
+            // GH-4407: a start already in flight here is not missing -- it registers the moment it lands
+            if (_startingAgents.ContainsKey(uri)) continue;
+
             // An agent this node released for failing here must not be dragged back by its own stale
             // row, an operator's pause outranks the row, and a row for a scheme this deployment cannot
             // run (blue/green) is a peer's business.
@@ -85,50 +95,43 @@ public partial class NodeAgentController
             _reconcileObservations.Remove(recovered);
         }
 
+        var ready = new List<(Uri Uri, bool RunningNotClaimed, int Streak)>();
         foreach (var (uri, runningNotClaimed) in mismatches)
         {
             var count = (_reconcileObservations.TryGetValue(uri, out var previous) ? previous : 0) + 1;
             _reconcileObservations[uri] = count;
 
-            if (count < threshold)
+            if (count >= threshold)
             {
-                continue;
+                ready.Add((uri, runningNotClaimed, count));
             }
+        }
 
+        if (ready.Count == 0)
+        {
+            return;
+        }
+
+        // GH-4407: bounded per tick. Whatever the cap defers keeps its streak, which keeps growing, so ordering
+        // by streak means a deferred divergence goes ahead of newer ones on the next tick instead of starving.
+        var cap = _runtime.Options.Durability.MaxLocalAgentReconciliationsPerTick;
+        var ordered = ready.OrderByDescending(x => x.Streak).ToList();
+        var actions = cap > 0 && ordered.Count > cap ? ordered.Take(cap).ToList() : ordered;
+
+        if (actions.Count < ordered.Count)
+        {
+            _logger.LogInformation(
+                "Node {NodeNumber} is reconciling {Count} agent(s) this tick and deferring {Deferred} to the next (MaxLocalAgentReconciliationsPerTick)",
+                _runtime.Options.Durability.AssignedNodeNumber, actions.Count, ordered.Count - actions.Count);
+        }
+
+        foreach (var (uri, runningNotClaimed, _) in actions)
+        {
             _reconcileObservations.Remove(uri);
 
             try
             {
-                if (runningNotClaimed)
-                {
-                    var owner = nodes.FirstOrDefault(x =>
-                        x.NodeId != self.NodeId && x.ActiveAgents.Contains(uri));
-
-                    if (owner != null)
-                    {
-                        _logger.LogWarning(
-                            "Agent {AgentUri} is running on node {NodeNumber} but its durable assignment belongs to node {OwnerNodeNumber}; stopping the local copy",
-                            uri, _runtime.Options.Durability.AssignedNodeNumber, owner.AssignedNodeNumber);
-
-                        await StopAgentAsync(uri);
-                    }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "Agent {AgentUri} is running on node {NodeNumber} with no durable assignment row anywhere; restoring this node's claim",
-                            uri, _runtime.Options.Durability.AssignedNodeNumber);
-
-                        await upsertAssignmentAsync(uri);
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning(
-                        "Agent {AgentUri} is durably assigned to node {NodeNumber} but is not running here; starting it",
-                        uri, _runtime.Options.Durability.AssignedNodeNumber);
-
-                    await StartAgentAsync(uri);
-                }
+                await reconcileAgentAsync(nodes, self, uri, runningNotClaimed, snapshotSequence);
             }
             catch (Exception e)
             {
@@ -137,6 +140,54 @@ public partial class NodeAgentController
                 _logger.LogError(e, "Error reconciling agent {AgentUri} on node {NodeNumber}", uri,
                     _runtime.Options.Durability.AssignedNodeNumber);
             }
+        }
+    }
+
+    private async Task reconcileAgentAsync(IReadOnlyList<WolverineNode> nodes, WolverineNode self, Uri uri,
+        bool runningNotClaimed, long snapshotSequence)
+    {
+        var nodeNumber = _runtime.Options.Durability.AssignedNodeNumber;
+
+        if (!runningNotClaimed)
+        {
+            _logger.LogWarning(
+                "Agent {AgentUri} is durably assigned to node {NodeNumber} but is not running here; starting it",
+                uri, nodeNumber);
+
+            // GH-4407: through the revocation guard, so a stop that landed after this snapshot was read wins
+            await StartAgentGuardedAsync(uri, snapshotSequence);
+            return;
+        }
+
+        // A stop that landed after the snapshot has already changed the picture this decision was made from
+        if (isRevokedSince(uri, snapshotSequence))
+        {
+            return;
+        }
+
+        var owner = nodes.FirstOrDefault(x => x.NodeId != self.NodeId && x.ActiveAgents.Contains(uri));
+        if (owner != null)
+        {
+            _logger.LogWarning(
+                "Agent {AgentUri} is running on node {NodeNumber} but its durable assignment belongs to node {OwnerNodeNumber}; stopping the local copy",
+                uri, nodeNumber, owner.AssignedNodeNumber);
+
+            // GH-4407: the row is the owner's claim, so this stop must leave it where it is
+            await stopAgentAsync(uri, removeAssignment: false);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Agent {AgentUri} is running on node {NodeNumber} with no durable assignment row anywhere; restoring this node's claim",
+            uri, nodeNumber);
+
+        // GH-4407: only if it is still unowned. A peer may have claimed it since the snapshot was read, and an
+        // upsert here would take the row out from under that peer.
+        if (!await claimAssignmentAsync(uri))
+        {
+            _logger.LogInformation(
+                "Agent {AgentUri} was claimed by another node before node {NodeNumber} could restore its own claim; leaving the row to its owner",
+                uri, nodeNumber);
         }
     }
 }
