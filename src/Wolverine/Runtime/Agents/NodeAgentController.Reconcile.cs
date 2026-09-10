@@ -26,6 +26,12 @@ public partial class NodeAgentController
     ///     </list>
     ///     The existing local sweep (<see cref="ReportFailedLocalAgentsAsync" />) covers agents that are
     ///     registered but wedged/paused; this one covers registration-vs-table divergence.
+    ///
+    ///     <para>The caller must only pass a snapshot that contains this node's PERSISTED row.
+    ///     <c>DoHealthChecksInternalAsync</c> injects a synthetic self (empty ActiveAgents) when a lagging
+    ///     read omits it, and skips this sweep on those ticks — a fabricated empty claim list is not a
+    ///     transient the consecutive-tick threshold can filter, and acting on it would stop or re-claim
+    ///     agents against state that was never real.</para>
     /// </summary>
     internal async Task ReconcileLocalAgentsAsync(IReadOnlyList<WolverineNode> nodes, AgentRestrictions restrictions)
     {

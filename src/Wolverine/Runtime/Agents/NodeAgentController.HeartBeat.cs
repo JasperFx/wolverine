@@ -190,7 +190,8 @@ public partial class NodeAgentController
         // propagating), inject self so downstream leader-election and
         // assignment-evaluation code can find us. We rely on the next tick to
         // pick up the persisted row with its full Capabilities / ActiveAgents.
-        if (nodes.All(x => x.NodeId != selfNodeId))
+        var selfRowIsPersisted = nodes.Any(x => x.NodeId == selfNodeId);
+        if (!selfRowIsPersisted)
         {
             nodes = nodes.Concat(new[] { WolverineNode.For(_runtime.Options) }).ToList();
         }
@@ -208,9 +209,19 @@ public partial class NodeAgentController
         // divergences it heals live on the node that has them, and the leader structurally cannot see
         // them (a row with no runner looks assigned; a runner with no row is invisible to the grid).
         // Wrapped so a fault here can never cost this node its heartbeat or its leadership lease.
+        //
+        // Gated on the snapshot actually containing this node's PERSISTED row. The synthetic self
+        // injected above carries an empty ActiveAgents list — a deterministic fiction, not a lagging
+        // reading — so the consecutive-tick threshold cannot filter it: every synthetic tick would
+        // count every local agent as "running but unclaimed", and after the threshold the sweep would
+        // stop copies whose claim the stale snapshot attributes elsewhere, or re-claim rows over a
+        // peer's newer write. The sweep only ever compares against durable truth it has actually seen.
         try
         {
-            await ReconcileLocalAgentsAsync(nodes, restrictions);
+            if (selfRowIsPersisted)
+            {
+                await ReconcileLocalAgentsAsync(nodes, restrictions);
+            }
         }
         catch (Exception e)
         {

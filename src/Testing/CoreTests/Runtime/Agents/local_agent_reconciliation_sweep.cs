@@ -185,6 +185,49 @@ public class local_agent_reconciliation_sweep
     }
 
     [Fact]
+    public async Task never_acts_on_the_synthetic_self_row_injected_for_a_lagging_snapshot()
+    {
+        var uri = new Uri("test-family://one");
+        var agent = _family.Add(uri);
+
+        await _controller.StartAgentAsync(uri);
+        _persistence.ClearReceivedCalls();
+
+        // The snapshot omits this node entirely (read-after-write lag), so the health check injects a
+        // synthetic self whose ActiveAgents is EMPTY — a deterministic fiction the consecutive-tick
+        // threshold cannot filter. A peer's row claims the agent in that same stale snapshot: acting on
+        // it would stop the legitimate local copy. The sweep must sit these ticks out entirely.
+        ClusterIs(Row(Guid.NewGuid(), 2, uri));
+        await tick(5);
+        agent.StopCount.ShouldBe(0);
+
+        // Nor may the inverse branch fire: with no claimant anywhere in the stale snapshot, acting
+        // would re-claim the row over whatever a peer wrote after the snapshot was taken.
+        ClusterIs(Row(Guid.NewGuid(), 2));
+        await tick(5);
+        await _persistence.DidNotReceive()
+            .AddAssignmentAsync(_options.UniqueNodeId, uri, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task resumes_reconciling_once_the_persisted_self_row_is_visible_again()
+    {
+        var uri = new Uri("test-family://one");
+        var agent = _family.Add(uri);
+
+        // Lagging ticks first: the snapshot omits self, so nothing is observed or acted on...
+        ClusterIs(Row(Guid.NewGuid(), 2, uri));
+        await tick(5);
+        agent.StartCount.ShouldBe(0);
+
+        // ...then the persisted row comes back showing the real divergence (assigned here, not
+        // running), and the sweep proceeds on its normal threshold from genuine observations.
+        ClusterIs(Self(uri), Row(Guid.NewGuid(), 2));
+        await tick(3);
+        agent.StartCount.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task a_paused_agent_is_not_dragged_back_by_its_own_stale_row()
     {
         var uri = new Uri("test-family://one");
