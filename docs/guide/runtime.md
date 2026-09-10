@@ -151,7 +151,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L136-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-At runtime, you have a local [TPL Dataflow queue](https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) between the Wolverine callers and the broker:
+At runtime, you have a local, in memory queue (built on [System.Threading.Channels](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels)) between the Wolverine callers and the broker:
 
 ![Buffered Endpoints](/buffered-endpoint.png)
 
