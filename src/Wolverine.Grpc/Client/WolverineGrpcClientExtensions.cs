@@ -86,6 +86,14 @@ public static class WolverineGrpcClientExtensions
         services.AddOptions<WolverineGrpcClientOptions>(name);
         services.AddOptions<WolverineGrpcCodeFirstClientOptions>(name);
 
+        // GH-4403: both registration paths below hand the client to DI as an opaque lambda factory --
+        // Microsoft's AddGrpcClient<T>() for proto-first, our own for code-first -- which Wolverine's codegen
+        // cannot construct inline. Under the default ServiceLocationPolicy.NotAllowed, every handler that took
+        // the client as a parameter failed to compile. Opting the client into service location here, at the one
+        // place it is registered, means nobody has to do it by hand. It is applied at startup like any other
+        // extension, so it works in a client-only application and in any order relative to UseWolverine().
+        services.ConfigureWolverine(opts => opts.CodeGeneration.AlwaysUseServiceLocationFor<TClient>());
+
         if (IsCodeFirstContract(typeof(TClient)))
         {
             services.TryAddSingleton<WolverineGrpcCodeFirstChannelFactory>();
