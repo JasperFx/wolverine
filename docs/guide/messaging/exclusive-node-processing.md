@@ -102,18 +102,25 @@ opts.ListenToRabbitQueue("critical-tasks")
 
 ### Leader Election
 
-When using exclusive node processing, Wolverine uses its leader election mechanism to ensure only one node claims the exclusive listener. This requires:
-
-1. A persistence layer (SQL Server, PostgreSQL, or RavenDB)
-2. Node agent support enabled
+When using exclusive node processing, Wolverine uses its [leader election and agent assignment](/tutorials/leader-election)
+mechanism to ensure only one node claims the exclusive listener. There is nothing extra to turn on: leader election
+is enabled by default (`DurabilityMode.Balanced`) as soon as your application has any kind of
+[message persistence](/guide/durability/) configured, because that's where Wolverine persists node records and agent
+assignments.
 
 ```cs
-opts.PersistMessagesWithSqlServer(connectionString)
-    .EnableNodeAgentSupport(); // Required for leader election
+// Any message persistence enables leader election and agent assignment
+opts.PersistMessagesWithSqlServer(connectionString);
 
 opts.ListenToRabbitQueue("singleton-queue")
     .ExclusiveNodeWithParallelism(5);
 ```
+
+::: warning
+Without message persistence there is nowhere to coordinate node ownership. A host with no message store runs in
+`DurabilityMode.Solo`, where *every* node starts *every* listener, so an exclusive listener is no longer exclusive
+across a multi-node deployment. Single node deployments are unaffected.
+:::
 
 ### Failover Behavior
 
