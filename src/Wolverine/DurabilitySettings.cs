@@ -639,6 +639,13 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxLocalAgentRestartsBeforeRelease { get; set; } = 3;
 
     /// <summary>
+    ///     How many consecutive health-check ticks a mismatch between this node's persisted agent
+    ///     assignments and its actually-running agents must be observed before the node reconciles
+    ///     it. Set to 0 or a negative number to disable the reconciliation sweep. Default 3.
+    /// </summary>
+    public int LocalAgentReconciliationThreshold { get; set; } = 3;
+
+    /// <summary>
     ///     GH-3970: how many consecutive assignment ticks may fail to <i>build or start</i> an agent on this
     ///     node before the node releases it to a capable peer, using the same embargo as
     ///     <see cref="MaxLocalAgentRestartsBeforeRelease" />.
@@ -835,6 +842,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(AssignmentSettlePeriod), AssignmentSettlePeriod);
         desc.AddValue(nameof(MaxAssignmentSettleTime), MaxAssignmentSettleTime);
         desc.AddValue(nameof(AssignmentSettleNodeCount), AssignmentSettleNodeCount);
+        desc.AddValue(nameof(LocalAgentReconciliationThreshold), LocalAgentReconciliationThreshold);
         desc.AddValue(nameof(TenantCheckPeriod), TenantCheckPeriod);
         desc.AddValue(nameof(UpdateMetricsPeriod), UpdateMetricsPeriod);
         desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);

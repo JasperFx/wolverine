@@ -204,6 +204,20 @@ public partial class NodeAgentController
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
 
+        // GH-3987: node-side assigned-vs-running reconciliation, follower-capable by design — the
+        // divergences it heals live on the node that has them, and the leader structurally cannot see
+        // them (a row with no runner looks assigned; a runner with no row is invisible to the grid).
+        // Wrapped so a fault here can never cost this node its heartbeat or its leadership lease.
+        try
+        {
+            await ReconcileLocalAgentsAsync(nodes, restrictions);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error reconciling local agents on node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
+
         // Detect lost leadership: we *thought* we were the leader (from a
         // previous heartbeat tick) but our underlying advisory lock has been
         // released server-side. With the AdvisoryLock.HasLock liveness ping
