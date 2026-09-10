@@ -33,6 +33,7 @@ internal class RequeueContinuation : IContinuation, IContinuationSource, IJitter
         Activity? activity)
     {
         activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRequeued));
+        WolverineTracing.RecordPreviousAttempt(lifecycle.Envelope, activity);
 
         if (Delay != null)
         {

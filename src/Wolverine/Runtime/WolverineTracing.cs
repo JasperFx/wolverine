@@ -304,6 +304,43 @@ public static class WolverineTracing
         return activity;
     }
 
+    /// <summary>
+    /// Called by the error handling continuations that give a failed envelope another attempt (retry now,
+    /// scheduled retry, requeue) to remember which activity failed. See GH-4398.
+    /// </summary>
+    internal static void RecordPreviousAttempt(Envelope? envelope, Activity? activity)
+    {
+        var id = activity?.Id;
+        if (envelope == null || id == null) return;
+
+        envelope.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey] = id;
+    }
+
+    /// <summary>
+    /// Link the activity running this attempt back to the failed attempt before it, then drop the header so the
+    /// link is single-use and never travels onward with anything this attempt does next. A link rather than a
+    /// parent because a retry does not temporally contain the attempt that failed before it -- the OpenTelemetry
+    /// messaging conventions use a link for exactly this, as do MassTransit and Brighter.
+    ///
+    /// Runs once per message in the handler pipeline, which is the one place every attempt converges -- doing it
+    /// at span start instead would hand the link to whichever span a receiver happened to start first. The
+    /// HasHeaders guard keeps it from allocating the lazy headers dictionary on the overwhelmingly common
+    /// envelope that carries none. See GH-4398.
+    /// </summary>
+    internal static void LinkToPreviousAttempt(Activity? activity, Envelope envelope)
+    {
+        if (!envelope.HasHeaders ||
+            !envelope.Headers.Remove(EnvelopeConstants.PreviousAttemptActivityIdKey, out var previous))
+        {
+            return;
+        }
+
+        if (activity != null && ActivityContext.TryParse(previous, null, out var context))
+        {
+            activity.AddLink(new ActivityLink(context));
+        }
+    }
+
     internal static void MaybeSetTag<T>(this Activity activity, string tagName, T? value)
     {
         if (value != null)

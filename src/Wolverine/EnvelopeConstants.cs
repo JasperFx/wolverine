@@ -31,6 +31,15 @@ public static class EnvelopeConstants
     public const string CausationIdKey = "causation-id";
 
     /// <summary>
+    ///     The W3C id of the failed processing attempt that an error handling continuation retried, requeued or
+    ///     rescheduled. The next attempt's span carries it as an <see cref="System.Diagnostics.ActivityLink" />.
+    ///     Deliberately a loose <see cref="Envelope.Headers" /> entry rather than a mapped envelope property, so an
+    ///     envelope that is never retried pays nothing for it in any transport mapper or in the envelope
+    ///     serializer. See GH-4398.
+    /// </summary>
+    public const string PreviousAttemptActivityIdKey = "previous-attempt-activity-id";
+
+    /// <summary>
     ///     The format <see cref="Wolverine.Transports.EnvelopeMapper{TIncoming,TOutgoing}" /> uses when it writes
     ///     <see cref="DateTimeOffset" /> envelope properties (<c>time-to-send</c>, <c>deliver-by</c>) into
     ///     transport headers. It is deliberately NOT round-trippable by <c>DateTime.Parse</c> or
