@@ -28,8 +28,10 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
     }
 
     /// <summary>
-    ///     Add circuit breaker exception handling to this local queue. This will only
-    ///     be applied if the local queue is marked as durable!!!
+    ///     Add circuit breaker exception handling to this local queue. The queue must also be durable
+    ///     (<c>UseDurableInbox()</c>, or <c>opts.Policies.UseDurableLocalQueues()</c>): a buffered local queue
+    ///     cannot pause, so as of 6.36 a circuit breaker on one stops the host from starting with an
+    ///     <see cref="InvalidListenerConfigurationException" /> rather than being silently ignored (GH-4410).
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>

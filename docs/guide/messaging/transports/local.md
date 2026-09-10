@@ -302,6 +302,29 @@ using var host = await Host.CreateDefaultBuilder()
 
 See [Durable Inbox and Outbox Messaging](/guide/durability/) for more information.
 
+## Circuit Breakers on Local Queues
+
+You can put a [circuit breaker](/guide/handlers/error-handling#circuit-breaker) on a local queue, but only on a
+durable one:
+
+```cs
+opts.LocalQueueFor<ProcessPayment>()
+    .UseDurableInbox()
+    .CircuitBreaker(cb =>
+    {
+        cb.MinimumThreshold = 10;
+        cb.FailurePercentageThreshold = 20;
+        cb.PauseTime = 5.Minutes();
+    });
+```
+
+::: warning
+A buffered local queue can't pause. As of Wolverine 6.36, `CircuitBreaker()` on a local queue that isn't
+durable stops the host from starting with an `InvalidListenerConfigurationException`. Earlier versions accepted
+the configuration and then ignored it, so the queue just kept processing -- and failing -- every message. Add
+`UseDurableInbox()` to the queue, or `opts.Policies.UseDurableLocalQueues()` for all of them.
+:::
+
 
 ## Configuring Parallelization and Execution Properties
 
