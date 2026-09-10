@@ -133,7 +133,8 @@ public class service_location_assertions
         theChain.AssertServiceLocationsAreAllowed(reports, services);
 
         theLogger.Messages.Count.ShouldBe(2);
-        theLogger.Messages.ShouldAllBe(m => m.Contains("Wolverine 6.0"));
+        // The warning points at the policy that would make this an error -- the default since 6.0
+        theLogger.Messages.ShouldAllBe(m => m.Contains("ServiceLocationPolicy.NotAllowed"));
         theLogger.Levels.ShouldAllBe(l => l == LogLevel.Warning);
     }
 
@@ -153,7 +154,7 @@ public class service_location_assertions
             theChain.AssertServiceLocationsAreAllowed(reports, services);
         });
 
-        ex.Message.ShouldContain("Wolverine 6.0");
+        ex.Message.ShouldContain("ServiceLocationPolicy.NotAllowed is in effect");
     }
     
     [Theory]

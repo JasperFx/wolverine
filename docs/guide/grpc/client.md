@@ -48,6 +48,14 @@ public static async Task<PongReply> Handle(PingRequest request, IPingService pin
 }
 ```
 
+::: info
+Both kinds of typed client are registered through a factory lambda, which Wolverine's code generation
+can't build inline, so a handler that takes one has to resolve it through
+[service location](/guide/codegen). `AddWolverineGrpcClient<T>()` opts the client into that for you --
+there's no need to call `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()` yourself, even with the
+default `ServiceLocationPolicy.NotAllowed` in effect.
+:::
+
 ### Code-first vs proto-first
 
 `IsCodeFirstContract` classifies `TClient` by whether it is an interface decorated with
