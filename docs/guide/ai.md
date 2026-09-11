@@ -251,6 +251,12 @@ limit sit on the queue and wait their turn, which is exactly what you want -- th
 free and losing them is not.
 :::
 
+::: warning
+The circuit breaker depends on that durability. A local queue can only pause when it's durable, so if you set
+`DurableQueue = false`, a `CircuitBreaker()` on the callout queue stops the host from starting. See
+[circuit breakers on local queues](/guide/messaging/transports/local#circuit-breakers-on-local-queues).
+:::
+
 Some providers are stricter than that, and a per-account rate limit that only lets you have one conversation going
 at a time is not unusual. Take the queue down to strict ordering when that's the situation you're in:
 

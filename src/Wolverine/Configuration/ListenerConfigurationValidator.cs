@@ -109,6 +109,22 @@ internal static class ListenerConfigurationValidator
             }
         }
 
+        // GH-4410. Only DurableLocalQueue ever builds a CircuitBreaker from these options; a BufferedLocalQueue
+        // never counts a failure against them, and its IListenerCircuit pause/restart members are no-ops. The
+        // setting used to be accepted here and then do nothing at all, so the queue kept processing -- and
+        // failing -- every message while the application believed it would pause. An Inline local queue is
+        // already refused below, so only the buffered case needs saying here.
+        if (endpoint is LocalQueue && endpoint.CircuitBreakerOptions != null &&
+            endpoint.Mode == EndpointMode.BufferedInMemory)
+        {
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal,
+                $"Invalid listener configuration for {describe(endpoint)}: CircuitBreaker() was configured on a buffered, " +
+                "non-durable local queue. A local queue's circuit breaker only exists when the queue is durable -- a buffered " +
+                "local queue never counts failures against it and cannot pause, so it would keep processing (and failing) every " +
+                "message rather than stopping. Add UseDurableInbox() to this queue, or opts.Policies.UseDurableLocalQueues() for " +
+                "all of them, or remove CircuitBreaker().");
+        }
+
         if (endpoint.Mode != EndpointMode.Inline)
         {
             yield break;

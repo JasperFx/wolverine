@@ -506,7 +506,7 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 | `ListenerCount(n)` | ✔️ | ✔️ | ✔️ | ✔️ |
 | `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
 | `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
-| `CircuitBreaker()` | ✔️ | ✔️ | ✔️ | ✔️ |
+| `CircuitBreaker()` | ✔️ | ✔️ | ✔️ (a [local queue](/guide/messaging/transports/local#circuit-breakers-on-local-queues) **throws at startup**) | ✔️ |
 | [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ | ✔️ | ignored (warns) |
 
 As of Wolverine 6.30, these combinations are no longer silently accepted:
@@ -522,6 +522,11 @@ As of Wolverine 6.30, these combinations are no longer silently accepted:
   itself *is* the local execution block. A local queue that reaches `Inline` through one of the lazily
   resolved configuration points (`LocalQueueFor<T>()`, `IConfigureLocalQueue`) throws an
   `InvalidListenerConfigurationException` at bootstrap instead.
+
+As of Wolverine 6.36, `CircuitBreaker()` on a buffered (non-durable) local queue also throws an
+`InvalidListenerConfigurationException` at bootstrap. Only a durable local queue can pause, so earlier versions
+accepted the circuit breaker and then quietly kept processing every message. See
+[circuit breakers on local queues](/guide/messaging/transports/local#circuit-breakers-on-local-queues).
 
 That normalization also removes an order dependency: `.MaximumParallelMessages(20).ProcessInline()` and
 `.ProcessInline().MaximumParallelMessages(20)` now leave the endpoint in exactly the same state. The

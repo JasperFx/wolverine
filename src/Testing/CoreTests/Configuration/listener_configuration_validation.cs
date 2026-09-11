@@ -246,6 +246,66 @@ public class listener_configuration_validation
         ListenerConfigurationValidator.Validate(queue).ShouldBeEmpty();
     }
 
+    // GH-4410. Only a durable local queue ever builds a circuit breaker; a buffered one accepted the
+    // configuration and then kept processing -- and failing -- every message.
+    [Fact]
+    public void a_circuit_breaker_on_a_buffered_local_queue_is_fatal()
+    {
+        var endpoint = compiledEndpoint(opts => opts.LocalQueue("cb-buffered").CircuitBreaker(),
+            "local://cb-buffered");
+
+        endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+
+        var problem = ListenerConfigurationValidator.Validate(endpoint).Single();
+
+        problem.Severity.ShouldBe(ListenerConfigurationSeverity.Fatal);
+        problem.Message.ShouldContain("CircuitBreaker()");
+        problem.Message.ShouldContain("local://cb-buffered");
+        problem.Message.ShouldContain("UseDurableInbox()");
+    }
+
+    [Fact]
+    public void a_circuit_breaker_on_a_durable_local_queue_is_still_valid()
+    {
+        var endpoint = compiledEndpoint(opts => opts.LocalQueue("cb-durable").UseDurableInbox().CircuitBreaker(),
+            "local://cb-durable");
+
+        endpoint.Mode.ShouldBe(EndpointMode.Durable);
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_circuit_breaker_on_a_local_queue_made_durable_by_policy_is_still_valid()
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            opts.Policies.UseDurableLocalQueues();
+            opts.LocalQueue("cb-policy").CircuitBreaker();
+        }, "local://cb-policy");
+
+        endpoint.Mode.ShouldBe(EndpointMode.Durable);
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_circuit_breaker_on_a_buffered_local_queue_stops_the_host_from_starting()
+    {
+        var ex = await Should.ThrowAsync<InvalidListenerConfigurationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+            {
+                opts.LocalQueueFor<CircuitBreakerLocalQueueMessage>().CircuitBreaker(cb =>
+                {
+                    cb.MinimumThreshold = 1;
+                    cb.FailurePercentageThreshold = 1;
+                });
+            }).StartAsync();
+        });
+
+        ex.Message.ShouldContain("CircuitBreaker()");
+        ex.Message.ShouldContain("local queue");
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -352,3 +412,5 @@ public class listener_configuration_validation
 }
 
 public record InlineLocalQueueMessage(string Name);
+
+public record CircuitBreakerLocalQueueMessage(string Name);
