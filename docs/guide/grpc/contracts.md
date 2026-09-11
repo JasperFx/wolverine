@@ -98,25 +98,93 @@ await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { 
     Console.WriteLine(item.Message);
 ```
 
+### Registering a contract without the attribute <Badge type="tip" text="6.37" />
+
+`[WolverineGrpcService]` on the interface means the contracts assembly references `WolverineFx.Grpc`,
+and with it the ASP.NET Core gRPC hosting stack. Every client that binds the interface with
+`CreateGrpcService<T>()` then carries those server packages too, and hiding the reference with
+`PrivateAssets="all"` does not work: protobuf-net.Grpc's proxy emitter resolves the attributes on the
+interface, so a client without the assembly fails at runtime.
+
+To keep a contracts project on `protobuf-net.Grpc` alone, leave the attribute off and name the
+contract from the host instead:
+
+```csharp
+// Contracts assembly: [ServiceContract] only, no reference to WolverineFx.Grpc
+[ServiceContract]
+public interface IGreeterCodeFirstService
+{
+    Task<GreetReply> Greet(GreetRequest request, CallContext context = default);
+    IAsyncEnumerable<GreetReply> StreamGreetings(StreamGreetingsRequest request, CallContext context = default);
+}
+
+// Host
+builder.Services.AddCodeFirstGrpc();
+builder.Services.AddWolverineGrpc(grpc =>
+{
+    grpc.IncludeCodeFirstContract<IGreeterCodeFirstService>();
+    // or, for a type only known at runtime:
+    // grpc.IncludeCodeFirstContract(typeof(IGreeterCodeFirstService));
+});
+
+app.MapWolverineGrpcServices();
+```
+
+`IncludeCodeFirstContract<T>()` puts the interface on exactly the same path as the attribute:
+the same generated `{InterfaceNameWithoutLeadingI}GrpcHandler`, the same middleware and policies,
+the same `TypeLoadMode.Static` registry. The name mirrors `opts.Discovery.IncludeType<T>()`, which
+does the same job for a handler type the assembly scan would not find. A few rules:
+
+- The type must be a non-generic interface carrying `[ServiceContract]`; anything else throws
+  `ArgumentException` at registration time.
+- Registering a contract that already carries `[WolverineGrpcService]` is harmless, and so is
+  registering the same contract twice (`AddWolverineGrpc(configure)` re-runs the callback on repeat
+  calls). One chain results either way.
+- A concrete `*GrpcService` class that implements a registered contract is left alone, exactly as
+  it is for an attributed contract, so the RPC is never mapped twice. A concrete implementation marked
+  `[WolverineGrpcService]` is still a startup error (see below).
+- `opts.Discovery.IncludeAssembly(...)` is no longer needed for the contracts assembly, since nothing
+  in it is discovered by scanning. The handlers still have to be discoverable.
+
+If you would rather declare it than configure it, the same registration is available as an
+assembly-level attribute in the host, in the spirit of `[assembly: WolverineModule(typeof(T))]`:
+
+```csharp
+[assembly: WolverineGrpcCodeFirstContract<IGreeterCodeFirstService>]
+// or
+[assembly: WolverineGrpcCodeFirstContract(typeof(IGreeterCodeFirstService))]
+```
+
+The attribute feeds the same registration list as `IncludeCodeFirstContract<T>()`, so every rule above
+applies, and naming the same contract both ways still yields one service. It is read from the assemblies
+Wolverine scans, so an attribute placed outside the application assembly needs
+`opts.Discovery.IncludeAssembly(...)`. The named type is validated when discovery runs, and a bad one
+fails startup with the assembly and type named. Prefer the options method when the registration is
+conditional, for example inside an `IWolverineExtension`; the attribute cannot express that.
+
 The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
-sample demonstrates this end-to-end. See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
+sample demonstrates this end-to-end: its `Messages` project references only `protobuf-net.Grpc`.
+See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
 
 ::: warning Bidirectional streaming is not generated on the generated-implementation path
 The generated implementation recognises **unary** (`Task<TResponse> Name(TRequest[, CallContext])`),
 **server streaming** (`IAsyncEnumerable<TResponse> Name(TRequest[, CallContext])`), and
 **client streaming** (`Task<TResponse> Name(IAsyncEnumerable<TRequest>[, CallContext])`) method
 shapes. The bidirectional shape — an `IAsyncEnumerable<TRequest>` *parameter* combined with an
-`IAsyncEnumerable<TResponse>` *return* — is silently skipped: no startup error, but the method will
-not be mapped. Use a hand-written service class for bidi RPCs on code-first contracts. Proto-first
-stubs code-generate all four shapes, including
-[bidirectional streaming](./streaming#bidirectional-streaming).
+`IAsyncEnumerable<TResponse>` *return* — is skipped by method discovery. Because the generated class
+must implement the whole interface, a contract that declares a bidi method fails to compile at
+`MapWolverineGrpcServices()` with `CS0535` naming the missing member. This applies whether the
+contract is attributed or registered with `IncludeCodeFirstContract<T>()`. Use a hand-written
+service class for bidi RPCs on code-first contracts. Proto-first stubs code-generate all four
+shapes, including [bidirectional streaming](./streaming#bidirectional-streaming).
 :::
 
 ::: warning No conflict allowed
-`[WolverineGrpcService]` must appear on **either** the interface **or** a concrete implementing
-class — not both. If Wolverine finds the attribute on both, it throws `InvalidOperationException`
-at startup with a diagnostic identifying the conflict. This mirrors the proto-first rule that the
-stub must be abstract.
+Once the generated-implementation path owns a contract, whether through `[WolverineGrpcService]` on
+the interface or `IncludeCodeFirstContract<T>()`, a concrete implementing class marked
+`[WolverineGrpcService]` is a conflict. Wolverine throws `InvalidOperationException` at startup with
+a diagnostic identifying the class and the way the contract was registered. This mirrors the
+proto-first rule that the stub must be abstract.
 :::
 
 ## Unary RPC

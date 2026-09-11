@@ -92,13 +92,13 @@ for testing or for non-gRPC consumers.
 Layout: [`src/Samples/GreeterCodeFirstGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
 with three projects — `Messages`, `Server`, `Client`.
 
-The generated-implementation showcase. The only artifacts in the server project are handlers.
-No concrete service class is written — `[WolverineGrpcService]` on the interface in `Messages`
-is the only instruction Wolverine needs:
+The generated-implementation showcase. The only artifacts in the server project are handlers and
+one registration line. No concrete service class is written, and the interface in `Messages`
+carries only `[ServiceContract]`, so that project references `protobuf-net.Grpc` and nothing from
+Wolverine:
 
 ```csharp
 [ServiceContract]
-[WolverineGrpcService]
 public interface IGreeterCodeFirstService
 {
     Task<GreetReply> Greet(GreetRequest request, CallContext context = default);
@@ -112,20 +112,24 @@ All three generated shapes are exercised: unary, server streaming, and client st
 side is just an `IAsyncEnumerable<GreetRequest>` handed to the interface proxy (no
 request-stream writer plumbing).
 
-At startup, `MapWolverineGrpcServices()` discovers the interface, generates
-`GreeterCodeFirstServiceGrpcHandler`, and maps it. The server project's `Program.cs` is three
-lines beyond a standard Wolverine host — `AddCodeFirstGrpc()`, `AddWolverineGrpc()`, and an
-`IncludeAssembly` call so the scan reaches the `Messages` project:
+At startup, `MapWolverineGrpcServices()` generates `GreeterCodeFirstServiceGrpcHandler` for the
+registered interface and maps it. The server project's `Program.cs` is two lines beyond a standard
+Wolverine host: `AddCodeFirstGrpc()` and an `AddWolverineGrpc()` call that names the contract. No
+`IncludeAssembly` is needed, because nothing in `Messages` is discovered by scanning:
 
 ```csharp
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
-    opts.Discovery.IncludeAssembly(typeof(IGreeterCodeFirstService).Assembly);
 });
 builder.Services.AddCodeFirstGrpc();
-builder.Services.AddWolverineGrpc();
+builder.Services.AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract<IGreeterCodeFirstService>());
 ```
+
+Putting `[WolverineGrpcService]` on the interface and scanning the `Messages` assembly with
+`opts.Discovery.IncludeAssembly(...)` is the equivalent attribute-driven form; it costs the
+contracts project a `WolverineFx.Grpc` reference. See
+[Registering a contract without the attribute](./contracts#registering-a-contract-without-the-attribute).
 
 ### Compared to grpc-dotnet's Coder
 

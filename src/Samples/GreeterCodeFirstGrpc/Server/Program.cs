@@ -16,17 +16,17 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Host.UseWolverine(opts =>
 {
+    // Handlers live here. The contract assembly does not need to be scanned: the
+    // contract is named explicitly below rather than discovered by attribute.
     opts.ApplicationAssembly = typeof(Program).Assembly;
-    // The [WolverineGrpcService] interface lives in the shared Messages assembly;
-    // include it so GrpcGraph can discover IGreeterCodeFirstService at startup.
-    opts.Discovery.IncludeAssembly(typeof(IGreeterCodeFirstService).Assembly);
 });
 
 // Code-first gRPC requires AddCodeFirstGrpc() (protobuf-net.Grpc) rather than AddGrpc().
-// No concrete service class is registered — Wolverine discovers IGreeterCodeFirstService
-// (annotated with [WolverineGrpcService]) and generates the implementation at startup.
+// No concrete service class is registered. IGreeterCodeFirstService carries only
+// [ServiceContract] (its assembly never references WolverineFx.Grpc), so the host names it
+// here and Wolverine generates and maps the implementation at startup.
 builder.Services.AddCodeFirstGrpc();
-builder.Services.AddWolverineGrpc();
+builder.Services.AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract<IGreeterCodeFirstService>());
 
 var app = builder.Build();
 app.UseRouting();

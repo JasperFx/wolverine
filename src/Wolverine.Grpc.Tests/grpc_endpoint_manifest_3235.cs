@@ -23,10 +23,10 @@ public class grpc_endpoint_manifest_3235
             {
                 // Proto-first Greeter stub lives in the GreeterProtoFirstGrpc.Server assembly.
                 opts.ApplicationAssembly = typeof(GreeterGrpcService).Assembly;
-                // Pull in the code-first contract assembly so it is discovered too.
-                opts.Discovery.IncludeAssembly(typeof(IGreeterCodeFirstService).Assembly);
             })
-            .ConfigureServices(services => services.AddWolverineGrpc())
+            // The code-first contract carries only [ServiceContract] (GH-4396); register it explicitly.
+            .ConfigureServices(services => services.AddWolverineGrpc(grpc =>
+                grpc.IncludeCodeFirstContract<IGreeterCodeFirstService>()))
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var manifest = host.Services.GetRequiredService<IGrpcEndpointManifest>();

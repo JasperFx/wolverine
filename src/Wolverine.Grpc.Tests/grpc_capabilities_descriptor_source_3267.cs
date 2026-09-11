@@ -39,9 +39,10 @@ public sealed class GrpcCapabilitiesFixture : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ApplicationAssembly = typeof(GreeterGrpcService).Assembly;
-                opts.Discovery.IncludeAssembly(typeof(IGreeterCodeFirstService).Assembly);
             })
-            .ConfigureServices(services => services.AddWolverineGrpc())
+            // The code-first contract carries only [ServiceContract] (GH-4396); register it explicitly.
+            .ConfigureServices(services => services.AddWolverineGrpc(grpc =>
+                grpc.IncludeCodeFirstContract<IGreeterCodeFirstService>()))
             .StartAsync();
 
         SourceEndpoints = _host.Services.GetRequiredService<IGrpcEndpointDescriptorSource>().Endpoints;
