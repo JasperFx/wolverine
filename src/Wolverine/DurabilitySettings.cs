@@ -662,6 +662,19 @@ public class DurabilitySettings : IDescribeMyself
     ///     agents off overloaded nodes, and leaves agents unassigned when no node has headroom.
     ///     Requires a message store that persists the load advertisement (PostgreSQL today). Off by
     ///     default.
+    ///     <para>
+    ///         Scope today: only the even distribution
+    ///         (<see cref="Runtime.Agents.AssignmentGrid.DistributeEvenly(string)" />) honors the
+    ///         overload flags — dynamic, exclusive, and sticky-queue listener agents, plus event
+    ///         subscriptions on clusters with homogeneous capabilities. Group-affinity distribution
+    ///         (multi-database event stores), blue/green distribution across mixed capabilities, and
+    ///         the durability-agent affinity distribution do not yet consult node load.
+    ///     </para>
+    ///     <para>
+    ///         Enabling this provisions a load_factor column on the wolverine_nodes table. With
+    ///         <c>AutoCreate.None</c> — or a process without DDL rights — apply the schema migration
+    ///         before turning this on; otherwise every heartbeat fails against the missing column.
+    ///     </para>
     /// </summary>
     public bool CapacityAwareAssignment { get; set; }
 

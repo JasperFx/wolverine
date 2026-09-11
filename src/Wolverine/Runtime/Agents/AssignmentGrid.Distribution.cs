@@ -98,10 +98,15 @@ public partial class AssignmentGrid
         // than round-robining, and AssignedId keeps it deterministic when the foreign load ties.
         //
         // GH-3959: advertised load leads the ordering — the least-pressured node with headroom fills
-        // first, Orleans-style. Nodes advertising no load sort as zero, so when capacity-aware
-        // assignment is off this is the original foreign-count/AssignedId ordering unchanged.
+        // first, Orleans-style — but in 10-point bands, not raw readings. Raw readings almost never
+        // tie exactly, so ordering on them would leave the foreign-count order below deciding nothing
+        // and every family's pass chasing the same marginally-least-loaded node between two
+        // heartbeats: precisely the cross-scheme stacking GH-3877 fixed. Within a band the readings
+        // are treated as equal and the foreign count discriminates. Nodes advertising no load sort in
+        // the lowest band, so when capacity-aware assignment is off this is the original
+        // foreign-count/AssignedId ordering unchanged.
         var ordered = receiving
-            .OrderBy(x => x.LoadFactor ?? 0)
+            .OrderBy(x => Math.Floor((x.LoadFactor ?? 0) / 10))
             .ThenBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
             .ThenBy(x => x.AssignedId)
             .ToList();

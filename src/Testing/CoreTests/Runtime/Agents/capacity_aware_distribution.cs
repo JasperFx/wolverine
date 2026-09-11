@@ -122,6 +122,42 @@ public class capacity_aware_distribution
     }
 
     [Fact]
+    public void loads_within_the_same_band_defer_to_the_foreign_count_ordering()
+    {
+        var grid = new AssignmentGrid();
+
+        // node1 reads marginally lighter, but both readings sit in the same 10-point band, so the
+        // GH-3877 foreign-count order still decides — the node carrying other schemes' work loses.
+        var node1 = grid.WithNode(1, Guid.NewGuid()).Running(new Uri("red://1"), new Uri("red://2"));
+        node1.LoadFactor = 41.2;
+        var node2 = grid.WithNode(2, Guid.NewGuid());
+        node2.LoadFactor = 44.7;
+
+        grid.WithAgents(blue1);
+        grid.DistributeEvenly("blue");
+
+        grid.AgentFor(blue1).AssignedNode.ShouldBe(node2);
+    }
+
+    [Fact]
+    public void loads_in_different_bands_outrank_the_foreign_count_ordering()
+    {
+        var grid = new AssignmentGrid();
+
+        // A band's worth of separation means the advertised load wins even against a node
+        // carrying nothing foreign.
+        var node1 = grid.WithNode(1, Guid.NewGuid()).Running(new Uri("red://1"), new Uri("red://2"));
+        node1.LoadFactor = 15;
+        var node2 = grid.WithNode(2, Guid.NewGuid());
+        node2.LoadFactor = 45;
+
+        grid.WithAgents(blue1);
+        grid.DistributeEvenly("blue");
+
+        grid.AgentFor(blue1).AssignedNode.ShouldBe(node1);
+    }
+
+    [Fact]
     public void memory_pressure_monitor_honors_the_0_to_100_contract()
     {
         var monitor = new MemoryPressureLoadMonitor();
