@@ -83,7 +83,8 @@ couples the handler to the gRPC transport and prevents it from being reused over
    to the inner class via `ActivatorUtilities`. The inner class does not need an explicit DI registration.
 2. **Code-first (generated implementation)**: any **interface** carrying both `[WolverineGrpcService]`
    and `[ServiceContract]`, plus any `[ServiceContract]` interface registered with
-   `AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract<T>())`, triggers code generation. Wolverine
+   `AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract<T>())` or named by an
+   `[assembly: WolverineGrpcCodeFirstContract<T>]` in a scanned assembly, triggers code generation. Wolverine
    emits a concrete `{InterfaceNameWithoutLeadingI}GrpcHandler` that implements the interface, injects
    `IMessageBus`, and forwards each RPC to `InvokeAsync<T>` or `StreamAsync<T>`. No service class is
    written by hand. A concrete class implementing one of these interfaces is skipped by passes 1 and 4

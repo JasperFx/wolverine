@@ -146,6 +146,22 @@ does the same job for a handler type the assembly scan would not find. A few rul
 - `opts.Discovery.IncludeAssembly(...)` is no longer needed for the contracts assembly, since nothing
   in it is discovered by scanning. The handlers still have to be discoverable.
 
+If you would rather declare it than configure it, the same registration is available as an
+assembly-level attribute in the host, in the spirit of `[assembly: WolverineModule(typeof(T))]`:
+
+```csharp
+[assembly: WolverineGrpcCodeFirstContract<IGreeterCodeFirstService>]
+// or
+[assembly: WolverineGrpcCodeFirstContract(typeof(IGreeterCodeFirstService))]
+```
+
+The attribute feeds the same registration list as `IncludeCodeFirstContract<T>()`, so every rule above
+applies, and naming the same contract both ways still yields one service. It is read from the assemblies
+Wolverine scans, so an attribute placed outside the application assembly needs
+`opts.Discovery.IncludeAssembly(...)`. The named type is validated when discovery runs, and a bad one
+fails startup with the assembly and type named. Prefer the options method when the registration is
+conditional, for example inside an `IWolverineExtension`; the attribute cannot express that.
+
 The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
 sample demonstrates this end-to-end: its `Messages` project references only `protobuf-net.Grpc`.
 See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.

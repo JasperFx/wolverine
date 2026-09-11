@@ -197,7 +197,43 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
         // Source 1: WolverineGrpcOptions.IncludeCodeFirstContract, validated at registration time.
         registered.UnionWith(grpcOptions.CodeFirstContracts);
 
+        // Source 2: [assembly: WolverineGrpcCodeFirstContract(...)] in any scanned assembly, validated here.
+        registered.UnionWith(FindAssemblyRegisteredCodeFirstContracts(_options.Assemblies));
+
         return registered;
+    }
+
+    /// <summary>
+    ///     Contracts named by <see cref="WolverineGrpcCodeFirstContractAttribute"/> (either form) at the
+    ///     assembly level of any of <paramref name="assemblies"/>. Attribute-only metadata read; no type
+    ///     scan. Throws <see cref="InvalidOperationException"/> naming the assembly and the type when an
+    ///     attribute points at something the generated-implementation path cannot serve.
+    /// </summary>
+    public static IEnumerable<Type> FindAssemblyRegisteredCodeFirstContracts(IEnumerable<Assembly> assemblies)
+    {
+        return assemblies
+            .Where(a => !a.IsDynamic)
+            .SelectMany(a => ReadAssemblyRegisteredCodeFirstContracts(a,
+                a.GetCustomAttributes<WolverineGrpcCodeFirstContractAttribute>()))
+            .Distinct();
+    }
+
+    // Split from the assembly walk so the validation can be exercised with attribute instances that no
+    // real assembly carries (a bad attribute in a test assembly would break every fixture scanning it).
+    internal static IEnumerable<Type> ReadAssemblyRegisteredCodeFirstContracts(Assembly source,
+        IEnumerable<WolverineGrpcCodeFirstContractAttribute> attributes)
+    {
+        foreach (var attribute in attributes)
+        {
+            if (WolverineGrpcOptions.DescribeInvalidCodeFirstContract(attribute.ContractType) is { } problem)
+            {
+                throw new InvalidOperationException(
+                    $"[assembly: {nameof(WolverineGrpcCodeFirstContractAttribute).Replace("Attribute", "")}] in assembly "
+                    + $"{source.GetName().Name} names {attribute.ContractType.FullNameInCode()}, but {problem}");
+            }
+
+            yield return attribute.ContractType;
+        }
     }
 
     /// <summary>
