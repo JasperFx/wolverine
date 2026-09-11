@@ -186,11 +186,18 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
     ///     The single source of code-first contracts that were registered rather than discovered by the
     ///     attribute scan (GH-4396). Everything that treats a registered contract like an attributed one
     ///     (discovery, the hand-written exclusion, the concrete-implementation conflict guard) reads
-    ///     this one set, so a new registration source only has to feed it here.
+    ///     this one set, so a registration source only has to feed it here. Each source validates its
+    ///     own input against <see cref="WolverineGrpcOptions.DescribeInvalidCodeFirstContract"/> before
+    ///     it lands in the set; the set itself is trusted downstream.
     /// </summary>
-    private static HashSet<Type> resolveRegisteredCodeFirstContracts(WolverineGrpcOptions grpcOptions)
+    private HashSet<Type> resolveRegisteredCodeFirstContracts(WolverineGrpcOptions grpcOptions)
     {
-        return [..grpcOptions.CodeFirstContracts];
+        var registered = new HashSet<Type>();
+
+        // Source 1: WolverineGrpcOptions.IncludeCodeFirstContract, validated at registration time.
+        registered.UnionWith(grpcOptions.CodeFirstContracts);
+
+        return registered;
     }
 
     /// <summary>

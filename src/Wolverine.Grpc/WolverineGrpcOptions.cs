@@ -134,30 +134,9 @@ public sealed class WolverineGrpcOptions
     {
         ArgumentNullException.ThrowIfNull(contractType);
 
-        if (!contractType.IsInterface)
+        if (DescribeInvalidCodeFirstContract(contractType) is { } problem)
         {
-            throw new ArgumentException(
-                $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it is not an interface. "
-                + "Wolverine generates the implementation of a [ServiceContract] interface; a concrete service class is discovered "
-                + "by the 'GrpcService' name suffix or [WolverineGrpcService] instead.",
-                nameof(contractType));
-        }
-
-        if (contractType.IsGenericTypeDefinition)
-        {
-            throw new ArgumentException(
-                $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it is an open generic interface. "
-                + "Register a closed interface type.",
-                nameof(contractType));
-        }
-
-        if (!contractType.IsDefined(typeof(ServiceContractAttribute), inherit: false))
-        {
-            throw new ArgumentException(
-                $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it does not carry "
-                + "[System.ServiceModel.ServiceContract]. protobuf-net.Grpc needs that attribute to route the service; "
-                + "add it to the interface (it comes from protobuf-net.Grpc, not from WolverineFx.Grpc).",
-                nameof(contractType));
+            throw new ArgumentException(problem, nameof(contractType));
         }
 
         if (!_codeFirstContracts.Contains(contractType))
@@ -166,6 +145,37 @@ public sealed class WolverineGrpcOptions
         }
 
         return this;
+    }
+
+    /// <summary>
+    ///     The one definition of "can Wolverine generate an implementation for this type": a closed,
+    ///     non-generic interface carrying <c>[ServiceContract]</c>. Returns <c>null</c> when the type
+    ///     qualifies, otherwise a message naming the type and the reason, ready to be thrown by
+    ///     whichever registration source found it.
+    /// </summary>
+    internal static string? DescribeInvalidCodeFirstContract(Type contractType)
+    {
+        if (!contractType.IsInterface)
+        {
+            return $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it is not an interface. "
+                   + "Wolverine generates the implementation of a [ServiceContract] interface; a concrete service class is discovered "
+                   + "by the 'GrpcService' name suffix or [WolverineGrpcService] instead.";
+        }
+
+        if (contractType.IsGenericTypeDefinition)
+        {
+            return $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it is an open generic interface. "
+                   + "Register a closed interface type.";
+        }
+
+        if (!contractType.IsDefined(typeof(ServiceContractAttribute), inherit: false))
+        {
+            return $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it does not carry "
+                   + "[System.ServiceModel.ServiceContract]. protobuf-net.Grpc needs that attribute to route the service; "
+                   + "add it to the interface (it comes from protobuf-net.Grpc, not from WolverineFx.Grpc).";
+        }
+
+        return null;
     }
 
     /// <summary>
