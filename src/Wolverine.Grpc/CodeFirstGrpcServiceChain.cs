@@ -563,6 +563,18 @@ public partial class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain
     /// </summary>
     public static void AssertNoConcreteImplementationConflicts(Type serviceContractType,
         IEnumerable<Assembly> assemblies)
+        => AssertNoConcreteImplementationConflicts(serviceContractType, assemblies, []);
+
+    /// <summary>
+    ///     As <see cref="AssertNoConcreteImplementationConflicts(Type, IEnumerable{Assembly})"/>, for a
+    ///     contract that may have been registered through
+    ///     <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/> instead of attributed (GH-4396).
+    ///     The rule is the same either way: once the generated-implementation path owns the contract, a
+    ///     concrete implementation marked <see cref="WolverineGrpcServiceAttribute"/> is a conflict. The
+    ///     diagnostic names whichever registration form was used.
+    /// </summary>
+    public static void AssertNoConcreteImplementationConflicts(Type serviceContractType,
+        IEnumerable<Assembly> assemblies, IReadOnlyCollection<Type> registeredContracts)
     {
         var offenders = assemblies
             .SelectMany(a => a.GetExportedTypes())
@@ -575,12 +587,20 @@ public partial class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain
 
         var details = offenders.Select(t => $"  - {t.FullNameInCode()}").Aggregate((a, b) => a + "\n" + b);
 
+        var isAttributed = serviceContractType.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false);
+        var registeredHow = isAttributed
+            ? "is marked [WolverineGrpcService]"
+            : $"was registered through {nameof(WolverineGrpcOptions)}.{nameof(WolverineGrpcOptions.IncludeCodeFirstContract)}()";
+        var undoHow = isAttributed
+            ? "remove it from the interface"
+            : $"drop the {nameof(WolverineGrpcOptions.IncludeCodeFirstContract)}() registration";
+
         throw new InvalidOperationException(
-            $"Code-first gRPC service contract {serviceContractType.FullNameInCode()} is marked "
-            + "[WolverineGrpcService] for Wolverine codegen, but one or more concrete implementations "
-            + "of this interface are also marked [WolverineGrpcService] in the same assembly. "
+            $"Code-first gRPC service contract {serviceContractType.FullNameInCode()} {registeredHow} "
+            + "so Wolverine generates its implementation, but one or more concrete implementations "
+            + "of this interface are also marked [WolverineGrpcService]. "
             + "Remove [WolverineGrpcService] from the concrete class(es) and let Wolverine generate "
-            + "the implementation, or remove it from the interface to keep the hand-written class."
+            + $"the implementation, or {undoHow} to keep the hand-written class."
             + "\nConflicting type(s):\n" + details);
     }
 }

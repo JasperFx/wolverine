@@ -291,7 +291,17 @@ public static class WolverineGrpcExtensions
             .SelectMany(a => a.GetExportedTypes())
             .Where(t => t.IsClass && !t.IsAbstract
                         && IsCodeFirstGrpcServiceType(t)
-                        && (graph == null || graph.HandWrittenChains.All(c => c.ServiceClassType != t)));
+                        && (graph == null || !isClaimedByGraph(graph, t)));
+    }
+
+    // A concrete class is off the direct-mapping table when a HandWrittenGrpcServiceChain wraps it, or
+    // when it implements a contract the generated-implementation path already serves (attributed or
+    // registered through IncludeCodeFirstContract, GH-4396). Mapping it as well would put two services
+    // on the same route.
+    private static bool isClaimedByGraph(GrpcGraph graph, Type type)
+    {
+        return graph.HandWrittenChains.Any(c => c.ServiceClassType == type)
+               || graph.CodeFirstChains.Any(c => c.ServiceContractType.IsAssignableFrom(type));
     }
 
     private static bool IsCodeFirstGrpcServiceType(Type type)
