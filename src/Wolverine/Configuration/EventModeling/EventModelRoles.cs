@@ -217,7 +217,13 @@ public static class EventModelRoles
             // promotes a slice whose command is an event another slice emits to Automation, and an
             // inbound external system still makes the slice a Translation. Both claim the role from
             // evidence rather than from the absence of it.
-            pattern = null;
+            //
+            // GH-4395. ...unless the handler says so itself with [SlicePattern]. A message with no
+            // producer in this model -- one from another service, a hosted service, a controller -- has
+            // no evidence to promote it, and "the code cannot say" is not the same claim as "nobody can
+            // say". Only here, where nothing else answers: every branch above derives the pattern from
+            // the trigger, and a declaration does not contradict what the code does know.
+            pattern = declaredPattern(chain);
         }
 
         // GH-4181. TriggerLabel is deliberately NOT claimed here. Every structural fact a derived
@@ -387,6 +393,22 @@ public static class EventModelRoles
                 roles.ReadModels.Add(parameterType);
             }
         }
+    }
+
+    /// <summary>
+    ///     The pattern a <see cref="SlicePatternAttribute" /> declares on the chain's handler method, else on
+    ///     its handler type; null when neither does. GH-4395.
+    /// </summary>
+    private static SlicePattern? declaredPattern(IChain chain)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            var declared = call.Method.GetAttribute<SlicePatternAttribute>()
+                           ?? call.HandlerType.GetAttribute<SlicePatternAttribute>();
+            if (declared != null) return declared.Pattern;
+        }
+
+        return null;
     }
 
     private static Type? tryDetermineAggregateType(IChain chain)
