@@ -98,6 +98,7 @@ public partial class NodeAgentController
         node.AssignedNodeNumber = _runtime.Options.Durability.AssignedNodeNumber;
         node.Capabilities.AddRange(_capabilities.Where(x => !_releasedAgents.ContainsKey(x)));
         node.AssignAgents(Agents.Keys.ToArray());
+        node.LoadFactor = sampleLoad();
         return node;
     }
 
@@ -112,7 +113,11 @@ public partial class NodeAgentController
         // skeleton and only build the full identity picture (node number, capabilities, every running agent)
         // on the rare miss. buildLocalNode enumerates every agent on the node, so calling it every heartbeat
         // would be a real cost on the thousands-of-agents nodes this whole fix is about.
-        var existed = await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), token);
+        // GH-3959: the load sample rides the skeleton so capacity advertisement refreshes on EVERY
+        // heartbeat — the leader must never place agents against a stale reading.
+        var skeleton = WolverineNode.For(_runtime.Options);
+        skeleton.LoadFactor = sampleLoad();
+        var existed = await _persistence.MarkHealthCheckAsync(skeleton, token);
         if (existed)
         {
             return;
