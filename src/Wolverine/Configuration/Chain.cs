@@ -442,7 +442,17 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
                 foreach (var outgoing in outgoings)
                 {
-                    frames.Add(new CaptureCascadingMessages(outgoing));
+                    // GH-4416. This has to be the catch-SAFE frame, the same one
+                    // MiddlewarePolicy.ApplyExceptionHandling already uses for this job on a middleware
+                    // class. CaptureCascadingMessages is a MethodCall, so its FindVariables exposes the
+                    // dependency on this OnException call's return variable; the codegen arranger then
+                    // pre-links the two catch frames' Next pointers, and TryCatchFinallyFrame chains its
+                    // catch frames manually -- so that second assignment throws "Frame chain is being
+                    // re-arranged" and code generation fails outright rather than degrading.
+                    //
+                    // The emitted code is the same either way: EnqueueCascadingAsync unwraps
+                    // OutgoingMessages (and IEnumerable) internally.
+                    frames.Add(new CaptureCascadingMessagesInCatch(outgoing));
                 }
 
                 if (generationRules.TryFindContinuationHandler(this, call, out var continuation))
