@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -48,12 +49,17 @@ internal class HandlerRegistryCodeFile : ICodeFile
 {
     private readonly Type[] _handlerTypes;
     private readonly Type[] _messageTypes;
+    private readonly Type[] _dispatchedMessageTypes;
+    private readonly string[] _siblingGeneratedTypeNames;
     private GeneratedType? _generatedType;
 
-    public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes)
+    public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes,
+        IEnumerable<Type> dispatchedMessageTypes, IEnumerable<string> siblingGeneratedTypeNames)
     {
         _handlerTypes = onlyPublic(handlerTypes);
         _messageTypes = onlyPublic(messageTypes);
+        _dispatchedMessageTypes = onlyPublic(dispatchedMessageTypes);
+        _siblingGeneratedTypeNames = siblingGeneratedTypeNames.Distinct().ToArray();
     }
 
     private static Type[] onlyPublic(IEnumerable<Type> types)
@@ -83,6 +89,50 @@ internal class HandlerRegistryCodeFile : ICodeFile
 
         _generatedType.MethodFor(nameof(HandlerRegistry.MessageTypes))
             .Frames.Add(new WriteTypeArrayFrame(_messageTypes));
+
+        // Native AOT rooting companion (GH-4426, follow-up to GH-4287 / jasperfx#743). The registry
+        // and every generated handler type are only ever reached reflectively (an ExportedTypes walk
+        // plus Activator.CreateInstance), and RoutingFor closes MessageRouter<T>/EmptyMessageRouter<T>
+        // over each message type via MakeGenericType -- none of that is visible to ILC's static
+        // analysis, so a real Native AOT publish trims all of it and TypeLoadMode.Static crashes at
+        // startup. AddAotRoots anchors the whole graph behind a single [ModuleInitializer], which is
+        // an unconditional ILC root, so nothing needs runtime reflection to find any of this.
+        //
+        // Only emitted while actually generating code (`codegen write`) for the same reason the
+        // conventional message-type scan above is guarded: BuildFiles is also enumerated during
+        // TypeLoadMode.Static *attach*, where re-deriving this here would be pointless (the assembly
+        // is already compiled by then). AddAotRoots itself no-ops for `--language fsharp`.
+        if (DynamicCodeBuilder.WithinCodegenCommand)
+        {
+            assembly.AddAotRoots("AotRoots", buildAotRoots(assembly.Namespace));
+        }
+    }
+
+    // MakeGenericType here only ever runs while `codegen write` itself is executing -- an ordinary
+    // JIT process on the developer's machine, guarded by the WithinCodegenCommand check above --
+    // and never inside the trimmed/AOT-published binary the resulting typeof(...) literals end up
+    // shipping in. See the AssembleTypes rooting comment above.
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification =
+            "Only runs at `codegen write` time to compute the typeof(...) literals for the AOT-rooting companion; never executes inside a trimmed/AOT-published binary. See AOT guide.")]
+    private List<AttributeArg> buildAotRoots(string generatedNamespace)
+    {
+        var roots = new List<AttributeArg>
+        {
+            AttributeArg.TypeNamed($"{generatedNamespace}.{HandlerRegistry.GeneratedTypeName}")
+        };
+
+        roots.AddRange(_siblingGeneratedTypeNames.Select(AttributeArg.TypeNamed));
+        roots.AddRange(_handlerTypes.Select(AttributeArg.Type));
+
+        foreach (var messageType in _dispatchedMessageTypes)
+        {
+            roots.Add(AttributeArg.Type(messageType));
+            roots.Add(AttributeArg.Type(typeof(MessageRouter<>).MakeGenericType(messageType)));
+            roots.Add(AttributeArg.Type(typeof(EmptyMessageRouter<>).MakeGenericType(messageType)));
+        }
+
+        return roots;
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,

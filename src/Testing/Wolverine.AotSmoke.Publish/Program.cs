@@ -2,9 +2,13 @@
 // inside a REAL Native AOT binary through the ordinary public UseWolverine path, dispatches one
 // message, and asserts the handler fired. Exit 0 only on the full boot + dispatch.
 //
+// GH-4426: the committed pre-gen's GeneratedHandlerRegistry.cs now carries its own generated
+// AotRoots companion ([ModuleInitializer] + [DynamicDependency] block covering the registry,
+// the generated handler type, the handler class, the message type, and the closed
+// MessageRouter<T>/EmptyMessageRouter<T>) -- this project no longer hand-writes those roots.
+//
 // `codegen write` (or any JasperFx CLI verb) refreshes the committed pre-gen under
 // Internal/Generated/ — run it under plain `dotnet run`, never from the native binary.
-using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,8 +51,6 @@ if (isCli)
     return await builder.RunJasperFxCommands(args);
 }
 
-AotRoots.Pin();
-
 try
 {
     using var host = builder.Build();
@@ -83,29 +85,4 @@ public static class AotPublishPingHandler
     public static int LastValue;
 
     public static void Handle(AotPublishPing message) => LastValue = message.Value;
-}
-
-/// <summary>
-/// The hand-written Native AOT roots that a TypeLoadMode.Static application needs TODAY
-/// (GH-4287): the pre-generated registry and handler types are only ever located via
-/// reflection, so without these ILC trims them and Static mode silently falls back to an
-/// assembly scan that finds nothing. Direct construction is NOT enough — Activator and
-/// GetMethods need reflection METADATA, which only [DynamicDependency] preserves.
-/// jasperfx#743 tracks emitting this block from `codegen write` itself.
-/// </summary>
-internal static class AotRoots
-{
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Internal.Generated.WolverineHandlers.GeneratedHandlerRegistry))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Internal.Generated.WolverineHandlers.AotPublishPingHandler1993257527))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(AotPublishPingHandler))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(AotPublishPing))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Wolverine.Runtime.Routing.MessageRouter<AotPublishPing>))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Wolverine.Runtime.Routing.EmptyMessageRouter<AotPublishPing>))]
-    internal static void Pin()
-    {
-    }
 }

@@ -25,5 +25,29 @@ namespace Internal.Generated.WolverineHandlers
     // END: GeneratedHandlerRegistry
     
     
+    // START: AotRoots
+    // Native AOT rooting companion (jasperfx#743). Generated code is only ever reached reflectively, so without these roots ILC trims it and TypeLoadMode.Static finds nothing.
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class AotRoots
+    {
+
+
+        [global::System.Runtime.CompilerServices.ModuleInitializer]
+        [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(global::Internal.Generated.WolverineHandlers.GeneratedHandlerRegistry))]
+        [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(global::Internal.Generated.WolverineHandlers.AotPublishPingHandler1993257527))]
+        [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(AotPublishPingHandler))]
+        [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(AotPublishPing))]
+        [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(global::Wolverine.Runtime.Routing.MessageRouter<AotPublishPing>))]
+        [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(global::Wolverine.Runtime.Routing.EmptyMessageRouter<AotPublishPing>))]
+        public static void Pin()
+        {
+            // Intentionally empty. The [DynamicDependency] attributes above are the payload: they root the generated types for Native AOT, and [ModuleInitializer] guarantees this method is itself an ILC root.
+        }
+
+    }
+
+    // END: AotRoots
+    
+    
 }
 

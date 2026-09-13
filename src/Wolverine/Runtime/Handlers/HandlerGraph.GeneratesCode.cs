@@ -17,17 +17,24 @@ public partial class HandlerGraph
     private IEnumerable<ICodeFile> explodeAllFiles()
     {
         var handlerTypes = new List<Type>();
+        var dispatchedMessageTypes = new List<Type>();
+        var siblingGeneratedTypeNames = new List<string>();
+        var generatedNamespace = ((ICodeFileCollection)this).ToNamespace(Rules);
 
         foreach (var chain in Chains)
         {
             if (chain.Handlers.Any())
             {
                 yield return chain;
+                dispatchedMessageTypes.Add(chain.MessageType);
+                siblingGeneratedTypeNames.Add($"{generatedNamespace}.{chain.TypeName}");
             }
 
             foreach (var handlerChain in chain.ByEndpoint)
             {
                 yield return handlerChain;
+                dispatchedMessageTypes.Add(handlerChain.MessageType);
+                siblingGeneratedTypeNames.Add($"{generatedNamespace}.{handlerChain.TypeName}");
             }
 
             handlerTypes.AddRange(chain.HandlerCalls().Select(x => x.HandlerType));
@@ -50,6 +57,7 @@ public partial class HandlerGraph
             ? Discovery.DiscoverConventionalMessageTypes()
             : [];
 
-        yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes);
+        yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, dispatchedMessageTypes,
+            siblingGeneratedTypeNames);
     }
 }
