@@ -27,15 +27,20 @@
         so this smoke asserts the FULL boot + dispatch: any startup crash or a
         handler that never fires exits non-zero and fails the lane.
 
-        Refresh procedure for the committed pre-gen when codegen output drifts
-        (from this project's directory):
+        Refresh procedure for the committed pre-gen when codegen output drifts.
+        Run it FROM THIS PROJECT'S DIRECTORY — a plain console host writes
+        relative to the working directory, not to the project folder, so driving
+        it from the repo root with a project switch instead silently writes an
+        Internal/Generated tree at the root and leaves this one untouched:
 
           dotnet run codegen write
 
-        then re-check the [DynamicDependency] roots in Program.cs against the
-        regenerated type names and commit. The hand-written roots are today's
-        documented AOT contract; jasperfx#743 tracks emitting them from codegen
-        itself.
+        then commit the result. As of GH-4426 there is nothing to hand-maintain
+        alongside it. `codegen write` emits the [DynamicDependency] rooting block
+        itself, as an AotRoots companion anchored by [ModuleInitializer], and this
+        project deliberately carries NO hand-written roots of its own — so a
+        regression in that emission fails this lane outright instead of hiding
+        behind a hand-written block that happens to cover the same types.
         -->
         <PublishAot>true</PublishAot>
         <StripSymbols>false</StripSymbols>

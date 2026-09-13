@@ -18,17 +18,28 @@ public partial class HandlerGraph
     {
         var handlerTypes = new List<Type>();
 
+        // GH-4426: the NAMES of the handler types codegen is about to emit, plus the message types they
+        // dispatch. Both feed the Native AOT rooting companion that HandlerRegistryCodeFile emits — the
+        // names because those types do not exist as runtime Types while `codegen write` is running, and
+        // the message types because the routers are closed over them reflectively at startup.
+        var generatedHandlerTypeNames = new List<string>();
+        var chainMessageTypes = new List<Type>();
+
         foreach (var chain in Chains)
         {
             if (chain.Handlers.Any())
             {
+                generatedHandlerTypeNames.Add(chain.TypeName);
                 yield return chain;
             }
 
             foreach (var handlerChain in chain.ByEndpoint)
             {
+                generatedHandlerTypeNames.Add(handlerChain.TypeName);
                 yield return handlerChain;
             }
+
+            chainMessageTypes.Add(chain.MessageType);
 
             handlerTypes.AddRange(chain.HandlerCalls().Select(x => x.HandlerType));
             foreach (var handlerChain in chain.ByEndpoint)
@@ -50,6 +61,7 @@ public partial class HandlerGraph
             ? Discovery.DiscoverConventionalMessageTypes()
             : [];
 
-        yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes);
+        yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, generatedHandlerTypeNames,
+            chainMessageTypes);
     }
 }
