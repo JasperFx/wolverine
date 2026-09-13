@@ -1,6 +1,7 @@
 using JasperFx.Events.EventModeling;
 using Shouldly;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Configuration.EventModeling;
 using Wolverine.Http.Diagnostics;
 using Wolverine.Tracking;
 using WolverineWebApi.Marten;
@@ -39,6 +40,29 @@ public class event_model_roles_3988(AppFixture fixture) : IntegrationContext(fix
         slice.PublishedMessages.ShouldBeEmpty();
     }
 
+    // GH-4425. Wolverine registers TWO derived sources, both on the Derived rung with a hard-coded
+    // subject, and neither used to stamp Origin — so when a handler-chain slice and an HTTP-chain slice
+    // disagreed on a scalar role, the hotspot read "Derived claims X; Derived claims Y" and named neither
+    // file. Asserted through Describe rather than ForChain, because the stamp is applied to the finished
+    // model: doing it inside the shared FinishModel would label these slices as core's.
+    [Fact]
+    public void the_http_source_stamps_its_own_origin_on_every_slice()
+    {
+        var chain = HttpChains.ChainFor("GET", "/orders/latest/{id}");
+        chain.ShouldNotBeNull();
+
+        var model = HttpEventModelSource.Describe("origin-4425", new[] { chain });
+
+        model.Slices.ShouldNotBeEmpty();
+        model.Slices.ShouldAllBe(x => x.Origin == HttpEventModelSource.SourceSubject);
+
+        // Distinct from Wolverine core's, which is the entire point — one of these names a file. The
+        // trailing slash is Uri's normalisation of an authority-based URI, not something this adds.
+        HttpEventModelSource.SourceSubject.ShouldBe(new Uri("event-model://wolverine-http"));
+        HttpEventModelSource.SourceSubject.ToString().ShouldBe("event-model://wolverine-http/");
+        HttpEventModelSource.SourceSubject.ShouldNotBe(WolverineEventModelSource.SourceSubject);
+    }
+
     [Fact]
     public void a_get_endpoint_reading_an_aggregate_is_a_view_slice()
     {
@@ -67,13 +91,14 @@ public class event_model_roles_3988(AppFixture fixture) : IntegrationContext(fix
         viaSeam.EmittedEvents.Select(x => x.Name).ShouldContain(nameof(OrderShipped));
 
         var capabilities = await ServiceCapabilities.ReadFrom(Host.GetRuntime(), null, CancellationToken.None);
-        capabilities.EventModel.ShouldNotBeNull();
-        var fromCapabilities = capabilities.EventModel.Slices.Single(x => x.Name == nameof(ShipOrder));
+        // GH-4424: the capabilities document carries the set of models; this host hosts exactly one.
+        var hostedModel = capabilities.EventModel.ShouldNotBeNull().Sole.ShouldNotBeNull();
+        var fromCapabilities = hostedModel.Slices.Single(x => x.Name == nameof(ShipOrder));
         fromCapabilities.AggregateTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });
         fromCapabilities.EmittedEvents.Select(x => x.Name).ShouldContain(nameof(OrderShipped));
 
         // the model carries the aggregate element, with the events Order applies
-        var order = capabilities.EventModel.Aggregates.Single(x => x.Type.Name == nameof(Order));
+        var order = hostedModel.Aggregates.Single(x => x.Type.Name == nameof(Order));
         order.AppliedEvents.Select(x => x.Name).ShouldContain(nameof(OrderShipped));
     }
 }

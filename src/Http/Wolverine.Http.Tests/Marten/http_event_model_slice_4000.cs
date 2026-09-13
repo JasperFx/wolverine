@@ -54,8 +54,9 @@ public class http_event_model_slice_4000(AppFixture fixture) : IntegrationContex
         // derived by the SAME method, so they cannot drift. Asserted rather than assumed
         var capabilities = await ServiceCapabilities.ReadFrom(Host.GetRuntime(), null, CancellationToken.None);
 
-        capabilities.EventModel.ShouldNotBeNull();
-        var assembled = capabilities.EventModel!.Slices.ToDictionary(x => x.Name);
+        // GH-4424: the capabilities document carries the set of models; this host hosts exactly one.
+        var hostedModel = capabilities.EventModel.ShouldNotBeNull().Sole.ShouldNotBeNull();
+        var assembled = hostedModel.Slices.ToDictionary(x => x.Name);
 
         var carried = capabilities.HttpGraphs
             .SelectMany(x => x.Chains)

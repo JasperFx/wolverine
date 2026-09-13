@@ -105,14 +105,18 @@ public class event_model_roles_3988 : PostgresqlContext, IAsyncLifetime
         slice.EmittedEvents.Select(x => x.Name).ShouldBe(new[] { nameof(TripConfirmed) });
     }
 
+    // GH-4419 §2: a [ReadModel] aggregate is something the slice READS, which is now its own role. It used
+    // to share ReadModelTypes with the read models a slice PRODUCES, and one list cannot say which a given
+    // entry is — so the Event → Read Model → ⚙ Command edge could not be drawn.
     [Fact]
-    public void the_read_aggregate_handler_reads_the_aggregate_as_a_read_model()
+    public void the_read_aggregate_handler_reads_from_the_aggregate()
     {
         var model = WolverineEventModelSource.Describe(theHost.GetRuntime());
         var slice = model.Slices.Single(x => x.Name == nameof(GetTripSummary));
 
         slice.AggregateTypes.ShouldBeEmpty();
-        slice.ReadModelTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Trip) });
+        slice.ReadsFrom.Select(x => x.Name).ShouldBe(new[] { nameof(Trip) });
+        slice.ReadModelTypes.ShouldBeEmpty("the slice reads Trip; it does not produce it");
         slice.EmittedEvents.ShouldBeEmpty();
         slice.PublishedMessages.Select(x => x.Name).ShouldBe(new[] { nameof(TripSummary) });
     }
@@ -145,8 +149,14 @@ public class event_model_roles_3988 : PostgresqlContext, IAsyncLifetime
     {
         var capabilities = await ServiceCapabilities.ReadFrom(theHost.GetRuntime(), null, CancellationToken.None);
 
-        capabilities.EventModel.ShouldNotBeNull();
-        var fromCapabilities = capabilities.EventModel.Slices.Single(x => x.Name == nameof(EndTrip));
+        // GH-4424: the capabilities document carries the SET of models this service hosts. Ask for the one
+        // this test is about BY NAME rather than assuming the host hosts exactly one — a store-backed host
+        // can contribute a model of its own, and Sole is null the moment there are two.
+        var set = capabilities.EventModel.ShouldNotBeNull();
+        set.Models.Select(x => x.Name).ShouldContain("event-model-roles-3988");
+
+        var hostedModel = set.Find("event-model-roles-3988").ShouldNotBeNull();
+        var fromCapabilities = hostedModel.Slices.Single(x => x.Name == nameof(EndTrip));
         fromCapabilities.AggregateTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Trip) });
         fromCapabilities.EmittedEvents.Select(x => x.Name).ShouldBe(new[] { nameof(TripEnded) });
 

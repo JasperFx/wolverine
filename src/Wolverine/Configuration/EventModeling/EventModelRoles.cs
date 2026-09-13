@@ -250,6 +250,10 @@ public static class EventModelRoles
             TriggerOrigin = seed.TriggerOrigin,
             AggregateTypes = roles.Aggregates.Select(TypeDescriptor.For).ToList(),
             PublishedMessages = roles.PublishedMessages.Select(TypeDescriptor.For).ToList(),
+            // GH-4419. A type the chain both reads and writes appears in BOTH lists, which is correct and
+            // is what upstream expects: it renders as one element, not two, and the link computation needs
+            // the produce side and the read side named separately to join them at all.
+            ReadsFrom = roles.ReadsFrom.Select(TypeDescriptor.For).ToList(),
         };
     }
 
@@ -389,8 +393,10 @@ public static class EventModelRoles
             }
             else if (parameter.HasAttribute<EntityAttribute>())
             {
-                // A loaded entity is a read model the slice reads from
-                roles.ReadModels.Add(parameterType);
+                // A loaded entity is a read model the slice reads FROM. GH-4419 routes it to ReadsFrom
+                // rather than ReadModelTypes: the slice did not produce this document, it read it, and
+                // only the read side can be the To end of a ReadModelRead link.
+                roles.ReadsFrom.Add(parameterType);
             }
         }
     }
@@ -591,6 +597,15 @@ public static class EventModelRoles
         public OrderedTypeSet PublishedMessages { get; } = new();
         public OrderedTypeSet ReadModels { get; } = new();
 
+        /// <summary>
+        /// GH-4419: the types this chain READS — <c>[ReadModel]</c> and <c>[Entity]</c> parameters — kept
+        /// apart from <see cref="ReadModels" />, which is what the chain <em>produces</em> (an
+        /// <c>IStorageAction&lt;T&gt;</c> return, a query's response body). Upstream models the two as
+        /// different roles, and the Automation input edge — Event → Read Model → ⚙ Command — can only be
+        /// drawn from the read side, because a link needs a producer at one end and a reader at the other.
+        /// </summary>
+        public OrderedTypeSet ReadsFrom { get; } = new();
+
         public void AddWrite(Type aggregateType, bool consistent)
         {
             IsEventSourced = true;
@@ -605,7 +620,9 @@ public static class EventModelRoles
 
         public void AddRead(Type aggregateType)
         {
-            ReadModels.Add(aggregateType);
+            // GH-4419: a [ReadModel] parameter is something the chain reads, so it lands on ReadsFrom.
+            // The AggregateKind below is unchanged — AggregatesFor still reports it as a ReadAggregate.
+            ReadsFrom.Add(aggregateType);
             if (!AggregateKinds.ContainsKey(aggregateType))
             {
                 AggregateKinds[aggregateType] = AggregateKind.ReadAggregate;

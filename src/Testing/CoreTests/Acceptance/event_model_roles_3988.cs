@@ -60,17 +60,23 @@ public class event_model_roles_on_chains_3988
         slice.PublishedMessages.ShouldBeEmpty();
     }
 
+    // GH-4419 §2: a [ReadModel] / [Entity] parameter is something the slice READS, which is a different
+    // role from the read models it PRODUCES. They used to share ReadModelTypes, which meant the Automation
+    // input edge — Event → Read Model → ⚙ Command — could not be drawn: a link needs a producer at one end
+    // and a reader at the other, and one list cannot say which a given entry is.
     [Fact]
-    public void read_model_and_entity_parameters_are_read_models_and_the_dto_is_a_published_message()
+    public void read_model_and_entity_parameters_are_types_the_slice_reads_from()
     {
         var readModel = EventModelRoles.ForHandlerChain(chainFor<GetOrderHandler>(x => GetOrderHandler.Handle(null!, null!)));
-        readModel.ReadModelTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });
+        readModel.ReadsFrom.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });
+        readModel.ReadModelTypes.ShouldBeEmpty("the slice reads Order; it does not produce it");
         readModel.AggregateTypes.ShouldBeEmpty();
         readModel.EmittedEvents.ShouldBeEmpty();
         readModel.PublishedMessages.Select(x => x.Name).ShouldBe(new[] { nameof(OrderSummary) });
 
         var entity = EventModelRoles.ForHandlerChain(chainFor<GetCustomerHandler>(x => GetCustomerHandler.Handle(null!, null!)));
-        entity.ReadModelTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Customer) });
+        entity.ReadsFrom.Select(x => x.Name).ShouldBe(new[] { nameof(Customer) });
+        entity.ReadModelTypes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -254,9 +260,20 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
     {
         var capabilities = await ServiceCapabilities.ReadFrom(_host.GetRuntime(), null, CancellationToken.None);
 
-        capabilities.EventModel.ShouldNotBeNull();
-        capabilities.EventModel.Name.ShouldBe("event-model-3988");
-        capabilities.EventModel.Slices.Select(x => x.Name).ShouldContain(nameof(PlaceOrder));
+        // GH-4424. The capabilities document carries the SET of models this service hosts, and this host
+        // hosts TWO: Wolverine's derived model, named for the service, and the "Overlay" model the fixture
+        // registers in InitializeAsync. That is the entire point of the change — the old export folded them
+        // into one named for the service, so the overlay's NAME was lost outright and nothing said so.
+        var set = capabilities.EventModel.ShouldNotBeNull();
+
+        set.Models.Select(x => x.Name).OrderBy(x => x, StringComparer.Ordinal)
+            .ShouldBe(new[] { "Overlay", "event-model-3988" });
+        set.IsAmbiguous.ShouldBeTrue();
+        set.Sole.ShouldBeNull("two models, so no single descriptor can stand for this service without loss");
+
+        // ...and a consumer that wants one names it, rather than being handed a guess.
+        var model = set.Find("event-model-3988").ShouldNotBeNull();
+        model.Slices.Select(x => x.Name).ShouldContain(nameof(PlaceOrder));
 
         var handler = capabilities.Messages.Single(x => x.Type.Name == nameof(PlaceOrder)).Handlers.Single();
         handler.EventModel.ShouldNotBeNull();

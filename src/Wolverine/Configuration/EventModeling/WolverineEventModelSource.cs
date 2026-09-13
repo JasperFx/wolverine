@@ -21,7 +21,17 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// <summary>URI scheme for the Wolverine-derived source: <c>event-model://wolverine/{service}</c>.</summary>
     public const string Scheme = "event-model";
 
-    public Uri Subject { get; } = new($"{Scheme}://wolverine");
+    /// <summary>
+    ///     GH-4425. Also stamped on every slice this source emits, as
+    ///     <see cref="EventModelSliceDescriptor.Origin" />. Without it, a same-rung disagreement between
+    ///     this source and Wolverine.HTTP's renders as <c>Derived claims X; Derived claims Y</c> — both
+    ///     halves reading <c>Derived</c>, which tells a reader nothing about which of the two to go and
+    ///     fix. Static because the <c>Describe</c> overloads are static and must stamp the same subject
+    ///     the instance reports.
+    /// </summary>
+    public static readonly Uri SourceSubject = new($"{Scheme}://wolverine");
+
+    public Uri Subject => SourceSubject;
 
     /// <summary>
     ///     GH-4147/GH-4152. Every role this source claims is read off a compiled handler chain, so it sits
@@ -107,7 +117,31 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         var model = new EventModelDescriptor(options.ServiceName, slices) { Aggregates = aggregates };
         model = ApplyGrpcTriggers(model, grpc);
         model = ApplyExternalSystems(model, options, stickyEndpoints, knownTypes, includeInbound: true);
-        return FinishModel(model);
+
+        // GH-4425: stamped LAST, after every rewrite above, so none of them can drop it.
+        return StampOrigin(FinishModel(model), SourceSubject);
+    }
+
+    /// <summary>
+    ///     GH-4425. Stamp <paramref name="subject" /> as the <see cref="EventModelSliceDescriptor.Origin" />
+    ///     of every slice in <paramref name="model" /> that does not already carry one — recording
+    ///     <em>which source</em> produced the slice, as against <c>Provenance</c>'s <em>which rung</em>.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately NOT done inside <see cref="FinishModel" />, though GH-4425 suggests it as an
+    ///     option: <c>Wolverine.Http</c>'s source calls FinishModel too, so stamping there would label
+    ///     every HTTP slice <c>event-model://wolverine</c> — inventing exactly the confusion this exists
+    ///     to remove. Each source stamps its own subject instead.
+    /// </remarks>
+    public static EventModelDescriptor StampOrigin(EventModelDescriptor model, Uri subject)
+    {
+        if (model.Slices.Count == 0) return model;
+
+        var slices = model.Slices
+            .Select(slice => slice.Origin is null ? slice with { Origin = subject } : slice)
+            .ToList();
+
+        return model with { Slices = slices };
     }
 
     /// <summary>
@@ -423,24 +457,35 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// </remarks>
     public static EventModelDescriptor FinishModel(EventModelDescriptor model)
     {
-        // What each message type is handed off by, so a slice that merely re-publishes what it handles
-        // cannot promote itself
-        var producers = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var slice in model.Slices)
+        // GH-4419. This used to carry a private copy of the join: a dictionary of every emitted event and
+        // published message, keyed on FullName, mapped to the slices producing it. That computation is
+        // EventModelLinks.Compute upstream (jasperfx#823), exposed as EventModelDescriptor.Links and
+        // recomputed on every read — so re-basing on it means the pattern derived here and the arrow a
+        // viewer draws can never disagree.
+        //
+        // BOTH trigger kinds count, not only EventTriggers. Upstream splits the join in two: an emitted
+        // event yields EventTriggers, a cascaded message yields MessageTriggers. The question this rule
+        // turns on has always been "did a person ask for this, or did the system react", and a cascaded
+        // message answers it the same way an emitted event does. Reading only EventTriggers would
+        // un-classify every message-cascade automation — including an application with no event sourcing
+        // at all, which is the shape of most Wolverine services and of the Quickstart sample.
+        //
+        // Two guards are gone from here because the links already enforce them: a slice never links to
+        // itself upstream, so a slice that merely re-publishes what it handles still cannot promote
+        // itself; and the To end is matched on the consuming slice's CommandType *or* TriggerType, so the
+        // CommandType null-check is subsumed. Matching TriggerType too is a deliberate widening — it
+        // cannot fire for a purely Wolverine-derived model, where TriggerType is never stamped, but it
+        // does once an overlay or a spec has contributed one to the same merged model.
+        var triggered = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var link in model.Links)
         {
-            foreach (var type in slice.EmittedEvents.Concat(slice.PublishedMessages))
+            if (link.Kind is EventModelLinkKind.EventTriggers or EventModelLinkKind.MessageTriggers)
             {
-                if (!producers.TryGetValue(type.FullName, out var names))
-                {
-                    names = new List<string>();
-                    producers[type.FullName] = names;
-                }
-
-                if (!names.Contains(slice.Name)) names.Add(slice.Name);
+                triggered.Add(link.ToSlice);
             }
         }
 
-        if (producers.Count == 0) return model;
+        if (triggered.Count == 0) return model;
 
         var slices = model.Slices.Select(promote).ToList();
 
@@ -450,9 +495,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         {
             if (slice.TriggerKind != TriggerKind.MessageHandler) return slice;
             if (slice.Pattern is not null) return slice; // GH-4395: declared with [SlicePattern]
-            if (slice.CommandType is not { } command) return slice;
-            if (!producers.TryGetValue(command.FullName, out var names)) return slice;
-            if (names.All(x => string.Equals(x, slice.Name, StringComparison.Ordinal))) return slice;
+            if (!triggered.Contains(slice.Name)) return slice;
 
             return slice with { Pattern = SlicePattern.Automation };
         }
