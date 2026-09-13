@@ -9,7 +9,8 @@ using Wolverine.Runtime;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: POST_test
-    public class POST_test : Wolverine.Http.HttpHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class POST_test : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
@@ -20,18 +21,29 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
+
+
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "TestEndpoint");
             Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             
             // The actual HTTP request handler execution
             await TestEndpoint.Post(messageContext).ConfigureAwait(false);
 
             // Wolverine automatically sets the status code to 204 for empty responses
-            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
+            if (httpContext.Response is { HasStarted: false, StatusCode: 200 }) httpContext.Response.StatusCode = 204;
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
+
         }
+
     }
 
     // END: POST_test
+    
+    
 }
+

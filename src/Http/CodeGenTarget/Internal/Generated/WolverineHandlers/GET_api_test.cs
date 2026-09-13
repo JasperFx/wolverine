@@ -22,11 +22,12 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "ExampleHandler");
             
             // The actual HTTP request handler execution
             var result_of_Handle = ExampleHandler.Handle();
 
-            await WriteString(httpContext, result_of_Handle);
+            await WriteString(httpContext, result_of_Handle, 404);
         }
 
     }
