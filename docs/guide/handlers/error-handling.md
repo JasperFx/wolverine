@@ -427,6 +427,59 @@ theReceiver = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L115-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_user_continuation_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Sending Messages from an OnException Hook
+
+There is a simpler option when the message you want to publish can be derived from the failing message
+and the exception itself. An `OnException` method on the handler class — the
+[middleware convention](/guide/handlers/middleware) — can just *return* the messages to send, and
+Wolverine cascades them exactly as it would from the handler method:
+
+<!-- snippet: sample_onexception_returning_outgoing_messages -->
+<a id='snippet-sample_onexception_returning_outgoing_messages'></a>
+```cs
+public record DoThing(Guid Id);
+
+public record ThingFailed(Guid Id, string Reason);
+
+public class VendorRefusedException : Exception
+{
+    public VendorRefusedException(string message) : base(message)
+    {
+    }
+}
+
+public static class DoThingHandler
+{
+    public static void Handle(DoThing command)
+    {
+        throw new VendorRefusedException("vendor refused");
+    }
+
+    // Any OutgoingMessages returned from an OnException method is published exactly as it would be from
+    // the handler method itself -- so the failure of DoThing becomes a ThingFailed message, and the
+    // original exception is swallowed.
+    public static OutgoingMessages OnException(VendorRefusedException exception, DoThing command)
+    {
+        var messages = new OutgoingMessages();
+        messages.Add(new ThingFailed(command.Id, exception.Message));
+
+        return messages;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/on_exception_outgoing_messages_4416.cs#L106-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_onexception_returning_outgoing_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Sending `DoThing` to this handler publishes a `ThingFailed` message carrying the reason, and the original
+exception is swallowed rather than retried or dead-lettered. Note:
+
+* Returning `OutgoingMessages` lets one hook publish **several** messages; a single message type can be
+  returned directly instead.
+* This runs in the `catch` block around the handler, so it happens *before* any error-handling policy
+  would otherwise retry, requeue or dead-letter the message.
+* The same convention works on a middleware class listed in `[Middleware(...)]`, which is the way to
+  share one failure policy across many handlers.
+
 ## Circuit Breaker
 
 ::: tip
