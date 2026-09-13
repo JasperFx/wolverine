@@ -32,6 +32,9 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     // Broker-per-tenant (GH-3303): the cluster this listener's DLQ records are produced to. Null for the shared
     // (default-cluster) listener, which falls back to the topic's parent transport.
     private readonly KafkaTransport? _tenantTransport;
+    // GH-4422: set when a teardown step blew through the drain budget and was abandoned on its own thread.
+    // The consumer handle is still owned by that thread, so it must NOT be disposed underneath it.
+    private volatile bool _teardownAbandoned;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
@@ -245,6 +248,25 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         await StopAsync();
         await _loop.DisposeAsync();
         _cancellation.Dispose();
+        disposeConsumerUnlessAbandoned();
+    }
+
+    /// <summary>
+    /// GH-4422. Disposing the consumer is normally safe and non-blocking -- Confluent's ReleaseHandle
+    /// passes RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE -- but only while nothing else holds the handle. When
+    /// a teardown step was abandoned mid-Close, an abandoned thread is still inside that native call, so
+    /// destroying the handle underneath it trades a hang for a crash. Leave it to process exit instead.
+    /// </summary>
+    private void disposeConsumerUnlessAbandoned()
+    {
+        if (_teardownAbandoned)
+        {
+            _logger.LogDebug(
+                "Not disposing the Kafka consumer for {Uri} because a teardown step was abandoned and still owns the handle",
+                Address);
+            return;
+        }
+
         _consumer.SafeDispose();
     }
 
@@ -259,14 +281,73 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         // below forces that Consume to unwind — bounded teardown instead of an infinite await.
         await _loop.StopAsync(_drainTimeout);
 
-        _committer.Flush();
+        // GH-4422: the drain above was bounded but what followed it was not, so the bound bought nothing.
+        // _committer.Flush() is a synchronous _consumer.Commit() and _consumer.Close() is a synchronous
+        // P/Invoke into rd_kafka_consumer_close, which waits on an infinite queue pop for the cgroup to
+        // finish revoke/commit/leave. librdkafka documents the wait as "roughly limited to
+        // session.timeout.ms" but against an unreachable broker or coordinator it never returns
+        // (librdkafka#4519, confluent-kafka-dotnet#2013), and a host was observed still wedged 20+ minutes
+        // later -- past both DrainTimeout and HostOptions.ShutdownTimeout. No cancellation token can help:
+        // IListener.StopAsync has none to thread, and a managed token cannot interrupt a blocked native
+        // call anyway. Bounding the wait is the only lever, so take the same trade the receivers and the
+        // GCP Pub/Sub listener (#4071) already take: stop within the budget and leave the rest unsettled
+        // for redelivery.
+        await runTeardownWithinBudgetAsync("flush offsets and close the consumer", () =>
+        {
+            _committer.Flush();
+            _consumer.Close();
+        });
+    }
+
+    /// <summary>
+    /// Runs one blocking teardown step under the drain budget. On timeout the step is ABANDONED --
+    /// logged, flagged, and left running -- because a blocked native call cannot be cancelled and
+    /// shutdown finishing matters more than the offsets it was trying to commit.
+    /// </summary>
+    private async Task runTeardownWithinBudgetAsync(string description, Action teardown)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // A DEDICATED background thread, deliberately not the thread pool. If this step wedges it is
+        // never coming back, and abandoning a pool thread would permanently consume a worker shared by
+        // the handler pipeline and every other transport -- the same amplifier GH-4354 took out of the
+        // consume loop, reintroduced at shutdown. A background thread also cannot hold up process exit.
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                teardown();
+                completion.TrySetResult();
+            }
+            catch (Exception e)
+            {
+                completion.TrySetException(e);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "wolverine-kafka-teardown"
+        };
+
+        thread.Start();
+
         try
         {
-            _consumer.Close();
+            await completion.Task.WaitAsync(_drainTimeout);
+        }
+        catch (TimeoutException)
+        {
+            _teardownAbandoned = true;
+            _logger.LogWarning(
+                "{Uri}: the Kafka consumer did not {Description} within the drain timeout of {DrainTimeout}. Abandoning the wait so shutdown can finish; uncommitted offsets will be redelivered and the group will rebalance after session.timeout.ms.",
+                Address, description, _drainTimeout);
         }
         catch (Exception e)
         {
-            _logger.LogDebug(e, "Error closing Kafka consumer on shutdown");
+            // Preserves the previous behaviour for a Close() that throws rather than blocks: a consumer
+            // that is already closed, or a broker that refuses the commit, is not worth a louder log.
+            _logger.LogDebug(e, "Error trying to {Description} for Kafka listener {Uri} on shutdown",
+                description, Address);
         }
     }
 
@@ -316,9 +397,13 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         _cancellation.Cancel();
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _loop.StopAsync(_drainTimeout).GetAwaiter().GetResult();
+
+        // GH-4422: _committer.Flush() is a synchronous _consumer.Commit(), which is as unbounded as
+        // Close() is. This path deliberately does NOT close the consumer -- it never has -- so only the
+        // flush is bounded here, leaving the rest of this method's behaviour unchanged.
+        runTeardownWithinBudgetAsync("flush offsets", () => _committer.Flush()).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-        _committer.Flush();
         _cancellation.Dispose();
-        _consumer.SafeDispose();
+        disposeConsumerUnlessAbandoned();
     }
 }
