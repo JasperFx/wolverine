@@ -21,7 +21,15 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
         _wolverineOptions = wolverineOptions;
     }
 
-    public Uri Subject { get; } = new($"{WolverineEventModelSource.Scheme}://wolverine-http");
+    /// <summary>
+    ///     GH-4425. Also stamped on every slice this source emits, as
+    ///     <see cref="EventModelSliceDescriptor.Origin" />, so a same-rung collision with Wolverine
+    ///     core's source reads as <c>event-model://wolverine-http</c> against
+    ///     <c>event-model://wolverine</c> — a file to go and look at — rather than <c>Derived</c> twice.
+    /// </summary>
+    public static readonly Uri SourceSubject = new($"{WolverineEventModelSource.Scheme}://wolverine-http");
+
+    public Uri Subject => SourceSubject;
 
     /// <summary>
     ///     GH-4147/GH-4152. Roles here are derived off compiled <see cref="HttpChain" />s, so this source
@@ -79,7 +87,12 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
             }
         }
 
-        return WolverineEventModelSource.FinishModel(new EventModelDescriptor(serviceName, slices) { Aggregates = aggregates });
+        // GH-4425: stamp Origin after FinishModel, with THIS source's subject. The shared FinishModel
+        // cannot do it — both sources call it, so stamping there would label these slices as core's.
+        return WolverineEventModelSource.StampOrigin(
+            WolverineEventModelSource.FinishModel(
+                new EventModelDescriptor(serviceName, slices) { Aggregates = aggregates }),
+            SourceSubject);
     }
 
     /// <summary>

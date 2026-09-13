@@ -149,13 +149,23 @@ public class ServiceCapabilities : OptionsDescription
     public List<EndpointDescriptor> MessagingEndpoints { get; set; } = [];
 
     /// <summary>
-    ///     The service's assembled Event Model (GH-3988): every <see cref="IEventModelDefinitionSource" />
-    ///     registered in the container — Wolverine's own derived chain roles, Wolverine.HTTP's, and any
-    ///     jasperfx#687 overlay the application registered — folded into one <see cref="EventModelDescriptor" />
-    ///     named for the service. Slices merge by name with derived roles winning over overlay names. Null
-    ///     when the section could not be read.
+    ///     The Event Models this service hosts (GH-3988), assembled from every
+    ///     <see cref="IEventModelDefinitionSource" /> registered in the container — Wolverine's own derived
+    ///     chain roles, Wolverine.HTTP's, and any jasperfx#687 overlay the application registered. Slices
+    ///     merge by name <em>within</em> a model, with derived roles winning over overlay names. Null when
+    ///     the section could not be read.
     /// </summary>
-    public EventModelDescriptor? EventModel { get; set; }
+    /// <remarks>
+    ///     GH-4424: this was a single <see cref="EventModelDescriptor" />, which had nowhere to put a second
+    ///     model — so the assembly folded every model into one named for the service, losing a name outright
+    ///     and reporting nothing. One service is not one model: each of the three stores can name its own
+    ///     through <c>StoreOptions.EventModelName</c>, so a modular monolith with an ancillary store per
+    ///     module legitimately hosts several. A consumer that can only render one canvas asks
+    ///     <see cref="EventModelSetDescriptor.Sole" />, or folds explicitly with
+    ///     <see cref="EventModelSetDescriptor.Collapse" /> and gets a <c>ModelCollapse</c> hotspot recording
+    ///     what it lost.
+    /// </remarks>
+    public EventModelSetDescriptor? EventModel { get; set; }
 
     public DatabaseCardinality MessageStoreCardinality { get; set; } = DatabaseCardinality.None;
 
@@ -540,8 +550,10 @@ public class ServiceCapabilities : OptionsDescription
     private static async Task readEventModel(IWolverineRuntime runtime, CancellationToken token,
         ServiceCapabilities capabilities)
     {
+        // GH-4424: the SET, not a fold of it. Every model this host assembled reaches the capabilities
+        // document (and so CritterWatch) with its own name intact.
         capabilities.EventModel =
-            await WolverineEventModelExport.AssembleAsync(runtime.Services, runtime.Options.ServiceName, token);
+            await WolverineEventModelExport.AssembleSetAsync(runtime.Services, runtime.Options.ServiceName, token);
     }
 
     /// <summary>

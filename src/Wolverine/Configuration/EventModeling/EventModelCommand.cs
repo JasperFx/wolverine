@@ -35,28 +35,61 @@ public static class WolverineEventModelExport
     };
 
     /// <summary>
-    ///     Walk every registered <see cref="IEventModelDefinitionSource" /> through
-    ///     <see cref="EventModelDiscovery" /> and fold the result into one model named for the service
-    ///     (or <paramref name="modelName" />).
+    ///     <see cref="AssembleSetAsync" />, folded into a single descriptor for a caller whose wire cannot
+    ///     carry more than one model.
     /// </summary>
     /// <remarks>
-    ///     GH-4385: the descriptors go through <see cref="EventModelSliceAlignment" /> first, so a declared
-    ///     model and the code it describes merge on the handler type they agree about rather than sliding
-    ///     past each other on names they were never going to compute the same way.
-    ///     <para>
-    ///     This walks <see cref="EventModelDiscovery.DiscoverAsync" /> rather than its <c>AssembleAsync</c>
-    ///     sibling for that reason alone — <c>AssembleAsync</c> folds by model name on the way out, and the
-    ///     alignment has to see the sources before anything merges. Everything lands in one model named for
-    ///     the service either way, so the assembled result is the same.
-    ///     </para>
+    ///     <b>Lossy when the host hosts several models — and now says so.</b> The fold is
+    ///     <see cref="EventModelSetDescriptor.Collapse" />, which appends a <c>ModelCollapse</c> hotspot
+    ///     naming every model that went in. GH-4424: this path used to do the same fold implicitly and
+    ///     report nothing at all, so a host assembling two models lost one of the names outright and had
+    ///     its slices merged into the other, under a label naming the service.
     /// </remarks>
     public static async Task<EventModelDescriptor> AssembleAsync(IServiceProvider services, string? modelName = null,
         CancellationToken token = default)
     {
+        var set = await AssembleSetAsync(services, token: token).ConfigureAwait(false);
+
+        // GH-4424: a name SELECTS a model when the host has one by that name — the flag chooses rather
+        // than renames. Failing that it names the collapsed model, which is what it always did.
+        if (modelName is not null && set.Find(modelName) is { } selected) return selected;
+
+        return set.Collapse(modelName);
+    }
+
+    /// <summary>
+    ///     Walk every registered <see cref="IEventModelDefinitionSource" /> and return the models this
+    ///     service hosts — one per model name — inside the service-scoped
+    ///     <see cref="EventModelSetDescriptor" /> envelope. GH-4424.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     Several models in one host is legal and increasingly ordinary: each of the three Critter Stack
+    ///     stores can name its own model through <c>StoreOptions.EventModelName</c>, and a modular monolith
+    ///     registers an ancillary store per module. <see cref="AssembleAsync" /> folds them for a caller
+    ///     that cannot carry more than one; this is the shape that keeps them.
+    ///     </para>
+    ///     <para>
+    ///     GH-4385: the descriptors go through <see cref="EventModelSliceAlignment" /> first, so a declared
+    ///     model and the code it describes merge on the handler type they agree about rather than sliding
+    ///     past each other on names they were never going to compute the same way.
+    ///     </para>
+    ///     <para>
+    ///     This deliberately does <b>not</b> call <c>EventModelDiscovery.AssembleSetAsync</c>, which has
+    ///     exactly this signature and would otherwise be the obvious delegation: it walks
+    ///     <c>DiscoverAsync</c> itself, so it never sees the alignment above and would silently drop it.
+    ///     Grouping by name is <see cref="EventModelSetDescriptor.For" />, which is the part of it that is
+    ///     wanted here.
+    ///     </para>
+    /// </remarks>
+    public static async Task<EventModelSetDescriptor> AssembleSetAsync(IServiceProvider services,
+        string? serviceName = null, CancellationToken token = default)
+    {
         var discovered = await EventModelDiscovery.DiscoverAsync(services, token).ConfigureAwait(false);
         var aligned = EventModelSliceAlignment.AlignSliceNames(discovered);
-        var name = modelName ?? services.GetService<WolverineOptions>()?.ServiceName ?? "Wolverine";
-        return EventModelDescriptor.Merge(name, aligned);
+        var name = serviceName ?? services.GetService<WolverineOptions>()?.ServiceName ?? "Wolverine";
+
+        return EventModelSetDescriptor.For(name, aligned);
     }
 
     /// <summary>Serialize a model with <see cref="SerializerOptions" />.</summary>
@@ -183,7 +216,40 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
             // when the application mapped its endpoints, before this command ran, so they are there too.
             _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
-            var model = await WolverineEventModelExport.AssembleAsync(host.Services, input.NameFlag);
+            var set = await WolverineEventModelExport.AssembleSetAsync(host.Services);
+
+            // GH-4424. --name SELECTS which model to export rather than renaming a fold of all of them,
+            // and an unnamed export of a host with several no longer picks a survivor in silence.
+            EventModelDescriptor model;
+            if (input.NameFlag.IsNotEmpty())
+            {
+                if (set.Find(input.NameFlag!) is not { } selected)
+                {
+                    var hosted = set.Models.Count == 0
+                        ? "no Event Models at all"
+                        : string.Join(", ", set.Models.Select(x => $"'{x.Name}'"));
+                    Console.WriteLine(
+                        $"This application hosts no Event Model named '{input.NameFlag}'. It hosts {hosted}.");
+                    return false;
+                }
+
+                model = selected;
+            }
+            else if (set.Sole is { } sole)
+            {
+                model = sole;
+            }
+            else
+            {
+                model = set.Collapse();
+
+                if (set.IsAmbiguous)
+                {
+                    Console.WriteLine(
+                        $"This application hosts {set.Models.Count} Event Models ({string.Join(", ", set.Models.Select(x => $"'{x.Name}'"))}), so they were folded into one named '{model.Name}' with a ModelCollapse hotspot recording the loss. Pass --name to export one of them on its own.");
+                }
+            }
+
             var summary =
                 $"the Event Model '{model.Name}' ({model.Slices.Count} slices, {model.Aggregates.Count} aggregates)";
 

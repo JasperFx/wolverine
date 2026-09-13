@@ -87,7 +87,8 @@ public class grpc_event_model_slice_4000 : IClassFixture<GrpcCapabilitiesFixture
     [Fact]
     public void each_rpc_slice_is_the_slice_the_assembled_model_carries_for_it()
     {
-        var model = _fixture.Capabilities.EventModel.ShouldNotBeNull();
+        // GH-4424: the capabilities document carries the set of models; this host hosts exactly one.
+        var model = _fixture.Capabilities.EventModel.ShouldNotBeNull().Sole.ShouldNotBeNull();
 
         foreach (var endpoint in _fixture.SourceEndpoints)
         {
@@ -136,7 +137,7 @@ public class grpc_event_model_slice_4000 : IClassFixture<GrpcCapabilitiesFixture
         forwardingHello.Select(x => x.EventModel!.TriggerOrigin!.Label)
             .ShouldBe(forwardingHello.Select(x => $"{x.ServiceName}/{x.MethodName}"));
 
-        var assembled = _fixture.Capabilities.EventModel!.Slices
+        var assembled = _fixture.Capabilities.EventModel!.Sole!.Slices
             .First(x => x.CommandType?.FullName == typeof(HelloRequest).FullName);
 
         // the model's single trigger is one of them — the first in service::method order
