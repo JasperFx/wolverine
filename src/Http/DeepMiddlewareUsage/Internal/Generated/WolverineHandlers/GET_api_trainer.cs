@@ -31,6 +31,7 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "DeepMiddlewareUsage.TrainerGet");
             (var userId, var problemDetails1) = DeepMiddlewareUsage.UserIdMiddleWare.Load(httpContext.User, httpContext);
             // Evaluate whether the processing should stop if there are any problems
             if (!(ReferenceEquals(problemDetails1, Wolverine.Http.WolverineContinue.NoProblems)))
@@ -54,7 +55,7 @@ namespace Internal.Generated.WolverineHandlers
             var trainerResponse_response = DeepMiddlewareUsage.TrainerGet.Get(trainer);
 
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
-            await WriteJsonAsync(httpContext, trainerResponse_response);
+            await WriteJsonAsync(httpContext, trainerResponse_response, 404);
         }
 
     }
