@@ -1,11 +1,17 @@
 name: command-line
 
-# Smoke test for the Wolverine command-line diagnostics surface. Builds the
-# Quickstart sample (which opts into RunJasperFxCommands) and exercises the
-# `wolverine-diagnostics describe-handlers` command end to end: it must discover
-# a known handler and emit the expected DescribeHandlerMatch report, and it must
-# exit non-zero for an unknown type. No database or message broker is required —
-# the command builds the host and compiles the handler graph without starting it.
+# Smoke tests for the Wolverine command-line surface.
+#
+# describe-handlers-smoke: builds the Quickstart sample (which opts into
+# RunJasperFxCommands) and exercises the `wolverine-diagnostics describe-handlers`
+# command end to end: it must discover a known handler and emit the expected
+# DescribeHandlerMatch report, and it must exit non-zero for an unknown type. No
+# database or message broker is required — the command builds the host and compiles
+# the handler graph without starting it.
+#
+# codegen-drift: regenerates the committed `codegen write` output and fails if any
+# of it moved (GH-4421). See the CICodegenDrift target in build/CITargets.cs for
+# what it covers and what it deliberately does not.
 
 on:
   push:
@@ -89,3 +95,37 @@ jobs:
           echo "::endgroup::"
 
           echo "event-model smoke test passed"
+
+  codegen-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      # GH-4421. Regenerates the committed `codegen write` output and fails on any diff. This is only
+      # a believable gate as of JasperFx 2.69.2, which made the emitted statement order deterministic
+      # (jasperfx#832); before that, a byte comparison could not tell real drift from per-process
+      # hash-order noise. The target starts its own postgresql + rabbitmq containers.
+      - name: Codegen drift gate
+        run: ./build.sh CICodegenDrift --framework net9.0
+
+      # The target throws with the file list; this prints the content of the drift so a reviewer can
+      # see WHAT moved without having to reproduce the run locally.
+      - name: Show the drift
+        if: failure()
+        run: |
+          git status --porcelain
+          git --no-pager diff
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down
