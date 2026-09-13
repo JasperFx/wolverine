@@ -4,7 +4,6 @@
 //
 // `codegen write` (or any JasperFx CLI verb) refreshes the committed pre-gen under
 // Internal/Generated/ — run it under plain `dotnet run`, never from the native binary.
-using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,7 +46,10 @@ if (isCli)
     return await builder.RunJasperFxCommands(args);
 }
 
-AotRoots.Pin();
+// GH-4426: there is deliberately NO AotRoots.Pin() call here any more. `codegen write` now emits the
+// rooting companion into the committed pre-gen itself, anchored by [ModuleInitializer] -- which is an
+// unconditional ILC root, so it needs no call site at all. This smoke passing with nothing hand-written
+// IS the assertion that the emitted rooting works.
 
 try
 {
@@ -85,27 +87,9 @@ public static class AotPublishPingHandler
     public static void Handle(AotPublishPing message) => LastValue = message.Value;
 }
 
-/// <summary>
-/// The hand-written Native AOT roots that a TypeLoadMode.Static application needs TODAY
-/// (GH-4287): the pre-generated registry and handler types are only ever located via
-/// reflection, so without these ILC trims them and Static mode silently falls back to an
-/// assembly scan that finds nothing. Direct construction is NOT enough — Activator and
-/// GetMethods need reflection METADATA, which only [DynamicDependency] preserves.
-/// jasperfx#743 tracks emitting this block from `codegen write` itself.
-/// </summary>
-internal static class AotRoots
-{
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Internal.Generated.WolverineHandlers.GeneratedHandlerRegistry))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Internal.Generated.WolverineHandlers.AotPublishPingHandler1993257527))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(AotPublishPingHandler))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(AotPublishPing))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Wolverine.Runtime.Routing.MessageRouter<AotPublishPing>))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All,
-        typeof(Wolverine.Runtime.Routing.EmptyMessageRouter<AotPublishPing>))]
-    internal static void Pin()
-    {
-    }
-}
+// GH-4426: the hand-written `AotRoots` class that used to live here is GONE, and its deletion is the
+// point of this change. It rooted six types by hand -- the generated registry, the generated handler,
+// the handler class, the message type, and MessageRouter<T>/EmptyMessageRouter<T> closed over it -- and
+// every Native AOT application had to write the same block for every one of its own message types.
+// `codegen write` now emits exactly those six roots into Internal/Generated/, so this project asserts
+// the emitted version works by having none of its own.

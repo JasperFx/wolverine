@@ -46,14 +46,30 @@ public abstract class HandlerRegistry
 /// </summary>
 internal class HandlerRegistryCodeFile : ICodeFile
 {
+    private const string AotRootsTypeName = "AotRoots";
+
     private readonly Type[] _handlerTypes;
     private readonly Type[] _messageTypes;
+    private readonly string[] _generatedHandlerTypeNames;
+    private readonly Type[] _routedMessageTypes;
     private GeneratedType? _generatedType;
 
-    public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes)
+    public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes,
+        IEnumerable<string>? generatedHandlerTypeNames = null, IEnumerable<Type>? routedMessageTypes = null)
     {
         _handlerTypes = onlyPublic(handlerTypes);
         _messageTypes = onlyPublic(messageTypes);
+
+        // GH-4426. Ordered, like the arrays above: the emitted rooting block is part of the generated
+        // output, and that output is byte-compared by the codegen drift gate (GH-4421).
+        _generatedHandlerTypeNames = (generatedHandlerTypeNames ?? [])
+            .Distinct()
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
+
+        // Both message-type sources, public-filtered for the same reason the arrays above are: a type
+        // the generated file cannot see cannot appear inside a typeof().
+        _routedMessageTypes = onlyPublic((routedMessageTypes ?? []).Concat(_messageTypes));
     }
 
     private static Type[] onlyPublic(IEnumerable<Type> types)
@@ -73,7 +89,7 @@ internal class HandlerRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HandlerRegistry.GeneratedTypeName, typeof(HandlerRegistry));
 
-        foreach (var type in _handlerTypes.Concat(_messageTypes))
+        foreach (var type in _handlerTypes.Concat(_messageTypes).Concat(_routedMessageTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -83,6 +99,79 @@ internal class HandlerRegistryCodeFile : ICodeFile
 
         _generatedType.MethodFor(nameof(HandlerRegistry.MessageTypes))
             .Frames.Add(new WriteTypeArrayFrame(_messageTypes));
+
+        // GH-4426 / jasperfx#743. Native AOT rooting, emitted rather than hand-written. Everything the
+        // Static type loader reaches, it reaches REFLECTIVELY -- an assembly scan plus
+        // Activator.CreateInstance -- so ILC has no static reference to any of it, trims it, and
+        // TypeLoadMode.Static silently degrades to a scan that finds nothing. GH-4287 special-cased the
+        // framework's own message types; every user-defined one still needed the app author to hand-write
+        // this block (see AotRoots.Pin() in Wolverine.AotSmoke.Publish, which this replaces).
+        //
+        // Guarded by the same WithinCodegenCommand check as the message-type scan in explodeAllFiles:
+        // during Static *attach* the committed file already carries the companion, and adding another
+        // generated type to the in-memory assembly then would only confuse the loader.
+        //
+        // AddAotRoots is a no-op for `--language fsharp` (the F# compiler does not honour
+        // ModuleInitializerAttribute), so there is no language branching to do here.
+        if (DynamicCodeBuilder.WithinCodegenCommand)
+        {
+            assembly.AddAotRoots(AotRootsTypeName, buildAotRoots(assembly.Namespace));
+        }
+    }
+
+    /// <summary>
+    ///     One <c>[DynamicDependency]</c> argument per type that the static type loader or the routing
+    ///     warm-up reaches reflectively, and would therefore lose to the trimmer.
+    /// </summary>
+    private IEnumerable<AttributeArg> buildAotRoots(string generatedNamespace)
+    {
+        // The registry and every generated handler are SIBLINGS in the assembly being emitted: they have
+        // no runtime Type while codegen is running, so they can only be named in code.
+        yield return AttributeArg.TypeNamed($"{generatedNamespace}.{HandlerRegistry.GeneratedTypeName}");
+
+        foreach (var typeName in _generatedHandlerTypeNames)
+        {
+            yield return AttributeArg.TypeNamed($"{generatedNamespace}.{typeName}");
+        }
+
+        // The handler classes. The generated code calls them directly, but handler-method selection walks
+        // them with GetMethods(), and that needs metadata a direct call does not preserve.
+        foreach (var handlerType in _handlerTypes)
+        {
+            yield return AttributeArg.Type(handlerType);
+        }
+
+        foreach (var messageType in _routedMessageTypes)
+        {
+            yield return AttributeArg.Type(messageType);
+
+            // WolverineRuntime.PrepopulateRoutingCache closes these per message type reflectively, which
+            // is exactly what threw MissingMethodException on startup in a native image for any message
+            // type GH-4287 did not special-case. Neither router declares a generic constraint, so both
+            // close over any message type at all.
+            yield return closedRouterRoot(typeof(Routing.MessageRouter<>), messageType);
+            yield return closedRouterRoot(typeof(Routing.EmptyMessageRouter<>), messageType);
+        }
+    }
+
+    /// <summary>
+    ///     Closes one of the open router generics over a message type so it can be named inside a
+    ///     <c>[DynamicDependency]</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately its own method rather than an attribute on <see cref="buildAotRoots" />: that one
+    ///     is an iterator, so its body compiles into a generated MoveNext and a suppression on the
+    ///     declaring method does not reach it.
+    /// </remarks>
+    [UnconditionalSuppressMessage("AotAnalysis", "IL3050",
+        Justification =
+            "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand and never in a native image. Emitting these roots is exactly what removes the need for a native image to close these generics at runtime.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055",
+        Justification =
+            "The open generic is always MessageRouter<> or EmptyMessageRouter<>, neither of which declares a generic constraint, so there are no requirements for the trimmer to guarantee. The closed type is only ever named inside an emitted [DynamicDependency] -- it is never instantiated here.")]
+    private static AttributeArg closedRouterRoot(Type openRouterType, Type messageType)
+    {
+        return AttributeArg.Type(openRouterType.MakeGenericType(messageType));
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
