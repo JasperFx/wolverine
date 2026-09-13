@@ -18,6 +18,7 @@ namespace Wolverine.Grpc.Tests;
 /// <c>GrpcGraph.DiscoverServices</c> forces nothing, so a missing pre-built type here really did wait for
 /// the first RPC to that service, with the host reporting healthy the whole time.
 /// </summary>
+[Collection(GrpcSerialTestsCollection.Name)]
 public class Bug_4156_static_mode_service_types
 {
     [Fact]

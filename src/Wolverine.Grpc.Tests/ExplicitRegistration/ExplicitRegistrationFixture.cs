@@ -8,13 +8,6 @@ using Xunit;
 
 namespace Wolverine.Grpc.Tests.ExplicitRegistration;
 
-/// <summary>
-///     GH-4396. Same shape as <c>CodeFirstCodegenFixture</c>, but the contract under test carries no
-///     <c>[WolverineGrpcService]</c>; it reaches the generated-implementation path only through
-///     <c>WolverineGrpcOptions.IncludeCodeFirstContract</c>. <c>AddWolverineGrpc</c> is called twice on
-///     purpose: the configure callback re-runs on repeat calls, so the registration must survive that
-///     without producing a second chain.
-/// </summary>
 public class ExplicitRegistrationFixture : IAsyncLifetime
 {
     private WebApplication? _app;
@@ -34,6 +27,7 @@ public class ExplicitRegistrationFixture : IAsyncLifetime
         });
 
         builder.Services.AddCodeFirstGrpc();
+        // Twice on purpose: a repeat AddWolverineGrpc re-runs the callback and must not add a second chain.
         builder.Services.AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract<IExplicitlyRegisteredService>());
         builder.Services.AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract<IExplicitlyRegisteredService>());
 

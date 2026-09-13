@@ -81,101 +81,38 @@ public sealed class WolverineGrpcOptions
     /// </summary>
     public bool PropagateEnvelopeHeaders { get; set; } = true;
 
-    // Insertion-ordered and deduplicated by IncludeCodeFirstContract. Order matters for byte-stable
-    // codegen output, and AddWolverineGrpc(configure) re-runs the callback on repeat calls, so the
-    // same contract must be able to arrive more than once without producing two chains.
     private readonly List<Type> _codeFirstContracts = [];
 
-    /// <summary>
-    ///     Code-first <c>[ServiceContract]</c> interfaces registered through
-    ///     <see cref="IncludeCodeFirstContract{T}"/> / <see cref="IncludeCodeFirstContract(Type)"/>.
-    ///     Wolverine generates and maps an implementation for each of these exactly as it does for an
-    ///     interface carrying <see cref="WolverineGrpcServiceAttribute"/>. Read by
-    ///     <see cref="GrpcGraph.DiscoverServices"/>.
-    /// </summary>
-    public IReadOnlyList<Type> CodeFirstContracts => _codeFirstContracts;
+    internal IReadOnlyList<Type> CodeFirstContracts => _codeFirstContracts;
 
     /// <summary>
-    ///     Register a code-first gRPC service contract for Wolverine's generated-implementation path
-    ///     without putting <see cref="WolverineGrpcServiceAttribute"/> on the interface (GH-4396).
-    ///     <para>
-    ///         Use this when the <c>[ServiceContract]</c> interface lives in a contracts assembly shared
-    ///         with clients: the contracts project then needs only <c>protobuf-net.Grpc</c>, and the
-    ///         server hosting stack (<c>WolverineFx.Grpc</c>, <c>Grpc.AspNetCore</c>, ...) stops flowing
-    ///         to every client that binds the interface. The host names the contract here instead, the
-    ///         same way <c>opts.Discovery.IncludeType&lt;T&gt;()</c> names a handler type the scan would
-    ///         not otherwise find.
-    ///     </para>
-    ///     <para>
-    ///         Everything downstream is identical to the attributed form: the same
-    ///         <see cref="CodeFirstGrpcServiceChain"/>, the same generated
-    ///         <c>{InterfaceNameWithoutLeadingI}GrpcHandler</c>, the same <c>TypeLoadMode.Static</c>
-    ///         registry, and the same rule that a concrete <c>*GrpcService</c> class implementing the
-    ///         contract is not also mapped. Bidirectional-streaming methods are skipped by generation,
-    ///         so a contract that declares one will not compile on this path; keep such contracts on a
-    ///         hand-written service class.
-    ///     </para>
+    ///     Have Wolverine generate and map the implementation of a code-first <c>[ServiceContract]</c>
+    ///     interface that does not carry <see cref="WolverineGrpcServiceAttribute"/>, so the contracts
+    ///     assembly shared with clients does not need to reference WolverineFx.Grpc (GH-4396).
     /// </summary>
-    /// <typeparam name="T">A non-generic interface carrying <c>[ServiceContract]</c>.</typeparam>
+    /// <typeparam name="T">A public, non-generic interface marked <c>[ServiceContract]</c>.</typeparam>
     public WolverineGrpcOptions IncludeCodeFirstContract<T>() where T : class
         => IncludeCodeFirstContract(typeof(T));
 
     /// <summary>
-    ///     Non-generic overload of <see cref="IncludeCodeFirstContract{T}"/> for contracts only known at
-    ///     runtime. Validates eagerly so a bad registration fails at <c>AddWolverineGrpc</c> time with a
-    ///     message naming the type, rather than at the first RPC.
+    ///     Non-generic overload of <see cref="IncludeCodeFirstContract{T}"/>.
     /// </summary>
-    /// <param name="contractType">A non-generic interface carrying <c>[ServiceContract]</c>.</param>
-    /// <exception cref="ArgumentException">
-    ///     <paramref name="contractType"/> is not an interface, is an open generic, or does not carry
-    ///     <c>[ServiceContract]</c>.
-    /// </exception>
+    /// <param name="contractType">A public, non-generic interface marked <c>[ServiceContract]</c>.</param>
     public WolverineGrpcOptions IncludeCodeFirstContract(Type contractType)
     {
         ArgumentNullException.ThrowIfNull(contractType);
 
-        if (DescribeInvalidCodeFirstContract(contractType) is { } problem)
+        if (!contractType.IsInterface || !contractType.IsVisible || contractType.IsGenericType
+            || !contractType.IsDefined(typeof(ServiceContractAttribute), inherit: false))
         {
-            throw new ArgumentException(problem, nameof(contractType));
+            throw new ArgumentException(
+                $"{contractType.FullNameInCode()} must be a public, non-generic interface marked [ServiceContract] to be a code-first gRPC contract.",
+                nameof(contractType));
         }
 
-        if (!_codeFirstContracts.Contains(contractType))
-        {
-            _codeFirstContracts.Add(contractType);
-        }
+        _codeFirstContracts.Fill(contractType);
 
         return this;
-    }
-
-    /// <summary>
-    ///     The one definition of "can Wolverine generate an implementation for this type": a closed,
-    ///     non-generic interface carrying <c>[ServiceContract]</c>. Returns <c>null</c> when the type
-    ///     qualifies, otherwise a message naming the type and the reason, ready to be thrown by
-    ///     whichever registration source found it.
-    /// </summary>
-    internal static string? DescribeInvalidCodeFirstContract(Type contractType)
-    {
-        if (!contractType.IsInterface)
-        {
-            return $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it is not an interface. "
-                   + "Wolverine generates the implementation of a [ServiceContract] interface; a concrete service class is discovered "
-                   + "by the 'GrpcService' name suffix or [WolverineGrpcService] instead.";
-        }
-
-        if (contractType.IsGenericTypeDefinition)
-        {
-            return $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it is an open generic interface. "
-                   + "Register a closed interface type.";
-        }
-
-        if (!contractType.IsDefined(typeof(ServiceContractAttribute), inherit: false))
-        {
-            return $"{contractType.FullNameInCode()} cannot be registered as a code-first gRPC contract because it does not carry "
-                   + "[System.ServiceModel.ServiceContract]. protobuf-net.Grpc needs that attribute to route the service; "
-                   + "add it to the interface (it comes from protobuf-net.Grpc, not from WolverineFx.Grpc).";
-        }
-
-        return null;
     }
 
     /// <summary>

@@ -95,7 +95,8 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
 
             DisambiguateCollidingTypeNames(_chains);
 
-            foreach (var contract in registry.CodeFirstContractTypes())
+            // A registration the pre-generated code does not know about fails AssertPreBuiltTypesExist below.
+            foreach (var contract in registry.CodeFirstContractTypes().Union(grpcOptions.CodeFirstContracts))
             {
                 _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract)
                 {
@@ -126,22 +127,17 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
 
             DisambiguateCollidingTypeNames(_chains);
 
-            // GH-4396: contracts registered on WolverineGrpcOptions join the attributed ones found by the
-            // scan. Union keeps scan order first and drops a type that is both attributed and registered.
-            var registeredContracts = resolveRegisteredCodeFirstContracts(grpcOptions);
             var contracts = FindCodeFirstServiceContracts(_options.Assemblies)
-                .Union(registeredContracts)
+                .Union(grpcOptions.CodeFirstContracts)
                 .ToArray();
             logger.LogInformation(
-                "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies} ({Registered} registered explicitly)",
+                "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies} or registered with IncludeCodeFirstContract()",
                 contracts.Length,
-                _options.Assemblies.Select(x => x.GetName().Name!).Join(", "),
-                registeredContracts.Count);
+                _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
 
             foreach (var contract in contracts)
             {
-                CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies,
-                    registeredContracts);
+                CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
                 var codeFirstChain = new CodeFirstGrpcServiceChain(contract)
                 {
                     ApplicationAssemblies = _options.Assemblies,
@@ -150,7 +146,7 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
                 _codeFirstChains.Add(codeFirstChain);
             }
 
-            var handWritten = FindHandWrittenServiceClasses(_options.Assemblies, registeredContracts).ToArray();
+            var handWritten = FindHandWrittenServiceClasses(_options.Assemblies, grpcOptions.CodeFirstContracts).ToArray();
             logger.LogInformation(
                 "Found {Count} hand-written Wolverine gRPC service classes in assemblies {Assemblies}",
                 handWritten.Length,
@@ -182,67 +178,8 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
         AssertPreBuiltTypesExist();
     }
 
-    /// <summary>
-    ///     The single source of code-first contracts that were registered rather than discovered by the
-    ///     attribute scan (GH-4396). Everything that treats a registered contract like an attributed one
-    ///     (discovery, the hand-written exclusion, the concrete-implementation conflict guard) reads
-    ///     this one set, so a registration source only has to feed it here. Each source validates its
-    ///     own input against <see cref="WolverineGrpcOptions.DescribeInvalidCodeFirstContract"/> before
-    ///     it lands in the set; the set itself is trusted downstream.
-    /// </summary>
-    private HashSet<Type> resolveRegisteredCodeFirstContracts(WolverineGrpcOptions grpcOptions)
-    {
-        var registered = new HashSet<Type>();
-
-        // Source 1: WolverineGrpcOptions.IncludeCodeFirstContract, validated at registration time.
-        registered.UnionWith(grpcOptions.CodeFirstContracts);
-
-        // Source 2: [assembly: WolverineGrpcCodeFirstContract(...)] in any scanned assembly, validated here.
-        registered.UnionWith(FindAssemblyRegisteredCodeFirstContracts(_options.Assemblies));
-
-        return registered;
-    }
-
-    /// <summary>
-    ///     Contracts named by <see cref="WolverineGrpcCodeFirstContractAttribute"/> (either form) at the
-    ///     assembly level of any of <paramref name="assemblies"/>. Attribute-only metadata read; no type
-    ///     scan. Throws <see cref="InvalidOperationException"/> naming the assembly and the type when an
-    ///     attribute points at something the generated-implementation path cannot serve.
-    /// </summary>
-    public static IEnumerable<Type> FindAssemblyRegisteredCodeFirstContracts(IEnumerable<Assembly> assemblies)
-    {
-        return assemblies
-            .Where(a => !a.IsDynamic)
-            .SelectMany(a => ReadAssemblyRegisteredCodeFirstContracts(a,
-                a.GetCustomAttributes<WolverineGrpcCodeFirstContractAttribute>()))
-            .Distinct();
-    }
-
-    // Split from the assembly walk so the validation can be exercised with attribute instances that no
-    // real assembly carries (a bad attribute in a test assembly would break every fixture scanning it).
-    internal static IEnumerable<Type> ReadAssemblyRegisteredCodeFirstContracts(Assembly source,
-        IEnumerable<WolverineGrpcCodeFirstContractAttribute> attributes)
-    {
-        foreach (var attribute in attributes)
-        {
-            if (WolverineGrpcOptions.DescribeInvalidCodeFirstContract(attribute.ContractType) is { } problem)
-            {
-                throw new InvalidOperationException(
-                    $"[assembly: {nameof(WolverineGrpcCodeFirstContractAttribute).Replace("Attribute", "")}] in assembly "
-                    + $"{source.GetName().Name} names {attribute.ContractType.FullNameInCode()}, but {problem}");
-            }
-
-            yield return attribute.ContractType;
-        }
-    }
-
-    /// <summary>
-    ///     Is <paramref name="contract"/> owned by the generated-implementation path? True when the
-    ///     interface carries <see cref="WolverineGrpcServiceAttribute"/> or was registered through
-    ///     <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/>. A concrete class implementing
-    ///     such a contract must not also be mapped, or two services would answer the same route.
-    /// </summary>
-    public static bool IsCodeFirstOwnedContract(Type contract, IReadOnlyCollection<Type> registeredContracts)
+    // Wolverine generates the implementation of a contract that is attributed or registered.
+    internal static bool IsCodeFirstOwnedContract(Type contract, IReadOnlyCollection<Type> registeredContracts)
     {
         return contract.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false)
                || registeredContracts.Contains(contract);
@@ -379,19 +316,14 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
     ///     <c>[ServiceContract]</c> interface. Classes whose service contract interface is itself
     ///     annotated with <see cref="WolverineGrpcServiceAttribute"/> are excluded — those are handled
     ///     by the <see cref="CodeFirstGrpcServiceChain"/> generated-implementation path instead.
-    ///     This overload knows about no registered contracts; see
-    ///     <see cref="FindHandWrittenServiceClasses(IEnumerable{Assembly}, IReadOnlyCollection{Type})"/>.
+    ///     Contracts registered with <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/> are not
+    ///     considered here.
     /// </summary>
     public static IEnumerable<Type> FindHandWrittenServiceClasses(IEnumerable<Assembly> assemblies)
         => FindHandWrittenServiceClasses(assemblies, []);
 
-    /// <summary>
-    ///     As <see cref="FindHandWrittenServiceClasses(IEnumerable{Assembly})"/>, but a class whose
-    ///     contract is in <paramref name="registeredContracts"/> (see
-    ///     <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/>) is excluded exactly as if the
-    ///     contract carried <see cref="WolverineGrpcServiceAttribute"/> (GH-4396).
-    /// </summary>
-    public static IEnumerable<Type> FindHandWrittenServiceClasses(IEnumerable<Assembly> assemblies,
+    // Also excludes classes whose contract is in registeredContracts.
+    internal static IEnumerable<Type> FindHandWrittenServiceClasses(IEnumerable<Assembly> assemblies,
         IReadOnlyCollection<Type> registeredContracts)
     {
         return assemblies

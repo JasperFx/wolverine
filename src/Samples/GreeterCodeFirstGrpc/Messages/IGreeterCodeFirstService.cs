@@ -5,14 +5,9 @@ using ProtoBuf.Grpc;
 namespace GreeterCodeFirstGrpc.Messages;
 
 /// <summary>
-///     Code-first gRPC contract. <c>[ServiceContract]</c> is required by protobuf-net.Grpc
-///     for routing and is the only attribute here: this assembly is shared with clients and
-///     does not reference WolverineFx.Grpc. The Server project tells Wolverine to generate
-///     the concrete implementation with
-///     <c>AddWolverineGrpc(grpc => grpc.IncludeCodeFirstContract&lt;IGreeterCodeFirstService&gt;())</c>,
-///     so no service class is written by hand. (Marking the interface with
-///     <c>[WolverineGrpcService]</c> is the other way to opt in, at the cost of a
-///     WolverineFx.Grpc reference from the contracts project.)
+///     Code-first gRPC contract shared with clients. It carries only <c>[ServiceContract]</c>, so this
+///     project does not reference WolverineFx.Grpc. The Server registers it with
+///     <c>IncludeCodeFirstContract&lt;IGreeterCodeFirstService&gt;()</c> and Wolverine generates the implementation.
 /// </summary>
 [ServiceContract]
 public interface IGreeterCodeFirstService

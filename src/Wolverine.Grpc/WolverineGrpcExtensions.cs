@@ -256,10 +256,10 @@ public static class WolverineGrpcExtensions
 
     /// <summary>
     ///     Returns all concrete, non-abstract types in <paramref name="assemblies"/> that qualify as
-    ///     hand-written Wolverine-managed gRPC services. Proto-first stubs (abstract classes) and
-    ///     types that have a <see cref="HandWrittenGrpcServiceChain"/> in <paramref name="graph"/> are
-    ///     excluded — the former are handled by <see cref="GrpcGraph"/>, the latter by the generated
-    ///     wrapper mapping loop.
+    ///     hand-written Wolverine-managed gRPC services. Proto-first stubs (abstract classes), types that
+    ///     have a <see cref="HandWrittenGrpcServiceChain"/> in <paramref name="graph"/>, and types that
+    ///     implement a contract with a <see cref="CodeFirstGrpcServiceChain"/> in <paramref name="graph"/>
+    ///     are excluded — Wolverine maps the generated types for those instead.
     /// </summary>
     public static IEnumerable<Type> FindGrpcServiceTypes(IEnumerable<Assembly> assemblies,
         GrpcGraph? graph = null)
@@ -294,10 +294,8 @@ public static class WolverineGrpcExtensions
                         && (graph == null || !isClaimedByGraph(graph, t)));
     }
 
-    // A concrete class is off the direct-mapping table when a HandWrittenGrpcServiceChain wraps it, or
-    // when it implements a contract the generated-implementation path already serves (attributed or
-    // registered through IncludeCodeFirstContract, GH-4396). Mapping it as well would put two services
-    // on the same route.
+    // Mapping a class that is already wrapped, or that implements a contract with a generated
+    // implementation, would put two services on the same route.
     private static bool isClaimedByGraph(GrpcGraph graph, Type type)
     {
         return graph.HandWrittenChains.Any(c => c.ServiceClassType == type)

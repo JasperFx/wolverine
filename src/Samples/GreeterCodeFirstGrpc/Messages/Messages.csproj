@@ -6,9 +6,7 @@
         <AssemblyName>GreeterCodeFirstGrpc.Messages</AssemblyName>
     </PropertyGroup>
 
-    <!-- Contracts only: protobuf-net.Grpc for [ServiceContract] and [ProtoContract]. No reference to
-         WolverineFx.Grpc, so clients that bind IGreeterCodeFirstService do not pull in the server
-         hosting stack. The Server project registers the contract with Wolverine instead (GH-4396). -->
+    <!-- No WolverineFx.Grpc reference: the Server registers the contract with IncludeCodeFirstContract<T>(). -->
     <ItemGroup>
         <PackageReference Include="protobuf-net.Grpc"/>
     </ItemGroup>

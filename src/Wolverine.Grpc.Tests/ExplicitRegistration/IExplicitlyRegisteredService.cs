@@ -5,15 +5,7 @@ using ProtoBuf.Grpc;
 
 namespace Wolverine.Grpc.Tests.ExplicitRegistration;
 
-/// <summary>
-///     GH-4396. A code-first contract that carries <c>[ServiceContract]</c> only. There is deliberately
-///     no <c>[WolverineGrpcService]</c> here: the attribute scan must NOT find this interface, and the
-///     only way it reaches the generated-implementation path is
-///     <c>WolverineGrpcOptions.IncludeCodeFirstContract</c>. Unary and server-streaming shapes only:
-///     the implementing class below must also be wrappable as a hand-written service in the fixtures
-///     that do not register this contract, and that wrapper delegates neither client-streaming nor
-///     (on the generated path) bidirectional methods.
-/// </summary>
+// [ServiceContract] only, so the attribute scan does not find it.
 [ServiceContract]
 public interface IExplicitlyRegisteredService
 {
@@ -61,14 +53,8 @@ public static class ExplicitEchoStreamHandler
     }
 }
 
-/// <summary>
-///     The double-mapping guard subject. Named with the <c>GrpcService</c> suffix so the hand-written
-///     discovery predicate matches it. In a host that does NOT register
-///     <see cref="IExplicitlyRegisteredService"/> this is an ordinary hand-written service and gets its
-///     own delegation wrapper. In a host that DOES register the contract, the generated implementation
-///     owns the contract and this class must be left alone: not wrapped, not direct-mapped. Its
-///     replies are prefixed differently from the handler's so a test can tell which one answered.
-/// </summary>
+// Matches hand-written discovery by its suffix. Must be neither wrapped nor direct-mapped once
+// IExplicitlyRegisteredService is registered. The "hand-written:" prefix shows if it answered.
 public class ExplicitlyRegisteredEchoGrpcService : IExplicitlyRegisteredService
 {
     public Task<ExplicitReply> Echo(ExplicitRequest request, CallContext context = default)
@@ -85,19 +71,13 @@ public class ExplicitlyRegisteredEchoGrpcService : IExplicitlyRegisteredService
     }
 }
 
-/// <summary>
-///     Conflict-guard subject: a concrete class marked <c>[WolverineGrpcService]</c> that implements a
-///     <c>[ServiceContract]</c> interface with no attribute of its own. Left unregistered it is a valid
-///     hand-written service (which is why it has a working implementation, so the fixtures that scan
-///     this assembly stay healthy). Once the contract is registered through
-///     <c>IncludeCodeFirstContract</c>, discovery must refuse the combination.
-/// </summary>
 [ServiceContract]
 public interface IConflictRegisteredContract
 {
     Task<ExplicitReply> Echo(ExplicitRequest request, CallContext context = default);
 }
 
+// A valid hand-written service until IConflictRegisteredContract is registered.
 [WolverineGrpcService]
 public class ConflictRegisteredImpl : IConflictRegisteredContract
 {
@@ -105,16 +85,22 @@ public class ConflictRegisteredImpl : IConflictRegisteredContract
         => Task.FromResult(new ExplicitReply { Echo = request.Text });
 }
 
-/// <summary>Registration-validation subjects. None of these are gRPC services.</summary>
+// Types IncludeCodeFirstContract must reject.
 public interface INotAServiceContract
 {
     Task<ExplicitReply> Echo(ExplicitRequest request, CallContext context = default);
 }
 
 [ServiceContract]
-public interface IOpenGenericContract<T>
+public interface IGenericContract<T>
 {
     Task<T> Echo(ExplicitRequest request, CallContext context = default);
+}
+
+[ServiceContract]
+internal interface IInternalContract
+{
+    Task<ExplicitReply> Echo(ExplicitRequest request, CallContext context = default);
 }
 
 [ServiceContract]
