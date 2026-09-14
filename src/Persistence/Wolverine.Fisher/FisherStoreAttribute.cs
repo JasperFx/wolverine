@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 
 namespace Wolverine.Fisher;
@@ -14,7 +15,7 @@ namespace Wolverine.Fisher;
 /// single provider-agnostic attribute.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class FisherStoreAttribute : ModifyChainAttribute
+public class FisherStoreAttribute : ModifyChainAttribute, IAncillaryStoreAttribute
 {
     public Type StoreType { get; }
 

@@ -2,9 +2,13 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using JasperFx.Events;
+using JasperFx.Events.Aggregation;
 using Microsoft.Extensions.DependencyInjection;
 using Fisher;
+using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 using Wolverine.Fisher.Codegen;
 
@@ -44,7 +48,50 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     public StreamIdentity DetermineStreamIdentity(IServiceContainer container)
         => container.Services.GetRequiredService<StoreOptions>().Events.StreamIdentity;
 
-    // Fisher has no natural-key projections, so the workflow simply reports that it could not
-    // determine a model id rather than being handed a second place to look. Inheriting the seam's
-    // default null is the whole implementation.
+    /// <summary>
+    /// The natural-key type this aggregate is identified by on the store this chain writes to. GH-4439.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to inherit the seam's null default, on the claim that Fisher has no natural-key concept.
+    /// That stopped being true at fisher#40, and the stub was the only thing hiding it: Fisher's
+    /// <c>LoadAggregateFrame</c> has carried an <c>IsNaturalKey</c> branch the whole time, so returning null
+    /// here meant the branch was unreachable and the whole workflow reported "unable to determine an
+    /// aggregate id" for a perfectly well formed handler — on the primary store as much as an ancillary one.
+    /// </para>
+    /// <para>
+    /// The definitions are read off the registered aggregate projections rather than through Fisher's own
+    /// <c>FisherProjectionOptions.NaturalKeyFor</c>, which is <c>internal</c> and visible only to Fisher's own
+    /// test assemblies — where Marten and Polecat both expose a public <c>FindNaturalKeyDefinition</c>. The
+    /// route here is entirely public API: <c>ProjectionGraph.All</c> plus JasperFx's
+    /// <see cref="IAggregateProjection.NaturalKeyDefinition" />, which is where the discovery put them anyway.
+    /// </para>
+    /// <para>
+    /// Core's single generated spelling — <c>FetchForWriting&lt;T, TKey&gt;(key, token)</c> — is correct for
+    /// Fisher without a frame change: Fisher's overload of it routes to <c>FetchForWritingByNaturalKey</c>
+    /// whenever the aggregate declares a key.
+    /// </para>
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
+    public Type? TryDetermineNaturalKeyType(Type aggregateType, IChain chain, IServiceContainer container)
+        => resolveStoreOptions(chain, container)?.Projections.All
+            .OfType<IAggregateProjection>()
+            .Select(x => x.NaturalKeyDefinition)
+            .FirstOrDefault(x => x?.AggregateType == aggregateType)?.OuterType;
+
+    /// <summary>
+    /// The <see cref="StoreOptions"/> of the store this chain writes to, on the same terms as the Marten and
+    /// Polecat twins: a natural key is registered per store, so asking the default store for an aggregate
+    /// registered only on an ancillary one silently skips the natural-key branch.
+    /// </summary>
+    private static StoreOptions? resolveStoreOptions(IChain chain, IServiceContainer container)
+    {
+        if (chain.DetermineAncillaryStoreType() is { } storeType && storeType.CanBeCastTo<IDocumentStore>())
+        {
+            return (container.Services.GetService(storeType) as IDocumentStore)?.Options;
+        }
+
+        return container.Services.GetRequiredService<StoreOptions>();
+    }
 }

@@ -2,12 +2,13 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class MartenStoreAttribute : ModifyChainAttribute
+public class MartenStoreAttribute : ModifyChainAttribute, IAncillaryStoreAttribute
 {
     public Type StoreType { get; }
 

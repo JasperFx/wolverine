@@ -77,6 +77,19 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.Add<FisherAggregateHandlerStrategy>();
 
+        // GH-4439: pre-populate chain.AncillaryStoreType for [FisherStore]-attributed handlers, so the
+        // ancillary-store map built later in WolverineRuntime.HostService sees it. See
+        // FisherStoreEagerPolicy for the Phase A vs Phase B ordering trap this addresses (GH-2944), and
+        // MartenIntegration/PolecatIntegration for the twins.
+        //
+        // The policy class shipped with the Fisher integration but was never registered, so it was dead
+        // code: [FisherStore] handlers reached codegen with a null AncillaryStoreType. That silently
+        // routed interop messages to the MAIN store's inbox, and it is why a [FisherStore] handler taking
+        // a natural-key aggregate could not find the store its key is registered on. [Storage(typeof(X))]
+        // was unaffected throughout -- core always registers StorageAttributeEagerPolicy -- which is
+        // exactly why the existing ancillary coverage, all written against [Storage], never caught it.
+        options.Policies.Add<FisherStoreEagerPolicy>();
+
         options.Discovery.CustomizeHandlerDiscovery(x =>
         {
             x.Includes.WithAttribute<AggregateHandlerAttribute>();

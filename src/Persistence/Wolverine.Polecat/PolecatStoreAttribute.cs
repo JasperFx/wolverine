@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 
 namespace Wolverine.Polecat;
@@ -14,7 +15,7 @@ namespace Wolverine.Polecat;
 /// single provider-agnostic attribute.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class PolecatStoreAttribute : ModifyChainAttribute
+public class PolecatStoreAttribute : ModifyChainAttribute, IAncillaryStoreAttribute
 {
     public Type StoreType { get; }
 

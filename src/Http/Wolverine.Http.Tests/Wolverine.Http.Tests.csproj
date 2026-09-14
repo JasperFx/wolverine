@@ -26,6 +26,10 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <!-- GH-4439: ancillary-store endpoints, deliberately isolated. This must stay the ONLY reference to
+             that project. See its csproj for why an endpoint needing an unregistered store cannot live in
+             a widely-discovered assembly. -->
+        <ProjectReference Include="..\Wolverine.Http.Tests.AncillaryStore\Wolverine.Http.Tests.AncillaryStore.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.EfCoreOnly\Wolverine.Http.Tests.EfCoreOnly.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />

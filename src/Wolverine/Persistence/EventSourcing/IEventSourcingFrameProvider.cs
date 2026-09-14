@@ -143,7 +143,17 @@ public interface IEventSourcingFrameProvider
     /// natural-key concept, in which case the workflow simply reports that it could not determine an
     /// aggregate id.
     /// </summary>
-    Type? TryDetermineNaturalKeyType(Type aggregateType, IServiceContainer container) => null;
+    /// <remarks>
+    /// GH-4439: <paramref name="chain"/> is here because a natural key is registered per <b>store</b>, not
+    /// per application — both Marten and Polecat answer "what is this aggregate's natural key?" by searching
+    /// one store's registered projections. An implementation that asks the default store by name returns null
+    /// for an aggregate registered only on an ancillary store, and the workflow then reports that it could not
+    /// determine an aggregate id for a handler that is perfectly well formed. Call
+    /// <c>chain.DetermineAncillaryStoreType()</c> to find the store the chain was actually routed to, falling
+    /// back to the default store when it returns null — <b>not</b> <see cref="IChain.AncillaryStoreType"/>
+    /// directly, which is still null at this point on an HTTP chain.
+    /// </remarks>
+    Type? TryDetermineNaturalKeyType(Type aggregateType, IChain chain, IServiceContainer container) => null;
 }
 
 internal static class EventSourcingFrameProviderExtensions
