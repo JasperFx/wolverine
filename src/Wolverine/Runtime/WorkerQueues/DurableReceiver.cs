@@ -549,6 +549,30 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         return _scheduleExecution.PostAsync(envelope);
     }
 
+    /// <summary>
+    /// GH-4435. Test seam: has this receiver asked its listening agent to pause for inbox recovery?
+    /// </summary>
+    internal bool InboxUnavailableSignaled => _inboxUnavailableSignaled == 1;
+
+    /// <summary>
+    /// GH-4435. Pause the listener only when the failure reached the MAIN message store. A single tenant
+    /// database being unreachable must not stop a listener that serves every other tenant: those
+    /// envelopes are deferred back to the broker on the per-envelope path while everyone else keeps
+    /// flowing.
+    /// </summary>
+    private void signalInboxUnavailableUnlessTenantScoped(Exception e)
+    {
+        if (e is TenantedInboxWriteException { IncludesMainStore: false } tenanted)
+        {
+            _logger.LogWarning(e,
+                "Inbox write failed for {Count} envelope(s) against one or more tenant databases at {Uri}. The listener keeps running; those envelopes are deferred back to the broker",
+                tenanted.Unpersisted.Count, Uri);
+            return;
+        }
+
+        SignalInboxUnavailable();
+    }
+
     internal void SignalInboxUnavailable()
     {
         if (Interlocked.CompareExchange(ref _inboxUnavailableSignaled, 1, 0) != 0) return;
@@ -679,9 +703,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
                 return;
             }
-            catch (Exception)
+            catch (Exception outer)
             {
-                SignalInboxUnavailable();
+                // GH-4435. A tenant-scoped failure defers this envelope back to the broker below without
+                // pausing the listener for every other tenant.
+                signalInboxUnavailableUnlessTenantScoped(outer);
 
                 if (envelope.Listener == null)
                 {
@@ -985,7 +1011,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to persist incoming envelopes at {Uri}", Uri);
-                SignalInboxUnavailable();
+
+                // GH-4435. Envelopes whose own store committed are already stamped WasPersistedInInbox by
+                // MultiTenantedMessageStore, so the per-envelope path below acks and enqueues those and
+                // only re-attempts the ones that never landed.
+                signalInboxUnavailableUnlessTenantScoped(e);
 
                 // Use finer grained retries on one envelope at a time, and this will also deal with
                 // duplicate detection
