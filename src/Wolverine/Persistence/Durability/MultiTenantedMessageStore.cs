@@ -121,33 +121,134 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     async Task IMessageInbox.StoreIncomingAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
-        await database.Inbox.StoreIncomingAsync(envelope);
+
+        // The main store's failures propagate untouched: the receiver pauses for inbox recovery on
+        // those, which is the behavior this path has always had.
+        if (ReferenceEquals(database, Main))
+        {
+            await database.Inbox.StoreIncomingAsync(envelope);
+            return;
+        }
+
+        try
+        {
+            await database.Inbox.StoreIncomingAsync(envelope);
+        }
+        catch (DuplicateIncomingEnvelopeException)
+        {
+            // GH-4435. Never wrap this -- DurableReceiver's deduplication path keys off the exact type.
+            throw;
+        }
+        catch (Exception e)
+        {
+            // GH-4435. Mark the failure tenant-scoped so the receiver defers this one envelope back to
+            // the broker instead of pausing a listener that serves every other tenant.
+            throw new TenantedInboxWriteException([envelope], false, [e]);
+        }
     }
 
     async Task IMessageInbox.StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        // GH-4435. Group by the RESOLVED store rather than by tenant id. Many tenant ids map to one
+        // database -- null/"*default*"/"main" all resolve to Main -- and grouping by tenant id pushed
+        // those batches down the multi-group path even when a single database owned every envelope.
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
+        var unpersisted = new List<Envelope>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Inbox.StoreIncomingAsync(envelopes);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                // GH-4435. This used to log-and-skip UnknownTenantIdException, which meant envelopes for an
+                // unresolvable tenant were never stored AND never reported -- the caller took the clean
+                // return as success and acked them, so they were simply gone. An unresolvable tenant is now
+                // a tenant-scoped failure like any other: the envelopes are deferred back to the broker and
+                // the misconfiguration stays visible instead of eating messages.
+                //
+                // Catching the typed exception never covered the common case anyway: a StaticTenantSource
+                // throws ArgumentOutOfRangeException for an unregistered tenant, not UnknownTenantIdException.
+                //
+                // Resolution also reaches the network on its own (Source.FindAsync, and the MigrateAsync
+                // behind it), so a genuine outage can surface here rather than on the write below.
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId}; {Count} incoming envelope(s) were not stored",
+                    byTenant.Key, byTenant.Count());
+
+                failures.Add(e);
+                unpersisted.AddRange(byTenant);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            // One database owns the whole batch. Await it directly and let everything it throws --
+            // DuplicateIncomingEnvelopeException included -- reach the caller untouched.
+            var single = groups.First();
+            await single.Key.Inbox.StoreIncomingAsync(single.Value);
             return;
         }
 
-        foreach (var group in groups)
+        var duplicates = new List<Envelope>();
+        var includesMainStore = false;
+
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                var command = new StoreIncomingAsyncGroup(database, group.ToArray());
-                await _retryBlock.PostAsync(command);
+                await pair.Key.Inbox.StoreIncomingAsync(pair.Value);
+
+                // GH-4435. The caller decides what to ack from the exception below, and it re-runs the
+                // whole batch through the per-envelope path. An envelope whose group DID commit must not
+                // be stored a second time there -- that reads as a duplicate, and a duplicate is settled
+                // at the listener WITHOUT ever being handled. See DurableReceiver.receiveOneAsync.
+                foreach (var envelope in pair.Value) envelope.WasPersistedInInbox = true;
             }
-            catch (UnknownTenantIdException e)
+            catch (DuplicateIncomingEnvelopeException e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
-                    group.Key);
+                // A store's batched insert is all-or-nothing, so nothing in this group landed.
+                duplicates.AddRange(e.Duplicates);
+                unpersisted.AddRange(pair.Value);
             }
+            catch (Exception e)
+            {
+                failures.Add(e);
+                unpersisted.AddRange(pair.Value);
+
+                if (ReferenceEquals(pair.Key, Main))
+                {
+                    includesMainStore = true;
+                }
+            }
+        }
+
+        // GH-4435. These used to be posted to a RetryBlock, which never rethrows: the caller saw a clean
+        // return, acked the whole batch, and handed envelopes that had never been stored to the handler
+        // pipeline. A failure has to reach DurableReceiver for it to settle anything correctly.
+        if (failures.Count > 0)
+        {
+            throw new TenantedInboxWriteException(unpersisted, includesMainStore, failures);
+        }
+
+        if (duplicates.Count > 0)
+        {
+            throw new DuplicateIncomingEnvelopeException(duplicates);
         }
     }
 
@@ -169,29 +270,69 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
     }
 
+    // GH-4435. Group by the RESOLVED store, and stop swallowing a tenant that cannot be resolved. A
+    // skipped group left its rows Incoming, owned by a node that had already handled them, so the
+    // recovery sweep re-offered the messages and they were handled twice -- duplicate work reported to
+    // the caller as success. (The log message here even said "store incoming envelopes", copy-pasted
+    // from StoreIncomingAsync, so the one clue it did leave pointed at the wrong method.)
+    //
+    // Safe to propagate, because both callers already expect it: InboxCompletionCoalescer documents this
+    // as "May throw; a failure falls back to markOne per envelope", and DurableReceiver's _markAsHandled
+    // RetryBlock retries. Per-envelope is the correct fallback here -- it resolves each tenant on its own.
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId}; {Count} envelope(s) were not marked as handled",
+                    byTenant.Key, byTenant.Count());
+                failures.Add(e);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            var single = groups.First();
+            await single.Key.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes);
             return;
         }
 
-        foreach (var group in groups)
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(group.ToArray());
+                await pair.Key.Inbox.MarkIncomingEnvelopeAsHandledAsync(pair.Value);
             }
-            catch (UnknownTenantIdException e)
+            catch (Exception e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
-                    group.Key);
+                failures.Add(e);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }
     }
 
@@ -211,58 +352,134 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.Outbox.StoreOutgoingAsync(envelope, ownerId);
     }
 
-    // GH-4319. A coalesced outbox batch can span tenants, so it is split by tenant before it reaches
-    // any one database -- the same rule StoreIncomingAsync and DeleteOutgoingAsync already follow.
+    // GH-4319 split a coalesced outbox batch by tenant so it never reached the wrong database. GH-4435
+    // finishes the job: group by the RESOLVED store (many tenants share one database), and stop
+    // swallowing a tenant that cannot be resolved. That skip was the worst of this family -- the
+    // outgoing envelopes were never persisted, so the messages were simply never sent, and the caller
+    // was told the write succeeded.
+    //
+    // Safe to propagate: the caller is DurableSendingAgent's EnvelopeStoreCoalescer, which catches a
+    // failed batch and falls back to storing one envelope at a time (see coalesced_envelope_storage_4319),
+    // and that per-envelope path resolves each tenant on its own.
     async Task IMessageOutbox.StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Outbox.StoreOutgoingAsync(envelopes, ownerId);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId}; {Count} outgoing envelope(s) were not stored",
+                    byTenant.Key, byTenant.Count());
+                failures.Add(e);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            var single = groups.First();
+            await single.Key.Outbox.StoreOutgoingAsync(envelopes, ownerId);
             return;
         }
 
-        foreach (var group in groups)
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                await database.Outbox.StoreOutgoingAsync(group.ToArray(), ownerId);
+                await pair.Key.Outbox.StoreOutgoingAsync(pair.Value, ownerId);
             }
-            catch (UnknownTenantIdException e)
+            catch (Exception e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store outgoing envelopes",
-                    group.Key);
+                failures.Add(e);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }
     }
 
+    // GH-4435. The outbox twin of StoreIncomingAsync, and it had the same defect: each group went to the
+    // _retryBlock, which never rethrows, so a delete that never happened was reported as success. An
+    // undeleted outgoing row is re-sent by recovery, so the symptom here is duplicate delivery rather
+    // than loss -- quieter, but the same swallow.
+    //
+    // Propagating is safe precisely BECAUSE every caller already retries: DurableSendingAgent wraps this
+    // in its own RetryBlock<Envelope[]> and in executeWithRetriesAsync. The inner block was not a second
+    // line of defense, it was defeating the caller's.
     async Task IMessageOutbox.DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Outbox.DeleteOutgoingAsync(envelopes);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId} while deleting outgoing envelopes",
+                    byTenant.Key);
+                failures.Add(e);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            var single = groups.First();
+            await single.Key.Outbox.DeleteOutgoingAsync(envelopes);
             return;
         }
 
-        foreach (var group in groups)
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                var command = new DeleteOutgoingAsyncGroup(database, group.ToArray());
-                await _retryBlock.PostAsync(command);
+                await pair.Key.Outbox.DeleteOutgoingAsync(pair.Value.ToArray());
             }
-            catch (UnknownTenantIdException e)
+            catch (Exception e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
-                    group.Key);
+                failures.Add(e);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }
     }
 
@@ -771,39 +988,13 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         Task ExecuteAsync(CancellationToken cancellationToken);
     }
 
-    internal class StoreIncomingAsyncGroup : IEnvelopeCommand
-    {
-        private readonly Envelope[] _envelopes;
-        private readonly IMessageStore _store;
+    // GH-4435: the StoreIncomingAsyncGroup command that used to live here is gone. Posting the inbox
+    // insert to the retry block is what swallowed the failure -- the block never rethrows, so the
+    // receiver acked envelopes that had never been stored. StoreIncomingAsync now awaits each store
+    // directly and reports what did not land.
 
-        public StoreIncomingAsyncGroup(IMessageStore store, Envelope[] envelopes)
-        {
-            _store = store;
-            _envelopes = envelopes;
-        }
-
-        public Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            return _store.Inbox.StoreIncomingAsync(_envelopes);
-        }
-    }
-
-    internal class DeleteOutgoingAsyncGroup : IEnvelopeCommand
-    {
-        private readonly Envelope[] _envelopes;
-        private readonly IMessageStore _store;
-
-        public DeleteOutgoingAsyncGroup(IMessageStore store, Envelope[] envelopes)
-        {
-            _store = store;
-            _envelopes = envelopes;
-        }
-
-        public Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            return _store.Outbox.DeleteOutgoingAsync(_envelopes);
-        }
-    }
+    // GH-4435: DeleteOutgoingAsyncGroup is gone with the retry-block hop it existed for. _retryBlock and
+    // IEnvelopeCommand remain in use by DiscardAndReassignOutgoingAsync below.
 
     internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
     {
