@@ -234,4 +234,38 @@ public class mixed_tenant_inbox_batches_4435
         await Should.ThrowAsync<UnknownTenantIdException>(
             () => theStore.Outbox.StoreOutgoingAsync([envelopeFor("ghost"), envelopeFor("blue")], 5));
     }
+
+    [Fact]
+    public async Task a_failed_mark_as_handled_reaches_the_caller()
+    {
+        theRedStore.Inbox.MarkIncomingEnvelopeAsHandledAsync(Arg.Any<IReadOnlyList<Envelope>>())
+            .Throws(new TimeoutException("tenant database is unreachable"));
+
+        // Skipping left the rows Incoming and owned by a node that had already handled them, so recovery
+        // re-offered the messages and they ran twice. InboxCompletionCoalescer documents this call as
+        // "may throw" and falls back per envelope.
+        await Should.ThrowAsync<TimeoutException>(
+            () => theStore.Inbox.MarkIncomingEnvelopeAsHandledAsync([envelopeFor("red"), envelopeFor("blue")]));
+    }
+
+    [Fact]
+    public async Task an_unresolvable_tenant_fails_mark_as_handled_rather_than_skipping_it()
+    {
+        theSource.FindAsync("ghost").Throws(new UnknownTenantIdException("ghost"));
+
+        await Should.ThrowAsync<UnknownTenantIdException>(
+            () => theStore.Inbox.MarkIncomingEnvelopeAsHandledAsync([envelopeFor("ghost"), envelopeFor("blue")]));
+    }
+
+    [Fact]
+    public async Task mark_as_handled_for_many_tenants_on_one_database_goes_in_a_single_call()
+    {
+        theSource.FindAsync("blue").Returns(theRedStore);
+
+        await theStore.Inbox.MarkIncomingEnvelopeAsHandledAsync(
+            [envelopeFor("red"), envelopeFor("blue"), envelopeFor("red")]);
+
+        await theRedStore.Inbox.Received(1).MarkIncomingEnvelopeAsHandledAsync(
+            Arg.Is<IReadOnlyList<Envelope>>(x => x.Count == 3));
+    }
 }

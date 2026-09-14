@@ -270,29 +270,69 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
     }
 
+    // GH-4435. Group by the RESOLVED store, and stop swallowing a tenant that cannot be resolved. A
+    // skipped group left its rows Incoming, owned by a node that had already handled them, so the
+    // recovery sweep re-offered the messages and they were handled twice -- duplicate work reported to
+    // the caller as success. (The log message here even said "store incoming envelopes", copy-pasted
+    // from StoreIncomingAsync, so the one clue it did leave pointed at the wrong method.)
+    //
+    // Safe to propagate, because both callers already expect it: InboxCompletionCoalescer documents this
+    // as "May throw; a failure falls back to markOne per envelope", and DurableReceiver's _markAsHandled
+    // RetryBlock retries. Per-envelope is the correct fallback here -- it resolves each tenant on its own.
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId}; {Count} envelope(s) were not marked as handled",
+                    byTenant.Key, byTenant.Count());
+                failures.Add(e);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            var single = groups.First();
+            await single.Key.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes);
             return;
         }
 
-        foreach (var group in groups)
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(group.ToArray());
+                await pair.Key.Inbox.MarkIncomingEnvelopeAsHandledAsync(pair.Value);
             }
-            catch (UnknownTenantIdException e)
+            catch (Exception e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
-                    group.Key);
+                failures.Add(e);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }
     }
 
