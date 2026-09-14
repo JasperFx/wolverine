@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- GH-4439. Endpoints that require an ANCILLARY Marten store, kept in their own assembly on purpose.
+
+         Wolverine.Http discovers endpoints eagerly: HttpChain's constructor runs parameter matching, so an
+         endpoint whose [WriteModel]/[WriteAggregate] parameter cannot be resolved throws from
+         HttpGraph.DiscoverEndpoints and kills host construction outright, for every host that scans the
+         assembly it lives in. Handler chains are immune because their codegen is lazy.
+
+         That makes the two obvious homes unusable. WolverineWebApi is pinned as the application assembly by
+         AppFixture (a process-wide static), and 37 suites in Wolverine.Http.Tests build hosts with
+         IncludeAssembly(GetType().Assembly). Putting these endpoints in either one took roughly 130
+         unrelated tests down. Nothing references this project except Wolverine.Http.Tests, and only the
+         natural-key test's own host opts into discovering it, so no other host can see these endpoints. -->
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+    </ItemGroup>
+
+</Project>

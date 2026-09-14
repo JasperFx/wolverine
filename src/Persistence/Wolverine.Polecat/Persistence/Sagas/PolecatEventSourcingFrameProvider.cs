@@ -2,9 +2,12 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Polecat;
+using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 using Wolverine.Polecat.Codegen;
 
@@ -46,7 +49,23 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
 
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
-    public Type? TryDetermineNaturalKeyType(Type aggregateType, IServiceContainer container)
-        => container.Services.GetRequiredService<StoreOptions>().Projections
+    public Type? TryDetermineNaturalKeyType(Type aggregateType, IChain chain, IServiceContainer container)
+        => resolveStoreOptions(chain, container)?.Projections
             .FindNaturalKeyDefinition(aggregateType)?.OuterType;
+
+    /// <summary>
+    /// The <see cref="StoreOptions"/> of the store this chain writes to. GH-4439, and the same reasoning as
+    /// Marten's twin: <c>FindNaturalKeyDefinition</c> searches one store's registered projections, so asking
+    /// the default store for an aggregate registered only on an ancillary store silently skips the
+    /// natural-key branch.
+    /// </summary>
+    private static StoreOptions? resolveStoreOptions(IChain chain, IServiceContainer container)
+    {
+        if (chain.DetermineAncillaryStoreType() is { } storeType && storeType.CanBeCastTo<IDocumentStore>())
+        {
+            return (container.Services.GetService(storeType) as IDocumentStore)?.Options;
+        }
+
+        return container.Services.GetRequiredService<StoreOptions>();
+    }
 }

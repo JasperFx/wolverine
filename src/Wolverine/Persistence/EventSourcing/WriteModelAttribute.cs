@@ -143,7 +143,10 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         // If standard identity resolution failed, check for natural key support
         if (identity == null)
         {
-            var naturalKeyType = provider.TryDetermineNaturalKeyType(aggregateType, container);
+            // GH-4439: the chain goes over the seam because natural keys are registered per store. Without it
+            // the store side can only ask the default store, and an aggregate registered on an ancillary store
+            // never takes this branch.
+            var naturalKeyType = provider.TryDetermineNaturalKeyType(aggregateType, chain, container);
             if (naturalKeyType != null)
             {
                 identity = FindIdentity(aggregateType, naturalKeyType, chain);

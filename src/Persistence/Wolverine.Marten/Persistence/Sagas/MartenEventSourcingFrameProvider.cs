@@ -2,10 +2,13 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Marten;
 using Marten.Events;
+using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
+using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Marten.Persistence.Sagas;
@@ -47,10 +50,30 @@ internal partial class MartenPersistenceFrameProvider : IEventSourcingFrameProvi
 
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
-    public Type? TryDetermineNaturalKeyType(Type aggregateType, IServiceContainer container)
+    public Type? TryDetermineNaturalKeyType(Type aggregateType, IChain chain, IServiceContainer container)
     {
-        if (container.GetInstance<IDocumentStore>().Options is not StoreOptions storeOptions) return null;
+        if (resolveStoreOptions(chain, container) is not { } storeOptions) return null;
 
         return storeOptions.Projections.FindNaturalKeyDefinition(aggregateType)?.OuterType;
+    }
+
+    /// <summary>
+    /// The <see cref="StoreOptions"/> of the store this chain writes to. GH-4439.
+    /// </summary>
+    /// <remarks>
+    /// Marten's <c>FindNaturalKeyDefinition</c> searches one store's registered projections, so asking the
+    /// default <see cref="IDocumentStore"/> for an aggregate registered only on an ancillary store returns
+    /// null and the natural-key branch is silently never taken. A store type this integration does not own —
+    /// a Polecat marker on a chain that reached Marten's catch-all <c>CanPersist</c> — falls through to the
+    /// default store, which is exactly what happened before the chain was available here.
+    /// </remarks>
+    private static StoreOptions? resolveStoreOptions(IChain chain, IServiceContainer container)
+    {
+        if (chain.DetermineAncillaryStoreType() is { } storeType && storeType.CanBeCastTo<IDocumentStore>())
+        {
+            return (container.Services.GetService(storeType) as IDocumentStore)?.Options as StoreOptions;
+        }
+
+        return container.GetInstance<IDocumentStore>().Options as StoreOptions;
     }
 }
