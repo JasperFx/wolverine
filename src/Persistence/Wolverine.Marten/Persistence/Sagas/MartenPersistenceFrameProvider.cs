@@ -34,10 +34,46 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
 
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
-        var store = container.GetInstance<IDocumentStore>();
-        var documentType = store.Options.FindOrResolveDocumentType(sagaType);
+        return idTypeFrom(sagaType, container.GetInstance<IDocumentStore>());
+    }
 
-        return documentType.IdType;
+    /// <summary>
+    /// GH-4441. Marten's identity answer is a fact about the STORE, not about the type: a store can name a
+    /// different member as the identity, so the default store and an ancillary one genuinely disagree.
+    /// </summary>
+    /// <remarks>
+    /// Silent rather than loud, which is why this went unnoticed: <c>FindOrResolveDocumentType</c> resolves a
+    /// conventional mapping for a type the store has never been told about instead of failing, so the default
+    /// store confidently answers <c>Guid</c> for an aggregate that is keyed by a string on the store the
+    /// handler actually commits through. The caller then searches the message for an identity member of the
+    /// wrong type and reports that it cannot find one -- naming the member, not the store.
+    /// </remarks>
+    public Type DetermineSagaIdType(Type sagaType, IChain chain, IServiceContainer container)
+    {
+        return idTypeFrom(sagaType, resolveStore(chain, container));
+    }
+
+    private static Type idTypeFrom(Type sagaType, IDocumentStore store)
+    {
+        return store.Options.FindOrResolveDocumentType(sagaType).IdType;
+    }
+
+    /// <summary>
+    /// The store this chain writes to, on the same terms as the natural-key resolution in
+    /// <c>MartenEventSourcingFrameProvider</c> (GH-4439): a store type this integration does not own, or one
+    /// that is not registered in this container, falls through to the default store — which is exactly the
+    /// behaviour that existed before the chain was available here.
+    /// </summary>
+    private static IDocumentStore resolveStore(IChain chain, IServiceContainer container)
+    {
+        if (chain.DetermineAncillaryStoreType() is { } storeType && storeType.CanBeCastTo<IDocumentStore>()
+                                                                 && container.Services.GetService(storeType) is
+                                                                     IDocumentStore ancillary)
+        {
+            return ancillary;
+        }
+
+        return container.GetInstance<IDocumentStore>();
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)

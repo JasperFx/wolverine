@@ -53,6 +53,33 @@ public interface IPersistenceFrameProvider
     bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService);
 
     Type DetermineSagaIdType(Type sagaType, IServiceContainer container);
+
+    /// <summary>
+    ///     The identity type of <paramref name="sagaType" /> <b>on the store this chain is routed to</b>.
+    ///     GH-4441.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     An identity type can be a fact about a store rather than about the type: Marten answers with the
+    ///     configured document mapping's id type, and a store may name a different member as the identity
+    ///     (<c>Schema.For&lt;T&gt;().Identity(x =&gt; x.Code)</c>). An implementation that asks the default
+    ///     store therefore answers for the wrong store on a chain routed elsewhere with
+    ///     <c>[Storage]</c> / <c>[MartenStore]</c>, and it does so <b>silently</b> — Marten resolves a
+    ///     conventional mapping for a type it has never been told about rather than failing, so the caller
+    ///     gets a confident wrong answer and then fails further downstream looking for an identity member of
+    ///     a type that does not exist on the message.
+    ///     </para>
+    ///     <para>
+    ///     Optional, and defaulted to the chain-less overload, on the same terms as
+    ///     <see cref="TryDetermineTransactionOwnerType" />: a provider that derives identity from the type
+    ///     alone — Polecat and Fisher reflect over the <c>Id</c> property and consult no store — has no store
+    ///     to be wrong about and needs no override. Implementations that do consult a store should resolve it
+    ///     with <c>chain.DetermineAncillaryStoreType()</c> and fall back to the default store.
+    ///     </para>
+    /// </remarks>
+    Type DetermineSagaIdType(Type sagaType, IChain chain, IServiceContainer container)
+        => DetermineSagaIdType(sagaType, container);
+
     Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId);
     Frame DetermineInsertFrame(Variable saga, IServiceContainer container);
     Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container);

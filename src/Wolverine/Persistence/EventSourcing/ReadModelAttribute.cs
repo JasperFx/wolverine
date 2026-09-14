@@ -97,8 +97,11 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
 
         var provider = ResolveEventSourcingProvider(rules, container, parameter.ParameterType);
 
-        // I know it's goofy that this refers to the saga, but it should work fine here too
-        var idType = ((IPersistenceFrameProvider)provider).DetermineSagaIdType(parameter.ParameterType, container);
+        // I know it's goofy that this refers to the saga, but it should work fine here too.
+        // GH-4441: the chain goes over the seam so the identity type comes from the store this chain is
+        // routed to rather than the default one.
+        var idType = ((IPersistenceFrameProvider)provider).DetermineSagaIdType(parameter.ParameterType, chain,
+            container);
 
         if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
         {

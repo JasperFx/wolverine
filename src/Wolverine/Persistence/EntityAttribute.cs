@@ -149,8 +149,12 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
 
         }
 
-        // I know it's goofy that this refers to the saga, but it should work fine here too
-        var idType = provider.DetermineSagaIdType(parameter.ParameterType, container);
+        // I know it's goofy that this refers to the saga, but it should work fine here too.
+        // GH-4441: the chain goes over the seam because an identity type can be a fact about the STORE. A
+        // handler routed to an ancillary store whose document is keyed by a different member than the default
+        // store's conventional mapping would otherwise be handed the wrong id type, and then fail below
+        // looking for an identity member that has that type on the message.
+        var idType = provider.DetermineSagaIdType(parameter.ParameterType, chain, container);
 
         if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
         {
