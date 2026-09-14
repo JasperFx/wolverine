@@ -187,4 +187,28 @@ public class mixed_tenant_inbox_batches_4435
 
         ex.Unpersisted.ShouldHaveSingleItem();
     }
+
+    [Fact]
+    public async Task a_failed_outgoing_delete_reaches_the_caller()
+    {
+        theRedStore.Outbox.DeleteOutgoingAsync(Arg.Any<Envelope[]>())
+            .Throws(new TimeoutException("tenant database is unreachable"));
+
+        // Swallowing this left the outgoing row in place for recovery to re-send -- a duplicate delivery
+        // reported as a successful delete. Every caller (DurableSendingAgent) already wraps this in its
+        // own retry, so the failure belongs to them.
+        await Should.ThrowAsync<TimeoutException>(
+            () => theStore.Outbox.DeleteOutgoingAsync([envelopeFor("red"), envelopeFor("blue")]));
+    }
+
+    [Fact]
+    public async Task outgoing_deletes_for_many_tenants_on_one_database_go_in_a_single_call()
+    {
+        theSource.FindAsync("blue").Returns(theRedStore);
+
+        await theStore.Outbox.DeleteOutgoingAsync(
+            [envelopeFor("red"), envelopeFor("blue"), envelopeFor("red")]);
+
+        await theRedStore.Outbox.Received(1).DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 3));
+    }
 }

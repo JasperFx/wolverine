@@ -340,30 +340,68 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
+    // GH-4435. The outbox twin of StoreIncomingAsync, and it had the same defect: each group went to the
+    // _retryBlock, which never rethrows, so a delete that never happened was reported as success. An
+    // undeleted outgoing row is re-sent by recovery, so the symptom here is duplicate delivery rather
+    // than loss -- quieter, but the same swallow.
+    //
+    // Propagating is safe precisely BECAUSE every caller already retries: DurableSendingAgent wraps this
+    // in its own RetryBlock<Envelope[]> and in executeWithRetriesAsync. The inner block was not a second
+    // line of defense, it was defeating the caller's.
     async Task IMessageOutbox.DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Outbox.DeleteOutgoingAsync(envelopes);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId} while deleting outgoing envelopes",
+                    byTenant.Key);
+                failures.Add(e);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            var single = groups.First();
+            await single.Key.Outbox.DeleteOutgoingAsync(envelopes);
             return;
         }
 
-        foreach (var group in groups)
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                var command = new DeleteOutgoingAsyncGroup(database, group.ToArray());
-                await _retryBlock.PostAsync(command);
+                await pair.Key.Outbox.DeleteOutgoingAsync(pair.Value.ToArray());
             }
-            catch (UnknownTenantIdException e)
+            catch (Exception e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
-                    group.Key);
+                failures.Add(e);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }
     }
 
@@ -871,22 +909,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     // receiver acked envelopes that had never been stored. StoreIncomingAsync now awaits each store
     // directly and reports what did not land.
 
-    internal class DeleteOutgoingAsyncGroup : IEnvelopeCommand
-    {
-        private readonly Envelope[] _envelopes;
-        private readonly IMessageStore _store;
-
-        public DeleteOutgoingAsyncGroup(IMessageStore store, Envelope[] envelopes)
-        {
-            _store = store;
-            _envelopes = envelopes;
-        }
-
-        public Task ExecuteAsync(CancellationToken cancellationToken)
-        {
-            return _store.Outbox.DeleteOutgoingAsync(_envelopes);
-        }
-    }
+    // GH-4435: DeleteOutgoingAsyncGroup is gone with the retry-block hop it existed for. _retryBlock and
+    // IEnvelopeCommand remain in use by DiscardAndReassignOutgoingAsync below.
 
     internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
     {
