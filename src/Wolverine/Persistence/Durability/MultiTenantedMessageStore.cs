@@ -312,31 +312,69 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.Outbox.StoreOutgoingAsync(envelope, ownerId);
     }
 
-    // GH-4319. A coalesced outbox batch can span tenants, so it is split by tenant before it reaches
-    // any one database -- the same rule StoreIncomingAsync and DeleteOutgoingAsync already follow.
+    // GH-4319 split a coalesced outbox batch by tenant so it never reached the wrong database. GH-4435
+    // finishes the job: group by the RESOLVED store (many tenants share one database), and stop
+    // swallowing a tenant that cannot be resolved. That skip was the worst of this family -- the
+    // outgoing envelopes were never persisted, so the messages were simply never sent, and the caller
+    // was told the write succeeded.
+    //
+    // Safe to propagate: the caller is DurableSendingAgent's EnvelopeStoreCoalescer, which catches a
+    // failed batch and falls back to storing one envelope at a time (see coalesced_envelope_storage_4319),
+    // and that per-envelope path resolves each tenant on its own.
     async Task IMessageOutbox.StoreOutgoingAsync(IReadOnlyList<Envelope> envelopes, int ownerId)
     {
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        var failures = new List<Exception>();
 
-        if (groups.Length == 1)
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
         {
-            var database = await GetDatabaseAsync(groups[0].Key);
-            await database.Outbox.StoreOutgoingAsync(envelopes, ownerId);
+            IMessageStore store;
+
+            try
+            {
+                store = await GetDatabaseAsync(byTenant.Key);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Unable to resolve the message store for tenant {TenantId}; {Count} outgoing envelope(s) were not stored",
+                    byTenant.Key, byTenant.Count());
+                failures.Add(e);
+                continue;
+            }
+
+            if (groups.TryGetValue(store, out var list))
+            {
+                list.AddRange(byTenant);
+            }
+            else
+            {
+                groups[store] = byTenant.ToList();
+            }
+        }
+
+        if (failures.Count == 0 && groups.Count == 1)
+        {
+            var single = groups.First();
+            await single.Key.Outbox.StoreOutgoingAsync(envelopes, ownerId);
             return;
         }
 
-        foreach (var group in groups)
+        foreach (var pair in groups)
         {
             try
             {
-                var database = await GetDatabaseAsync(group.Key);
-                await database.Outbox.StoreOutgoingAsync(group.ToArray(), ownerId);
+                await pair.Key.Outbox.StoreOutgoingAsync(pair.Value, ownerId);
             }
-            catch (UnknownTenantIdException e)
+            catch (Exception e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store outgoing envelopes",
-                    group.Key);
+                failures.Add(e);
             }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }
     }
 

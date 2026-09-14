@@ -211,4 +211,27 @@ public class mixed_tenant_inbox_batches_4435
 
         await theRedStore.Outbox.Received(1).DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 3));
     }
+
+    [Fact]
+    public async Task a_failed_outgoing_store_reaches_the_caller()
+    {
+        theRedStore.Outbox.StoreOutgoingAsync(Arg.Any<IReadOnlyList<Envelope>>(), Arg.Any<int>())
+            .Throws(new TimeoutException("tenant database is unreachable"));
+
+        // DurableSendingAgent's coalescer catches this and falls back to one envelope at a time, where
+        // each tenant resolves on its own.
+        await Should.ThrowAsync<TimeoutException>(
+            () => theStore.Outbox.StoreOutgoingAsync([envelopeFor("red"), envelopeFor("blue")], 5));
+    }
+
+    [Fact]
+    public async Task an_unresolvable_tenant_fails_the_outgoing_store_rather_than_dropping_it()
+    {
+        theSource.FindAsync("ghost").Throws(new UnknownTenantIdException("ghost"));
+
+        // The worst of the family: these envelopes were never persisted, so the messages were never
+        // sent -- and the caller was told the write succeeded.
+        await Should.ThrowAsync<UnknownTenantIdException>(
+            () => theStore.Outbox.StoreOutgoingAsync([envelopeFor("ghost"), envelopeFor("blue")], 5));
+    }
 }
