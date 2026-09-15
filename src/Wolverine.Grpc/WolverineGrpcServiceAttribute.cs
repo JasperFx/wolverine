@@ -11,7 +11,9 @@ namespace Wolverine.Grpc;
 ///   <item>
 ///     On a <b><c>[ServiceContract]</c> interface</b>: Wolverine generates a concrete implementation
 ///     of the interface at startup, forwarding each method to the Wolverine message bus.
-///     No hand-written service class is required.
+///     No hand-written service class is required. When the interface lives in a contracts assembly
+///     that should not reference WolverineFx.Grpc, register it from the host with
+///     <c>WolverineGrpcOptions.IncludeCodeFirstContract&lt;T&gt;()</c> instead; the result is the same.
 ///   </item>
 /// </list>
 /// </summary>

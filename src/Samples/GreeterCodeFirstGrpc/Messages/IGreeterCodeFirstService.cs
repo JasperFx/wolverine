@@ -1,18 +1,15 @@
 using System.ServiceModel;
 using ProtoBuf;
 using ProtoBuf.Grpc;
-using Wolverine.Grpc;
 
 namespace GreeterCodeFirstGrpc.Messages;
 
 /// <summary>
-///     Code-first gRPC contract. Annotating the <em>interface</em> with
-///     <c>[WolverineGrpcService]</c> tells Wolverine to generate the concrete
-///     implementation at startup — no service class is written by hand.
-///     <c>[ServiceContract]</c> is required by protobuf-net.Grpc for routing.
+///     Code-first gRPC contract shared with clients. It carries only <c>[ServiceContract]</c>, so this
+///     project does not reference WolverineFx.Grpc. The Server registers it with
+///     <c>IncludeCodeFirstContract&lt;IGreeterCodeFirstService&gt;()</c> and Wolverine generates the implementation.
 /// </summary>
 [ServiceContract]
-[WolverineGrpcService]
 public interface IGreeterCodeFirstService
 {
     Task<GreetReply> Greet(GreetRequest request, CallContext context = default);

@@ -556,10 +556,9 @@ public partial class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain
     }
 
     /// <summary>
-    ///     Guards against applying <see cref="WolverineGrpcServiceAttribute"/> to both an interface
-    ///     (the code-first codegen marker) and a concrete class that implements it (the hand-written
-    ///     service marker). Both usages are valid independently; a conflict only arises when both are
-    ///     present in the same assembly, which would produce two service registrations for the same contract.
+    ///     Guards against a concrete class marked <see cref="WolverineGrpcServiceAttribute"/> implementing a
+    ///     contract Wolverine generates an implementation for (attributed, or registered with
+    ///     <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/>). Both would claim the same contract.
     /// </summary>
     public static void AssertNoConcreteImplementationConflicts(Type serviceContractType,
         IEnumerable<Assembly> assemblies)
@@ -576,11 +575,11 @@ public partial class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain
         var details = offenders.Select(t => $"  - {t.FullNameInCode()}").Aggregate((a, b) => a + "\n" + b);
 
         throw new InvalidOperationException(
-            $"Code-first gRPC service contract {serviceContractType.FullNameInCode()} is marked "
-            + "[WolverineGrpcService] for Wolverine codegen, but one or more concrete implementations "
-            + "of this interface are also marked [WolverineGrpcService] in the same assembly. "
-            + "Remove [WolverineGrpcService] from the concrete class(es) and let Wolverine generate "
-            + "the implementation, or remove it from the interface to keep the hand-written class."
+            $"Wolverine generates the implementation of code-first gRPC service contract {serviceContractType.FullNameInCode()}, "
+            + "but one or more concrete implementations of this interface are also marked [WolverineGrpcService]. "
+            + "Remove [WolverineGrpcService] from the concrete class(es) and let Wolverine generate the implementation, "
+            + "or remove [WolverineGrpcService] from the interface, or remove its IncludeCodeFirstContract() registration, "
+            + "to keep the hand-written class."
             + "\nConflicting type(s):\n" + details);
     }
 }

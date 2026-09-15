@@ -6,10 +6,7 @@
         <AssemblyName>GreeterCodeFirstGrpc.Messages</AssemblyName>
     </PropertyGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
-    </ItemGroup>
-
+    <!-- No WolverineFx.Grpc reference: the Server registers the contract with IncludeCodeFirstContract<T>(). -->
     <ItemGroup>
         <PackageReference Include="protobuf-net.Grpc"/>
     </ItemGroup>

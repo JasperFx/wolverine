@@ -95,7 +95,8 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
 
             DisambiguateCollidingTypeNames(_chains);
 
-            foreach (var contract in registry.CodeFirstContractTypes())
+            // A registration the pre-generated code does not know about fails AssertPreBuiltTypesExist below.
+            foreach (var contract in registry.CodeFirstContractTypes().Union(grpcOptions.CodeFirstContracts))
             {
                 _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract)
                 {
@@ -126,9 +127,11 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
 
             DisambiguateCollidingTypeNames(_chains);
 
-            var contracts = FindCodeFirstServiceContracts(_options.Assemblies).ToArray();
+            var contracts = FindCodeFirstServiceContracts(_options.Assemblies)
+                .Union(grpcOptions.CodeFirstContracts)
+                .ToArray();
             logger.LogInformation(
-                "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies}",
+                "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies} or registered with IncludeCodeFirstContract()",
                 contracts.Length,
                 _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
 
@@ -143,7 +146,7 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
                 _codeFirstChains.Add(codeFirstChain);
             }
 
-            var handWritten = FindHandWrittenServiceClasses(_options.Assemblies).ToArray();
+            var handWritten = FindHandWrittenServiceClasses(_options.Assemblies, grpcOptions.CodeFirstContracts).ToArray();
             logger.LogInformation(
                 "Found {Count} hand-written Wolverine gRPC service classes in assemblies {Assemblies}",
                 handWritten.Length,
@@ -173,6 +176,13 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
         // GH-4156. Last of the chain-shaping steps, so every chain that will ever exist is checked. In
         // TypeLoadMode.Static a missing pre-built type used to surface on the first RPC to that service.
         AssertPreBuiltTypesExist();
+    }
+
+    // Wolverine generates the implementation of a contract that is attributed or registered.
+    internal static bool IsCodeFirstOwnedContract(Type contract, IReadOnlyCollection<Type> registeredContracts)
+    {
+        return contract.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false)
+               || registeredContracts.Contains(contract);
     }
 
     /// <summary>
@@ -279,7 +289,9 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
     ///     A code-first service contract is an interface annotated with both
     ///     <see cref="ServiceContractAttribute"/> (protobuf-net.Grpc) and
     ///     <see cref="WolverineGrpcServiceAttribute"/>. Wolverine generates a concrete implementation
-    ///     at startup that forwards each method to the message bus.
+    ///     at startup that forwards each method to the message bus. This is the attribute scan only;
+    ///     contracts registered through <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/>
+    ///     are unioned in by <see cref="DiscoverServices"/>.
     /// </summary>
     public static IEnumerable<Type> FindCodeFirstServiceContracts(IEnumerable<Assembly> assemblies)
     {
@@ -304,15 +316,22 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
     ///     <c>[ServiceContract]</c> interface. Classes whose service contract interface is itself
     ///     annotated with <see cref="WolverineGrpcServiceAttribute"/> are excluded — those are handled
     ///     by the <see cref="CodeFirstGrpcServiceChain"/> generated-implementation path instead.
+    ///     Contracts registered with <see cref="WolverineGrpcOptions.IncludeCodeFirstContract{T}"/> are not
+    ///     considered here.
     /// </summary>
     public static IEnumerable<Type> FindHandWrittenServiceClasses(IEnumerable<Assembly> assemblies)
+        => FindHandWrittenServiceClasses(assemblies, []);
+
+    // Also excludes classes whose contract is in registeredContracts.
+    internal static IEnumerable<Type> FindHandWrittenServiceClasses(IEnumerable<Assembly> assemblies,
+        IReadOnlyCollection<Type> registeredContracts)
     {
         return assemblies
             .SelectMany(a => a.GetExportedTypes())
-            .Where(IsHandWrittenServiceClass);
+            .Where(t => IsHandWrittenServiceClass(t, registeredContracts));
     }
 
-    private static bool IsHandWrittenServiceClass(Type type)
+    private static bool IsHandWrittenServiceClass(Type type, IReadOnlyCollection<Type> registeredContracts)
     {
         if (!type.IsClass || type.IsAbstract) return false;
         if (type.IsGenericTypeDefinition) return false;
@@ -326,9 +345,10 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
         var contract = HandWrittenGrpcServiceChain.FindServiceContractInterface(type);
         if (contract == null) return false;
 
-        // If the contract interface itself carries [WolverineGrpcService], the generated-implementation
-        // path owns this contract — don't also create a hand-written chain for the concrete class.
-        if (contract.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false)) return false;
+        // If the contract interface itself carries [WolverineGrpcService] or was registered through
+        // IncludeCodeFirstContract, the generated-implementation path owns this contract — don't also
+        // create a hand-written chain for the concrete class.
+        if (IsCodeFirstOwnedContract(contract, registeredContracts)) return false;
 
         // Proto-first stubs (abstract classes inheriting a proto base) are handled separately.
         // Concrete classes with a proto base are caught by AssertNoConcreteProtoStubs.

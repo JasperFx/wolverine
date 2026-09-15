@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.ServiceModel;
 using Grpc.Core;
 using Microsoft.AspNetCore.Builder;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Grpc.MultiTenancy;
 using Wolverine.Middleware;
@@ -78,6 +80,40 @@ public sealed class WolverineGrpcOptions
     ///     <c>true</c>. The client-side counterpart is <c>WolverineGrpcClientOptions.PropagateEnvelopeHeaders</c>.
     /// </summary>
     public bool PropagateEnvelopeHeaders { get; set; } = true;
+
+    private readonly List<Type> _codeFirstContracts = [];
+
+    internal IReadOnlyList<Type> CodeFirstContracts => _codeFirstContracts;
+
+    /// <summary>
+    ///     Have Wolverine generate and map the implementation of a code-first <c>[ServiceContract]</c>
+    ///     interface that does not carry <see cref="WolverineGrpcServiceAttribute"/>, so the contracts
+    ///     assembly shared with clients does not need to reference WolverineFx.Grpc (GH-4396).
+    /// </summary>
+    /// <typeparam name="T">A public, non-generic interface marked <c>[ServiceContract]</c>.</typeparam>
+    public WolverineGrpcOptions IncludeCodeFirstContract<T>() where T : class
+        => IncludeCodeFirstContract(typeof(T));
+
+    /// <summary>
+    ///     Non-generic overload of <see cref="IncludeCodeFirstContract{T}"/>.
+    /// </summary>
+    /// <param name="contractType">A public, non-generic interface marked <c>[ServiceContract]</c>.</param>
+    public WolverineGrpcOptions IncludeCodeFirstContract(Type contractType)
+    {
+        ArgumentNullException.ThrowIfNull(contractType);
+
+        if (!contractType.IsInterface || !contractType.IsVisible || contractType.IsGenericType
+            || !contractType.IsDefined(typeof(ServiceContractAttribute), inherit: false))
+        {
+            throw new ArgumentException(
+                $"{contractType.FullNameInCode()} must be a public, non-generic interface marked [ServiceContract] to be a code-first gRPC contract.",
+                nameof(contractType));
+        }
+
+        _codeFirstContracts.Fill(contractType);
+
+        return this;
+    }
 
     /// <summary>
     ///     Structural policies applied to all discovered gRPC chains during bootstrapping.
