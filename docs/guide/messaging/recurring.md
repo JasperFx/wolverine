@@ -132,11 +132,11 @@ The table is provisioned only on the main message store and only when at least o
 registered, so the opt-in stays schema-neutral: a host with zero schedules migrates exactly as it
 did before the feature existed.
 
-## Pausing and resuming a schedule
+## Pausing, resuming and triggering a schedule
 
-Pause/resume is the one piece of runtime-mutable state the feature has — schedule *definitions*
-stay code-first. `IRecurringScheduleControl` is registered in the container alongside the first
-schedule:
+Pause/resume/trigger is the one piece of runtime-mutable state the feature has — schedule
+*definitions* stay code-first. `IRecurringScheduleControl` is registered in the container alongside
+the first schedule:
 
 <!-- snippet: sample_pausing_and_resuming_recurring_messages -->
 <a id='snippet-sample_pausing_and_resuming_recurring_messages'></a>
@@ -154,6 +154,12 @@ await control.PauseAsync("daily-report");
 // Resume: the next occurrence is computed strictly after "now".
 // The paused window is never back-filled
 await control.ResumeAsync("daily-report");
+
+// Trigger: run the schedule once, right now, without disturbing its
+// cron cadence or its pending next occurrence. The request rides the
+// same durable row, so this works from any node. Throws if the
+// schedule is paused
+await control.TriggerAsync("daily-report");
 
 // The tracking rows themselves: which schedule owns which pending
 // envelope, next fire times, pause state
@@ -173,6 +179,19 @@ The semantics, precisely:
 * **Pause survives restarts and failovers** — it lives on the row, not in agent memory.
 * Pausing or resuming a name that was never registered throws; pausing an already-paused schedule
   is a no-op that keeps the original pause timestamp.
+* **A trigger is extra, never a replacement.** `TriggerAsync` runs the schedule once, now, and
+  leaves the cron cadence and the pending pre-scheduled occurrence completely untouched. The
+  request is recorded on the same durable row and the agent acts on it at its next pass, so it
+  works from any node — and it fires even for a fixed-date schedule whose occurrences have run out.
+* **A manual run carries its own deduplication id** (`{schedule}:manual:{requested:O}`), so it is
+  never collapsed into a scheduled firing it happens to coincide with. The id is still derived from
+  the request instant rather than a random value, so an agent failover that re-publishes the same
+  outstanding request cannot double-handle it.
+* **Only one trigger can be outstanding at a time.** Two calls landing between two agent passes
+  coalesce into a single run — the row has one slot, deliberately.
+* **Triggering a paused schedule throws** `RecurringSchedulePausedException`. Pausing says the
+  schedule must not fire, so a trigger is refused rather than allowed to override it; resume first
+  if you meant to let it run.
 
 On a message store *without* the tracking extension (including no store at all), pause and resume
 degrade to the local agent's memory: they only take effect when the running agent is in the same

@@ -25,6 +25,9 @@ internal class RecurringMessagesTable : Table
         AddColumn(DatabaseConstants.NextOccurrence, "TEXT").AllowNulls();
         AddColumn(DatabaseConstants.Paused, "INTEGER").NotNull();
         AddColumn(DatabaseConstants.PausedAt, "TEXT").AllowNulls();
+
+        // GH-4446: an operator's outstanding "run now", cleared by the agent once published.
+        AddColumn(DatabaseConstants.TriggerRequestedAt, "TEXT").AllowNulls();
         AddColumn(DatabaseConstants.LastUpdated, "TEXT").NotNull();
     }
 }

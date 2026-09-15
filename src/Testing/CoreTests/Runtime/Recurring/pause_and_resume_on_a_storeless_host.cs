@@ -94,6 +94,45 @@ public class pause_and_resume_on_a_storeless_host
 
         await Should.ThrowAsync<UnknownRecurringScheduleException>(
             () => control.ResumeAsync("nope", TestContext.Current.CancellationToken));
+
+        await Should.ThrowAsync<UnknownRecurringScheduleException>(
+            () => control.TriggerAsync("nope", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task a_manual_trigger_runs_the_schedule_once_without_disturbing_the_cadence()
+    {
+        var (host, agent, control) = await buildAsync();
+        using var _ = host;
+
+        // The daily occurrence is already pending and stays pending — a trigger is EXTRA, not a
+        // replacement. Without the trigger this tick would publish nothing at all.
+        await control.TriggerAsync(nameof(PendingRecurringMessage), TestContext.Current.CancellationToken);
+
+        await agent.TickAsync(TestContext.Current.CancellationToken);
+        agent.OccurrencesPublished.ShouldBe(2);
+
+        // Consumed exactly once: a later tick does not keep re-running it.
+        await agent.TickAsync(TestContext.Current.CancellationToken);
+        agent.OccurrencesPublished.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task a_paused_schedule_refuses_to_be_triggered()
+    {
+        var (host, agent, control) = await buildAsync();
+        using var _ = host;
+
+        await control.PauseAsync(nameof(PendingRecurringMessage), TestContext.Current.CancellationToken);
+
+        // Pausing says the schedule must not fire; a manual trigger may not override that.
+        var ex = await Should.ThrowAsync<RecurringSchedulePausedException>(
+            () => control.TriggerAsync(nameof(PendingRecurringMessage), TestContext.Current.CancellationToken));
+        ex.Message.ShouldContain(nameof(PendingRecurringMessage));
+
+        // ...and nothing was queued behind the refusal to fire on the next tick either.
+        await agent.TickAsync(TestContext.Current.CancellationToken);
+        agent.OccurrencesPublished.ShouldBe(1);
     }
 
     private sealed class FrozenClock(DateTimeOffset start) : TimeProvider

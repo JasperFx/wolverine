@@ -71,6 +71,22 @@ public sealed class RecurringMessage
         return $"{Name}:{occurrence.ToUniversalTime():O}";
     }
 
+    /// <summary>
+    /// GH-4446. The deduplication id for a MANUAL occurrence — one an operator asked for through
+    /// <see cref="IRecurringScheduleControl.TriggerAsync" /> rather than one the cron produced.
+    /// <para>
+    /// Deliberately distinct from <see cref="DeduplicationIdFor" />: a "run now" issued in the same
+    /// instant as a scheduled firing is a separate intent, and collapsing the two would make the
+    /// trigger silently do nothing. Still derived from the request instant rather than from a
+    /// random value, so it keeps the property the scheduled id has — an agent failover that
+    /// re-publishes the same outstanding trigger produces the same id and cannot double-handle it.
+    /// </para>
+    /// </summary>
+    public string ManualDeduplicationIdFor(DateTimeOffset requestedAt)
+    {
+        return $"{Name}:manual:{requestedAt.ToUniversalTime():O}";
+    }
+
     public override string ToString()
     {
         return $"{Name}: {MessageType.Name} at {Schedule}";
