@@ -751,8 +751,35 @@ public sealed partial class WolverineOptions
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
     {
+        // GH-4448: the exchange runs BOTH ways, and it used to run only one. `??=` makes JasperFx's value
+        // the fallback for Wolverine's — which already says an explicit WolverineOptions.ServiceName
+        // outranks it — but nothing carried that value back, so `opts.ServiceName = "Ledgers"` (the
+        // documented way to name a Wolverine service) left JasperFxOptions.ServiceName at ITS default,
+        // the entry assembly name. Anything reading the JasperFx side then disagreed with Wolverine
+        // about the name of the one running service.
+        //
+        // ⚠️ The visible damage is an Event Model canvas SPLITTING IN TWO. WolverineEventModelSource
+        // names its model from WolverineOptions.ServiceName while a store's source (fisher#280 and its
+        // Marten/Polecat twins) falls back to JasperFxOptions.ServiceName, so one host contributed two
+        // differently-named models and no single model held both halves. It only ever looked correct
+        // when the assembly name and the service name happened to coincide, which is exactly why it
+        // survived: reported from fisher#284, where Stoat's assembly is also called Stoat.
+        //
+        // Captured before the `??=` because afterwards there is no telling a value the user set from
+        // one just adopted from JasperFx — and adopting is precisely the case that must NOT write back.
+        var explicitlyNamedHere = ServiceName;
+
         ServiceName ??= jasperfx.ServiceName;
-        
+
+        if (explicitlyNamedHere.IsNotEmpty())
+        {
+            // Wolverine's own value wins, in the same direction the `??=` above already established.
+            // Safe to assign unconditionally because JasperFxOptions is resolved from THIS container, so
+            // a second host in the process has its own instance to name.
+            jasperfx.ServiceName = explicitlyNamedHere;
+        }
+
+
         if (_applicationAssembly == null)
         {
             // GH-3776: JasperFx resolves its own application assembly with the same kind of stack walk and has
