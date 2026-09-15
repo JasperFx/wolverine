@@ -38,6 +38,9 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
     private readonly string _insertSql;
     private readonly string _markPausedSql;
     private readonly string _resumeSql;
+    private readonly string _requestTriggerSql;
+    private readonly string _clearTriggerSql;
+    private readonly string _selectPausedSql;
     private readonly string _cancelScheduledEnvelopeSql;
 
     /// <param name="recurringTable">
@@ -63,7 +66,7 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
         var selectFields =
             $"{DatabaseConstants.ScheduleName}, {DatabaseConstants.CronExpression}, {DatabaseConstants.EnvelopeIds}, " +
             $"{DatabaseConstants.DeduplicationId}, {DatabaseConstants.NextOccurrence}, {DatabaseConstants.Paused}, " +
-            $"{DatabaseConstants.PausedAt}, {DatabaseConstants.LastUpdated}";
+            $"{DatabaseConstants.PausedAt}, {DatabaseConstants.TriggerRequestedAt}, {DatabaseConstants.LastUpdated}";
 
         _loadSql =
             $"select {selectFields} from {recurringTable} where {DatabaseConstants.ScheduleName} = @name";
@@ -85,8 +88,9 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
         _insertSql =
             $"insert into {recurringTable} ({DatabaseConstants.ScheduleName}, {DatabaseConstants.CronExpression}, " +
             $"{DatabaseConstants.EnvelopeIds}, {DatabaseConstants.DeduplicationId}, {DatabaseConstants.NextOccurrence}, " +
-            $"{DatabaseConstants.Paused}, {DatabaseConstants.PausedAt}, {DatabaseConstants.LastUpdated}) " +
-            "values (@name, @cron, @ids, @dedup, @next, @paused, @pausedat, @updated)";
+            $"{DatabaseConstants.Paused}, {DatabaseConstants.PausedAt}, {DatabaseConstants.TriggerRequestedAt}, " +
+            $"{DatabaseConstants.LastUpdated}) " +
+            "values (@name, @cron, @ids, @dedup, @next, @paused, @pausedat, @trigger, @updated)";
 
         // COALESCE keeps the original pause instant on a double-pause; ResumeAsync nulls it, so
         // the column doubles as the transition marker.
@@ -101,6 +105,23 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
             $"update {recurringTable} set {DatabaseConstants.Paused} = @paused, " +
             $"{DatabaseConstants.PausedAt} = @pausedat, {DatabaseConstants.LastUpdated} = @updated " +
             $"where {DatabaseConstants.ScheduleName} = @name";
+
+        // GH-4446. The not-paused predicate IS the refusal: a paused row matches nothing, the
+        // update reports zero rows, and RequestTriggerAsync turns that into the "false" the control
+        // surface raises as RecurringSchedulePausedException. Expressing it as a predicate rather
+        // than a read-then-write keeps the check and the write in one atomic statement.
+        _requestTriggerSql =
+            $"update {recurringTable} set {DatabaseConstants.TriggerRequestedAt} = @trigger, " +
+            $"{DatabaseConstants.LastUpdated} = @updated " +
+            $"where {DatabaseConstants.ScheduleName} = @name and {DatabaseConstants.Paused} = @notpaused";
+
+        _clearTriggerSql =
+            $"update {recurringTable} set {DatabaseConstants.TriggerRequestedAt} = @trigger, " +
+            $"{DatabaseConstants.LastUpdated} = @updated " +
+            $"where {DatabaseConstants.ScheduleName} = @name";
+
+        _selectPausedSql =
+            $"select {DatabaseConstants.Paused} from {recurringTable} where {DatabaseConstants.ScheduleName} = @name";
 
         // The same delete IScheduledMessages.CancelAsync issues — a scheduled envelope's
         // cancellation IS its removal from the inbox. The status predicate keeps a race with the
@@ -126,6 +147,9 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
                 .With("next", (object?)record.NextOccurrence ?? DBNull.Value)
                 .With("paused", false)
                 .With("pausedat", DBNull.Value)
+                // A publish never carries a trigger request; the agent clears the slot explicitly
+                // once it has run one, and tryUpdatePublishAsync leaves an outstanding one alone.
+                .With("trigger", DBNull.Value)
                 .With("updated", record.LastUpdated);
 
             await insert.ExecuteNonQueryAsync(token).ConfigureAwait(false);
@@ -251,6 +275,7 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
                     .With("next", DBNull.Value)
                     .With("paused", true)
                     .With("pausedat", pausedAt)
+                    .With("trigger", DBNull.Value)
                     .With("updated", pausedAt);
 
                 await using (insert)
@@ -293,6 +318,84 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
         await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
     }
 
+    public async Task<bool> RequestTriggerAsync(string name, DateTimeOffset requestedAt,
+        CancellationToken token = default)
+    {
+        // GH-4436's rule again: this instant arrives as a bare argument from the control surface
+        // rather than through RecurringMessageRecord, so it normalizes here.
+        requestedAt = requestedAt.ToUniversalTime();
+
+        if (await tryRequestTriggerAsync(name, requestedAt, token)) return true;
+
+        // Zero rows means one of two very different things: the row says paused (a refusal), or
+        // there is no row at all (a schedule that has never published, which must still be
+        // triggerable). Only a read tells them apart.
+        await using (var probe = _dataSource.CreateCommand(_selectPausedSql).With("name", name))
+        {
+            var raw = await probe.ExecuteScalarAsync(token).ConfigureAwait(false);
+            if (raw != null && raw != DBNull.Value)
+            {
+                // Convert rather than cast: SQLite stores the flag as INTEGER 0/1.
+                if (Convert.ToBoolean(raw)) return false;
+
+                // Not paused after all — a row appeared between the update and this probe. Re-run
+                // rather than reporting a refusal that never happened.
+                return await tryRequestTriggerAsync(name, requestedAt, token);
+            }
+        }
+
+        try
+        {
+            var insert = _dataSource.CreateCommand(_insertSql)
+                .With("name", name)
+                .With("cron", string.Empty)
+                .With("ids", string.Empty)
+                .With("dedup", DBNull.Value)
+                .With("next", DBNull.Value)
+                .With("paused", false)
+                .With("pausedat", DBNull.Value)
+                .With("trigger", requestedAt)
+                .With("updated", requestedAt);
+
+            await using (insert)
+            {
+                await insert.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            return true;
+        }
+        catch (Exception e) when (_isUniqueConstraintViolation(e))
+        {
+            // The agent wrote the schedule's first row between the probe and the insert. The row
+            // exists now, so the update applies — and still refuses it if that row is paused.
+            return await tryRequestTriggerAsync(name, requestedAt, token);
+        }
+    }
+
+    private async Task<bool> tryRequestTriggerAsync(string name, DateTimeOffset requestedAt,
+        CancellationToken token)
+    {
+        await using var update = _dataSource.CreateCommand(_requestTriggerSql)
+            .With("trigger", requestedAt)
+            .With("updated", requestedAt)
+            .With("name", name)
+            .With("notpaused", false);
+
+        return await update.ExecuteNonQueryAsync(token).ConfigureAwait(false) > 0;
+    }
+
+    public async Task ClearTriggerAsync(string name, CancellationToken token = default)
+    {
+        await using var cmd = _dataSource.CreateCommand(_clearTriggerSql)
+            .With("trigger", DBNull.Value)
+            .With("updated", DateTimeOffset.UtcNow)
+            .With("name", name);
+
+        // Deliberately not predicated on the trigger still being set: clearing an already-clear
+        // slot is a harmless no-op, and the agent only calls this after a successful publish.
+        await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+    }
+
     private static string joinIds(Guid[] ids)
     {
         return ids.Length == 0 ? string.Empty : string.Join(",", ids.Select(x => x.ToString("N")));
@@ -323,7 +426,10 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
             PausedAt = await reader.IsDBNullAsync(6, token).ConfigureAwait(false)
                 ? null
                 : await reader.GetFieldValueAsync<DateTimeOffset>(6, token).ConfigureAwait(false),
-            LastUpdated = await reader.GetFieldValueAsync<DateTimeOffset>(7, token).ConfigureAwait(false)
+            TriggerRequestedAt = await reader.IsDBNullAsync(7, token).ConfigureAwait(false)
+                ? null
+                : await reader.GetFieldValueAsync<DateTimeOffset>(7, token).ConfigureAwait(false),
+            LastUpdated = await reader.GetFieldValueAsync<DateTimeOffset>(8, token).ConfigureAwait(false)
         };
     }
 }

@@ -447,6 +447,40 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public void recurring_schedule_name_is_part_of_metrics()
+    {
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1() };
+        envelope.Headers[RecurringMessage.HeaderKey] = "nightly-rollup";
+
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+
+        // Read off the HEADER rather than SetMetricsTag: the metric tag list is a private field that
+        // is never serialized, so an occurrence published on one node and handled on another would
+        // otherwise reach the success/failure counters with no attribution at all.
+        dict[MetricsConstants.ScheduleNameKey].ShouldBe("nightly-rollup");
+    }
+
+    [Fact]
+    public void the_occurrence_instant_is_deliberately_kept_out_of_metrics()
+    {
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1() };
+        envelope.Headers[RecurringMessage.HeaderKey] = "nightly-rollup";
+        envelope.Headers[RecurringMessage.OccurrenceHeaderKey] =
+            new DateTimeOffset(2026, 9, 15, 9, 0, 0, TimeSpan.Zero).ToString("O");
+
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+
+        // One distinct value per firing is unbounded cardinality -- it belongs on the trace, and
+        // only on the trace. Guarding it here so a later "attribute everything" pass cannot quietly
+        // turn every cron tick into its own time series.
+        dict.ContainsKey(RecurringMessage.OccurrenceHeaderKey).ShouldBeFalse();
+        foreach (var key in dict.Keys)
+        {
+            key.ToLowerInvariant().ShouldNotContain("occurrence");
+        }
+    }
+
+    [Fact]
     public void add_custom_metrics_header()
     {
         var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
