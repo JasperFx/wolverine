@@ -199,6 +199,12 @@ internal sealed class RdbmsRecurringMessageStore : IRecurringMessageStore
 
     public async Task PauseAsync(string name, DateTimeOffset pausedAt, CancellationToken token = default)
     {
+        // GH-4436. Every instant reaching this table has to be offset-zero for PostgreSQL's
+        // timestamptz binder. RecurringMessageRecord normalizes its own, but this one arrives as a
+        // bare argument from whoever called IRecurringScheduleControl.PauseAsync — in-tree that is
+        // always UtcNow, so this guards the caller we do not own rather than a bug we have.
+        pausedAt = pausedAt.ToUniversalTime();
+
         await using var conn = await _dataSource.OpenConnectionAsync(token).ConfigureAwait(false);
         await using var tx = await conn.BeginTransactionAsync(token).ConfigureAwait(false);
 

@@ -32,6 +32,14 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     private readonly List<RecurringMessageAgent> _agents = [];
     private readonly System.Collections.Concurrent.ConcurrentQueue<string> _logProblems = new();
 
+    /// <summary>
+    /// A deliberately HALF-hour-offset zone (+05:30). Any non-UTC zone reproduces GH-4436, but this
+    /// one also proves the zone was really honoured: a top-of-the-hour cron in +05:30 can only land
+    /// on minute 30 of a UTC hour, which a zone-ignoring implementation cannot produce by accident.
+    /// </summary>
+    private static readonly TimeZoneInfo Kolkata = TimeZoneInfo.FindSystemTimeZoneById(
+        OperatingSystem.IsWindows() ? "India Standard Time" : "Asia/Kolkata");
+
     /// <summary>Wire this provider's message persistence into the options.</summary>
     protected abstract void configurePersistence(WolverineOptions opts);
 
@@ -197,6 +205,44 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         var scheduled = await store.ScheduledMessages.QueryAsync(
             new ScheduledMessageQuery { MessageIds = row.EnvelopeIds }, TestContext.Current.CancellationToken);
         scheduled.Messages.Count.ShouldBe(row.EnvelopeIds.Length);
+    }
+
+    [Fact]
+    public async Task publishing_records_the_tracking_row_for_a_non_utc_schedule()
+    {
+        // GH-4436. Cronos returns each occurrence carrying the SCHEDULE's offset, not UTC, and
+        // PostgreSQL's timestamptz binder rejects any DateTimeOffset whose offset isn't zero — so
+        // every tick of every zoned schedule threw on the write and the row was never recorded.
+        var host = await buildHost(opts =>
+        {
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("zoned-compliance", "0 * * * *",
+                _ => new RecurringComplianceMessage(), Kolkata);
+        });
+
+        var store = host.Services.GetRequiredService<IMessageStore>();
+
+        var row = await waitForTrackedPublishAsync(store, "zoned-compliance");
+
+        row.NextOccurrence.ShouldNotBeNull();
+        row.NextOccurrence.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+
+        // The stored instant is the +05:30 top-of-the-hour, which is minute 30 of a UTC hour.
+        // Asserted on the INSTANT rather than on .Offset because the providers disagree about the
+        // offset a round-tripped column reports (MySQL has no offset-carrying column type at all)
+        // while every one of them must agree about the moment.
+        row.NextOccurrence.Value.UtcDateTime.Minute.ShouldBe(30);
+
+        // The agent and the row agree on that instant — the dedup id is computed from the
+        // occurrence the agent published, so a normalization that shifted the moment (rather than
+        // just its offset) would break this even though the write itself succeeded.
+        row.DeduplicationId.ShouldBe($"zoned-compliance:{row.NextOccurrence.Value.ToUniversalTime():O}");
+
+        (await store.RecurringMessages.CountStillScheduledAsync(row.EnvelopeIds,
+            TestContext.Current.CancellationToken)).ShouldBe(row.EnvelopeIds.Length);
+
+        // The bug's actual signature: the publish succeeded and only the bookkeeping write threw,
+        // which the agent swallows into this log line rather than surfacing.
+        _logProblems.ShouldNotContain(x => x.Contains("Failed to record the tracking row"));
     }
 
     [Fact]

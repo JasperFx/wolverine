@@ -7,8 +7,21 @@ namespace Wolverine.Persistence.Durability;
 /// that makes the "next occurrence is up" guarantee verifiable and gives management tooling a
 /// stable handle on what is pending for which schedule.
 /// </summary>
+/// <remarks>
+/// GH-4436: every instant on this record normalizes to UTC on the way in, exactly as
+/// <see cref="Envelope.ScheduledTime" /> does. A zoned schedule's occurrence arrives from Cronos
+/// carrying the SCHEDULE's offset rather than UTC, and PostgreSQL's <c>timestamptz</c> binder
+/// refuses any <see cref="DateTimeOffset" /> whose offset is not zero — so normalizing here, at the
+/// durable model, fixes every provider at once instead of each parameter bind. It changes the
+/// offset and never the moment, and <see cref="DateTimeOffset" /> equality compares moments, so the
+/// agent's occurrence-matching (verification and failover adoption) is unaffected.
+/// </remarks>
 public class RecurringMessageRecord
 {
+    private readonly DateTimeOffset? _nextOccurrence;
+    private readonly DateTimeOffset? _pausedAt;
+    private readonly DateTimeOffset _lastUpdated;
+
     /// <summary>The schedule's registered name — the primary key.</summary>
     public required string Name { get; init; }
 
@@ -29,16 +42,28 @@ public class RecurringMessageRecord
     public string? DeduplicationId { get; init; }
 
     /// <summary>When the pending occurrence fires. Null while paused or never published.</summary>
-    public DateTimeOffset? NextOccurrence { get; init; }
+    public DateTimeOffset? NextOccurrence
+    {
+        get => _nextOccurrence;
+        init => _nextOccurrence = value?.ToUniversalTime();
+    }
 
     /// <summary>Is this schedule administratively paused?</summary>
     public bool Paused { get; init; }
 
     /// <summary>When the schedule was paused. Null while running.</summary>
-    public DateTimeOffset? PausedAt { get; init; }
+    public DateTimeOffset? PausedAt
+    {
+        get => _pausedAt;
+        init => _pausedAt = value?.ToUniversalTime();
+    }
 
     /// <summary>Last time the recurring agent (or a pause/resume) touched this row.</summary>
-    public DateTimeOffset LastUpdated { get; init; }
+    public DateTimeOffset LastUpdated
+    {
+        get => _lastUpdated;
+        init => _lastUpdated = value.ToUniversalTime();
+    }
 }
 
 /// <summary>
