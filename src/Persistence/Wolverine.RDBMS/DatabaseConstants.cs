@@ -96,6 +96,12 @@ public class DatabaseConstants
     public const string NextOccurrence = "next_occurrence";
     public const string Paused = "paused";
     public const string PausedAt = "paused_at";
+
+    // GH-4446. An operator's outstanding "run now" request, cleared by the agent once it has
+    // published the manual occurrence. Nullable, so an existing table migrates by gaining a column
+    // that is null for every schedule that has never been triggered.
+    public const string TriggerRequestedAt = "trigger_requested_at";
+
     public const string LastUpdated = "last_updated";
 
     public static readonly string IncomingFields =

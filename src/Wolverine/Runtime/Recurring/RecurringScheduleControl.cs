@@ -18,7 +18,21 @@ public class UnknownRecurringScheduleException : Exception
 }
 
 /// <summary>
-/// Runtime pause/resume/query surface for the recurring (cron) messages registered through
+/// GH-4446. Thrown when a manual trigger names a schedule that is administratively paused. Pausing
+/// says the schedule must not fire, so a "run now" is refused rather than allowed to override it —
+/// resume the schedule first if you meant to let it run.
+/// </summary>
+public class RecurringSchedulePausedException : Exception
+{
+    public RecurringSchedulePausedException(string name)
+        : base($"The recurring message schedule '{name}' is paused and cannot be triggered. " +
+               "Pausing a schedule means it must not fire; resume it first if you want it to run.")
+    {
+    }
+}
+
+/// <summary>
+/// Runtime pause/resume/trigger/query surface for the recurring (cron) messages registered through
 /// <c>opts.Schedules</c> — the only runtime-mutable state the feature has (schedule definitions
 /// stay code-first). Resolve it from the container; it is registered alongside the first schedule.
 ///
@@ -26,13 +40,14 @@ public class UnknownRecurringScheduleException : Exception
 /// Pausing marks the schedule's durable tracking row AND eagerly cancels the pre-scheduled next
 /// occurrence, so nothing fires in the gap before the agent's next tick — the caller may be on a
 /// different node than the agent. Resuming clears the mark; the agent then pre-schedules the
-/// occurrence strictly after the resume time, never back-filling the paused window.
+/// occurrence strictly after the resume time, never back-filling the paused window. Triggering
+/// records a request on the same row for the agent to act on, for the same cross-node reason.
 /// </para>
 ///
 /// <para>
 /// On a message store without the recurring tracking extension the durable half is unavailable:
-/// pause/resume reach only the agent instance in THIS process (effective on a single-node or
-/// storeless host, where the agent is always local), are lost on restart, and an
+/// pause/resume/trigger reach only the agent instance in THIS process (effective on a single-node
+/// or storeless host, where the agent is always local), are lost on restart, and an
 /// already-pre-scheduled occurrence cannot be cancelled — it will still fire once.
 /// </para>
 /// </summary>
@@ -51,6 +66,23 @@ public interface IRecurringScheduleControl
     /// <see cref="UnknownRecurringScheduleException" /> for an unregistered name.
     /// </summary>
     Task ResumeAsync(string name, CancellationToken token = default);
+
+    /// <summary>
+    /// GH-4446. Run a registered schedule once, now, out of band — without disturbing its cron
+    /// cadence or its pending next occurrence.
+    ///
+    /// <para>
+    /// The request is recorded on the schedule's durable row and the agent publishes one occurrence
+    /// for it on its next tick, so this works from any node. The manual occurrence carries its own
+    /// deduplication id (<see cref="RecurringMessage.ManualDeduplicationIdFor" />) and is therefore
+    /// never collapsed into a scheduled firing. Only one trigger can be outstanding at a time: two
+    /// calls landing between two ticks coalesce into a single run.
+    /// </para>
+    ///
+    /// Throws <see cref="UnknownRecurringScheduleException" /> for an unregistered name, and
+    /// <see cref="RecurringSchedulePausedException" /> when the schedule is paused.
+    /// </summary>
+    Task TriggerAsync(string name, CancellationToken token = default);
 
     /// <summary>
     /// The durable tracking rows — which schedule owns which pending envelope, next fire times,
@@ -106,6 +138,26 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
         else
         {
             _agent?.MarkResumed(name);
+        }
+    }
+
+    public async Task TriggerAsync(string name, CancellationToken token = default)
+    {
+        assertKnown(name);
+
+        var store = _runtime.Storage.RecurringMessages;
+        if (store.Enabled)
+        {
+            // Same durable channel as pause, for the same reason: the agent is usually on another
+            // node. A false answer here means the row says paused — the one refusal this verb has.
+            if (!await store.RequestTriggerAsync(name, DateTimeOffset.UtcNow, token))
+            {
+                throw new RecurringSchedulePausedException(name);
+            }
+        }
+        else if (_agent != null && !_agent.TryMarkTriggered(name))
+        {
+            throw new RecurringSchedulePausedException(name);
         }
     }
 

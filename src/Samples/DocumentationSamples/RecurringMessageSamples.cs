@@ -25,6 +25,12 @@ public class RecurringMessageSamples
         // The paused window is never back-filled
         await control.ResumeAsync("daily-report");
 
+        // Trigger: run the schedule once, right now, without disturbing its
+        // cron cadence or its pending next occurrence. The request rides the
+        // same durable row, so this works from any node. Throws if the
+        // schedule is paused
+        await control.TriggerAsync("daily-report");
+
         // The tracking rows themselves: which schedule owns which pending
         // envelope, next fire times, pause state
         var schedules = await control.QueryAsync();

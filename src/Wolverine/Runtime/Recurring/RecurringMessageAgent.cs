@@ -51,6 +51,11 @@ internal class RecurringMessageAgent : SingularAgent
     // RecurringScheduleControl). Locked because the control service writes from caller threads
     // while the loop reads.
     private readonly HashSet<string> _locallyPaused = new();
+
+    // GH-4446. The same fallback-only channel for manual triggers: with a real store the request
+    // lives on the durable row so any node can make it. One slot per schedule, matching the
+    // durable column — two triggers between ticks coalesce into a single run either way.
+    private readonly Dictionary<string, DateTimeOffset> _locallyTriggered = new();
     private readonly object _pauseLock = new();
 
     private CancellationTokenSource? _cancellation;
@@ -120,6 +125,44 @@ internal class RecurringMessageAgent : SingularAgent
         lock (_pauseLock)
         {
             return _locallyPaused.Contains(name);
+        }
+    }
+
+    /// <summary>
+    /// GH-4446. Record a manual "run now" in THIS instance's memory — the fallback channel when the
+    /// message store has no recurring tracking extension. Returns false when the schedule is
+    /// locally paused, which is the refusal <c>IRecurringScheduleControl.TriggerAsync</c> surfaces:
+    /// pause means the schedule must not fire, and a trigger may not override it.
+    /// </summary>
+    internal bool TryMarkTriggered(string name)
+    {
+        lock (_pauseLock)
+        {
+            if (_locallyPaused.Contains(name)) return false;
+
+            _locallyTriggered[name] = TimeProvider.GetUtcNow();
+            return true;
+        }
+    }
+
+    private DateTimeOffset? peekLocalTrigger(string name)
+    {
+        lock (_pauseLock)
+        {
+            return _locallyTriggered.TryGetValue(name, out var at) ? at : null;
+        }
+    }
+
+    /// <summary>
+    /// Consume a local trigger, and only once its occurrence really published — a failed publish
+    /// leaves the request standing so the next tick retries it, matching how the durable flag is
+    /// cleared only after a successful publish.
+    /// </summary>
+    private void clearLocalTrigger(string name)
+    {
+        lock (_pauseLock)
+        {
+            _locallyTriggered.Remove(name);
         }
     }
 
@@ -231,6 +274,17 @@ internal class RecurringMessageAgent : SingularAgent
                 {
                     await honourPauseAsync(store, message.Name, row, now, cancellation);
                     continue;
+                }
+
+                // GH-4446. An operator's outstanding "run now", honoured BEFORE the cron
+                // computation on purpose: a schedule whose occurrences have run out (a fixed-date
+                // cron) returns null below and continues, and a manual trigger must still fire for
+                // it. Deliberately does not touch _lastPublished or the pending-occurrence
+                // bookkeeping — a manual run is extra, never a replacement for the next occurrence.
+                var triggeredAt = row?.TriggerRequestedAt ?? peekLocalTrigger(message.Name);
+                if (triggeredAt != null)
+                {
+                    await honourTriggerAsync(store, message, triggeredAt.Value, cancellation);
                 }
 
                 var next = message.Schedule.NextOccurrence(now);
@@ -379,23 +433,78 @@ internal class RecurringMessageAgent : SingularAgent
         return true;
     }
 
-    private async Task<Envelope[]> publishOccurrenceAsync(RecurringMessage message, DateTimeOffset occurrence)
+    /// <summary>
+    /// GH-4446. Publish the one manual occurrence an operator asked for, then clear the request so
+    /// it runs exactly once. The clear happens ONLY after a successful publish: a failure leaves
+    /// the flag standing and the next tick retries, and because the manual deduplication id is
+    /// derived from the request instant, a retry that double-publishes still collapses to one
+    /// handling at consumption.
+    /// </summary>
+    private async Task honourTriggerAsync(IRecurringMessageStore store, RecurringMessage message,
+        DateTimeOffset requestedAt, CancellationToken cancellation)
+    {
+        var outgoing = await publishManualOccurrenceAsync(message, requestedAt);
+        if (outgoing.Length == 0)
+        {
+            // No routes is not a run — leave the request standing so it fires once a subscription
+            // exists, exactly as the scheduled path leaves the occurrence unmarked.
+            return;
+        }
+
+        Interlocked.Increment(ref OccurrencesPublished);
+
+        if (store.Enabled)
+        {
+            await store.ClearTriggerAsync(message.Name, cancellation);
+        }
+        else
+        {
+            clearLocalTrigger(message.Name);
+        }
+    }
+
+    private Task<Envelope[]> publishOccurrenceAsync(RecurringMessage message, DateTimeOffset occurrence)
+    {
+        // The deterministic occurrence id — identical across nodes, restarts and time zones —
+        // that lets the GH-4180 dedupe collapse a failover double-publish at consumption.
+        return publishAsync(message, occurrence, message.DeduplicationIdFor(occurrence), occurrence);
+    }
+
+    /// <summary>
+    /// A manual occurrence: published for IMMEDIATE delivery (no <c>ScheduledTime</c> — "run now"
+    /// means now) and carrying its own deduplication id, so it is never collapsed into the
+    /// scheduled firing it may coincide with.
+    /// </summary>
+    private Task<Envelope[]> publishManualOccurrenceAsync(RecurringMessage message, DateTimeOffset requestedAt)
+    {
+        return publishAsync(message, requestedAt, message.ManualDeduplicationIdFor(requestedAt), null);
+    }
+
+    private async Task<Envelope[]> publishAsync(RecurringMessage message, DateTimeOffset occurrence,
+        string deduplicationId, DateTimeOffset? scheduledTime)
     {
         var body = message.Creator(occurrence) ?? throw new InvalidOperationException(
             $"The creator for recurring message '{message.Name}' returned null");
 
-        _logger.LogDebug("Scheduling occurrence of recurring message '{Name}' for {Occurrence}",
+        _logger.LogDebug(
+            scheduledTime == null
+                ? "Publishing a manual occurrence of recurring message '{Name}' requested at {Occurrence}"
+                : "Scheduling occurrence of recurring message '{Name}' for {Occurrence}",
             message.Name, occurrence);
 
         var options = new DeliveryOptions
         {
-            ScheduledTime = occurrence,
-
-            // The deterministic occurrence id — identical across nodes, restarts and time zones —
-            // that lets the GH-4180 dedupe collapse a failover double-publish at consumption.
-            DeduplicationId = message.DeduplicationIdFor(occurrence)
+            ScheduledTime = scheduledTime,
+            DeduplicationId = deduplicationId
         };
         options.Headers[RecurringMessage.HeaderKey] = message.Name;
+
+        // GH-4445. ScheduledTime is cleared by the scheduled machinery at fire time, so without this
+        // the handler cannot tell which firing it is serving except by string-parsing the dedup id,
+        // which exists for deduplication and not for attribution. Normalized to UTC and written
+        // round-trippable ("O") so it parses back to the same instant everywhere.
+        options.Headers[RecurringMessage.OccurrenceHeaderKey] =
+            occurrence.ToUniversalTime().ToString("O");
 
         // The routed-then-persisted spelling of IMessageBus.PublishAsync, taken apart only
         // because the public path never surfaces the envelopes (GH-4180's own analysis) and the

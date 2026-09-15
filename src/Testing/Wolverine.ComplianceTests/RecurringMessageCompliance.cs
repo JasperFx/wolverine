@@ -332,6 +332,59 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_manual_trigger_runs_once_leaves_the_cadence_alone_and_is_refused_while_paused()
+    {
+        RecurringComplianceMessageHandler.Reset();
+
+        var host = await buildHost(opts =>
+        {
+            opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("triggered-compliance", "0 * * * *",
+                _ => new RecurringComplianceMessage());
+        });
+
+        var store = host.Services.GetRequiredService<IMessageStore>();
+        var control = host.Services.GetRequiredService<IRecurringScheduleControl>();
+
+        var before = await waitForTrackedPublishAsync(store, "triggered-compliance");
+
+        // Hourly cron, so nothing fires on its own for the length of this test: anything the
+        // handler receives can ONLY be the manual run. Without that, this would pass vacuously on
+        // a scheduled occurrence that happened to land.
+        RecurringComplianceMessageHandler.Received.ShouldBeEmpty();
+
+        await control.TriggerAsync("triggered-compliance", TestContext.Current.CancellationToken);
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (RecurringComplianceMessageHandler.Received.Count == 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+
+        var envelope = RecurringComplianceMessageHandler.Received.FirstOrDefault();
+        envelope.ShouldNotBeNull("the manual trigger never fired");
+
+        // It carries its OWN deduplication id, which is what keeps a "run now" from being
+        // collapsed into a scheduled firing of the same schedule.
+        envelope.DeduplicationId.ShouldNotBeNull();
+        envelope.DeduplicationId.ShouldStartWith("triggered-compliance:manual:");
+
+        // The agent cleared the request, so it runs exactly once rather than every tick...
+        var after = await store.RecurringMessages.LoadAsync("triggered-compliance",
+            TestContext.Current.CancellationToken);
+        after.ShouldNotBeNull();
+        after.TriggerRequestedAt.ShouldBeNull();
+
+        // ...and the pending scheduled occurrence was left completely alone — a manual run is
+        // extra, never a replacement for the cron cadence.
+        after.NextOccurrence.ShouldBe(before.NextOccurrence);
+
+        // Pausing says the schedule must not fire, and a trigger may not override that.
+        await control.PauseAsync("triggered-compliance", TestContext.Current.CancellationToken);
+        await Should.ThrowAsync<RecurringSchedulePausedException>(
+            () => control.TriggerAsync("triggered-compliance", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task pause_survives_restart_nothing_fires_while_paused_and_resume_is_strictly_after_now()
     {
         RecurringComplianceMessageHandler.Reset();

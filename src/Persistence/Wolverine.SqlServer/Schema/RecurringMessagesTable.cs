@@ -22,6 +22,9 @@ internal class RecurringMessagesTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.NextOccurrence).AllowNulls();
         AddColumn<bool>(DatabaseConstants.Paused).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.PausedAt).AllowNulls();
+
+        // GH-4446: an operator's outstanding "run now", cleared by the agent once published.
+        AddColumn<DateTimeOffset>(DatabaseConstants.TriggerRequestedAt).AllowNulls();
         AddColumn<DateTimeOffset>(DatabaseConstants.LastUpdated).NotNull();
     }
 }

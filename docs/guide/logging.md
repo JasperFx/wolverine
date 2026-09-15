@@ -948,9 +948,21 @@ observability tooling:
 | `message.destination` | The endpoint URI the message was sent to / received at (when known)                    |
 | `tenant.id`           | The tenant id (when the message is tenant-scoped)                                       |
 | `source`              | The Wolverine `ServiceName` of the application emitting the metric                      |
+| `schedule.name`       | The `opts.Schedules` recurring schedule that published the occurrence (occurrences only) |
 
 The `wolverine-execution-failure` instrument additionally carries an `exception.type` tag. You can attach your
 own per-message tags with [`Envelope.SetMetricsTag`](#additional-metrics-tags).
+
+::: tip The `schedule.name` tag <Badge type="tip" text="6.38" />
+Occurrences published by a [recurring schedule](/guide/messaging/recurring) carry their schedule's name, so the
+success, failure and effective-time series can be sliced per cron job — `sum by (schedule.name, ...)` answers
+"which schedule is failing" without a separate instrument. It is read from the envelope header rather than set
+locally, so the attribution survives the hop to whichever node actually handles the occurrence.
+
+The occurrence *instant* is deliberately **not** a metrics tag — it takes a distinct value on every firing,
+which would make the series unbounded in cardinality. It rides the trace instead, as
+`wolverine.schedule.occurrence`.
+:::
 
 ::: tip The `source` tag <Badge type="tip" text="6.14.1" />
 Before 6.14.1 the `source` (service-name) tag was only present on `wolverine-messages-sent` and
