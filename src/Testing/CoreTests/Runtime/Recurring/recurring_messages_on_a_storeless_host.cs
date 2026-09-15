@@ -74,6 +74,14 @@ public class recurring_messages_on_a_storeless_host
         (occurrence.UtcDateTime.Second % 5).ShouldBe(0);
         occurrence.Offset.ShouldBe(TimeSpan.Zero);
         Math.Abs((occurrence - DateTimeOffset.UtcNow).TotalSeconds).ShouldBeLessThan(60);
+
+        // ...and the occurrence instant as a header in its own right (GH-4445), so a handler does
+        // not have to parse a dedup id that exists for another purpose to learn which firing it is
+        // serving. Same instant as the dedup id encodes, UTC, and round-trippable.
+        envelope.TryGetHeader(RecurringMessage.OccurrenceHeaderKey, out var occurrenceHeader).ShouldBeTrue();
+        var fromHeader = DateTimeOffset.Parse(occurrenceHeader!);
+        fromHeader.Offset.ShouldBe(TimeSpan.Zero);
+        fromHeader.ShouldBe(occurrence);
     }
 
     [Fact]

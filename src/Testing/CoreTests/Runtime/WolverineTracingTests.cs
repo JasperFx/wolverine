@@ -220,3 +220,36 @@ public class when_envelope_is_scheduled
         activity.GetTagItem(WolverineTracing.MessageScheduled).ShouldBeNull();
     }
 }
+
+public class when_envelope_is_a_recurring_occurrence
+{
+    [Fact]
+    public void tags_the_activity_with_the_schedule_name_and_occurrence()
+    {
+        var occurrence = new DateTimeOffset(2026, 9, 15, 9, 0, 0, TimeSpan.Zero);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Headers[RecurringMessage.HeaderKey] = "nightly-rollup";
+        envelope.Headers[RecurringMessage.OccurrenceHeaderKey] = occurrence.ToString("O");
+
+        var activity = new Activity("process");
+        envelope.WriteTags(activity);
+
+        activity.GetTagItem(WolverineTracing.ScheduleName).ShouldBe("nightly-rollup");
+
+        // The whole point of the header: ScheduledTime is cleared by the time a handler runs, so
+        // without this the occurrence is recoverable only by parsing the dedup id.
+        activity.GetTagItem(WolverineTracing.ScheduleOccurrence).ShouldBe(occurrence.ToString("O"));
+    }
+
+    [Fact]
+    public void no_occurrence_tag_for_an_ordinary_envelope()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        var activity = new Activity("process");
+        envelope.WriteTags(activity);
+
+        activity.GetTagItem(WolverineTracing.ScheduleOccurrence).ShouldBeNull();
+    }
+}

@@ -15,6 +15,20 @@ public sealed class RecurringMessage
     /// </summary>
     public const string HeaderKey = "recurring-schedule";
 
+    /// <summary>
+    /// The envelope header carrying the occurrence instant — which scheduled firing this envelope is —
+    /// on every occurrence this schedule publishes. Always UTC, written round-trippable ("O") so it
+    /// parses back with <see cref="DateTimeOffset.Parse(string)" />; stamps the
+    /// <c>wolverine.schedule.occurrence</c> tag onto the handler's OpenTelemetry activity.
+    /// <para>
+    /// This exists because <see cref="Envelope.ScheduledTime" /> is cleared by the scheduled
+    /// machinery at fire time, so by the time a handler sees the occurrence the instant is gone from
+    /// the envelope — recoverable only by string-parsing the deduplication id, which exists for an
+    /// unrelated purpose.
+    /// </para>
+    /// </summary>
+    public const string OccurrenceHeaderKey = "recurring-occurrence";
+
     internal RecurringMessage(string name, CronSchedule schedule, Type messageType,
         Func<DateTimeOffset, object> creator)
     {

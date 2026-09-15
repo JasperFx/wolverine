@@ -397,6 +397,13 @@ internal class RecurringMessageAgent : SingularAgent
         };
         options.Headers[RecurringMessage.HeaderKey] = message.Name;
 
+        // GH-4445. ScheduledTime is cleared by the scheduled machinery at fire time, so without this
+        // the handler cannot tell which firing it is serving except by string-parsing the dedup id,
+        // which exists for deduplication and not for attribution. Normalized to UTC and written
+        // round-trippable ("O") so it parses back to the same instant everywhere.
+        options.Headers[RecurringMessage.OccurrenceHeaderKey] =
+            occurrence.ToUniversalTime().ToString("O");
+
         // The routed-then-persisted spelling of IMessageBus.PublishAsync, taken apart only
         // because the public path never surfaces the envelopes (GH-4180's own analysis) and the
         // tracking row needs their ids. Everything else — routing, correlation stamping, the

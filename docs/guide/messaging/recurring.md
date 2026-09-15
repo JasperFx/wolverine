@@ -82,10 +82,18 @@ registration wires three things:
    types. An agent failover or restart that re-publishes the same occurrence is collapsed at
    consumption rather than executed twice. (The requirement is deliberately non-strict: publishing
    the same message type by hand, without an id, passes through untouched.)
-3. **Trace attribution.** Each occurrence carries its schedule's name in a `recurring-schedule`
-   envelope header, surfaced on the handler's OpenTelemetry activity as the
-   `wolverine.schedule.name` tag, so trace consumers can attribute work to the cron job that
-   caused it.
+3. **Attribution.** Each occurrence carries its schedule's name in a `recurring-schedule` envelope
+   header and the instant it fired for in a `recurring-occurrence` header (UTC, round-trippable),
+   surfaced on the handler's OpenTelemetry activity as the `wolverine.schedule.name` and
+   `wolverine.schedule.occurrence` tags. Trace consumers can therefore attribute work both to the
+   cron job that caused it and to the specific firing it is serving — which matters because
+   `ScheduledTime` is cleared by the scheduled machinery before the handler runs, so the occurrence
+   instant would otherwise only be recoverable by parsing the deduplication id. The schedule name is
+   additionally a [metrics tag](/guide/logging#standard-metrics-tags) (`schedule.name`) on every
+   message instrument, so success and failure rates can be sliced per schedule; the occurrence
+   instant is deliberately trace-only, since one distinct value per firing would make those series
+   unbounded in cardinality. Both headers round-trip every transport, so the attribution survives to
+   whichever node actually handles the occurrence.
 
 ## Cron expressions
 

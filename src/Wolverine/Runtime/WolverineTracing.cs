@@ -183,6 +183,14 @@ public static class WolverineTracing
     public const string ScheduleName = "wolverine.schedule.name";
 
     /// <summary>
+    /// The occurrence instant of the recurring schedule that published this envelope — which
+    /// scheduled firing this span belongs to — as a round-trippable UTC timestamp. Absent for
+    /// everything that is not a recurring-message occurrence. Deliberately a trace tag only and
+    /// never a metrics tag: one distinct value per firing would make it unbounded cardinality.
+    /// </summary>
+    public const string ScheduleOccurrence = "wolverine.schedule.occurrence";
+
+    /// <summary>
     /// Activity tag for the saga type full name when processing a saga message
     /// </summary>
     public const string SagaType = "wolverine.saga.type";

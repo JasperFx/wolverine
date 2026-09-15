@@ -47,6 +47,12 @@ public class MetricsConstants
     public const string MessagesFailed = "wolverine-execution-failure";
     public const string ExceptionType = "exception.type";
     public const string SourceKey = "source";
+
+    // GH-4445. The opts.Schedules schedule that published an occurrence, so the success / failure /
+    // effective-time counters can be sliced per cron job. Bounded cardinality -- schedule names are
+    // operator-defined and finite. The occurrence INSTANT is deliberately not here; it is a trace
+    // tag only, because one series per firing is unbounded.
+    public const string ScheduleNameKey = "schedule.name";
     public const string DatabaseKey = "database";
     public const string ServerKey = "server";
 }
