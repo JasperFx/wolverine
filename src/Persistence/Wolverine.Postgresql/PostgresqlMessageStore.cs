@@ -941,6 +941,13 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "text[]").AllowNulls();
 
+            // GH-3959: provisioned only behind the opt-in so an upgrade migrates nothing.
+            // PostgresqlNodePersistence gates every statement naming it on the same flag.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "double precision").AllowNulls();
+            }
+
             yield return nodeTable;
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
