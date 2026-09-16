@@ -253,7 +253,7 @@ that refers to the original message is completely processed. See [Durability and
 settlement](#durability-and-message-settlement) above for the full settlement model and why a durable listener
 is required for guaranteed delivery.
 
-## Waiting for batches to finish <Badge type="tip" text="6.35" />
+## Waiting for batches to finish <Badge type="tip" text="6.36" />
 
 Let's say you've got an integration test that causes some batched messages, and before the next test resets
 the database you want to be sure every one of those batches has actually run. Otherwise a batch sitting out its
