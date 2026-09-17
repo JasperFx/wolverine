@@ -410,9 +410,21 @@ where c.relname = '{tableName}';";
 
     private async Task fetchCountsWithGroupBy(PersistedCounts counts)
     {
+        // The second aggregate counts only the scheduled envelopes whose execution time has already
+        // passed — the ones the scheduled-job poller should have moved by now. It rides the same scan
+        // as a FILTER clause rather than a second query, so the due count costs nothing extra.
+        //
+        // Without it the stuck-scheduled-poller health signal read PersistedCounts.Scheduled, which
+        // counts envelopes that are simply not due yet, and reported a stuck poller for any deliberate
+        // delay longer than (check interval x threshold).
         await using var reader = await CreateCommand(
-                $"select status, count(*) from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} group by status")
+                $"select status, count(*), count(*) filter (where {DatabaseConstants.ExecutionTime} <= now()) " +
+                $"from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} group by status")
             .ExecuteReaderAsync();
+
+        // Zero rather than null: this store DOES report the due count, so "no scheduled envelopes at
+        // all" must read as zero due and not as "not measured".
+        counts.ScheduledDue = 0;
 
         while (await reader.ReadAsync())
         {
@@ -430,6 +442,7 @@ where c.relname = '{tableName}';";
             else if (status == EnvelopeStatus.Scheduled)
             {
                 counts.Scheduled = count;
+                counts.ScheduledDue = await reader.GetFieldValueAsync<int>(2);
             }
         }
 

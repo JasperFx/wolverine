@@ -23,9 +23,12 @@ namespace Wolverine.Persistence.Durability;
 ///    one. If the rate exceeds <see cref="DurabilitySettings.HealthDeadLetterGrowthPerMinuteThreshold"/>,
 ///    Degraded.
 ///
-/// 3. <b>Stuck recovery / scheduled-job pollers</b> — if persisted inbox+outbox or
-///    scheduled counts stay non-zero and never decrease across
-///    <see cref="DurabilitySettings.HealthStuckPollCycleThreshold"/> evaluations, Degraded.
+/// 3. <b>Stuck recovery / scheduled-job pollers</b> — if persisted inbox+outbox counts, or the count
+///    of scheduled envelopes that are already PAST their execution time
+///    (<see cref="PersistedCounts.ScheduledDue"/>), stay non-zero and never decrease across
+///    <see cref="DurabilitySettings.HealthStuckPollCycleThreshold"/> evaluations, Degraded. A store
+///    that does not report due counts stands the scheduled half down rather than reading
+///    <see cref="PersistedCounts.Scheduled"/>, which counts envelopes that are simply not due yet.
 ///
 /// Status precedence: Status != Running always returns Unhealthy first. Then
 /// consecutive-failure Unhealthy. Otherwise the worst of the remaining signals
@@ -179,14 +182,26 @@ public sealed class DurabilityHealthSignals
             _stuckRecoveryCycles = 0;
         }
 
-        if (counts.Scheduled > 0 && counts.Scheduled >= _previousCounts.Scheduled)
+        // A scheduled queue holding envelopes that are not due yet is a scheduled queue doing its job,
+        // so only the DUE ones are evidence that the poller is not moving them. Reading
+        // PersistedCounts.Scheduled here instead reported a stuck poller for any deliberate delay
+        // longer than (check interval x threshold): on one production fleet 254 of 271 active alerts —
+        // 94% — were this check, spread over 265 databases, and 114 of those databases were "degraded"
+        // over a SINGLE envelope deliberately scheduled 15 minutes out. Ordinary retry scheduling has
+        // the same shape, so the signal grew with correct usage.
+        //
+        // ⚠️ null is NOT MEASURED, and stands the signal down rather than guessing. A store that does
+        // not report due counts says nothing here, which is the same rule the property documents: a
+        // check that reads a number it cannot interpret is what produced the noise above.
+        var due = counts.ScheduledDue;
+        if (due is > 0 && due >= (_previousCounts.ScheduledDue ?? 0))
         {
             _stuckScheduledCycles++;
             if (_stuckScheduledCycles >= threshold)
             {
                 degraded.Add(
-                    $"Scheduled-job poller may be stuck — {counts.Scheduled} scheduled envelopes " +
-                    $"have not drained over {_stuckScheduledCycles} consecutive checks");
+                    $"Scheduled-job poller may be stuck — {due} scheduled envelopes are past their " +
+                    $"execution time and have not drained over {_stuckScheduledCycles} consecutive checks");
             }
         }
         else
@@ -202,6 +217,7 @@ public sealed class DurabilityHealthSignals
             Incoming = source.Incoming,
             Outgoing = source.Outgoing,
             Scheduled = source.Scheduled,
+            ScheduledDue = source.ScheduledDue,
             DeadLetter = source.DeadLetter,
             Handled = source.Handled
         };
