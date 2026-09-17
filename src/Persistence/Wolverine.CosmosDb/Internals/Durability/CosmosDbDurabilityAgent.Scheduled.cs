@@ -67,6 +67,16 @@ public partial class CosmosDbDurabilityAgent
     {
         var envelopes = incoming.Select(x => x.Read()).ToList();
 
+        // GH-4216. Stamp the envelope's owning store on each promoted message so the rest of the
+        // pipeline (DelegatingMessageInbox, DurableReceiver._markAsHandled) routes its writes back
+        // to THIS store. Every relational store does this in its own poller; without it an
+        // ancillary CosmosDb store's rows are marked handled against the MAIN store, match nothing,
+        // and are re-promoted on every pass. See GH-2576.
+        foreach (var envelope in envelopes)
+        {
+            envelope.Store = _parent;
+        }
+
         foreach (var message in incoming)
         {
             message.Status = EnvelopeStatus.Incoming;

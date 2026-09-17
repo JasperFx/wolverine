@@ -100,13 +100,23 @@ if the node dies.
 Wolverine publishes with confirms **disabled** by default: publishes are fire-and-forget at the
 AMQP level, which is fast, but a broker-side failure after the publish call can lose the
 message. Enabling confirms (`ConfigureChannelCreation(o => o.PublisherConfirmationsEnabled = true)`)
-makes every publish await the broker's acknowledgement — a per-publish round trip. Pick one
-durability mechanism deliberately: if you are already using Wolverine's durable outbox, the
-outbox provides the delivery guarantee and confirms mostly add latency; if you run without the
-outbox and cannot lose messages, turn confirms on and accept the cost. Also note Wolverine
-publishes with `mandatory: false`, so a message routed to a non-existent queue binding is
-silently dropped by the broker — provision your topology (or use `AutoProvision`) rather than
-relying on publish failures to surface binding mistakes.
+makes every publish await the broker's acknowledgement — a per-publish round trip. If you run
+without the outbox and cannot lose messages, turn confirms on and accept the cost.
+
+::: warning
+The durable outbox by itself does not cover you here. Without confirmation tracking,
+`BasicPublishAsync` returns as soon as the frame is written, so Wolverine's sending agent counts
+the publish as successful and deletes the envelope from the outbox — even if the broker goes on
+to refuse it (say, an `ACCESS_REFUSED` because the user lost write permission on that virtual
+host). The message is gone, and the transaction that enrolled it has already committed. If that
+failure mode matters to you, turn on **both** `PublisherConfirmationsEnabled` and
+`PublisherConfirmationTrackingEnabled` — with tracking on, the publish throws, the outbox row
+survives, and the agent retries.
+:::
+
+Also note Wolverine publishes with `mandatory: false`, so a message routed to a non-existent queue
+binding is silently dropped by the broker — provision your topology (or use `AutoProvision`)
+rather than relying on publish failures to surface binding mistakes.
 
 ## Back pressure closes the channel
 

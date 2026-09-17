@@ -80,6 +80,16 @@ Wolverine has no way of creating new virtual hosts in Rabbit MQ for you. You wil
 through either the Rabbit MQ admin site, the Rabbit MQ HTTP API, or the Rabbit MQ command line. 
 :::
 
+::: info
+Tenant connections aren't configured in isolation. `AutoProvision()`, the dead letter queue settings from
+`CustomizeDeadLetterQueueing()`, and the channel options from `ConfigureChannelCreation()` are all declared
+once on the parent and applied to every tenant connection -- including publisher confirms, which you very
+likely do want on every virtual host and not just the default one. See
+[publisher confirms](/guide/messaging/transports/rabbitmq/performance#publisher-confirms-are-off-by-default)
+for why. Virtual host tenants also inherit the parent's cluster nodes, while tenants pointed at a separate
+broker with `AddTenant(tenantId, Uri)` bring their own connection settings.
+:::
+
 In the code sample above, I'm setting up Rabbit MQ to "know" that there are four specific tenants identified as
 "one", "two", "three", and "four". I've also told Wolverine how to connect to Rabbit MQ separately for each 
 known tenant id. 
