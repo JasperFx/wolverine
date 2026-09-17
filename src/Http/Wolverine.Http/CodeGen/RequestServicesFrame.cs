@@ -10,6 +10,7 @@ namespace Wolverine.Http.CodeGen;
 internal class RequestServicesVariableSource : IVariableSource
 {
     private readonly Type _serviceType;
+    private RequestServicesFrame? _frame;
 
     public RequestServicesVariableSource(Type serviceType)
     {
@@ -23,7 +24,9 @@ internal class RequestServicesVariableSource : IVariableSource
 
     public Variable Create(Type type)
     {
-        return new RequestServicesFrame(type).Service;
+        // One frame per chain. A fresh frame per call declared the local twice when two methods took the type.
+        _frame ??= new RequestServicesFrame(type);
+        return _frame.Service;
     }
 }
 

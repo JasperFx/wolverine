@@ -258,6 +258,22 @@ public class service_location_assertions
         UseThingHandler.LastSeen.ShouldBeOfType<BigThing>();
     }
 
+    // LoadAsync and Delete both take the SourceServiceFromHttpContext<IThing>() service as `IThing thing`
+    [Fact]
+    public async Task compound_handler_sharing_an_http_context_sourced_service_compiles()
+    {
+        await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped, opts =>
+        {
+            opts.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
+        });
+
+        await host.Scenario(x =>
+        {
+            x.Delete.Url($"/gizmos/{Guid.NewGuid()}");
+            x.StatusCodeShouldBe(204);
+        });
+    }
+
     [Theory]
     [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
     [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
@@ -331,6 +347,18 @@ public static class UseWidgetHandler
 }
 
 public record UseThing;
+
+public record Gizmo(Guid Id);
+
+public static class GizmoEndpoint
+{
+    public static Task<Gizmo?> LoadAsync(Guid id, IThing thing, IFlag flag)
+        => Task.FromResult<Gizmo?>(new Gizmo(id));
+
+    [WolverineDelete("/gizmos/{id}")]
+    public static IResult Delete([NotBody] Gizmo gizmo, IThing thing, IFlag flag)
+        => Results.NoContent();
+}
 
 public static class UseThingHandler
 {
