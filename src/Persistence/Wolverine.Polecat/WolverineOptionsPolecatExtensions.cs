@@ -41,22 +41,7 @@ public static class WolverineOptionsPolecatExtensions
         this PolecatConfigurationExpression expression,
         Action<PolecatIntegration>? configure = null)
     {
-        var integration = expression.Services.FindPolecatIntegration();
-        if (integration == null)
-        {
-            integration = new PolecatIntegration();
-
-            configure?.Invoke(integration);
-
-            expression.Services.AddSingleton(integration);
-            expression.Services.AddSingleton<IWolverineExtension>(integration);
-        }
-        else
-        {
-            configure?.Invoke(integration);
-        }
-
-        expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
+        var integration = expression.Services.AddCorePolecatWiring(configure);
 
         expression.Services.AddScoped<IPolecatOutbox, PolecatOutbox>();
 
@@ -66,8 +51,9 @@ public static class WolverineOptionsPolecatExtensions
         // (PrimeScopedSessionFrame). Decorate Polecat's own IDocumentSession / IQuerySession scoped
         // registrations so service-located resolution prefers that primed session -- enrolled with the
         // active outbox -- instead of a separate, un-enrolled session. Non-handler scopes (the holder is
-        // empty) fall back to Polecat's original session factory.
-        expression.Services.AddScoped<ScopedDocumentSessionHolder>();
+        // empty) fall back to Polecat's original session factory. (The holder itself is registered by
+        // AddCorePolecatWiring, because PolecatIntegration's scoping frame source needs it whether or
+        // not this host has a main store.)
         expression.Services.PreferPrimedSession<IDocumentSession>(primedSession);
         expression.Services.PreferPrimedSession<IQuerySession>(primedSession);
 
@@ -133,14 +119,6 @@ public static class WolverineOptionsPolecatExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
-        // a Polecat ancillary store by resolving this provider from the store marker type. Registered
-        // here (not in PolecatIntegration.Configure) so the singleton is present in the codegen-time
-        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
-        // even when multiple Polecat stores integrate.
-        expression.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, PolecatAncillaryStoreFrameProvider>());
-
         // CritterWatch / saga-explorer diagnostic surface — Polecat
         // builds a SqlServerMessageStore underneath, so the lightweight
         // SQL Server saga storage owns every Polecat-driven saga. The
@@ -178,6 +156,67 @@ public static class WolverineOptionsPolecatExtensions
         }
 
         return expression;
+    }
+
+    /// <summary>
+    ///     The part of the Polecat integration that is a fact about <em>Polecat being in this
+    ///     application</em> rather than about the main <c>IDocumentStore</c>: the codegen strategies,
+    ///     chain policies and handler discovery rules that <see cref="PolecatIntegration" /> carries, plus
+    ///     the ancillary-store frame provider. Called by both
+    ///     <see cref="IntegrateWithWolverine(PolecatConfigurationExpression,Action{PolecatIntegration})" />
+    ///     and the ancillary
+    ///     <see cref="AncillaryWolverineOptionsPolecatExtensions.IntegrateWithWolverine{T}" />, whichever
+    ///     the application calls first.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4462, the Polecat twin of GH-4456. This used to live inline in the main-store overload only,
+    ///     which meant a host whose only Polecat stores were ancillary -- a modular monolith that gives
+    ///     each bounded context its own store and has no main store because nothing needs one -- never got
+    ///     <c>InsertFirstPersistenceStrategy&lt;PolecatPersistenceFrameProvider&gt;()</c>. The declarative
+    ///     persistence attributes then fell through to the catch-all
+    ///     <c>InMemoryPersistenceFrameProvider</c>, and the generated handler read its <c>[Entity]</c> out
+    ///     of an in-memory dictionary that nothing ever populates: the entity was always null, the
+    ///     not-null guard stopped the chain, and the handler never ran -- with no exception and nothing
+    ///     logged.
+    ///     <para>
+    ///     Every registration here is idempotent (<c>TryAdd</c>, <c>TryAddEnumerable</c>, or guarded by
+    ///     <see cref="FindPolecatIntegration" />) because a host with a main store <em>and</em> ancillary
+    ///     stores reaches this from both directions, in either order.
+    ///     </para>
+    /// </remarks>
+    internal static PolecatIntegration AddCorePolecatWiring(this IServiceCollection services,
+        Action<PolecatIntegration>? configure)
+    {
+        var integration = services.FindPolecatIntegration();
+        if (integration == null)
+        {
+            integration = new PolecatIntegration();
+
+            configure?.Invoke(integration);
+
+            services.AddSingleton(integration);
+            services.AddSingleton<IWolverineExtension>(integration);
+        }
+        else
+        {
+            configure?.Invoke(integration);
+        }
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IWolverineExtension, MapEventTypeMessages>());
+
+        // PolecatIntegration.Configure adds a PrimeScopedSessionFrame over this holder, so it has to be
+        // registered wherever the integration is -- an ancillary-only host included (GH-4145).
+        services.TryAddScoped<ScopedDocumentSessionHolder>();
+
+        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
+        // a Polecat ancillary store by resolving this provider from the store marker type. Registered
+        // here (not in PolecatIntegration.Configure) so the singleton is present in the codegen-time
+        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
+        // even when multiple Polecat stores integrate.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, PolecatAncillaryStoreFrameProvider>());
+
+        return integration;
     }
 
     // GH-4145: the scope-primed session (the outbox-enrolled session the handler is using), or null
