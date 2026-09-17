@@ -113,7 +113,7 @@ builder.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L225-L266' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L241-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Message Identity](/guide/durability/#message-identity) and [Multiple Handlers for the Same Message Type](/guide/handlers/#multiple-handlers-for-the-same-message-type)
@@ -237,7 +237,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L102-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L118-L139' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using local queues for communication is a simple way to get started, requires less deployment overhead in general, and is potentially
@@ -280,7 +280,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L358-L381' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_broker_routing_with_local_routing_turned_off' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L670-L693' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_broker_routing_with_local_routing_turned_off' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By using external queues instead of local queues, you are:
@@ -438,7 +438,34 @@ through database scripts if you want to move a module into a separate service la
 if you use [Marten's separate document store](https://martendb.io/configuration/hostbuilder.html#working-with-multiple-marten-databases) feature. 
 
 Wolverine has [direct support for Marten's separate or "ancillary" stores](/guide/durability/marten/ancillary-stores) that still enables the usage of all Wolverine + Marten
-integrations. 
+integrations. The same support exists for [Polecat](/guide/durability/polecat/ancillary-stores) and
+[Fisher](/guide/durability/fisher/), so the choice of store does not change the shape of your modules.
+
+### Pointing a module at its own store <Badge type="tip" text="6.39" />
+
+Once a module has its own store, every handler in it has to commit through that store rather than the main one.
+Wolverine has always had the `[Storage(typeof(IOrdersStore))]` attribute for that, but in a modular monolith the
+attribute is on *every* handler in the module, repeating a fact that is really a property of the module itself. Miss
+one and it quietly commits to the wrong database.
+
+So say it once, where you configure the module:
+
+```cs
+// In the module's IWolverineExtension, or wherever you bootstrap it
+opts.Policies.UseAncillaryStorageFromAssemblyContaining<OrdersModule>(typeof(IOrdersStore));
+```
+
+Every message handler, HTTP endpoint and gRPC service in that assembly now commits through `IOrdersStore`. This
+lines up nicely with the rest of the modular monolith story: the module is already an assembly, and this makes the
+assembly boundary carry the storage decision too, rather than leaving it scattered across the handlers.
+
+An explicit `[Storage]` on a single handler still wins, which is what you want for the occasional type that
+legitimately belongs to a different store.
+
+::: tip
+If any of your modules expose gRPC services, this is the only mechanism that will work for them. The gRPC chains
+never apply chain-modifying attributes, so `[Storage]` on a gRPC service compiles, looks right, and does nothing.
+:::
 
 Also note that the Wolverine + Marten "Critter Stack" combination is a great fit for "Event Driven Architecture" approaches
 where you depend on reliably publishing event messages to interested listeners in your application -- which is essentially 
@@ -462,7 +489,7 @@ by using this setting:
 // for all modules for more efficient usage of resources
 opts.Durability.MessageStorageSchemaName = "wolverine";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L61-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L60-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By setting any value for `WolverineOptions.Durability.MessageStorageSchemaName`, Wolverine will use that value for the database schema

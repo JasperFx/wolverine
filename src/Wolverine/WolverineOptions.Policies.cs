@@ -262,6 +262,24 @@ public sealed partial class WolverineOptions : IPolicies
         WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
     }
 
+    /// <summary>
+    ///     Route every message handler, HTTP endpoint and gRPC service in the assembly to an ancillary
+    ///     store. See <see cref="IPolicies.UseAncillaryStorageFromAssembly" />.
+    /// </summary>
+    void IPolicies.UseAncillaryStorageFromAssembly(Type storeType, Assembly assembly)
+    {
+        RegisteredPolicies.Add(new AncillaryStorageByAssemblyPolicy(storeType, assembly));
+    }
+
+    /// <summary>
+    ///     Route every message handler, HTTP endpoint and gRPC service in the assembly containing
+    ///     <typeparamref name="T" /> to an ancillary store.
+    /// </summary>
+    void IPolicies.UseAncillaryStorageFromAssemblyContaining<T>(Type storeType)
+    {
+        Policies.UseAncillaryStorageFromAssembly(storeType, typeof(T).Assembly);
+    }
+
     MessageTypePolicies<T> IPolicies.ForMessagesOfType<T>()
     {
         return new MessageTypePolicies<T>(this);

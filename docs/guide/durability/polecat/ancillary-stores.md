@@ -97,9 +97,35 @@ public static class PlayerMessageHandler
 ```
 
 This is handy when a set of handlers is shared across a Marten flavor and a Polecat/SQL-Server flavor of an
-application -- one attribute, both stores. If you want to route an entire assembly of handlers to one ancillary store
-without per-handler attributes, call `chain.UsePolecatStore(storeType)` (or the provider-agnostic
-`chain.UseAncillaryStorage(storeType, container)`) from an `IChainPolicy`.
+application -- one attribute, both stores.
+
+## Routing a whole module at once <Badge type="tip" text="6.39" />
+
+In a modular monolith one module's assembly usually maps to exactly one store, and marking every handler in it gets
+old fast. Declare it once instead:
+
+```cs
+// Every message handler, HTTP endpoint and gRPC service in this assembly commits
+// through the IPlayerStore ancillary store -- no per-handler attributes.
+opts.Policies.UseAncillaryStorageFromAssembly(typeof(IPlayerStore), typeof(SomeModuleType).Assembly);
+
+// ...or name the module by one of its types:
+opts.Policies.UseAncillaryStorageFromAssemblyContaining<SomeModuleType>(typeof(IPlayerStore));
+```
+
+That covers **message handlers, Wolverine.HTTP endpoints and gRPC services** in that assembly. An explicit
+`[Storage]` or `[PolecatStore]` on a type or method still wins, so a single handler can opt out of its module's
+default without turning the policy off.
+
+::: tip
+For gRPC this is not just a convenience -- it is the only thing that works. The gRPC chains never apply
+chain-modifying attributes, so `[Storage]` on a gRPC service is silently ignored, and an assembly policy is the only
+way to point one at an ancillary store.
+:::
+
+If you need finer control than "everything in this assembly", write your own `IChainPolicy` and call
+`chain.UsePolecatStore(storeType)` (or the provider-agnostic `chain.UseAncillaryStorage(storeType, container)`) on
+whichever chains you choose.
 
 ## Multi-tenancy through separate databases
 

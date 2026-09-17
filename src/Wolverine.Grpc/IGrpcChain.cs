@@ -31,7 +31,7 @@ namespace Wolverine.Grpc;
 ///         endpoint up.
 ///     </para>
 /// </remarks>
-public interface IGrpcChain : IChain, IEndpointConventionBuilder
+public interface IGrpcChain : IChain, IEndpointConventionBuilder, IChainSourceType
 {
     /// <summary>
     ///     The type this chain was built from: the proto-first stub, the code-first

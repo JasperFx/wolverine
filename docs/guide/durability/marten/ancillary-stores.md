@@ -26,7 +26,7 @@ public interface IPlayerStore : IDocumentStore;
 
 public interface IThingStore : IDocumentStore;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L268-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L275-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 We can add Wolverine integration to both through a similar call to `IntegrateWithWolverine()` as normal as shown below:
@@ -79,7 +79,7 @@ theHost = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L57-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L56-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's specifically zoom in on this code from within the big sample above:
@@ -92,7 +92,7 @@ Let's specifically zoom in on this code from within the big sample above:
 // for all modules for more efficient usage of resources
 opts.Durability.MessageStorageSchemaName = "wolverine";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L61-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L60-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you are using separate Marten document stores for different modules in your application, you can easily make Wolverine 
@@ -119,7 +119,7 @@ public static class PlayerMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L253-L266' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L260-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -147,11 +147,42 @@ public static class PlayerMessageHandler
 }
 ```
 
-To route a whole assembly of handlers to one ancillary store from an `IChainPolicy` without per-handler attributes,
-call `chain.UseMartenStore(storeType)` (or the provider-agnostic `chain.UseAncillaryStorage(storeType, container)`).
+## Routing a whole module at once <Badge type="tip" text="6.39" />
+
+In a modular monolith one module's assembly usually maps to exactly one store, and marking every handler in it
+gets old fast. Declare it once instead:
+
+<!-- snippet: sample_use_ancillary_storage_from_assembly -->
+<a id='snippet-sample_use_ancillary_storage_from_assembly'></a>
+```cs
+// Every message handler, HTTP endpoint and gRPC service in this assembly commits
+// through the IByAssemblyModuleStore ancillary store -- no per-handler attributes.
+opts.Policies.UseAncillaryStorageFromAssembly(typeof(IByAssemblyModuleStore),
+    typeof(ByAssemblyModuleHandler).Assembly);
+
+// ...or name the module by one of its types instead of its Assembly:
+//     opts.Policies.UseAncillaryStorageFromAssemblyContaining<SomeModuleType>(
+//         typeof(IByAssemblyModuleStore));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/ancillary_storage_by_assembly.cs#L64-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_ancillary_storage_from_assembly' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+That covers **message handlers, Wolverine.HTTP endpoints and gRPC services** in that assembly. An explicit
+`[Storage]` or `[MartenStore]` on a type or method still wins, so a single handler can opt out of its module's
+default without turning the policy off.
 
 ::: tip
-The attribute (or `UseMartenStore()` / `UseAncillaryStorage()`) is the *only* thing that moves a handler's transaction
+For gRPC this is not just a convenience -- it is the only thing that works. The gRPC chains never apply
+chain-modifying attributes, so `[Storage]` on a gRPC service is silently ignored, and an assembly policy is the
+only way to point one at an ancillary store.
+:::
+
+If you need finer control than "everything in this assembly", write your own `IChainPolicy` and call
+`chain.UseMartenStore(storeType)` (or the provider-agnostic `chain.UseAncillaryStorage(storeType, container)`)
+on whichever chains you choose.
+
+::: tip
+The attribute, the assembly policy, or `UseMartenStore()` / `UseAncillaryStorage()` is the *only* thing that moves a handler's transaction
 and its inbox/dead letter bookkeeping to an ancillary store. Injecting an ancillary store interface — directly, or
 through another service that takes one — to run read-only queries changes nothing: the handler keeps committing
 through the main store's `IDocumentSession`, and its envelopes stay in the main store's inbox.
