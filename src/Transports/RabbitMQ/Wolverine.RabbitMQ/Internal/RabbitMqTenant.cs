@@ -56,6 +56,13 @@ internal class RabbitMqTenant
 
         CloneDeadLetterQueue(parent);
 
+        // Channel creation options -- most importantly publisher confirmations and
+        // confirmation tracking -- are declared on the parent transport, and there is
+        // no public way to reach a tenant's transport to set them separately. Without
+        // this, a tenant channel silently publishes without confirms, and a broker
+        // refusal is never seen by the durable sending agent.
+        Transport.ChannelCreationOptions ??= parent.ChannelCreationOptions;
+
         return Transport!;
     }
 
