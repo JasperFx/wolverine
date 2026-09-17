@@ -58,6 +58,15 @@ public static class AncillaryWolverineOptionsFisherExtensions
         var integration = new AncillaryFisherIntegration();
         configure?.Invoke(integration);
 
+        // GH-4463: the codegen strategies, chain policies and handler discovery rules that make Fisher
+        // usable from a handler are a fact about Fisher being in the application, not about the main
+        // store -- so an ancillary store has to establish them too. Before this, a host whose only Fisher
+        // stores were ancillary never registered FisherPersistenceFrameProvider at all: [Entity] and its
+        // siblings silently resolved to the catch-all InMemoryPersistenceFrameProvider, read the document
+        // out of a dictionary nothing populates, and the not-null guard stopped the chain before the
+        // handler ran. Idempotent, so a host that also has a main store is unaffected in either call order.
+        expression.Services.AddCoreFisherWiring(null);
+
         expression.Services.AddSingleton<IConfigureFisher<T>, FisherOverrides<T>>();
 
         // GH-3365: do NOT bridge JasperFx.Events.IEventStore for T here, unlike the Polecat twin.
