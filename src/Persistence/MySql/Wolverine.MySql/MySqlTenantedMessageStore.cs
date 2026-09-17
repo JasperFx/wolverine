@@ -108,6 +108,14 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
 
         var store = new MySqlMessageStore(settings, _runtime.Options.Durability, source,
             _runtime.LoggerFactory.CreateLogger<MySqlMessageStore>(), _sagaTables);
+
+        // Same naming as the connection string path above. Left unset, every tenant registered by
+        // MySqlDataSource kept the "default" name -- and both MultiTenantedQueueListener and
+        // MultiTenantedQueueSender cache per database BY NAME, so all of them collapsed onto one entry:
+        // only the first tenant database ever got a listener, and every tenant after the first sent its
+        // messages into the first one's database.
+        store.Name = store.Describe().DatabaseUri().ToString();
+
         return store;
     }
 

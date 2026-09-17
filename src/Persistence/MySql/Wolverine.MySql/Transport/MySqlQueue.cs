@@ -135,6 +135,12 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
 
     private void buildSenderIfMissing()
     {
+        // "IfMissing" was aspirational: without this guard every call built ANOTHER sender, and on a
+        // multi-tenanted host that meant a fresh MultiTenantedQueueSender -- with its own SemaphoreSlim and
+        // CancellationTokenSource, neither ever disposed, and an empty per-database cache -- for every
+        // single send. Matches the SQL Server and SQLite twins, which have always had the guard.
+        if (_sender != null) return;
+
         if (Parent.Databases != null)
         {
             _sender = new MultiTenantedQueueSender(this, Parent.Databases);
