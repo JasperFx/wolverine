@@ -39,22 +39,7 @@ public static class WolverineOptionsFisherExtensions
         this FisherConfigurationExpression expression,
         Action<FisherIntegration>? configure = null)
     {
-        var integration = expression.Services.FindFisherIntegration();
-        if (integration == null)
-        {
-            integration = new FisherIntegration();
-
-            configure?.Invoke(integration);
-
-            expression.Services.AddSingleton(integration);
-            expression.Services.AddSingleton<IWolverineExtension>(integration);
-        }
-        else
-        {
-            configure?.Invoke(integration);
-        }
-
-        expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
+        var integration = expression.Services.AddCoreFisherWiring(configure);
 
         expression.Services.AddScoped<IFisherOutbox, FisherOutbox>();
 
@@ -64,8 +49,9 @@ public static class WolverineOptionsFisherExtensions
         // (PrimeScopedSessionFrame). Decorate Fisher's own IDocumentSession / IQuerySession scoped
         // registrations so service-located resolution prefers that primed session -- enrolled with the
         // active outbox -- instead of a separate, un-enrolled session. Non-handler scopes (the holder is
-        // empty) fall back to Fisher's original session factory.
-        expression.Services.AddScoped<ScopedDocumentSessionHolder>();
+        // empty) fall back to Fisher's original session factory. (The holder itself is registered by
+        // AddCoreFisherWiring, because FisherIntegration's scoping frame source needs it whether or not
+        // this host has a main store.)
         expression.Services.PreferPrimedSession<IDocumentSession>(primedSession);
         expression.Services.PreferPrimedSession<IQuerySession>(primedSession);
 
@@ -124,14 +110,6 @@ public static class WolverineOptionsFisherExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
-        // a Fisher ancillary store by resolving this provider from the store marker type. Registered
-        // here (not in FisherIntegration.Configure) so the singleton is present in the codegen-time
-        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
-        // even when several Fisher stores integrate.
-        expression.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, FisherAncillaryStoreFrameProvider>());
-
         // CritterWatch / saga-explorer diagnostic surface — Fisher
         // builds a SqliteMessageStore underneath, so the lightweight
         // SQLite saga storage owns every Fisher-driven saga. The
@@ -157,6 +135,68 @@ public static class WolverineOptionsFisherExtensions
         // the same reason. Run the daemon in Solo mode via Fisher's own AddAsyncDaemon().
 
         return expression;
+    }
+
+    /// <summary>
+    ///     The part of the Fisher integration that is a fact about <em>Fisher being in this
+    ///     application</em> rather than about the main <c>IDocumentStore</c>: the codegen strategies, chain
+    ///     policies and handler discovery rules that <see cref="FisherIntegration" /> carries, plus the
+    ///     ancillary-store frame provider. Called by both
+    ///     <see cref="IntegrateWithWolverine(FisherConfigurationExpression,Action{FisherIntegration})" />
+    ///     and the ancillary
+    ///     <see cref="AncillaryWolverineOptionsFisherExtensions.IntegrateWithWolverine{T}" />, whichever
+    ///     the application calls first.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4463, the Fisher twin of GH-4456. This used to live inline in the main-store overload only,
+    ///     which meant a host whose only Fisher stores were ancillary never got
+    ///     <c>InsertFirstPersistenceStrategy&lt;FisherPersistenceFrameProvider&gt;()</c>. The declarative
+    ///     persistence attributes then fell through to the catch-all
+    ///     <c>InMemoryPersistenceFrameProvider</c>, and the generated handler read its <c>[Entity]</c> out
+    ///     of an in-memory dictionary that nothing ever populates: the entity was always null, the
+    ///     not-null guard stopped the chain, and the handler never ran -- with no exception and nothing
+    ///     logged. A Fisher store IS a SQLite file, so "one store per module, no main store" is close to
+    ///     the natural layout for a Fisher modular monolith -- which makes this the store where an
+    ///     ancillary-only host is least exotic.
+    ///     <para>
+    ///     Every registration here is idempotent (<c>TryAdd</c>, <c>TryAddEnumerable</c>, or guarded by
+    ///     <see cref="FindFisherIntegration" />) because a host with a main store <em>and</em> ancillary
+    ///     stores reaches this from both directions, in either order.
+    ///     </para>
+    /// </remarks>
+    internal static FisherIntegration AddCoreFisherWiring(this IServiceCollection services,
+        Action<FisherIntegration>? configure)
+    {
+        var integration = services.FindFisherIntegration();
+        if (integration == null)
+        {
+            integration = new FisherIntegration();
+
+            configure?.Invoke(integration);
+
+            services.AddSingleton(integration);
+            services.AddSingleton<IWolverineExtension>(integration);
+        }
+        else
+        {
+            configure?.Invoke(integration);
+        }
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IWolverineExtension, MapEventTypeMessages>());
+
+        // FisherIntegration.Configure adds a PrimeScopedSessionFrame over this holder, so it has to be
+        // registered wherever the integration is -- an ancillary-only host included (GH-4145).
+        services.TryAddScoped<ScopedDocumentSessionHolder>();
+
+        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
+        // a Fisher ancillary store by resolving this provider from the store marker type. Registered
+        // here (not in FisherIntegration.Configure) so the singleton is present in the codegen-time
+        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
+        // even when several Fisher stores integrate.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, FisherAncillaryStoreFrameProvider>());
+
+        return integration;
     }
 
     // GH-4145: the scope-primed session (the outbox-enrolled session the handler is using), or null
