@@ -74,6 +74,13 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource
 
         store = new SqlServerMessageStore(settings, _runtime.Options.Durability,
             _runtime.LoggerFactory.CreateLogger<SqlServerMessageStore>(), _sagaTables);
+
+        // Left unset, every tenant store kept the "default" name -- and both MultiTenantedQueueListener and
+        // MultiTenantedQueueSender cache per database BY NAME. The sender keys that map by tenant id AND by
+        // store name, so the second tenant hit the first tenant's entry and sent its messages into the wrong
+        // database. Matches what the PostgreSQL, MySQL, SQLite and Oracle tenancies already do.
+        store.Name = store.Describe().DatabaseUri().ToString();
+
         _persistence.ApplyStoreConfigurations(store);
         return store;
     }
