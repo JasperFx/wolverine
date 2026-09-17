@@ -320,6 +320,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Troubleshooting and Leadership Election', link: '/guide/durability/leadership-and-troubleshooting'},
                         {text: 'Connection Budgets', link: '/guide/durability/connection-budgets'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
+                        {text: 'Unit Testing Aggregate Handlers', link: '/guide/durability/unit-testing-aggregate-handlers'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/',  collapsed: false, items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/marten/transactional-middleware'},
                                 {text: 'Transactional Outbox Support', link: '/guide/durability/marten/outbox'},

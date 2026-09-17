@@ -10,6 +10,11 @@ agnostic spelling, which is the one to prefer in new code.
 :::
 
 ::: tip
+For unit testing one of these handlers without a database, see
+[Unit Testing Aggregate Handlers](/guide/durability/unit-testing-aggregate-handlers).
+:::
+
+::: tip
 Only use the "aggregate handler workflow" if you are wanting to potentially write new events to an existing event stream. If all you
 need in a message handler or HTTP endpoint is a read-only copy of an event streamed aggregate from Marten, use the `[ReadAggregate]` attribute
 instead that has a little bit lighter weight runtime within Marten.
@@ -569,7 +574,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L151-L169' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L153-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Forwarding Events
@@ -791,7 +796,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L151-L169' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L153-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There is also an option with `OnMissing` to throw a `RequiredDataMissingException` exception if a required data element
@@ -901,8 +906,9 @@ public class when_transfering_money
     [Fact]
     public void happy_path_have_enough_funds()
     {
-        // StubEventStream<T> is a type that was recently added to Marten
-        // specifically to facilitate testing logic like this
+        // StubEventStream<T> lives in JasperFx.Events, so this same test shape works
+        // against Marten, Polecat or Fisher. See the "Unit Testing Aggregate Handlers"
+        // page for the whole pattern.
         var fromAccount = new StubEventStream<Account>(new Account { Amount = 1000 })
         {
             Id = Guid.NewGuid()
@@ -921,7 +927,7 @@ public class when_transfering_money
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L163-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L163-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Finer-Grained Optimistic Concurrency in Multi-Stream Operations <Badge type="tip" text="5.17" />
@@ -1287,7 +1293,7 @@ public record NkHandlerOrderCreated(NkHandlerOrderNumber OrderNumber, string Cus
 public record NkHandlerItemAdded(string ItemName, decimal Price);
 public record NkHandlerOrderCompleted;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L124-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L134-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using Natural Keys in Command Handlers
@@ -1301,7 +1307,7 @@ public record AddNkOrderItem(NkHandlerOrderNumber OrderNum, string ItemName, dec
 public record AddNkOrderItems(NkHandlerOrderNumber OrderNum, (string Name, decimal Price)[] Items);
 public record CompleteNkOrder(NkHandlerOrderNumber OrderNum);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L162-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_commands' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L172-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
@@ -1337,7 +1343,7 @@ public static class NkOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L169-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L179-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more details on how natural keys work at the Marten level, see the [Marten natural keys documentation](https://martendb.io/events/natural-keys).

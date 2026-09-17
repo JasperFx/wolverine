@@ -92,6 +92,9 @@ public static class ShipOrderHandler
 See [Event Sourced Models](/guide/handlers/persistence.html#event-sourced-models) for the full
 vocabulary — `[WriteModel]`, `[ReadModel]`, `[DeciderFunction]` and `[DcbModel]`.
 
+That handler is also unit testable without a database -- see
+[Unit Testing Aggregate Handlers](/guide/durability/unit-testing-aggregate-handlers).
+
 ## Ancillary stores
 
 A second Fisher store registered with `AddFisherStore<T>()` integrates the same way, and the
