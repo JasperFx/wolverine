@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Wolverine.Configuration;
 
 namespace Wolverine.Grpc;
 
@@ -17,6 +18,13 @@ public partial class GrpcServiceChain : IGrpcChain
     /// <inheritdoc />
     /// <remarks>The proto-first stub type this chain wraps.</remarks>
     Type IGrpcChain.ServiceType => StubType;
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4477. The core-side spelling of <see cref="IGrpcChain.ServiceType" />. Implemented on each
+    ///     chain rather than as a default member on <see cref="IGrpcChain" /> so the dispatch is explicit.
+    /// </remarks>
+    Type IChainSourceType.SourceType => StubType;
 
     /// <summary>
     ///     Add an ASP.NET endpoint convention to this service's generated gRPC endpoint. Applied when
@@ -40,6 +48,13 @@ public partial class CodeFirstGrpcServiceChain : IGrpcChain
     /// <remarks>The <c>[ServiceContract]</c> interface this chain implements.</remarks>
     Type IGrpcChain.ServiceType => ServiceContractType;
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4477. The core-side spelling of <see cref="IGrpcChain.ServiceType" />. Implemented on each
+    ///     chain rather than as a default member on <see cref="IGrpcChain" /> so the dispatch is explicit.
+    /// </remarks>
+    Type IChainSourceType.SourceType => ServiceContractType;
+
     /// <summary>
     ///     Add an ASP.NET endpoint convention to this service's generated gRPC endpoint. Applied when
     ///     the generated type is mapped, so <c>RequireAuthorization()</c> here reaches the router
@@ -61,6 +76,13 @@ public partial class HandWrittenGrpcServiceChain : IGrpcChain
     /// <inheritdoc />
     /// <remarks>The user's concrete service class, not the generated delegation wrapper.</remarks>
     Type IGrpcChain.ServiceType => ServiceClassType;
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4477. The core-side spelling of <see cref="IGrpcChain.ServiceType" />. Implemented on each
+    ///     chain rather than as a default member on <see cref="IGrpcChain" /> so the dispatch is explicit.
+    /// </remarks>
+    Type IChainSourceType.SourceType => ServiceClassType;
 
     /// <summary>
     ///     Add an ASP.NET endpoint convention to this service's generated gRPC endpoint. Applied when

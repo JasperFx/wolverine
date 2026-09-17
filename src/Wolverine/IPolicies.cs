@@ -167,6 +167,34 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void RegisterInteropMessageAssembly(Assembly assembly);
 
     /// <summary>
+    ///     Route every message handler, HTTP endpoint and gRPC service in <paramref name="assembly" /> to
+    ///     the ancillary (secondary) store identified by <paramref name="storeType" />, instead of marking
+    ///     each type with <c>[Storage(typeof(IMyStore))]</c>. Intended for modular monoliths, where one
+    ///     module's assembly maps to one store.
+    /// </summary>
+    /// <remarks>
+    ///     An explicit <c>[Storage]</c>, <c>[MartenStore]</c>, <c>[PolecatStore]</c> or
+    ///     <c>[FisherStore]</c> on a type or method still wins, so a single handler can opt out of its
+    ///     module's default. Note this is also the only way to reach an ancillary store from a gRPC
+    ///     service: the gRPC chains never apply chain attributes, so <c>[Storage]</c> is silently
+    ///     ignored there.
+    /// </remarks>
+    /// <param name="storeType">The store marker type, e.g. <c>typeof(IPlayerStore)</c></param>
+    /// <param name="assembly">Every handler, endpoint and gRPC service in this assembly is routed</param>
+    void UseAncillaryStorageFromAssembly(Type storeType, Assembly assembly);
+
+    /// <summary>
+    ///     Route every message handler, HTTP endpoint and gRPC service in the assembly that contains
+    ///     <typeparamref name="T" /> to the ancillary (secondary) store identified by
+    ///     <paramref name="storeType" />. Sugar over
+    ///     <see cref="UseAncillaryStorageFromAssembly" /> for the common case of naming a module by one
+    ///     of its types.
+    /// </summary>
+    /// <param name="storeType">The store marker type, e.g. <c>typeof(IPlayerStore)</c></param>
+    /// <typeparam name="T">Any type in the module's assembly</typeparam>
+    void UseAncillaryStorageFromAssemblyContaining<T>(Type storeType);
+
+    /// <summary>
     ///     Write a log message with the given log level when message execution starts.
     ///     This would also include any audited members of the message
     /// </summary>
