@@ -10,6 +10,11 @@ agnostic spelling, which is the one to prefer in new code.
 :::
 
 ::: tip
+For unit testing one of these handlers without a database, see
+[Unit Testing Aggregate Handlers](/guide/durability/unit-testing-aggregate-handlers).
+:::
+
+::: tip
 Only use the "aggregate handler workflow" if you are wanting to potentially write new events to an existing event stream. If all you
 need in a message handler or HTTP endpoint is a read-only copy of an event streamed aggregate from Polecat, use the `[ReadAggregate]` attribute
 instead that has a little bit lighter weight runtime within Polecat.

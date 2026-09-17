@@ -1,5 +1,5 @@
+using JasperFx.Events;
 using Marten;
-using Marten.Events;
 using Shouldly;
 using WolverineWebApi.Accounts;
 
@@ -166,8 +166,9 @@ public class when_transfering_money
     [Fact]
     public void happy_path_have_enough_funds()
     {
-        // StubEventStream<T> is a type that was recently added to Marten
-        // specifically to facilitate testing logic like this
+        // StubEventStream<T> lives in JasperFx.Events, so this same test shape works
+        // against Marten, Polecat or Fisher. See the "Unit Testing Aggregate Handlers"
+        // page for the whole pattern.
         var fromAccount = new StubEventStream<Account>(new Account { Amount = 1000 })
         {
             Id = Guid.NewGuid()
