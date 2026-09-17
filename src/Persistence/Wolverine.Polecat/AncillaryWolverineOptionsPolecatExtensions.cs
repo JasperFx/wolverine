@@ -58,6 +58,15 @@ public static class AncillaryWolverineOptionsPolecatExtensions
         var integration = new AncillaryPolecatIntegration();
         configure?.Invoke(integration);
 
+        // GH-4462: the codegen strategies, chain policies and handler discovery rules that make Polecat
+        // usable from a handler are a fact about Polecat being in the application, not about the main
+        // store -- so an ancillary store has to establish them too. Before this, a host whose only Polecat
+        // stores were ancillary never registered PolecatPersistenceFrameProvider at all: [Entity] and its
+        // siblings silently resolved to the catch-all InMemoryPersistenceFrameProvider, read the document
+        // out of a dictionary nothing populates, and the not-null guard stopped the chain before the
+        // handler ran. Idempotent, so a host that also has a main store is unaffected in either call order.
+        expression.Services.AddCorePolecatWiring(null);
+
         expression.Services.AddSingleton<IConfigurePolecat<T>, PolecatOverrides<T>>();
 
         // GH-3219: bridge the store-agnostic JasperFx.Events.IEventStore for the ancillary store type T,
