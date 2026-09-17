@@ -50,12 +50,16 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     ///     <c>IScheduledJobProcessor</c>, so they survive process restarts. The remaining
     ///     scheduling paths already provide durability without this policy:
     ///     <list type="bullet">
-    ///       <item>Native broker scheduling (Azure Service Bus, Pulsar, Redis, Pub/Sub):
-    ///         persisted server-side by the broker.</item>
-    ///       <item>Non-native broker senders (RabbitMQ, SQS, Kafka): the routing layer
-    ///         (<c>MessageRoute.WriteEnvelope</c>) automatically swaps scheduled envelopes
-    ///         onto the <c>local://durable</c> system queue, which writes to the message
-    ///         store inbox.</item>
+    ///       <item>Native scheduling, persisted by the broker or the queue table: Azure
+    ///         Service Bus, Pulsar and NATS JetStream (both when native scheduled send is
+    ///         enabled), Redis streams, SQS standard queues for delays up to 15 minutes,
+    ///         and the database queue transports (PostgreSQL, SQL Server, MySQL, Oracle,
+    ///         SQLite).</item>
+    ///       <item>Senders with no native scheduling for the envelope (RabbitMQ, Kafka,
+    ///         Pub/Sub, SNS, MQTT, SignalR, and SQS on a FIFO queue or past the 15 minute
+    ///         cap): the routing layer (<c>MessageRoute.WriteEnvelope</c>) automatically
+    ///         swaps scheduled envelopes onto the <c>local://durable</c> system queue,
+    ///         which writes to the message store inbox.</item>
     ///       <item>Local queues configured with <c>UseDurableInbox()</c>: already write
     ///         to the message store via <c>DurableLocalQueue</c>.</item>
     ///     </list>
