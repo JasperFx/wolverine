@@ -156,11 +156,11 @@ public class durability_health_signals_tests
     }
 
     [Fact]
-    public void degraded_when_scheduled_count_does_not_drain()
+    public void degraded_when_DUE_scheduled_count_does_not_drain()
     {
         var signals = new DurabilityHealthSignals(Settings(stuckAfter: 3));
         var t0 = DateTimeOffset.UtcNow;
-        var pending = new PersistedCounts { Scheduled = 42 };
+        var pending = new PersistedCounts { Scheduled = 42, ScheduledDue = 42 };
 
         signals.Evaluate(AgentStatus.Running, AgentUri, pending, t0);
         signals.Evaluate(AgentStatus.Running, AgentUri, pending, t0.AddSeconds(10));
@@ -170,6 +170,58 @@ public class durability_health_signals_tests
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description!.ShouldContain("Scheduled-job poller may be stuck");
         result.Description!.ShouldContain("42 scheduled");
+        result.Description!.ShouldContain("past their execution time");
+    }
+
+    [Fact]
+    public void healthy_when_scheduled_envelopes_are_simply_not_due_yet()
+    {
+        // The field case: an application schedules work with a deliberate quiet period (15 minutes on
+        // the deployment that produced this), so the scheduled count sits constant and never drains.
+        // That is the scheduled queue working. Reading the undifferentiated count made 254 of 271
+        // active alerts this one check, over 265 databases — 114 of them "degraded" over ONE envelope.
+        var signals = new DurabilityHealthSignals(Settings(stuckAfter: 3));
+        var t0 = DateTimeOffset.UtcNow;
+        var waiting = new PersistedCounts { Scheduled = 19, ScheduledDue = 0 };
+
+        for (var i = 0; i < 6; i++)
+        {
+            signals.Evaluate(AgentStatus.Running, AgentUri, waiting, t0.AddSeconds(10 * i))
+                .Status.ShouldBe(HealthStatus.Healthy);
+        }
+    }
+
+    [Fact]
+    public void stands_down_when_the_store_does_not_report_due_counts()
+    {
+        // ⚠️ null is NOT MEASURED, not zero. A store that cannot answer must make this signal silent
+        // rather than fall back to the undifferentiated count — falling back is the defect.
+        var signals = new DurabilityHealthSignals(Settings(stuckAfter: 3));
+        var t0 = DateTimeOffset.UtcNow;
+        var unreported = new PersistedCounts { Scheduled = 5_000, ScheduledDue = null };
+
+        for (var i = 0; i < 6; i++)
+        {
+            signals.Evaluate(AgentStatus.Running, AgentUri, unreported, t0.AddSeconds(10 * i))
+                .Status.ShouldBe(HealthStatus.Healthy);
+        }
+    }
+
+    [Fact]
+    public void a_draining_due_backlog_resets_the_counter()
+    {
+        var signals = new DurabilityHealthSignals(Settings(stuckAfter: 3));
+        var t0 = DateTimeOffset.UtcNow;
+
+        var stuck = new PersistedCounts { Scheduled = 40, ScheduledDue = 40 };
+        signals.Evaluate(AgentStatus.Running, AgentUri, stuck, t0);
+        signals.Evaluate(AgentStatus.Running, AgentUri, stuck, t0.AddSeconds(10));
+        signals.Evaluate(AgentStatus.Running, AgentUri, stuck, t0.AddSeconds(20));
+
+        // The poller moves them: due count falls, so the run of consecutive checks restarts.
+        var draining = new PersistedCounts { Scheduled = 40, ScheduledDue = 3 };
+        signals.Evaluate(AgentStatus.Running, AgentUri, draining, t0.AddSeconds(30))
+            .Status.ShouldBe(HealthStatus.Healthy);
     }
 
     [Fact]
