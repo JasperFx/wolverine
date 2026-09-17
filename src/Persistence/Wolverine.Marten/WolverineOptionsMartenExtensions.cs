@@ -72,24 +72,7 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         Action<MartenIntegration>? configure = null)
     {
-        var integration = expression.Services.FindMartenIntegration();
-        if (integration == null)
-        {
-            integration = new MartenIntegration();
-
-            configure?.Invoke(integration);
-
-            expression.Services.AddSingleton(integration);
-            expression.Services.AddSingleton<IWolverineExtension>(integration);
-        }
-        else
-        {
-            configure?.Invoke(integration);
-        }
-
-        expression.Services.AddSingleton<Migrator, PostgresqlMigrator>();
-
-        expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
+        var integration = expression.Services.AddCoreMartenWiring(configure);
 
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
@@ -99,8 +82,9 @@ public static class WolverineOptionsMartenExtensions
         // Marten's own IDocumentSession / IQuerySession scoped registrations so service-located
         // resolution prefers that primed session — enrolled with the active outbox — instead of a
         // separate, un-enrolled session. Non-handler scopes (the holder is empty) fall back to
-        // Marten's original session factory.
-        expression.Services.AddScoped<ScopedDocumentSessionHolder>();
+        // Marten's original session factory. (The holder itself is registered by
+        // AddCoreMartenWiring, because MartenIntegration's scoping frame source needs it whether or
+        // not this host has a main store.)
         expression.Services.PreferPrimedSession<IDocumentSession>(primedSession);
         expression.Services.PreferPrimedSession<IQuerySession>(primedSession);
 
@@ -123,12 +107,6 @@ public static class WolverineOptionsMartenExtensions
         expression.Services
             .TryAddSingleton<IDocumentSessionFactory<IDocumentSession, IQuerySession>>(s =>
                 (IDocumentSessionFactory<IDocumentSession, IQuerySession>)s.GetRequiredService<IDocumentStore>());
-
-        // GH-4044. Conjoined EF Core tenant partitioning finds its provider through this factory, and
-        // PersistMessagesWithPostgresql() is the only other thing that registers it -- which an
-        // application letting Marten own the message store never calls
-        expression.Services.TryAddEnumerable(ServiceDescriptor
-            .Singleton<ITenantPartitioningProviderFactory, PostgresqlTenantPartitioningProviderFactory>());
 
         // Gotta have at least a placeholder just in case a user also has
         // EF Core
@@ -189,14 +167,6 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
-        // a Marten ancillary store by resolving this provider from the store marker type. Registered
-        // here (not in MartenIntegration.Configure) so the singleton is present in the codegen-time
-        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
-        // even when multiple Marten stores integrate.
-        expression.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, MartenAncillaryStoreFrameProvider>());
-
         // CritterWatch / saga-explorer diagnostic surface — Marten owns
         // every saga whose state class is a Marten document, so register
         // a Marten-backed ISagaStoreDiagnostics that the runtime
@@ -207,6 +177,79 @@ public static class WolverineOptionsMartenExtensions
                 s.GetRequiredService<IDocumentStore>()));
 
         return expression;
+    }
+
+    /// <summary>
+    ///     The part of the Marten integration that is a fact about <em>Marten being in this application</em>
+    ///     rather than about the main <c>IDocumentStore</c>: the codegen strategies, chain policies and
+    ///     handler discovery rules that <see cref="MartenIntegration" /> carries, plus the Postgres-wide
+    ///     services and the ancillary-store frame provider. Called by both
+    ///     <see cref="IntegrateWithWolverine(MartenServiceCollectionExtensions.MartenConfigurationExpression,Action{MartenIntegration})" />
+    ///     and the ancillary
+    ///     <see cref="AncillaryWolverineOptionsMartenExtensions.IntegrateWithWolverine{T}" />, whichever the
+    ///     application calls first.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4456. This used to live inline in the main-store overload only, which meant a host whose only
+    ///     Marten stores were ancillary -- a modular monolith that gives each bounded context its own store
+    ///     and has no main store because nothing needs one -- never got
+    ///     <c>InsertFirstPersistenceStrategy&lt;MartenPersistenceFrameProvider&gt;()</c>. The declarative
+    ///     persistence attributes then fell through to the catch-all
+    ///     <c>InMemoryPersistenceFrameProvider</c>, and the generated handler read its <c>[Entity]</c> out of
+    ///     an in-memory dictionary that nothing ever populates: the entity was always null, the not-null guard
+    ///     stopped the chain, and the handler never ran -- with no exception and nothing logged.
+    ///     <para>
+    ///     Every registration here is idempotent (<c>TryAdd</c>, <c>TryAddEnumerable</c>, or guarded by
+    ///     <see cref="FindMartenIntegration" />) because a host with a main store <em>and</em> ancillary
+    ///     stores reaches this from both directions, in either order.
+    ///     </para>
+    /// </remarks>
+    internal static MartenIntegration AddCoreMartenWiring(this IServiceCollection services,
+        Action<MartenIntegration>? configure)
+    {
+        var integration = services.FindMartenIntegration();
+        if (integration == null)
+        {
+            integration = new MartenIntegration();
+
+            configure?.Invoke(integration);
+
+            services.AddSingleton(integration);
+            services.AddSingleton<IWolverineExtension>(integration);
+        }
+        else
+        {
+            configure?.Invoke(integration);
+        }
+
+        // Deliberately AddSingleton, not TryAdd: every other provider registers its Migrator the same
+        // way (SqlServerBackedPersistence.cs:195 and friends), so in a mixed host the resolution is
+        // last-one-wins. Switching this to TryAdd would silently hand a SQL Server + Marten host the
+        // SQL Server migrator instead of the Postgres one whenever the SQL Server persistence happened
+        // to be registered first. Re-registering an identical descriptor is harmless.
+        services.AddSingleton<Migrator, PostgresqlMigrator>();
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IWolverineExtension, MapEventTypeMessages>());
+
+        // MartenIntegration.Configure adds a PrimeScopedSessionFrame over this holder, so it has to be
+        // registered wherever the integration is -- an ancillary-only host included (GH-3001).
+        services.TryAddScoped<ScopedDocumentSessionHolder>();
+
+        // GH-4044. Conjoined EF Core tenant partitioning finds its provider through this factory, and
+        // PersistMessagesWithPostgresql() is the only other thing that registers it -- which an
+        // application letting Marten own the message store never calls
+        services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<ITenantPartitioningProviderFactory, PostgresqlTenantPartitioningProviderFactory>());
+
+        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
+        // a Marten ancillary store by resolving this provider from the store marker type. Registered
+        // here (not in MartenIntegration.Configure) so the singleton is present in the codegen-time
+        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
+        // even when multiple Marten stores integrate.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, MartenAncillaryStoreFrameProvider>());
+
+        return integration;
     }
 
     // GH-3001: the scope-primed session (the outbox-enrolled session the handler is using), or null

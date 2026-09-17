@@ -94,6 +94,15 @@ public static class AncillaryWolverineOptionsMartenExtensions
         configure?.Invoke(integration);
         integration.AssertValidity();
 
+        // GH-4456: the codegen strategies, chain policies and handler discovery rules that make Marten
+        // usable from a handler are a fact about Marten being in the application, not about the main
+        // store -- so an ancillary store has to establish them too. Before this, a host whose only Marten
+        // stores were ancillary never registered MartenPersistenceFrameProvider at all: [Entity] and its
+        // siblings silently resolved to the catch-all InMemoryPersistenceFrameProvider, read the document
+        // out of a dictionary nothing populates, and the not-null guard stopped the chain before the
+        // handler ran. Idempotent, so a host that also has a main store is unaffected in either call order.
+        expression.Services.AddCoreMartenWiring(null);
+
         expression.Services.AddSingleton<IConfigureMarten<T>, MartenOverrides<T>>();
 
         expression.Services.AddSingleton<AncillaryMessageStore>(s =>
