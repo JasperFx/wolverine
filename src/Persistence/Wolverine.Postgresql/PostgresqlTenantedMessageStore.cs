@@ -99,6 +99,11 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
 
         store = new PostgresqlMessageStore(settings, _runtime.Options.Durability, source,
             _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), _sagaTables);
+
+        // Same naming as the connection string path. Left unset, every tenant database registered by
+        // NpgsqlDataSource kept the "default" name, and MultiTenantedQueueListener / MultiTenantedQueueSender
+        // both cache per database BY NAME -- so only the first tenant database ever got a listener.
+        store.Name = store.Describe().DatabaseUri().ToString();
         return store;
     }
 

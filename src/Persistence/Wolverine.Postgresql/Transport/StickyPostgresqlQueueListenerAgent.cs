@@ -16,17 +16,24 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
 
     private readonly IWolverineRuntime _runtime;
     private readonly string _queue;
-    private readonly string _databaseName;
+
+    /// <summary>
+    /// Tenant id (or, with Marten, the database identifier its tenancy also answers to) for the database
+    /// this agent listens to. Deliberately NOT the message store's Name -- see GH-4455 and
+    /// <see cref="StickyPostgresqlQueueListenerAgentFamily"/>.
+    /// </summary>
+    private readonly string _databaseIdentifier;
+
     private TenantedPostgresqlQueue? _tenantEndpoint;
     private int _consecutiveDbFailures;
 
-    public StickyPostgresqlQueueListenerAgent(IWolverineRuntime runtime, string queue, string databaseName)
+    public StickyPostgresqlQueueListenerAgent(IWolverineRuntime runtime, string queue, string databaseIdentifier)
     {
         _runtime = runtime;
         _queue = queue;
-        _databaseName = databaseName;
+        _databaseIdentifier = databaseIdentifier;
 
-        Uri = new Uri($"{StickyPostgresqlQueueListenerAgentFamily.StickyListenerSchema}://{_queue}/{_databaseName}");
+        Uri = new Uri($"{StickyPostgresqlQueueListenerAgentFamily.StickyListenerSchema}://{_queue}/{_databaseIdentifier}");
     }
 
     public AgentStatus Status { get; set; } = AgentStatus.Running;
@@ -47,9 +54,12 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
 
         var queue = transport.Queues[_queue];
 
-        var database = (PostgresqlMessageStore)await transport.Databases.GetDatabaseAsync(_databaseName);
+        var database = (PostgresqlMessageStore)await transport.Databases.GetDatabaseAsync(_databaseIdentifier);
 
-        var tenantEndpoint = new TenantedPostgresqlQueue(queue, database.NpgsqlDataSource, _databaseName);
+        // The endpoint is addressed by the DATABASE, not by the identifier that got us here: that is what
+        // MultiTenantedQueueSender and MultiTenantedQueueListener stamp for the non-exclusive queues, and
+        // received_at has to agree with them for inbox recovery.
+        var tenantEndpoint = new TenantedPostgresqlQueue(queue, database.NpgsqlDataSource, database.Name);
         return tenantEndpoint;
     }
 
@@ -66,7 +76,7 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
     /// Human-readable description for monitoring tools — see
     /// <see cref="IAgent.Description"/>.
     /// </summary>
-    public string Description => $"Sticky Postgres queue listener — pinned to the per-tenant database '{_databaseName}' for queue '{_queue}'. Only one node listens to each tenant database to avoid duplicate consumption.";
+    public string Description => $"Sticky Postgres queue listener — pinned to the per-tenant database '{_databaseIdentifier}' for queue '{_queue}'. Only one node listens to each tenant database to avoid duplicate consumption.";
 
     /// <summary>
     /// Per-tenant health-check enrichments for the sticky Postgres queue listener (see #2647).
@@ -115,12 +125,12 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
                 if (_consecutiveDbFailures >= ConsecutiveDbFailureUnhealthyThreshold)
                 {
                     unhealthyReason =
-                        $"Per-tenant database '{_databaseName}' unreachable for {_consecutiveDbFailures} consecutive checks: {e.Message}";
+                        $"Per-tenant database '{_databaseIdentifier}' unreachable for {_consecutiveDbFailures} consecutive checks: {e.Message}";
                 }
                 else
                 {
                     degraded.Add(
-                        $"Per-tenant database '{_databaseName}' poll failed: {e.Message}");
+                        $"Per-tenant database '{_databaseIdentifier}' poll failed: {e.Message}");
                 }
             }
 
@@ -131,10 +141,10 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
                 switch (listeningAgent.Status)
                 {
                     case ListeningStatus.TooBusy:
-                        degraded.Add($"Listener {_queue}/{_databaseName} is too busy");
+                        degraded.Add($"Listener {_queue}/{_databaseIdentifier} is too busy");
                         break;
                     case ListeningStatus.GloballyLatched:
-                        unhealthyReason ??= $"Listener {_queue}/{_databaseName} is globally latched";
+                        unhealthyReason ??= $"Listener {_queue}/{_databaseIdentifier} is globally latched";
                         break;
                 }
             }
@@ -149,7 +159,7 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
                     if (depth >= bufferingLimits.Maximum)
                     {
                         degraded.Add(
-                            $"Queue {_queue}/{_databaseName} depth ({depth}) is at or above the buffering threshold ({bufferingLimits.Maximum})");
+                            $"Queue {_queue}/{_databaseIdentifier} depth ({depth}) is at or above the buffering threshold ({bufferingLimits.Maximum})");
                     }
                 }
                 catch
