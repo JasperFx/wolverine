@@ -358,6 +358,59 @@ public class MessageContextTests
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 
+    /// <summary>
+    /// GH-4481. MoveToErrorQueue.ExecuteAsync calls CompleteAsync() unconditionally after
+    /// MoveToDeadLetterQueueAsync, and it has to: for a transport whose MoveToErrorsAsync only sends a COPY
+    /// (SQS, GCP Pub/Sub) that trailing call is the only thing that ever settles the original. A transport
+    /// whose native move ALREADY settled the delivery opts out of it by marking HasBeenAcked -- the flag
+    /// MessageContext.CompleteAsync short-circuits on. That is the per-transport signal the issue asks for,
+    /// and it already exists; Azure Service Bus was simply not setting it, so its trailing complete went to
+    /// the broker on a lock its own dead letter move had already consumed.
+    /// </summary>
+    [Fact]
+    public async Task a_native_dead_letter_move_that_settled_suppresses_the_trailing_complete()
+    {
+        var callback = Substitute.For<IChannelCallback, ISupportDeadLetterQueue>();
+        callback.As<ISupportDeadLetterQueue>().NativeDeadLetterQueueEnabled.Returns(true);
+
+        // What a settling transport does: RabbitMQ's two dead letter paths set this next to their own
+        // ack/nack, and as of GH-4481 so does AzureServiceBusEnvelope.DeadLetterAsync.
+        callback.As<ISupportDeadLetterQueue>()
+            .MoveToErrorsAsync(Arg.Any<Envelope>(), Arg.Any<Exception>())
+            .Returns(c =>
+            {
+                c.Arg<Envelope>().HasBeenAcked = true;
+                return Task.CompletedTask;
+            });
+
+        theContext.ReadEnvelope(theEnvelope, callback);
+
+        await theContext.MoveToDeadLetterQueueAsync(new Exception());
+        await theContext.CompleteAsync();
+
+        await callback.DidNotReceive().CompleteAsync(Arg.Any<Envelope>());
+    }
+
+    /// <summary>
+    /// GH-4481, the other half. The guard above must stay keyed off what the transport actually did, not off
+    /// "was this a native dead letter move" -- SQS and GCP Pub/Sub send a copy and leave the original
+    /// unsettled, so suppressing their trailing complete would turn every dead lettered message into a
+    /// duplicate once its visibility timeout lapsed.
+    /// </summary>
+    [Fact]
+    public async Task a_native_dead_letter_move_that_only_copied_still_gets_the_trailing_complete()
+    {
+        var callback = Substitute.For<IChannelCallback, ISupportDeadLetterQueue>();
+        callback.As<ISupportDeadLetterQueue>().NativeDeadLetterQueueEnabled.Returns(true);
+
+        theContext.ReadEnvelope(theEnvelope, callback);
+
+        await theContext.MoveToDeadLetterQueueAsync(new Exception());
+        await theContext.CompleteAsync();
+
+        await callback.Received().CompleteAsync(theEnvelope);
+    }
+
     [Fact]
     public async Task move_to_dead_letter_queue_without_native_dead_letter_if_native_dlq_is_disabled()
     {
