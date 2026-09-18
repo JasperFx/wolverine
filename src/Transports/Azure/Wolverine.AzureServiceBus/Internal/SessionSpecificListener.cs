@@ -219,6 +219,12 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
     {
         if (envelope is AzureServiceBusEnvelope e)
         {
+            // GH-3474: the diagnostic headers have to be on the envelope BEFORE the move, because
+            // AzureServiceBusEnvelope.buildDiagnosticProperties reads them off Headers to carry them onto the
+            // dead lettered message. This listener was the only one of the four that never stamped them, so a
+            // message dead lettered from a session-specific listener reached $DeadLetterQueue with none of
+            // the failure diagnostics its three siblings attach.
+            DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
             e.Exception = exception;
             await _deadLetter.PostAsync(e);
         }

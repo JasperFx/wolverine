@@ -84,7 +84,7 @@ public class AzureServiceBusEnvelope : Envelope
         return Task.CompletedTask;
     }
 
-    public Task DeadLetterAsync(CancellationToken token, string? deadLetterReason = null, string? deadLetterErrorDescription = null)
+    public async Task DeadLetterAsync(CancellationToken token, string? deadLetterReason = null, string? deadLetterErrorDescription = null)
     {
         // Copy the standard failure metadata headers stamped on this envelope onto the
         // dead lettered message's application properties so the diagnostics survive the
@@ -92,18 +92,46 @@ public class AzureServiceBusEnvelope : Envelope
         var propertiesToModify = buildDiagnosticProperties();
 
         if (Args != null)
-            return Args.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
+        {
+            await Args.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
+        }
+        else if (SessionArgs != null)
+        {
+            await SessionArgs.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
+        }
+        else if (ServiceBusReceiver != null)
+        {
+            await ServiceBusReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
+        }
+        else if (SessionReceiver != null)
+        {
+            await SessionReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
+        }
+        else
+        {
+            // No receiver of any kind, so nothing was settled and there is nothing to mark.
+            return;
+        }
 
-        if (SessionArgs != null)
-            return SessionArgs.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
-
-        if (ServiceBusReceiver != null)
-            return ServiceBusReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
-
-        if (SessionReceiver != null)
-            return SessionReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
-
-        return Task.CompletedTask;
+        // GH-4481: DeadLetterMessageAsync is a settle disposition -- it consumes the delivery's lock
+        // exactly as CompleteAsync does -- so mark it the way the sibling CompleteAsync does, GH-4068
+        // having put IsCompleted there for the same reason. The settle that follows is issued by core and
+        // cannot see this one otherwise.
+        //
+        // MoveToErrorQueue.ExecuteAsync -- and NoHandlerContinuation on the unknown-message-type path --
+        // call lifecycle.CompleteAsync() unconditionally after MoveToDeadLetterQueueAsync, and must: for a
+        // transport whose MoveToErrorsAsync only sends a COPY (SQS, GCP Pub/Sub) that trailing call is the
+        // only thing that ever settles the original. HasBeenAcked is how a transport that already settled
+        // opts out of it -- MessageContext.CompleteAsync short-circuits on it, which is what RabbitMQ's two
+        // dead-letter paths rely on. Azure Service Bus was the one settling transport that never set it, so
+        // its trailing complete always went to the broker on a lock this call had already consumed: an
+        // invisible "the lock supplied is invalid" on a normal entity, and on a SESSION entity a
+        // SessionLockLost that forces the AMQP link closed and reopened before the next session is accepted.
+        //
+        // Only on success: a move that threw settled nothing, and that delivery has to stay eligible for
+        // the lock lapse and redelivery its settle block's terminal give-up (GH-4012 item 5) relies on.
+        IsCompleted = true;
+        HasBeenAcked = true;
     }
 
     private Dictionary<string, object>? buildDiagnosticProperties()
