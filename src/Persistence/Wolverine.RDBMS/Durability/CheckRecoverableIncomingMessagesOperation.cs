@@ -40,7 +40,8 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
         {
             var address =
                 new Uri(await reader.GetFieldValueAsync<string>(0, token).ConfigureAwait(false));
-            var count = await reader.GetFieldValueAsync<int>(1, token).ConfigureAwait(false);
+            // GH-4480: Oracle returns a decimal for the count, so we need to use this pattern for conversion to an int
+            var count = Convert.ToInt32(reader.GetValue(1));
 
             var incoming = new IncomingCount(address, count);
 
