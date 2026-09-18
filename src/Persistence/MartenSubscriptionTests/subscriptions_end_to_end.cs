@@ -350,13 +350,19 @@ public class subscriptions_end_to_end
     }
 
     [Fact]
-    public async Task non_conjoined_store_preserves_legacy_default_tenant_fallthrough()
+    public async Task non_conjoined_single_database_store_leaves_the_tenant_id_alone()
     {
-        // Companion to carry_default_tenant_id_through_under_conjoined_tenancy:
-        // for non-conjoined stores the relay must keep falling through to the bus
-        // context's TenantId, so any setup that relied on the database identifier as
-        // the message tenant (e.g. per-tenant ancillary stores with a custom
-        // Database.Identifier) keeps working.
+        // Companion to carry_default_tenant_id_through_under_conjoined_tenancy. The relay still
+        // falls through to the bus context's TenantId for non-conjoined stores -- but on a
+        // single-database store WolverineSubscriptionRunner no longer puts anything there.
+        //
+        // This test used to assert the opposite (non_conjoined_store_preserves_legacy_default_tenant_
+        // fallthrough, GH-2675), pinning the database identifier as the message tenant on the theory
+        // that some ancillary-store setup might depend on it. GH-4485 showed that "convention" is
+        // just a bug: on a single-database store Database.Identifier is StoreOptions.StoreName, which
+        // defaults to "Main", and stamping it made downstream handlers append events under a tenant
+        // that does not exist -- fatally so under EventAppendMode.Quick. Nothing routes on it either;
+        // ancillary stores are routed by marker type, not by tenant id.
         await dropSchema();
 
         using var host = await Host.CreateDefaultBuilder()
@@ -405,16 +411,12 @@ public class subscriptions_end_to_end
 
         aEnvelopes.ShouldNotBeEmpty();
 
-        // Pre-fix and post-fix behaviour for non-conjoined stores: the relay falls through
-        // and envelope.TenantId is the bus context value that
-        // WolverineSubscriptionRunner set from operations.Database.Identifier
-        // (e.g. "Main" for a single-database Marten store). Crucially it must NOT be the
-        // default-tenant marker — that would mean the fix had over-applied and dropped the
-        // database-identifier-as-tenant convention used by some ancillary-store setups.
+        // GH-4485: no tenant at all, so the downstream handler's Marten session opens on the
+        // default tenant and appends alongside the data everything else writes. Before the fix
+        // this was "Main" — StoreOptions.StoreName, not a tenant id.
         foreach (var envelope in aEnvelopes)
         {
-            envelope.TenantId.ShouldNotBeNull();
-            envelope.TenantId.ShouldNotBe(JasperFx.StorageConstants.DefaultTenantId);
+            envelope.TenantId.ShouldBeNull();
         }
     }
 
