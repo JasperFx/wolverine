@@ -774,6 +774,23 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 await deadLetters.MoveToErrorsAsync(envelope, e).ConfigureAwait(false);
 
+                // GH-4488: MoveToErrorsAsync is not uniformly terminal. On most transports it settles the
+                // delivery -- RabbitMQ nacks to the DLX, Azure Service Bus dead letters it -- and there is
+                // nothing left to do. But SQS and GCP Pub/Sub implement it as a COPY to another queue/topic
+                // and leave the original delivery completely untouched, so returning here would strand it:
+                // the visibility timeout lapses, the broker delivers it again, the inbox deduplicates it
+                // again, and because BrokerDeliveryCount only ever grows it is dead lettered again. The loop
+                // this whole branch exists to break would instead emit one dead letter copy per turn.
+                //
+                // HasBeenAcked is how a transport reports that it settled -- the same flag
+                // MessageContext.CompleteAsync short-circuits on, which RabbitMQ sets next to its nack and
+                // Azure Service Bus next to its dead letter move (GH-4481). Still clear means nothing
+                // settled this delivery, so settle it here.
+                if (!envelope.HasBeenAcked)
+                {
+                    await envelope.Listener.CompleteAsync(envelope).ConfigureAwait(false);
+                }
+
                 _logger.LogWarning(
                     "Moved envelope {Id} from {Uri} to the dead letter queue after the broker delivered it {DeliveryCount} times; it is a duplicate that cannot be settled",
                     envelope.Id, Uri, envelope.BrokerDeliveryCount);
