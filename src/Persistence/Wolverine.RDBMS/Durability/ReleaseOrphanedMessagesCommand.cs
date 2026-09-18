@@ -206,20 +206,20 @@ internal class ReleaseOrphanedMessagesCommand : IAgentCommand
     /// Read the first column as an <c>int</c>, tolerating whatever integral type the provider surfaces.
     /// </summary>
     /// <remarks>
-    /// Oracle's <c>NUMBER</c> arrives from ODP.NET as an <c>Int64</c>, and <c>FetchListAsync&lt;int&gt;()</c>
-    /// goes through <c>GetFieldValueAsync&lt;int&gt;()</c>, which throws <c>InvalidCastException</c> on it.
-    /// Both reads in this sweep are of node numbers, and both are inside the try/catch that logs and
-    /// returns — so on Oracle the whole sweep degraded to a silent no-op that released nothing, forever,
-    /// while looking healthy apart from one log line per cycle. Convert instead of casting.
+    /// GH-3971. Oracle's <c>NUMBER</c> arrives from ODP.NET as an <c>Int64</c>, and
+    /// <c>FetchListAsync&lt;int&gt;()</c> goes through <c>GetFieldValueAsync&lt;int&gt;()</c>, which throws
+    /// <c>InvalidCastException</c> on it. Both reads in this sweep are of node numbers, and both are inside
+    /// the try/catch that logs and returns — so on Oracle the whole sweep degraded to a silent no-op that
+    /// released nothing, forever, while looking healthy apart from one log line per cycle.
+    ///
+    /// <para>The conversion itself now lives in <see cref="DbDataReaderExtensions.GetInt32TolerantlyAsync" />,
+    /// shared with the sibling operation that hit the same provider mapping in GH-4480.</para>
     /// </remarks>
     private static Task<IReadOnlyList<int>> fetchNodeNumbersAsync(System.Data.Common.DbCommand cmd,
         CancellationToken cancellationToken)
     {
-        return cmd.FetchListAsync(async reader =>
-            await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false)
-                ? 0
-                : Convert.ToInt32(await reader.GetFieldValueAsync<object>(0, cancellationToken)
-                    .ConfigureAwait(false)), cancellationToken);
+        return cmd.FetchListAsync(reader => reader.GetInt32TolerantlyAsync(0, cancellationToken),
+            cancellationToken);
     }
 
     private async Task<int> releaseAsync(DbObjectName table, string deadOwnerList, CancellationToken cancellationToken)
