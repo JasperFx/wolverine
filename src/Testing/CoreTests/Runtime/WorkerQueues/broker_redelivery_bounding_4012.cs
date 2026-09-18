@@ -40,9 +40,14 @@ public class broker_redelivery_bounding_4012
             return ValueTask.CompletedTask;
         }
 
+        // GH-4488: this models the majority shape -- RabbitMQ, Azure Service Bus, Kafka, Pulsar, NATS,
+        // Redis -- where the dead letter move IS the settle, and reports it the way those transports do.
+        // Without that report this fake looks like the copy-only shape (SQS, GCP Pub/Sub) instead, and the
+        // receiver would rightly settle afterwards. See a_copy_only_dead_letter_still_settles_the_original.
         public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
         {
             DeadLetterCallCount++;
+            envelope.HasBeenAcked = true;
             return Task.CompletedTask;
         }
 
@@ -155,5 +160,71 @@ public class broker_redelivery_bounding_4012
     public void the_default_setting_is_off()
     {
         new DurabilitySettings().MaximumBrokerRedeliveries.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// GH-4488. A listener modelling SQS and GCP Pub/Sub, the only two transports whose MoveToErrorsAsync
+    /// sends a COPY to another queue/topic and leaves the original delivery untouched. It reports no settle,
+    /// because it performed none.
+    /// </summary>
+    private class CopyOnlyDeadLetterListener : IListener, ISupportDeadLetterQueue
+    {
+        public int CompleteCallCount { get; private set; }
+        public int DeadLetterCallCount { get; private set; }
+
+        public bool NativeDeadLetterQueueEnabled => true;
+
+        public IHandlerPipeline? Pipeline => null;
+
+        public ValueTask CompleteAsync(Envelope envelope)
+        {
+            CompleteCallCount++;
+            envelope.HasBeenAcked = true;
+            return ValueTask.CompletedTask;
+        }
+
+        // Sends a copy and returns. Nothing about the original delivery has changed, so HasBeenAcked stays
+        // clear -- which is exactly what SqsListener and PubsubListener do.
+        public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+        {
+            DeadLetterCallCount++;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DeferAsync(Envelope envelope) => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public Uri Address { get; } = new("stub://copyonly");
+        public ValueTask StopAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// GH-4488. The over-delivered-duplicate path returns after the dead letter move without settling, which
+    /// is right for a transport whose move IS the settle. On a copy-only transport it leaves the original
+    /// delivery in place: its visibility timeout lapses, the broker delivers it again, the inbox deduplicates
+    /// it again, and -- because BrokerDeliveryCount only grows -- it is dead lettered again. The loop this
+    /// path exists to break instead emits one dead letter copy per turn.
+    /// </summary>
+    [Fact]
+    public async Task a_copy_only_dead_letter_still_settles_the_original()
+    {
+        var runtime = new MockWolverineRuntime();
+        runtime.DurabilitySettings.MaximumBrokerRedeliveries = 3;
+
+        var receiver = new DurableReceiver(new StubEndpoint("one", new StubTransport()), runtime,
+            Substitute.For<IHandlerPipeline>());
+
+        var envelope = envelopeWith(4);
+        var listener = new CopyOnlyDeadLetterListener();
+
+        runtime.Storage.Inbox.StoreIncomingAsync(envelope)
+            .Throws(new DuplicateIncomingEnvelopeException(envelope));
+
+        await receiver.ReceivedAsync(listener, envelope);
+        await receiver.DrainAsync();
+
+        listener.DeadLetterCallCount.ShouldBe(1);
+
+        listener.CompleteCallCount.ShouldBe(1,
+            "The copy is on the dead letter queue but nothing settled the original, so the broker will redeliver it.");
     }
 }
