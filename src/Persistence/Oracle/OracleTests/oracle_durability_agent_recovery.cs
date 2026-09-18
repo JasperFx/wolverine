@@ -160,7 +160,7 @@ public class oracle_durability_agent_recovery : IAsyncLifetime
         // need to reset it
         var dlq = BlowsUpMessageHandler.WaiterForCall(false);
         await storage.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
-        await dlq;//
+        await dlq;
         BlowsUpMessageHandler.LastReceived.ShouldNotBeNull();
     }
 

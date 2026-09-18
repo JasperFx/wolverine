@@ -72,12 +72,17 @@ public class CheckRecoverableIncomingMessageOperationTests
         yield return [5m];
     }
 
+    /// <summary>
+    /// GH-4480: ReadResultsAsync has to handle whatever numeric type the provider surfaced for the count
+    /// column. Some providers (Oracle above all) return non-int types for count(*), because an
+    /// unconstrained NUMBER carries no precision for them to narrow against.
+    /// </summary>
+    /// <remarks>
+    /// The doc comment belongs above the attributes: between them and the signature it documents no
+    /// language element, which is a CS1587 rather than a doc comment.
+    /// </remarks>
     [Theory]
     [MemberData(nameof(CountValues))]
-    /// <summary>
-    /// GH-4480: Ensure that ReadResultsAsync can handle different numeric types for the count column in the database result set.
-    /// Some database providers (...Oracle) return non-int types so we need to be able to handle that gracefully.
-    /// </summary>
     public async Task read_results_accepts_provider_count_types_4480(object count)
     {
         var destination = new Uri("local://one");
@@ -94,12 +99,27 @@ public class CheckRecoverableIncomingMessageOperationTests
             .ShouldBeOfType<RecoverIncomingMessagesCommand>();
     }
 
+    /// <summary>
+    /// A reader standing in for a provider that surfaced <paramref name="count" />'s type for the count
+    /// column, and that -- like every real ADO.NET provider -- throws <c>InvalidCastException</c> from
+    /// <c>GetFieldValueAsync&lt;int&gt;()</c> when that type is anything but <c>Int32</c>.
+    /// </summary>
+    /// <remarks>
+    /// That throwing stub is the load-bearing part. A substituted reader otherwise answers whatever the
+    /// production code happens to ask it, so it agrees with the code by construction and can never catch a
+    /// provider-mapping mismatch -- which is exactly why the pre-GH-4480 coverage here was green against a
+    /// call that threw on Oracle. Keeping the cast wired to throw means this stays a real assertion no
+    /// matter which read the production code settles on.
+    /// </remarks>
     private static DbDataReader readerFor(Uri destination, object count)
     {
         var reader = Substitute.For<DbDataReader>();
         reader.ReadAsync(Arg.Any<CancellationToken>()).Returns(true, false);
         reader.GetFieldValueAsync<string>(0, Arg.Any<CancellationToken>()).Returns(destination.ToString());
+
+        reader.IsDBNullAsync(1, Arg.Any<CancellationToken>()).Returns(false);
         reader.GetValue(1).Returns(count);
+        reader.GetFieldValueAsync<object>(1, Arg.Any<CancellationToken>()).Returns(count);
 
         if (count is int intCount)
         {
@@ -112,5 +132,17 @@ public class CheckRecoverableIncomingMessageOperationTests
         }
 
         return reader;
+    }
+
+    /// <summary>
+    /// GH-4480 follow-up. The null guard in the shared helper, which the three type cases above never reach.
+    /// </summary>
+    [Fact]
+    public async Task a_null_count_reads_as_zero()
+    {
+        var reader = Substitute.For<DbDataReader>();
+        reader.IsDBNullAsync(1, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await reader.GetInt32TolerantlyAsync(1, CancellationToken.None)).ShouldBe(0);
     }
 }

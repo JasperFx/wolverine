@@ -315,6 +315,10 @@ public abstract class ExclusiveListenerRecoveryCompliance : IAsyncLifetime
 
         if (runtime.Storage is not IMessageDatabase database)
         {
+            // Vacuously green for the non-relational stores that also run this suite (RavenDb, CosmosDb):
+            // there is no operation batch for them to read. A real skip would say so out loud, but
+            // Assert.Skip needs xunit.v3.assert and this project references only
+            // xunit.v3.extensibility.core -- not worth widening a shared compliance library over.
             return;
         }
 
