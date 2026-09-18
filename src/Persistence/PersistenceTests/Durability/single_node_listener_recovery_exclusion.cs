@@ -49,7 +49,7 @@ public class single_node_listener_recovery_exclusion
         });
         reader.GetFieldValueAsync<string>(0, Arg.Any<CancellationToken>())
             .Returns(_ => destinations[index].ToString());
-        reader.GetFieldValueAsync<int>(1, Arg.Any<CancellationToken>()).Returns(_ => 5);
+        reader.GetValue(1).Returns(_ => 5);
 
         await operation.ReadResultsAsync(reader, new List<Exception>(), CancellationToken.None);
 

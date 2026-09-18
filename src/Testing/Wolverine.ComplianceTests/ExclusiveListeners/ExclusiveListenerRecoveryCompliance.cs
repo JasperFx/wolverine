@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS;
+using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports;
@@ -303,6 +305,32 @@ public abstract class ExclusiveListenerRecoveryCompliance : IAsyncLifetime
         succeeded.ShouldBeTrue(
             $"Expected all {seeded.Length} dormant messages to be recovered once the exclusive listener started " +
             $"on this node, but only saw {tracking.Count}");
+    }
+
+    [Fact]
+    public async Task durability_operation_batch_reads_recoverable_incoming_counts_for_dormant_rows()
+    {
+        var host = await startHostAsync(DurabilityMode.Solo);
+        var runtime = host.GetRuntime();
+
+        if (runtime.Storage is not IMessageDatabase database)
+        {
+            return;
+        }
+
+        var store = host.Services.GetRequiredService<IMessageStore>();
+        var destination = UriFor(DormantEndpointName);
+
+        var seeded = await seedDormantMessagesAsync(store, runtime, destination, 5);
+
+        var commands = await new DatabaseOperationBatch(database, new DurabilityAgent(runtime, database).buildOperationBatch())
+            .ExecuteAsync(runtime, CancellationToken.None);
+
+        commands.ShouldBeEmpty();
+
+        var stillDormant = await store.LoadPageOfGloballyOwnedIncomingAsync(destination, 100);
+        stillDormant.Count.ShouldBe(seeded.Length,
+            "The durability operation batch must read the grouped recoverable count and still leave single-node listener rows for the listener-owned recovery path");
     }
 
     #endregion

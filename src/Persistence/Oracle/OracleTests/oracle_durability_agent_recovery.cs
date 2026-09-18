@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using IntegrationTests;
+using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -6,12 +8,16 @@ using Oracle.ManagedDataAccess.Client;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
+using Wolverine.ErrorHandling;
 using Wolverine.Oracle;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace OracleTests;
 
@@ -41,6 +47,9 @@ public class oracle_durability_agent_recovery : IAsyncLifetime
                 // Balanced rather than Solo -- ReleaseOrphanedMessagesOperation is only part of the
                 // recovery batch outside Solo mode, and it is one of the two-statement operations
                 opts.Durability.Mode = DurabilityMode.Balanced;
+                opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+
+                opts.PublishMessage<BlowsUpMessage>().ToLocalQueue("replay-lifecycle").UseDurableInbox();
             })
             .StartAsync();
 
@@ -122,6 +131,55 @@ public class oracle_durability_agent_recovery : IAsyncLifetime
             .ShouldBe(0);
     }
 
+    [Fact]
+    public async Task pull_in_message_from_inbox_that_goes_to_dead_letter_queue_and_replay_it()
+    {
+        var (runtime, database) = theRuntimeAndDatabase();
+        var storage = runtime.Storage;
+        var queue = runtime.Endpoints.EndpointByName("replay-lifecycle")!;
+
+        // Rig it up to fail
+        var waiter = BlowsUpMessageHandler.WaiterForCall(true);
+        var envelope = new Envelope(new BlowsUpMessage())
+        {
+            Destination = queue.Uri,
+            Status = EnvelopeStatus.Incoming,
+            OwnerId = TransportConstants.AnyNode,
+            ContentType = runtime.Options.DefaultSerializer.ContentType,
+            MessageType = typeof(BlowsUpMessage).ToMessageTypeName(),
+            SentAt = DateTimeOffset.UtcNow
+        };
+
+        envelope.Data = runtime.Options.DefaultSerializer.Write(envelope);
+
+        await storage.Inbox.StoreIncomingAsync(envelope);
+
+        var ids = await waitForDeadLetters(storage);
+        ids.ShouldNotBeEmpty();
+
+        // need to reset it
+        var dlq = BlowsUpMessageHandler.WaiterForCall(false);
+        await storage.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
+        await dlq;//
+        BlowsUpMessageHandler.LastReceived.ShouldNotBeNull();
+    }
+
+    private static async Task<Guid[]> waitForDeadLetters(IMessageStore storage)
+    {
+        var timeout = 30.Seconds();
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
+        {
+            var queued = await storage.DeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()), CancellationToken.None);
+            var ids = queued.Envelopes.Select(x => x.Envelope.Id).ToArray();
+            if (ids.Any()) return ids;
+
+            await Task.Delay(100.Milliseconds());
+        }
+
+        return [];
+    }
+
     private async Task<int> ownerOf(Guid id)
     {
         await using var conn = new OracleConnection(Servers.OracleConnectionString);
@@ -148,4 +206,39 @@ public class oracle_durability_agent_recovery : IAsyncLifetime
 
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
+}
+
+public record BlowsUpMessage;
+
+public static class BlowsUpMessageHandler
+{
+    public static TaskCompletionSource Waiter { get; private set; } = new();
+
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnAnyException().MoveToErrorQueue();
+    }
+
+    public static bool WillBlowUp { get; set; } = true;
+
+    public static Task WaiterForCall(bool shouldThrow)
+    {
+        LastReceived = null!;
+        WillBlowUp = shouldThrow;
+        Waiter = new TaskCompletionSource();
+        return Waiter.Task;
+    }
+
+    public static void Handle(BlowsUpMessage message)
+    {
+        if (WillBlowUp)
+        {
+            throw new Exception("You stink!");
+        }
+
+        LastReceived = message;
+        Waiter.SetResult();
+    }
+
+    public static BlowsUpMessage LastReceived { get; set; } = null!;
 }
