@@ -78,6 +78,15 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             if (!env.WasDeleted)
             {
                 await CompleteAsync(env.SqsMessages);
+
+                // GH-4489: this is what the guard above was always reading and nothing ever wrote. Without
+                // it, a failure in the requeue send below re-runs the whole lambda and deletes the original
+                // a second time.
+                //
+                // WasDeleted only -- deliberately NOT HasBeenAcked. This path puts a COPY back on the queue,
+                // and per GH-3710 a requeue must not be remembered as a terminal: the idempotency layer
+                // would mark the id processed and silently discard the redelivery this block just arranged.
+                env.WasDeleted = true;
             }
 
             await sendOrDiscardAsync(_queue, env, "requeue");
@@ -381,10 +390,34 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     {
         if (envelope is AmazonSqsEnvelope e)
         {
-            return new ValueTask(CompleteAsync(e.SqsMessages));
+            return new ValueTask(completeEnvelopeAsync(e));
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// GH-4489. The terminal settle for one envelope: delete its SQS message(s) and record that it happened.
+    ///
+    /// <para><c>WasDeleted</c> existed and was read by the requeue block, but nothing ever assigned it, so
+    /// that guard could never fire. <c>HasBeenAcked</c> is the cross-transport half of the same question --
+    /// "did this reach a terminal the broker will not undo?" -- which <c>MessageContext.CompleteAsync</c>
+    /// short-circuits on and RabbitMQ and Azure Service Bus (GH-4481) both report. Setting it here rather
+    /// than relying on the caller means a settle issued straight at the listener is recorded too.</para>
+    ///
+    /// <para>Marked AFTER the delete, unlike RabbitMQ's ack flag: a delete that threw has not settled
+    /// anything, and its retry has to be allowed to try again. The guard is for the other order -- the
+    /// delete succeeded and a LATER step in the same retried block failed, which is exactly the shape the
+    /// requeue block is in.</para>
+    /// </summary>
+    private async Task completeEnvelopeAsync(AmazonSqsEnvelope envelope)
+    {
+        if (envelope.WasDeleted) return;
+
+        await CompleteAsync(envelope.SqsMessages);
+
+        envelope.WasDeleted = true;
+        envelope.HasBeenAcked = true;
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
