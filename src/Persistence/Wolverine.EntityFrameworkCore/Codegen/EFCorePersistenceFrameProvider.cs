@@ -829,7 +829,26 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             _abstractionType = abstractionType;
             _dbContextType = dbContextType;
-            DbContext = new Variable(_dbContextType, this);
+            DbContext = new Variable(_dbContextType, concreteVariableName(abstractionType, dbContextType), this);
+        }
+
+        /// <summary>
+        /// GH-4479. This frame emits `if (abstraction is not TDbContext concrete)`, so the pattern variable
+        /// shares a scope with the abstraction variable it is testing. Both names default to their type's,
+        /// and the conventional IFoo/Foo pairing reduces to the SAME identifier -- IBillingDbContext and
+        /// BillingDbContext are both "billingDbContext" -- which emitted
+        /// `if (billingDbContext is not BillingDbContext billingDbContext)` and failed with CS0128. The
+        /// feature was unusable for anyone naming their types the normal way; it only worked because every
+        /// test fixture happened to pair unrelated names (IOrderRepository/OrdersDbContext).
+        ///
+        /// <para>Renamed only on an actual collision, so generated code for the non-colliding pairings stays
+        /// byte-identical and nobody with committed pre-generated code has to regenerate it.</para>
+        /// </summary>
+        private static string concreteVariableName(Type abstractionType, Type dbContextType)
+        {
+            var name = Variable.DefaultArgName(dbContextType);
+
+            return name == Variable.DefaultArgName(abstractionType) ? "concrete" + name.Capitalize() : name;
         }
 
         public Variable DbContext { get; }

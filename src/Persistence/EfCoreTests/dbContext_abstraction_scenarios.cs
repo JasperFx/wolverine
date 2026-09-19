@@ -234,6 +234,63 @@ public class dbContext_abstraction_scenarios
         (await db.StoreOrders.AnyAsync(o => o.Id == orderId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
+    // --- Scenario 4: the abstraction is named after its DbContext -----------------------------
+
+    /// <summary>
+    /// GH-4479. Every fixture above pairs an abstraction with a DbContext whose names are unrelated --
+    /// IOrderRepository/OrdersDbContext, IItemRepository/StoreDbContext -- so the two variables the cast
+    /// frame puts in scope never collided. Real applications overwhelmingly use the conventional
+    /// IFoo/Foo pairing instead, and there both variables derive the same name from their type
+    /// (IBillingDbContext and BillingDbContext both reduce to "billingDbContext"), so the generated
+    /// handler came out as `if (billingDbContext is not BillingDbContext billingDbContext)` and failed to
+    /// compile with CS0128. The feature was unusable for anyone naming their types the normal way.
+    /// </summary>
+    [Fact]
+    public async Task abstraction_named_after_its_dbcontext_still_generates_compilable_code()
+    {
+        await CreateSchemaAsync("""
+            CREATE TABLE billing_abs_schema.invoices (
+                "Id" uuid PRIMARY KEY,
+                "Reference" text NOT NULL
+            );
+            """, "billing_abs_schema");
+
+        // Bootstrapping is the assertion: handler codegen runs here, and pre-GH-4479 it threw a
+        // compilation failure for CS0128 before the host ever came up.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<BillingDbContext>(x =>
+                    x.UseNpgsql(Servers.PostgresConnectionString,
+                        b => b.MigrationsHistoryTable("__EFMigrationsHistory", "billing_abs_schema")));
+                opts.Services.AddScoped<IBillingDbContext>(sp => sp.GetRequiredService<BillingDbContext>());
+
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine_abs");
+
+                opts.UseEntityFrameworkCoreTransactions()
+                    .WithDbContextAbstraction<IBillingDbContext, BillingDbContext>();
+
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<IssueInvoiceHandler>();
+
+                opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        var invoiceId = Guid.NewGuid();
+
+        await host.InvokeMessageAndWaitAsync(new IssueInvoice(invoiceId, "INV-4479"));
+
+        // And the generated cast has to have produced a working DbContext, not merely compiled.
+        await using var scope = host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BillingDbContext>();
+        (await db.Invoices.AnyAsync(i => i.Id == invoiceId, cancellationToken: TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+    }
+
     // EF Core's EnsureCreatedAsync is a no-op when the database already exists — and the shared
     // Wolverine integration-tests Postgres always does. So we issue raw DDL for the user-defined
     // tables, mirroring the workaround documented in `Bugs/Bug_DurableLocalQueue_ancillary_store_routing.cs`
@@ -419,6 +476,44 @@ public class CrossAbstractionAuditHandler
 }
 
 #endregion
+
+// === GH-4479 fixtures: the conventional IFoo/Foo pairing =====================================
+//
+// Named deliberately so the abstraction and its DbContext reduce to the SAME variable name. That is
+// the whole point of these: every other fixture in this file avoids the collision by accident.
+
+public class InvoiceEntity
+{
+    public Guid Id { get; set; }
+    public string Reference { get; set; } = string.Empty;
+}
+
+public interface IBillingDbContext
+{
+    DbSet<InvoiceEntity> Invoices { get; }
+}
+
+public class BillingDbContext(DbContextOptions<BillingDbContext> options) : DbContext(options), IBillingDbContext
+{
+    public DbSet<InvoiceEntity> Invoices => Set<InvoiceEntity>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("billing_abs_schema");
+        modelBuilder.MapWolverineEnvelopeStorage("billing_abs_schema");
+        modelBuilder.Entity<InvoiceEntity>().ToTable("invoices");
+    }
+}
+
+public record IssueInvoice(Guid Id, string Reference);
+
+public class IssueInvoiceHandler
+{
+    public static void Handle(IssueInvoice cmd, IBillingDbContext billing)
+    {
+        billing.Invoices.Add(new InvoiceEntity { Id = cmd.Id, Reference = cmd.Reference });
+    }
+}
 
 // === Doc-only sample: bare single-abstraction registration ====================================
 //
