@@ -1354,6 +1354,58 @@ partial class Build
                 projects.Length);
         });
 
+    // GH-4486. `codegen test` (JasperFx's TryBuildAndCompileAll) is what applications use as the PR gate
+    // on their pre-generated code, and nothing in this repo ran it against a project with message
+    // handlers. The drift gate above runs `codegen write`; the AotSmoke projects run `publish`. So when
+    // GH-4426 taught HandlerRegistryCodeFile to root every generated handler by NAME through AotRoots, and
+    // jasperfx#227 had already made `codegen test` compile each file into its own assembly, the two
+    // collided into a CS0234 for every handler -- and it shipped in 6.37.0 and survived two more releases
+    // with a fully green CI.
+    //
+    // The ordering below is the whole gate, and getting it wrong makes this prove nothing:
+    //
+    //   Wipe Internal/Generated, THEN build, THEN run `codegen test`.
+    //
+    // Build before the wipe (which is what the drift gate does, deliberately, for its own purposes) and
+    // the application assembly still carries the previously generated types. The in-memory compile then
+    // resolves every AotRoots name against them and passes no matter what -- the exact reason the
+    // reporter's own `codegen test` went green whenever `codegen write` + build had run first.
+    //
+    // ConsoleApp alone, because it is the shape that broke: a plain console host with message handlers
+    // that hands off to RunJasperFxCommands. The HTTP projects were never affected -- an HTTP-only app's
+    // AotRoots root only the registry itself, which is in the same file.
+    //
+    // Like the drift gate, this REWRITES the working tree by design. CI checkouts are disposable;
+    // locally, `git checkout -- .` puts the generated tree back.
+    Target CICodegenTest => _ => _
+        .Executes(() =>
+        {
+            // ConsoleApp configures RabbitMQ. `codegen test` compiles the handler graph without starting
+            // the host, so it is not strictly contacted -- same reasoning as the drift gate.
+            StartDockerServices("rabbitmq");
+
+            var project = RootDirectory / "src" / "Testing" / "ConsoleApp";
+
+            var generated = Path.Combine(project, "Internal", "Generated");
+            if (Directory.Exists(generated))
+            {
+                Directory.Delete(generated, true);
+            }
+
+            // AFTER the wipe, so the assembly under test genuinely has no generated types in it.
+            DotNet($"build {project} --configuration {Configuration} --framework net9.0");
+
+            // From the project's own directory, for the same working-directory reason the drift gate
+            // documents above.
+            ProcessTasks
+                .StartProcess("dotnet",
+                    $"run --configuration {Configuration} --framework net9.0 --no-build -- codegen test",
+                    workingDirectory: project)
+                .AssertZeroExitCode();
+
+            Log.Information("`codegen test` compiles cleanly for a handler-bearing project with no pre-generated code");
+        });
+
     // ─── Azure Service Bus CI Targets ──────────────────────────────────
     //
     // GH-3790. Wolverine.AzureServiceBus.Tests was the tests.yml wall-clock pole and sat at 84% of the
