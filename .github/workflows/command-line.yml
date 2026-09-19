@@ -96,6 +96,34 @@ jobs:
 
           echo "event-model smoke test passed"
 
+  # GH-4486. Separate job from codegen-drift on purpose: both rewrite the generated tree, and this one
+  # depends on building AFTER the wipe (see the note on CICodegenTest) while the drift gate builds
+  # before it. Keeping them apart means neither has to reason about the other's leftovers.
+  codegen-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      # Runs `codegen test` against a handler-bearing project with no pre-generated code -- the path
+      # that broke in 6.37.0 and that neither the drift gate (`codegen write`) nor AotSmoke (`publish`)
+      # exercises. The target starts its own rabbitmq container.
+      - name: Codegen test gate
+        run: ./build.sh CICodegenTest --framework net9.0
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down
+
   codegen-drift:
     runs-on: ubuntu-latest
     timeout-minutes: 15
