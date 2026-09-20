@@ -19,6 +19,33 @@ public class TestMessageContextTests
     }
 
     [Fact]
+    public async Task invoke_through_routing_is_recorded_separately_from_inline_invocation()
+    {
+        var response = new NumberResponse(11);
+        theSpy.WhenInvokedMessageOf<NumberRequest>().RespondWith(response);
+
+        var inline = new NumberRequest(1, 2);
+        var routed = new NumberRequest(3, 4);
+
+        await theContext.InvokeAsync<NumberResponse>(inline, TestContext.Current.CancellationToken);
+        (await theContext.InvokeAsync<NumberResponse>(routed, new DeliveryOptions { InvokeThroughRouting = true },
+            TestContext.Current.CancellationToken)).ShouldBeSameAs(response);
+
+        theSpy.Invoked.Count.ShouldBe(2);
+        theSpy.InvokedThroughRouting.ShouldHaveSingleItem().ShouldBeSameAs(routed);
+    }
+
+    [Fact]
+    public void streaming_through_routing_is_refused_just_like_the_real_bus()
+    {
+        Should.Throw<NotSupportedException>(() =>
+        {
+            _ = theContext.StreamAsync<NumberResponse>(new NumberRequest(1, 2),
+                new DeliveryOptions { InvokeThroughRouting = true });
+        });
+    }
+
+    [Fact]
     public async Task invoke_a_message_inline()
     {
         var message = new Message2();

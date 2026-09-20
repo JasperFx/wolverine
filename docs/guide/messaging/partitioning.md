@@ -44,7 +44,7 @@ public interface IOrderCommand
 public record ApproveOrder(string OrderId) : IOrderCommand;
 public record CancelOrder(string OrderId) : IOrderCommand;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L199-L208' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L212-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If we were only running our system on a single node so we only care about a single process, we can do this:
@@ -287,7 +287,7 @@ public static IEnumerable<object> Handle(ApproveInvoice command)
     yield return new PayInvoice(command.Id).WithGroupId("aaa");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L190-L196' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L203-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Partitioned Publishing Locally
@@ -772,6 +772,79 @@ done by the node agent framework, which needs a message store to persist node re
 where *every* node starts *every* listener, so a multi-node storage-free deployment has to assign slots to
 nodes itself (each node listening only to the slots it owns). Single-node deployments are unaffected.
 :::
+
+### Awaited Typed Replies
+
+To await a typed reply through a global partitioned topology, set `DeliveryOptions.InvokeThroughRouting`:
+
+<!-- snippet: sample_awaited_typed_reply_through_partitioning -->
+<a id='snippet-sample_awaited_typed_reply_through_partitioning'></a>
+```cs
+public static Task<OrderStatus> ApproveOrderAndWaitForTheResult(IMessageBus bus, string orderId,
+    CancellationToken cancellationToken)
+{
+    return bus.InvokeAsync<OrderStatus>(
+        new ApproveOrder(orderId),
+        new DeliveryOptions { InvokeThroughRouting = true },
+        cancellationToken,
+        TimeSpan.FromSeconds(10));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L184-L195' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_awaited_typed_reply_through_partitioning' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine selects the shard using the same group id routing as publishing and awaits the reply, whether
+this node or another owns the partition. An explicit `DeliveryOptions.GroupId` overrides the configured
+grouping rule, and the calling context's tenant id is applied before the shard is chosen, so `ByTenantId()`
+grouping behaves as it does for `PublishAsync`. Without `InvokeThroughRouting`, a locally registered
+handler still executes inline, bypassing partitioning.
+
+#### Transactions and nested invocations
+
+::: warning
+The command is dispatched immediately, outside the caller's transaction and outbox. Rolling back the
+caller does not undo the command's effects. Invoke before opening a transaction or after committing:
+awaiting a handler that needs database locks held by the caller can cause a timeout.
+:::
+
+Each processing lane executes one message at a time, and different group ids can share a lane. Wolverine
+rejects a nested invocation back onto the lane occupied by the calling handler. This guard detects only
+direct re-entry; indirect cycles between lanes can still time out. Prefer publishing follow-up work or
+moving awaited invocations outside partitioned handlers.
+
+#### Timeouts and failures
+
+The timeout includes time waiting in the queue and also sets the request's `DeliverWithin`. Requests
+that expire before execution are discarded. Choose a timeout that accounts for the expected backlog;
+`WolverineOptions.DefaultRemoteInvocationTimeout` defaults to 5 seconds.
+
+::: warning
+A timeout does not mean the command had no effect. It may already be executing, or retries may continue
+after the caller stops waiting. Make commands idempotent or check their outcome before retrying.
+:::
+
+When error handling moves the request to the dead letter queue, Wolverine sends a failure reply on both
+local and remote partitions. A caller still awaiting the reply receives a `WolverineRequestReplyException`.
+Retries can outlast the caller's timeout.
+
+#### Limitations
+
+Invocation requires a single route and `WolverineOptions.EnableRemoteInvocation` to be enabled.
+The following configurations throw:
+
+| Configuration | Exception |
+| ------------- | --------- |
+| `ProcessInParallelWithNativeAcks()` topology | `NotSupportedException` |
+| Non-global partitioned topology (`PublishToPartitionedLocalMessaging`) | `InvalidOperationException` |
+| `StreamAsync` through routing | `NotSupportedException` |
+| Scheduled delivery (`ScheduledTime` / `ScheduleDelay`) | `InvalidOperationException` |
+| Multiple subscribers | `MultipleSubscribersException` |
+| No route | `IndeterminateRoutesException` |
+| `EnableRemoteInvocation = false` | `InvalidOperationException` |
+
+The request carries its group id, but this invocation path does not apply
+`PropagateGroupIdToPartitionKey()`. Set `DeliveryOptions.PartitionKey` explicitly if you need a Kafka
+partition key.
 
 ### Excluding Message Types <Badge type="tip" text="6.25" />
 

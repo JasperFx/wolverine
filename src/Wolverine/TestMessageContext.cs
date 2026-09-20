@@ -12,6 +12,7 @@ namespace Wolverine;
 public class TestMessageContext : IMessageContext
 {
     private readonly List<object> _invoked = new();
+    private readonly List<object> _invokedThroughRouting = new();
     private readonly List<object> _published = new();
     private readonly List<object> _responses = new();
     private readonly List<object> _sent = new();
@@ -30,6 +31,11 @@ public class TestMessageContext : IMessageContext
     ///     Messages that were executed inline from this context
     /// </summary>
     public IReadOnlyList<object> Invoked => _invoked;
+
+    /// <summary>
+    ///     Messages invoked with DeliveryOptions.InvokeThroughRouting set. These also appear in Invoked
+    /// </summary>
+    public IReadOnlyList<object> InvokedThroughRouting => _invokedThroughRouting;
 
     /// <summary>
     ///     All messages "published" through this context. If in doubt use AllOutgoing instead.
@@ -158,6 +164,14 @@ public class TestMessageContext : IMessageContext
         return Task.FromResult(response);
     }
 
+    private void recordRoutedInvocation(object message, DeliveryOptions options)
+    {
+        if (options.InvokeThroughRouting)
+        {
+            _invokedThroughRouting.Add(message);
+        }
+    }
+
     private TResponse findResponse<TResponse>(object message, Uri? destination = null, string? endpointName = null)
     {
         foreach (var expectation in Expectations)
@@ -207,6 +221,7 @@ public class TestMessageContext : IMessageContext
         TimeSpan? timeout)
     {
         _invoked.Add(message);
+        recordRoutedInvocation(message, options);
         return Task.CompletedTask;
     }
 
@@ -217,6 +232,7 @@ public class TestMessageContext : IMessageContext
         options.Override(envelope);
 
         _invoked.Add(envelope);
+        recordRoutedInvocation(message, options);
 
         var response = findResponse<T>(message);
         return Task.FromResult(response);
@@ -231,6 +247,12 @@ public class TestMessageContext : IMessageContext
     IAsyncEnumerable<TResponse> ICommandBus.StreamAsync<TResponse>(object message, DeliveryOptions options,
         CancellationToken cancellation)
     {
+        if (options.InvokeThroughRouting)
+        {
+            throw new NotSupportedException(
+                $"{nameof(DeliveryOptions.InvokeThroughRouting)} is not supported for StreamAsync. Streaming is only supported for locally handled messages.");
+        }
+
         var envelope = new Envelope(message);
         options.Override(envelope);
         _invoked.Add(envelope);

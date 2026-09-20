@@ -149,7 +149,11 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, options);
+        var invoker = options.InvokeThroughRouting
+            ? findRoutedInvoker(message.GetType(), options)
+            : Runtime.FindInvoker(message.GetType());
+
+        return invoker.InvokeAsync(message, this, cancellation, timeout, options);
     }
 
     public Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default,
@@ -162,7 +166,37 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, options);
+        var invoker = options.InvokeThroughRouting
+            ? findRoutedInvoker(message.GetType(), options)
+            : Runtime.FindInvoker(message.GetType());
+
+        return invoker.InvokeAsync<T>(message, this, cancellation, timeout, options);
+    }
+
+    // Not Runtime.FindInvoker, which prefers a local handler and caches that answer by message type alone
+    private IMessageInvoker findRoutedInvoker(Type messageType, DeliveryOptions options)
+    {
+        // The partitioned route hashes the shard from the options alone, so the calling context's tenant
+        // has to be on them before a slot is picked
+        applyTenantContext(options);
+
+        if (options.ScheduledTime.HasValue || options.ScheduleDelay.HasValue)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(DeliveryOptions.InvokeThroughRouting)} cannot be combined with scheduled delivery. "
+                + "The caller would wait out its invocation timeout while the message sits scheduled. Use PublishAsync/SendAsync to schedule a message.");
+        }
+
+        var route = Runtime.RoutingFor(messageType).FindSingleRouteForSending();
+
+        if (route is IMessageInvoker invoker)
+        {
+            return invoker;
+        }
+
+        throw new InvalidOperationException(
+            $"The route for {messageType.FullNameInCode()} ({route.Describe().Endpoint}) is a {route.GetType().Name}, which does not support request/reply invocation. "
+            + $"{nameof(DeliveryOptions.InvokeThroughRouting)} currently supports single external or globally partitioned routes.");
     }
 
     public Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,
@@ -211,6 +245,12 @@ public partial class MessageBus : IMessageBus, IMessageContext
         }
 
         Runtime.AssertHasStarted();
+
+        if (options.InvokeThroughRouting)
+        {
+            throw new NotSupportedException(
+                $"{nameof(DeliveryOptions.InvokeThroughRouting)} is not supported for StreamAsync. Streaming is only supported for locally handled messages.");
+        }
 
         return Runtime.FindInvoker(message.GetType()).StreamAsync<TResponse>(message, this, cancellation, options);
     }

@@ -392,13 +392,16 @@ public class GlobalPartitionedMessageTopology
 
         var externalEndpoints = _externalTopology.Slots.ToArray();
 
+        var localEndpoints = _localTopology?.Slots.ToArray() ?? [];
+
         route = new GlobalPartitionedRoute(
             _externalTopology.Uri,
             runtime.Options.MessagePartitioning,
             externalRoutes,
             localRoutes,
             externalEndpoints,
-            _nativeAcks);
+            _nativeAcks,
+            localEndpoints);
 
         return true;
     }

@@ -86,7 +86,14 @@ public class DeliveryOptions
     public string? ContentType { get; set; }
 
     internal bool IsResponse { get; set; }
-    
+
+    /// <summary>
+    ///     Send this one InvokeAsync call through the message type's configured routing instead of executing
+    ///     a local handler inline, and await the reply from there. Dispatch is immediate and does not enlist
+    ///     in the caller's transaction. See "Awaited Typed Replies" in the partitioning guide.
+    /// </summary>
+    public bool InvokeThroughRouting { get; set; }
+
     /// <summary>
     /// Extra routing information to send to the eventual
     /// Wolverine transport. Mostly built for WebSockets

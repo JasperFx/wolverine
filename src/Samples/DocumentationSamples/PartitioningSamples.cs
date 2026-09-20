@@ -180,6 +180,19 @@ public class PartitioningSamples
 
         #endregion
     }
+
+    #region sample_awaited_typed_reply_through_partitioning
+    public static Task<OrderStatus> ApproveOrderAndWaitForTheResult(IMessageBus bus, string orderId,
+        CancellationToken cancellationToken)
+    {
+        return bus.InvokeAsync<OrderStatus>(
+            new ApproveOrder(orderId),
+            new DeliveryOptions { InvokeThroughRouting = true },
+            cancellationToken,
+            TimeSpan.FromSeconds(10));
+    }
+
+    #endregion
 }
 
 public record PayInvoice(string Id);
@@ -208,3 +221,5 @@ public record CancelOrder(string OrderId) : IOrderCommand;
 #endregion
 
 public record OrderTelemetry(string OrderId, double ElapsedMilliseconds);
+
+public record OrderStatus(string OrderId, bool Approved);
