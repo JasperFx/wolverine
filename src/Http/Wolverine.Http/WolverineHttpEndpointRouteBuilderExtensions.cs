@@ -282,6 +282,13 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         serviceProvider.GetRequiredService<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);
 
         endpoints.DataSources.Add(options.Endpoints);
+
+        // Make the whole route table — Wolverine's endpoints and everybody else's — visible to an
+        // ApiExplorer read taken before the host starts. Done here, on the thread composing the
+        // application, because ASP.NET Core enumerates the collection this writes without
+        // synchronization while the host is starting. See HostEndpointDataSources, GH-3421 and GH-4500.
+        options.HostEndpointsPublished =
+            HostEndpointDataSources.IsRoot(endpoints) && HostEndpointDataSources.TryPublish(endpoints);
     }
 
     internal static WolverineRuntime GetWolverineRuntime(IEndpointRouteBuilder endpoints)

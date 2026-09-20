@@ -1,11 +1,16 @@
+using System.Collections.ObjectModel;
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Shouldly;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Marten;
@@ -123,6 +128,71 @@ public class api_explorer_before_host_start
     public void the_aspnetcore_endpoint_data_source_collection_is_still_reachable()
     {
         HostEndpointDataSources.EndpointDataSourcesProperty.ShouldNotBeNull();
+    }
+
+    // GH-4500. RouteOptions.EndpointDataSources is a plain ObservableCollection that ASP.NET Core
+    // enumerates without synchronization — CompositeEndpointDataSource walks it to build the host's
+    // endpoint list, and UseRouting/UseAuthorization do that while the host is starting. Anything that
+    // adds to it from another thread at that moment kills the enumeration with "Collection was modified",
+    // and because the enumeration is on the startup thread, the host does not start at all.
+    //
+    // ASP.NET Core only ever writes that collection from the startup thread. So must Wolverine: the read
+    // side is mapped once, at MapWolverineEndpoints() time, and nothing about reading the ApiExplorer may
+    // mutate it afterwards. The reported failure came from a monitoring observer taking a capabilities
+    // snapshot as the runtime started, which is an ApiExplorer read on a thread pool thread.
+    [Fact]
+    public async Task reading_the_api_explorer_does_not_mutate_the_live_endpoint_collection()
+    {
+        await using var app = buildHybridHost();
+
+        var global = HostEndpointDataSources.EndpointDataSourcesProperty!
+            .GetValue(app.Services.GetRequiredService<IOptions<RouteOptions>>().Value)
+            .ShouldBeOfType<ObservableCollection<EndpointDataSource>>();
+
+        // Stands in for whatever ASP.NET Core is enumerating on the startup thread. Blocking inside
+        // Endpoints holds the collection's enumerator open exactly the way CreateEndpointsUnsynchronized
+        // does mid-startup.
+        var proceed = new ManualResetEventSlim(false);
+        var countWhenBlocked = global.Count + 1;
+        var gate = new GateEndpointDataSource(() => proceed.IsSet || global.Count != countWhenBlocked);
+        global.Add(gate);
+
+        var enumeration = Task.Run(() => app.Services.GetRequiredService<EndpointDataSource>().Endpoints.ToList(),
+            TestContext.Current.CancellationToken);
+
+        gate.Entered.Wait(10.Seconds(), TestContext.Current.CancellationToken).ShouldBeTrue();
+
+        // ...and now the ApiExplorer read that the monitoring snapshot performs
+        readDescriptions(app).ShouldNotBeEmpty();
+        proceed.Set();
+
+        // Before GH-4500 this is InvalidOperationException("Collection was modified; enumeration operation
+        // may not execute."), which in the reported host aborted startup.
+        await enumeration;
+    }
+
+    private sealed class GateEndpointDataSource : EndpointDataSource
+    {
+        private readonly Func<bool> _release;
+
+        public GateEndpointDataSource(Func<bool> release)
+        {
+            _release = release;
+        }
+
+        public ManualResetEventSlim Entered { get; } = new(false);
+
+        public override IReadOnlyList<Endpoint> Endpoints
+        {
+            get
+            {
+                Entered.Set();
+                SpinWait.SpinUntil(_release, 10.Seconds());
+                return Array.Empty<Endpoint>();
+            }
+        }
+
+        public override IChangeToken GetChangeToken() => new CancellationChangeToken(CancellationToken.None);
     }
 
     private static WebApplication buildHybridHost(bool useRealDatabase = false,
