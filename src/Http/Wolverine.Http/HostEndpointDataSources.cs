@@ -1,9 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 
 namespace Wolverine.Http;
 
@@ -30,9 +32,20 @@ namespace Wolverine.Http;
 /// GH-3421.
 /// </para>
 /// <para>
-/// Publishing the route builder's data sources into the global collection ahead of the read closes the
-/// gap. It is the same operation <c>UseEndpoints()</c> performs at start, with the same data source
-/// instances — and UseEndpoints() de-dupes by reference, so it is a no-op there afterwards.
+/// Publishing a view over the route builder's data sources into the global collection ahead of the read
+/// closes the gap. The view is added once, from <c>MapWolverineEndpoints()</c> — on the thread composing
+/// the application, before anything is running — and it yields nothing for a data source
+/// <c>UseEndpoints()</c> has since published itself, so the host's endpoints are never registered twice.
+/// </para>
+/// <para>
+/// It has to be a deferred view rather than a copy of the data sources for two reasons. The obvious one
+/// is completeness: <c>MapControllers()</c>, another <c>MapGroup()</c>, a gRPC service mapped after
+/// <c>MapWolverineEndpoints()</c> each add a new data source, and a pre-start read has to see those too.
+/// The other is GH-4500: <c>RouteOptions.EndpointDataSources</c> is a plain <c>ObservableCollection</c>
+/// that ASP.NET Core enumerates unsynchronized on the startup thread, so writing to it from anywhere else
+/// — say, a monitoring observer reading the ApiExplorer as the runtime starts — kills that enumeration
+/// with "Collection was modified" and takes host startup down with it. Wolverine therefore writes this
+/// collection exactly where ASP.NET Core does, and reading the ApiExplorer never writes it at all.
 /// </para>
 /// </remarks>
 internal static class HostEndpointDataSources
@@ -46,15 +59,6 @@ internal static class HostEndpointDataSources
     internal static PropertyInfo? EndpointDataSourcesProperty { get; } =
         typeof(RouteOptions).GetProperty("EndpointDataSources",
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-    // Serializes Wolverine's own writers against each other: ApiDescriptionGroupCollectionProvider caches
-    // without synchronizing, so two simultaneous cold ApiExplorer reads both run the description providers
-    // and hence both land here. It cannot exclude ASP.NET Core's UseEndpoints(), which writes the same
-    // collection unlocked — but that writer only runs while the host is starting, and an ApiExplorer read
-    // concurrent with host start is already unsafe in ASP.NET Core (it enumerates the very collection
-    // UseEndpoints is mutating), with or without Wolverine. Uncontended in practice, and taken once per
-    // ApiExplorer composition rather than per request.
-    private static readonly object _lock = new();
 
     /// <summary>
     /// Publish the endpoints a host has mapped. Nothing to do for a host that is not an
@@ -71,9 +75,9 @@ internal static class HostEndpointDataSources
     }
 
     /// <summary>
-    /// Add every data source the route builder knows about to the global collection ASP.NET Core's
-    /// ApiExplorer reads, skipping the ones already there. Safe to call repeatedly, and a no-op once the
-    /// host has started and UseEndpoints() has published them itself.
+    /// Make the endpoints the route builder knows about visible to the global collection ASP.NET Core's
+    /// ApiExplorer reads. Idempotent, and must only ever be called from the thread composing the
+    /// application — see the GH-4500 note on this class.
     /// </summary>
     /// <param name="routeBuilder">
     /// The application's <em>root</em> route builder — the <c>WebApplication</c> — and never a nested one.
@@ -92,19 +96,12 @@ internal static class HostEndpointDataSources
             return false;
         }
 
-        lock (_lock)
+        if (global.OfType<UnpublishedEndpointDataSource>().Any(x => ReferenceEquals(x.RouteBuilder, routeBuilder)))
         {
-            foreach (var dataSource in routeBuilder.DataSources)
-            {
-                // Reference equality, matching UseEndpoints(). Publishing anything other than the very
-                // instances the route builder holds would leave UseEndpoints() to add them a second time
-                // at start, and the router would then see every endpoint twice.
-                if (!global.Contains(dataSource))
-                {
-                    global.Add(dataSource);
-                }
-            }
+            return true;
         }
+
+        global.Add(new UnpublishedEndpointDataSource(routeBuilder, global));
 
         return true;
     }
@@ -119,12 +116,14 @@ internal static class HostEndpointDataSources
     }
 
     /// <summary>
-    /// Has anything reached the global collection yet? Nothing has before the host starts, which is exactly
-    /// when a read of it yields an incomplete document.
+    /// Has ASP.NET Core published the application's own endpoints yet? It does that in UseEndpoints() at
+    /// start; before then a read of the global collection yields an incomplete document. Wolverine's own
+    /// deferred view does not count — it is there from MapWolverineEndpoints() onwards.
     /// </summary>
     public static bool AnyPublished(IServiceProvider services)
     {
-        return tryGetGlobalDataSources(services, out var global) && global.Count > 0;
+        return tryGetGlobalDataSources(services, out var global)
+               && global.Any(x => x is not UnpublishedEndpointDataSource);
     }
 
     private static bool tryGetGlobalDataSources(IServiceProvider services,
@@ -151,4 +150,56 @@ internal static class HostEndpointDataSources
         dataSources = collection;
         return true;
     }
+}
+
+/// <summary>
+/// The endpoints a route builder has mapped that ASP.NET Core has <em>not</em> published to
+/// <c>RouteOptions.EndpointDataSources</c> itself yet — i.e. everything, until UseEndpoints() runs at host
+/// start, and nothing afterwards.
+/// </summary>
+/// <remarks>
+/// This is what <see cref="HostEndpointDataSources.TryPublish(IEndpointRouteBuilder)" /> registers, in
+/// place of the route builder's own data sources. One registration, made while the application is being
+/// composed, covers every endpoint mapped before or after <c>MapWolverineEndpoints()</c> — and because the
+/// view subtracts whatever UseEndpoints() has already published, the endpoint never appears twice no
+/// matter which side of host start it is read from.
+/// </remarks>
+internal sealed class UnpublishedEndpointDataSource : EndpointDataSource
+{
+    private readonly ICollection<EndpointDataSource> _global;
+
+    public UnpublishedEndpointDataSource(IEndpointRouteBuilder routeBuilder, ICollection<EndpointDataSource> global)
+    {
+        RouteBuilder = routeBuilder;
+        _global = global;
+    }
+
+    public IEndpointRouteBuilder RouteBuilder { get; }
+
+    public override IReadOnlyList<Endpoint> Endpoints
+    {
+        get
+        {
+            var endpoints = new List<Endpoint>();
+            foreach (var dataSource in RouteBuilder.DataSources.ToArray())
+            {
+                // Reference equality, matching UseEndpoints(). Once ASP.NET Core has published a data
+                // source itself, this view has to stop answering for it or every endpoint in it matches
+                // twice.
+                if (_global.Contains(dataSource))
+                {
+                    continue;
+                }
+
+                endpoints.AddRange(dataSource.Endpoints);
+            }
+
+            return endpoints;
+        }
+    }
+
+    // Deliberately never signals. The only thing that changes what this view answers is UseEndpoints()
+    // publishing the real data sources, and that writes the global collection, which the composite source
+    // is already watching.
+    public override IChangeToken GetChangeToken() => new CancellationChangeToken(CancellationToken.None);
 }

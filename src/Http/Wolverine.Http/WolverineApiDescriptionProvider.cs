@@ -27,7 +27,7 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
             return;
         }
 
-        publishHostEndpoints();
+        warnIfTheRouteTableIsIncomplete();
 
         foreach (var chain in graph.Chains)
         {
@@ -67,28 +67,29 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
     /// hybrid host: the minimal API and MVC providers that run after this one read the host's endpoints
     /// through an EndpointDataSource that ASP.NET Core does not fill until the server starts. Left alone,
     /// a pre-start read caches a document carrying every Wolverine route and none of theirs — which reads
-    /// as correct and is not. Publish the host's endpoints first so that whatever is described here is the
-    /// whole route table. See GH-3421.
+    /// as correct and is not. MapWolverineEndpoints() publishes a view of the host's endpoints so that
+    /// whatever is described here is the whole route table; this says so when it could not. See GH-3421.
     /// </summary>
-    private void publishHostEndpoints()
+    /// <remarks>
+    /// Reading the ApiExplorer must not itself publish anything. The collection publishing writes is one
+    /// ASP.NET Core enumerates unsynchronized on the startup thread, so a read from any other thread while
+    /// the host is starting — a monitoring snapshot, say — would abort startup with "Collection was
+    /// modified". See GH-4500.
+    /// </remarks>
+    private void warnIfTheRouteTableIsIncomplete()
     {
+        if (_options.HostEndpointsPublished)
+        {
+            return;
+        }
+
         if (_options.RouteBuilder is not { } routeBuilder)
         {
             return;
         }
 
-        // Only ever publish from the application's root route builder. MapWolverineEndpoints() can also be
-        // called on a route group, whose DataSources are the group's *inner* sources — ASP.NET Core already
-        // publishes those on the group's behalf, prefixed and carrying the group's conventions. Publishing
-        // them again here would register every endpoint in the group a second time, un-prefixed and stripped
-        // of conventions like the group's RequireAuthorization(), at a URL the application never mapped.
-        if (HostEndpointDataSources.IsRoot(routeBuilder) && HostEndpointDataSources.TryPublish(routeBuilder))
-        {
-            return;
-        }
-
         // The host has started, so ASP.NET Core has published its own endpoints and this read is complete
-        // whatever Wolverine did or did not do above.
+        // whatever Wolverine did or did not do at map time.
         if (HostEndpointDataSources.AnyPublished(routeBuilder.ServiceProvider))
         {
             return;

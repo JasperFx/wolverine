@@ -27,33 +27,52 @@ public static class OpenApiDescriptorBuilder
     /// <summary>Maximum schema-tree depth before we emit a <c>$ref</c> chip (Q12).</summary>
     public const int MaxInlineSchemaDepth = 3;
 
-    public static OpenApiOperationDescriptor? TryBuildForWolverine(
-        HttpChain chain,
+    /// <summary>
+    /// Index every Wolverine <see cref="ApiDescription" /> ASP.NET Core's ApiExplorer knows about by the
+    /// chain it describes, in one pass. A descriptor snapshot asks for several hundred chains on a large
+    /// host, and each one searching the whole collection is quadratic.
+    /// </summary>
+    public static Dictionary<HttpChain, ApiDescription> IndexByChain(
         IApiDescriptionGroupCollectionProvider apiDescriptions)
     {
-        // Match by route + method on the WolverineActionDescriptor's stamp.
-        var route = chain.RoutePattern?.RawText;
-        if (route is null) return null;
+        var index = new Dictionary<HttpChain, ApiDescription>();
 
-        ApiDescription? apiDescription = null;
         foreach (var group in apiDescriptions.ApiDescriptionGroups.Items)
         {
             foreach (var item in group.Items)
             {
-                if (item.ActionDescriptor is WolverineActionDescriptor wad &&
-                    wad.Chain == chain)
+                if (item.ActionDescriptor is WolverineActionDescriptor wad)
                 {
-                    apiDescription = item;
-                    break;
+                    // First one wins, matching the search this replaced. A chain answering more than one
+                    // HTTP method has an ApiDescription per method, and they share an OpenAPI shape.
+                    index.TryAdd(wad.Chain, item);
                 }
             }
-
-            if (apiDescription is not null) break;
         }
 
-        return apiDescription is null
-            ? null
-            : Build(apiDescription, chain.Endpoint, chain.Tags.Select(t => $"{t.Key}={t.Value}").ToList());
+        return index;
+    }
+
+    /// <summary>
+    /// Convenience overload for a one-off lookup. Reading descriptors for a whole graph should index once
+    /// with <see cref="IndexByChain" /> instead of searching the collection per chain.
+    /// </summary>
+    public static OpenApiOperationDescriptor? TryBuildForWolverine(
+        HttpChain chain,
+        IApiDescriptionGroupCollectionProvider apiDescriptions)
+    {
+        return TryBuildForWolverine(chain, IndexByChain(apiDescriptions));
+    }
+
+    public static OpenApiOperationDescriptor? TryBuildForWolverine(
+        HttpChain chain,
+        IReadOnlyDictionary<HttpChain, ApiDescription> apiDescriptions)
+    {
+        if (chain.RoutePattern?.RawText is null) return null;
+
+        return apiDescriptions.TryGetValue(chain, out var apiDescription)
+            ? Build(apiDescription, chain.Endpoint, chain.Tags.Select(t => $"{t.Key}={t.Value}").ToList())
+            : null;
     }
 
     public static OpenApiOperationDescriptor? Build(

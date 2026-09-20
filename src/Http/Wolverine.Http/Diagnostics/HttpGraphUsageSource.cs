@@ -83,7 +83,7 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
         // ApiExplorer (registered by AddEndpointsApiExplorer()) gives us the full
         // ApiDescription per chain. Probe optionally — Wolverine.Http is happy
         // running without it; the OpenApi tab will just stay empty.
-        var apiDescriptions = services.GetService<IApiDescriptionGroupCollectionProvider>();
+        var apiDescriptions = readApiDescriptions(services);
 
         // Group chains by (route + method) to collapse multi-version clones.
         // Each clone has a distinct ApiVersion but identical handler+route, so
@@ -105,6 +105,28 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
         }
 
         return Task.FromResult<HttpGraphUsage?>(usage);
+    }
+
+    /// <summary>
+    /// Read the ApiExplorer once, defensively. A capabilities snapshot is typically taken as the runtime
+    /// starts, and ASP.NET Core's description providers walk an EndpointDataSource the web host is still
+    /// filling on the startup thread — an enumeration that can throw "Collection was modified" through no
+    /// fault of the reader. Describing this host's OpenAPI shape is worth strictly less than the snapshot
+    /// it is part of, so give the shape up rather than the snapshot. See GH-4500.
+    /// </summary>
+    private static IReadOnlyDictionary<HttpChain, ApiDescription> readApiDescriptions(IServiceProvider services)
+    {
+        var provider = services.GetService<IApiDescriptionGroupCollectionProvider>();
+        if (provider is null) return new Dictionary<HttpChain, ApiDescription>();
+
+        try
+        {
+            return OpenApiDescriptorBuilder.IndexByChain(provider);
+        }
+        catch (Exception)
+        {
+            return new Dictionary<HttpChain, ApiDescription>();
+        }
     }
 
     private static List<string> collectTenantStrategies(WolverineHttpOptions options)
@@ -130,7 +152,7 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
     private HttpChainDescriptor buildChainDescriptor(
         HttpChain chain,
         HttpChain[] versionGroup,
-        IApiDescriptionGroupCollectionProvider? apiDescriptions)
+        IReadOnlyDictionary<HttpChain, ApiDescription> apiDescriptions)
     {
         var route = chain.RoutePattern!.RawText ?? string.Empty;
         var methods = chain.HttpMethods.ToList();
@@ -202,10 +224,7 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
         descriptor.ApiVersion = buildApiVersionDescriptor(chain, versionGroup);
 
         // OpenAPI shape — pull the matching ApiDescription from ApiExplorer.
-        if (apiDescriptions is not null)
-        {
-            descriptor.OpenApi = OpenApiDescriptorBuilder.TryBuildForWolverine(chain, apiDescriptions);
-        }
+        descriptor.OpenApi = OpenApiDescriptorBuilder.TryBuildForWolverine(chain, apiDescriptions);
 
         return descriptor;
     }

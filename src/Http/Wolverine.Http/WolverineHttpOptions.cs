@@ -294,6 +294,14 @@ public class WolverineHttpOptions
     /// </summary>
     internal IEndpointRouteBuilder? RouteBuilder { get; set; }
 
+    /// <summary>
+    ///     Did MapWolverineEndpoints() manage to make the host's whole route table visible to a pre-start
+    ///     ApiExplorer read? False when Wolverine was mapped into a route group, or when ASP.NET Core's
+    ///     internals moved — either way a read before the host starts describes only part of the
+    ///     application, and <see cref="WolverineApiDescriptionProvider" /> says so out loud.
+    /// </summary>
+    internal bool HostEndpointsPublished { get; set; }
+
     internal MiddlewarePolicy Middleware { get; } = new();
 
     public List<IHttpPolicy> Policies { get; } = new();
