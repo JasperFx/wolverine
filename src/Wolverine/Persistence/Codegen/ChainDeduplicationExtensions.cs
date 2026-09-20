@@ -46,18 +46,22 @@ public static class ChainDeduplicationExtensions
         frames.AddRange(
             chain.BuildDeduplicationStopCondition(claim.Variable, DeduplicationOutcome.Duplicate, requirement));
 
-        // The compensating release is ONLY for chains with no ambient transaction. Where one exists the
-        // claim is written inside it, so a rollback already removes it -- and releasing on top of that
-        // would delete a claim that either no longer exists or, worse, has since been legitimately taken
-        // by a concurrent caller.
+        // GH-4501. The compensating release used to be emitted only when the chain had no ambient
+        // transaction, on the reasoning that a transactional chain writes its claim inside the handler's
+        // own transaction and a rollback takes the claim with it -- making a release redundant, or worse,
+        // a delete of a claim a concurrent caller has since legitimately taken.
         //
-        // Read here rather than at attribute time on purpose: IsTransactional is set by the persistence
-        // providers' own policies, so it is only trustworthy once those have run. This is the same phase
-        // EagerIdempotencyOnNonTransactionalChains reads it in.
-        if (!chain.IsTransactional)
-        {
-            frames.Add(new ReleaseDeduplicationIdOnFailureFrame(id, chain.AncillaryStoreType));
-        }
+        // Nothing implements that. Every IDeduplicationStore Wolverine ships claims through
+        // DbDataSource.CreateCommand(), which opens its own connection: the claim is committed
+        // independently of whatever the handler is doing and survives its rollback intact. So the guard
+        // skipped the release on exactly the chains that need it -- a [WriteAggregate] endpoint, a
+        // [Transactional] handler -- where the first failed attempt permanently poisoned the id and
+        // every retry was discarded as a duplicate of work that never happened.
+        //
+        // The concurrent-caller hazard the guard was protecting against cannot arise either, for the
+        // same reason: the row the release deletes is still the one this execution wrote, because it was
+        // never rolled back and so no one else could claim the id in the meantime.
+        frames.Add(chain.BuildDeduplicationReleaseFrame(id));
 
         // Front of the queue: the entire point is to refuse before any work happens, including before
         // any other middleware that might have side effects of its own.

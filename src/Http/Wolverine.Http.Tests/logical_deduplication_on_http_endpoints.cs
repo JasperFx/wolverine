@@ -4,6 +4,7 @@ using JasperFx;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
@@ -63,12 +64,17 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a deduplication test endpoint",
-                    type => type != typeof(DeduplicatedEndpoint) && type != typeof(BenignReplayEndpoint)))));
+                    type => type != typeof(DeduplicatedEndpoint)
+                            && type != typeof(BenignReplayEndpoint)
+                            && type != typeof(RefusingDeduplicatedEndpoint)
+                            && type != typeof(TransactionalDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
 
         DeduplicatedEndpoint.Calls.Clear();
         BenignReplayEndpoint.Calls.Clear();
+        RefusingDeduplicatedEndpoint.Calls.Clear();
+        TransactionalDeduplicatedEndpoint.Calls.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -151,6 +157,87 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         BenignReplayEndpoint.Calls.ShouldHaveSingleItem();
     }
 
+    // GH-4501. An idempotency key is supposed to mean "this succeeded once", not "this was attempted
+    // once". A chain that stops on a non-2xx outcome -- a ProblemDetails 400 from a Validate method, a
+    // FluentValidation failure, a [WriteAggregate] 404 on a missing stream -- did no work, and it is not
+    // a throw, so the compensating release on the exception path never runs. The claim survives, and the
+    // caller that never saw the failure and retries under the same key is told "already done" for work
+    // that never happened.
+    [Fact]
+    public async Task a_non_2xx_answer_releases_the_claim()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("missing")).ToUrl("/dedup/refusing");
+            x.WithRequestHeader("Idempotency-Key", "retry-1");
+            x.StatusCodeShouldBe(404);
+        });
+
+        RefusingDeduplicatedEndpoint.Calls.ShouldBeEmpty();
+
+        // Same key, and this time the request is good. Nothing has ever been done under this key, so it
+        // has to run.
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/refusing");
+            x.WithRequestHeader("Idempotency-Key", "retry-1");
+            x.StatusCodeShouldBeOk();
+        });
+
+        RefusingDeduplicatedEndpoint.Calls.ShouldHaveSingleItem().ShouldBe("real");
+    }
+
+    // ...and the other half of the same rule: a key that did succeed stays claimed. Releasing on
+    // anything short of a 2xx must not turn into releasing on everything.
+    [Fact]
+    public async Task a_2xx_answer_keeps_the_claim()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/refusing");
+            x.WithRequestHeader("Idempotency-Key", "kept-1");
+            x.StatusCodeShouldBeOk();
+        });
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/refusing");
+            x.WithRequestHeader("Idempotency-Key", "kept-1");
+            x.StatusCodeShouldBe(409);
+        });
+
+        RefusingDeduplicatedEndpoint.Calls.ShouldHaveSingleItem();
+    }
+
+    // GH-4501, second half. The compensating release used to be emitted ONLY into non-transactional
+    // chains, on the reasoning that a transactional chain writes its claim inside the handler's own
+    // transaction and a rollback takes the claim with it. Nothing implements that: every
+    // IDeduplicationStore Wolverine ships opens its own connection off a DbDataSource, so the claim is
+    // committed independently of whatever the handler is doing and survives a rollback intact. Which
+    // made the guard exactly backwards — it skipped the release on the chains that needed it, which is
+    // the composition the GH-4501 report is running.
+    [Fact]
+    public async Task a_transactional_chain_releases_its_claim_too()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("missing")).ToUrl("/dedup/transactional");
+            x.WithRequestHeader("Idempotency-Key", "tx-1");
+            x.StatusCodeShouldBe(404);
+        });
+
+        TransactionalDeduplicatedEndpoint.Calls.ShouldBeEmpty();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/transactional");
+            x.WithRequestHeader("Idempotency-Key", "tx-1");
+            x.StatusCodeShouldBeOk();
+        });
+
+        TransactionalDeduplicatedEndpoint.Calls.ShouldHaveSingleItem().ShouldBe("real");
+    }
+
     [Fact]
     public async Task the_refusal_status_is_advertised_in_the_endpoint_metadata()
     {
@@ -176,6 +263,57 @@ public static class DeduplicatedEndpoint
 
     [Deduplicated]
     [WolverinePost("/dedup/create")]
+    public static string Post(DedupRequest request)
+    {
+        Calls.Add(request.Name);
+        return "ok";
+    }
+}
+
+/// <summary>
+/// GH-4501. Stands in for the reported shape: an endpoint that refuses a request with a non-2xx
+/// <c>ProblemDetails</c> rather than by throwing. The handler never runs, so nothing was done under the
+/// idempotency key the request carried.
+/// </summary>
+public static class RefusingDeduplicatedEndpoint
+{
+    public static readonly List<string> Calls = [];
+
+    public static ProblemDetails Validate(DedupRequest request)
+    {
+        return request.Name == "missing"
+            ? new ProblemDetails { Detail = "No such thing", Status = 404 }
+            : WolverineContinue.NoProblems;
+    }
+
+    [Deduplicated]
+    [WolverinePost("/dedup/refusing")]
+    public static string Post(DedupRequest request)
+    {
+        Calls.Add(request.Name);
+        return "ok";
+    }
+}
+
+/// <summary>
+/// GH-4501, second half. The reported application's endpoint is transactional — a <c>[MartenStore]</c>
+/// aggregate endpoint — and the claim does not ride that transaction: every
+/// <c>IDeduplicationStore</c> Wolverine ships opens its own connection off a <c>DbDataSource</c>.
+/// </summary>
+public static class TransactionalDeduplicatedEndpoint
+{
+    public static readonly List<string> Calls = [];
+
+    public static ProblemDetails Validate(DedupRequest request)
+    {
+        return request.Name == "missing"
+            ? new ProblemDetails { Detail = "No such thing", Status = 404 }
+            : WolverineContinue.NoProblems;
+    }
+
+    [Transactional]
+    [Deduplicated]
+    [WolverinePost("/dedup/transactional")]
     public static string Post(DedupRequest request)
     {
         Calls.Add(request.Name);

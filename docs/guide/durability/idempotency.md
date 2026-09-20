@@ -338,9 +338,16 @@ that the window is too long, the cadence too slow, or the volume higher than the
 
 ### Failed handlers do not poison the id
 
-If your handler throws, the claim is released and a retry gets through. Where the handler is
-transactional the claim was written inside that transaction and the rollback removes it; where it is
-not, Wolverine issues a compensating release.
+If your handler throws, Wolverine releases the claim and a retry gets through. The claim is written on
+its own connection rather than inside your handler's transaction, so the release happens whether or not
+the chain is transactional.
+
+HTTP endpoints have a second way to fail, and it is not an exception: a FluentValidation 400, a
+`ProblemDetails` returned from a `Validate` method, a 404 from `[WriteAggregate]` on a missing stream.
+The handler never ran, so the claim is released there too — any response of 400 or above gives the key
+back. A 2xx or a 3xx keeps it, so an idempotency key means "this succeeded once" rather than "this was
+attempted once", and the caller who never saw the failure and retries under the same key gets their
+work done instead of a "that was already handled" answer for work that never happened.
 
 This matters more than it sounds. Without it, the first failed attempt would permanently claim that
 logical id, every retry would be discarded as a duplicate of its own failed attempt, and the work

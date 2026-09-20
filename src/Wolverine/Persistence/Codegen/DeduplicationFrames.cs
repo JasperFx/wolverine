@@ -168,25 +168,49 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
     private string deduplicatorUsage => _deduplicatorUsage ?? _deduplicator!.Usage;
     private string cancellationUsage => _cancellationUsage ?? _cancellation!.Usage;
 
+    /// <summary>
+    /// Name of the <c>bool</c> the generated code sets when execution threw. Chain types that can fail
+    /// without throwing widen the release test around it — see <see cref="BuildReleaseCondition" />.
+    /// </summary>
+    protected const string ThrewFlag = "deduplicatedExecutionThrew";
+
+    /// <summary>
+    /// The condition under which the claim is given back. A throw is the only failure a message handler
+    /// or a gRPC method has; HTTP endpoints also stop on an error status without throwing, and override
+    /// this to say so. GH-4501.
+    /// </summary>
+    protected virtual string BuildReleaseCondition() => ThrewFlag;
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var marker = _ancillaryStoreMarker == null
             ? "null"
             : $"typeof({_ancillaryStoreMarker.FullNameInCode()})";
 
-        // Wraps everything downstream, then rethrows. `throw;` rather than `throw e;` so the original
-        // stack trace survives to the error policies -- this frame compensates for a failure, it does
-        // not handle one, and swallowing here would turn every handler exception into a silent success.
+        // try/catch/finally rather than a bare catch, because the failures this compensates for are not
+        // all exceptions: an HTTP chain refused by a ProblemDetails 400 or a 404 on a missing aggregate
+        // leaves through a plain `return`, which a catch block never sees. The flag carries the throw
+        // case into the same finally, where `return` lands too.
+        //
+        // `throw;` rather than `throw e;` so the original stack trace survives to the error policies --
+        // this frame compensates for a failure, it does not handle one, and swallowing here would turn
+        // every handler exception into a silent success.
+        writer.Write($"var {ThrewFlag} = false;");
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);
         writer.FinishBlock();
 
         writer.Write("BLOCK:catch");
-        writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
+        writer.Write($"{ThrewFlag} = true;");
+        writer.Write("throw;");
+        writer.FinishBlock();
+
+        writer.Write("BLOCK:finally");
+        writer.Write(
+            $"BLOCK:if ({BuildReleaseCondition()} && !string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
             $"await {deduplicatorUsage}.{nameof(IMessageDeduplicator.ReleaseAsync)}({_deduplicationId.Usage}, {marker}, {cancellationUsage}).ConfigureAwait(false);");
         writer.FinishBlock();
-        writer.Write("throw;");
         writer.FinishBlock();
     }
 
@@ -205,5 +229,16 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
             _cancellation = chain.FindVariable(typeof(CancellationToken));
             yield return _cancellation;
         }
+
+        foreach (var variable in FindAdditionalVariables(chain))
+        {
+            yield return variable;
+        }
     }
+
+    /// <summary>
+    /// Hook for a subclass whose <see cref="BuildReleaseCondition" /> reads something else in the chain.
+    /// </summary>
+    protected virtual IEnumerable<Variable> FindAdditionalVariables(IMethodVariables chain)
+        => Array.Empty<Variable>();
 }

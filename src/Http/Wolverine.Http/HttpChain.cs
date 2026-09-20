@@ -566,6 +566,16 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         ];
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4501. An HTTP chain has a second failure mode the shared frame cannot see: a refusal that is
+    ///     a status code rather than an exception. Give the claim back on either.
+    /// </remarks>
+    public override Frame BuildDeduplicationReleaseFrame(Variable deduplicationId)
+    {
+        return new ReleaseDeduplicationIdOnHttpFailureFrame(deduplicationId, AncillaryStoreType);
+    }
+
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
     {
         // AddStopConditionIfNull declares the identity nullable, so an entity addressed by
