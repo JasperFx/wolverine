@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Persistence.Codegen;
 
 namespace Wolverine.Http.Policies;
 
@@ -57,6 +58,43 @@ internal class DeduplicationProblemDetailsFrame : AsyncFrame
     {
         _httpContext = chain.FindVariable(typeof(HttpContext));
         yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-4501. The HTTP failure path for a logical deduplication claim.
+///
+/// <para>
+/// An idempotency key is supposed to mean "this succeeded once", not "this was attempted once". A
+/// message handler or a gRPC method only fails by throwing, which the base frame's catch block already
+/// compensates for — but an HTTP chain also stops on an error status without throwing: a
+/// FluentValidation 400, a <c>ProblemDetails</c> 409 from a <c>Validate</c> method, a
+/// <c>[WriteAggregate]</c> 404 on a missing stream. The handler never ran and nothing was written, yet
+/// the claim outlived the request; the caller that never saw the failure and retried under the same key
+/// was then told "already done" for work that never happened.
+/// </para>
+///
+/// <para>
+/// 400 and up, rather than "not 2xx": a 3xx is an answer, not a refusal, and a POST that redirects to
+/// the resource it just created has succeeded exactly once and must keep its claim.
+/// </para>
+/// </summary>
+internal class ReleaseDeduplicationIdOnHttpFailureFrame : ReleaseDeduplicationIdOnFailureFrame
+{
+    private Variable? _httpResponse;
+
+    public ReleaseDeduplicationIdOnHttpFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
+        : base(deduplicationId, ancillaryStoreMarker)
+    {
+    }
+
+    protected override string BuildReleaseCondition()
+        => $"({ThrewFlag} || {_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} >= 400)";
+
+    protected override IEnumerable<Variable> FindAdditionalVariables(IMethodVariables chain)
+    {
+        _httpResponse = chain.FindVariable(typeof(HttpResponse));
+        yield return _httpResponse;
     }
 }
 

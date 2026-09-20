@@ -14,6 +14,7 @@ using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -51,6 +52,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         DeduplicationRequirement requirement)
         => throw new NotSupportedException(
             $"{GetType().FullNameInCode()} does not support logical message deduplication (GH-4180)");
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Mirrors the <see cref="IChain" /> default as a <c>virtual</c>, for the same reason
+    ///     <see cref="ResolveDeduplicationId" /> does: a default interface member cannot be overridden from
+    ///     within the class hierarchy.
+    /// </remarks>
+    public virtual Frame BuildDeduplicationReleaseFrame(Variable deduplicationId)
+        => new ReleaseDeduplicationIdOnFailureFrame(deduplicationId, AncillaryStoreType);
 
     /// <inheritdoc />
     /// <remarks>
