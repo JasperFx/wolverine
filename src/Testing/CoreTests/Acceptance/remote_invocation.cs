@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
+using Wolverine.Runtime;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
@@ -421,6 +422,61 @@ public class remote_invocation : IAsyncLifetime
         // and handled by AlwaysPublishResponseReceivedHandler on the receiver
         var handled = await AlwaysPublishResponseReceivedHandler.Received.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         handled.ShouldBeTrue();
+    }
+}
+
+public class remote_invocation_under_the_default_failure_ack_configuration : IAsyncLifetime
+{
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        var receiverPort = PortFinder.GetAvailablePort();
+        var senderPort = PortFinder.GetAvailablePort();
+
+        _receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "DefaultAckReceiver";
+                opts.ListenAtPort(receiverPort);
+            }).StartAsync();
+
+        _sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.DisableConventionalDiscovery();
+                opts.ServiceName = "DefaultAckSender";
+                opts.ListenAtPort(senderPort);
+
+                opts.DefaultRemoteInvocationTimeout = 15.Seconds();
+
+                opts.PublishMessage<Request1>().ToPort(receiverPort);
+            }).StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _receiver.StopAsync();
+        _receiver.Dispose();
+        await _sender.StopAsync();
+        _sender.Dispose();
+    }
+
+    [Fact]
+    public async Task a_dead_lettered_handler_answers_a_caller_blocked_on_a_reply()
+    {
+        // Otherwise this would quietly become a duplicate of sad_path_with_auto_routing
+        _sender.Services.GetRequiredService<IWolverineRuntime>()
+            .Options.EnableAutomaticFailureAcks.ShouldBeFalse();
+        _receiver.Services.GetRequiredService<IWolverineRuntime>()
+            .Options.EnableAutomaticFailureAcks.ShouldBeFalse();
+
+        var ex = await Should.ThrowAsync<WolverineRequestReplyException>(() =>
+            _sender.MessageBus().InvokeAsync<Response1>(new Request1 { Name = "Soulcatcher" },
+                TestContext.Current.CancellationToken));
+
+        ex.Message.ShouldContain("You shall not pass!");
     }
 }
 

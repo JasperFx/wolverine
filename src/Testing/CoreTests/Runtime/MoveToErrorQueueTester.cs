@@ -63,6 +63,53 @@ public class MoveToErrorQueueTester
     }
 
     [Fact]
+    public async Task should_send_a_failure_ack_for_a_solicited_reply_even_on_a_local_destination()
+    {
+        // A local queue is what the single-node shortcut of a globally partitioned topology delivers to, and
+        // EnableAutomaticFailureAcks stays off because it governs the unsolicited ack only
+        theRuntime.Options.EnableAutomaticFailureAcks = false;
+        theEnvelope.Destination = new Uri("local://foo");
+        theEnvelope.ReplyUri = new Uri("local://replies");
+        theEnvelope.ReplyRequested = "some-response";
+
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle
+            .Received()
+            .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}");
+    }
+
+    [Fact]
+    public async Task should_send_a_failure_ack_for_a_requested_acknowledgement_on_a_local_destination()
+    {
+        theRuntime.Options.EnableAutomaticFailureAcks = false;
+        theEnvelope.Destination = new Uri("local://foo");
+        theEnvelope.ReplyUri = new Uri("local://replies");
+        theEnvelope.AckRequested = true;
+
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle
+            .Received()
+            .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}");
+    }
+
+    [Fact]
+    public async Task should_send_a_failure_ack_for_a_solicited_reply_on_a_remote_destination_with_acks_disabled()
+    {
+        theRuntime.Options.EnableAutomaticFailureAcks = false;
+        theEnvelope.Destination = new Uri("tcp://localhost:9000");
+        theEnvelope.ReplyUri = new Uri("tcp://localhost:9001");
+        theEnvelope.ReplyRequested = "some-response";
+
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle
+            .Received()
+            .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}");
+    }
+
+    [Fact]
     public async Task logging_calls()
     {
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);

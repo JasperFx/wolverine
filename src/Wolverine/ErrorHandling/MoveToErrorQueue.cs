@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using JasperFx.Core;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -34,7 +35,15 @@ internal class MoveToErrorQueue : IContinuation
         // EnableAutomaticFailureAcks even gets a chance to short-circuit. The envelope itself is
         // always present (the block below already relies on it); only Destination can be null. GH-3013.
         var scheme = lifecycle.Envelope!.Destination?.Scheme;
-        if (scheme is not null && runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
+
+        // A caller blocked on a reply or ack it asked for has to be answered on every transport, including
+        // the local queue that the unsolicited rule below excludes.
+        var wasSolicited = lifecycle.Envelope.AckRequested || lifecycle.Envelope.ReplyRequested.IsNotEmpty();
+
+        var unsolicited = scheme is not null && runtime.Options.EnableAutomaticFailureAcks &&
+                          scheme != TransportConstants.Local && scheme != "external-table";
+
+        if (wasSolicited || unsolicited)
         {
             await lifecycle.SendFailureAcknowledgementAsync(
                 $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");

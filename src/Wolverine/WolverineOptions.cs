@@ -642,8 +642,9 @@ public sealed partial class WolverineOptions
     public bool EnableRemoteInvocation { get; set; } = true;
 
     /// <summary>
-    /// Should message failures automatically try to send a failure acknowledgement message back to the
-    /// original caller. Default is *false* as of Wolverine 4.6
+    /// Should message failures automatically try to send an UNSOLICITED failure acknowledgement message
+    /// back to the original caller. Default is *false* as of Wolverine 4.6. A sender that explicitly
+    /// asked for a reply or an acknowledgement is always answered, regardless of this setting.
     /// </summary>
     public bool EnableAutomaticFailureAcks { get; set; } = false;
 
