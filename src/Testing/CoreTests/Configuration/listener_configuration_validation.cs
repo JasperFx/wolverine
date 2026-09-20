@@ -178,6 +178,116 @@ public class listener_configuration_validation
         ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
     }
 
+    [Theory]
+    [InlineData("SendInline", true)]
+    [InlineData("SendInline", false)]
+    [InlineData("UseDurableOutbox", true)]
+    [InlineData("UseDurableOutbox", false)]
+    [InlineData("BufferedInMemory", true)]
+    [InlineData("BufferedInMemory", false)]
+    public void conflicting_sender_mode_on_a_shared_endpoint_is_fatal_regardless_of_order(
+        string sendingMethod, bool listenerFirst)
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            void listen()
+            {
+                var listener = opts.ListenForMessagesFrom("stub://one");
+                if (sendingMethod == "BufferedInMemory") listener.ProcessInline();
+                else listener.BufferedInMemory();
+            }
+
+            void publish()
+            {
+                var subscriber = opts.PublishAllMessages().To("stub://one");
+                switch (sendingMethod)
+                {
+                    case "SendInline": subscriber.SendInline(); break;
+                    case "UseDurableOutbox": subscriber.UseDurableOutbox(); break;
+                    default: subscriber.BufferedInMemory(); break;
+                }
+            }
+
+            if (listenerFirst) { listen(); publish(); }
+            else { publish(); listen(); }
+        });
+
+        var problem = ListenerConfigurationValidator.Validate(endpoint)
+            .Single(x => x.Severity == ListenerConfigurationSeverity.Fatal);
+        problem.Message.ShouldContain("stub://one");
+        problem.Message.ShouldContain(sendingMethod + "()");
+    }
+
+    [Fact]
+    public async Task conflicting_send_inline_stops_the_host_from_starting()
+    {
+        var ex = await Should.ThrowAsync<InvalidListenerConfigurationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+            {
+                opts.ListenForMessagesFrom("stub://shared").BufferedInMemory();
+                opts.PublishAllMessages().To("stub://shared").SendInline();
+            }).StartAsync();
+        });
+
+        ex.Message.ShouldContain("stub://shared");
+        ex.Message.ShouldContain("SendInline()");
+    }
+
+    [Fact]
+    public void send_inline_conflicts_with_the_listeners_default_mode()
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            opts.ListenForMessagesFrom("stub://one");
+            opts.PublishAllMessages().To("stub://one").SendInline();
+        });
+
+        endpoint.IntendedListenerMode.ShouldBe(EndpointMode.BufferedInMemory);
+        ListenerConfigurationValidator.Validate(endpoint)
+            .Single(x => x.Severity == ListenerConfigurationSeverity.Fatal)
+            .Message.ShouldContain("SendInline()");
+    }
+
+    [Theory]
+    [InlineData("SendInline")]
+    [InlineData("UseDurableOutbox")]
+    [InlineData("BufferedInMemory")]
+    public void sending_only_mode_configuration_is_valid(string sendingMethod)
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            var subscriber = opts.PublishAllMessages().To("stub://sender");
+            switch (sendingMethod)
+            {
+                case "SendInline": subscriber.SendInline(); break;
+                case "UseDurableOutbox": subscriber.UseDurableOutbox(); break;
+                default: subscriber.BufferedInMemory(); break;
+            }
+        }, "stub://sender");
+
+        endpoint.IsListener.ShouldBeFalse();
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void matching_sender_and_listener_modes_are_valid(bool listenerFirst)
+    {
+        var endpoint = compiledEndpoint(opts =>
+        {
+            void listen() => opts.ListenForMessagesFrom("stub://one").ProcessInline();
+            void publish() => opts.PublishAllMessages().To("stub://one").SendInline();
+
+            if (listenerFirst) { listen(); publish(); }
+            else { publish(); listen(); }
+        });
+
+        endpoint.Mode.ShouldBe(EndpointMode.Inline);
+        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+    }
+
     // GH-4022. A local queue can only be BufferedInMemory or Durable -- it has no transport
     // listener for Inline to execute a message on.
     [Fact]

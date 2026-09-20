@@ -65,6 +65,23 @@ internal static class ListenerConfigurationValidator
             yield break;
         }
 
+        if (endpoint.ConfiguredSendingMode is { } sendingMode && sendingMode != endpoint.IntendedListenerMode)
+        {
+            var method = sendingMode switch
+            {
+                EndpointMode.Inline => "SendInline()",
+                EndpointMode.Durable => "UseDurableOutbox()",
+                EndpointMode.BufferedInMemory => "BufferedInMemory()",
+                _ => "sending mode configuration"
+            };
+
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal,
+                $"Invalid listener configuration for {describe(endpoint)}: {method} requested EndpointMode.{sendingMode} " +
+                $"for sending, but the listener requires EndpointMode.{endpoint.IntendedListenerMode}. Sending and " +
+                "listening share Endpoint.Mode, so the last configuration changes the other direction's behavior. " +
+                "Use the same mode for both directions, or remove the sending-side mode configuration.");
+        }
+
         // GH-4047. Transport-specific constraints first, and deliberately outside the Inline-only gate below: they
         // are about combinations no core rule can see, and the Pulsar one they were added for is about NativeAck.
         foreach (var message in endpoint.validateModeConfiguration())

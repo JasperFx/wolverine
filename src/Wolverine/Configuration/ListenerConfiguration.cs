@@ -390,13 +390,13 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf UseDurableInbox()
     {
-        add(e => e.Mode = EndpointMode.Durable);
+        add(e => e.ConfigureListenerMode(EndpointMode.Durable));
         return this.As<TSelf>();
     }
 
     public TSelf BufferedInMemory()
     {
-        add(e => e.Mode = EndpointMode.BufferedInMemory);
+        add(e => e.ConfigureListenerMode(EndpointMode.BufferedInMemory));
         return this.As<TSelf>();
     }
 
@@ -437,7 +437,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
                 + "settle a delivery back to a message broker, and a local queue has no broker to settle against.");
         }
 
-        add(e => e.Mode = EndpointMode.NativeAck);
+        add(e => e.ConfigureListenerMode(EndpointMode.NativeAck));
         return this.As<TSelf>();
     }
 
@@ -491,7 +491,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         // eagerly made the endpoint's final state depend on whether ProcessInline() was called before
         // or after MaximumParallelMessages(); Endpoint.Compile() now normalizes it for every Inline
         // endpoint once all of the configuration has been applied.
-        add(e => e.Mode = EndpointMode.Inline);
+        add(e => e.ConfigureListenerMode(EndpointMode.Inline));
         return this.As<TSelf>();
     }
 

@@ -464,6 +464,23 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
     }
 
+    // The final Mode is shared by both directions. Keep the requested modes so validation can
+    // detect a collision after all delayed listener and subscriber configuration has run.
+    internal EndpointMode IntendedListenerMode { get; private set; }
+    internal EndpointMode? ConfiguredSendingMode { get; private set; }
+
+    internal void ConfigureListenerMode(EndpointMode mode)
+    {
+        Mode = mode;
+        IntendedListenerMode = mode;
+    }
+
+    internal void ConfigureSendingMode(EndpointMode mode)
+    {
+        Mode = mode;
+        ConfiguredSendingMode = mode;
+    }
+
     /// <summary>
     /// GH-3710. When set, this listening endpoint drops -- and immediately settles -- a redelivery of a
     /// message id it has already seen within the configured window. Opt in with
@@ -757,6 +774,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
 
+        IntendedListenerMode = Mode;
         foreach (var configuration in snapshotDelayedConfiguration()) configuration.Apply();
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
