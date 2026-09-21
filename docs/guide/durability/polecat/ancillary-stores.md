@@ -117,10 +117,17 @@ That covers **message handlers, Wolverine.HTTP endpoints and gRPC services** in 
 `[Storage]` or `[PolecatStore]` on a type or method still wins, so a single handler can opt out of its module's
 default without turning the policy off.
 
+If several modules share one assembly, scope each one by namespace instead. Child namespaces are included, and
+matching uses the namespace of the handler or endpoint type, not of the message:
+
+```cs
+opts.Policies.UseAncillaryStorageFromNamespaceContaining<SomeModuleType>(typeof(IPlayerStore));
+```
+
 ::: tip
 For gRPC this is not just a convenience -- it is the only thing that works. The gRPC chains never apply
-chain-modifying attributes, so `[Storage]` on a gRPC service is silently ignored, and an assembly policy is the only
-way to point one at an ancillary store.
+chain-modifying attributes, so `[Storage]` on a gRPC service is silently ignored, and an assembly or namespace policy
+is the only way to point one at an ancillary store.
 :::
 
 If you need finer control than "everything in this assembly", write your own `IChainPolicy` and call

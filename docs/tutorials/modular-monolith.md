@@ -459,6 +459,15 @@ Every message handler, HTTP endpoint and gRPC service in that assembly now commi
 lines up nicely with the rest of the modular monolith story: the module is already an assembly, and this makes the
 assembly boundary carry the storage decision too, rather than leaving it scattered across the handlers.
 
+If your modules start out in one project, with a namespace per module so they can be split into separate
+assemblies later, scope by namespace instead. Child namespaces are included:
+
+```cs
+opts.Policies.UseAncillaryStorageFromNamespaceContaining<OrdersModule>(typeof(IOrdersStore));
+```
+
+Moving the module into its own assembly later changes nothing here.
+
 An explicit `[Storage]` on a single handler still wins, which is what you want for the occasional type that
 legitimately belongs to a different store.
 
