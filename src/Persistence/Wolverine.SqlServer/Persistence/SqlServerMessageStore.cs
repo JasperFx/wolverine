@@ -485,7 +485,7 @@ group by o.name, ps.index_id, i.name";
         await conn.CloseAsync();
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName, byte[] json,
         CancellationToken token)
     {
         await using var conn = CreateConnection();
@@ -505,14 +505,14 @@ group by o.name, ps.index_id, i.name";
                     $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
                 .With("id", Guid.NewGuid())
                 .With("json", json)
-                .With("message", messageTypeName)
+                .With("message", messageTypeName!)
                 .ExecuteNonQueryAsync(token);
         }
         
         await conn.CloseAsync();
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
         table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
@@ -530,7 +530,7 @@ group by o.name, ps.index_id, i.name";
         return table;
     }
 
-    protected override async Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
+    protected override async Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName, CancellationToken token)
     {
         var builder = new BatchBuilder();
 
@@ -545,7 +545,7 @@ group by o.name, ps.index_id, i.name";
         batch.Connection = (SqlConnection)tx.Connection!;
         batch.Transaction = (SqlTransaction)tx;
 
-        await batch.ExecuteNonQueryAsync();
+        await batch.ExecuteNonQueryAsync(token);
     }
 
     protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)

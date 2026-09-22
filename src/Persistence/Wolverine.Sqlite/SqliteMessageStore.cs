@@ -150,9 +150,9 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         }
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
-        var table = new Weasel.Sqlite.Tables.Table(definition.TableName);
+        var table = new Weasel.Sqlite.Tables.Table(prefixedTableName(definition.TableName));
         table.AddColumn(definition.IdColumnName, "TEXT").AsPrimaryKey();
         table.AddColumn(definition.JsonBodyColumnName, "TEXT").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
@@ -182,13 +182,15 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         await conn.CloseAsync();
     }
 
-    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
-        string idColumnName)
+    protected override Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName,
+        string idColumnName, CancellationToken token)
     {
         var idList = string.Join(",", ids.Select(id => $"'{id:D}'"));
-        return tx.CreateCommand($"delete from {tableName.QualifiedName} where lower({idColumnName}) IN ({idList})")
-            .ExecuteNonQueryAsync();
+        return tx.CreateCommand($"delete from {prefixedTableName(tableName)} where lower({idColumnName}) IN ({idList})")
+            .ExecuteNonQueryAsync(token);
     }
+
+    private string prefixedTableName(DbObjectName tableName) => TablePrefixing.Apply(tableName.Schema, tableName.Name);
 
     // Polling lock: delegate to the AdvisoryLock instance. The previous override here
     // ran INSERT OR IGNORE and returned true unconditionally, which falsely reported
@@ -248,7 +250,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
     protected override DbCommand buildFetchSql(SqliteConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
     {
-        return conn.CreateCommand($"select {columnNames.Join(", ")} from {tableName.QualifiedName} LIMIT {maxRecords}");
+        return conn.CreateCommand($"select {columnNames.Join(", ")} from {prefixedTableName(tableName)} LIMIT {maxRecords}");
     }
 
     public override async Task<PersistedCounts> FetchCountsAsync()
@@ -466,15 +468,16 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         }
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName, byte[] json,
         CancellationToken token)
     {
         await using var conn = await DataSource.OpenConnectionAsync(token).ConfigureAwait(false);
+        var tableName = prefixedTableName(table.TableName);
 
         if (table.MessageTypeColumnName.IsEmpty())
         {
             await conn.CreateCommand(
-                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
+                    $"insert into {tableName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
                 .With("id", Guid.NewGuid().ToString())
                 .With("json", System.Text.Encoding.UTF8.GetString(json))
                 .ExecuteNonQueryAsync(token);
@@ -482,10 +485,10 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         else
         {
             await conn.CreateCommand(
-                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
+                    $"insert into {tableName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
                 .With("id", Guid.NewGuid().ToString())
                 .With("json", System.Text.Encoding.UTF8.GetString(json))
-                .With("message", messageTypeName)
+                .With("message", messageTypeName!)
                 .ExecuteNonQueryAsync(token);
         }
 

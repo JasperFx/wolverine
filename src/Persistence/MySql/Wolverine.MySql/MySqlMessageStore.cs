@@ -112,11 +112,11 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         }
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
         table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
-        table.AddColumn(definition.JsonBodyColumnName, "JSON").NotNull();
+        table.AddColumn(definition.JsonBodyColumnName, "LONGBLOB").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
         {
             table.AddColumn<DateTimeOffset>(definition.TimestampColumnName)
@@ -146,8 +146,8 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         await conn.CloseAsync();
     }
 
-    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
-        string idColumnName)
+    protected override Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName,
+        string idColumnName, CancellationToken token)
     {
         if (ids.Length == 0) return Task.CompletedTask;
 
@@ -157,7 +157,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         var placeholders = MySqlCommandExtensions.WithIdList(cmd, "id", ids);
         cmd.CommandText = $"DELETE FROM {tableName.QualifiedName} WHERE {idColumnName} IN ({placeholders})";
 
-        return cmd.ExecuteNonQueryAsync();
+        return cmd.ExecuteNonQueryAsync(token);
     }
 
     protected override async Task<bool> TryAttainLockAsync(int lockId, MySqlConnection connection,
@@ -467,7 +467,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         }
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName,
         byte[] json,
         CancellationToken token)
     {
@@ -480,15 +480,15 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             cmd.CommandText =
                 $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) VALUES (@id, @json)";
             cmd.Parameters.AddWithValue("@id", Guid.NewGuid());
-            cmd.Parameters.AddWithValue("@json", json);
+            cmd.Parameters.AddWithValue("@json", System.Text.Encoding.UTF8.GetString(json));
         }
         else
         {
             cmd.CommandText =
                 $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) VALUES (@id, @json, @message)";
             cmd.Parameters.AddWithValue("@id", Guid.NewGuid());
-            cmd.Parameters.AddWithValue("@json", json);
-            cmd.Parameters.AddWithValue("@message", messageTypeName);
+            cmd.Parameters.AddWithValue("@json", System.Text.Encoding.UTF8.GetString(json));
+            cmd.Parameters.AddWithValue("@message", messageTypeName!);
         }
 
         await cmd.ExecuteNonQueryAsync(token);

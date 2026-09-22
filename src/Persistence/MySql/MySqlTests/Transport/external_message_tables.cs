@@ -1,11 +1,11 @@
 using IntegrationTests;
-using Microsoft.Data.SqlClient;
-using Weasel.SqlServer;
+using MySqlConnector;
+using Weasel.MySql;
 using Wolverine;
 using Wolverine.ComplianceTests;
-using Wolverine.SqlServer;
+using Wolverine.MySql;
 
-namespace SqlServerTests.Transport;
+namespace MySqlTests.Transport;
 
 public class external_message_tables : ExternalTableTransportCompliance
 {
@@ -13,18 +13,18 @@ public class external_message_tables : ExternalTableTransportCompliance
     {
     }
 
-    protected override string connectionString => Servers.SqlServerConnectionString;
-    protected override string idColumnType => "uniqueidentifier";
-    protected override string bodyColumnType => "varbinary(max)";
-    protected override string timestampColumnType => "datetimeoffset";
-    protected override string messageTypeColumnType => "varchar(250)";
+    protected override string connectionString => Servers.MySqlConnectionString;
+    protected override string idColumnType => "CHAR(36)";
+    protected override string bodyColumnType => "LONGBLOB";
+    protected override string timestampColumnType => "DATETIME";
+    protected override string messageTypeColumnType => "VARCHAR(255)";
 
     protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) => 
-        opts.UseSqlServerPersistenceAndTransport(connectionString, schemaName);
+        opts.UseMySqlPersistenceAndTransport(connectionString, schemaName);
 
     protected override async ValueTask dropSchemaAsync(string connectionString, string[] schemas, CancellationToken cancellationToken)
     {
-        await using var conn = new SqlConnection(connectionString);
+        await using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync(cancellationToken);
         foreach (var schema in schemas)
         {

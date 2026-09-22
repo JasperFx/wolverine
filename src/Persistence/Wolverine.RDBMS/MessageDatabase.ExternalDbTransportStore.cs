@@ -45,8 +45,8 @@ public abstract partial class MessageDatabase<T>
                 var tx = await conn.BeginTransactionAsync(token);
                 await StoreIncomingAsync(tx, envelopes);
 
-                await deleteMany(tx, envelopes.Select(x => x.Id).ToArray(), externalTable.TableName,
-                    externalTable.IdColumnName);
+                await deleteManyAsync(tx, envelopes.Select(x => x.Id).ToArray(), externalTable.TableName,
+                    externalTable.IdColumnName, token);
                 await tx.CommitAsync(token);
 
                 await receiver.ReceivedAsync(listener, envelopes);
@@ -57,27 +57,13 @@ public abstract partial class MessageDatabase<T>
     }
 
 
-    public abstract ISchemaObject AddExternalMessageTable(ExternalMessageTable definition);
+    public abstract ITable AddExternalMessageTable(ExternalMessageTable definition);
 
-    protected abstract Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string mapperIdColumnName);
-
-    protected abstract Task<bool> TryAttainLockAsync(int lockId, T connection, CancellationToken token);
-
-    /// <summary>
-    /// Releases a previously-acquired session-scoped advisory lock. Default
-    /// implementation is a no-op for providers (e.g., SQLite) where the lock
-    /// is automatically released when the connection closes.
-    /// </summary>
-    protected virtual Task ReleaseLockAsync(int lockId, T connection, CancellationToken token)
-    {
-        return Task.CompletedTask;
-    }
+    protected abstract Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName, string mapperIdColumnName, CancellationToken token);
 
     protected abstract DbCommand buildFetchSql(T conn, DbObjectName tableName, string[] columnNames, int maxRecords);
 
-    public abstract Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName,
+    public abstract Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName,
         byte[] json,
         CancellationToken token);
-    
-
 }
