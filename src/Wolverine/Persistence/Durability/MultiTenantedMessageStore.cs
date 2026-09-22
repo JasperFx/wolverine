@@ -3,6 +3,7 @@ using ImTools;
 using JasperFx;
 using JasperFx.Blocks;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
@@ -898,8 +899,13 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             return await store.EnrollAndFetchSagaStorage<TId, TSaga>(context);
         }
 
+        // GH-4531: the remedy here is different from the single-store case -- the saga either moves off
+        // the tenant store, or the tenant store has to be one that supports sagas.
         throw new InvalidOperationException(
-            "The tenant stores do not implement ISagaSupport and cannot be used for saga persistence");
+            $"The tenant store for tenant '{context.TenantId}' does not implement {typeof(ISagaSupport).FullNameInCode()} and cannot be used for saga persistence. " +
+            "Saga state is stored by the message store: PersistMessagesWithPostgresql/SqlServer/MySql/Sqlite/Oracle (lightweight saga tables), " +
+            "IntegrateWithWolverine() on a Marten/Polecat/Fisher store, an EF Core DbContext under UseEntityFrameworkCoreTransactions(), " +
+            "or RavenDb/CosmosDb/Redis persistence. Register a tenant store that supports sagas, or move this saga off the tenant store.");
     }
 
     public async Task InitializeAsync(IWolverineRuntime runtime)
