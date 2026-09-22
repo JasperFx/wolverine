@@ -159,14 +159,19 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         // race gets a fresh lane whose worker goes on to run the command after its claims were handed back.
         var lane = laneFor(destination);
 
-        // Command types without value equality fall back to reference equality and are simply never
-        // collapsed, which is the old behaviour.
-        var dispatch = new Dispatch(Interlocked.Increment(ref _ticket), lane, command);
-        if (!_queued.TryAdd(command, dispatch))
-        {
-            return;
-        }
-
+        // The claims go up BEFORE the queue entry, and the order matters: the queue entry is what makes this
+        // dispatch visible to AbandonLane, whose scan runs on the health-check thread. Published the other way
+        // round, a scan landing in between takes the entry, finds no claims to clear and reports nothing --
+        // and then the writes below land on claims that every later release() skips on its single-shot gate.
+        // That strands the agent for the life of the process: suppressed from this destination by the
+        // freshness filter above, and forever "pending" to TryFindPendingDestination and so to the leader's
+        // ledger.
+        //
+        // Safe in this order. For a command that STARTS agents the TryAdd below cannot fail, because an equal
+        // command already queued would hold every one of these agents against this same destination and the
+        // freshness filter would have returned. A reassignment can collapse onto an equal command, and then
+        // these are the very (agent -> destination) pairs that command already holds, which its own release
+        // clears.
         foreach (var uri in StartedAgentsOf(command)) _inFlight[uri] = destination;
 
         // Keyed on the node the agents are moving TO, which for a reassignment is not this command's lane --
@@ -175,6 +180,14 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         if (moving != null)
         {
             foreach (var uri in moving.Value.Agents) _moving[uri] = moving.Value.Destination;
+        }
+
+        // Command types without value equality fall back to reference equality and are simply never
+        // collapsed, which is the old behaviour.
+        var dispatch = new Dispatch(Interlocked.Increment(ref _ticket), lane, command);
+        if (!_queued.TryAdd(command, dispatch))
+        {
+            return;
         }
 
         if (!lane.Queue.Writer.TryWrite(dispatch))
@@ -234,6 +247,13 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         {
             // Compare-and-remove, so a re-target that has since overwritten this entry keeps it -- releasing
             // that would let the re-target be issued twice -- and two lanes racing cannot both report it.
+            //
+            // The destination is identity enough here, unlike in _queued above, and only because two live
+            // dispatches can never hold the same agent against the SAME node: Enqueue's freshness filter
+            // drops an agent already in flight to the destination being asked for, so the second one is never
+            // created. For _moving below the same guarantee comes from outside -- Enqueue deliberately does
+            // not consult it, and it is the leader's isOutstanding(agent, node) that declines to re-emit a
+            // move whose destination already has one pending.
             if (_inFlight.TryRemove(new KeyValuePair<Uri, Guid>(uri, destination)))
             {
                 released?.Add((uri, destination));
