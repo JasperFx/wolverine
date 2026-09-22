@@ -641,4 +641,104 @@ public class per_destination_lane_dispatch
         await done.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         order.ToList().ShouldBe(["reassign", $"assign:{NodeB}"]);
     }
+
+    /// <summary>
+    /// Nothing may cascade out of a lane that has been abandoned. The stop half of a ReassignAgents aimed at
+    /// a departed node can still complete -- or swallow its cancellation -- after AbandonLane has let the
+    /// agents go, and its cascade would then start them on the destination the leader has since re-decided,
+    /// with no ledger entry left to suppress the duplicate. Abandonment is therefore latched before the
+    /// claims are released, and tested under the same gate the cascade is enqueued under, so a completing
+    /// command either cascades entirely before the lane is abandoned or not at all.
+    /// </summary>
+    [Fact]
+    public async Task a_cascade_out_of_an_abandoned_lane_is_dropped()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cascades = new ConcurrentQueue<Guid>();
+
+        await using var dispatcher = dispatcherFor(async (command, _) =>
+        {
+            if (command is AssignAgent assign)
+            {
+                cascades.Enqueue(assign.Destination.NodeId);
+                return AgentCommands.Empty;
+            }
+
+            entered.TrySetResult();
+
+            // Deliberately not token-aware: the shape of a stop that sits out its reply window against a
+            // node that is gone and then returns normally anyway.
+            await gate.Task;
+            return new AgentCommands { new AssignAgent(agent("one"), destination(NodeB)) };
+        });
+
+        dispatcher.Enqueue(new ReassignAgents(destination(NodeA), destination(NodeB), [agent("one")]));
+        await entered.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        dispatcher.AbandonLane(NodeA).ShouldBe([(agent("one"), NodeB)]);
+
+        // Generous, deliberately: the assertion is that the cascade never runs, not that it is merely late.
+        gate.SetResult();
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+
+        cascades.ShouldBeEmpty();
+
+        // ...and the agent is left free rather than re-claimed, so the next evaluation places it wherever
+        // it decides.
+        dispatcher.TryFindPendingDestination(agent("one"), out _).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// A command's release has to belong to the enqueue that owns it, not to anything merely equal to it. An
+    /// abandoned lane releases its commands there and then, while the worker is still parked on one of them,
+    /// so that worker's own release lands later -- by which time the node can be back in the roster and the
+    /// identical batch legitimately queued onto a fresh lane. Keyed on command equality alone, the stale
+    /// release stripped the live dispatch's claim, and the leader would place the agent a second time.
+    /// </summary>
+    [Fact]
+    public async Task a_stale_release_does_not_clear_an_equal_command_queued_since()
+    {
+        var entered = new[]
+        {
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+
+        var gates = new[]
+        {
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+
+        var calls = 0;
+
+        await using var dispatcher = dispatcherFor(async (_, _) =>
+        {
+            var index = Interlocked.Increment(ref calls) - 1;
+            entered[index].TrySetResult();
+            await gates[index].Task;
+            return AgentCommands.Empty;
+        });
+
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("one")]));
+        await entered[0].Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // NodeA is missing for long enough to be abandoned, so the claim goes while the worker is parked.
+        dispatcher.AbandonLane(NodeA).ShouldBe([(agent("one"), NodeA)]);
+
+        // ...and then NodeA is back, and the next evaluation issues the identical batch onto a fresh lane.
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("one")]));
+        await entered[1].Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // The abandoned worker finally unwinds. Generous, deliberately: the assertion is that its release
+        // never touches the live claim, not that it is merely slow to.
+        gates[0].SetResult();
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+
+        dispatcher.TryFindPendingDestination(agent("one"), out var held).ShouldBeTrue();
+        held.ShouldBe(NodeA);
+
+        gates[1].SetResult();
+    }
 }

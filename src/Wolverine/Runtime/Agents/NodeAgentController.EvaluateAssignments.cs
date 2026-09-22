@@ -346,8 +346,12 @@ public partial class NodeAgentController
         }
     }
 
-    // An agent held here runs nowhere and holds no assignment row, so the grid, the node-side sweep and the
-    // assignment table all agree the cluster is healthy and merely smaller -- nothing else will report it.
+    // A hold this long is either a dispatch still grinding away -- a slow move whose agent is still running
+    // on its source node -- or an agent held nowhere at all, and from here the two are indistinguishable:
+    // the ledger records only that the destination has not confirmed. Report the fact and nothing more. It
+    // is worth reporting either way, because the second case is silent everywhere else -- the grid, the
+    // node-side sweep and the assignment table all agree the cluster is healthy and merely smaller.
+    //
     // Once per evaluation and no more often than the threshold, or a lasting stall repeats this every
     // HealthCheckPollingTime.
     private void warnAboutLongHeldAssignments(DateTimeOffset now)
@@ -393,7 +397,7 @@ public partial class NodeAgentController
         _lastLongHeldWarning = now;
 
         _logger.LogWarning(
-            "{Count} agent assignment(s) have been held pending for longer than {Threshold} without being confirmed running; those agents are not running anywhere and hold no assignment row. Oldest: {AgentUri} dispatched to node {NodeId} {Age} ago",
+            "{Count} agent assignment(s) have been held pending for longer than {Threshold} without the destination node confirming them. Oldest: {AgentUri} dispatched to node {NodeId} {Age} ago",
             count, threshold, oldestAgent, oldestNode, oldestAge);
     }
 

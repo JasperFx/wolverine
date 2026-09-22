@@ -39,7 +39,21 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     // Commands queued or executing right now. An evaluation that re-emits work already in flight must not
     // queue it again -- the pending-assignment ledger only suppresses re-emission for its TTL, and a lane
     // busy with slow starts can outlive that easily.
-    private readonly ConcurrentDictionary<IAgentCommand, byte> _queued = new();
+    //
+    // The VALUE is the ticket of the enqueue that owns the entry. Command equality decides whether work is a
+    // duplicate, but it cannot serve as the lifecycle identity: an abandoned lane releases its commands while
+    // their worker is still parked on one of them, so by the time that worker unwinds an equal command may
+    // legitimately be queued again -- a node absent for a sweep or two and then back is enough. Releasing on
+    // the command alone would then strip the claims of a live dispatch. See release().
+    private readonly ConcurrentDictionary<IAgentCommand, long> _queued = new();
+
+    private long _ticket;
+
+    /// <summary>
+    ///     One enqueue of one command: what travels down a lane's channel, and the identity release() works
+    ///     against. Two equal commands queued at different times are different dispatches.
+    /// </summary>
+    private readonly record struct Dispatch(long Ticket, IAgentCommand Command);
 
     // The agents a start is queued or in flight for, and the node each was sent to. Suppression has to
     // happen at this level as well as per command, because successive evaluations re-chunk the unstarted
@@ -140,7 +154,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
         // Command types without value equality fall back to reference equality and are simply never
         // collapsed, which is the old behaviour.
-        if (!_queued.TryAdd(command, 0))
+        var dispatch = new Dispatch(Interlocked.Increment(ref _ticket), command);
+        if (!_queued.TryAdd(command, dispatch.Ticket))
         {
             return;
         }
@@ -156,11 +171,11 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         }
 
         var lane = laneFor(destination);
-        if (!lane.Queue.Writer.TryWrite(command))
+        if (!lane.Queue.Writer.TryWrite(dispatch))
         {
             // The lane is closed (shutdown). Let go of the claims so nothing is suppressed by a command that
             // will never run.
-            release(command, destination);
+            release(dispatch, destination);
         }
     }
 
@@ -195,13 +210,16 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     ///     leader ends a pending assignment only where agent and destination agree, so naming a claim this
     ///     call did not clear -- or naming one without its destination -- lands two copies of the agent.
     /// </summary>
-    private void release(IAgentCommand command, Guid destination,
+    private void release(Dispatch dispatch, Guid destination,
         List<(Uri Agent, Guid Destination)>? released = null)
     {
-        // Single-shot. AbandonLane releases when the node departs and the lane worker releases again when
-        // the abandoned command finally unwinds; without this the second release could clear a claim the
-        // meantime's re-placement had already taken.
-        if (!_queued.TryRemove(command, out _))
+        var command = dispatch.Command;
+
+        // Single-shot, and against THIS enqueue rather than against anything merely equal to it. AbandonLane
+        // releases when the node departs and the lane worker releases again when the abandoned command
+        // finally unwinds; without the ticket the second release could clear a claim taken by a re-placement
+        // -- or by a later, equal command queued onto a re-created lane -- in the meantime.
+        if (!_queued.TryRemove(new KeyValuePair<IAgentCommand, long>(command, dispatch.Ticket)))
         {
             return;
         }
@@ -255,13 +273,25 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
         lane.Queue.Writer.TryComplete();
 
+        // Before a single claim is let go, and not merely by cancelling at the end: the command in flight can
+        // complete in the window between the release below and that cancellation, and a cascade escaping then
+        // would be aimed at the departed node's destination while the leader, told the claim was released,
+        // re-places the same agent elsewhere. Latched under the gate the cascade check takes, so a completing
+        // command either cascades entirely before this or not at all.
+        lane.MarkAbandoned();
+
         // _queued covers the command the lane is parked on as well as everything behind it: the parked one
         // holds the agents that matter. Only what release() clears is reported -- a command that just
         // finished, or whose claim a re-target has taken over, names agents belonging to a live dispatch.
         var released = new List<(Uri Agent, Guid Destination)>();
-        foreach (var command in _queued.Keys.Where(x => (x.DestinationNodeId ?? SharedLane) == nodeId).ToArray())
+        foreach (var pair in _queued.ToArray())
         {
-            release(command, nodeId, released);
+            if ((pair.Key.DestinationNodeId ?? SharedLane) != nodeId)
+            {
+                continue;
+            }
+
+            release(new Dispatch(pair.Value, pair.Key), nodeId, released);
         }
 
         // No need to wait on the worker: it reads a token captured before this, and cancelling first means
@@ -357,10 +387,10 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     {
         while (!lane.Token.IsCancellationRequested && !_disposing)
         {
-            IAgentCommand command;
+            Dispatch dispatch;
             try
             {
-                command = await lane.Queue.Reader.ReadAsync(lane.Token);
+                dispatch = await lane.Queue.Reader.ReadAsync(lane.Token);
             }
             catch (OperationCanceledException)
             {
@@ -374,9 +404,11 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             // GH-3781: completing the writer wakes this read with whatever is still buffered, so the
             // shutdown latch has to be re-checked HERE and not only in the loop condition. Anything
             // still queued when the node is going down is work for a cluster this node is leaving.
+            var command = dispatch.Command;
+
             if (_disposing)
             {
-                release(command, destination);
+                release(dispatch, destination);
                 return;
             }
 
@@ -387,13 +419,17 @@ internal class AgentCommandDispatcher : IAsyncDisposable
                 // Nothing cascades out of an abandoned lane. A command that finished normally in the window
                 // after AbandonLane let its claims go -- or one that swallowed the cancellation -- would
                 // otherwise enqueue a follow-up aimed at the destination the leader has since re-decided,
-                // and Enqueue's dedup cannot catch it because the two destinations differ.
-                if (cascaded != null && !lane.IsAbandoned)
+                // and Enqueue's dedup cannot catch it because the two destinations differ. TryCascade tests
+                // and enqueues under AbandonLane's own gate, so the two cannot interleave.
+                if (cascaded != null)
                 {
                     // Route a cascade back through Enqueue rather than executing it here, so it lands in the
                     // lane of the node it actually targets -- e.g. ReassignAgent runs in the source node's
                     // lane (GH-3749) and cascades an AssignAgent that belongs in the destination's lane.
-                    foreach (var next in cascaded) Enqueue(next);
+                    lane.TryCascade(() =>
+                    {
+                        foreach (var next in cascaded) Enqueue(next);
+                    });
                 }
             }
             catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
@@ -419,7 +455,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             }
             finally
             {
-                release(command, destination);
+                release(dispatch, destination);
             }
         }
     }
@@ -482,6 +518,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     {
         private Task? _worker;
         private readonly object _gate = new();
+        private readonly object _cascadeGate = new();
+        private volatile bool _abandoned;
         private readonly CancellationTokenSource _cancellation;
         private readonly CancellationToken _token;
 
@@ -498,14 +536,47 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             _token = _cancellation.Token;
         }
 
-        public Channel<IAgentCommand> Queue { get; } =
-            Channel.CreateUnbounded<IAgentCommand>(new UnboundedChannelOptions { SingleReader = true });
+        public Channel<Dispatch> Queue { get; } =
+            Channel.CreateUnbounded<Dispatch>(new UnboundedChannelOptions { SingleReader = true });
 
         public Task? Worker => _worker;
 
         public CancellationToken Token => _token;
 
-        public bool IsAbandoned => _token.IsCancellationRequested;
+        public bool IsAbandoned => _abandoned || _token.IsCancellationRequested;
+
+        /// <summary>
+        ///     Latch abandonment ahead of the cancellation, under the gate <see cref="TryCascade" /> takes.
+        ///     Cancelling is what unwedges the command in flight, but it comes last in AbandonLane -- after
+        ///     the claims are released -- and a command completing in between would otherwise still see a
+        ///     live lane and cascade into it.
+        /// </summary>
+        public void MarkAbandoned()
+        {
+            lock (_cascadeGate)
+            {
+                _abandoned = true;
+            }
+        }
+
+        /// <summary>
+        ///     Run <paramref name="cascade" /> unless the lane has been abandoned, atomically against
+        ///     <see cref="MarkAbandoned" />. Returns whether it ran. Nothing here blocks: the cascade is a
+        ///     handful of channel writes.
+        /// </summary>
+        public bool TryCascade(Action cascade)
+        {
+            lock (_cascadeGate)
+            {
+                if (IsAbandoned)
+                {
+                    return false;
+                }
+
+                cascade();
+                return true;
+            }
+        }
 
         private void cancel()
         {
