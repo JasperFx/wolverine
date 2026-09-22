@@ -27,6 +27,10 @@ public partial class NodeAgentController
 
     private readonly Dictionary<Uri, PendingAssignment> _pendingAssignments = new();
 
+    // When the long-held warning last went out, so a persistent stall is reported periodically rather than
+    // on every evaluation. Guarded by _pendingLock.
+    private DateTimeOffset? _lastLongHeldWarning;
+
     private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt);
 
     /// <summary>
@@ -71,6 +75,61 @@ public partial class NodeAgentController
     internal delegate bool PendingDispatchProbe(Uri agentUri, out Guid nodeId);
 
     internal PendingDispatchProbe? PendingDispatches { get; set; }
+
+    /// <summary>
+    ///     Asks the command dispatcher to give up on everything queued or executing against nodes that have
+    ///     been outside the given roster for <c>absenceThreshold</c> consecutive calls, and hands back the
+    ///     agents whose claims that released with the node each was claimed for. Null on a runtime with no
+    ///     dispatcher, in which case nothing is outstanding to abandon.
+    /// </summary>
+    internal delegate (Uri Agent, Guid Destination)[] AbandonDispatchLanes(IReadOnlySet<Guid> registeredNodes,
+        int absenceThreshold);
+
+    internal AbandonDispatchLanes? AbandonDispatchesOutside { get; set; }
+
+    /// <summary>
+    ///     A node has left the cluster, so any dispatch still aimed at it is waiting on an acknowledgement
+    ///     from a registration that no longer exists. Let those commands go and forget what the ledger was
+    ///     holding for them, so their agents are re-placed on the next evaluation along with everything else
+    ///     the departed node owned, rather than staying pinned to a destination they never reached for the
+    ///     remainder of the batch's reply window.
+    /// </summary>
+    internal void AbandonDispatchesExcept(IReadOnlySet<Guid> registeredNodes)
+    {
+        var abandon = AbandonDispatchesOutside;
+        if (abandon == null)
+        {
+            return;
+        }
+
+        // The same hysteresis the ejection of a stale node row gets, and for the same reason: abandoning a
+        // lane cancels the command running in it, so one lagging snapshot must not be enough to do it.
+        var released = abandon(registeredNodes, _runtime.Options.Durability.StaleNodeEjectionThreshold);
+        if (released.Length == 0)
+        {
+            return;
+        }
+
+        lock (_pendingLock)
+        {
+            foreach (var (uri, destination) in released)
+            {
+                // Only the hold this claim was actually backing. The ledger frees an entry as soon as its
+                // destination leaves the grid, while the command holding the claim stays wedged in some
+                // other node's lane, so by now the ledger may be tracking a live re-placement elsewhere.
+                // Dropping that would leave the agent held nowhere, and the next evaluation would start a
+                // second copy of it with no stop for the first.
+                if (_pendingAssignments.TryGetValue(uri, out var pending) && pending.NodeId == destination)
+                {
+                    _pendingAssignments.Remove(uri);
+                }
+            }
+        }
+
+        _logger.LogInformation(
+            "Released {Count} agent(s) held by commands aimed at nodes that have left the cluster; they will be re-placed on the next assignment evaluation",
+            released.Length);
+    }
 
     // Tested w/ integration tests all the way
     public async Task<AgentCommands> EvaluateAssignmentsAsync(
@@ -287,6 +346,57 @@ public partial class NodeAgentController
         }
     }
 
+    // An agent held here runs nowhere and holds no assignment row, so the grid, the node-side sweep and the
+    // assignment table all agree the cluster is healthy and merely smaller -- nothing else will report it.
+    // Once per evaluation and no more often than the threshold, or a lasting stall repeats this every
+    // HealthCheckPollingTime.
+    private void warnAboutLongHeldAssignments(DateTimeOffset now)
+    {
+        var threshold = _runtime.Options.Durability.AgentProgressStallTimeout;
+
+        var count = 0;
+        var oldestAge = TimeSpan.Zero;
+        Uri? oldestAgent = null;
+        var oldestNode = Guid.Empty;
+
+        foreach (var pair in _pendingAssignments)
+        {
+            var age = now - pair.Value.SentAt;
+            if (age < threshold)
+            {
+                continue;
+            }
+
+            count++;
+
+            if (age > oldestAge)
+            {
+                oldestAge = age;
+                oldestAgent = pair.Key;
+                oldestNode = pair.Value.NodeId;
+            }
+        }
+
+        if (count == 0)
+        {
+            // Nothing stalled, so the next episode speaks up immediately rather than serving out the tail
+            // of this one's quiet period.
+            _lastLongHeldWarning = null;
+            return;
+        }
+
+        if (_lastLongHeldWarning != null && now - _lastLongHeldWarning < threshold)
+        {
+            return;
+        }
+
+        _lastLongHeldWarning = now;
+
+        _logger.LogWarning(
+            "{Count} agent assignment(s) have been held pending for longer than {Threshold} without being confirmed running; those agents are not running anywhere and hold no assignment row. Oldest: {AgentUri} dispatched to node {NodeId} {Age} ago",
+            count, threshold, oldestAgent, oldestNode, oldestAge);
+    }
+
     private bool isOutstanding(Uri agentUri, Guid nodeId)
     {
         var probe = PendingDispatches;
@@ -370,6 +480,8 @@ public partial class NodeAgentController
                     break;
             }
         }
+
+        warnAboutLongHeldAssignments(now);
     }
 
     private void batchCommands(List<IAgentCommand> commands)

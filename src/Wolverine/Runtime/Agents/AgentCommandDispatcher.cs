@@ -189,52 +189,178 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         _ => null
     };
 
-    private void release(IAgentCommand command, Guid destination)
+    /// <summary>
+    ///     Let go of the claims a command is holding. <paramref name="released" />, when given, collects the
+    ///     agents this call actually cleared, each with the node it was claimed for. Both halves matter: the
+    ///     leader ends a pending assignment only where agent and destination agree, so naming a claim this
+    ///     call did not clear -- or naming one without its destination -- lands two copies of the agent.
+    /// </summary>
+    private void release(IAgentCommand command, Guid destination,
+        List<(Uri Agent, Guid Destination)>? released = null)
     {
-        _queued.TryRemove(command, out _);
+        // Single-shot. AbandonLane releases when the node departs and the lane worker releases again when
+        // the abandoned command finally unwinds; without this the second release could clear a claim the
+        // meantime's re-placement had already taken.
+        if (!_queued.TryRemove(command, out _))
+        {
+            return;
+        }
 
         foreach (var uri in StartedAgentsOf(command))
         {
-            // Only clear an entry this command still owns. A re-target queued while this command was running
-            // has already overwritten it, and releasing that would let the re-target be issued twice.
-            if (_inFlight.TryGetValue(uri, out var owner) && owner == destination)
+            // Compare-and-remove, so a re-target that has since overwritten this entry keeps it -- releasing
+            // that would let the re-target be issued twice -- and two lanes racing cannot both report it.
+            if (_inFlight.TryRemove(new KeyValuePair<Uri, Guid>(uri, destination)))
             {
-                _inFlight.TryRemove(uri, out _);
+                released?.Add((uri, destination));
             }
         }
 
-        // Same "only clear what this command still owns" rule, against the move's own destination rather
-        // than the lane key.
+        // Same rule, against the move's own destination rather than the lane key.
         var moving = MovedAgentsOf(command);
         if (moving != null)
         {
             foreach (var uri in moving.Value.Agents)
             {
-                if (_moving.TryGetValue(uri, out var owner) && owner == moving.Value.Destination)
+                if (_moving.TryRemove(new KeyValuePair<Uri, Guid>(uri, moving.Value.Destination)))
                 {
-                    _moving.TryRemove(uri, out _);
+                    released?.Add((uri, moving.Value.Destination));
                 }
             }
         }
     }
 
+    /// <summary>
+    ///     Give up on every command queued or executing for a node that is no longer a member of the cluster,
+    ///     and return the agents whose claims that releases, each with the node it was claimed for.
+    ///
+    ///     <para>An ungraceful death leaves the dead node's rows in place for up to <c>StaleNodeTimeout</c>,
+    ///     so a rebalance can still decide to move agents OFF it. That goes out as a
+    ///     <see cref="ReassignAgents" /> in the dead node's own lane, whose stop is never acknowledged, so its
+    ///     agents never cascade into a start anywhere. The wait is bounded only by
+    ///     <see cref="AgentBatchTimeouts.ReplyWindowFor" /> — over twenty minutes for forty agents — and
+    ///     throughout it the leader's ledger reports the move as outstanding, so the cluster runs silently
+    ///     short with <c>assigned == running</c>. The node's registration is gone and its assignment rows went
+    ///     with it, so there is nothing left to wait on.</para>
+    /// </summary>
+    public (Uri Agent, Guid Destination)[] AbandonLane(Guid nodeId)
+    {
+        // The shared lane belongs to no node. An Enqueue racing this can re-create the lane a moment after
+        // the removal; that command pays its own reply window against a node that is gone and the next health
+        // check abandons it again, so it is not worth a lock on the enqueue path.
+        if (nodeId == SharedLane || !_lanes.TryRemove(nodeId, out var lane))
+        {
+            return [];
+        }
+
+        lane.Queue.Writer.TryComplete();
+
+        // _queued covers the command the lane is parked on as well as everything behind it: the parked one
+        // holds the agents that matter. Only what release() clears is reported -- a command that just
+        // finished, or whose claim a re-target has taken over, names agents belonging to a live dispatch.
+        var released = new List<(Uri Agent, Guid Destination)>();
+        foreach (var command in _queued.Keys.Where(x => (x.DestinationNodeId ?? SharedLane) == nodeId).ToArray())
+        {
+            release(command, nodeId, released);
+        }
+
+        // No need to wait on the worker: it reads a token captured before this, and cancelling first means
+        // the one use that would touch the disposed source -- registering a callback -- runs inline instead.
+        // Waiting would never finish for the lane that needs this most, the one parked on an await that
+        // ignores its token.
+        lane.CancelAndDispose();
+
+        return released.Distinct().ToArray();
+    }
+
+    // Consecutive sweeps each lane's node has been missing from the roster, in the manner of
+    // ejectStaleNodes' _staleObservations. Only ever touched from the serialized health-check path.
+    private readonly Dictionary<Guid, int> _absences = new();
+
+    /// <summary>
+    ///     Abandon the lane of every node that has been absent from <paramref name="registeredNodes" /> for
+    ///     <paramref name="absenceThreshold" /> consecutive sweeps, and return the agents whose claims that
+    ///     releases, each with the node it was claimed for.
+    ///
+    ///     <para>Driven by the roster rather than by the ejection itself. Ejecting a stale row is not the
+    ///     leader's privilege — <c>ejectStaleNodes</c> spares only the <i>current leader's</i> row — so any
+    ///     node may delete the corpse, and on a three-node cluster a follower commonly wins that race. The
+    ///     wedged commands exist only on the leader's dispatcher, so releasing from "the node I just ejected"
+    ///     fires on a node with nothing to release; measured, that version was no better than no fix at all.
+    ///     A membership test gives the same answer whoever performs the delete.</para>
+    /// </summary>
+    public (Uri Agent, Guid Destination)[] AbandonLanesExcept(IReadOnlySet<Guid> registeredNodes,
+        int absenceThreshold)
+    {
+        // Departed means gone from the store's snapshot, not merely stale: a node inside the ejection
+        // hysteresis window still holds its assignment rows, so releasing its in-flight starts would race a
+        // blip back to life and land two copies. An ejected node is absent from the very next snapshot.
+        var departed = _lanes.Keys.Where(id => id != SharedLane && !registeredNodes.Contains(id)).ToHashSet();
+
+        // A node back in the roster starts over, so only a sustained absence abandons anything.
+        foreach (var returned in _absences.Keys.Where(id => !departed.Contains(id)).ToArray())
+        {
+            _absences.Remove(returned);
+        }
+
+        // Hysteresis, for the reason ejectStaleNodes has it and off the same setting: this cancels the
+        // command running in the lane, and a snapshot that lags or is read mid-write can leave a live node
+        // out for one tick. Tearing that node's start down mid-flight leaves whatever it had already begun
+        // running, with nothing to stop it once the leader places those agents elsewhere.
+        var threshold = Math.Max(1, absenceThreshold);
+
+        List<(Uri Agent, Guid Destination)>? released = null;
+        foreach (var nodeId in departed)
+        {
+            var count = (_absences.TryGetValue(nodeId, out var previous) ? previous : 0) + 1;
+            _absences[nodeId] = count;
+
+            if (count < threshold)
+            {
+                continue;
+            }
+
+            _absences.Remove(nodeId);
+
+            var freed = AbandonLane(nodeId);
+            if (freed.Length > 0)
+            {
+                (released ??= []).AddRange(freed);
+            }
+        }
+
+        return released?.ToArray() ?? [];
+    }
+
     private Lane laneFor(Guid destination)
     {
         // GetOrAdd's factory can run more than once under contention, so the worker is started through a
-        // Lazy inside the Lane rather than by the factory itself.
-        var lane = _lanes.GetOrAdd(destination, _ => new Lane());
+        // Lazy inside the Lane rather than by the factory itself. A Lane also owns a linked
+        // CancellationTokenSource, whose registration on the runtime token outlives a discarded instance, so
+        // the loser of that race has to be disposed rather than simply dropped.
+        if (!_lanes.TryGetValue(destination, out var lane))
+        {
+            var candidate = new Lane(_cancellation);
+            lane = _lanes.GetOrAdd(destination, candidate);
+
+            if (!ReferenceEquals(lane, candidate))
+            {
+                candidate.CancelAndDispose();
+            }
+        }
+
         lane.Start(this, destination);
         return lane;
     }
 
     private async Task runLaneAsync(Lane lane, Guid destination)
     {
-        while (!_cancellation.IsCancellationRequested && !_disposing)
+        while (!lane.Token.IsCancellationRequested && !_disposing)
         {
             IAgentCommand command;
             try
             {
-                command = await lane.Queue.Reader.ReadAsync(_cancellation);
+                command = await lane.Queue.Reader.ReadAsync(lane.Token);
             }
             catch (OperationCanceledException)
             {
@@ -256,8 +382,13 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
             try
             {
-                var cascaded = await _executor(command, _cancellation);
-                if (cascaded != null)
+                var cascaded = await _executor(command, lane.Token);
+
+                // Nothing cascades out of an abandoned lane. A command that finished normally in the window
+                // after AbandonLane let its claims go -- or one that swallowed the cancellation -- would
+                // otherwise enqueue a follow-up aimed at the destination the leader has since re-decided,
+                // and Enqueue's dedup cannot catch it because the two destinations differ.
+                if (cascaded != null && !lane.IsAbandoned)
                 {
                     // Route a cascade back through Enqueue rather than executing it here, so it lands in the
                     // lane of the node it actually targets -- e.g. ReassignAgent runs in the source node's
@@ -267,6 +398,15 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             }
             catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
             {
+                return;
+            }
+            catch (OperationCanceledException) when (lane.IsAbandoned)
+            {
+                // The node departed mid-command. Nothing to retry: AbandonLane has let the claims go and
+                // the leader re-places the agents on its next evaluation.
+                _logger.LogInformation(
+                    "Abandoned agent command {Command} against node {NodeId}, which has left the cluster",
+                    command, destination);
                 return;
             }
             catch (Exception e)
@@ -321,6 +461,12 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             {
                 // Shutting down; a lane that faulted on the way out is not interesting.
             }
+            finally
+            {
+                // After the wait, never before: a lane that beat the budget is done, and one that did not
+                // has just spent its whole grace period.
+                pair.Value.CancelAndDispose();
+            }
         }
 
         _lanes.Clear();
@@ -336,11 +482,52 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     {
         private Task? _worker;
         private readonly object _gate = new();
+        private readonly CancellationTokenSource _cancellation;
+        private readonly CancellationToken _token;
+
+        public Lane(CancellationToken parent)
+        {
+            // Linked, so runtime shutdown still cancels every lane at once, while AbandonLane can cancel
+            // exactly one: the command executing against a node that has left the cluster is waiting on an
+            // acknowledgement that is never coming, and its reply window is measured in tens of minutes.
+            _cancellation = CancellationTokenSource.CreateLinkedTokenSource(parent);
+
+            // Held as a field because CancellationTokenSource.Token throws once the source is disposed,
+            // while a token already handed out goes on answering IsCancellationRequested. That is what lets
+            // the worker survive a lane disposed out from under it.
+            _token = _cancellation.Token;
+        }
 
         public Channel<IAgentCommand> Queue { get; } =
             Channel.CreateUnbounded<IAgentCommand>(new UnboundedChannelOptions { SingleReader = true });
 
         public Task? Worker => _worker;
+
+        public CancellationToken Token => _token;
+
+        public bool IsAbandoned => _token.IsCancellationRequested;
+
+        private void cancel()
+        {
+            try
+            {
+                _cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already torn down by DisposeAsync; there is nothing left to unwind.
+            }
+        }
+
+        /// <summary>
+        ///     Cancel, then dispose — in that order, always. A registration made against the token afterwards
+        ///     would throw on a merely-disposed source, but runs inline and harmlessly on a cancelled one.
+        /// </summary>
+        public void CancelAndDispose()
+        {
+            cancel();
+            _cancellation.Dispose();
+        }
 
         public void Start(AgentCommandDispatcher parent, Guid destination)
         {

@@ -171,6 +171,10 @@ public partial class NodeAgentController
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
 
+        // Taken from the snapshot BEFORE the stale filter below, because a lane is abandoned for a node that
+        // has left the cluster outright, never for one that is merely stale. See AbandonDispatchesExcept.
+        var registered = nodes.Select(x => x.NodeId).ToHashSet();
+        registered.Add(_runtime.Options.UniqueNodeId);
 
         // Check for stale nodes that are no longer writing health checks. By
         // definition we just wrote our own heartbeat above, so we must never
@@ -208,6 +212,24 @@ public partial class NodeAgentController
 
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
+
+        // Every tick, on every node, and not from inside the ejection above: whoever deletes the corpse, the
+        // commands wedged against it are on the LEADER's dispatcher, and this is the only actor looking at
+        // both. A node this leader ejects is absent from the next tick's snapshot, so the release lands one
+        // health check later either way.
+        //
+        // Wrapped like its neighbours: this one cancels lane tokens, and a cancellation callback inside an
+        // in-flight command throws back here on the tick a node has just died -- the worst possible tick to
+        // skip the lease renewal below.
+        try
+        {
+            AbandonDispatchesExcept(registered);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error abandoning agent commands aimed at departed nodes on node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
 
         // GH-3987: node-side assigned-vs-running reconciliation, follower-capable by design — the
         // divergences it heals live on the node that has them, and the leader structurally cannot see

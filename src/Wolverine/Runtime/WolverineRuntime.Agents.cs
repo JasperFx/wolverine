@@ -349,6 +349,10 @@ public partial class WolverineRuntime : IAgentRuntime
             // NodeAgentController.PendingDispatches.
             NodeController.PendingDispatches = _dispatcher.TryFindPendingDestination;
 
+            // A node leaving the cluster is the point at which its lane's work becomes unreachable; see
+            // AgentCommandDispatcher.AbandonLanesExcept.
+            NodeController.AbandonDispatchesOutside = _dispatcher.AbandonLanesExcept;
+
             var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
             Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
             
@@ -462,6 +466,7 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         controller.PendingDispatches = null;
+        controller.AbandonDispatchesOutside = null;
 
         var deferredWork = controller.TakeDeferredWork();
         if (deferredWork != null)
@@ -501,6 +506,7 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         controller.PendingDispatches = null;
+        controller.AbandonDispatchesOutside = null;
 
         var deferredWork = controller.TakeDeferredWork();
         if (deferredWork != null)
