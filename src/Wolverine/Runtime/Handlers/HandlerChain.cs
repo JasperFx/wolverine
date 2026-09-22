@@ -157,7 +157,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (illegalSagas.Any())
         {
             throw new InvalidSagaException(
-                $"Illegal static method {illegalSagas.Select(x => x.ToString()).Join(", ")}. Handler methods for existing saga data mush be instance methods");
+                $"Illegal static method {illegalSagas.Select(x => x.ToString()).Join(", ")}. Handler methods for existing saga data must be instance methods");
         }
     }
 

@@ -225,7 +225,31 @@ public class async_method_name_saga : IAsyncLifetime
     [Fact]
     public async Task update_with_no_saga_id_to_be_on_the_envelope()
     {
-        await Should.ThrowAsync<IndeterminateSagaStateIdException>(async () => { await invoke(new AsyncCompleteFour()); });
+        var ex = await Should.ThrowAsync<IndeterminateSagaStateIdException>(async () => { await invoke(new AsyncCompleteFour()); });
+
+        // GH-4531: AsyncCompleteFour has no identity member at all, so the envelope's SagaId header was
+        // the only possible source. Say that, rather than leaving the reader to guess which of the two
+        // sources Wolverine was even looking at.
+        ex.Message.ShouldContain(typeof(AsyncCompleteFour).FullNameInCode());
+        ex.Message.ShouldContain(typeof(AsyncWorkflow).FullNameInCode());
+        ex.Message.ShouldContain("no saga identity member");
+        ex.Message.ShouldContain("SagaId header is propagated");
+    }
+
+    [Fact]
+    public async Task update_with_a_default_saga_id_on_the_message()
+    {
+        // GH-4531: the other branch -- the message *does* have an identity member, it is just left at
+        // its default value, which is the far more common mistake of the two.
+        var ex = await Should.ThrowAsync<IndeterminateSagaStateIdException>(async () =>
+        {
+            await invoke(new AsyncCompleteThree { SagaId = Guid.Empty });
+        });
+
+        ex.Message.ShouldContain(typeof(AsyncCompleteThree).FullNameInCode());
+        ex.Message.ShouldContain(typeof(AsyncWorkflow).FullNameInCode());
+        ex.Message.ShouldContain($"member '{nameof(AsyncCompleteThree.SagaId)}'");
+        ex.Message.ShouldContain("Set the id on the command");
     }
 
     [Fact]

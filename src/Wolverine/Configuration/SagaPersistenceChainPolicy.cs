@@ -22,9 +22,15 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
             {
                 if (!attachSagaPersistenceFrame(container, providers, saga, chain))
                 {
+                    // GH-4531: name what *does* provide saga persistence, because "no known provider"
+                    // is unactionable on its own -- the reader has to know the list to spot what is missing.
                     throw new InvalidSagaException(
                         "No known Saga persistence provider 'knows' how to insert an entity of type " +
-                        saga.VariableType.FullNameInCode() + " referenced in chain " + chain);
+                        saga.VariableType.FullNameInCode() + " referenced in chain " + chain +
+                        ". Saga state is stored by the message store: PersistMessagesWithPostgresql/SqlServer/MySql/Sqlite/Oracle " +
+                        "(lightweight saga tables), IntegrateWithWolverine() on a Marten/Polecat/Fisher store, an EF Core DbContext with a DbSet<" +
+                        saga.VariableType.NameInCode() + "> under UseEntityFrameworkCoreTransactions(), or RavenDb/CosmosDb/Redis persistence. " +
+                        "Register one that supports sagas.");
                 }
             }
         }
