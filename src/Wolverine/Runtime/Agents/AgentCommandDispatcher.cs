@@ -40,20 +40,21 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     // queue it again -- the pending-assignment ledger only suppresses re-emission for its TTL, and a lane
     // busy with slow starts can outlive that easily.
     //
-    // The VALUE is the ticket of the enqueue that owns the entry. Command equality decides whether work is a
-    // duplicate, but it cannot serve as the lifecycle identity: an abandoned lane releases its commands while
-    // their worker is still parked on one of them, so by the time that worker unwinds an equal command may
+    // The VALUE is the enqueue that owns the entry. Command equality decides whether work is a duplicate,
+    // but it cannot serve as the lifecycle identity: an abandoned lane releases its commands while their
+    // worker is still parked on one of them, so by the time that worker unwinds an equal command may
     // legitimately be queued again -- a node absent for a sweep or two and then back is enough. Releasing on
     // the command alone would then strip the claims of a live dispatch. See release().
-    private readonly ConcurrentDictionary<IAgentCommand, long> _queued = new();
+    private readonly ConcurrentDictionary<IAgentCommand, Dispatch> _queued = new();
 
     private long _ticket;
 
     /// <summary>
     ///     One enqueue of one command: what travels down a lane's channel, and the identity release() works
-    ///     against. Two equal commands queued at different times are different dispatches.
+    ///     against. Two equal commands queued at different times are different dispatches, and the lane
+    ///     records whose work it is -- <see cref="AbandonLane" /> may only let go of its own.
     /// </summary>
-    private readonly record struct Dispatch(long Ticket, IAgentCommand Command);
+    private readonly record struct Dispatch(long Ticket, Lane Lane, IAgentCommand Command);
 
     // The agents a start is queued or in flight for, and the node each was sent to. Suppression has to
     // happen at this level as well as per command, because successive evaluations re-chunk the unstarted
@@ -152,10 +153,16 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             }
         }
 
+        // The lane is resolved BEFORE the claim is taken, because the claim records which lane owns it.
+        // AbandonLane scans the whole of _queued, so a claim that named no lane yet could be released by an
+        // abandonment it has nothing to do with: the lane removal and this call race, and the loser of that
+        // race gets a fresh lane whose worker goes on to run the command after its claims were handed back.
+        var lane = laneFor(destination);
+
         // Command types without value equality fall back to reference equality and are simply never
         // collapsed, which is the old behaviour.
-        var dispatch = new Dispatch(Interlocked.Increment(ref _ticket), command);
-        if (!_queued.TryAdd(command, dispatch.Ticket))
+        var dispatch = new Dispatch(Interlocked.Increment(ref _ticket), lane, command);
+        if (!_queued.TryAdd(command, dispatch))
         {
             return;
         }
@@ -170,7 +177,6 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             foreach (var uri in moving.Value.Agents) _moving[uri] = moving.Value.Destination;
         }
 
-        var lane = laneFor(destination);
         if (!lane.Queue.Writer.TryWrite(dispatch))
         {
             // The lane is closed (shutdown). Let go of the claims so nothing is suppressed by a command that
@@ -219,7 +225,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         // releases when the node departs and the lane worker releases again when the abandoned command
         // finally unwinds; without the ticket the second release could clear a claim taken by a re-placement
         // -- or by a later, equal command queued onto a re-created lane -- in the meantime.
-        if (!_queued.TryRemove(new KeyValuePair<IAgentCommand, long>(command, dispatch.Ticket)))
+        if (!_queued.TryRemove(new KeyValuePair<IAgentCommand, Dispatch>(command, dispatch)))
         {
             return;
         }
@@ -283,15 +289,20 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         // _queued covers the command the lane is parked on as well as everything behind it: the parked one
         // holds the agents that matter. Only what release() clears is reported -- a command that just
         // finished, or whose claim a re-target has taken over, names agents belonging to a live dispatch.
+        //
+        // Matched on THIS lane and not merely on the destination, because _queued is global and the removal
+        // above does not stop an Enqueue for the same node from landing on a replacement lane a moment
+        // later. Such a command is live -- its worker is running it, and only the next sweep abandons it --
+        // so releasing its claims here would report agents to the leader that are still being placed.
         var released = new List<(Uri Agent, Guid Destination)>();
         foreach (var pair in _queued.ToArray())
         {
-            if ((pair.Key.DestinationNodeId ?? SharedLane) != nodeId)
+            if (!ReferenceEquals(pair.Value.Lane, lane))
             {
                 continue;
             }
 
-            release(new Dispatch(pair.Value, pair.Key), nodeId, released);
+            release(pair.Value, nodeId, released);
         }
 
         // No need to wait on the worker: it reads a token captured before this, and cancelling first means
@@ -404,13 +415,19 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             // GH-3781: completing the writer wakes this read with whatever is still buffered, so the
             // shutdown latch has to be re-checked HERE and not only in the loop condition. Anything
             // still queued when the node is going down is work for a cluster this node is leaving.
-            var command = dispatch.Command;
-
-            if (_disposing)
+            //
+            // Abandonment reads the same way and for the same reason, with one of its own: the latch goes
+            // up before AbandonLane releases the claims, and the cancellation that would break this read
+            // only afterwards. A command finishing in between would otherwise pick the next buffered
+            // dispatch up and execute it -- a live stop or start against a node that has left the cluster,
+            // for agents the leader has already been told are free.
+            if (_disposing || lane.IsAbandoned)
             {
                 release(dispatch, destination);
                 return;
             }
+
+            var command = dispatch.Command;
 
             try
             {
