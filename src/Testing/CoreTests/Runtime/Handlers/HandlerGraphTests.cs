@@ -109,7 +109,40 @@ public class HandlerGraphTests
             .Where(t => graph.TryFindMessageType(t, out var _) is false).ToArray();
         missingTypes.ShouldBeEmpty();
     }
+
+    // GH-4532: the old message interpolated the type it FOUND in the map rather than the type being
+    // registered, so it named only one side of the collision -- and the wrong one at that, from the
+    // point of view of someone tracing the call that failed.
+    [Fact]
+    public void alias_collision_names_both_types_and_the_way_out()
+    {
+        var graph = new HandlerGraph();
+        graph.RegisterMessageType(typeof(FirstAliasedMessage), "shared-alias");
+
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            graph.RegisterMessageType(typeof(SecondAliasedMessage), "shared-alias"));
+
+        ex.Message.ShouldContain(typeof(FirstAliasedMessage).FullNameInCode());
+        ex.Message.ShouldContain(typeof(SecondAliasedMessage).FullNameInCode());
+        ex.Message.ShouldContain("shared-alias");
+        ex.Message.ShouldContain("[MessageIdentity(\"...\")]");
+    }
+
+    [Fact]
+    public void configuring_discovery_after_compilation_says_where_it_belongs()
+    {
+        var graph = new HandlerGraph();
+        graph.Group(new WolverineOptions());
+
+        var ex = Should.Throw<InvalidOperationException>(() => graph.AddRange([]));
+
+        ex.Message.ShouldContain("Configure opts.Discovery inside UseWolverine()");
+    }
 }
+
+public class FirstAliasedMessage;
+
+public class SecondAliasedMessage;
 
 public class DummyMessage { }
 
