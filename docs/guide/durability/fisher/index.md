@@ -124,6 +124,9 @@ marking every handler <Badge type="tip" text="6.39" />:
 // Every message handler, HTTP endpoint and gRPC service in this assembly commits
 // through the IPlayerStore ancillary store.
 opts.Policies.UseAncillaryStorageFromAssemblyContaining<SomeModuleType>(typeof(IPlayerStore));
+
+// ...or, when several modules share one assembly, scope by namespace (child namespaces included)
+opts.Policies.UseAncillaryStorageFromNamespaceContaining<SomeModuleType>(typeof(IPlayerStore));
 ```
 
 An explicit `[Storage]` or `[FisherStore]` still wins for a single handler that needs to opt out. Note that for
