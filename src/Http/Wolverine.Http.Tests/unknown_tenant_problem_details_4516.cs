@@ -67,17 +67,35 @@ public class unknown_tenant_problem_details_4516
     }
 
     [Fact]
-    public async Task without_the_opt_in_the_unknown_tenant_still_escapes()
+    public async Task without_the_opt_in_the_unknown_tenant_is_not_mapped_to_404()
     {
-        // Proves the opt in is what changes the answer, rather than something else in the pipeline.
+        // The point of this control is that MapUnknownTenantToNotFound() is what produces the 404, rather
+        // than something else in the pipeline. It is NOT a claim about how the unmapped failure surfaces,
+        // and the first version of this test accidentally made one: it asked Alba to assert a 404 inside a
+        // scenario it expected to throw, which is self contradictory. Locally the UnknownTenantIdException
+        // propagated before Alba evaluated assertions and the test passed; on CI the host turned it into a
+        // 500 first, so Alba's own 404 assertion failed and raised ScenarioAssertionException instead --
+        // red on every PR until this fix.
+        //
+        // Assert only what the opt in owns: without it, the response is not a mapped 404.
         await using var host = await startHostAsync(mapUnknownTenant: false);
 
-        await Should.ThrowAsync<UnknownTenantIdException>(async () =>
-            await host.Scenario(x =>
+        try
+        {
+            var response = await host.Scenario(x =>
             {
                 x.Get.Url("/gh4516/tenanted?tenantId=ghost");
-                x.StatusCodeShouldBe(404);
-            }));
+                x.IgnoreStatusCode();
+            });
+
+            response.Context.Response.StatusCode.ShouldNotBe(404);
+        }
+        catch (UnknownTenantIdException)
+        {
+            // The other way an unmapped failure surfaces: the exception escapes the scenario entirely.
+            // Same conclusion, and deliberately the only exception type tolerated here -- anything else
+            // still fails this test.
+        }
     }
 
     [Fact]
