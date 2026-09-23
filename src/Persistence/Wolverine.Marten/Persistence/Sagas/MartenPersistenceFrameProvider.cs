@@ -14,6 +14,7 @@ using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Requirements;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using IRevisioned = JasperFx.IRevisioned;
@@ -119,8 +120,9 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
             Check = check,
             IsDuplicate = check.Variable,
             Claim = new QueueMartenDeduplicationClaimFrame(deduplicationId, check.Variable, marker),
-            CommitRaceWrapper = new RefuseDuplicateDeduplicationClaimFrame(lost =>
-                chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
+            CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
+                MartenDeduplicationFailures.Classifier,
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
         };
 
         return true;

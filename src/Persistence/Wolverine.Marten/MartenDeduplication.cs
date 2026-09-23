@@ -1,9 +1,11 @@
+using System.Reflection;
 using Marten;
 using Marten.Linq.QueryHandlers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
@@ -126,6 +128,13 @@ internal class MartenDeduplicator : IMartenDeduplicator
 /// </summary>
 public static class MartenDeduplicationFailures
 {
+    /// <summary>
+    /// <see cref="IsDuplicateDeduplicationClaim" /> as a <see cref="MethodInfo" />, for
+    /// <see cref="RefuseDuplicateClaimAtCommitFrame" /> to render into an exception filter.
+    /// </summary>
+    public static MethodInfo Classifier { get; } =
+        typeof(MartenDeduplicationFailures).GetMethod(nameof(IsDuplicateDeduplicationClaim))!;
+
     /// <summary>
     /// Was <paramref name="exception" /> a commit that lost the race for a logical deduplication id?
     ///
