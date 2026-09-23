@@ -6,88 +6,55 @@ using Wolverine.Runtime;
 namespace Wolverine.Polecat.Publishing;
 
 /// <summary>
-///     Polecat side of the projection-message bridge to Wolverine. One instance
-///     per projection daemon batch; <see cref="IMessageOutbox.CreateBatch(IDocumentSession)"/>
-///     vends a fresh batch on the first <c>slice.PublishMessage(...)</c> within a
-///     given daemon write. Messages buffer in the underlying
-///     <see cref="MessageContext"/> outbox and flush once the projection's SQL
-///     transaction has committed durably (see <see cref="AfterCommitAsync"/>).
+///     Polecat side of the projection-message bridge to Wolverine. One instance per projection
+///     daemon batch; <see cref="IMessageOutbox.CreateBatch(IDocumentSession)"/> vends a fresh
+///     batch on the first <c>slice.PublishMessage(...)</c> within a given daemon write.
 /// </summary>
 /// <remarks>
-///     Mirrors <see cref="Wolverine.Marten.Publishing.MartenToWolverineMessageBatch"/>.
-///     The differences from Marten:
-///     <list type="bullet">
-///         <item><description>
-///             Polecat's <see cref="IMessageBatch.BeforeCommitAsync"/> /
-///             <see cref="IMessageBatch.AfterCommitAsync"/> take just a
-///             <see cref="CancellationToken"/> — Polecat already owns the
-///             session + commit context internally.
-///         </description></item>
-///         <item><description>
-///             The session field is captured but unused at flush time (the message
-///             flush goes through <see cref="MessageContext"/>, which already holds
-///             the enlisted <see cref="PolecatEnvelopeTransaction"/>). Kept on the
-///             constructor for symmetry with Marten and in case future per-batch
-///             session-scoped behavior needs it.
-///         </description></item>
-///     </list>
+///     Mirrors <see cref="Wolverine.Marten.Publishing.MartenToWolverineMessageBatch"/>. All three
+///     bridges now delegate to the store agnostic
+///     <see cref="Wolverine.Runtime.ProjectionSideEffectSink"/>, which is what keeps them from
+///     drifting: GH-4556 was originally fixed in the Marten bridge only, and these two kept
+///     silently dropping every <see cref="ISendMyself"/> published from a projection.
+///     The one difference from Marten is that Polecat's
+///     <see cref="IMessageBatch.BeforeCommitAsync"/> / <see cref="IMessageBatch.AfterCommitAsync"/>
+///     take just a <see cref="CancellationToken"/> — Polecat already owns the session + commit
+///     context internally.
 /// </remarks>
-#pragma warning disable CS9113 // Parameter is unread
-internal class PolecatToWolverineMessageBatch(MessageContext Context, IDocumentSession Session) : IMessageBatch
-#pragma warning restore CS9113
+internal class PolecatToWolverineMessageBatch : IMessageBatch
 {
+    private readonly ProjectionSideEffectSink _sink;
+
+    public PolecatToWolverineMessageBatch(MessageContext context, IDocumentSession session)
+    {
+        _sink = new ProjectionSideEffectSink(context, c => new PolecatEnvelopeTransaction(session, c));
+    }
+
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {
-        return Context.PublishAsync(message, new DeliveryOptions { TenantId = tenantId });
+        return _sink.PublishAsync(message, new MessageMetadata(tenantId));
     }
 
     /// <summary>
     ///     Metadata-aware overload backing <see cref="IMessageSink.PublishAsync{T}(T, MessageMetadata)"/>
-    ///     (JasperFx.Events 2.0+). Maps the incoming <see cref="MessageMetadata"/>
-    ///     onto a <see cref="DeliveryOptions"/> so projection-authored side-effect
-    ///     messages can override tenant, correlation id, causation id, and headers
-    ///     on a per-message basis. Behavior is identical to Marten's mapping; see
-    ///     https://github.com/JasperFx/wolverine/issues/2545 for the original motivation.
+    ///     (JasperFx.Events 2.0+). See https://github.com/JasperFx/wolverine/issues/2545.
     /// </summary>
     public ValueTask PublishAsync<T>(T message, MessageMetadata metadata)
     {
-        var options = new DeliveryOptions
-        {
-            TenantId = metadata.TenantId
-        };
-
-        if (metadata.CorrelationIdEnabled)
-        {
-            options.CorrelationId = metadata.CorrelationId;
-        }
-
-        if (metadata.CausationIdEnabled)
-        {
-            options.CausationId = metadata.CausationId;
-        }
-
-        if (metadata.HeadersEnabled)
-        {
-            foreach (var header in metadata.Headers!)
-            {
-                options.Headers[header.Key] = header.Value?.ToString();
-            }
-        }
-
-        return Context.PublishAsync(message, options);
+        return _sink.PublishAsync(message, metadata);
     }
 
     public Task BeforeCommitAsync(CancellationToken token)
     {
-        // Wolverine's MessageContext flushes after commit (post-#2545); the
-        // Marten bridge does the same. Polecat surfaces a pre-commit hook for
-        // future "outbox row participates in the projection SQL transaction"
-        // strategies, but the current bridge stays best-effort post-commit.
+        // Wolverine's MessageContext flushes after commit (post-#2545); the Marten bridge does the
+        // same. Polecat surfaces a pre-commit hook for future "outbox row participates in the
+        // projection SQL transaction" strategies, but the current bridge stays best-effort
+        // post-commit.
         return Task.CompletedTask;
     }
 
     public Task AfterCommitAsync(CancellationToken token)
     {
-        return Context.FlushOutgoingMessagesAsync();
+        return _sink.FlushAsync();
     }
 }
