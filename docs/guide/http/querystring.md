@@ -1,15 +1,43 @@
 # Working with QueryString
 
-::: tip
-Wolverine can handle both nullable types and the primitive values here. So
-`int` and `int?` are both valid. In all cases, if the query string does not exist -- or
-cannot be parsed -- the value passed to your method will be the `default` for whatever that
-type is. If you want a *present but unparseable* query string value to return a `400 Bad Request`
-instead (matching ASP.NET Core minimal APIs), opt into
-`WolverineHttpOptions.RejectUnparseableQueryValues` — see
-[Strict Query String Binding](./as-parameters#strict-query-string-binding). That flag also covers
-collection query string parameters, where an unparseable element otherwise gets silently dropped.
+::: warning
+`WolverineHttpOptions.RejectUnparseableQueryValues` defaults to **false**, and this is the most
+surprising default in Wolverine.HTTP if you are arriving from MVC or minimal APIs, both of which
+reject an unparseable value.
+
+Under the default, a query string value that is *present but unparseable* binds the parameter's
+default and **the request proceeds**:
+
+| Request | Parameter | Result |
+| --- | --- | --- |
+| `?page=abc` | `int page` | runs with `page = 0` |
+| `?since=yesterday` | `DateTimeOffset since` | runs with `default` |
+| `?ids=1,x,3` | `int[] ids` | runs with the bad element dropped |
+
+Nothing is logged for the individual request, so the server sees what looks like a perfectly valid
+call — which is what makes "the API returned the wrong page" so hard to chase. Wolverine logs one
+warning at startup when an application binds parsed query parameters and the flag is off.
+
+Set it to `true` to get a `400 Bad Request` with a `ProblemDetails` body naming the offending
+parameter instead:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.RejectUnparseableQueryValues = true;
+});
+```
+
+A **missing** query string value still binds the parameter's default in either mode; this governs
+only values that are present and cannot be parsed. See
+[Strict Query String Binding](./as-parameters#strict-query-string-binding).
+
 The strict behavior becomes the default in Wolverine 7.0.
+:::
+
+::: tip
+Wolverine can handle both nullable types and the primitive values here, so `int` and `int?` are
+both valid.
 :::
 
 Wolverine supports passing query string values to your HTTP method arguments for
