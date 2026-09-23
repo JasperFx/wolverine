@@ -47,9 +47,12 @@ public static class Bootstrapping
         {
             opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres")!);
 
-            // Or
+            // Or choose a different provider; MySql, Sqlite, SqlServer, and Oracle are supported.
             // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
-            
+            // opts.UseMySqlPersistenceAndTransport(builder.Configuration.GetConnectionString("mysql"));
+            // opts.UseSqlitePersistenceAndTransport(builder.Configuration.GetConnectionString("sqlite"));
+            // opts.UseOraclePersistenceAndTransport(builder.Configuration.GetConnectionString("oracle"));
+
             // Or
             // opts.Services
             //     .AddMarten(builder.Configuration.GetConnectionString("postgres"))
