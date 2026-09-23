@@ -168,6 +168,26 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
     private string deduplicatorUsage => _deduplicatorUsage ?? _deduplicator!.Usage;
     private string cancellationUsage => _cancellationUsage ?? _cancellation!.Usage;
 
+    /// <summary>The claimed id, for a subclass that needs it before the try block.</summary>
+    protected Variable DeduplicationId => _deduplicationId;
+
+    /// <summary>Usage of the <see cref="IMessageDeduplicator" />, for a subclass emitting its own call.</summary>
+    protected string DeduplicatorUsage => deduplicatorUsage;
+
+    /// <summary><c>typeof(...)</c> for the ancillary store, or <c>null</c>, rendered for codegen.</summary>
+    protected string AncillaryStoreMarkerUsage => _ancillaryStoreMarker == null
+        ? "null"
+        : $"typeof({_ancillaryStoreMarker.FullNameInCode()})";
+
+    /// <summary>
+    /// GH-4547. Hook for a chain type whose failure response is FLUSHED before this frame's finally can
+    /// run, and which therefore has to arrange the compensating release earlier. Emitted immediately
+    /// before the try block, so the claim already exists.
+    /// </summary>
+    protected virtual void writeBeforeTry(ISourceWriter writer)
+    {
+    }
+
     /// <summary>
     /// Name of the <c>bool</c> the generated code sets when execution threw. Chain types that can fail
     /// without throwing widen the release test around it — see <see cref="BuildReleaseCondition" />.
@@ -195,6 +215,8 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
         // `throw;` rather than `throw e;` so the original stack trace survives to the error policies --
         // this frame compensates for a failure, it does not handle one, and swallowing here would turn
         // every handler exception into a silent success.
+        writeBeforeTry(writer);
+
         writer.Write($"var {ThrewFlag} = false;");
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);
