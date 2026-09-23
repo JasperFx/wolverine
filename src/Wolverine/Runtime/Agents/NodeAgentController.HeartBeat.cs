@@ -92,13 +92,16 @@ public partial class NodeAgentController
     // source of truth; the embargo is applied at every point the node's identity is (re)persisted, so a
     // row resurrection after a peer ejection keeps the shrunk capability set too instead of quietly
     // re-advertising an agent this node just released for failing here.
-    private WolverineNode buildLocalNode()
+    // GH-3959: takes an already-taken load sample when the caller has one. The default monitor smooths
+    // its reading across calls, so sampling twice in one heartbeat would advance that filter twice per
+    // tick and make the decay rate depend on which code path ran.
+    private WolverineNode buildLocalNode(double? loadFactor = null)
     {
         var node = WolverineNode.For(_runtime.Options);
         node.AssignedNodeNumber = _runtime.Options.Durability.AssignedNodeNumber;
         node.Capabilities.AddRange(_capabilities.Where(x => !_releasedAgents.ContainsKey(x)));
         node.AssignAgents(Agents.Keys.ToArray());
-        node.LoadFactor = sampleLoad();
+        node.LoadFactor = loadFactor ?? sampleLoad();
         return node;
     }
 
@@ -115,15 +118,16 @@ public partial class NodeAgentController
         // would be a real cost on the thousands-of-agents nodes this whole fix is about.
         // GH-3959: the load sample rides the skeleton so capacity advertisement refreshes on EVERY
         // heartbeat — the leader must never place agents against a stale reading.
+        var load = sampleLoad();
         var skeleton = WolverineNode.For(_runtime.Options);
-        skeleton.LoadFactor = sampleLoad();
+        skeleton.LoadFactor = load;
         var existed = await _persistence.MarkHealthCheckAsync(skeleton, token);
         if (existed)
         {
             return;
         }
 
-        var node = buildLocalNode();
+        var node = buildLocalNode(load);
         await _persistence.ReregisterNodeAsync(node, token);
 
         var agentUris = node.ActiveAgents.ToArray();

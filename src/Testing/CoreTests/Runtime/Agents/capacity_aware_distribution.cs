@@ -98,6 +98,114 @@ public class capacity_aware_distribution
         // Nothing new is placed anywhere; the unassigned agents wait
         grid.AgentFor(blue3).AssignedNode.ShouldBeNull();
         grid.AgentFor(blue4).AssignedNode.ShouldBeNull();
+
+        // GH-4590: and the agents that WERE running are still running. Shedding is only ever a move,
+        // so with nowhere to move to there is nothing to be gained by stopping them.
+        grid.AgentFor(blue1).AssignedNode.ShouldBe(node1);
+        grid.AgentFor(blue2).AssignedNode.ShouldBe(node2);
+    }
+
+    /// <summary>
+    /// GH-4590. The failure this covers only appears across CONSECUTIVE evaluations: each one shed
+    /// OverloadShedBatchSize agents and placed none of them, so a scheme drained to nothing one batch
+    /// at a time. A single-tick assertion passed throughout.
+    /// </summary>
+    [Fact]
+    public void an_overloaded_cluster_does_not_drain_itself_over_successive_evaluations()
+    {
+        var node1Id = Guid.NewGuid();
+        var node2Id = Guid.NewGuid();
+
+        var on1 = new List<Uri> { blue1, blue2, blue3 };
+        var on2 = new List<Uri> { blue4, blue5, blue6 };
+
+        for (var tick = 0; tick < 5; tick++)
+        {
+            var grid = new AssignmentGrid();
+
+            var node1 = grid.WithNode(1, node1Id).Running(on1.ToArray());
+            var node2 = grid.WithNode(2, node2Id).Running(on2.ToArray());
+
+            foreach (var node in grid.Nodes)
+            {
+                node.IsOverloaded = true;
+                node.IsAcceptingAgents = false;
+            }
+
+            grid.DistributeEvenly("blue");
+
+            on1 = node1.Agents.Select(x => x.Uri).ToList();
+            on2 = node2.Agents.Select(x => x.Uri).ToList();
+        }
+
+        on1.Count.ShouldBe(3);
+        on2.Count.ShouldBe(3);
+    }
+
+    /// <summary>
+    /// GH-4590, the unconditional case: a single-node cluster has nowhere to shed to by definition,
+    /// so an overloaded node used to stop its own agents one per evaluation and never restart them.
+    /// </summary>
+    [Fact]
+    public void a_single_overloaded_node_keeps_running_what_it_has()
+    {
+        var nodeId = Guid.NewGuid();
+        var running = new List<Uri> { blue1, blue2, blue3 };
+
+        for (var tick = 0; tick < 5; tick++)
+        {
+            var grid = new AssignmentGrid();
+
+            var node = grid.WithNode(1, nodeId).Running(running.ToArray());
+            node.IsOverloaded = true;
+            node.IsAcceptingAgents = false;
+
+            grid.DistributeEvenly("blue");
+
+            running = node.Agents.Select(x => x.Uri).ToList();
+        }
+
+        running.Count.ShouldBe(3);
+    }
+
+    /// <summary>
+    /// GH-4590. A node advertising nothing is still ELIGIBLE — that is what keeps stores with no load
+    /// persistence on today's behavior — but it must not outrank a node that has actually reported
+    /// itself lightly loaded. Otherwise a node mid-rolling-upgrade, or one whose sampler is throwing,
+    /// becomes the preferred target for every placement precisely when least is known about it.
+    /// </summary>
+    [Fact]
+    public void a_node_advertising_no_load_does_not_outrank_a_measurably_idle_one()
+    {
+        var grid = new AssignmentGrid();
+
+        var quiet = grid.WithNode(1, Guid.NewGuid());
+        quiet.LoadFactor = 5;
+
+        var unknown = grid.WithNode(2, Guid.NewGuid());
+        unknown.LoadFactor = null;
+
+        grid.WithAgents(blue1);
+        grid.DistributeEvenly("blue");
+
+        grid.AgentFor(blue1).AssignedNode.ShouldBe(quiet);
+    }
+
+    [Fact]
+    public void a_node_advertising_no_load_still_beats_a_measurably_busy_one()
+    {
+        var grid = new AssignmentGrid();
+
+        var busy = grid.WithNode(1, Guid.NewGuid());
+        busy.LoadFactor = 75;
+
+        var unknown = grid.WithNode(2, Guid.NewGuid());
+        unknown.LoadFactor = null;
+
+        grid.WithAgents(blue1);
+        grid.DistributeEvenly("blue");
+
+        grid.AgentFor(blue1).AssignedNode.ShouldBe(unknown);
     }
 
     [Fact]
@@ -155,19 +263,5 @@ public class capacity_aware_distribution
         grid.DistributeEvenly("blue");
 
         grid.AgentFor(blue1).AssignedNode.ShouldBe(node1);
-    }
-
-    [Fact]
-    public void memory_pressure_monitor_honors_the_0_to_100_contract()
-    {
-        var monitor = new MemoryPressureLoadMonitor();
-
-        var load = monitor.CurrentLoad();
-
-        if (load.HasValue)
-        {
-            load.Value.ShouldBeGreaterThanOrEqualTo(0);
-            load.Value.ShouldBeLessThanOrEqualTo(100);
-        }
     }
 }

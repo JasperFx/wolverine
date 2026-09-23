@@ -28,6 +28,14 @@ public class capacity_aware_column_is_opt_in : PostgresqlContext
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schema);
                 opts.Durability.CapacityAwareAssignment = capacityAware;
+
+                // GH-4589: capacity-aware assignment requires an explicit load monitor -- there is no
+                // default, and the runtime refuses to start without one. These tests are about the
+                // COLUMN being gated on the flag, so the reading itself is a constant.
+                if (capacityAware)
+                {
+                    opts.Durability.NodeLoadMonitor = new ConstantLoadMonitor(17);
+                }
                 opts.AutoBuildMessageStorageOnStartup = autoCreate;
 
                 if (autoCreate != AutoCreate.None)
@@ -153,5 +161,10 @@ public class capacity_aware_column_is_opt_in : PostgresqlContext
         }
 
         (await loadFactorColumnCountAsync(schema)).ShouldBe(0);
+    }
+
+    internal class ConstantLoadMonitor(double? load) : INodeLoadMonitor
+    {
+        public double? CurrentLoad() => load;
     }
 }
