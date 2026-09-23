@@ -1049,6 +1049,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (RouteParameterStrategy.CanParse(inner))
             {
                 //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
+                _parent.WarnOnceAboutLenientQueryBinding();
                 variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key,
                     rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                 variable.Name = key;
@@ -1057,6 +1058,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
         {
+            _parent.WarnOnceAboutLenientQueryBinding();
             variable = new ParsedArrayQueryStringValue(parameterType, key,
                 rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
             variable.Name = key;
@@ -1064,6 +1066,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (ParsedCollectionQueryStringValue.CanParse(parameterType))
         {
+            _parent.WarnOnceAboutLenientQueryBinding();
             variable = new ParsedCollectionQueryStringValue(parameterType, key,
                 rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
             variable.Name = key;
@@ -1072,6 +1075,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         if (RouteParameterStrategy.CanParse(parameterType))
         {
             //variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
+            _parent.WarnOnceAboutLenientQueryBinding();
             variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName,
                 rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
             variable.Name = key;

@@ -77,6 +77,50 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// </summary>
     internal bool RejectUnparseableQueryValues { get; set; }
 
+    private int _warnedAboutLenientQueryBinding;
+
+    /// <summary>
+    /// GH-4529. Called from <see cref="HttpChain"/> the first time an endpoint binds a <b>parsed</b>
+    /// (non-string) query string parameter while <see cref="RejectUnparseableQueryValues"/> is off -- that is,
+    /// the first time this application actually acquires the surprising behaviour rather than merely being
+    /// configured for it.
+    ///
+    /// <para>
+    /// Under the default, a query string value that is present but unparseable binds the parameter's default
+    /// and the request proceeds: <c>?page=abc</c> on an <c>int page</c> runs with <c>page = 0</c>. Nothing is
+    /// logged, the server sees a valid request, and every "the API returned the wrong page" investigation
+    /// starts from a clean access log. MVC and minimal APIs both reject it.
+    /// </para>
+    ///
+    /// <para>
+    /// Warned exactly once per graph, not once per endpoint, and only when a parsed parameter exists --
+    /// an application with only string query parameters has nothing to act on. Raised from the binding site
+    /// rather than after discovery because chain compilation is lazy under
+    /// <see cref="RouteWarmup.Lazy"/>, so a scan at startup would not yet know.
+    /// </para>
+    /// </summary>
+    internal void WarnOnceAboutLenientQueryBinding()
+    {
+        if (RejectUnparseableQueryValues) return;
+        if (Interlocked.Exchange(ref _warnedAboutLenientQueryBinding, 1) == 1) return;
+
+        // Chain compilation also runs in contexts with a bare container -- the query string
+        // troubleshooting helpers, codegen -- where no logging has been registered at all. A diagnostic
+        // must never be the thing that takes those down.
+        ILogger logger;
+        try
+        {
+            logger = Container.GetInstance<ILogger<HttpGraph>>();
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        logger.LogWarning(
+            "WolverineHttpOptions.RejectUnparseableQueryValues is false, so a query string value that is present but cannot be parsed binds the parameter's default value and the request proceeds -- '?page=abc' on an int parameter runs with page = 0, and nothing is logged. Set WolverineHttpOptions.RejectUnparseableQueryValues = true to answer 400 with ProblemDetails instead, which is what MVC and minimal APIs do. This default flips to true in Wolverine 7.");
+    }
+
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpoints;
