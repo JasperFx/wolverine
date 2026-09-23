@@ -183,7 +183,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         // TODO there is no "listening" to SNS topics, so not sure what to do this this one. Maybe Endpoint is the wrong class to use here?
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Amazon SNS topic '{TopicName}' ({Uri}) is a publish-only endpoint. SNS topics cannot be listened to directly. Subscribe an SQS queue to the topic and listen to that queue instead with ListenToSqsQueue().");
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -218,7 +219,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         }
 
         var protocol = new SnsSenderProtocol(runtime, this,
-            Parent.SnsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
+            Parent.SnsClient ?? throw new InvalidOperationException(AmazonSnsTransport.NotInitializedMessage(Uri)));
         return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SnsSenderProtocol>());
     }
@@ -274,7 +275,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
             if (client == null)
             {
-                throw new InvalidOperationException($"Parent {nameof(AmazonSnsTransport)} has not been initialized");
+                throw new InvalidOperationException(AmazonSnsTransport.NotInitializedMessage(Uri));
             }
 
             if (Parent.AutoProvision)

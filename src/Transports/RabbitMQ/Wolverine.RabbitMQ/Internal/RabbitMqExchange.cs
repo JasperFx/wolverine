@@ -112,7 +112,8 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Rabbit MQ exchange '{ExchangeName}' ({Uri}) is a publish-only endpoint. Rabbit MQ exchanges cannot be listened to directly. Bind a queue to the exchange and listen to that queue instead with ListenToRabbitQueue(queueName).");
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)

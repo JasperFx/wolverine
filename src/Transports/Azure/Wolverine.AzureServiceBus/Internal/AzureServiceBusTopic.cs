@@ -43,7 +43,8 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Azure Service Bus topic '{TopicName}' ({Uri}) is a publish-only endpoint. Azure Service Bus topics cannot be listened to directly. Listen to one of the topic's subscriptions instead with ListenToAzureServiceBusSubscription(subscriptionName).FromTopic(\"{TopicName}\").");
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)

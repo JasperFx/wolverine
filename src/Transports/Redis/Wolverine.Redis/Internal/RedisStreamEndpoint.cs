@@ -528,7 +528,8 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         }
         catch (Exception ex)
         {
-            throw new Exception($"Failed to schedule retry for envelope {envelope.Id} on Redis stream {StreamKey}", ex);
+            throw new InvalidOperationException(
+                $"Failed to schedule retry for envelope {envelope.Id} on Redis stream '{StreamKey}' ({Uri}). The scheduled message could not be written to the sorted set '{ScheduledMessagesKey}'; see the inner exception.", ex);
         }
     }
 }

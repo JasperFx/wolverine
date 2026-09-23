@@ -47,7 +47,8 @@ public class RabbitMqTopicEndpoint : RabbitMqEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Rabbit MQ topic '{TopicName}' on exchange '{Exchange.ExchangeName}' ({Uri}) is a publish-only endpoint. A topic cannot be listened to directly. Bind a queue to the topic exchange with a matching binding key and listen to that queue instead with ListenToRabbitQueue(queueName).");
     }
 
     internal override string RoutingKey()

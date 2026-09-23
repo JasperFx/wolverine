@@ -209,7 +209,8 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     {
         if (uri.Scheme != Protocol)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri));
+            throw new ArgumentOutOfRangeException(nameof(uri),
+                $"Google Cloud Pub/Sub Uris must use the format '{Protocol}://{{projectId}}/{{topicName}}': {uri}");
         }
 
         return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ??
