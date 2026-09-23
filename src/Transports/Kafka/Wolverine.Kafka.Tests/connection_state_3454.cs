@@ -117,14 +117,18 @@ public class connection_state_3454
         state.ShouldBe(TransportConnectionState.Disconnected);
     }
 
+    // GH-4522: this used to be `user_claimed_error_handler_backs_off_instead_of_throwing`, and it asserted
+    // that the connection state stayed Unknown -- which was the bug. A user error handler registered through
+    // ConfigureConsumerBuilders silently disabled Wolverine's connection-state tracking for the lifetime of
+    // the host, so health checks, wolverine-diagnostics and CritterWatch could not tell a healthy consumer
+    // from one that had been disconnected for an hour. Wolverine now composes behind the user's handler
+    // instead of losing the race to register one, so BOTH run.
     [Fact]
-    public async Task user_claimed_error_handler_backs_off_instead_of_throwing()
+    public async Task a_user_error_handler_and_wolverine_tracking_both_run()
     {
         var userHandlerHits = 0;
 
-        // The user's SetErrorHandler registration through ConfigureConsumerBuilders must keep working
-        // exactly as before GH-3454: no double-registration throw at startup, user callback still fires,
-        // and Wolverine's connection state simply rests at Unknown
+        // Nothing listens on this port, so librdkafka raises transport errors and then all-brokers-down.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -134,12 +138,14 @@ public class connection_state_3454
                 opts.ListenToKafkaTopic("connstate-user-handler");
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        // Poll for the state we must NOT reach; the helper returns the last observed state on timeout
+        // The user's handler still fires -- their registration is untouched and runs first...
         var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(
-            host, "kafka", TransportConnectionState.Disconnected, 10000);
+            host, "kafka", TransportConnectionState.Disconnected, 30000);
 
-        state.ShouldBe(TransportConnectionState.Unknown);
         userHandlerHits.ShouldBeGreaterThan(0);
+
+        // ...and Wolverine now sees the same errors, so the state degrades instead of resting at Unknown.
+        state.ShouldBe(TransportConnectionState.Disconnected);
     }
 }
 

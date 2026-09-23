@@ -45,10 +45,20 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
         _consumer = consumer;
 
         _connectionState = connectionState ?? new KafkaConnectionStateTracker();
+
+        // GH-4522: this used to be an Information line saying reporting was simply off. It is now a Warning
+        // that names the consequence -- and it should be unreachable, because Wolverine composes its tracking
+        // behind a user handler rather than losing the race to register one.
         if (_connectionState.ErrorHandlerSuppressed)
         {
+            _logger.LogWarning(
+                "Wolverine could not install its Kafka consumer error handler for {Uri}, so it cannot observe connection errors and TransportConnectionState will report Unknown for the lifetime of the host. Health checks, wolverine-diagnostics and CritterWatch will not be able to tell a healthy consumer from one that has been disconnected for an hour. Drop the custom error handler registered through ConfigureConsumerBuilders(), or chain Wolverine's tracking from it.",
+                Address);
+        }
+        else if (_connectionState.ComposedWithUserErrorHandler)
+        {
             _logger.LogInformation(
-                "Kafka connection-state reporting is disabled for {Uri} because user configuration already registers an error handler through ConfigureConsumerBuilders; ConnectionState will remain Unknown",
+                "Wolverine composed its Kafka connection-state tracking behind the consumer error handler registered through ConfigureConsumerBuilders for {Uri}. Both handlers run; yours runs first.",
                 Address);
         }
 
