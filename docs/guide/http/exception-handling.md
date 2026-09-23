@@ -207,15 +207,52 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
-## Recipe: Marten Concurrency Conflicts as 409 <Badge type="tip" text="6.30" />
+## Concurrency Conflicts as 409 <Badge type="tip" text="6.39" />
 
-An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a Marten session can lose an
+An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a session can lose an
 optimistic concurrency race -- two clients posting to the same aggregate at the same time. Without a handler
 the exception escapes the endpoint as an unhandled **500**, even though nothing went wrong with the data:
 optimistic concurrency did its job. **409 Conflict** is the honest status for that.
 
-The `OnException` middleware convention is all you need. There are two exception types to cover, and the
-second one is easy to miss:
+There is a one line opt in for this:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    // Marten. Also available as MapPolecatConcurrencyFailuresToConflict()
+    opts.MapMartenConcurrencyFailuresToConflict();
+});
+```
+
+That single call does everything the hand written recipe below used to: it maps every
+`JasperFx.ConcurrencyException` **and** Marten's `StreamLockedException` to a 409 `ProblemDetails`, applies
+to the transactional chains, and stamps `ProducesProblem(409)` so your OpenAPI document advertises the
+conflict. It takes the same optional predicate `AddMiddleware` does if you want to narrow it further:
+
+```csharp
+opts.MapMartenConcurrencyFailuresToConflict(chain => chain.Method.HandlerType == typeof(OrderEndpoints));
+```
+
+::: tip Which call do I want?
+| Store | Call |
+| --- | --- |
+| Marten | `opts.MapMartenConcurrencyFailuresToConflict()` |
+| Polecat | `opts.MapPolecatConcurrencyFailuresToConflict()` |
+| Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
+
+The store specific calls exist because `Marten.Exceptions.StreamLockedException` and
+`Polecat.Exceptions.StreamLockedException` do **not** derive from `JasperFx.ConcurrencyException` and are not
+visible to `WolverineFx.Http` on its own. On Marten or Polecat, `MapConcurrencyFailuresToConflict()` alone
+would leave the `FetchForExclusiveWriting` path returning 500s. Fisher needs no equivalent -- its exclusive
+methods are optimistic and throw `EventStreamUnexpectedMaxEventIdException`, which is a
+`ConcurrencyException`.
+:::
+
+### Rolling your own
+
+If you want different status codes, a different `ProblemDetails` shape, or extra exception types, the
+`OnException` middleware convention is all you need. There are two exception types to cover, and the second
+one is easy to miss:
 
 <!-- snippet: sample_marten_concurrency_exception_middleware -->
 <a id='snippet-sample_marten_concurrency_exception_middleware'></a>

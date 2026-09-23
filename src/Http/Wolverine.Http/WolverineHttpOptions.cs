@@ -451,6 +451,37 @@ public class WolverineHttpOptions
     }
 
     /// <summary>
+    /// GH-4512. Map the Critter Stack's commit-time concurrency failures onto a 409 ProblemDetails response
+    /// instead of letting them escape as an unhandled 500, and advertise the 409 in the OpenAPI document.
+    ///
+    /// <para>
+    /// Covers everything deriving from <see cref="JasperFx.ConcurrencyException"/>:
+    /// <c>EventStreamUnexpectedMaxEventIdException</c>, document revision/version violations,
+    /// <c>DcbConcurrencyException</c> and <c>SagaConcurrencyException</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>On Marten or Polecat, call that store's own overload instead</b> --
+    /// <c>MapMartenConcurrencyFailuresToConflict()</c> or <c>MapPolecatConcurrencyFailuresToConflict()</c>.
+    /// Their <c>StreamLockedException</c>, which <c>FetchForExclusiveWriting</c> throws on a contended
+    /// stream, does <b>not</b> derive from <see cref="JasperFx.ConcurrencyException"/> and is not
+    /// referenceable from this assembly, so this method alone leaves the exclusive locking path returning
+    /// 500s. The store overloads call this one and add their own type.
+    /// </para>
+    /// </summary>
+    /// <param name="filter">
+    /// Which chains the mapping applies to. Defaults to the transactional chains -- the only ones that
+    /// commit a unit of work, and so the only ones that can raise a commit-time concurrency failure.
+    /// </param>
+    public void MapConcurrencyFailuresToConflict(Func<HttpChain, bool>? filter = null)
+    {
+        filter ??= ConflictMapping.IsTransactional;
+
+        AddMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
+        Policies.Add(new ConflictProblemPolicy(filter));
+    }
+
+    /// <summary>
     ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
     /// </summary>
     /// <typeparam name="T"></typeparam>
