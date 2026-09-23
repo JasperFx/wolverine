@@ -399,21 +399,51 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         {
             if (e.Message.Contains("inequivalent arg"))
             {
-                // Rabbit MQ answers a mismatched declaration with a channel level 406, so this channel
-                // is closed and unusable even though Wolverine is choosing to tolerate the mismatch.
-                // Whatever the caller does with it next -- BasicQosAsync, for a listener -- throws an
-                // ObjectDisposedException that says nothing about what the broker actually objected to.
-                // Log the broker's own complaint here at a level someone will see. See GH-3871.
-                logger.LogWarning(e,
-                    "Rabbit MQ rejected the declaration of queue '{Queue}' because it already exists with a different configuration. Wolverine will use the existing queue, but the broker has closed this channel.",
+                // GH-3871 logged this and returned as if the declaration had succeeded. But Rabbit MQ answers a
+                // mismatched declaration with a channel-level 406, which closes the channel -- so the very next
+                // operation on it (BasicQosAsync, when a listener starts) threw ObjectDisposedException, and the
+                // user-visible error became "Unable to open a Rabbit MQ channel for listener ... The underlying
+                // failure was logged by the channel agent." Cause and symptom were one hop apart, and the symptom
+                // said "go read the log". GH-4520: fail here instead, with the broker's own complaint -- which
+                // names the specific mismatched argument -- and the three things that actually fix it.
+                logger.LogError(e,
+                    "Rabbit MQ rejected the declaration of queue '{Queue}' because it already exists with a different configuration",
                     QueueName);
-                return;
+
+                throw new InvalidOperationException(InequivalentArgumentMessage(QueueName, this, e.Message), e);
             }
 
             throw;
         }
 
         HasDeclared = true;
+    }
+
+    /// <summary>
+    /// GH-4520: in practice this is the single most common Rabbit MQ startup failure against an existing broker --
+    /// a queue created by an older version of the app, by another team's app, or by hand in the management UI.
+    /// The broker's own reply text names the specific mismatched argument, so quote it verbatim rather than
+    /// guessing, and spell out all three remedies since which one is right is a judgement call about ownership.
+    /// </summary>
+    internal static string InequivalentArgumentMessage(string queueName, RabbitMqQueue queue, string brokerReply)
+    {
+        var declared = new List<string>
+        {
+            $"IsDurable={queue.IsDurable}",
+            $"IsExclusive={queue.IsExclusive}",
+            $"AutoDelete={queue.AutoDelete}"
+        };
+
+        declared.AddRange(queue.Arguments.Select(pair => $"{pair.Key}={pair.Value}"));
+
+        return
+            $"Rabbit MQ rejected Wolverine's declaration of queue '{queueName}' because the queue already exists with a different configuration, and the broker closed the channel. " +
+            $"Wolverine tried to declare it as {string.Join(", ", declared)}. " +
+            $"The broker's reply names the argument it objected to: {brokerReply} " +
+            "Fix this in one of three ways: (1) align the endpoint's configuration with the existing queue, " +
+            $"for example ListenToRabbitQueue(\"{queueName}\", q => {{ q.QueueType = ...; q.DeadLetterQueue = ...; }}); " +
+            "(2) delete the existing queue and let Wolverine recreate it; or " +
+            $"(3) mark the queue as ExternallyOwned() so Wolverine stops declaring it at all.";
     }
 
     public override IDictionary<string, object> DescribeProperties()
