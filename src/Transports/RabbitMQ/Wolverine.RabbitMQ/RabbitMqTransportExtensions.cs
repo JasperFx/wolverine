@@ -119,13 +119,19 @@ public static class RabbitMqTransportExtensions
     public static RabbitMqTransportExpression UseRabbitMqUsingNamedConnection(this WolverineOptions options,
         string connectionStringName, Action<ConnectionFactory>? configure = null)
     {
+        // GH-4527: declare the dependency so the runtime validates it -- together with every other named
+        // connection string this application needs -- in one pass at startup, before the message store
+        // migrates and before any transport connects, and so check-env can catch it before a deploy. The
+        // guard inside the factory below stays as a backstop for hosts assembled without IConfiguration.
+        var dependency = new NamedConfigurationDependency("Rabbit MQ", connectionStringName, "AddRabbitMQ");
+        options.RequireNamedConnectionString(dependency.Kind, dependency.Name, dependency.AspireResourceMethod);
+
         options.Services.AddSingleton<IConnectionFactory>(s =>
         {
             var configuration = s.GetRequiredService<IConfiguration>();
             var connectionString = configuration.GetConnectionString(connectionStringName);
             if (connectionString.IsEmpty())
-                throw new InvalidOperationException(
-                    $"The connection string named '{connectionStringName}' is missing in configuration");
+                throw dependency.MissingException(configuration);
 
 
             var factory = new ConnectionFactory();

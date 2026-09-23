@@ -425,6 +425,19 @@ public sealed partial class WolverineOptions
     public List<IEnvelopeRule> MetadataRules { get; } = new();
 
     /// <summary>
+    /// GH-4527. Connection string names this application expects to find in <c>IConfiguration</c>, registered
+    /// by the <c>Use{Transport}UsingNamedConnection(name)</c> APIs. The runtime validates all of them in one
+    /// pass at startup -- before the message store migrates and before any transport connects -- and throws a
+    /// single <see cref="MissingNamedConnectionStringsException"/> naming every one that is missing.
+    ///
+    /// <para>
+    /// Any API that resolves a connection string by name should register here so the check stays uniform and
+    /// the developer sees every missing name on one run rather than one per deploy.
+    /// </para>
+    /// </summary>
+    public List<NamedConfigurationDependency> NamedConfigurationDependencies { get; } = new();
+
+    /// <summary>
     /// GH-3001 extension point. Factories for codegen frames that prime a handler's service-location
     /// child scope with an already-resolved "singleton-per-message" instance (e.g. Marten's
     /// outbox-enrolled IDocumentSession), so service-located dependencies resolve to that instance
