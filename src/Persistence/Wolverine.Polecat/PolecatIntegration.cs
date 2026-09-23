@@ -15,6 +15,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.SqlServer.Persistence;
 using Wolverine.SqlServer.Transport;
 using Wolverine.Util;
 using System.Diagnostics.CodeAnalysis;
@@ -55,12 +56,15 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
                 $"or, to simply have Wolverine handlers receive the event after commit, set {nameof(UseFastEventForwarding)} = true on this integration instead.");
         }
 
-        // Duplicate incoming messages - SQL Server uses unique constraint violations
-        options.OnException<Microsoft.Data.SqlClient.SqlException>(e =>
-            {
-                // Unique key violation on incoming table
-                return e.Number == 2627 || e.Number == 2601;
-            })
+        // Duplicate incoming messages - SQL Server uses unique constraint violations.
+        //
+        // GH-4565: scoped to the inbox table. This used to match on e.Number == 2627 || e.Number == 2601
+        // alone, which is *any* primary-key or unique-key violation anywhere in the handler's transaction:
+        // a duplicate natural key or a unique index on the application's own table was acknowledged and
+        // dropped. Not retried, not dead-lettered -- the work never happened and there was no dead letter
+        // to find it in, which is the hardest failure mode there is to diagnose after the fact.
+        options.OnException<Microsoft.Data.SqlClient.SqlException>(
+                SqlServerMessageStore.IsDuplicateIncomingEnvelope)
             .Discard();
 
         options.CodeGeneration.Sources.Add(new PolecatBackedPersistenceMarker());

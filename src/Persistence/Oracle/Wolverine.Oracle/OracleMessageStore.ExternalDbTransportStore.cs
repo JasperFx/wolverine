@@ -63,12 +63,14 @@ internal partial class OracleMessageStore
 
             await conn.CloseAsync();
         }
-        catch (Exception ex)
-        {
-            await Console.Error.WriteLineAsync(ex.Message);
-        }
         finally
         {
+            // Deliberately no catch: ExternalMessageTableListener already wraps this call and logs
+            // the failure with its ILogger and the table name, then keeps polling. Catching here
+            // pre-empted that -- an Oracle poll failure produced a bare message on stderr, no stack
+            // trace, and nothing in the configured log sink. MessageDatabase<T>'s implementation
+            // does not catch either. ReleaseLockAsync swallows and logs its own errors, so this
+            // finally cannot mask the exception on its way out.
             await AdvisoryLock.ReleaseLockAsync(externalTable.AdvisoryLock);
         }
     }

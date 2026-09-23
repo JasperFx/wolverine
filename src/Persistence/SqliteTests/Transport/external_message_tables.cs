@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using Weasel.Core;
+using Wolverine.RDBMS;
 using Weasel.Sqlite;
 using Wolverine.ComplianceTests;
 using Wolverine.Sqlite;
@@ -24,6 +26,11 @@ public class external_message_tables : ExternalTableTransportCompliance
     // keeps the store on the default "main", which is the "no prefix at all" value.
     protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) =>
         opts.UseSqlitePersistenceAndTransport(connectionString);
+
+    // SQLite has no schemas: Wolverine folds the schema name into a table-name prefix instead
+    // (TablePrefixing, GH-3943), so "ext"."incoming1" is really the table ext_incoming1.
+    protected override string qualifiedTableNameFor(DbObjectName tableName)
+        => TablePrefixing.Apply(tableName.Schema, tableName.Name);
 
     protected override async ValueTask dropSchemaAsync(string connectionString, string[] schemas, CancellationToken cancellationToken)
     {

@@ -70,15 +70,23 @@ public class interop_friendly_dead_letter_queue_mechanics: IAsyncLifetime
         exchange.Bindings().Single().Queue.ShouldBeSameAs(theTransport.Queues[deadLetterQueueName]);
     }
 
+    /// <summary>
+    /// GH-4559. "on created queues" means the broker's copy. <c>RabbitMqQueue.Arguments</c> is the
+    /// dictionary Wolverine assembles to PASS to <c>QueueDeclareAsync</c>, so asserting it is true whether
+    /// or not the declaration ever reached Rabbit -- and a negative assertion over that dictionary is
+    /// satisfied by a queue that was never created at all.
+    /// </summary>
     [Fact]
     public async Task does_not_set_the_dead_letter_queue_exchange_on_created_queues()
     {
         await afterBootstrapping();
 
-        var queue = theTransport.Queues[QueueName];
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
 
-        queue.Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
+        var arguments = await probe.GetQueueArgumentsAsync(QueueName, token: TestContext.Current.CancellationToken);
 
+        arguments.ShouldNotBeNull("Auto provisioning never created the queue, so its arguments prove nothing");
+        arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
     }
 
     [Fact]

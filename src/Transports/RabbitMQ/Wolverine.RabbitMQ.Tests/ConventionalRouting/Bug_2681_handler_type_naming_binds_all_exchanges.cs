@@ -75,8 +75,13 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IAsyncLifetime, 
             $"queue '{queueName}' should be bound to '{barExchange}'; bound to: {string.Join(", ", boundExchanges)}");
     }
 
+    /// <summary>
+    /// GH-4559. The second half of this used to be the whole of it: <c>transport.Exchanges</c> is
+    /// Wolverine's own cache, populated from the routing convention, so "were_created" was decided
+    /// entirely by configuration and would have held against a broker that was switched off.
+    /// </summary>
     [Fact]
-    public void both_message_exchanges_were_created()
+    public async Task both_message_exchanges_were_created()
     {
         // Sanity check: the exchanges themselves are registered (so the binding
         // failure is purely on the queue side, not because we never created the
@@ -88,6 +93,14 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IAsyncLifetime, 
 
         transport.Exchanges.Any(e => e.Name == fooExchange).ShouldBeTrue();
         transport.Exchanges.Any(e => e.Name == barExchange).ShouldBeTrue();
+
+        // ...and AutoProvision really did create them on the broker
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
+
+        (await probe.ExchangeExistsAsync(fooExchange, token: TestContext.Current.CancellationToken))
+            .ShouldBeTrue($"the broker has no exchange '{fooExchange}'");
+        (await probe.ExchangeExistsAsync(barExchange, token: TestContext.Current.CancellationToken))
+            .ShouldBeTrue($"the broker has no exchange '{barExchange}'");
     }
 
     public void Dispose() => _host.Dispose();

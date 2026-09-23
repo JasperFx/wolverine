@@ -45,12 +45,17 @@ public class Bug_3871_quorum_queues_with_native_dead_lettering
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync(TestContext.Current.CancellationToken);
 
-        var transport = host.GetRuntime().Options.Transports.GetOrCreate<RabbitMqTransport>();
+        // GH-4559: asked of the BROKER. Reading transport.Queues[...].QueueType only reads back what
+        // Wolverine set during configuration, which is true whether or not either declaration reached
+        // Rabbit -- and this test's whole subject is that the first declaration went out wrong.
+        // UseQuorumQueues() applies to every Application role queue, and the shared DLQ is one, so the DLQ
+        // has to be quorum in both declarations rather than classic in the first.
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
 
-        // UseQuorumQueues() applies to every Application role queue, and the shared DLQ is one, so
-        // the DLQ has to be quorum in both declarations rather than classic in the first.
-        transport.Queues[dlqName].QueueType.ShouldBe(QueueType.quorum);
-        transport.Queues[queueName].QueueType.ShouldBe(QueueType.quorum);
+        (await probe.GetQueueTypeAsync(dlqName, token: TestContext.Current.CancellationToken))
+            .ShouldBe("quorum");
+        (await probe.GetQueueTypeAsync(queueName, token: TestContext.Current.CancellationToken))
+            .ShouldBe("quorum");
 
         await host.StopAsync(TestContext.Current.CancellationToken);
     }

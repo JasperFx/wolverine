@@ -12,7 +12,6 @@ store* for incoming messages like this:
 
 <!-- snippet: sample_configuring_external_database_messaging -->
 <a id='snippet-sample_configuring_external_database_messaging'></a>
-
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -23,8 +22,11 @@ builder.UseWolverine(opts =>
     // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
     // opts.UseMySqlPersistenceAndTransport(builder.Configuration.GetConnectionString("mysql"));
     // opts.UseSqlitePersistenceAndTransport(builder.Configuration.GetConnectionString("sqlite"));
-    // opts.UseOraclePersistenceAndTransport(builder.Configuration.GetConnectionString("oracle"));
-    
+    // Oracle has no combined "PersistenceAndTransport" helper; its database queue transport
+    // is opted into fluently. The external table listening below needs only the persistence.
+    // opts.PersistMessagesWithOracle(builder.Configuration.GetConnectionString("oracle")!)
+    //     .EnableMessageTransport();
+
     // Or
     // opts.Services
     //     .AddMarten(builder.Configuration.GetConnectionString("postgres"))
@@ -78,8 +80,7 @@ builder.UseWolverine(opts =>
         .Sequential();
 });
 ```
-
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L233-L295' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L44-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So a couple things to know:
