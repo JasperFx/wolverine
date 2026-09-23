@@ -9,7 +9,6 @@ using JasperFx.Events.Daemon;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
-using Spectre.Console;
 using Weasel.Core;
 using Weasel.Oracle;
 using Wolverine.Oracle.Sagas;

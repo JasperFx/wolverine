@@ -32,7 +32,6 @@ internal partial class OracleMessageStore
             await using var conn = CreateConnection();
             await conn.OpenAsync(token);
 
-            var columns = externalTable.Columns().ToArray();
             await using var command = buildFetchSql(conn, externalTable.TableName, externalTable.Columns().ToArray(),
                 externalTable.MessageBatchSize);
 

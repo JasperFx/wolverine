@@ -19,6 +19,9 @@ public class external_message_tables : ExternalTableTransportCompliance
     protected override string timestampColumnType => "TEXT";
     protected override string messageTypeColumnType => "TEXT";
 
+    // schemaName is deliberately ignored: SQLite has no schemas, so Wolverine folds a configured
+    // schema name into a table-name prefix instead (see TablePrefixing/GH-3943). Leaving it unset
+    // keeps the store on the default "main", which is the "no prefix at all" value.
     protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) =>
         opts.UseSqlitePersistenceAndTransport(connectionString);
 

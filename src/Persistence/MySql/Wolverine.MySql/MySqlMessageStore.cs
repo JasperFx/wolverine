@@ -480,14 +480,14 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             cmd.CommandText =
                 $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) VALUES (@id, @json)";
             cmd.Parameters.AddWithValue("@id", Guid.NewGuid());
-            cmd.Parameters.AddWithValue("@json", System.Text.Encoding.UTF8.GetString(json));
+            cmd.Parameters.AddWithValue("@json", json);
         }
         else
         {
             cmd.CommandText =
                 $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) VALUES (@id, @json, @message)";
             cmd.Parameters.AddWithValue("@id", Guid.NewGuid());
-            cmd.Parameters.AddWithValue("@json", System.Text.Encoding.UTF8.GetString(json));
+            cmd.Parameters.AddWithValue("@json", json);
             cmd.Parameters.AddWithValue("@message", messageTypeName!);
         }
 
