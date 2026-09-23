@@ -134,10 +134,13 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
 /// discarded as a duplicate of its own failed attempt.
 ///
 /// <para>
-/// Emitted ONLY into non-transactional chains. When the chain is transactional the claim is written
-/// inside the same transaction as the handler's work, so a rollback removes it and a compensating
-/// release would be both redundant and wrong — it would delete a claim that no longer exists, or
-/// worse, one that a concurrent caller has since legitimately taken.
+/// GH-4505. Emitted into every chain whose claim was written by <see cref="IMessageDeduplicator" />,
+/// which is to say every chain that does NOT have a store able to write the claim inside the handler's
+/// own transaction. That is not the same as "non-transactional": a <c>[Transactional]</c> chain on a
+/// plain RDBMS message store still claims on a separate connection, and its first failed attempt would
+/// permanently poison the id without this. A chain whose provider supplies
+/// <see cref="TransactionalDeduplication" /> instead gets no release frame at all, because a rollback
+/// takes the uncommitted claim with it and there is nothing to give back.
 /// </para>
 ///
 /// <para>

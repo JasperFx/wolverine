@@ -102,6 +102,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         IncomingFullName = this.TableNameFor(DatabaseConstants.IncomingTable);
         OutgoingFullName = this.TableNameFor(DatabaseConstants.OutgoingTable);
+        DeduplicationFullName = this.TableNameFor(DatabaseConstants.DeduplicationTableName);
 
         Durability = settings;
         _cancellation = settings.Cancellation;
@@ -181,7 +182,15 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// <see cref="DurabilitySettings.EnableMessageDeduplication" /> is set. The default returns
     /// <see cref="RdbmsDeduplicationStore" />, which is portable across every provider that uses
     /// <c>@</c>-prefixed bind variables and <see cref="DbDataSource" />-driven command creation
-    /// (Postgres, SqlServer, MySQL, SQLite). Oracle supplies its own.
+    /// (Postgres, SqlServer, MySQL, SQLite).
+    ///
+    /// <para>
+    /// Oracle has NO logical deduplication: <c>OracleMessageStore</c> does not derive from this class and
+    /// supplies no implementation of its own, so it keeps <see cref="NullDeduplicationStore" /> and a
+    /// <c>[Deduplicated]</c> chain on it throws at the first message. That is the intended outcome for an
+    /// unsupported store — see <see cref="IDeduplicationStore.Enabled" /> — but it is a gap rather than a
+    /// design, and it is tracked separately.
+    /// </para>
     /// </summary>
     protected virtual IDeduplicationStore BuildDeduplicationStore()
     {
@@ -260,6 +269,15 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public string IncomingFullName { get; private set; }
 
+    /// <summary>
+    /// GH-4505. The rendered identifier for the logical deduplication table, on the same terms as
+    /// <see cref="IncomingFullName" />. Exposed so that a store integration can write a claim inside its
+    /// OWN transaction — Marten queues an INSERT against this name onto the document session's unit of
+    /// work — rather than through <see cref="IDeduplicationStore" />, which opens its own connection and
+    /// therefore commits independently of whatever the handler is doing.
+    /// </summary>
+    public string DeduplicationFullName { get; private set; }
+
     public DurabilitySettings Durability { get; }
 
     public string Name { get; set; } = TransportConstants.Default;
@@ -299,6 +317,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
             IncomingFullName = QuotedTableNameFor(DatabaseConstants.IncomingTable);
             OutgoingFullName = QuotedTableNameFor(DatabaseConstants.OutgoingTable);
+            DeduplicationFullName = QuotedTableNameFor(DatabaseConstants.DeduplicationTableName);
         }
     }
 

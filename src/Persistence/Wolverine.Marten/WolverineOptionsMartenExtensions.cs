@@ -235,6 +235,11 @@ public static class WolverineOptionsMartenExtensions
         // registered wherever the integration is -- an ancillary-only host included (GH-3001).
         services.TryAddScoped<ScopedDocumentSessionHolder>();
 
+        // GH-4505. The seam generated code calls to put a logical deduplication claim inside the Marten
+        // session's transaction. Registered here, alongside the frame provider that emits the call, so an
+        // ancillary-only host gets it too.
+        services.TryAddSingleton<IMartenDeduplicator, MartenDeduplicator>();
+
         // GH-4044. Conjoined EF Core tenant partitioning finds its provider through this factory, and
         // PersistMessagesWithPostgresql() is the only other thing that registers it -- which an
         // application letting Marten own the message store never calls

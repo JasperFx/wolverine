@@ -12,9 +12,9 @@ namespace Wolverine.RDBMS.Deduplication;
 /// <para>
 /// The table has exactly two columns — the logical id, which is also the primary key, and an
 /// expiry — so every operation is a plain INSERT / DELETE with no per-provider UPSERT or MERGE
-/// syntax. The same shape works on PostgreSQL, SQL Server, MySQL and SQLite unchanged; Oracle
-/// supplies its own because <c>OracleMessageStore</c> does not derive from
-/// <see cref="MessageDatabase{T}" />.
+/// syntax. The same shape works on PostgreSQL, SQL Server, MySQL and SQLite unchanged. Oracle gets
+/// nothing — <c>OracleMessageStore</c> does not derive from <see cref="MessageDatabase{T}" /> and
+/// supplies no deduplication store of its own, so it keeps <see cref="NullDeduplicationStore" />.
 /// </para>
 ///
 /// <para>

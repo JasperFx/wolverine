@@ -109,6 +109,42 @@ public interface IPersistenceFrameProvider
     Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity);
 
     /// <summary>
+    ///     GH-4505. Attempt to supply frames that make a logical deduplication claim ride this provider's
+    ///     own transaction, replacing the claim-and-release pair that
+    ///     <see cref="Codegen.ChainDeduplicationExtensions" /> otherwise weaves in.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     Returning <see langword="false" /> — the default — keeps the shipped behaviour: the claim is
+    ///     written up front on a connection of its own and given back in a <c>finally</c> when the chain
+    ///     fails. That is correct, and it is what a non-transactional chain must keep, because there is no
+    ///     transaction for the claim to ride.
+    ///     </para>
+    ///     <para>
+    ///     A provider should return <see langword="true" /> only when it can prove the deduplication table
+    ///     is reachable from the same transaction the handler commits through. For Marten that means a
+    ///     single-database store, where Wolverine's message store is built from Marten's own
+    ///     <c>NpgsqlDataSource</c>; database-per-tenant builds the message store somewhere else entirely
+    ///     and must fall through.
+    ///     </para>
+    /// </remarks>
+    /// <param name="chain">The chain being woven. Consult it for the ancillary store and the refusal shape.</param>
+    /// <param name="deduplicationId">The resolved logical id, which may be null or empty at runtime.</param>
+    /// <param name="requirement">What the chain asked for, including whether the id is required.</param>
+    /// <param name="container">Active codegen service container.</param>
+    /// <param name="deduplication">The frames, when this provider owns the claim.</param>
+    bool TryBuildTransactionalDeduplication(
+        IChain chain,
+        Variable deduplicationId,
+        DeduplicationRequirement requirement,
+        IServiceContainer container,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TransactionalDeduplication? deduplication)
+    {
+        deduplication = null;
+        return false;
+    }
+
+    /// <summary>
     /// Attempt to build a codegen <see cref="Frame"/> that executes a query specification
     /// (e.g. a Marten <c>ICompiledQuery&lt;,&gt;</c> or <c>IQueryPlan&lt;&gt;</c>, or a
     /// Wolverine.EntityFrameworkCore <c>IQueryPlan&lt;TDbContext,TResult&gt;</c>) and produces
