@@ -400,14 +400,14 @@ public partial class AssignmentGrid
                 // GH-4592: a node being shed FROM must not win its own partition straight back. Every
                 // other candidate stays eligible, including non-accepting ones -- see InCapacityOrder on
                 // why capacity is a preference and never a filter here.
+                // Not defensive: the shed above only fires once it has found another candidate that is
+                // accepting AND has room for the whole partition, so excluding the source cannot empty
+                // this. Said out loud because the two halves are thirty lines apart, and a future change
+                // that breaks the invariant would otherwise hand the partition straight back to the node
+                // it was just taken off -- a move command per evaluation, forever, achieving nothing.
                 var placeable = shedFrom == null
                     ? candidates
                     : candidates.Where(n => !ReferenceEquals(n, shedFrom)).ToList();
-
-                if (placeable.Count == 0)
-                {
-                    placeable = candidates;
-                }
 
                 var node = InCapacityOrder(
                         placeable.Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum),
