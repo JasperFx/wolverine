@@ -51,7 +51,10 @@ public static class Bootstrapping
             // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
             // opts.UseMySqlPersistenceAndTransport(builder.Configuration.GetConnectionString("mysql"));
             // opts.UseSqlitePersistenceAndTransport(builder.Configuration.GetConnectionString("sqlite"));
-            // opts.UseOraclePersistenceAndTransport(builder.Configuration.GetConnectionString("oracle"));
+            // Oracle has no combined "PersistenceAndTransport" helper; its database queue transport
+            // is opted into fluently. The external table listening below needs only the persistence.
+            // opts.PersistMessagesWithOracle(builder.Configuration.GetConnectionString("oracle")!)
+            //     .EnableMessageTransport();
 
             // Or
             // opts.Services
