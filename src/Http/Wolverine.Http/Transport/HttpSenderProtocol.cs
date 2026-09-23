@@ -19,7 +19,7 @@ internal class HttpSenderProtocol : ISenderProtocol
     {
         using var scope = _services.CreateScope();
         var client = scope.ServiceProvider.GetRequiredService<IWolverineHttpTransportClient>() ??
-                     throw new InvalidOperationException("IWolverineHttpTransportClient is not registered in the service container");
+                     throw new InvalidOperationException(HttpEndpoint.NoClientRegisteredMessage(_endpoint.OutboundUri));
 
         try
         {
