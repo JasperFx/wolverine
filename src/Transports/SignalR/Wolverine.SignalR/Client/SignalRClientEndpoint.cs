@@ -3,6 +3,7 @@ using JasperFx.Descriptors;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using System.Net;
 using System.Text.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -66,10 +67,16 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         {
             await _connection.StartAsync();
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        catch (HttpRequestException ex)
         {
-            Logger.LogError(ex, "Unable to connect to SignalR. Hub returned Unauthorized");
-            //throw; // FIXME: Should probably have better handling for this
+            // GH-4519: a 401 here used to be logged and swallowed (the `//throw;` FIXME). WithAutomaticReconnect()
+            // only engages after a *successful* initial connection, so the endpoint stayed dead forever and every
+            // later send failed with "SignalR Client {Uri} is not initialized" -- a message that points at startup
+            // ordering when the real cause is the access-token provider or the hub's authorization policy.
+            // A 403, a TLS failure and a DNS failure were never in that filter and already propagated; the
+            // asymmetry was the bug. Fail the host start with the real cause instead.
+            Logger.LogError(ex, "Unable to connect to the SignalR hub at {Uri}", SignalRUri);
+            throw new InvalidOperationException(ConnectFailureMessage(SignalRUri, ex.StatusCode), ex);
         }
 
         _connection.On(SignalRTransport.DefaultOperation, [typeof(string)], (args =>
@@ -204,10 +211,30 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         return Task.FromResult(true);
     }
 
+    /// <summary>
+    /// GH-4519: the remedy depends on *why* the hub refused the connection, and 401/403 is far and away the
+    /// most common cause in the wild, so name the two things that actually produce it.
+    /// </summary>
+    internal static string ConnectFailureMessage(Uri signalRUri, HttpStatusCode? statusCode)
+    {
+        var reason = statusCode switch
+        {
+            HttpStatusCode.Unauthorized =>
+                "the hub returned 401 Unauthorized. Check the AccessTokenProvider configured on this endpoint and the hub's authorization policy",
+            HttpStatusCode.Forbidden =>
+                "the hub returned 403 Forbidden. The access token was accepted but does not satisfy the hub's authorization policy",
+            null => "the connection attempt failed before the hub responded. Check the Uri, DNS, and any TLS configuration",
+            _ => $"the hub returned {(int)statusCode} {statusCode}"
+        };
+
+        return $"Wolverine could not connect to the SignalR hub at '{signalRUri}': {reason}. See the inner exception for the underlying HttpRequestException.";
+    }
+
     public async ValueTask SendAsync(Envelope envelope)
     {
         if (_mapper == null || _connection == null)
-            throw new InvalidOperationException($"SignalR Client {Uri} is not initialized");
+            throw new InvalidOperationException(
+                $"The SignalR client endpoint '{Uri}' is not initialized, so it cannot send. Either the Wolverine host has not been started yet, or the listener for this endpoint was never built (listeners are built during host startup).");
 
         var json = _mapper.WriteToString(envelope);
 
