@@ -214,19 +214,42 @@ public class DeadLetterQueueTests
         _output.WriteLine($"✓ {deadLetterLength} messages in dead letter queue");
     }
 
+    /// <summary>
+    /// GH-4559. This used to stop at <c>endpoint.NativeDeadLetterQueueEnabled.ShouldBeFalse()</c> -- the
+    /// flag <c>DisableNativeDeadLetterQueue()</c> had just set two lines of configuration earlier, so it
+    /// was true by construction and would have passed against a Redis that was switched off. Worse, the
+    /// test never failed a message, so there was nothing that *could* have created the stream either way.
+    /// </summary>
     [Fact]
     public async Task disabled_dead_letter_queue_should_not_create_dead_letter_stream()
     {
         var (host, streamKey) = await CreateHostAsync(enableDeadLetterQueue: false);
         using var _ = host;
-        
+
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
         var endpoint = transport.StreamEndpoint(streamKey);
-        
-        endpoint.NativeDeadLetterQueueEnabled.ShouldBeFalse();
-        
-        _output.WriteLine($"✓ NativeDeadLetterQueueEnabled is false");
+        var database = transport.GetDatabase(database: endpoint.DatabaseId);
+
+        var deadLetterKey = endpoint.DeadLetterQueueKey;
+        await database.KeyDeleteAsync(deadLetterKey);
+
+        // Actually fail a message. The enabled sibling above proves this same sequence DOES create the
+        // stream, which is what makes its absence here mean something
+        var tracker = host.Services.GetRequiredService<DeadLetterQueueTracker>();
+        await host.MessageBus().PublishAsync(new FailingCommand(Guid.NewGuid().ToString()));
+
+        await _poller.WaitForAsync("the failing handler to run", () => tracker.Attempts.Count > 0);
+        tracker.Attempts.Count.ShouldBeGreaterThan(0, "The message never reached the handler, so nothing failed");
+
+        // Give the retries the same window the enabled siblings need to land their dead letter write
+        await Task.Delay(5000, TestContext.Current.CancellationToken);
+
+        // Redis's answer, not Wolverine's
+        (await database.KeyExistsAsync(deadLetterKey))
+            .ShouldBeFalse($"Redis has a dead letter stream at {deadLetterKey} despite DisableNativeDeadLetterQueue()");
+
+        _output.WriteLine($"✓ No dead letter stream at {deadLetterKey} after {tracker.Attempts.Count} failed attempts");
     }
 }
 

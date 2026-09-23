@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -5,7 +6,8 @@ using System.Text.Json;
 namespace Wolverine.RabbitMQ.Tests;
 
 /// <summary>
-/// GH-4095. Kills a node the way a crash does, by asking the broker to drop its connections.
+/// Asks the broker things AMQP will not answer: what a queue actually is (GH-4559), and -- by dropping a
+/// node's connections -- how it behaves when killed the way a crash kills it (GH-4095).
 /// </summary>
 /// <remarks>
 /// <para>Disposing an <c>IHost</c> is not a kill. <c>WolverineRuntime.DisposeAsync</c> calls
@@ -34,6 +36,22 @@ internal sealed class RabbitManagementProbe : IDisposable
     }
 
     public void Dispose() => _client.Dispose();
+
+    /// <summary>
+    /// GH-4559. A probe that is known to be talking to something. The management plugin ships in the
+    /// <c>rabbitmq:4-management</c> image the repo's compose file pins, so an unreachable API is a broken
+    /// environment rather than a reason to skip -- and a test that skips here quietly goes back to
+    /// proving nothing.
+    /// </summary>
+    public static async Task<RabbitManagementProbe> RequireAsync(CancellationToken token = default)
+    {
+        var probe = new RabbitManagementProbe();
+        if (await probe.IsAvailableAsync(token)) return probe;
+
+        probe.Dispose();
+        throw new InvalidOperationException(
+            "The RabbitMQ management API is not reachable on localhost:15672, so the broker cannot be asked what it actually has.");
+    }
 
     public async Task<bool> IsAvailableAsync(CancellationToken token = default)
     {
@@ -87,6 +105,117 @@ internal sealed class RabbitManagementProbe : IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// GH-4559. The queue type the BROKER reports -- "classic", "quorum" or "stream" -- or null when the
+    /// broker has no queue by that name.
+    /// </summary>
+    /// <remarks>
+    /// Read off the top-level <c>type</c> rather than the <c>x-queue-type</c> argument. A queue declared
+    /// without the argument is classic, so the argument's absence has to be interpreted, whereas
+    /// <c>type</c> is the effective answer for every queue.
+    /// </remarks>
+    public async Task<string?> GetQueueTypeAsync(string queueName, string vhost = "/",
+        CancellationToken token = default)
+    {
+        using var document = await getQueueAsync(queueName, vhost, token);
+        if (document is null) return null;
+
+        if (document.RootElement.TryGetProperty("type", out var type) && type.GetString() is { } value)
+        {
+            return value;
+        }
+
+        // Older management plugins did not report the effective type, so fall back to the argument --
+        // where an absent argument really does mean classic
+        if (document.RootElement.TryGetProperty("arguments", out var arguments)
+            && arguments.TryGetProperty("x-queue-type", out var argument)
+            && argument.GetString() is { } declared)
+        {
+            return declared;
+        }
+
+        return "classic";
+    }
+
+    /// <summary>
+    /// GH-4559. The arguments the BROKER holds against a queue -- <c>x-dead-letter-exchange</c> and
+    /// friends -- or null when the broker has no queue by that name. Asserting
+    /// <c>RabbitMqQueue.Arguments</c> instead only reads back the dictionary Wolverine assembled to PASS
+    /// to <c>QueueDeclareAsync</c>, which is true whether or not the declaration ever reached Rabbit.
+    /// </summary>
+    public async Task<Dictionary<string, string>?> GetQueueArgumentsAsync(string queueName,
+        string vhost = "/", CancellationToken token = default)
+    {
+        using var document = await getQueueAsync(queueName, vhost, token);
+        if (document is null) return null;
+
+        var arguments = new Dictionary<string, string>();
+        if (document.RootElement.TryGetProperty("arguments", out var element))
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                arguments[property.Name] = property.Value.ToString();
+            }
+        }
+
+        return arguments;
+    }
+
+    /// <summary>
+    /// GH-4559. The exchanges the BROKER says are bound to this queue.
+    /// </summary>
+    public async Task<string[]> GetBoundExchangesAsync(string queueName, string vhost = "/",
+        CancellationToken token = default)
+    {
+        using var response = await _client.GetAsync(
+            $"api/queues/{Uri.EscapeDataString(vhost)}/{Uri.EscapeDataString(queueName)}/bindings", token);
+
+        if (response.StatusCode == HttpStatusCode.NotFound) return [];
+        response.EnsureSuccessStatusCode();
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+
+        return document.RootElement.EnumerateArray()
+            .Select(x => x.TryGetProperty("source", out var source) ? source.GetString() : null)
+            // Every queue has an implicit binding from the default exchange, which reports an empty
+            // source. That one is the broker's, not something Wolverine declared
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Select(x => x!)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// GH-4559. Whether the BROKER has an exchange by this name, as opposed to whether Wolverine's
+    /// <c>RabbitMqTransport.Exchanges</c> cache has an entry for one.
+    /// </summary>
+    public async Task<bool> ExchangeExistsAsync(string exchangeName, string vhost = "/",
+        CancellationToken token = default)
+    {
+        using var response = await _client.GetAsync(
+            $"api/exchanges/{Uri.EscapeDataString(vhost)}/{Uri.EscapeDataString(exchangeName)}", token);
+
+        if (response.StatusCode == HttpStatusCode.NotFound) return false;
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
+    /// <summary>
+    /// There is no AMQP way to ask any of this. <c>QueueDeclarePassiveAsync</c> answers with only the
+    /// name, message count and consumer count, so the arguments a queue was actually created with are
+    /// never on the wire; the management plugin is the only thing that will say.
+    /// </summary>
+    private async Task<JsonDocument?> getQueueAsync(string queueName, string vhost, CancellationToken token)
+    {
+        using var response = await _client.GetAsync(
+            $"api/queues/{Uri.EscapeDataString(vhost)}/{Uri.EscapeDataString(queueName)}", token);
+
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
     }
 
     /// <summary>

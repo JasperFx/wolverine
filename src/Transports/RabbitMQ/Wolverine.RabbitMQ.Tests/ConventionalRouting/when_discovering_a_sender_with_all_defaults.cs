@@ -56,18 +56,10 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
         theExchange.HasDeclared.ShouldBeTrue();
     }
 
-   /* [Fact]
-    public async Task has_bound_the_exchange_to_a_queue_of_the_same_name()
-    {
-        // The rabbit object construction is lazy, so force it to happen
-        await new MessageBus(theRuntime).SendAsync(new PublishedMessage());
-
-        var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
-        var theQueue = theTransport.Queues[endpoint.ExchangeName];
-        var binding = theQueue.Bindings().Single().ShouldNotBeNull();
-        var theExchange = theTransport.Exchanges[endpoint.ExchangeName];
-        binding.Queue.As<RabbitMqQueue>().EndpointName.ShouldBe(theExchange.Name);
-        binding.Queue.As<RabbitMqQueue>().HasDeclared.ShouldBeTrue();
-        binding.HasDeclared.ShouldBeTrue();
-    }*/
+    // GH-4559: a has_bound_the_exchange_to_a_queue_of_the_same_name test sat here commented out -- the one
+    // test in this file that would have covered bindings, and dead for long enough that it still referred
+    // to theRuntime/theTransport as properties. It cannot hold in THIS fixture anyway: DisableListenerDiscovery
+    // is set above, so the convention only ever creates the exchange and there is no queue to bind to. The
+    // coverage now lives in when_discovering_a_listening_endpoint_with_all_defaults, where listener
+    // discovery is on and the broker can be asked about the binding.
 }

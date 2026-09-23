@@ -11,12 +11,11 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-// CI marker: send_end_to_end_* tests fail in CI with PRECONDITION_FAILED
-// "inequivalent arg 'x-dead-letter-exchange' for queue 'messages1'" - the
-// queue persists across test runs with one DLX config and a later test tries
-// to re-declare it without one. Skipping in CI via the Flaky filter; the real
-// fix is to stop sharing fixed queue names like 'messages1' across tests
-// (use Guid-suffixed names) or to delete-then-redeclare in setup. See #2618.
+// These tests once failed in CI with PRECONDITION_FAILED "inequivalent arg 'x-dead-letter-exchange' for
+// queue 'messages1'": the queue persisted across runs with one DLX config and a later test re-declared it
+// without one. Fixed by RabbitTesting.NextQueueName(), which is unique per process and per call, so the
+// Flaky skip is gone -- do not reintroduce a fixed queue name here. See #2618, and GH-4559 for the two
+// compliance fixtures that had the same problem.
 public class sending_raw_messages
 {
     [Fact]
