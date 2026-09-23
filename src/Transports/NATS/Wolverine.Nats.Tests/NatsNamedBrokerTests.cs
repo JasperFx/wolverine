@@ -180,7 +180,7 @@ public class NatsNamedBrokerTests : IAsyncLifetime
                 opts.UseNats(_serverAUrl);
                 opts.AddNamedNatsBroker(theName, _serverBUrl);
 
-                opts.PublishMessage<OrderPlaced>().ToNatsSubjectOnNamedBroker(theName, subject).SendInline();
+                opts.PublishMessage<OrderPlaced>().ToNatsSubjectOnNamedBroker(theName, subject);
                 opts.ListenToNatsSubjectOnNamedBroker(theName, subject);
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

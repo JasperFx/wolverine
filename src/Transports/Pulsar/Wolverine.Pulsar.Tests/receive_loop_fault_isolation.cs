@@ -28,7 +28,7 @@ public class receive_loop_fault_isolation
         using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
-            opts.PublishMessage<FaultIsolationMessage>().ToPulsarTopic(topic).SendInline();
+            opts.PublishMessage<FaultIsolationMessage>().ToPulsarTopic(topic);
             opts.ListenToPulsarTopic(topic)
                 .SubscriptionName("sub-" + Guid.NewGuid().ToString("N"))
                 .UseInterop(mapper);

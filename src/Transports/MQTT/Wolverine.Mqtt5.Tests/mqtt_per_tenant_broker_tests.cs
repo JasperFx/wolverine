@@ -98,7 +98,7 @@ public class mqtt_per_tenant_broker_tests : IAsyncLifetime
                 configureTransport(opts, topic);
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.PublishMessage<TenantColor>().ToMqttTopic(topic).SendInline();
+                opts.PublishMessage<TenantColor>().ToMqttTopic(topic);
                 opts.ListenToMqttTopic(topic);
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 

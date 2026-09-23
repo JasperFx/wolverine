@@ -95,7 +95,7 @@ public class PubsubPerTenantBrokerTests : IAsyncLifetime
                         t => t.EmulatorDetection = EmulatorDetection.EmulatorOnly);
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.PublishMessage<PerTenantMessage>().ToPubsubTopic(topic).SendInline();
+                opts.PublishMessage<PerTenantMessage>().ToPubsubTopic(topic);
                 opts.ListenToPubsubTopic(topic);
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

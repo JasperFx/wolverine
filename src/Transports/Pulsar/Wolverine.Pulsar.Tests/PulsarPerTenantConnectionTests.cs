@@ -82,7 +82,7 @@ public class PulsarPerTenantConnectionTests : IAsyncLifetime
                     .AddTenant("tenantB", _clusterBServiceUrl);
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.PublishMessage<TenantColorMessage>().ToPulsarTopic(topic).SendInline();
+                opts.PublishMessage<TenantColorMessage>().ToPulsarTopic(topic);
                 opts.ListenToPulsarTopic(topic)
                     .SubscriptionName("sub-" + Guid.NewGuid().ToString("N"))
                     .BeginAtEarliest();

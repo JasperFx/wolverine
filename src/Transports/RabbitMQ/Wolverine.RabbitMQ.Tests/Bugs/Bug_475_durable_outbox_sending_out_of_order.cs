@@ -30,7 +30,7 @@ public class Bug_475_durable_outbox_sending_out_of_order
 
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
-                opts.PublishAllMessages().ToRabbitQueue(queueName).SendInline();
+                opts.PublishAllMessages().ToRabbitQueue(queueName);
                 opts.ListenToRabbitQueue(queueName).Sequential();
 
                 opts.Policies.UseDurableInboxOnAllListeners();
