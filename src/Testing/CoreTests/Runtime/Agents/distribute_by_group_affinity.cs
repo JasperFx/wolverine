@@ -270,6 +270,127 @@ public class distribute_by_group_affinity
     }
 
     [Fact]
+    public void a_node_running_part_of_a_partition_is_not_a_candidate_for_members_it_cannot_run()
+    {
+        // Tenant t2 was provisioned after the blue node started, so blue runs t2's unchanged agent without
+        // declaring it. Only green declares that agent and the new version's agents, so all three share one
+        // capability partition — and blue, grandfathered in for the one it runs, must not take the new
+        // version with it. Seen in production: the bumped agents went to blue, which cannot build them, and
+        // were re-sent there on every evaluation.
+        var unchangedT1 = Agent("db1", "t1");
+        var unchangedT2 = Agent("db1", "t2");
+        var previousT1 = VersionedAgent("db1", 22, "t1");
+        var bumpedT1 = VersionedAgent("db1", 23, "t1");
+        var bumpedT2 = VersionedAgent("db1", 23, "t2");
+
+        var grid = new AssignmentGrid();
+        var blue = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(new[] { unchangedT1, previousT1 });
+        blue.Running(unchangedT1, unchangedT2, previousT1);
+        var green = grid.WithNode(2, Guid.NewGuid()).HasCapabilities(new[] { unchangedT1, unchangedT2, bumpedT1, bumpedT2 });
+
+        grid.WithAgents(unchangedT1, unchangedT2, previousT1, bumpedT1, bumpedT2);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AgentFor(bumpedT1).AssignedNode.ShouldBe(green);
+        grid.AgentFor(bumpedT2).AssignedNode.ShouldBe(green);
+        grid.AgentFor(previousT1).AssignedNode.ShouldBe(blue);
+
+        // The rest of the partition goes with them, and that is the price of the fix rather than an
+        // accident: a partition is indivisible, so pulling the bumped agents onto green takes the one
+        // unchanged agent that shares their capability set off blue, where it was running happily. It is
+        // the cheaper of the two disruptions -- one healthy agent moves once, against agents that can
+        // never start and are re-sent on every evaluation.
+        grid.AgentFor(unchangedT2).AssignedNode.ShouldBe(green,
+            "the unchanged agent shares a capability set with the bumped ones and cannot be left behind");
+
+        // The agent BOTH fleets declare is its own partition, so it is free to stay where it is running.
+        grid.AgentFor(unchangedT1).AssignedNode.ShouldBe(blue,
+            "an agent declared by both fleets is its own partition and should not be disturbed");
+    }
+
+    [Fact]
+    public void the_blue_green_partial_grandfather_split_settles_on_the_next_evaluation()
+    {
+        // The defect in GH-4562 was not only a bad placement, it was a placement re-sent on EVERY
+        // evaluation, because blue could never build what it was handed. Replaying the result as the next
+        // evaluation's starting grid proves the new placement is a fixed point and not a slower churn.
+        var unchangedT1 = Agent("db1", "t1");
+        var unchangedT2 = Agent("db1", "t2");
+        var previousT1 = VersionedAgent("db1", 22, "t1");
+        var bumpedT1 = VersionedAgent("db1", 23, "t1");
+        var bumpedT2 = VersionedAgent("db1", 23, "t2");
+        var all = new[] { unchangedT1, unchangedT2, previousT1, bumpedT1, bumpedT2 };
+
+        var blueId = Guid.NewGuid();
+        var greenId = Guid.NewGuid();
+        var blueCapabilities = new[] { unchangedT1, previousT1 };
+        var greenCapabilities = new[] { unchangedT1, unchangedT2, bumpedT1, bumpedT2 };
+
+        var first = new AssignmentGrid();
+        first.WithNode(1, blueId).HasCapabilities(blueCapabilities)
+            .Running(unchangedT1, unchangedT2, previousT1);
+        first.WithNode(2, greenId).HasCapabilities(greenCapabilities);
+        first.WithAgents(all);
+        first.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        // Same fleet, same stale blue snapshot, but now each node is RUNNING what the first pass gave it.
+        var second = new AssignmentGrid();
+        var blue = second.WithNode(1, blueId).HasCapabilities(blueCapabilities);
+        var green = second.WithNode(2, greenId).HasCapabilities(greenCapabilities);
+        blue.Running(all.Where(u => first.AgentFor(u).AssignedNode!.AssignedId == 1).ToArray());
+        green.Running(all.Where(u => first.AgentFor(u).AssignedNode!.AssignedId == 2).ToArray());
+        second.WithAgents(all);
+        second.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        foreach (var uri in all)
+        {
+            second.AgentFor(uri).AssignedNode!.AssignedId.ShouldBe(
+                first.AgentFor(uri).AssignedNode!.AssignedId,
+                $"{uri} moved again on the second evaluation, so the grid never settles");
+        }
+    }
+
+    [Fact]
+    public void a_partially_running_undeclared_group_still_stays_whole()
+    {
+        // The guard rail on the per-member grandfathering above. A database no node declares -- one
+        // provisioned after every surviving node captured its capability snapshot -- is held together by
+        // the GH-3341 rescue, not by capabilities. Before GH-4562 a single running member also pulled its
+        // node into the candidates and carried the rest of the group along; per-member grandfathering
+        // deliberately stops doing that, so the rescue has to cover the case where such a group is only
+        // PARTLY running: two tenants placed by an earlier evaluation, a third provisioned since.
+        //
+        // Scattering them is not a cosmetic loss. Each node hosting any of db1's agents opens its own
+        // connection pool to db1, which is the entire cost this method exists to avoid
+        // (JasperFx/marten#4806).
+        var t1 = Agent("db1", "t1");
+        var t2 = Agent("db1", "t2");
+        var newTenant = Agent("db1", "t3");
+
+        var grid = new AssignmentGrid();
+        // Divergent snapshots so the capability-matching branch runs at all. NEITHER node declares db1.
+        var node1 = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(new[] { Agent("db2", "t1") });
+        grid.WithNode(2, Guid.NewGuid()).HasCapabilities(new[] { Agent("db2", "t1"), Agent("db3", "t1") });
+        node1.Running(t1, t2);
+
+        grid.WithAgents(t1, t2, newTenant, Agent("db2", "t1"), Agent("db3", "t1"));
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        foreach (var uri in new[] { t1, t2, newTenant })
+        {
+            grid.AgentFor(uri).AssignedNode.ShouldNotBeNull($"{uri} was left stranded (GH-3341)");
+        }
+
+        new[] { t1, t2, newTenant }.Select(u => grid.AgentFor(u).AssignedNode).Distinct().Count()
+            .ShouldBe(1, "db1 must stay on one node -- a second host means a second connection pool to it");
+
+        grid.AgentFor(newTenant).AssignedNode.ShouldBe(node1,
+            "the new tenant joins the node already running its database, rather than the group moving");
+    }
+
+    [Fact]
     public void a_settled_blue_green_split_does_not_churn_on_the_next_evaluation()
     {
         // GH-3785 counted ~45,000 ReassignAgent decisions in six minutes during a rollout ramp. Whatever
