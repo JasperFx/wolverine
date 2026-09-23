@@ -3,6 +3,8 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
@@ -199,6 +201,12 @@ public partial class WolverineRuntime
             // listener starts.
             Handlers.AssertPreBuiltTypesExist(Options);
 
+            // GH-4527. Same intent as the line above: fail the deploy here, before storage migration or any
+            // transport connects, rather than one missing name at a time from inside whichever DI factory
+            // happens to be resolved first. A host with two missing Aspire references used to fail twice, on
+            // two deploys, each time after persistence had already migrated.
+            assertNamedConnectionStringsExist();
+
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
             // cost (attribute reads, interface walks, generic-type pretty-printing).
@@ -325,6 +333,43 @@ public partial class WolverineRuntime
     internal void OnApplicationStopping()
     {
         Logger.LogInformation("Application stopping signal received");
+    }
+
+    /// <summary>
+    /// GH-4527. Validate every connection string this application asked for by name in ONE pass, before
+    /// storage migration and before any transport connects, and throw once naming all of them.
+    ///
+    /// <para>
+    /// Previously each name was checked lazily inside the DI factory that consumed it, so the failure arrived
+    /// one name at a time -- after persistence had already migrated and any earlier transport had already
+    /// connected -- and the message named the key and nothing else. The dominant cause is Aspire wiring (a
+    /// resource never added in the AppHost, or added and never referenced from the project), which is what
+    /// the thrown message now spells out.
+    /// </para>
+    /// </summary>
+    private void assertNamedConnectionStringsExist()
+    {
+        if (!Options.NamedConfigurationDependencies.Any()) return;
+
+        // A host assembled without IConfiguration at all -- some test hosts, some embedded scenarios -- has
+        // nothing to validate against. The consuming factory still throws on its own in that case, so nothing
+        // is being let through silently here.
+        var configuration = Services.GetService<IConfiguration>();
+        if (configuration == null) return;
+
+        var missing = Options.NamedConfigurationDependencies
+            .Where(x => configuration.GetConnectionString(x.Name).IsEmpty())
+            .ToArray();
+
+        if (!missing.Any()) return;
+
+        // Keys only, never values -- a connection string is a credential.
+        var configured = configuration.GetSection("ConnectionStrings").GetChildren()
+            .Select(x => x.Key)
+            .OrderBy(x => x)
+            .ToArray();
+
+        throw new MissingNamedConnectionStringsException(missing, configured);
     }
 
     private bool _hasMigratedStorage;
