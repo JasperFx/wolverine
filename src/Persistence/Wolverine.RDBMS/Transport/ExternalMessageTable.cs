@@ -27,8 +27,10 @@ public class ExternalMessageTable : Endpoint, IExternalMessageTable
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var database = runtime.Storage as IMessageDatabase;
-        if (database == null)
+        // Gate on the same interface ExternalMessageTableListener actually requires. This used to
+        // check IMessageDatabase, which let a store that implements IMessageDatabase but not
+        // IExternalDbTransportStore past this guard only to fail again inside the listener.
+        if (runtime.Storage is not IExternalDbTransportStore)
         {
             throw new InvalidOperationException(
                 "The external table transport option can only be used in combination with a relational database message storage option, but the message store is " +
