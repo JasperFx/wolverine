@@ -67,14 +67,22 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         exchange.Bindings().Single().Queue.ShouldBeSameAs(theTransport.Queues[RabbitMqTransport.DeadLetterQueueName]);
     }
 
+    /// <summary>
+    /// GH-4559. "on created queues" means the broker's copy. <c>RabbitMqQueue.Arguments</c> is the
+    /// dictionary Wolverine assembles to PASS to <c>QueueDeclareAsync</c>, so asserting it is true whether
+    /// or not the declaration ever reached Rabbit.
+    /// </summary>
     [Fact]
     public async Task sets_the_dead_letter_queue_exchange_on_created_queues()
     {
         await afterBootstrapping();
 
-        var queue = theTransport.Queues[QueueName];
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
 
-        queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(RabbitMqTransport.DeadLetterQueueName);
+        var arguments = await probe.GetQueueArgumentsAsync(QueueName, token: TestContext.Current.CancellationToken);
+
+        arguments.ShouldNotBeNull();
+        arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(RabbitMqTransport.DeadLetterQueueName);
     }
 
     [Fact]
@@ -116,8 +124,16 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         var queue = theTransport.Queues[queueName];
 
         queue.DeadLetterQueue!.QueueName.ShouldBe(queueName + "-dlq");
-        queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(overrideDeadLetterExchangeName);
-        queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldNotBe(defaultDeadLetterExchangeName);
+
+        // GH-4559: "during auto provision" is a claim about what Rabbit ended up with, so Rabbit answers
+        // it. queue.Arguments is only the dictionary Wolverine passed to QueueDeclareAsync
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
+
+        var arguments = await probe.GetQueueArgumentsAsync(queueName, token: TestContext.Current.CancellationToken);
+
+        arguments.ShouldNotBeNull();
+        arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(overrideDeadLetterExchangeName);
+        arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldNotBe(defaultDeadLetterExchangeName);
     }
 
     [Fact]
@@ -153,7 +169,14 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         var queue = theTransport.Queues[queueName];
 
         queue.DeadLetterQueue.ShouldBeNull();
-        queue.Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
+
+        // GH-4559: and Rabbit's own copy of the queue carries no dead letter exchange either
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
+
+        var arguments = await probe.GetQueueArgumentsAsync(queueName, token: TestContext.Current.CancellationToken);
+
+        arguments.ShouldNotBeNull("Auto provisioning never created the queue, so its arguments prove nothing");
+        arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
     }
 
     [Fact]
@@ -338,8 +361,19 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         await defaultEndpoint.DeclareAsync(channel, NullLogger.Instance);
         await overrideEndpoint.DeclareAsync(channel, NullLogger.Instance);
 
-        defaultEndpoint.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(defaultExchange);
-        overrideEndpoint.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(overrideExchange);
+        // GH-4559: asserted on what went out ON THE CHANNEL rather than on the endpoint's own Arguments
+        // dictionary. This test drives DeclareAsync against a substitute precisely so it can see the
+        // declaration; reading the endpoint back afterwards made the declare call incidental, and the
+        // assertion would have held with the two DeclareAsync lines above deleted
+        await channel.Received().QueueDeclareAsync(defaultQueue, Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
+            Arg.Is<IDictionary<string, object?>>(x =>
+                (string)x[RabbitMqTransport.DeadLetterQueueHeader]! == defaultExchange),
+            cancellationToken: Arg.Any<CancellationToken>());
+
+        await channel.Received().QueueDeclareAsync(overrideQueue, Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
+            Arg.Is<IDictionary<string, object?>>(x =>
+                (string)x[RabbitMqTransport.DeadLetterQueueHeader]! == overrideExchange),
+            cancellationToken: Arg.Any<CancellationToken>());
     }
 
     [Fact]

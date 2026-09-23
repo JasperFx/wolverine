@@ -11,13 +11,20 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class StreamQueueFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public StreamQueueFixture() : base($"rabbitmq://queue/stream1".ToUri())
+    // GH-4559. Were the literals "stream1" and "stream2", which any other fixture could declare with a
+    // different shape -- and one did, to QuorumQueueFixture. A generated name is unique per process and per
+    // call, so nothing else and no earlier run can leave a queue of the wrong kind behind for this fixture
+    // to inherit. Static so the whole class shares one pair: xUnit builds a new fixture per test method.
+    private static readonly string TheSendingQueue = RabbitTesting.NextQueueName();
+    private static readonly string TheListeningQueue = RabbitTesting.NextQueueName();
+
+    public StreamQueueFixture() : base($"rabbitmq://queue/{TheSendingQueue}".ToUri())
     {
     }
 
     public async ValueTask InitializeAsync()
     {
-        OutboundAddress = $"rabbitmq://queue/stream1".ToUri();
+        OutboundAddress = $"rabbitmq://queue/{TheSendingQueue}".ToUri();
 
         await SenderIs(opts =>
         {
@@ -26,10 +33,10 @@ public class StreamQueueFixture : TransportComplianceFixture, IAsyncLifetime
             opts.UseRabbitMq()
                 .AutoProvision()
                 .DisableDeadLetterQueueing()
-                .DeclareQueue("stream1")
+                .DeclareQueue(TheSendingQueue)
                 .UseStreamsAsQueues();
 
-            opts.ListenToRabbitQueue("stream2").TelemetryEnabled(false);
+            opts.ListenToRabbitQueue(TheListeningQueue).TelemetryEnabled(false);
         });
 
         await ReceiverIs(opts =>
@@ -39,8 +46,8 @@ public class StreamQueueFixture : TransportComplianceFixture, IAsyncLifetime
             opts.UseRabbitMq()
                 .DisableDeadLetterQueueing()
                 .UseStreamsAsQueues();
-            
-            opts.ListenToRabbitQueue("stream1").TelemetryEnabled(false);
+
+            opts.ListenToRabbitQueue(TheSendingQueue).TelemetryEnabled(false);
         });
     }
 
@@ -48,8 +55,15 @@ public class StreamQueueFixture : TransportComplianceFixture, IAsyncLifetime
 
 public class stream_queue_compliance : TransportCompliance<StreamQueueFixture>
 {
+    /// <summary>
+    /// GH-4559. Asks the BROKER what the queues are. This used to read <c>RabbitMqQueue.QueueType</c> -- a
+    /// property Wolverine set on its own endpoint object during configuration -- so it asserted what
+    /// Wolverine intended to declare and would have passed against a broker that was switched off. Its twin
+    /// in <see cref="quorum_queue_compliance"/> did exactly that for as long as another fixture was
+    /// declaring the same queue as classic.
+    /// </summary>
     [Fact]
-    public void all_queues_are_declared_as_stream()
+    public async Task all_queues_are_declared_as_stream()
     {
         var queues = theSender
             .GetRuntime()
@@ -59,12 +73,25 @@ public class stream_queue_compliance : TransportCompliance<StreamQueueFixture>
             .OfType<RabbitMqQueue>()
             .Where(x => x.Role == EndpointRole.Application)
             .ToArray();
-        
+
         queues.Any().ShouldBeTrue();
-        foreach (var mqQueue in queues)
+
+        using var probe = await RabbitManagementProbe.RequireAsync(TestContext.Current.CancellationToken);
+
+        // Collected rather than asserted one at a time so the failure names every offending queue and what
+        // the broker says it actually is
+        var wrong = new List<string>();
+        foreach (var queue in queues)
         {
-            mqQueue.QueueType.ShouldBe(QueueType.stream);
+            var actual = await probe.GetQueueTypeAsync(queue.QueueName,
+                token: TestContext.Current.CancellationToken);
+
+            if (actual != "stream")
+            {
+                wrong.Add($"{queue.QueueName} is '{actual ?? "missing from the broker"}'");
+            }
         }
-        
+
+        wrong.ShouldBeEmpty();
     }
 }
