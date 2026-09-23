@@ -658,10 +658,13 @@ public class DurabilitySettings : IDescribeMyself
     /// <summary>
     ///     Opt in to capacity-aware agent assignment. Each node advertises its current load (see
     ///     <see cref="NodeLoadMonitor" />) on every heartbeat; the leader prefers the least-loaded
-    ///     nodes, never places onto a node at or above <see cref="NodeOverloadThreshold" />, sheds
-    ///     agents off overloaded nodes, and leaves agents unassigned when no node has headroom.
-    ///     Requires a message store that persists the load advertisement (PostgreSQL today). Off by
-    ///     default.
+    ///     nodes, never places onto a node at or above <see cref="NodeOverloadThreshold" />, and sheds
+    ///     agents off overloaded nodes onto nodes that still have headroom. Requires a message store
+    ///     that persists the load advertisement (PostgreSQL today). Off by default.
+    ///     <para>
+    ///         Setting this to true <b>requires</b> a <see cref="NodeLoadMonitor" />; there is no
+    ///         default. Starting a host with this on and no monitor is a startup error.
+    ///     </para>
     ///     <para>
     ///         Scope today: only the even distribution
     ///         (<see cref="Runtime.Agents.AssignmentGrid.DistributeEvenly(string)" />) honors the
@@ -686,14 +689,18 @@ public class DurabilitySettings : IDescribeMyself
     public double NodeOverloadThreshold { get; set; } = 90;
 
     /// <summary>
-    ///     Maximum number of agents per scheme the leader detaches from an overloaded node in one
-    ///     assignment evaluation. Default 1.
+    ///     Maximum number of agents per scheme the leader moves off an overloaded node in one
+    ///     assignment evaluation. Default 1. Shedding only happens when some other node can take the
+    ///     work — an overloaded node with nowhere to shed to keeps what it is running.
     /// </summary>
     public int OverloadShedBatchSize { get; set; } = 1;
 
     /// <summary>
-    ///     Sampler for this node's own load when <see cref="CapacityAwareAssignment" /> is enabled.
-    ///     Null (the default) uses the built-in memory pressure monitor.
+    ///     Sampler for this node's own load. <b>Required</b> when
+    ///     <see cref="CapacityAwareAssignment" /> is enabled — there is deliberately no default,
+    ///     because what "load" means is specific to what the application does. See
+    ///     <see cref="Runtime.Agents.INodeLoadMonitor" />, and
+    ///     <see cref="Runtime.Agents.MemoryPressureLoadMonitor" /> for the memory case.
     /// </summary>
     public Runtime.Agents.INodeLoadMonitor? NodeLoadMonitor { get; set; }
 

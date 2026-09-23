@@ -41,21 +41,6 @@ public partial class AssignmentGrid
         var agentSet = agents.ToHashSet();
         int countOn(Node node) => node.Agents.Count(agentSet.Contains);
 
-        // GH-3959 shed pass: an overloaded node gives up a bounded number of this pass's agents per
-        // evaluation — gradual on purpose, since pressure is re-sampled every heartbeat. The detached
-        // agents join the missing queue below; if no node has headroom they stay unassigned rather
-        // than overloading a peer. An operator's pin outranks the shed: detaching a pinned agent just
-        // makes ApplyRestrictions pin it right back next evaluation, a permanent shed/pin fight.
-        foreach (var node in _nodes.Where(x => x.IsOverloaded))
-        {
-            foreach (var agent in node.Agents
-                         .Where(x => agentSet.Contains(x) && !x.IsPinned)
-                         .Take(OverloadShedBatchSize).ToArray())
-            {
-                agent.Detach();
-            }
-        }
-
         // Only nodes with headroom receive placements — and "headroom" sits a hysteresis band below
         // the shed line (see Node.IsAcceptingAgents), so a node hovering at the boundary doesn't have
         // this pass place agents that the next pass sheds. When capacity-aware assignment is off, no
@@ -65,7 +50,31 @@ public partial class AssignmentGrid
         {
             // No node has real headroom: leave the unassigned remainder waiting. The next evaluation
             // re-reads freshly advertised loads and places them as soon as anyone recovers.
+            //
+            // GH-4590: this returns BEFORE the shed pass, and the order matters. Shedding is only ever
+            // a move, and with nowhere to move to, detaching would stop agents that nothing then
+            // re-places -- one batch per evaluation until the scheme is running nowhere at all. On a
+            // single-node cluster that is unconditional: one node over the line used to drain itself
+            // to zero (3 -> 2 -> 1 -> 0) and stay there for as long as the pressure held, taking the
+            // durability agents and daemon shards with it. An overloaded node still running its work
+            // is strictly better than that.
             return;
+        }
+
+        // GH-3959 shed pass: an overloaded node gives up a bounded number of this pass's agents per
+        // evaluation — gradual on purpose, since pressure is re-sampled every heartbeat. The detached
+        // agents join the missing queue below and land on a node with headroom, which the early return
+        // above has already established exists. An operator's pin outranks the shed: detaching a
+        // pinned agent just makes ApplyRestrictions pin it right back next evaluation, a permanent
+        // shed/pin fight.
+        foreach (var node in _nodes.Where(x => x.IsOverloaded))
+        {
+            foreach (var agent in node.Agents
+                         .Where(x => agentSet.Contains(x) && !x.IsPinned)
+                         .Take(OverloadShedBatchSize).ToArray())
+            {
+                agent.Detach();
+            }
         }
 
         if (receiving.Count == 1 && _nodes.Count == 1)
@@ -102,11 +111,17 @@ public partial class AssignmentGrid
         // tie exactly, so ordering on them would leave the foreign-count order below deciding nothing
         // and every family's pass chasing the same marginally-least-loaded node between two
         // heartbeats: precisely the cross-scheme stacking GH-3877 fixed. Within a band the readings
-        // are treated as equal and the foreign count discriminates. Nodes advertising no load sort in
-        // the lowest band, so when capacity-aware assignment is off this is the original
-        // foreign-count/AssignedId ordering unchanged.
+        // are treated as equal and the foreign count discriminates.
+        //
+        // A node advertising nothing sorts into the MIDDLE band, not the lowest. It is still eligible
+        // (IsAcceptingAgents stays true for it, which is what keeps stores with no load persistence on
+        // today's behavior), but "I have no reading" must not read as "I am the emptiest node in the
+        // cluster" — that made a node mid-rolling-upgrade, or one whose sampler was throwing, the
+        // preferred target for every placement precisely when it was least understood. When NO node
+        // advertises — the feature off, or a store that cannot persist the reading — every node lands
+        // in the same band and this is the original foreign-count/AssignedId ordering unchanged.
         var ordered = receiving
-            .OrderBy(x => Math.Floor((x.LoadFactor ?? 0) / 10))
+            .OrderBy(x => Math.Floor((x.LoadFactor ?? UnadvertisedLoadBand) / 10))
             .ThenBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
             .ThenBy(x => x.AssignedId)
             .ToList();
@@ -118,12 +133,7 @@ public partial class AssignmentGrid
         // agents instead.
         foreach (var node in receiving)
         {
-            var pinned = node.Agents.Count(x => agentSet.Contains(x) && x.IsPinned);
-            var extras = node.Agents
-                .Where(x => agentSet.Contains(x) && !x.IsPinned)
-                .Skip(Math.Max(0, maximum - pinned))
-                .ToArray();
-            foreach (var agent in extras)
+            foreach (var agent in node.ExtrasAboveCeiling(agentSet.Contains, maximum))
             {
                 agent.Detach();
             }
@@ -458,6 +468,11 @@ public partial class AssignmentGrid
         // Detach anything parked on a node that cannot run it, so the passes below can move it. This also
         // covers the "nobody is capable" case: everything ends up detached rather than latched onto a node
         // that will only throw.
+        //
+        // GH-4591: a PIN is not spared here, unlike the ceiling passes. Capability is a hard requirement
+        // and a pin to a node that cannot run the agent is an instruction that cannot be carried out --
+        // leaving it would park the agent on a node that only throws "Unrecognized agent scheme". The
+        // ceiling below is a different matter: that is a preference about balance, which a pin outranks.
         foreach (var agent in agents.Where(x => x.AssignedNode != null && !capableNodes.Contains(x.AssignedNode!)))
         {
             agent.Detach();
@@ -517,10 +532,10 @@ public partial class AssignmentGrid
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread);
 
+        var remainderSet = remainder.ToHashSet();
         foreach (var node in capableNodes)
         {
-            var extras = node.ForCurrentlyAssigned(remainder).Skip(maximum).ToArray();
-            foreach (var agent in extras)
+            foreach (var agent in node.ExtrasAboveCeiling(remainderSet.Contains, maximum))
             {
                 agent.Detach();
             }
@@ -640,11 +655,11 @@ public partial class AssignmentGrid
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
 
-        // First, pair down number of running agents if necessary. Might have to steal some later
+        // First, pair down number of running agents if necessary. Might have to steal some later.
+        // GH-4591: pinned agents are never detached here; see Node.ExtrasAboveCeiling.
         foreach (var node in nodes)
         {
-            var extras = node.ForCurrentlyAssigned(agents).Skip(maximum).ToArray();
-            foreach (var agent in extras)
+            foreach (var agent in node.ExtrasAboveCeiling(agentSet.Contains, maximum))
             {
                 agent.Detach();
             }

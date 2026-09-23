@@ -85,6 +85,33 @@ public partial class AssignmentGrid
             return _agents.Intersect(agents);
         }
 
+        /// <summary>
+        ///     The agents this node must give up to come down to <paramref name="ceiling" /> for the
+        ///     pass described by <paramref name="belongsToThisPass" />, never including a pinned one.
+        /// </summary>
+        /// <remarks>
+        ///     GH-4591. Restrictions are applied (AssignmentGrid.ApplyRestrictions) BEFORE the families
+        ///     distribute, so a ceiling pass that detached whatever sat above the line would undo an
+        ///     operator's pin -- and ApplyRestrictions would re-apply it on the next evaluation, and the
+        ///     pass would undo it again: a churn loop that emits commands forever and never converges,
+        ///     for as long as the pin sits on a node above its share.
+        ///
+        ///     <para>Pins still COUNT toward the ceiling, so a node carrying them gives up more of its
+        ///     unpinned agents instead of exceeding its share. A node whose pins alone reach the ceiling
+        ///     gives up every unpinned agent and stops there — that is the pin doing exactly what it was
+        ///     asked to do.</para>
+        /// </remarks>
+        internal Agent[] ExtrasAboveCeiling(Func<Agent, bool> belongsToThisPass, int ceiling)
+        {
+            var mine = _agents.Where(belongsToThisPass).ToList();
+            var pinned = mine.Count(x => x.IsPinned);
+
+            return mine
+                .Where(x => !x.IsPinned)
+                .Skip(Math.Max(0, ceiling - pinned))
+                .ToArray();
+        }
+
         public Node Running(params Uri[] agentUris)
         {
             foreach (var agentUri in agentUris)

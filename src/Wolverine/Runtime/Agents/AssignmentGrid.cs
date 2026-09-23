@@ -50,10 +50,18 @@ public partial class AssignmentGrid
     public DateTimeOffset EvaluationTime { get; internal set; }
 
     /// <summary>
-    ///     How many agents per scheme the distribution methods detach from an overloaded node in one
+    ///     How many agents per scheme the distribution methods move off an overloaded node in one
     ///     evaluation. Stamped from <see cref="DurabilitySettings.OverloadShedBatchSize" />.
     /// </summary>
     public int OverloadShedBatchSize { get; internal set; } = 1;
+
+    /// <summary>
+    ///     The load reading a node that advertises nothing is ordered as. Deliberately mid-range: such
+    ///     a node is still eligible for placement, but must not outrank nodes that have actually
+    ///     reported themselves lightly loaded. See the ordering in
+    ///     <see cref="DistributeEvenly(string, Func{Uri, bool})" />.
+    /// </summary>
+    internal const double UnadvertisedLoadBand = 50;
 
     public IReadOnlyList<Agent> AgentsForScheme(string scheme)
     {
