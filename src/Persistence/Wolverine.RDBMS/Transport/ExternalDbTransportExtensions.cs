@@ -49,9 +49,13 @@ public static class ExternalDbTransportExtensions
             throw new ArgumentNullException(nameof(message));
         }
 
-        var serializer = runtime.Options.FindSerializer("application/json");
+        var serializer = runtime.Options.FindSerializer(EnvelopeConstants.JsonContentType);
         var json = serializer.WriteMessage(message);
-        var database = runtime.Storage.As<IMessageDatabase>();
+        var database = runtime.Storage.As<IExternalDbTransportStore>();
+        if (database is null)
+        {
+            throw new NotImplementedException($"The configured message store '{runtime.Storage.GetType().FullName}' does not implement {nameof(IExternalDbTransportStore)}");
+        }
         var messageTypeName = message.GetType().ToMessageTypeName();
 
         var transport = runtime.Options.ExternalDbTransport();
@@ -72,7 +76,7 @@ public static class ExternalDbTransportExtensions
     }
     
     /// <summary>
-    ///     Quick access to the Rabbit MQ Transport within this application.
+    ///     Quick access to the External DB Transport within this application.
     ///     This is for advanced usage
     /// </summary>
     /// <param name="endpoints"></param>

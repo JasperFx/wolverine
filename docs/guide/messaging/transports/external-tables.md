@@ -2,24 +2,28 @@
 
 Let's say that you'd like to publish messages to a Wolverine application from an existing system where it's not feasible
 to either utilize Wolverine, and that system does not currently have any kind of messaging capability. And of course, you
-want the messaging to Wolverine to be robust through some sort of transactional outbox, but you certainly don't want to 
-have to build custom infrastructure to manage that. 
+want the messaging to Wolverine to be robust through some sort of transactional outbox, but you certainly don't want to
+have to build custom infrastructure to manage that.
 
 Wolverine provides a capability to scrape an externally controlled database table for incoming messages in a reliable way.
-Assuming that you are using one of the relational database options for persisting messages already like [PostgreSQL](/guide/durability/postgresql) 
-or [Sql Server](/guide/durability/sqlserver), you can tell Wolverine to poll a table *in the same database as the message 
+Assuming that you are using one of the relational database options for persisting messages already like [PostgreSQL](/guide/durability/postgresql)
+or [Sql Server](/guide/durability/sqlserver), you can tell Wolverine to poll a table *in the same database as the message
 store* for incoming messages like this:
 
 <!-- snippet: sample_configuring_external_database_messaging -->
 <a id='snippet-sample_configuring_external_database_messaging'></a>
+
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres")!);
 
-    // Or
+    // Or choose a different provider; MySql, Sqlite, SqlServer, and Oracle are supported.
     // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
+    // opts.UseMySqlPersistenceAndTransport(builder.Configuration.GetConnectionString("mysql"));
+    // opts.UseSqlitePersistenceAndTransport(builder.Configuration.GetConnectionString("sqlite"));
+    // opts.UseOraclePersistenceAndTransport(builder.Configuration.GetConnectionString("oracle"));
     
     // Or
     // opts.Services
@@ -74,14 +78,22 @@ builder.UseWolverine(opts =>
         .Sequential();
 });
 ```
+
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L233-L295' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So a couple things to know:
 
-* The external table has to have a single primary key table that uses `Guid` as the .NET type. So `uuid` for PostgreSQL or 
-  `uniqueidentifier` for Sql Server
-* There must be a single column that holds the incoming message as JSON. For Sql Server this is `varbinary(max)` and `JSONB` for PostgreSQL
+* The external table must have the following structure and datatypes. The column names can be overridden using the table configuration options.
+
+| Provider | id | body | timestamp | message_type (optional) |
+| --- | --- | --- | --- | --- |
+| PostgreSQL | UUID | JSONB | TIMESTAMP WITH TIME ZONE | VARCHAR |
+| Sql Server | UNIQUEIDENTIFIER | VARBINARY(x) | DATETIMEOFFSET | VARCHAR(x) |
+| MySQL | CHAR(x) | LONGBLOB | DATETIME | VARCHAR(x) |
+| SQLite | TEXT | TEXT | TEXT | TEXT |
+| Oracle | RAW(16) | BLOB | TIMESTAMP WITH TIME ZONE | VARCHAR2(x) |
+
 * If there is a column mapped for the message type, Wolverine is using its message type naming to determine the actual .NET
   message type. See [Message Type Name or Alias](/guide/messages.html#message-type-name-or-alias) for information about how to use this
   or even add custom type mapping to synchronize between the upstream system and your Wolverine using system

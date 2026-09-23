@@ -1,19 +1,17 @@
 using System.Data.Common;
-using JasperFx.Events.Daemon;
 using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.MultiTenancy;
 using JasperFx.Descriptors;
+using JasperFx.Events.Daemon;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
+using Spectre.Console;
 using Weasel.Core;
-using Weasel.Core.Migrations;
 using Weasel.Oracle;
-using Weasel.Oracle.Tables;
-using Wolverine.Logging;
 using Wolverine.Oracle.Sagas;
 using Wolverine.Oracle.Schema;
 using Wolverine.Oracle.Transport;
@@ -22,21 +20,17 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
-using Wolverine.RDBMS.MultiTenancy;
-using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Polling;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
-using Wolverine.Runtime.Serialization;
-using Wolverine.Runtime.WorkerQueues;
-using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 using Table = Weasel.Oracle.Tables.Table;
 
 namespace Wolverine.Oracle;
 
-internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport
+internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, IExternalDbTransportStore
 {
     private readonly OracleDataSource _dataSource;
     private readonly DatabaseSettings _settings;
@@ -431,79 +425,6 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             $"SELECT {DatabaseConstants.IncomingFields} FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE status = '{EnvelopeStatus.Scheduled}' AND execution_time <= ");
         builder.AppendParameter(utcNow);
         builder.Append($" ORDER BY execution_time FETCH FIRST {_durability.RecoveryBatchSize} ROWS ONLY");
-    }
-
-    public Task PollForMessagesFromExternalTablesAsync(IListener listener, IWolverineRuntime settings,
-        ExternalMessageTable externalTable, IReceiver receiver, CancellationToken token)
-    {
-        // Not implemented yet
-        return Task.CompletedTask;
-    }
-
-    public async Task MigrateExternalMessageTable(ExternalMessageTable definition)
-    {
-        var table = AddExternalMessageTable(definition);
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
-
-        // The Oracle builder, not the default one: ODP.NET will not execute several statements from
-        // one command, and Oracle's Table registers six introspection queries as of Weasel 9.25
-        // (weasel#474). DbCommandBuilder.StartNewCommand is a no-op, so the default builder runs
-        // them together and Oracle rejects the batch with ORA-03048.
-        var builder = new OracleMigrator().CreateCommandBuilder(conn);
-        var migration = await SchemaMigration.DetermineAsync(conn, builder, CancellationToken.None, table);
-        if (migration.Difference != SchemaPatchDifference.None)
-        {
-            await new OracleMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
-        }
-
-        await conn.CloseAsync();
-    }
-
-    public async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName,
-        byte[] json, CancellationToken token)
-    {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(token);
-
-        await using var cmd = conn.CreateCommand("");
-        if (table.MessageTypeColumnName.IsEmpty())
-        {
-            cmd.CommandText =
-                $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) VALUES (:id, :json)";
-            cmd.With("id", Guid.NewGuid());
-            cmd.Parameters.Add(new OracleParameter("json", OracleDbType.Blob) { Value = json });
-        }
-        else
-        {
-            cmd.CommandText =
-                $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) VALUES (:id, :json, :message)";
-            cmd.With("id", Guid.NewGuid());
-            cmd.Parameters.Add(new OracleParameter("json", OracleDbType.Blob) { Value = json });
-            cmd.With("message", messageTypeName);
-        }
-
-        await cmd.ExecuteNonQueryAsync(token);
-        await conn.CloseAsync();
-    }
-
-    public ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
-    {
-        var table = new Table(definition.TableName);
-        table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
-        table.AddColumn(definition.JsonBodyColumnName, "BLOB").NotNull();
-        if (definition.TimestampColumnName.IsNotEmpty())
-        {
-            table.AddColumn<DateTimeOffset>(definition.TimestampColumnName)
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
-        }
-
-        if (definition.MessageTypeColumnName.IsNotEmpty())
-        {
-            table.AddColumn<string>(definition.MessageTypeColumnName);
-        }
-
-        return table;
     }
 
     // ISagaSupport

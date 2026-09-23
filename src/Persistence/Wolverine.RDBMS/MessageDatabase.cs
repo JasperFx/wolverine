@@ -25,7 +25,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, IExternalDbTransportStore where T : DbConnection, new()
 {
     /// <summary>
     /// GH-4375. The most parameters this provider accepts in one command. Batched durability commands
@@ -514,6 +514,18 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         }
 
         return agent;
+    }
+
+    protected abstract Task<bool> TryAttainLockAsync(int lockId, T connection, CancellationToken token);
+
+    /// <summary>
+    /// Releases a previously-acquired session-scoped advisory lock. Default
+    /// implementation is a no-op for providers (e.g., SQLite) where the lock
+    /// is automatically released when the connection closes.
+    /// </summary>
+    protected virtual Task ReleaseLockAsync(int lockId, T connection, CancellationToken token)
+    {
+        return Task.CompletedTask;
     }
 
     public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context) where TSaga : Saga
