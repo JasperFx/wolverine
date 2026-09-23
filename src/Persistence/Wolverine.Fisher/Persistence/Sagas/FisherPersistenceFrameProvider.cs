@@ -12,6 +12,7 @@ using Wolverine.Configuration;
 using Wolverine.Fisher.Codegen;
 using Wolverine.Fisher.Requirements;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -34,6 +35,49 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
     {
         var idProp = sagaType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
         return idProp?.PropertyType ?? typeof(Guid);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4571, the Fisher half of GH-4505. Wolverine's message store here is a second
+    ///     <c>SqliteConnection</c> to the same file the document store uses, so the claim is enlisted as an
+    ///     <c>ITransactionParticipant</c> — which is handed the live connection and transaction — rather than
+    ///     queued as a storage operation the way the Marten twin does. On SQLite that is a correctness
+    ///     requirement and not a preference: a write on a second connection blocks on the first one's write
+    ///     lock from inside its transaction, which hangs rather than failing.
+    ///     <para>
+    ///     Fisher has no database-per-tenant composition, so there is no tenancy branch to guard the way the
+    ///     Marten and Polecat twins do.
+    ///     </para>
+    /// </remarks>
+    public bool TryBuildTransactionalDeduplication(IChain chain, Variable deduplicationId,
+        DeduplicationRequirement requirement, IServiceContainer container,
+        [NotNullWhen(true)] out TransactionalDeduplication? deduplication)
+    {
+        deduplication = null;
+
+        // Not CanApply -- that answers "could this provider own the chain's transaction?", and a chain that
+        // merely takes an IDocumentSession satisfies it without ever committing one. Riding a transaction
+        // that is never committed writes no claim at all, so the endpoint silently loses deduplication
+        // entirely: every replay runs. Ask for the commit frame itself, which is the thing the claim has to
+        // ride. See the Marten and Polecat twins.
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
+        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+
+        var marker = chain.DetermineAncillaryStoreType();
+        var check = new FisherDeduplicationClaimExistsFrame(deduplicationId, marker);
+
+        deduplication = new TransactionalDeduplication
+        {
+            Check = check,
+            IsDuplicate = check.Variable,
+            Claim = new QueueFisherDeduplicationClaimFrame(deduplicationId, check.Variable, marker),
+            CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
+                FisherDeduplicationFailures.Classifier,
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
+        };
+
+        return true;
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)

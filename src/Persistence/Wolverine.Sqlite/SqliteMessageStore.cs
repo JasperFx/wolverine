@@ -206,6 +206,38 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         return false;
     }
 
+    /// <summary>
+    /// GH-4571. Whether <paramref name="ex"/> is the one failure a transactional deduplication claim's
+    /// optimistic check cannot prevent: two genuinely concurrent callers both read "not claimed", both
+    /// enlist the INSERT, and the second to commit trips the deduplication table's primary key.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to the deduplication table for the same reason <see cref="IsDuplicateIncomingEnvelope"/> is
+    /// scoped to the inbox: a bare constraint-code test would also match a duplicate key raised by the
+    /// application's own documents in the same transaction, and report that to the caller as "already
+    /// handled". SQLite puts the table name in the message and nowhere else.
+    /// </remarks>
+    public static bool IsDuplicateDeduplicationClaim(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is SqliteException sqliteException
+                && isUniqueViolation(sqliteException)
+                && tablesFrom(sqliteException.Message).Any(IncomingTableNaming.IsDeduplicationTable))
+            {
+                return true;
+            }
+
+            if (current is AggregateException aggregate
+                && aggregate.InnerExceptions.Any(IsDuplicateDeduplicationClaim))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool isUniqueViolation(SqliteException ex)
         // SQLITE_CONSTRAINT_PRIMARYKEY (1555), SQLITE_CONSTRAINT_UNIQUE (2067), or the bare
         // SQLITE_CONSTRAINT (19) older builds report
