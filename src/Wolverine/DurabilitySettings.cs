@@ -666,12 +666,21 @@ public class DurabilitySettings : IDescribeMyself
     ///         default. Starting a host with this on and no monitor is a startup error.
     ///     </para>
     ///     <para>
-    ///         Scope today: only the even distribution
-    ///         (<see cref="Runtime.Agents.AssignmentGrid.DistributeEvenly(string)" />) honors the
-    ///         overload flags — dynamic, exclusive, and sticky-queue listener agents, plus event
-    ///         subscriptions on clusters with homogeneous capabilities. Group-affinity distribution
-    ///         (multi-database event stores), blue/green distribution across mixed capabilities, and
-    ///         the durability-agent affinity distribution do not yet consult node load.
+    ///         How strictly load is honored depends on how constrained the placement already is.
+    ///         <see cref="Runtime.Agents.AssignmentGrid.DistributeEvenly(string)" /> treats the overload
+    ///         threshold as a hard line — every node is a candidate there, so refusing the overloaded
+    ///         ones cannot strand an agent, and an agent waits rather than being piled onto a node that
+    ///         cannot start it. The capability-aware paths — group affinity for multi-database event
+    ///         stores, blue/green across mixed capabilities, and the durability-agent affinity spread —
+    ///         treat it as a strong preference instead: their candidate sets are already narrowed by
+    ///         declared capabilities, so a second hard constraint could empty one and leave a shard
+    ///         database with no running agent at all. There, a node with headroom always wins, but an
+    ///         overloaded node still beats nothing.
+    ///     </para>
+    ///     <para>
+    ///         Group affinity additionally moves whole partitions off an overloaded node, at most
+    ///         <see cref="OverloadShedBatchSize" /> per evaluation and only when another candidate can
+    ///         take the entire partition — a shard database's agents are never split to relieve pressure.
     ///     </para>
     ///     <para>
     ///         Enabling this provisions a load_factor column on the wolverine_nodes table. With
