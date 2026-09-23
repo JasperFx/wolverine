@@ -18,9 +18,12 @@ namespace Wolverine.AmazonSqs.Tests;
 /// Tests use <c>UseAmazonSqsTransportLocally()</c> + <c>StartAsync</c> rather than
 /// inspecting types in isolation so the exact resolution Wolverine performs at host
 /// build time — the resolved <see cref="AmazonSqsQueue.DeadLetterQueueName"/> after
-/// every listener-config callback has run — is what's exercised. Provisioning-side
-/// behaviour is verified by checking which queues the transport's <c>Queues</c>
-/// cache contains (mirrors <c>disabling_dead_letter_queue</c>).
+/// every listener-config callback has run — is what's exercised.
+///
+/// Name resolution is a property of Wolverine's configuration, so the resolution tests read it off the
+/// endpoint. The three tests whose names promise <em>provisioning</em> ask SQS instead, via
+/// <c>ExistsOnSqsAsync</c>: <c>transport.Queues</c> is populated from configuration and would answer the
+/// same against a LocalStack that was switched off. See GH-4559.
 /// </summary>
 public class default_dead_letter_queue_name
 {
@@ -28,6 +31,22 @@ public class default_dead_letter_queue_name
         host.Services.GetRequiredService<IWolverineRuntime>()
             .As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();
+
+    /// <summary>
+    /// GH-4559. What SQS actually has. <c>transport.Queues</c> is Wolverine's own cache of endpoint
+    /// objects, populated by <c>AmazonSqsTransport.endpoints()</c> from configuration, so membership there
+    /// is decided before any AWS call is made and says nothing about provisioning.
+    /// </summary>
+    private static async Task<bool> ExistsOnSqsAsync(IHost host, string queueName)
+    {
+        var response = await TransportFor(host).Client!
+            .ListQueuesAsync(queueName, TestContext.Current.CancellationToken);
+
+        // ListQueues matches on prefix, so "orders" would also match "orders-dlq" -- compare the last
+        // segment of the URL for the exact name. QueueUrls comes back null, not empty, when nothing
+        // matched the prefix
+        return response.QueueUrls?.Any(x => x.Split('/').Last() == queueName) ?? false;
+    }
 
     [Fact]
     public async Task fallback_default_name_is_wolverine_dead_letter_queue_when_neither_is_configured()
@@ -117,17 +136,28 @@ public class default_dead_letter_queue_name
         transport.Queues["orders"].DeadLetterQueueName.ShouldBe("my-service-dlq");
     }
 
+    /// <summary>
+    /// GH-4559. Named "during_provisioning", so it now turns provisioning on and asks SQS. It previously
+    /// asserted only <c>transport.DisableDeadLetterQueues</c> -- the flag
+    /// <c>DisableAllNativeDeadLetterQueues()</c> had just set -- plus two reads of Wolverine's endpoint
+    /// cache, and it ran without <c>AutoProvision()</c> at all, so nothing was ever provisioned for the
+    /// kill-switch to suppress.
+    /// </summary>
     [Fact]
     public async Task global_disable_trumps_transport_default_during_provisioning()
     {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var deadLetterQueue = $"my-service-dlq-{suffix}";
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAmazonSqsTransportLocally()
-                    .DefaultDeadLetterQueueName("my-service-dlq")
-                    .DisableAllNativeDeadLetterQueues();
+                    .DefaultDeadLetterQueueName(deadLetterQueue)
+                    .DisableAllNativeDeadLetterQueues()
+                    .AutoProvision();
 
-                opts.ListenToSqsQueue("orders");
+                opts.ListenToSqsQueue($"orders-{suffix}");
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
@@ -138,10 +168,15 @@ public class default_dead_letter_queue_name
         // default name).
         transport.DisableDeadLetterQueues.ShouldBeTrue();
 
-        // No DLQ named "my-service-dlq" should be auto-provisioned.
-        transport.Queues.Contains("my-service-dlq").ShouldBeFalse();
+        // Provisioning really ran -- otherwise the absence below would prove nothing
+        (await ExistsOnSqsAsync(host, $"orders-{suffix}")).ShouldBeTrue();
 
-        // And no DLQ named with the historical default either.
+        // ...and it did not create the DLQ. A real check because the name is unique to this run
+        (await ExistsOnSqsAsync(host, deadLetterQueue)).ShouldBeFalse();
+        transport.Queues.Contains(deadLetterQueue).ShouldBeFalse();
+
+        // And no DLQ named with the historical default either. Endpoint cache rather than SQS: it is a
+        // fixed name other tests on this LocalStack legitimately create
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName).ShouldBeFalse();
     }
 
@@ -168,54 +203,87 @@ public class default_dead_letter_queue_name
         transport.Queues["orders"].DeadLetterQueueName.ShouldBe("acme-payments-dlq");
     }
 
+    /// <summary>
+    /// GH-4559. The name says "provisioned", so SQS has to be the one that answers. This used to stop at
+    /// <c>transport.Queues.Contains(...)</c>, Wolverine's own endpoint cache, which is populated from
+    /// configuration and would have said the same thing against a LocalStack that was switched off. The
+    /// queue names carry a per-run suffix for the same reason: a leftover queue from an earlier run would
+    /// otherwise satisfy the real check.
+    /// </summary>
     [Fact]
     public async Task transport_default_is_provisioned_when_listeners_inherit_it()
     {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var deadLetterQueue = $"my-service-dlq-{suffix}";
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAmazonSqsTransportLocally()
-                    .DefaultDeadLetterQueueName("my-service-dlq")
+                    .DefaultDeadLetterQueueName(deadLetterQueue)
                     .AutoProvision();
 
-                opts.ListenToSqsQueue("orders");
-                opts.ListenToSqsQueue("shipments");
+                opts.ListenToSqsQueue($"orders-{suffix}");
+                opts.ListenToSqsQueue($"shipments-{suffix}");
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
-        // The custom DLQ is enumerated by AmazonSqsTransport.endpoints() because
-        // every inheriting listener resolves DeadLetterQueueName to "my-service-dlq",
-        // and the historical default name is no longer referenced by anyone.
-        transport.Queues.Contains("my-service-dlq").ShouldBeTrue();
+        // The custom DLQ is enumerated by AmazonSqsTransport.endpoints() because every inheriting listener
+        // resolves DeadLetterQueueName to it...
+        transport.Queues.Contains(deadLetterQueue).ShouldBeTrue();
+
+        // ...and AutoProvision really did create it on SQS
+        (await ExistsOnSqsAsync(host, deadLetterQueue)).ShouldBeTrue();
+
+        // The historical default name is no longer referenced by anyone. Asserted against the endpoint
+        // cache rather than SQS on purpose: "wolverine-dead-letter-queue" is a fixed name that other tests
+        // in this suite legitimately create on the same LocalStack, so its presence there would prove
+        // nothing about THIS host
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName).ShouldBeFalse();
     }
 
+    /// <summary>
+    /// GH-4559. Both halves of "provisions both" are asked of SQS. See
+    /// <see cref="transport_default_is_provisioned_when_listeners_inherit_it"/> for why the names carry a
+    /// per-run suffix and why the historical default stays a configuration assertion.
+    /// </summary>
     [Fact]
     public async Task mixed_inherit_and_override_provisions_both_dead_letter_queues()
     {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var inheritedDeadLetterQueue = $"my-service-dlq-{suffix}";
+        var overriddenDeadLetterQueue = $"payments-errors-{suffix}";
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAmazonSqsTransportLocally()
-                    .DefaultDeadLetterQueueName("my-service-dlq")
+                    .DefaultDeadLetterQueueName(inheritedDeadLetterQueue)
                     .AutoProvision();
 
-                opts.ListenToSqsQueue("orders");                       // inherits "my-service-dlq"
-                opts.ListenToSqsQueue("payments")
-                    .ConfigureDeadLetterQueue("payments-errors");      // overrides
+                opts.ListenToSqsQueue($"orders-{suffix}");                       // inherits the transport default
+                opts.ListenToSqsQueue($"payments-{suffix}")
+                    .ConfigureDeadLetterQueue(overriddenDeadLetterQueue);        // overrides
 
-                opts.ListenToSqsQueue("notifications")
-                    .DisableDeadLetterQueueing();                       // disabled, no DLQ provisioned for this one
+                opts.ListenToSqsQueue($"notifications-{suffix}")
+                    .DisableDeadLetterQueueing();                                // disabled, no DLQ provisioned for this one
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
-        transport.Queues.Contains("my-service-dlq").ShouldBeTrue();
-        transport.Queues.Contains("payments-errors").ShouldBeTrue();
+        transport.Queues.Contains(inheritedDeadLetterQueue).ShouldBeTrue();
+        transport.Queues.Contains(overriddenDeadLetterQueue).ShouldBeTrue();
 
-        // The historical default and the disabled-listener never get provisioned as
-        // DLQs.
+        (await ExistsOnSqsAsync(host, inheritedDeadLetterQueue)).ShouldBeTrue();
+        (await ExistsOnSqsAsync(host, overriddenDeadLetterQueue)).ShouldBeTrue();
+
+        // The disabled listener's own queue is there, which is what makes the two assertions above
+        // evidence that provisioning ran rather than that nothing happened at all
+        (await ExistsOnSqsAsync(host, $"notifications-{suffix}")).ShouldBeTrue();
+
+        // The historical default never gets provisioned either. Endpoint cache rather than SQS: it is a
+        // fixed name other tests on this LocalStack legitimately create
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName).ShouldBeFalse();
     }
 
