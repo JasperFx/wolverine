@@ -270,6 +270,34 @@ public class distribute_by_group_affinity
     }
 
     [Fact]
+    public void a_node_running_part_of_a_partition_is_not_a_candidate_for_members_it_cannot_run()
+    {
+        // Tenant t2 was provisioned after the blue node started, so blue runs t2's unchanged agent without
+        // declaring it. Only green declares that agent and the new version's agents, so all three share one
+        // capability partition — and blue, grandfathered in for the one it runs, must not take the new
+        // version with it. Seen in production: the bumped agents went to blue, which cannot build them, and
+        // were re-sent there on every evaluation.
+        var unchangedT1 = Agent("db1", "t1");
+        var unchangedT2 = Agent("db1", "t2");
+        var previousT1 = VersionedAgent("db1", 22, "t1");
+        var bumpedT1 = VersionedAgent("db1", 23, "t1");
+        var bumpedT2 = VersionedAgent("db1", 23, "t2");
+
+        var grid = new AssignmentGrid();
+        var blue = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(new[] { unchangedT1, previousT1 });
+        blue.Running(unchangedT1, unchangedT2, previousT1);
+        var green = grid.WithNode(2, Guid.NewGuid()).HasCapabilities(new[] { unchangedT1, unchangedT2, bumpedT1, bumpedT2 });
+
+        grid.WithAgents(unchangedT1, unchangedT2, previousT1, bumpedT1, bumpedT2);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AgentFor(bumpedT1).AssignedNode.ShouldBe(green);
+        grid.AgentFor(bumpedT2).AssignedNode.ShouldBe(green);
+        grid.AgentFor(previousT1).AssignedNode.ShouldBe(blue);
+    }
+
+    [Fact]
     public void a_settled_blue_green_split_does_not_churn_on_the_next_evaluation()
     {
         // GH-3785 counted ~45,000 ReassignAgent decisions in six minutes during a rollout ramp. Whatever

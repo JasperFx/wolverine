@@ -221,17 +221,19 @@ public partial class AssignmentGrid
 
             foreach (var members in partitions)
             {
-                // Candidate nodes for the whole partition: nodes capable of running every member (all nodes
-                // when capabilities are homogeneous) — plus any node that was already running part of it
-                // when the grid was assembled. The grandfathering mirrors the even paths, which leave
-                // running agents in place regardless of declared capabilities: a node's capability snapshot
-                // is persisted once at node startup, so a node that started before (say) a tenant database
-                // was provisioned never declares that database's agents even though it is happily running
-                // them.
+                // Candidate nodes for the whole partition: nodes that can run every member (all nodes when
+                // capabilities are homogeneous), where a member the node is already running counts as one it
+                // can run. That grandfathering mirrors the even paths, which leave running agents in place
+                // regardless of declared capabilities: a node's capability snapshot is persisted once at node
+                // startup, so a node that started before (say) a tenant database was provisioned never
+                // declares that database's agents even though it is happily running them. It is per member,
+                // not per partition: running one member must not make a node a home for members it neither
+                // declares nor runs — during blue/green, that sends the new version's agents to a blue node
+                // that cannot build them.
                 var candidates = sameCapabilities
                     ? nodes
-                    : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))
-                                       || members.Any(m => m.OriginalNode == n)).ToList();
+                    : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n) || m.OriginalNode == n))
+                        .ToList();
 
                 if (candidates.Count == 0)
                 {
