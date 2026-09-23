@@ -374,9 +374,12 @@ public class Program
 
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
-            // GH-3764. Scoped to the concurrency endpoints so the 409 mapping cannot change the
-            // status codes the rest of this application's tests assert on
-            opts.AddMiddleware(typeof(MartenConcurrencyExceptionMiddleware),
+            // GH-3764, then GH-4512: this used to register the hand written
+            // MartenConcurrencyExceptionMiddleware recipe. It is now the one line opt in, which covers
+            // both ConcurrencyException and Marten's StreamLockedException and stamps ProducesProblem(409).
+            // Still scoped to the concurrency endpoints so the 409 mapping cannot change the status codes
+            // the rest of this application's tests assert on.
+            opts.MapMartenConcurrencyFailuresToConflict(
                 chain => chain.Method.HandlerType == typeof(ConcurrencyEndpoints));
 
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
