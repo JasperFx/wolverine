@@ -22,6 +22,18 @@ public partial class AssignmentGrid
 
         public IReadOnlyList<Uri> Capabilities => _capabilities;
 
+        private HashSet<Uri>? _capabilityLookup;
+
+        /// <summary>
+        ///     Whether this node advertised the given agent. A node in a fleet running thousands of
+        ///     projection agents carries thousands of capabilities, so this is asked through a set built
+        ///     once per grid rather than by scanning the list.
+        /// </summary>
+        internal bool Declares(Uri agentUri)
+        {
+            return (_capabilityLookup ??= _capabilities.ToHashSet()).Contains(agentUri);
+        }
+
         /// <summary>
         /// Helping tester to add capabilities to each node
         /// </summary>
@@ -30,6 +42,7 @@ public partial class AssignmentGrid
         public Node HasCapabilities(IEnumerable<Uri> agentUris)
         {
             _capabilities.Fill(agentUris);
+            _capabilityLookup = null;
             return this;
         }
 
@@ -154,7 +167,7 @@ public partial class AssignmentGrid
 
         public bool TryAssign(Uri agentUri)
         {
-            if (_capabilities.Contains(agentUri))
+            if (Declares(agentUri))
             {
                 Assign(agentUri);
                 return true;
