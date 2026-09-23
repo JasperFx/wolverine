@@ -482,6 +482,42 @@ public class WolverineHttpOptions
     }
 
     /// <summary>
+    /// GH-4516. Map an <b>unknown</b> tenant id onto a 404 ProblemDetails instead of letting it escape as an
+    /// unhandled 500, and advertise the 404 in the OpenAPI document.
+    ///
+    /// <para>
+    /// A <b>missing</b> mandatory tenant id is already handled without this: <c>[RequiresTenant]</c> stops
+    /// the request with a 400 ProblemDetails. This covers the other case -- a tenant id that is present on
+    /// the request and simply has no database or registration behind it, which throws
+    /// <see cref="JasperFx.MultiTenancy.UnknownTenantIdException"/> from the store or from Wolverine's own
+    /// tenant sources. That is a client-side error, and it was answering 500.
+    /// </para>
+    ///
+    /// <para>
+    /// 404 rather than 400 on purpose: it reads as "the thing you addressed does not exist", and it keeps
+    /// 400 meaning "you did not say which tenant".
+    /// </para>
+    ///
+    /// <para>
+    /// A <i>disabled</i> tenant would deserve a 403 -- the tenant exists and access is refused -- but on
+    /// Marten and Polecat it is indistinguishable from unknown today, and JasperFx has no lifted
+    /// <c>DisabledTenantException</c> to catch. When it lands, it belongs here.
+    /// </para>
+    /// </summary>
+    /// <param name="filter">
+    /// Which chains the mapping applies to. Defaults to the tenanted chains -- those declared
+    /// <c>[RequiresTenant]</c> or <c>[MaybeTenanted]</c> -- since a chain that resolves no tenant cannot
+    /// fail to resolve one.
+    /// </param>
+    public void MapUnknownTenantToNotFound(Func<HttpChain, bool>? filter = null)
+    {
+        filter ??= TenancyProblemMapping.IsTenanted;
+
+        AddMiddleware(typeof(UnknownTenantMiddleware), filter);
+        Policies.Add(new UnknownTenantProblemPolicy(filter));
+    }
+
+    /// <summary>
     ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
     /// </summary>
     /// <typeparam name="T"></typeparam>
