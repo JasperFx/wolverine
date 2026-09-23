@@ -3,6 +3,7 @@ using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Spectre.Console;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -198,9 +199,17 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// GH-4518: this used to be a bare NotImplementedException, which crashed any read-only tooling that
+    /// enumerates transports for diagnostics -- `wolverine-diagnostics describe`, CritterWatch's transport
+    /// view -- on any host that registered SNS at all. The keys are attribute names from
+    /// <see cref="AmazonSnsTopic.GetAttributesAsync"/>.
+    /// </summary>
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
-        throw new NotImplementedException();
+        yield return new PropertyColumn("Topic Name", "name");
+        yield return new PropertyColumn("Subscriptions", "SubscriptionsConfirmed", Justify.Right);
+        yield return new PropertyColumn("Pending", "SubscriptionsPending", Justify.Right);
     }
     
     internal AmazonSnsTopic EndpointForTopic(string topicName)
