@@ -34,11 +34,17 @@ public class per_message_redelivery
         using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
-            opts.PublishMessage<RedeliveryMessage>().ToPulsarTopic(topic);
+            opts.PublishMessage<RedeliveryMessage>().ToPulsarTopic(topic).SendInline();
             // With UseNativeRedelivery, a failure with no retry-letter/DLQ configured leaves the
             // message unacknowledged and asks Pulsar to redeliver just it.
+            //
+            // GH-4059: that handoff lives in PulsarListener.DeferAsync, which is only reached when the
+            // listener itself is the channel callback -- i.e. Inline. A buffered listener handles the
+            // failure in-process, Pulsar never redelivers, and this test times out. ProcessInline() says
+            // so explicitly; it used to be an accident of SendInline() sharing Endpoint.Mode.
             opts.ListenToPulsarTopic(topic)
                 .SubscriptionName("sub-" + Guid.NewGuid().ToString("N"))
+                .ProcessInline()
                 .UseNativeRedelivery();
 
             opts.Services.AddSingleton<RedeliverySink>();

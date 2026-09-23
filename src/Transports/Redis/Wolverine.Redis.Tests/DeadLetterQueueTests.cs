@@ -36,10 +36,15 @@ public class DeadLetterQueueTests
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 // Configure routing to our test stream
-                opts.PublishMessage<FailingCommand>().ToRedisStream(streamKey);
+                opts.PublishMessage<FailingCommand>().ToRedisStream(streamKey).SendInline();
                 
+                // GH-4059: these tests assert on the native dead letter shape that
+                // RedisStreamListener.MoveToErrorsAsync writes, and only an Inline listener takes that
+                // path -- a buffered one dead-letters through TryBuildDeadLetterSender instead. The mode
+                // used to come from SendInline() above sharing Endpoint.Mode; say it outright now.
                 var listenerConfig = opts.ListenToRedisStream(streamKey, "dlq-test-group")
-                    .StartFromBeginning();
+                    .StartFromBeginning()
+                    .ProcessInline();
                 
                 if (enableDeadLetterQueue)
                 {
