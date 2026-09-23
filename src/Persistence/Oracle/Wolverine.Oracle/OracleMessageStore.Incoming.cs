@@ -279,6 +279,8 @@ internal partial class OracleMessageStore
     /// Guid as <c>byte[]</c> — exactly what <see cref="StoreIncomingAsync(DbTransaction, Envelope[])"/> and
     /// <see cref="MarkIncomingEnvelopeAsHandledAsync(Envelope)"/> already do. Runs inside the caller's EF
     /// Core transaction, so the durable-inbox mark-as-handled stays part of the application's commit.
+    /// Matches the whole inbox identity (id and received_at), like the other mark-as-handled statements in
+    /// this store.
     /// </summary>
     public async Task MarkIncomingEnvelopeAsHandledInTransactionAsync(DbConnection conn, DbTransaction? tx,
         Envelope envelope, DateTimeOffset keepUntil, CancellationToken cancellation)
@@ -286,7 +288,7 @@ internal partial class OracleMessageStore
         await using var cmd = ((OracleConnection)conn).CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
-            $"WHERE id = :id");
+            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
         if (tx != null)
         {
             cmd.Transaction = (OracleTransaction)tx;
@@ -294,6 +296,7 @@ internal partial class OracleMessageStore
 
         cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = keepUntil });
         cmd.With("id", envelope.Id);
+        cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
         await cmd.ExecuteNonQueryAsync(cancellation);
     }
 

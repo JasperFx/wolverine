@@ -178,6 +178,28 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
+    /// <summary>
+    /// The in-transaction twin of <see cref="MarkIncomingEnvelopeAsHandledAsync(Envelope)"/>, used by
+    /// <c>EfCoreEnvelopeTransaction.CommitAsync</c> to close out a durable-inbox message inside the application's own
+    /// transaction. It runs the very same statement, so it matches the whole identity -- <c>received_at</c> as well as
+    /// <c>id</c> -- and carries the partition-aware shape. The interface default matched on the id alone, which under
+    /// <see cref="MessageIdentity.IdAndDestination"/> marked every destination's copy of a fanned-out message as
+    /// handled, including copies whose own handler had not run yet.
+    /// </summary>
+    public async Task MarkIncomingEnvelopeAsHandledInTransactionAsync(DbConnection conn, DbTransaction? tx,
+        Envelope envelope, DateTimeOffset keepUntil, CancellationToken cancellation)
+    {
+        _markEnvelopeAsHandledById ??= MarkAsHandledSql("@id", "@uri");
+
+        await using var cmd = conn.CreateCommand(_markEnvelopeAsHandledById)
+            .With("id", envelope.Id)
+            .With("keepUntil", keepUntil)
+            .With("uri", envelope.Destination!.ToString());
+        cmd.Transaction = tx;
+
+        await cmd.ExecuteNonQueryAsync(cancellation);
+    }
+
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
         if (HasDisposed) return;
