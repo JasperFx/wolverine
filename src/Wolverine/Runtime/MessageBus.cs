@@ -335,6 +335,14 @@ public partial class MessageBus : IMessageBus, IMessageContext
         options = applyTenantContext(options);
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
+
+        // GH-4556: every other send path stamps correlation here, but this one never did, so a
+        // topic broadcast went out with no Source, no CorrelationId, no ParentId and a null
+        // Store -- MessageRoute.CreateForSending sets none of them. That is why a projection
+        // side effect's ToTopic() carried none of its MessageMetadata: the metadata rides
+        // TrackEnvelopeCorrelation, and topics were the one route that skipped it.
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
+
         return PersistOrSendAsync(outgoing);
     }
 
