@@ -242,6 +242,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             var counts = await tryFetchCountsFromPartitionStatsAsync();
             if (counts != null)
             {
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
+
                 return counts;
             }
         }

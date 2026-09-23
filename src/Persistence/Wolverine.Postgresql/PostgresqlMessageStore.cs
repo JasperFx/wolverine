@@ -341,6 +341,9 @@ select {owner} from owners where {owner} is not null";
         counts.Outgoing = await estimateTableCount(DatabaseConstants.OutgoingTable);
         counts.DeadLetter = await estimateTableCount(DatabaseConstants.DeadLetterTable);
 
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
+
         return counts;
     }
 

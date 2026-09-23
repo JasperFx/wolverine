@@ -236,6 +236,9 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
 
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
 
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
+
         return counts;
     }
 
