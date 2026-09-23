@@ -171,6 +171,12 @@ public class stranded_agents_on_an_ejected_node
     /// The fix. Once the corpse is out of the roster the leader has nothing left to wait on: the commands
     /// aimed at it are abandoned, the ledger forgets what they were holding, and the agents are placed by the
     /// very next evaluation — the same one that re-places every other agent the departed node owned.
+    ///
+    /// <para>Driven by the membership this leader reads and not by the ejection, which is why the stub above
+    /// asserts on the roster it is handed. Ejecting a stale row is not the leader's privilege —
+    /// <c>ejectStaleNodes</c> spares only the current leader's row — so on a three-node cluster a follower
+    /// commonly wins that race, and a release keyed off the ejection would run on a node holding nothing
+    /// while the leader's own lanes stayed wedged for the full reply window.</para>
     /// </summary>
     [Fact]
     public async Task dropping_out_of_the_roster_releases_the_agents_its_commands_were_carrying()
@@ -187,7 +193,8 @@ public class stranded_agents_on_an_ejected_node
         // and it reports which agents that freed, each against the node the ledger is holding it on.
         _controller.AbandonDispatchesOutside = (registered, _) =>
         {
-            registered.ShouldNotContain(_corpse.NodeId);
+            // Exactly the membership this leader read, whoever it was that deleted the corpse's row.
+            registered.ShouldBe(rosterOf(_leader, _newcomer));
             _controller.PendingDispatches = null;
             return stranded.Select(uri => (uri, _newcomer.NodeId)).ToArray();
         };
@@ -196,39 +203,6 @@ public class stranded_agents_on_an_ejected_node
 
         var commands = await evaluateAsync(_leader, _newcomer);
 
-        foreach (var uri in stranded)
-        {
-            agentsIn(commands).ShouldContain(uri);
-        }
-    }
-
-    /// <summary>
-    /// The reason the release is driven by the roster and not by the ejection. Ejecting a stale row is not
-    /// the leader's privilege — <c>ejectStaleNodes</c> spares only the current leader's row — so a follower
-    /// commonly wins the race and runs the release against a dispatcher holding nothing. Measured on a
-    /// three-node cluster, that left the leader stranded for the full reply window twice running. The leader
-    /// asks the question of its own membership view instead, so whoever performed the delete is irrelevant.
-    /// </summary>
-    [Fact]
-    public async Task releases_a_node_that_some_other_node_ejected()
-    {
-        var stranded = await moveAgentsOffTheCorpseAsync();
-        _options.Durability.CheckAssignmentPeriod = 5.Minutes();
-
-        // Nothing on this leader ejected anything; the corpse has simply gone from the roster it reads.
-        var asked = new List<IReadOnlySet<Guid>>();
-        _controller.AbandonDispatchesOutside = (registered, _) =>
-        {
-            asked.Add(registered);
-            _controller.PendingDispatches = null;
-            return stranded.Select(uri => (uri, _newcomer.NodeId)).ToArray();
-        };
-
-        _controller.AbandonDispatchesExcept(rosterOf(_leader, _newcomer));
-
-        asked.Single().ShouldBe(rosterOf(_leader, _newcomer));
-
-        var commands = await evaluateAsync(_leader, _newcomer);
         foreach (var uri in stranded)
         {
             agentsIn(commands).ShouldContain(uri);
@@ -285,28 +259,6 @@ public class stranded_agents_on_an_ejected_node
         => nodes.Select(x => x.NodeId).ToHashSet();
 
     /// <summary>
-    /// Nothing else in the system can report this: an agent held here runs nowhere and holds no assignment
-    /// row, so the grid, the node-side reconciliation sweep and anything reading the assignment table all
-    /// agree the cluster is healthy and merely smaller. Past the point where the cluster itself would call a
-    /// batch wedged, the leader says so.
-    /// </summary>
-    [Fact]
-    public async Task warns_when_assignments_are_held_pending_past_the_stall_timeout()
-    {
-        _options.Durability.AgentProgressStallTimeout = 20.Milliseconds();
-
-        await moveAgentsOffTheCorpseAsync();
-
-        _logger.Warnings.ShouldBeEmpty();
-
-        await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
-
-        await evaluateAsync(_leader, _newcomer);
-
-        _logger.Warnings.ShouldContain(x => x.Contains("held pending for longer than"));
-    }
-
-    /// <summary>
     /// One stall, one warning. The warning used to be emitted from the per-family pass, so a cluster with N
     /// families logged the same stall N times over on every evaluation.
     /// </summary>
@@ -326,8 +278,16 @@ public class stranded_agents_on_an_ejected_node
     }
 
     /// <summary>
-    /// A stall that persists is a standing condition, not news on every health check. Evaluations run every
-    /// HealthCheckPollingTime, which is far shorter than the threshold that makes a hold worth reporting.
+    /// The warning fires once a hold outlives the threshold, and then stays quiet: a stall that persists is a
+    /// standing condition, not news on every health check, and evaluations run every HealthCheckPollingTime,
+    /// far shorter than the threshold that makes a hold worth reporting at all.
+    ///
+    /// <para>Worth reporting because in the worst case nothing else can: an agent held by a command wedged
+    /// against a departed node runs nowhere and holds no assignment row, so the grid, the node-side
+    /// reconciliation sweep and anything reading the assignment table all agree the cluster is healthy and
+    /// merely smaller. The log deliberately does not claim that case, though — a slow but live move reaches
+    /// the same threshold with its agent still running on the source node — so it reports only that the
+    /// destination has not confirmed.</para>
     /// </summary>
     [Fact]
     public async Task does_not_repeat_the_warning_on_every_evaluation()

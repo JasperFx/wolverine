@@ -91,6 +91,42 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     /// </summary>
     internal static TimeSpan LaneShutdownTimeout { get; set; } = 5.Seconds();
 
+    /// <summary>
+    ///     Test-only interleaving seam: null in production, where it costs one null check per point.
+    ///
+    ///     <para>Three threads meet in this class — the leader's evaluation calling <see cref="Enqueue" />,
+    ///     the health check calling <see cref="AbandonLane" />, and a lane's own worker — and the correctness
+    ///     of each of them turns on windows a few statements wide, such as the gap between publishing a
+    ///     dispatch's claims and publishing the queue entry that owns them. A caller cannot steer those
+    ///     windows: they are interior to a single call and measured in nanoseconds. Setting this parks the
+    ///     first thread to reach a named point until a test releases it, which makes the interleaving the
+    ///     test's to choose rather than the scheduler's.</para>
+    ///
+    ///     <para>Per instance rather than static like <see cref="LaneShutdownTimeout" />, so tests that use it
+    ///     stay independent of each other under a parallel run.</para>
+    /// </summary>
+    internal Action<string>? Interleave { get; set; }
+
+    // Everything an enqueue does before the queue entry is published -- claims taken, lane resolved.
+    internal const string EnqueueClaimed = "enqueue:claimed";
+
+    // The queue entry is published, so the dispatch is visible to AbandonLane, but it is not in the lane yet.
+    internal const string EnqueueQueued = "enqueue:queued";
+
+    // The lane is out of the map, its writer is completed and abandonment is latched. Claims not yet let go.
+    internal const string AbandonLatched = "abandon:latched";
+
+    // The claims are let go and reported. The lane's token is not cancelled yet.
+    internal const string AbandonReleased = "abandon:released";
+
+    // A lane worker has a dispatch in hand and has not yet decided whether to run it.
+    internal const string LaneRead = "lane:read";
+
+    // A lane worker's command has returned and its cascade has not been offered to the lane yet.
+    internal const string LaneExecuted = "lane:executed";
+
+    private void interleave(string point) => Interleave?.Invoke(point);
+
     internal AgentCommandDispatcher(
         Func<IAgentCommand, CancellationToken, Task<AgentCommands?>> executor,
         ILogger logger,
@@ -153,25 +189,24 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             }
         }
 
-        // The lane is resolved BEFORE the claim is taken, because the claim records which lane owns it.
-        // AbandonLane scans the whole of _queued, so a claim that named no lane yet could be released by an
-        // abandonment it has nothing to do with: the lane removal and this call race, and the loser of that
-        // race gets a fresh lane whose worker goes on to run the command after its claims were handed back.
+        // Lane, then claims, then the queue entry. AbandonLane runs on the health-check thread and can land
+        // between any two of these, and only this order survives it:
+        //
+        //   - the lane first, because the entry records which lane owns the dispatch and an entry naming no
+        //     lane yet is indistinguishable from one belonging to the lane being abandoned;
+        //   - the claims before the entry, because the entry is what makes the dispatch visible to the scan.
+        //     Taken the other way round, a scan in between clears the entry, finds no claims and reports
+        //     nothing -- and the claims that then land are skipped by every later release() on its
+        //     single-shot gate, stranding the agent for the life of the process: suppressed from this
+        //     destination by the freshness filter above, and permanently pending to the leader's ledger.
+        //
+        // Claiming before the entry is safe in both outcomes. For a command that STARTS agents the TryAdd
+        // cannot fail, because an equal command already queued would hold all of these agents against this
+        // same destination and the freshness filter would have returned. A reassignment can collapse onto an
+        // equal command, and then these are the very (agent -> destination) pairs that command already holds,
+        // which its own release clears.
         var lane = laneFor(destination);
 
-        // The claims go up BEFORE the queue entry, and the order matters: the queue entry is what makes this
-        // dispatch visible to AbandonLane, whose scan runs on the health-check thread. Published the other way
-        // round, a scan landing in between takes the entry, finds no claims to clear and reports nothing --
-        // and then the writes below land on claims that every later release() skips on its single-shot gate.
-        // That strands the agent for the life of the process: suppressed from this destination by the
-        // freshness filter above, and forever "pending" to TryFindPendingDestination and so to the leader's
-        // ledger.
-        //
-        // Safe in this order. For a command that STARTS agents the TryAdd below cannot fail, because an equal
-        // command already queued would hold every one of these agents against this same destination and the
-        // freshness filter would have returned. A reassignment can collapse onto an equal command, and then
-        // these are the very (agent -> destination) pairs that command already holds, which its own release
-        // clears.
         foreach (var uri in StartedAgentsOf(command)) _inFlight[uri] = destination;
 
         // Keyed on the node the agents are moving TO, which for a reassignment is not this command's lane --
@@ -182,6 +217,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             foreach (var uri in moving.Value.Agents) _moving[uri] = moving.Value.Destination;
         }
 
+        interleave(EnqueueClaimed);
+
         // Command types without value equality fall back to reference equality and are simply never
         // collapsed, which is the old behaviour.
         var dispatch = new Dispatch(Interlocked.Increment(ref _ticket), lane, command);
@@ -189,6 +226,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         {
             return;
         }
+
+        interleave(EnqueueQueued);
 
         if (!lane.Queue.Writer.TryWrite(dispatch))
         {
@@ -306,6 +345,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         // command either cascades entirely before this or not at all.
         lane.MarkAbandoned();
 
+        interleave(AbandonLatched);
+
         // _queued covers the command the lane is parked on as well as everything behind it: the parked one
         // holds the agents that matter. Only what release() clears is reported -- a command that just
         // finished, or whose claim a re-target has taken over, names agents belonging to a live dispatch.
@@ -324,6 +365,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
             release(pair.Value, nodeId, released);
         }
+
+        interleave(AbandonReleased);
 
         // No need to wait on the worker: it reads a token captured before this, and cancelling first means
         // the one use that would touch the disposed source -- registering a callback -- runs inline instead.
@@ -346,8 +389,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     ///     <para>Driven by the roster rather than by the ejection itself. Ejecting a stale row is not the
     ///     leader's privilege — <c>ejectStaleNodes</c> spares only the <i>current leader's</i> row — so any
     ///     node may delete the corpse, and on a three-node cluster a follower commonly wins that race. The
-    ///     wedged commands exist only on the leader's dispatcher, so releasing from "the node I just ejected"
-    ///     fires on a node with nothing to release; measured, that version was no better than no fix at all.
+    ///     wedged commands exist only on the leader's dispatcher, so keying the release off "the node I just
+    ///     ejected" fires it on a node with nothing to release and leaves the leader's own lanes wedged.
     ///     A membership test gives the same answer whoever performs the delete.</para>
     /// </summary>
     public (Uri Agent, Guid Destination)[] AbandonLanesExcept(IReadOnlySet<Guid> registeredNodes,
@@ -441,6 +484,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             // only afterwards. A command finishing in between would otherwise pick the next buffered
             // dispatch up and execute it -- a live stop or start against a node that has left the cluster,
             // for agents the leader has already been told are free.
+            interleave(LaneRead);
+
             if (_disposing || lane.IsAbandoned)
             {
                 release(dispatch, destination);
@@ -452,6 +497,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             try
             {
                 var cascaded = await _executor(command, lane.Token);
+
+                interleave(LaneExecuted);
 
                 // Nothing cascades out of an abandoned lane. A command that finished normally in the window
                 // after AbandonLane let its claims go -- or one that swallowed the cancellation -- would
