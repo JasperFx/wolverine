@@ -77,6 +77,13 @@ public class deduplication_on_a_marten_transaction : IAsyncLifetime
                     type => type != typeof(MartenDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
+
+        // ResetResourceState clears Wolverine's own tables -- the deduplication table included -- but
+        // leaves the application's Marten documents alone, and the assertions below COUNT those documents.
+        // Without this the class passes on a virgin database and fails on every rerun, which is the worst
+        // shape a test can have: green in CI, red only on the machine of whoever next touches this code.
+        await theHost.Services.GetRequiredService<IDocumentStore>()
+            .Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(MartenDedupDocument));
     }
 
     public async ValueTask DisposeAsync()
