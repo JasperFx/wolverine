@@ -465,7 +465,8 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
                 return Topics[topicName];
         }
 
-        throw new ArgumentOutOfRangeException(nameof(uri));
+        throw new ArgumentOutOfRangeException(nameof(uri),
+            $"Azure Service Bus Uris must use the format '{Protocol}://queue/{{queueName}}', '{Protocol}://topic/{{topicName}}', or '{Protocol}://topic/{{topicName}}/{{subscriptionName}}': {uri}");
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)

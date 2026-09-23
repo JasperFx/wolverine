@@ -65,7 +65,8 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Azure Service Bus subscription '{SubscriptionName}' ({Uri}) is a listen-only endpoint. Azure Service Bus subscriptions cannot be sent to directly. Publish to the parent topic '{Topic.TopicName}' instead with ToAzureServiceBusTopic(\"{Topic.TopicName}\"), and the broker will fan the message out to this subscription.");
     }
 
     public override async ValueTask<bool> CheckAsync()

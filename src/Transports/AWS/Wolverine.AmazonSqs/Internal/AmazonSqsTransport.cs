@@ -46,6 +46,17 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
 
     }
 
+    /// <summary>
+    /// GH-4517: the SQS client is only built during host startup, so a null client has exactly two causes
+    /// a user can act on. Name both instead of the bare "has not been initialized".
+    /// </summary>
+    internal static string NotInitializedMessage(Uri? endpointUri = null)
+    {
+        var target = endpointUri == null ? string.Empty : $" for endpoint '{endpointUri}'";
+        return
+            $"The Amazon SQS transport has not been initialized{target}. Either UseAmazonSqsTransport() was never called on WolverineOptions, or the Wolverine host has not been started yet -- the underlying IAmazonSQS client is created during host startup.";
+    }
+
     public override Uri ResourceUri
     {
         get
@@ -279,7 +290,8 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     {
         if (uri.Scheme != Protocol)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri));
+            throw new ArgumentOutOfRangeException(nameof(uri),
+                $"Amazon SQS Uris must use the format '{Protocol}://{{queueName}}': {uri}");
         }
         return Queues.Where(x => x.Uri.OriginalString == uri.OriginalString).FirstOrDefault() ?? Queues[uri.OriginalString.Split("//")[1].TrimEnd('/')];
     }

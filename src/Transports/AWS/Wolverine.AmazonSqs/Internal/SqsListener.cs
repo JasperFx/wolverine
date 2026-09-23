@@ -45,7 +45,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     {
         if (transport.Client == null)
         {
-            throw new InvalidOperationException("Parent transport has not been initialized");
+            throw new InvalidOperationException(AmazonSqsTransport.NotInitializedMessage(queue.Uri));
         }
 
         _mapper = queue.BuildMapper(runtime);

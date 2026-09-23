@@ -401,7 +401,7 @@ public static class DateTimeOffsetHelper
 
         if (wireFormattedString.Length != format.Length)
         {
-            throw new FormatException(errorMessage);
+            throw new FormatException(errorMessage(wireFormattedString));
         }
 
         var year = 0;
@@ -421,7 +421,7 @@ public static class DateTimeOffsetHelper
                 case 'y':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     year = (year * 10) + (digit - '0');
@@ -430,7 +430,7 @@ public static class DateTimeOffsetHelper
                 case 'M':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     month = (month * 10) + (digit - '0');
@@ -439,7 +439,7 @@ public static class DateTimeOffsetHelper
                 case 'd':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     day = (day * 10) + (digit - '0');
@@ -448,7 +448,7 @@ public static class DateTimeOffsetHelper
                 case 'H':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     hour = (hour * 10) + (digit - '0');
@@ -457,7 +457,7 @@ public static class DateTimeOffsetHelper
                 case 'm':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     minute = (minute * 10) + (digit - '0');
@@ -466,7 +466,7 @@ public static class DateTimeOffsetHelper
                 case 's':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     second = (second * 10) + (digit - '0');
@@ -475,7 +475,7 @@ public static class DateTimeOffsetHelper
                 case 'f':
                     if (digit is < '0' or > '9')
                     {
-                        throw new FormatException(errorMessage);
+                        throw new FormatException(errorMessage(wireFormattedString));
                     }
 
                     microSecond = (microSecond * 10) + (digit - '0');
@@ -492,5 +492,13 @@ public static class DateTimeOffsetHelper
     }
 
     const string format = "yyyy-MM-dd HH:mm:ss:ffffff Z";
-    const string errorMessage = "String was not recognized as a valid DateTime.";
+
+    // GH-4517: the bare "String was not recognized as a valid DateTime." told the user nothing about which
+    // value failed or what shape was expected. This is the NServiceBus interop wire format, carried on
+    // headers like "NServiceBus.TimeSent".
+    static string errorMessage(string wireFormattedString)
+    {
+        return
+            $"'{wireFormattedString}' is not a valid NServiceBus wire-formatted timestamp. The expected format is '{format}' (for example '{DateTimeOffset.UnixEpoch.ToString(format, CultureInfo.InvariantCulture)}'), which is what headers such as 'NServiceBus.TimeSent' carry.";
+    }
 }

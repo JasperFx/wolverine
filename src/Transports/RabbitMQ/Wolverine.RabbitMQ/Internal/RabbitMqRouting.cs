@@ -33,7 +33,8 @@ public class RabbitMqRouting : RabbitMqEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Rabbit MQ routing key '{_routingKey}' on exchange '{_exchange.ExchangeName}' ({Uri}) is a publish-only endpoint. A routing key cannot be listened to directly. Bind a queue to the exchange with that routing key and listen to the queue instead with ListenToRabbitQueue(queueName).");
     }
 
     public override ValueTask<bool> CheckAsync()
