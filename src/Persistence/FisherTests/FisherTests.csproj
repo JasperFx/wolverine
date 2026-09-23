@@ -24,6 +24,9 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="NSubstitute" />
+        <!-- GH-4515: Fisher had zero strong typed identifier coverage; this is what the Marten and Polecat
+             test projects already reference for the same suites. -->
+        <PackageReference Include="StronglyTypedId" />
         <!-- The JasperFx.Events source generator must run on THIS assembly so the aggregate
              evolvers / projection dispatchers for the test aggregates are emitted; there is no
              runtime fallback. Same reasoning as PolecatTests. -->

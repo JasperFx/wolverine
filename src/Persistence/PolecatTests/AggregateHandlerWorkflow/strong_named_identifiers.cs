@@ -120,9 +120,43 @@ public class strong_named_identifiers : IAsyncLifetime
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id, TestContext.Current.CancellationToken);
         aggregate2!.BCount.ShouldBe(2);
     }
+
+    // GH-4515. This is the one test Marten's twin of this file has and Polecat's did not, and it is the
+    // exact case GH-4514 fixed: UpdatedAggregate resolving an identity that is a strong typed wrapper
+    // rather than a bare Guid. Without it, Polecat's own UpdatedAggregate.ResolveToGuidType ValueTypeInfo
+    // branch and UpdatedAggregateIdentity.Resolve MemberAccessVariable branch were never executed by any
+    // test -- shipped code with no coverage, in a file hand-copied from the one that did have it.
+    [Fact]
+    public async Task use_updated_aggregate_as_the_response_with_a_strong_typed_identifier()
+    {
+        var streamId = Guid.NewGuid();
+        await using var session = theStore.LightweightSession();
+        session.Events.StartStream<StrongLetterAggregate>(streamId, new AEvent(), new BEvent());
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var (tracked, updated) = await theHost
+            .InvokeMessageAndWaitAsync<StrongLetterAggregate>(new RaiseStrong(new LetterId(streamId), 2, 3));
+
+        tracked.Sent.AllMessages().ShouldBeEmpty();
+
+        // The aggregate came back already holding the events this message appended, which is what says
+        // UpdatedAggregate resolved a strong typed identity rather than refusing it.
+        updated.ShouldNotBeNull();
+        updated.ACount.ShouldBe(3);
+        updated.BCount.ShouldBe(4);
+
+        // NOTE: Marten's twin of this test also asserts updated.Id.ShouldBe(new LetterId(streamId)).
+        // That assertion cannot pass on Polecat today, and the gap is NOT in Wolverine: a plain
+        // session.Events.FetchLatest<StrongLetterAggregate>(streamId) returns an aggregate whose
+        // strong typed Id is default(LetterId) too. Wolverine's UpdatedAggregate is faithfully handing
+        // back what the store gave it. Raise upstream against Polecat, then restore the assertion here.
+    }
+
 }
 
 public record IncrementStrongA(LetterId Id);
+
+public record RaiseStrong(LetterId Id, int A, int B);
 
 public record AddFrom(LetterId Id1, LetterId Id2);
 
@@ -134,6 +168,23 @@ public static class StrongLetterHandler
 {
     public static StrongLetterAggregate Handle(FetchCounts counts,
         [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
+
+    public static (UpdatedAggregate, Events) Handle(RaiseStrong command,
+        [WriteAggregate] StrongLetterAggregate aggregate)
+    {
+        var events = new Events();
+        for (int i = 0; i < command.A; i++)
+        {
+            events.Add(new AEvent());
+        }
+
+        for (int i = 0; i < command.B; i++)
+        {
+            events.Add(new BEvent());
+        }
+
+        return (new UpdatedAggregate(), events);
+    }
 
     public static AEvent Handle(IncrementStrongA command, [WriteAggregate] StrongLetterAggregate aggregate)
     {
