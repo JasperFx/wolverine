@@ -237,18 +237,28 @@ public partial class AssignmentGrid
 
                 if (candidates.Count == 0)
                 {
-                    // GH-3341: a whole group whose members are all unassigned AND declared by no node is a
-                    // stale-snapshot artifact, not a genuine blue/green gap. A node captures its
-                    // event-subscription capabilities once at startup (StartLocalAgentProcessingAsync), so a
-                    // shard database provisioned after every surviving node started is absent from all their
-                    // snapshots even though every node can run it — the agents are still enumerated as
-                    // supported by AllKnownAgentsAsync. When such a group's incumbent was a departed node,
-                    // the OriginalNode grandfathering above cannot rescue it, and the per-member fallback
-                    // below would park every member: the shard silently stops projecting with no running
-                    // agent, no log, and no self-heal until a restart refreshes the snapshots. Treat the
-                    // whole group as assignable to any node so it always has a home, kept together to
-                    // preserve the connection-pool affinity this method exists to provide.
-                    if (members.All(m => m.AssignedNode == null && m.CandidateNodes.Count == 0))
+                    // GH-3341: a whole partition declared by no node at all is a stale-snapshot artifact,
+                    // not a genuine blue/green gap. A node captures its event-subscription capabilities once
+                    // at startup (StartLocalAgentProcessingAsync), so a shard database provisioned after
+                    // every surviving node started is absent from all their snapshots even though every node
+                    // can run it — the agents are still enumerated as supported by AllKnownAgentsAsync. When
+                    // such a group's incumbent was a departed node, the OriginalNode grandfathering above
+                    // cannot rescue it, and the per-member fallback below would park every member: the shard
+                    // silently stops projecting with no running agent, no log, and no self-heal until a
+                    // restart refreshes the snapshots. Treat the whole partition as assignable to any node so
+                    // it always has a home, kept together to preserve the connection-pool affinity this
+                    // method exists to provide.
+                    //
+                    // GH-4562: this tests the partition's capabilities ONLY, never whether its members are
+                    // running. Every member of a partition shares one capabilityKey — the sorted ids of its
+                    // candidate nodes — so either all of them are declared by no node or none of them are,
+                    // and "undeclared" is the whole of the condition. It used to also require every member to
+                    // be unassigned, which was redundant while a single running member grandfathered its node
+                    // into the candidates and covered the rest. Now that grandfathering is per member, a node
+                    // running PART of an undeclared partition no longer carries the rest, so this is the only
+                    // thing standing between such a partition and the per-member fallback, which would
+                    // scatter it one agent per node and open a connection pool per node to that database.
+                    if (members.All(m => m.CandidateNodes.Count == 0))
                     {
                         candidates = nodes;
                     }
