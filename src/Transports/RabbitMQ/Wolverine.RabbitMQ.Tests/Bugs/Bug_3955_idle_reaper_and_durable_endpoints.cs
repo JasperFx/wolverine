@@ -66,7 +66,7 @@ public class Bug_3955_idle_reaper_and_durable_endpoints : IAsyncLifetime
                 // no subscriptions and AutoStartSendingAgent() is false. That is the whole setup.
                 opts.Publish(p => p.ToRabbitQueue(_queueName).UseDurableOutbox());
 
-                opts.ListenToRabbitQueue(_queueName);
+                opts.ListenToRabbitQueue(_queueName).UseDurableInbox();
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();

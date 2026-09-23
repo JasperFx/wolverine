@@ -110,7 +110,7 @@ public class NatsDeadLetterSubjectTests
                     .UseJetStream(stream, $"dlqforward-consumer-{id}")
                     .ConfigureDeadLetterQueue(1, deadLetterSubject);
 
-                opts.PublishMessage<PoisonMessage>().ToNatsSubject(subject).UseJetStream(stream).SendInline();
+                opts.PublishMessage<PoisonMessage>().ToNatsSubject(subject).UseJetStream(stream);
 
                 opts.Policies.OnException<PoisonPillException>().MoveToErrorQueue();
             })

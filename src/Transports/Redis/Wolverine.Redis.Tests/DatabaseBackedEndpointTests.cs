@@ -31,7 +31,7 @@ public class DatabaseBackedEndpointTests
             {
                 opts.ServiceName = "DatabaseBackedEndpointTest";
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
-                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -57,7 +57,7 @@ public class DatabaseBackedEndpointTests
             {
                 opts.ServiceName = "DatabaseBackedEndpointTest";
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
-                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -121,7 +121,7 @@ public class DatabaseBackedEndpointTests
             {
                 opts.ServiceName = "DatabaseBackedEndpointTest";
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
-                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -181,7 +181,7 @@ public class DatabaseBackedEndpointTests
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
-                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<TestMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 

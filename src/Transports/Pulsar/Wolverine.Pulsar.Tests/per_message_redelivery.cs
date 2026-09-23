@@ -34,7 +34,7 @@ public class per_message_redelivery
         using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
-            opts.PublishMessage<RedeliveryMessage>().ToPulsarTopic(topic).SendInline();
+            opts.PublishMessage<RedeliveryMessage>().ToPulsarTopic(topic);
             // With UseNativeRedelivery, a failure with no retry-letter/DLQ configured leaves the
             // message unacknowledged and asks Pulsar to redeliver just it.
             opts.ListenToPulsarTopic(topic)

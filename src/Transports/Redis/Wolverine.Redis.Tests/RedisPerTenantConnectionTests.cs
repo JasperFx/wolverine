@@ -95,7 +95,7 @@ public class RedisPerTenantConnectionTests : IClassFixture<SecondRedisServerFixt
                     .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
                     .AddTenant("tenantB", _serverBConn);
 
-                opts.PublishMessage<RedisBrokerMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<RedisBrokerMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "tenant-group");
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

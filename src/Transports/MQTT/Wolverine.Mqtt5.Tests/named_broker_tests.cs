@@ -159,7 +159,7 @@ public class named_broker_tests : IAsyncLifetime
                     builder.WithClientOptions(o => o.WithTcpServer("127.0.0.1", _portB)));
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.PublishMessage<NamedColor>().ToMqttTopicOnNamedBroker(theName, topic).SendInline();
+                opts.PublishMessage<NamedColor>().ToMqttTopicOnNamedBroker(theName, topic);
                 opts.ListenToMqttTopicOnNamedBroker(theName, topic);
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 

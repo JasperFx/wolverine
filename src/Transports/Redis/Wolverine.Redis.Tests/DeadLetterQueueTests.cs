@@ -36,7 +36,7 @@ public class DeadLetterQueueTests
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 // Configure routing to our test stream
-                opts.PublishMessage<FailingCommand>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<FailingCommand>().ToRedisStream(streamKey);
                 
                 var listenerConfig = opts.ListenToRedisStream(streamKey, "dlq-test-group")
                     .StartFromBeginning();
