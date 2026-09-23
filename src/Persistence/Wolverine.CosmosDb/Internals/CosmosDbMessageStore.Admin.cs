@@ -6,9 +6,43 @@ namespace Wolverine.CosmosDb.Internals;
 
 public partial class CosmosDbMessageStore : IMessageStoreAdmin
 {
-    public Task DeleteAllHandledAsync()
+    /// <summary>
+    /// GH-4509. Used to throw <c>NotSupportedException</c>, so the built-in <c>clear-handled</c> command
+    /// failed outright on this provider — leaving no way to clean up after the fact, on the one store where
+    /// handled envelopes were never swept in the first place.
+    /// </summary>
+    /// <remarks>
+    /// The same query the durability agent's <c>tryDeleteExpiredHandledEnvelopes</c> runs, minus the
+    /// <c>keepUntil</c> predicate: this is the deliberate "clear them all now" verb, not the timed sweep, so
+    /// it is neither batched nor bounded.
+    /// </remarks>
+    public async Task DeleteAllHandledAsync()
     {
-        throw new NotSupportedException("This function is not yet supported by CosmosDb");
+        var query = new QueryDefinition(
+                "SELECT c.id, c.partitionKey FROM c WHERE c.docType = @docType AND c.status = @status")
+            .WithParameter("@docType", DocumentTypes.Incoming)
+            .WithParameter("@status", EnvelopeStatus.Handled);
+
+        using var iterator = _container.GetItemQueryIterator<dynamic>(query);
+
+        while (iterator.HasMoreResults)
+        {
+            var response = await iterator.ReadNextAsync();
+            foreach (var item in response)
+            {
+                string id = item.id;
+                string partitionKey = item.partitionKey;
+
+                try
+                {
+                    await _container.DeleteItemAsync<dynamic>(id, new PartitionKey(partitionKey));
+                }
+                catch (CosmosException)
+                {
+                    // Best effort, matching DeleteByDocTypeAsync
+                }
+            }
+        }
     }
 
     public async Task ClearAllAsync()
