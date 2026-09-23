@@ -51,10 +51,14 @@ public static class ExternalDbTransportExtensions
 
         var serializer = runtime.Options.FindSerializer(EnvelopeConstants.JsonContentType);
         var json = serializer.WriteMessage(message);
-        var database = runtime.Storage.As<IExternalDbTransportStore>();
-        if (database is null)
+        // `as`, not As<T>(): JasperFx's As<T> is a hard cast, so the null check that used to follow it
+        // here was unreachable and a non-relational message store got a bare InvalidCastException
+        // instead of this explanation. InvalidOperationException to match the equivalent guards in
+        // ExternalMessageTable.BuildListenerAsync and ExternalMessageTableListener.
+        if (runtime.Storage is not IExternalDbTransportStore database)
         {
-            throw new NotImplementedException($"The configured message store '{runtime.Storage.GetType().FullName}' does not implement {nameof(IExternalDbTransportStore)}");
+            throw new InvalidOperationException(
+                $"The external table transport option can only be used in combination with a relational database message storage option, but the message store is {runtime.Storage.GetType().FullName}");
         }
         var messageTypeName = message.GetType().ToMessageTypeName();
 

@@ -212,8 +212,36 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
 
         var envelope = tracked.Received.SingleEnvelope<T>();
         envelope.Destination.ShouldBe(new Uri($"external-table://{endpointName}/"));
+
+        // The poller deletes the source rows in the same transaction that stores them to the inbox,
+        // and only calls ReceivedAsync after that commits -- so by the time the tracked session is
+        // done the table must be empty, with no polling needed here. Asserting only on the received
+        // envelope would let a delete that quietly matches no rows pass: the message still arrives,
+        // the test still goes green, and the row is redelivered on every subsequent poll forever.
+        var storage = host.Services.GetRequiredService<IMessageStore>().As<IExternalDbTransportStore>();
+        (await countRowsAsync(storage, table.TableName, token))
+            .ShouldBe(0, $"The external message table {table.TableName.QualifiedName} should have been drained");
+
         await host.StopAsync(token);
     }
+
+    private async Task<long> countRowsAsync(IExternalDbTransportStore storage, DbObjectName tableName,
+        CancellationToken token)
+    {
+        await using var conn = await storage.DataSource.OpenConnectionAsync(token);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"select count(*) from {qualifiedTableNameFor(tableName)}";
+
+        // Convert rather than cast: providers disagree on the CLR type of count(*) -- Oracle hands
+        // back a decimal, PostgreSQL a long, SQLite a long, Sql Server an int.
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(token));
+    }
+
+    /// <summary>
+    /// How this provider spells the external table in SQL. Overridden for engines with no schemas,
+    /// where Wolverine folds the schema name into a table-name prefix instead.
+    /// </summary>
+    protected virtual string qualifiedTableNameFor(DbObjectName tableName) => tableName.QualifiedName;
 
     #endregion
 }
