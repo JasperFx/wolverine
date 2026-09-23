@@ -45,7 +45,11 @@ public static class TenancyProblemMapping
         return new ProblemDetails
         {
             Status = UnknownTenantStatusCode,
-            Title = "Unknown tenant",
+            // GH-4586: DisabledTenantException subclasses UnknownTenantIdException, so it arrives here
+            // too. The status code is deliberately the same -- from outside, a tenant that was switched
+            // off is not addressable -- but titling it "Unknown tenant" would tell an operator the
+            // opposite of what happened.
+            Title = ex is DisabledTenantException ? "Disabled tenant" : "Unknown tenant",
             Detail = ex.Message
         };
     }
