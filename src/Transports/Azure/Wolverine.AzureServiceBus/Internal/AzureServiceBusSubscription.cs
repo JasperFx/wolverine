@@ -63,6 +63,11 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         return Parent.BuildListenerForSubscription(runtime, receiver, this);
     }
 
+    // GH-4510. Structural, not just a throw: a sticky handler binding used to make LocalTransport treat this
+    // receive-only subscription as a local send target, and building the sender took host startup down from
+    // inside PrepopulateRoutingCache. Answering false here keeps it out of routing entirely.
+    protected internal override bool supportsSending => false;
+
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         throw new NotSupportedException(

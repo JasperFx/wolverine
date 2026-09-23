@@ -855,6 +855,29 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected virtual bool supportsNativeAck => false;
 
     /// <summary>
+    /// GH-4510. Can anything ever <em>send</em> to this endpoint? Default is <c>true</c>: almost every endpoint is
+    /// either bidirectional or outbound. A listen-only endpoint answers <c>false</c> -- an Azure Service Bus
+    /// subscription (you publish to its topic instead) and a Kafka topic group (you publish to the topic) are the
+    /// two today, and both previously answered a <c>CreateSender</c> call by throwing.
+    ///
+    /// <para>
+    /// This exists because a sticky handler binding says only "deliver this message type to this listener". It is
+    /// not a claim that the endpoint is a valid local send target -- but <see cref="Transports.Local.LocalTransport"/>
+    /// treated every sticky-bound endpoint as one, so <c>PrepopulateRoutingCache</c> built a sending agent for a
+    /// receive-only subscription at startup and took the whole host down with it. A structural answer here is
+    /// better than catching the throw, because it also keeps such an endpoint out of routing tables and
+    /// diagnostics where it never belonged.
+    /// </para>
+    /// </summary>
+    protected internal virtual bool supportsSending => true;
+
+    /// <summary>
+    /// GH-4510. Public read of <see cref="supportsSending"/> for the routing and local-transport code that has to
+    /// ask the question from outside the endpoint's own assembly.
+    /// </summary>
+    internal bool CanSend => supportsSending;
+
+    /// <summary>
     /// GH-4060. Can a message handed back to this listener with <see cref="IChannelCallback.DeferAsync"/> ever be
     /// delivered again? Default is <c>true</c>: nearly every listener sits on a broker cursor or a durable inbox
     /// row, so "hand this back" genuinely means "try it again later".
