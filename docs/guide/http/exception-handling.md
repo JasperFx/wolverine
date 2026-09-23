@@ -248,6 +248,39 @@ methods are optimistic and throw `EventStreamUnexpectedMaxEventIdException`, whi
 `ConcurrencyException`.
 :::
 
+## Unknown Tenants as 404 <Badge type="tip" text="6.39" />
+
+There are two different tenancy failures on an HTTP request, and only one of them was handled:
+
+| Failure | Meaning | Status |
+| --- | --- | --- |
+| **Missing** tenant id | "you did not say which tenant" | 400, already handled by `[RequiresTenant]` / `TenantId.AssertExists()` |
+| **Unknown** tenant id | "the tenant you named does not exist" | was an unhandled **500** |
+
+An unknown tenant id throws `JasperFx.MultiTenancy.UnknownTenantIdException` from the store or from
+Wolverine's own tenant sources. That is a client side error, so:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.MapUnknownTenantToNotFound();
+});
+```
+
+maps it to a 404 `ProblemDetails` titled `Unknown tenant`, and stamps `ProducesProblem(404)` on the tenanted
+chains so your OpenAPI document advertises it. It applies by default to chains declared `[RequiresTenant]` or
+`[MaybeTenanted]` -- a chain that resolves no tenant cannot fail to resolve one -- and takes the same optional
+predicate the other mappings do.
+
+::: tip Why 404 and not 400
+404 reads as "the thing you addressed does not exist", which keeps 400 meaning "you did not say which
+tenant". Collapsing both onto one status loses the distinction a caller needs to tell a routing bug from a
+provisioning one.
+:::
+
+For **message handlers** the equivalent guidance is `OnException<UnknownTenantIdException>().MoveToErrorQueue()`
+-- never retry it, since it is deterministic.
+
 ### Rolling your own
 
 If you want different status codes, a different `ProblemDetails` shape, or extra exception types, the
