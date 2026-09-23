@@ -40,8 +40,29 @@ public partial class AssignmentGrid
 
         public int AssignedId { get; }
         public Guid NodeId { get; }
-        
+
         public bool IsLeader { get; internal set; }
+
+        /// <summary>
+        ///     The load percentage this node advertised on its last heartbeat, or null when it isn't
+        ///     advertising load. See <see cref="WolverineNode.LoadFactor" />.
+        /// </summary>
+        public double? LoadFactor { get; internal set; }
+
+        /// <summary>
+        ///     Whether the leader considers this node overloaded for this evaluation
+        ///     (<see cref="LoadFactor" /> at or above
+        ///     <see cref="DurabilitySettings.NodeOverloadThreshold" />): the distribution methods shed
+        ///     agents off it. Never true unless capacity-aware assignment is enabled.
+        /// </summary>
+        public bool IsOverloaded { get; internal set; }
+
+        /// <summary>
+        ///     Whether this node may receive new agent placements this evaluation. Sits a hysteresis
+        ///     band below the shed line, so a node between the two thresholds neither sheds nor
+        ///     receives. Always true when capacity-aware assignment is off.
+        /// </summary>
+        public bool IsAcceptingAgents { get; internal set; } = true;
 
         public IReadOnlyList<Agent> Agents => _agents;
         public Uri? ControlUri { get; set; }

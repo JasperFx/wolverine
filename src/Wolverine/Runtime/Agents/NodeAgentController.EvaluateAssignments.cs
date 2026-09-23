@@ -103,13 +103,28 @@ public partial class NodeAgentController
         }
         
         var grid = new AssignmentGrid();
+        grid.OverloadShedBatchSize = Math.Max(1, _runtime.Options.Durability.OverloadShedBatchSize);
 
         var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
         grid.WithAgents(capabilities);
-        
+
+        var capacityAware = _runtime.Options.Durability.CapacityAwareAssignment;
+        var overloadThreshold = _runtime.Options.Durability.NodeOverloadThreshold;
+
         foreach (var node in nodes)
         {
-            grid.WithNode(node);
+            var gridNode = grid.WithNode(node);
+
+            // GH-3959: only the leader flags overload, and only when the feature is on — a node that
+            // advertises no load always counts as having headroom, which keeps stores without load
+            // persistence on today's behavior. The receive line sits a 10-point hysteresis band below
+            // the shed line so placement and shedding never fight around one threshold.
+            gridNode.IsOverloaded = capacityAware
+                                    && gridNode.LoadFactor.HasValue
+                                    && gridNode.LoadFactor.Value >= overloadThreshold;
+            gridNode.IsAcceptingAgents = !capacityAware
+                                         || !gridNode.LoadFactor.HasValue
+                                         || gridNode.LoadFactor.Value < Math.Max(0, overloadThreshold - 10);
         }
 
         // GH-3785: the durability family places each database's agent next to that database's

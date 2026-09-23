@@ -49,6 +49,12 @@ public partial class AssignmentGrid
     /// </summary>
     public DateTimeOffset EvaluationTime { get; internal set; }
 
+    /// <summary>
+    ///     How many agents per scheme the distribution methods detach from an overloaded node in one
+    ///     evaluation. Stamped from <see cref="DurabilitySettings.OverloadShedBatchSize" />.
+    /// </summary>
+    public int OverloadShedBatchSize { get; internal set; } = 1;
+
     public IReadOnlyList<Agent> AgentsForScheme(string scheme)
     {
         return _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
@@ -82,6 +88,7 @@ public partial class AssignmentGrid
     {
         var node = new Node(this, wolverineNode.AssignedNodeNumber, wolverineNode.NodeId, wolverineNode.Capabilities);
         node.ControlUri = wolverineNode.ControlUri;
+        node.LoadFactor = wolverineNode.LoadFactor;
 
         node.IsLeader = wolverineNode.ActiveAgents.Contains(NodeAgentController.LeaderUri);
         
