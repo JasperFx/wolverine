@@ -49,6 +49,20 @@ public partial class AssignmentGrid
     /// </summary>
     public DateTimeOffset EvaluationTime { get; internal set; }
 
+    /// <summary>
+    ///     How many agents per scheme the distribution methods move off an overloaded node in one
+    ///     evaluation. Stamped from <see cref="DurabilitySettings.OverloadShedBatchSize" />.
+    /// </summary>
+    public int OverloadShedBatchSize { get; internal set; } = 1;
+
+    /// <summary>
+    ///     The load reading a node that advertises nothing is ordered as. Deliberately mid-range: such
+    ///     a node is still eligible for placement, but must not outrank nodes that have actually
+    ///     reported themselves lightly loaded. See the ordering in
+    ///     <see cref="DistributeEvenly(string, Func{Uri, bool})" />.
+    /// </summary>
+    internal const double UnadvertisedLoadBand = 50;
+
     public IReadOnlyList<Agent> AgentsForScheme(string scheme)
     {
         return _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
@@ -82,6 +96,7 @@ public partial class AssignmentGrid
     {
         var node = new Node(this, wolverineNode.AssignedNodeNumber, wolverineNode.NodeId, wolverineNode.Capabilities);
         node.ControlUri = wolverineNode.ControlUri;
+        node.LoadFactor = wolverineNode.LoadFactor;
 
         node.IsLeader = wolverineNode.ActiveAgents.Contains(NodeAgentController.LeaderUri);
         

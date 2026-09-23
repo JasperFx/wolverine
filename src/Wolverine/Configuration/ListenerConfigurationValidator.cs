@@ -125,6 +125,33 @@ internal static class ListenerConfigurationValidator
                 "all of them, or remove CircuitBreaker().");
         }
 
+        // GH-4059. Mode is ONE property governing both directions, so on any transport where publishing and
+        // listening resolve to the same Endpoint object -- a RabbitMQ queue, a Redis stream, a Pulsar topic --
+        // whichever side's delayed configuration is applied last wins and the other side's request vanishes
+        // without a word. Two people hit this independently within an hour while building the Redis Streams
+        // and Pulsar transports (#4046, #4047).
+        //
+        // A warning rather than a refusal, deliberately. "Send inline, receive durably" is a coherent thing
+        // to want, and with a single Mode property Wolverine cannot express it -- so throwing would refuse a
+        // configuration that is meaningful rather than mistaken, with no remedy but to give one of them up.
+        // Separating the two into a distinct SendingMode is the real fix and needs its own migration story.
+        if (endpoint.ListenerRequestedMode is { } listenerMode
+            && endpoint.SubscriberRequestedMode is { } subscriberMode
+            && listenerMode != subscriberMode)
+        {
+            var loser = endpoint.Mode == listenerMode ? subscriberMode : listenerMode;
+            var losingSide = endpoint.Mode == listenerMode ? "publishing" : "listening";
+
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Warning,
+                $"Conflicting endpoint mode for {describe(endpoint)}: the listening side asked for " +
+                $"{listenerMode} and the publishing side asked for {subscriberMode}. This endpoint is both, and " +
+                $"EndpointMode is a single property covering both directions, so only one request can survive: " +
+                $"Wolverine is running it as {endpoint.Mode} and the {losingSide} side's {loser} was discarded. " +
+                "Which one wins depends on the order Wolverine applies the two configuration blocks, so this is " +
+                "not stable across changes elsewhere. Configure the mode on one side only, or split the " +
+                "publishing and listening sides onto separate endpoints if they genuinely need different modes.");
+        }
+
         if (endpoint.Mode != EndpointMode.Inline)
         {
             yield break;
@@ -155,13 +182,30 @@ internal static class ListenerConfigurationValidator
 
         if (endpoint.GroupShardingSlotNumber.HasValue)
         {
+            // GH-4059. Who actually asked for Inline decides what the remedy is. When a sending-side SendInline()
+            // overwrote the listener's own mode, telling the reader to "use ProcessInParallelWithNativeAcks()
+            // instead of ProcessInline()" sends them looking for a ProcessInline() call they never wrote -- and if
+            // their listener already said ProcessInParallelWithNativeAcks(), as the report in #4059 did, the advice
+            // is to make a change they have made already.
+            var imposedBySender = endpoint.SubscriberRequestedMode == EndpointMode.Inline
+                                  && endpoint.ListenerRequestedMode is { } requested
+                                  && requested != EndpointMode.Inline;
+
+            var remedy = imposedBySender
+                ? $"Nothing on the listening side asked for Inline: a SendInline() on the PUBLISHING side of this same " +
+                  $"endpoint overwrote the {endpoint.ListenerRequestedMode} the listener asked for, because EndpointMode is " +
+                  "a single property covering both directions. Remove SendInline() from the publishing rule for this " +
+                  "endpoint -- BufferedInMemory() or UseDurableOutbox() on the sending side leave the listener's mode " +
+                  "alone -- or split publishing and listening onto separate endpoints."
+                : "If you want partitioned processing AND native broker acks, use ProcessInParallelWithNativeAcks() " +
+                  "instead of ProcessInline() -- that mode exists for exactly this combination (GH-3708). Otherwise use " +
+                  "BufferedInMemory() or UseDurableInbox(), or remove PartitionProcessingByGroupId() from this endpoint.";
+
             yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal,
                 $"Invalid listener configuration for {name}: PartitionProcessingByGroupId() was configured on an Inline endpoint. " +
                 "Partitioned processing is implemented by Wolverine's local execution block, and an Inline endpoint executes each message " +
                 "directly on the transport's listening callback without one -- so the group id ordering guarantee would silently not exist. " +
-                "If you want partitioned processing AND native broker acks, use ProcessInParallelWithNativeAcks() " +
-                "instead of ProcessInline() -- that mode exists for exactly this combination (GH-3708). Otherwise use " +
-                "BufferedInMemory() or UseDurableInbox(), or remove PartitionProcessingByGroupId() from this endpoint.");
+                remedy);
         }
 
         if (endpoint.DiscardedMaxDegreeOfParallelism is { } discarded)

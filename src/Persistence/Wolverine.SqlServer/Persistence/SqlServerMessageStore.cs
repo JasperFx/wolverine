@@ -155,6 +155,59 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         return false;
     }
 
+    /// <summary>
+    /// GH-4565. Whether <paramref name="ex"/> is a unique-constraint violation raised by the INBOX table
+    /// specifically, as opposed to anywhere else in the transaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>Distinct from <see cref="isExceptionFromDuplicateEnvelope"/>, which is deliberately
+    /// table-agnostic: its caller has already established that the failing insert was the inbox one, and it
+    /// is reused for the deduplication table and the dynamic listener registry. This predicate is for
+    /// callers with no such context — the <c>Discard()</c> rule in <c>PolecatIntegration</c>, which sees
+    /// every exception a handler's transaction can raise.</para>
+    ///
+    /// <para><c>SqlException</c> carries no table name, but 2627 / 2601 always name the object in the
+    /// message: <c>Violation of PRIMARY KEY constraint 'pkey_x'. Cannot insert duplicate key in object
+    /// 'schema.table'.</c> Nothing but the message will say, so the message is what is read.</para>
+    /// </remarks>
+    public static bool IsDuplicateIncomingEnvelope(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is SqlException sqlEx
+                && (sqlEx.Number == 2627 || sqlEx.Number == 2601)
+                && IncomingTableNaming.IsIncomingTable(objectNameFrom(sqlEx.Message)))
+            {
+                return true;
+            }
+
+            if (current is AggregateException aggregate
+                && aggregate.InnerExceptions.Any(IsDuplicateIncomingEnvelope))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The object name out of <c>Cannot insert duplicate key in object 'schema.table'</c>, or null when the
+    /// message is not that shape.
+    /// </summary>
+    private static string? objectNameFrom(string message)
+    {
+        const string marker = "in object '";
+
+        var start = message.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+
+        start += marker.Length;
+        var end = message.IndexOf('\'', start);
+
+        return end < 0 ? null : message.Substring(start, end - start);
+    }
+
     public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
     {
         // DELETE TOP bounds each statement so locks are held only briefly, reducing contention

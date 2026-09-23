@@ -114,6 +114,22 @@ public partial class WolverineRuntime
                     "Configure a message store (e.g. PersistMessagesWithPostgresql) to make the policy effective.");
             }
 
+            // GH-3959: capacity-aware assignment has no default load monitor, on purpose. A node that
+            // advertises nothing is treated by the leader as having unlimited headroom, so falling back
+            // to "no monitor" here would turn the feature on and then quietly make this node the
+            // cluster's preferred placement target -- the opposite of what was asked for. Refuse at
+            // startup instead, where the person can still do something about it.
+            if (Options.Durability.CapacityAwareAssignment && Options.Durability.NodeLoadMonitor == null)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(DurabilitySettings.CapacityAwareAssignment)} is enabled but no " +
+                    $"{nameof(DurabilitySettings.NodeLoadMonitor)} was supplied. Capacity-aware assignment " +
+                    "needs a way to sample this node's load, and there is no default because what 'load' " +
+                    $"means depends on the application. Assign an {nameof(INodeLoadMonitor)} -- " +
+                    $"{nameof(MemoryPressureLoadMonitor)} covers the memory case -- or set " +
+                    $"{nameof(DurabilitySettings.CapacityAwareAssignment)} back to false.");
+            }
+
             if (Options.Schedules.Any())
             {
                 // "Silently never fires" is not a degradation, it is a refusal: these modes run no
