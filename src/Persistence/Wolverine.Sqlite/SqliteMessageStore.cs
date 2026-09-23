@@ -136,6 +136,41 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     }
 
     /// <summary>
+    /// GH-4567. Bound the handled-envelope reap, as PostgreSQL and SQL Server already do. Without an
+    /// override the base returns null and <c>DeleteExpiredHandledEnvelopesCommand</c> falls back to one
+    /// unbounded statement.
+    /// </summary>
+    /// <remarks>
+    /// SQLite has no <c>DELETE ... LIMIT</c> in its default build, but every ordinary table has a
+    /// <c>rowid</c>, so the bound goes through a subquery — the same shape as PostgreSQL's <c>ctid</c> one.
+    /// It matters more here than anywhere else: a SQLite write takes a lock over the whole database file
+    /// and there is only one writer, so a long reap stalls every other write in the application, not just
+    /// contending inbox traffic.
+    /// </remarks>
+    public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
+    {
+        var table = this.TableNameFor(DatabaseConstants.IncomingTable);
+
+        return
+            $"delete from {table} where rowid in (select rowid from {table} " +
+            $"where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @now limit {batchSize});";
+    }
+
+    /// <summary>
+    /// GH-4567. Bound the deduplication-claim reap. Fisher-backed applications took the unbounded path,
+    /// and a busy chain under the default 24-hour window accumulates a day of claims before the reaper
+    /// runs. Same rowid bound as <see cref="BatchedDeleteExpiredHandledEnvelopesSql"/>.
+    /// </summary>
+    public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
+    {
+        var table = this.TableNameFor(DatabaseConstants.DeduplicationTableName);
+
+        return
+            $"delete from {table} where rowid in (select rowid from {table} " +
+            $"where {DatabaseConstants.Expires} <= @now limit {batchSize});";
+    }
+
+    /// <summary>
     /// GH-4565. Whether <paramref name="ex"/> is a unique-constraint violation raised by the INBOX table
     /// specifically, as opposed to anywhere else in the transaction.
     /// </summary>

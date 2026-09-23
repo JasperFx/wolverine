@@ -167,7 +167,39 @@ public sealed class DurabilityHealthSignals
 
         var pendingNow = counts.Incoming + counts.Outgoing;
         var pendingPrev = _previousCounts!.Incoming + _previousCounts.Outgoing;
-        if (pendingNow > 0 && pendingNow >= pendingPrev)
+
+        // GH-4499, and GH-4476's principle a second time. A depth reading cannot tell "these 50 envelopes
+        // are stuck" from "50 envelopes are always in flight", because a count does not say whether they
+        // are the SAME rows -- and a service under steady load holds a roughly constant non-zero depth as
+        // envelopes drain and are replaced between polls. Judging on depth alone reported Degraded over a
+        // run in which 5,000 envelopes drained, with a message saying they had not drained. On the fleet
+        // that produced GH-4476 this sibling was another 12 of 271 active alerts.
+        //
+        // Handled is the discriminator: it counts work COMPLETED since the last poll, which is the one
+        // question a depth cannot answer. It costs no new query -- the store already reports it.
+        //
+        // UNCHANGED is the test, not "did not rise". Each of the three readings means something different:
+        //
+        //  * A RISE is completions. The batch is moving.
+        //  * UNCHANGED is the only unambiguous evidence of no progress: nothing completed and nothing was
+        //    swept.
+        //  * A FALL is the periodic sweep of handled rows, and is ambiguous -- rows may have been added and
+        //    reaped inside the same window. So it stands the signal down rather than counting as no
+        //    progress, because a sweep outpacing completions on a busy store would otherwise manufacture
+        //    exactly the alert this fix exists to remove. A genuinely stuck store still gets reported: with
+        //    nothing completing, the sweep drains the handled rows within a few polls and the count then
+        //    sits flat, so the signal is delayed rather than lost.
+        //
+        // Handled tracks the INBOX only. A successfully sent outgoing envelope is DELETED rather than
+        // marked, and PersistedCounts has no outbox equivalent, so a stuck outbox on a service whose inbox
+        // is busy is NOT caught here. That is deliberate: it is the same rule the ScheduledDue null case
+        // below already sets -- a check that cannot interpret what it is reading stands down instead of
+        // guessing -- and it is the direction that does not manufacture alerts. Catching it needs a "sent
+        // since the last poll" counter from the store, which is a store-side change rather than a tweak
+        // here.
+        var noProgress = counts.Handled == _previousCounts.Handled;
+
+        if (pendingNow > 0 && pendingNow >= pendingPrev && noProgress)
         {
             _stuckRecoveryCycles++;
             if (_stuckRecoveryCycles >= threshold)
