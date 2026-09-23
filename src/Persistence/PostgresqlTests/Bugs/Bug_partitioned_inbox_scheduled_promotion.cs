@@ -196,6 +196,44 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
     }
 
     /// <summary>
+    /// The mark-as-handled that transactional middleware (EfCoreEnvelopeTransaction) issues inside the application's
+    /// own transaction has to survive the same pair. It used to be a separate statement matching the id alone with no
+    /// status predicate, so moving the redelivered row into the handled partition collided with the retained one.
+    /// </summary>
+    [Fact]
+    public async Task a_redelivered_row_can_be_retired_inside_the_callers_transaction()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        var redelivered = ObjectMother.Envelope();
+        redelivered.Id = envelope.Id;
+        redelivered.Destination = redeliveryDestinationFor(envelope);
+        redelivered.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+
+        // Guard: the pair the partitioned key permits
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
+
+        var database = (IMessageDatabase)thePersistence;
+        await using (var conn = await database.DataSource.OpenConnectionAsync(cancellation))
+        {
+            await using var tx = await conn.BeginTransactionAsync(cancellation);
+            await database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, redelivered,
+                DateTimeOffset.UtcNow.AddMinutes(5), cancellation);
+            await tx.CommitAsync(cancellation);
+        }
+
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled"]);
+    }
+
+    /// <summary>
     /// GH-4216. <c>ScheduleExecutionAsync</c> matched the identity with no status predicate and then SET
     /// status, so under partitioning it moved EVERY row for the identity into the scheduled partition --
     /// including a retained handled row it was never given. Two rows onto one scheduled key is a 23505, and
