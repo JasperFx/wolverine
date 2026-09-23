@@ -8,8 +8,17 @@ namespace Wolverine.Configuration;
 /// GH-4527. Thrown once, at the top of Wolverine's startup, naming <b>every</b> connection string the
 /// application asked for by name and could not find -- rather than one at a time from inside whichever DI
 /// factory happened to be resolved first.
+///
+/// <para>
+/// Derives from <see cref="InvalidOperationException"/> on purpose. This replaced a bare
+/// <c>InvalidOperationException</c> that the named-connection DI factories used to throw, so anything
+/// already catching that -- application code, and Wolverine's own
+/// <c>UseKafkaUsingNamedConnectionTests.throws_when_connection_string_is_missing</c> -- keeps working.
+/// Deriving straight from <see cref="Exception"/> made this a silent breaking change for every such
+/// catch block.
+/// </para>
 /// </summary>
-public class MissingNamedConnectionStringsException : Exception
+public class MissingNamedConnectionStringsException : InvalidOperationException
 {
     public MissingNamedConnectionStringsException(IReadOnlyList<NamedConfigurationDependency> missing,
         IReadOnlyList<string> configuredNames)
