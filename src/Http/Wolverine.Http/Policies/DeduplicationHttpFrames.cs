@@ -82,6 +82,7 @@ internal class DeduplicationProblemDetailsFrame : AsyncFrame
 internal class ReleaseDeduplicationIdOnHttpFailureFrame : ReleaseDeduplicationIdOnFailureFrame
 {
     private Variable? _httpResponse;
+    private Variable? _httpContext;
 
     public ReleaseDeduplicationIdOnHttpFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
         : base(deduplicationId, ancillaryStoreMarker)
@@ -91,10 +92,28 @@ internal class ReleaseDeduplicationIdOnHttpFailureFrame : ReleaseDeduplicationId
     protected override string BuildReleaseCondition()
         => $"({ThrewFlag} || {_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} >= 400)";
 
+    /// <summary>
+    /// GH-4547. The finally alone is too late: WriteProblems flushes the failure response and only then
+    /// does the finally run the DELETE, so a prompt retry under the same key can beat the release and be
+    /// refused as a duplicate for work that never happened. Registering an OnStarting callback here --
+    /// before the try, so the claim already exists -- closes the window, because those callbacks are
+    /// awaited before the response headers go out. The finally stays for the paths where no response ever
+    /// starts.
+    /// </summary>
+    protected override void writeBeforeTry(ISourceWriter writer)
+    {
+        writer.WriteComment("GH-4547: release the claim BEFORE a failure response is flushed to the caller");
+        writer.Write(
+            $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.ReleaseDeduplicationClaimBeforeFailureResponse)}({_httpContext!.Usage}, {DeduplicatorUsage}, {DeduplicationId.Usage}, {AncillaryStoreMarkerUsage});");
+    }
+
     protected override IEnumerable<Variable> FindAdditionalVariables(IMethodVariables chain)
     {
         _httpResponse = chain.FindVariable(typeof(HttpResponse));
         yield return _httpResponse;
+
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
     }
 }
 

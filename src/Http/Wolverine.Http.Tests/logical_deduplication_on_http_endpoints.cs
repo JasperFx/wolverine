@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
 using Shouldly;
@@ -185,6 +186,76 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         });
 
         RefusingDeduplicatedEndpoint.Calls.ShouldHaveSingleItem().ShouldBe("real");
+    }
+
+    // GH-4547. The regression test for the RACE, as opposed to the behaviour: the claim has to be gone
+    // by the time the caller can see the failure response, not merely gone eventually.
+    //
+    // GH-4501 released it in a finally keyed on the response status, which is correct but runs AFTER
+    // WriteProblems has flushed the 404. Reading the claim table the instant the response returns used to
+    // show the row still there (and gone a few hundred milliseconds later), so a client retrying promptly
+    // under the same key was refused as a duplicate for work that never happened. That is the failure
+    // GH-4501 existed to remove, moved rather than fixed -- and it is what made
+    // a_non_2xx_answer_releases_the_claim fail under full suite load while passing in isolation.
+    [Fact]
+    public async Task the_claim_is_already_released_when_the_failure_response_arrives()
+    {
+        const string key = "race-1";
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("missing")).ToUrl("/dedup/refusing");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(404);
+        });
+
+        // No delay, no retry, no polling. The whole point is that the caller does not have to wait.
+        (await claimCountAsync(key)).ShouldBe(0,
+            "the deduplication claim must be released before the failure response reaches the caller");
+    }
+
+    // The behavioural test above is the one that matters, but its window is one database round trip --
+    // narrow enough that simply opening a connection to look can outlast it, which is exactly why the
+    // original bug read as a flaky test rather than a broken guarantee. This pins the ORDERING itself, so
+    // the fix cannot regress silently even when the timing happens to be forgiving.
+    [Fact]
+    public async Task the_release_is_registered_before_the_response_can_be_flushed()
+    {
+        // Warm the chain so codegen has run
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/refusing");
+            x.WithRequestHeader("Idempotency-Key", Guid.NewGuid().ToString());
+            x.StatusCodeShouldBeOk();
+        });
+
+        var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
+            .Single(x => x.Method.HandlerType == typeof(RefusingDeduplicatedEndpoint));
+
+        var source = chain.SourceCode.ShouldNotBeNull();
+
+        var registration = source.IndexOf(
+            nameof(HttpHandler.ReleaseDeduplicationClaimBeforeFailureResponse), StringComparison.Ordinal);
+        registration.ShouldBeGreaterThan(-1,
+            "the claim release must be registered to run before the response is flushed");
+
+        // ...and it has to be registered BEFORE the try block that writes the response, or the callback
+        // would be attached too late to matter.
+        var tryBlock = source.IndexOf("try", registration, StringComparison.Ordinal);
+        tryBlock.ShouldBeGreaterThan(registration);
+    }
+
+    private static async Task<long> claimCountAsync(string key)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "select count(*) from http_dedup.wolverine_deduplication where deduplication_id = @id";
+        cmd.Parameters.AddWithValue("id", key);
+
+        return (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
     }
 
     // ...and the other half of the same rule: a key that did succeed stays claimed. Releasing on

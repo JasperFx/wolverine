@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 using Wolverine.Http.Runtime.MultiTenancy;
+using Wolverine.Persistence;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Wolverine.Http;
@@ -120,6 +121,45 @@ public abstract class HttpHandler
         context.Response.ContentType = "text/plain";
         context.Response.ContentLength = text.Length;
         return context.Response.WriteAsync(text, context.RequestAborted);
+    }
+
+    /// <summary>
+    /// GH-4547. Arrange for a logical deduplication claim to be released <b>before</b> a failure response
+    /// reaches the caller.
+    ///
+    /// <para>
+    /// GH-4501 gave the HTTP chain a compensating release in a <c>finally</c>, keyed on the response
+    /// status. That is correct but not atomic with the response: <c>WriteProblems</c> flushes the 404 and
+    /// only then does the finally run the DELETE, so a client that retries promptly under the same
+    /// <c>Idempotency-Key</c> can beat the release and be told "already handled" for work that never
+    /// happened -- the exact failure GH-4501 set out to remove. The window is one database round trip,
+    /// which is comfortably inside an automatic retry policy.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="HttpResponse.OnStarting(Func{Task})" /> callbacks are awaited before the response
+    /// headers are flushed, so releasing there closes the window. The generated <c>finally</c> is kept as
+    /// well, for the paths where no response ever starts (a throw), and a double release is harmless --
+    /// <c>IDeduplicationStore.ReleaseAsync</c> is a DELETE and is documented as idempotent.
+    /// </para>
+    /// </summary>
+    public static void ReleaseDeduplicationClaimBeforeFailureResponse(HttpContext context,
+        IMessageDeduplicator deduplicator, string? deduplicationId, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return;
+
+        context.Response.OnStarting(async () =>
+        {
+            // 400 and up, not "not 2xx" -- a 3xx is an answer, and a POST that redirects to the resource
+            // it just created has succeeded exactly once and must keep its claim. Same rule the finally
+            // uses, deliberately.
+            if (context.Response.StatusCode >= 400)
+            {
+                await deduplicator
+                    .ReleaseAsync(deduplicationId, ancillaryStoreMarker, context.RequestAborted)
+                    .ConfigureAwait(false);
+            }
+        });
     }
 
     public void ApplyHttpAware(object target, HttpContext context)
