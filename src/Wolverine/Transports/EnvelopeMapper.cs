@@ -43,6 +43,38 @@ public interface IEnvelopeMapper
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>, IEnvelopeMapper
 {
     private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
+
+    /// <summary>
+    ///     Read a timestamp header written in EITHER of the two shapes Wolverine puts on the wire: this mapper's
+    ///     own <see cref="DateTimeOffsetFormat" />, or the round-trippable <c>"o"</c> that
+    ///     <see cref="Wolverine.Runtime.Serialization.EnvelopeSerializer" /> writes and that any non-Wolverine
+    ///     producer would use.
+    /// </summary>
+    /// <remarks>
+    ///     <para>GH-3645, backported from 6.x (#3656). The 6.x line will flip these writers to <c>"o"</c>, which
+    ///     is the only format a stock date parser can read back -- <c>DateTime.Parse</c>,
+    ///     <c>DateTimeOffset.TryParse</c> and <c>XmlConvert.ToDateTime</c> all reject the legacy shape, because the
+    ///     <c>:</c> before the fractional seconds and the bare trailing <c>Z</c> are recognised by nothing else.</para>
+    ///
+    ///     <para>This reader has to tolerate both <em>first</em>. Until it does, a 6.x sender that has flipped its
+    ///     writers meeting a 5.x receiver would bind <c>null</c> for <c>ScheduledTime</c> / <c>DeliverBy</c> in
+    ///     silence -- the message is delivered, the schedule is simply gone -- which is exactly the failure mode of
+    ///     GH-1716 and GH-3613. Nothing on the 5.x writing side changes: a 5.x host keeps emitting the legacy
+    ///     format, so this is purely additive tolerance for a format it will now meet during a 5-to-6 migration.</para>
+    /// </remarks>
+    internal static bool TryParseTimestamp(string? raw, out DateTimeOffset value)
+    {
+        // Tried first: it is still what every 5.x mapper writes, so it is the common case on the wire here.
+        if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,
+                out value))
+        {
+            return true;
+        }
+
+        return DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal,
+            out value);
+    }
+
     private readonly Endpoint _endpoint;
 
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
@@ -488,7 +520,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,  out var flag))
+            if (TryParseTimestamp(raw, out var flag))
             {
                 return flag;
             }
@@ -501,8 +533,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,
-                    out var flag))
+            if (TryParseTimestamp(raw, out var flag))
             {
                 return flag;
             }
