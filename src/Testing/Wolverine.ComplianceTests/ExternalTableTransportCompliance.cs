@@ -8,8 +8,11 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Weasel.Core;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS.Transport;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -59,6 +62,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                 opts.Discovery.IncludeType(typeof(ExternalTableTransportComplianceHandler));
+                opts.Discovery.IncludeType(typeof(ExternalTableBlowsUpHandler));
                 configurePersistence(opts, connectionString, "wolverine");
                 if (table != null)
                 {
@@ -216,6 +220,76 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     }
 
     #endregion
+
+
+    #region Dead Letter Queue Tests
+
+    /// <summary>
+    /// A message pulled off an external table takes a different route through the receiver than a
+    /// normal listener does -- ExternalMessageTableListener's CompleteAsync/DeferAsync are no-ops and
+    /// it forces ShouldPersistBeforeProcessing to false. This pins that a failure on that path still
+    /// reaches the dead letter queue and can still be replayed from it.
+    /// </summary>
+    [Fact]
+    public async Task pull_in_message_that_goes_to_dead_letter_queue_and_replay_it()
+    {
+        var token = TestContext.Current.CancellationToken;
+
+        var table = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming4"))
+        {
+            IdColumnName = "pk",
+            TimestampColumnName = "added",
+            JsonBodyColumnName = "message_body",
+            MessageType = typeof(ExternalTableBlowsUpMessage)
+        };
+
+        using var host = await CreateHostBuilder(table, token);
+
+        // Rig it up to fail so the message lands in the dead letter queue. The returned task is
+        // deliberately discarded -- on this pass the handler always throws, so it never completes.
+        _ = ExternalTableBlowsUpHandler.WaiterForCall(true);
+
+        await host.SendMessageThroughExternalTable($"{_externalSchemaName}.incoming4",
+            new ExternalTableBlowsUpMessage(), token);
+
+        var storage = host.GetRuntime().Storage;
+        var ids = await waitForDeadLetteredIdsAsync(storage, token);
+
+        // Now let it succeed, and replay it out of the dead letter queue
+        var replayed = ExternalTableBlowsUpHandler.WaiterForCall(false);
+        await storage.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
+
+        await replayed.WaitAsync(1.Minutes(), token);
+
+        ExternalTableBlowsUpHandler.LastReceived.ShouldNotBeNull();
+        await host.StopAsync(token);
+    }
+
+    /// <summary>
+    /// Bounded on purpose. The original version of this test span on an unbounded `while (!ids.Any())`
+    /// loop, which turns "the message never got dead lettered" into a hung run rather than a failure.
+    /// </summary>
+    private static async Task<Guid[]> waitForDeadLetteredIdsAsync(IMessageStore storage, CancellationToken token)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(1.Minutes());
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var queued = await storage.DeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()), token);
+            var ids = queued.Envelopes.Select(x => x.Envelope.Id).ToArray();
+            if (ids.Any())
+            {
+                return ids;
+            }
+
+            await Task.Delay(250.Milliseconds(), token);
+        }
+
+        throw new TimeoutException(
+            "No message reached the dead letter queue from the external message table within a minute");
+    }
+
+    #endregion
 }
 
 
@@ -234,5 +308,48 @@ public class ExternalTableTransportComplianceHandler(ITestOutputHelper output)
     public void Handle(Message3 message)
     {
         output.WriteLine("Got a Message3: {0}", message);
+    }
+}
+
+
+public record ExternalTableBlowsUpMessage;
+
+public static class ExternalTableBlowsUpHandler
+{
+    private static TaskCompletionSource _waiter = new();
+
+    public static bool WillBlowUp { get; set; } = true;
+
+    public static ExternalTableBlowsUpMessage? LastReceived { get; private set; }
+
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnAnyException().MoveToErrorQueue();
+    }
+
+    /// <summary>
+    /// Resets the recorded state and returns a task that completes the next time the message is
+    /// handled without throwing.
+    /// </summary>
+    public static Task WaiterForCall(bool shouldThrow)
+    {
+        LastReceived = null;
+        WillBlowUp = shouldThrow;
+        _waiter = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        return _waiter.Task;
+    }
+
+    public static void Handle(ExternalTableBlowsUpMessage message)
+    {
+        if (WillBlowUp)
+        {
+            throw new InvalidOperationException("You stink!");
+        }
+
+        LastReceived = message;
+
+        // TrySetResult, not SetResult: a redelivery after the waiter has already completed must not
+        // take the whole run down with an InvalidOperationException from a background thread.
+        _waiter.TrySetResult();
     }
 }
