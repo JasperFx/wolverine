@@ -131,6 +131,15 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        // GH-4522: UseKafka() turns off automatic failure acks and said so nowhere -- not in a log line, not
+        // in the docs. It is one of the answers to "why is this message being redelivered", so state it once
+        // at startup where an operator reading the logs will find it.
+        if (!runtime.Options.EnableAutomaticFailureAcks)
+        {
+            runtime.LoggerFactory.CreateLogger<KafkaTransport>().LogInformation(
+                "Automatic failure acknowledgements are disabled for this application because the Kafka transport is in use. Kafka serialization failures cannot be acknowledged automatically, so a message that fails to deserialize is retried rather than acked and skipped.");
+        }
+
         var namedConnection = runtime.Services.GetService<KafkaNamedConnectionSource>();
         if (namedConnection != null)
         {
@@ -374,20 +383,28 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     internal IConsumer<string, byte[]> CreateConsumer(ConsumerConfig? config,
         KafkaConnectionStateTracker? tracker = null)
     {
-        var consumerBuilder = new ConsumerBuilder<string, byte[]>(config ?? ConsumerConfig);
+        var consumerBuilder = new WolverineConsumerBuilder(config ?? ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
 
         if (tracker != null)
         {
-            // GH-3454: registered after the user's ConfigureConsumerBuilders callback because Confluent's
-            // builder throws on double registration. If the user already claimed the error handler, their
-            // registration stands and this consumer's connection state simply rests at Unknown.
+            // GH-3454 registered this after the user's ConfigureConsumerBuilders callback because Confluent's
+            // builder throws on double registration -- and when the user had already claimed the handler,
+            // Wolverine silently gave up and the connection state rested at Unknown forever.
+            //
+            // GH-4522: compose instead. WolverineConsumerBuilder can see the handler the user registered and
+            // wraps it so both run, which is strictly better than picking a winner. The suppressed path is
+            // kept only for a failure that should now be unreachable.
             try
             {
-                consumerBuilder.SetErrorHandler((_, error) => tracker.ApplyError(error));
+                consumerBuilder.ComposeErrorHandler((_, error) => tracker.ApplyError(error));
+                tracker.ComposedWithUserErrorHandler = consumerBuilder.ComposedWithUserHandler;
             }
-            catch (InvalidOperationException)
+            catch (Exception)
             {
+                // Should now be unreachable -- composition does not go through SetErrorHandler at all. Kept so
+                // an unexpected change in Confluent's builder degrades the way it used to rather than taking
+                // the host down, and the listeners still say so at Warning on startup.
                 tracker.ErrorHandlerSuppressed = true;
             }
         }

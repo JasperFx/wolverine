@@ -23,6 +23,14 @@ public class KafkaConnectionStateTracker : IReportConnectionState
     /// </summary>
     public bool ErrorHandlerSuppressed { get; internal set; }
 
+    /// <summary>
+    /// GH-4522. True when user configuration had already registered a consumer error handler through
+    /// ConfigureConsumerBuilders and Wolverine's tracking was composed in behind it rather than registered
+    /// on its own. Purely informational -- tracking works either way -- but worth surfacing, because before
+    /// GH-4522 this exact configuration silently disabled connection-state reporting altogether.
+    /// </summary>
+    public bool ComposedWithUserErrorHandler { get; internal set; }
+
     public void ApplyError(Error error)
     {
         if (error.IsFatal || error.Code == ErrorCode.Local_AllBrokersDown)
