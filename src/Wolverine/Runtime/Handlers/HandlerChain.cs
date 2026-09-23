@@ -788,7 +788,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         // IsTransactional is only final once [Transactional] and the stores' own policies have both had
         // their say. Reading either one earlier produced a chain that silently wove nothing in.
         // Idempotent, so a chain reached twice is woven once.
-        this.ApplyDeduplication();
+        this.ApplyDeduplication(rules, container);
 
         // Use Wolverine Parameter Attribute on any middleware
         foreach (var methodCall in Middleware.OfType<MethodCall>().ToArray())

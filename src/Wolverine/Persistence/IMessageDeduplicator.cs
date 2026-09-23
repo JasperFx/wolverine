@@ -25,9 +25,16 @@ public interface IMessageDeduplicator
     /// </summary>
     /// <param name="ancillaryStoreMarker">
     /// The <see cref="Configuration.IChain.AncillaryStoreType" /> of the chain being executed, or null for the
-    /// main store. Routing the claim to the same store the handler writes to is what makes the claim
-    /// and the work land in one transaction when the chain is transactional.
+    /// main store, so the claim is recorded in the same store the handler writes to.
     /// </param>
+    /// <remarks>
+    /// GH-4505. The claim written here does <b>not</b> ride the handler's transaction, and cannot: every
+    /// <see cref="IDeduplicationStore" /> Wolverine ships claims through <c>DbDataSource.CreateCommand()</c>
+    /// on a connection of its own, so it is committed independently of whatever the handler is doing and
+    /// survives its rollback. That is why <see cref="ReleaseAsync" /> exists. A chain whose store CAN write
+    /// the claim inside the handler's own transaction never reaches this interface at all — see
+    /// <see cref="IPersistenceFrameProvider.TryBuildTransactionalDeduplication" />.
+    /// </remarks>
     ValueTask<bool> TryClaimAsync(string deduplicationId, Type? ancillaryStoreMarker,
         CancellationToken cancellation);
 

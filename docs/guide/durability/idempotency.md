@@ -338,20 +338,43 @@ that the window is too long, the cadence too slow, or the volume higher than the
 
 ### Failed handlers do not poison the id
 
-If your handler throws, Wolverine releases the claim and a retry gets through. The claim is written on
-its own connection rather than inside your handler's transaction, so the release happens whether or not
-the chain is transactional.
+If your handler throws, a retry gets through. This matters more than it sounds: without it, the first
+failed attempt would permanently claim that logical id, every retry would be discarded as a duplicate
+of its own failed attempt, and the work would silently never happen while the logs reported successful
+deduplication.
 
-HTTP endpoints have a second way to fail, and it is not an exception: a FluentValidation 400, a
-`ProblemDetails` returned from a `Validate` method, a 404 from `[WriteAggregate]` on a missing stream.
-The handler never ran, so the claim is released there too — any response of 400 or above gives the key
-back. A 2xx or a 3xx keeps it, so an idempotency key means "this succeeded once" rather than "this was
-attempted once", and the caller who never saw the failure and retries under the same key gets their
-work done instead of a "that was already handled" answer for work that never happened.
+Wolverine gets there two different ways, and which one you get depends on where the claim can be
+written.
 
-This matters more than it sounds. Without it, the first failed attempt would permanently claim that
-logical id, every retry would be discarded as a duplicate of its own failed attempt, and the work
-would silently never happen while the logs reported successful deduplication.
+**The claim rides your transaction.** On a chain that commits through a Marten session — an
+`[Aggregate]`/`[WriteAggregate]` handler, an endpoint with `AutoApplyTransactions`, anything with a
+`SaveChangesAsync` — the claim is queued onto that same unit of work. It is written if and only if your
+transaction commits. A handler that throws never commits, so it never claimed; an HTTP endpoint that
+answers a `ProblemDetails` 404 returns before the commit, so it never claimed either. There is nothing
+to undo, which also means there is no window in which a prompt retry could see a claim for work that
+never happened.
+
+The one case this cannot decide up front is two genuinely concurrent callers under the same key.
+Neither one's claim is committed yet, so neither is visible to the other, and both proceed. The
+deduplication table's primary key settles it at commit time: one transaction wins, and the loser is
+refused exactly as if it had been caught by the up-front check — a 409 on HTTP, a discard on a handler.
+Worth knowing that the loser does its work and throws it away at commit rather than being refused
+before doing any, so a handler with side effects *outside* the transaction should account for that.
+
+**The claim is compensated.** Everywhere else — a Buffered or Inline endpoint, an HTTP endpoint with no
+transactional middleware, a `[Transactional]` handler on a plain relational message store — the claim
+is written up front on its own connection, and Wolverine gives it back when the chain fails.
+
+HTTP endpoints have a second way to fail on that path, and it is not an exception: a FluentValidation
+400, a `ProblemDetails` returned from a `Validate` method, a 404 from `[WriteAggregate]` on a missing
+stream. The handler never ran, so the claim is released there too — any response of 400 or above gives
+the key back, and the release is registered to run before the response is flushed so a prompt retry
+cannot beat it. A 2xx or a 3xx keeps it, so an idempotency key means "this succeeded once" rather than
+"this was attempted once".
+
+Either way the guarantee you see is the same. The difference is cost: the transactional path pays one
+round trip, shared with whatever read your handler was already doing, where the compensating path pays
+one to claim and another to release.
 
 ### Why a separate table
 
