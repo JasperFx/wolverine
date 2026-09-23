@@ -15,6 +15,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.Sqlite;
 using Wolverine.Sqlite.Transport;
 using Wolverine.Util;
 using System.Diagnostics.CodeAnalysis;
@@ -54,8 +55,13 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
         // SqliteException.SqliteExtendedErrorCode as SQLITE_CONSTRAINT_PRIMARYKEY (1555) or
         // SQLITE_CONSTRAINT_UNIQUE (2067). The SQL Server 2627 / 2601 pair the Polecat twin tests for
         // has no meaning here.
-        options.OnException<Microsoft.Data.Sqlite.SqliteException>(e =>
-                e.SqliteExtendedErrorCode == 1555 || e.SqliteExtendedErrorCode == 2067)
+        //
+        // GH-4565: scoped to the inbox table. This used to match on the extended error code alone, which is
+        // *any* primary-key or unique-key violation anywhere in the handler's transaction: a duplicate
+        // natural key or a unique index on the application's own table was acknowledged and dropped. Not
+        // retried, not dead-lettered -- the work never happened and there was no dead letter to find it in.
+        options.OnException<Microsoft.Data.Sqlite.SqliteException>(
+                SqliteMessageStore.IsDuplicateIncomingEnvelope)
             .Discard();
 
         options.CodeGeneration.Sources.Add(new FisherBackedPersistenceMarker());
