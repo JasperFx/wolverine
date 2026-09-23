@@ -19,6 +19,13 @@ public abstract class HttpHandler
     private readonly WolverineHttpOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
 
+    /// <summary>
+    /// GH-4528. The non-standard but widely-understood "client closed request" status (nginx), used only for
+    /// logging and metrics when the client aborts mid-request -- nothing is actually written to a socket that
+    /// is already gone. <see cref="StatusCodes"/> has no constant for it because it is not an IANA code.
+    /// </summary>
+    public const int ClientClosedRequest = 499;
+
     // ReSharper disable once PublicConstructorInAbstractClass
     public HttpHandler(WolverineHttpOptions wolverineHttpOptions)
     {
@@ -172,9 +179,21 @@ public abstract class HttpHandler
 
             return (body, HandlerContinuation.Continue);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            context.Response.StatusCode = 204;
+            // GH-4528: this used to set a 204. A client that disconnects mid-upload then showed as a
+            // *successful* no-content response in access logs and metrics, which is how a rash of aborted
+            // uploads hides. Nothing is actually sent on an aborted request -- the socket is gone -- so the
+            // status here exists only for logging and metrics, and it must not read as success. 499 is the
+            // widely-understood "client closed request" convention (nginx, and what most access-log
+            // pipelines already bucket separately).
+            context.Response.StatusCode = ClientClosedRequest;
+
+            var logger = context.RequestServices.GetService<ILogger<T>>();
+            logger?.LogDebug(
+                "The client aborted the request to {Url} while Wolverine was reading the JSON body for {Type}",
+                context.Request.Path, typeof(T).FullNameInCode());
+
             return (default, HandlerContinuation.Stop);
         }
         catch (Exception e)
@@ -201,7 +220,29 @@ public abstract class HttpHandler
             }
             else
             {
-                context.Response.StatusCode = 400;
+                // GH-4528: this used to be a naked `StatusCode = 400` -- no ProblemDetails, no body, no
+                // Content-Type. The client learned nothing and the only clue was the server log.
+                //
+                // It is also the wrong *class* of status. What lands here is not malformed JSON (that is
+                // JsonException, above) but a type System.Text.Json cannot handle: a NotSupportedException
+                // for a member it cannot deserialize, a throw from a custom JsonConverter, a
+                // JsonSerializerOptions mismatch. Those are server-side configuration bugs, and no amount of
+                // fixing the request body will help, so answer 500 and say which type and which exception --
+                // the two things that actually locate the bug.
+                await Results.Problem(new()
+                {
+                    Type = "https://httpstatuses.com/500",
+                    Title = "Request body could not be deserialized",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail =
+                        $"The request body could not be deserialized to {typeof(T).FullNameInCode()}. This is a server side serialization problem rather than a malformed request: {e.GetType().Name} was thrown while reading the body. Check the JsonSerializerOptions and any custom JsonConverter registered for this type.",
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        { "exceptionType", e.GetType().FullName },
+                        { "targetType", typeof(T).FullNameInCode() }
+                    }
+                }).ExecuteAsync(context);
             }
 
             return (default, HandlerContinuation.Stop);
