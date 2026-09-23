@@ -69,7 +69,8 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                     if (serviceBusMessageBatch.Count == 0)
                     {
                         serviceBusMessageBatch.Dispose();
-                        throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes);
+                        throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                                AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                     }
 
                     _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
@@ -137,7 +138,8 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                         if (serviceBusMessageBatch.Count == 0)
                         {
                             serviceBusMessageBatch.Dispose();
-                            throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes);
+                            throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                                AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                         }
 
                         _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
