@@ -7,13 +7,13 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
-#pragma warning disable CS9113 // Parameter is unread
 internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch
-#pragma warning restore CS9113
 {
+    private readonly List<ProjectionSideEffectContext> _sendsThemselves = new();
+
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {
-        return Context.PublishAsync(message, new DeliveryOptions { TenantId = tenantId });
+        return PublishAsync(message, new MessageMetadata(tenantId));
     }
 
     /// <summary>
@@ -25,6 +25,13 @@ internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSes
     /// </summary>
     public ValueTask PublishAsync<T>(T message, MessageMetadata metadata)
     {
+        // MessageBus only lets an ISendMyself apply itself when no DeliveryOptions are passed, and a side
+        // effect always has some, so it would otherwise be routed as the wrapper type and dropped.
+        if (message is ISendMyself sendsItself)
+        {
+            return applyAsync(sendsItself, metadata);
+        }
+
         var options = new DeliveryOptions
         {
             TenantId = metadata.TenantId
@@ -51,9 +58,28 @@ internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSes
         return Context.PublishAsync(message, options);
     }
 
-    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    private async ValueTask applyAsync(ISendMyself message, MessageMetadata metadata)
     {
-        return Context.FlushOutgoingMessagesAsync();
+        var context = new ProjectionSideEffectContext(Context.Runtime, metadata);
+        context.OverrideStorage(Context.Storage);
+        await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction(Session, context));
+
+        await message.ApplyAsync(context);
+
+        lock (_sendsThemselves)
+        {
+            _sendsThemselves.Add(context);
+        }
+    }
+
+    public async Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        await Context.FlushOutgoingMessagesAsync();
+
+        foreach (var context in _sendsThemselves)
+        {
+            await context.FlushOutgoingMessagesAsync();
+        }
     }
 
     public Task BeforeCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
