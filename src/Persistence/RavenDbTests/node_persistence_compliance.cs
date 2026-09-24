@@ -24,6 +24,42 @@ public class node_persistence_compliance : NodePersistenceCompliance
         return new RavenDbMessageStore(store, new WolverineOptions());
     }
 
+    /// <summary>
+    /// GH-4593. A document store carries LoadFactor for free on the paths that write the WolverineNode
+    /// whole -- but MarkHealthCheckAsync deliberately patches single properties, and that is the
+    /// once-per-heartbeat path. Without a patch for it the advertisement would be written at registration
+    /// and then never refreshed again, which reads to the leader as a node frozen at its startup load.
+    /// </summary>
+    [Fact]
+    public async Task load_factor_round_trips_through_the_heartbeat_patch()
+    {
+        var options = new WolverineOptions();
+        options.Durability.CapacityAwareAssignment = true;
+
+        await using var messageStore = new RavenDbMessageStore(_fixture.StartRavenStore(), options);
+
+        var id = Guid.NewGuid();
+        var node = new WolverineNode
+        {
+            NodeId = id,
+            ControlUri = new Uri($"dbcontrol://{id}"),
+            Description = Environment.MachineName
+        };
+
+        node.AssignedNodeNumber = await messageStore.Nodes.PersistAsync(node, CancellationToken.None);
+
+        node.LoadFactor = 42.5;
+        (await messageStore.Nodes.MarkHealthCheckAsync(node, CancellationToken.None)).ShouldBeTrue();
+
+        (await messageStore.Nodes.LoadNodeAsync(id, CancellationToken.None))!.LoadFactor.ShouldBe(42.5);
+
+        // a later heartbeat has to MOVE the reading, not just write it once
+        node.LoadFactor = 13.25;
+        await messageStore.Nodes.MarkHealthCheckAsync(node, CancellationToken.None);
+
+        (await messageStore.Nodes.LoadNodeAsync(id, CancellationToken.None))!.LoadFactor.ShouldBe(13.25);
+    }
+
     [Fact]
     public async Task concurrently_persisting_nodes_assigns_unique_node_numbers()
     {

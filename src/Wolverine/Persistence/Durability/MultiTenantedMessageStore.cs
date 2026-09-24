@@ -775,6 +775,11 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
+    // GH-4593: forwarded like every other node member. Answering the interface default here instead
+    // would report a multi-tenanted PostgreSQL cluster -- where the node rows live in Main and do carry
+    // the column -- as unable to advertise load, and warn about a feature that works.
+    bool INodeAgentPersistence.AdvertisesNodeLoad => Main.Nodes.AdvertisesNodeLoad;
+
     Task INodeAgentPersistence.ClearAllAsync(CancellationToken cancellationToken)
     {
         return Main.Nodes.ClearAllAsync(cancellationToken);
