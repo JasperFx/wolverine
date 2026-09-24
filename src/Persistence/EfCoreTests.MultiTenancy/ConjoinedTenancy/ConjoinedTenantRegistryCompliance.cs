@@ -106,10 +106,11 @@ public abstract class ConjoinedTenantRegistryCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync(tenant, new CreateConjoinedItem(id, "ok")));
 
-        // Disabling stops writes with UnknownTenantIdException
+        // Disabling stops writes -- with DisabledTenantException since GH-4586, which still satisfies
+        // every existing catch of its base UnknownTenantIdException
         await theSource.DisableTenantAsync(tenant);
         (await theSource.AllDisabledAsync()).ShouldContain(tenant);
-        await Should.ThrowAsync<UnknownTenantIdException>(() => theHost.TrackActivity()
+        await Should.ThrowAsync<DisabledTenantException>(() => theHost.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .ExecuteAndWaitAsync(c => c.InvokeForTenantAsync(tenant, new CreateConjoinedItem(Guid.NewGuid(), "no"))));
 
