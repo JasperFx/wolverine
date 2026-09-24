@@ -138,8 +138,7 @@ public class NatsJetStreamConsumerFilterTests
                 opts.ListenToNatsSubject(subjectA).UseJetStream(stream, $"delivery-a-{id}");
                 opts.ListenToNatsSubject(subjectB).UseJetStream(stream, $"delivery-b-{id}");
 
-                opts.PublishMessage<FilteredMessage>().ToNatsSubject(subjectA).UseJetStream(stream)
-                    .SendInline();
+                opts.PublishMessage<FilteredMessage>().ToNatsSubject(subjectA).UseJetStream(stream);
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 

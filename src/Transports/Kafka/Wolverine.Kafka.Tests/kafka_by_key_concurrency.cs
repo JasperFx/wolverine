@@ -30,7 +30,7 @@ public class kafka_by_key_concurrency : IAsyncLifetime
                     .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "kafka_bykey");
 
-                opts.PublishAllMessages().ToKafkaTopic(_topic).SendInline();
+                opts.PublishAllMessages().ToKafkaTopic(_topic);
                 opts.ListenToKafkaTopic(_topic).ProcessConcurrentlyByKey(PartitionSlots.Five);
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<ByKeyHandler>();

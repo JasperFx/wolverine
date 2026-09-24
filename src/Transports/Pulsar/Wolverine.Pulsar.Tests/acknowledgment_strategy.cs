@@ -168,7 +168,7 @@ public class acknowledgment_strategy
         using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
-            opts.PublishMessage<AckMessage>().ToPulsarTopic(topic).SendInline();
+            opts.PublishMessage<AckMessage>().ToPulsarTopic(topic);
             opts.ListenToPulsarTopic(topic)
                 .SubscriptionName("sub-" + Guid.NewGuid().ToString("N"))
                 .AcknowledgeInBatches(3, 500.Milliseconds());
