@@ -13,6 +13,11 @@
 
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
 
+        <!-- GH-4605: the HTTP deduplication mirror needs an Alba host. It lives here rather than in
+             Wolverine.Http.Tests so a Fisher endpoint type stays out of the shared HTTP test assembly,
+             which every other host in that project scans. See PolecatTests.csproj for the twin. -->
+        <PackageReference Include="Alba" />
+
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit.v3"/>
         <PackageReference Include="xunit.runner.visualstudio">
@@ -38,6 +43,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Fisher\Wolverine.Fisher.csproj" />
+        <ProjectReference Include="..\..\Http\Wolverine.Http.Fisher\Wolverine.Http.Fisher.csproj" />
         <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
 
