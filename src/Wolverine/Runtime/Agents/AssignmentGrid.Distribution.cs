@@ -249,6 +249,10 @@ public partial class AssignmentGrid
             .ThenBy(g => g.Key, StringComparer.Ordinal)
             .ToList();
 
+        // GH-4592: how many partitions may move off an overloaded node in this pass. The unit is a
+        // partition rather than an agent because a partition is what this method refuses to split.
+        var shedsRemaining = Math.Max(1, OverloadShedBatchSize);
+
         foreach (var group in groups)
         {
             // A group is one placement unit — except under mixed capabilities, where members declared by
@@ -276,6 +280,10 @@ public partial class AssignmentGrid
 
             foreach (var members in partitions)
             {
+                // Set when this partition is being taken off an overloaded incumbent, so the placement
+                // below does not hand it straight back.
+                Node? shedFrom = null;
+
                 // Candidate nodes for the whole partition: nodes that can run every member (all nodes when
                 // capabilities are homogeneous), where a member the node is already running counts as one it
                 // can run. That grandfathering mirrors the even paths, which leave running agents in place
@@ -332,16 +340,9 @@ public partial class AssignmentGrid
                                 continue;
                             }
 
-                            var candidate = member.CandidateNodes
-                                .OrderBy(n => load.GetValueOrDefault(n))
-                                .ThenBy(n => n.IsLeader)
-                                .ThenBy(n => n.AssignedId)
+                            var candidate = InCapacityOrder(member.CandidateNodes, n => load.GetValueOrDefault(n))
                                 .FirstOrDefault()
-                                ?? nodes
-                                    .OrderBy(n => load.GetValueOrDefault(n))
-                                    .ThenBy(n => n.IsLeader)
-                                    .ThenBy(n => n.AssignedId)
-                                    .First();
+                                ?? InCapacityOrder(nodes, n => load.GetValueOrDefault(n)).First();
 
                             candidate.Assign(member);
                             load[candidate] += 1;
@@ -365,26 +366,54 @@ public partial class AssignmentGrid
                 if (incumbent != null && candidates.Contains(incumbent) &&
                     load[incumbent] + members.Count <= maximum)
                 {
-                    load[incumbent] += members.Count;
-                    remember(siblingHosts, incumbent);
-                    continue;
+                    // GH-4592: an OVERLOADED incumbent gives its partition up instead of keeping it --
+                    // but only when somewhere else can actually take the whole thing, and only for a
+                    // bounded number of partitions per evaluation.
+                    //
+                    // Both conditions matter. A partition is indivisible, so "shed" here means moving a
+                    // whole shard database's agents; detaching with nowhere to put them would stop that
+                    // database projecting entirely (GH-4590, the same mistake the even path made). And a
+                    // node hosting twenty databases that shed all twenty at once would hand the cluster a
+                    // connection-pool stampede and twenty rounds of projection catch-up, so pressure is
+                    // relieved a partition at a time and re-sampled on the next heartbeat.
+                    var shedding = incumbent.IsOverloaded
+                                   && shedsRemaining > 0
+                                   && candidates.Any(n => !ReferenceEquals(n, incumbent)
+                                                          && n.IsAcceptingAgents
+                                                          && load[n] + members.Count <= maximum);
+
+                    if (!shedding)
+                    {
+                        load[incumbent] += members.Count;
+                        remember(siblingHosts, incumbent);
+                        continue;
+                    }
+
+                    shedsRemaining--;
+                    shedFrom = incumbent;
                 }
 
                 // Otherwise the least-loaded candidate hosts the whole partition — preferring a node that
                 // already hosts a sibling partition of this same group, so a split group still costs as few
                 // connection pools per database as its capability split allows (tie-breaks: non-leader
                 // first, then node id).
-                var node = candidates
-                    .Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum)
-                    .OrderBy(n => load[n])
-                    .ThenBy(n => n.IsLeader)
-                    .ThenBy(n => n.AssignedId)
+                // GH-4592: a node being shed FROM must not win its own partition straight back. Every
+                // other candidate stays eligible, including non-accepting ones -- see InCapacityOrder on
+                // why capacity is a preference and never a filter here.
+                // Not defensive: the shed above only fires once it has found another candidate that is
+                // accepting AND has room for the whole partition, so excluding the source cannot empty
+                // this. Said out loud because the two halves are thirty lines apart, and a future change
+                // that breaks the invariant would otherwise hand the partition straight back to the node
+                // it was just taken off -- a move command per evaluation, forever, achieving nothing.
+                var placeable = shedFrom == null
+                    ? candidates
+                    : candidates.Where(n => !ReferenceEquals(n, shedFrom)).ToList();
+
+                var node = InCapacityOrder(
+                        placeable.Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum),
+                        n => load[n])
                     .FirstOrDefault()
-                    ?? candidates
-                        .OrderBy(n => load[n])
-                        .ThenBy(n => n.IsLeader)
-                        .ThenBy(n => n.AssignedId)
-                        .First();
+                    ?? InCapacityOrder(placeable, n => load[n]).First();
 
                 foreach (var agent in members)
                 {
@@ -543,7 +572,15 @@ public partial class AssignmentGrid
 
         var missing = new Queue<Agent>(remainder.Where(x => x.AssignedNode == null));
 
-        foreach (var node in capableNodes)
+        // GH-4592: fill the capable nodes with headroom first. Preference, not a filter -- capability is
+        // already a hard constraint here (an incapable node throws "Unrecognized agent scheme"), and
+        // refusing the overloaded ones on top of that can leave a durability agent with nowhere legal to
+        // go. The PREFERRED placements above are untouched on purpose: they exist to follow another
+        // family's per-database co-location, and second-guessing that on load would reopen the
+        // connection-pool problem GH-3785 closed.
+        var byCapacity = InCapacityOrder(capableNodes, n => n.ForCurrentlyAssigned(remainder).Count()).ToList();
+
+        foreach (var node in byCapacity)
         {
             if (missing.Count == 0)
             {
@@ -567,8 +604,8 @@ public partial class AssignmentGrid
         {
             var agent = missing.Dequeue();
 
-            var node = capableNodes.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
-                       ?? capableNodes.FirstOrDefault(x => !x.IsLeader) ?? capableNodes.First();
+            var node = byCapacity.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
+                       ?? byCapacity.FirstOrDefault(x => !x.IsLeader) ?? byCapacity.First();
             node.Assign(agent);
         }
     }
@@ -669,12 +706,18 @@ public partial class AssignmentGrid
         var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count).ToList();
         foreach (var agent in missing)
         {
-            // First try to find a node that has less than the minimum number of nodes
-            var candidate = agent
-                .CandidateNodes
-                .FirstOrDefault(x => countOn(x) < minimum)
-                            // Or fall back to the least loaded down node
-                            ?? agent.CandidateNodes.MinBy(countOn);
+            // GH-4592: among the nodes CAPABLE of this agent, prefer the ones with headroom and the
+            // lighter advertised load — a preference, never a filter, because the candidate set here is
+            // already narrowed by declared capability and a second hard constraint can empty it. An
+            // agent with one capable node still goes to that node even when it is over the line, which
+            // is the right answer: a version's agent not running at all during a blue/green rollout is
+            // worse than it running on a busy node.
+            //
+            // With capacity-aware assignment off, every node is accepting and none advertises a load, so
+            // this is the original "first under the minimum, else least loaded" behavior unchanged.
+            var candidate = InCapacityOrder(agent.CandidateNodes.Where(x => countOn(x) < minimum), countOn)
+                    .FirstOrDefault()
+                ?? InCapacityOrder(agent.CandidateNodes, countOn).FirstOrDefault();
 
             candidate?.Assign(agent);
         }
