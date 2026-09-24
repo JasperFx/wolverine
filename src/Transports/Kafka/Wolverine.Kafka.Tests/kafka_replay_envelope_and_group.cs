@@ -65,6 +65,30 @@ public class kafka_replay_envelope_and_group
     }
 
     [Fact]
+    public void replay_group_takes_the_prefix_of_a_topic_group_subscribing_to_the_topic()
+    {
+        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
+        options.ListenToKafkaTopics("payments", "orders");
+        transport.TopicGroups.Single().ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-billing" };
+        var topic = transport.Topics["orders"];
+
+        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
+            .ShouldStartWith("tenant-a-billing-replay-");
+    }
+
+    [Fact]
+    public void replay_group_ignores_a_topic_group_that_does_not_subscribe_to_the_topic()
+    {
+        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
+        options.ListenToKafkaTopics("payments", "refunds");
+        transport.TopicGroups.Single().ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-billing" };
+        var topic = transport.Topics["orders"];
+
+        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
+            .ShouldStartWith("tenant-a-replay-");
+    }
+
+    [Fact]
     public void replay_group_falls_back_to_the_transport_consumer_group()
     {
         var (options, transport) = buildTransport(transportGroupId: "tenant-a");

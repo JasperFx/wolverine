@@ -527,7 +527,8 @@ replayed envelopes pass through the same inbox + de-duplication path.
 :::
 
 The throwaway consumer's group id is `{live group}-replay-{guid}`, where the live group is the topic's own
-consumer group id if it has one, otherwise the transport's, otherwise the service name. On a broker whose
+consumer group id if it has one, otherwise that of a `ListenToKafkaTopics(...)` group subscribing to the
+topic, otherwise the transport's, otherwise the service name. On a broker whose
 ACLs grant consumer groups by prefix — the usual Confluent Cloud setup — the replay is therefore allowed
 wherever the live listener is.
 

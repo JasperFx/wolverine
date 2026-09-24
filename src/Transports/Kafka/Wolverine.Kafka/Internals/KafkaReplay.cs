@@ -132,14 +132,24 @@ internal sealed class KafkaReplay
 
     /// <summary>
     /// The throwaway replay group is named after the group the topic's live listener consumes under —
-    /// the topic's own group id, else the transport's, else the service name. Brokers commonly grant
-    /// consumer groups by prefix (Confluent Cloud ACLs are the usual case), and the live group is the
-    /// one prefix the application is known to hold; the service name alone defaults to the entry
-    /// assembly name, which such an ACL refuses with "Group authorization failed".
+    /// the topic's own group id, else that of a <see cref="KafkaTopicGroup"/> subscribing to it
+    /// (<c>ListenToKafkaTopics(...)</c> keeps its consumer config on the group, not on the topic), else
+    /// the transport's, else the service name. Brokers commonly grant consumer groups by prefix
+    /// (Confluent Cloud ACLs are the usual case), and the live group is the one prefix the application
+    /// is known to hold; the service name alone defaults to the entry assembly name, which such an ACL
+    /// refuses with "Group authorization failed".
     /// </summary>
     internal static string ReplayGroupIdFor(KafkaTopic topic, KafkaTransport transport, string serviceName)
     {
         var liveGroupId = topic.ConsumerConfig?.GroupId;
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            liveGroupId = transport.TopicGroups
+                .Where(x => x.TopicNames.Contains(topic.TopicName))
+                .Select(x => x.ConsumerConfig?.GroupId)
+                .FirstOrDefault(x => !string.IsNullOrEmpty(x));
+        }
+
         if (string.IsNullOrEmpty(liveGroupId))
         {
             liveGroupId = transport.ConsumerConfig.GroupId;
