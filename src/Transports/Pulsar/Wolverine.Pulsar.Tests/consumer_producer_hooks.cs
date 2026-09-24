@@ -47,7 +47,7 @@ public class consumer_producer_hooks
         {
             opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
 
-            opts.PublishMessage<HookMessage>().ToPulsarTopic(topic).SendInline()
+            opts.PublishMessage<HookMessage>().ToPulsarTopic(topic)
                 .ConfigureProducer(p =>
                 {
                     producerConfigured = true;

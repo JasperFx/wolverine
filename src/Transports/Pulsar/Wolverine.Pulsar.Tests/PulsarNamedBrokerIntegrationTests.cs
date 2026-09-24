@@ -35,7 +35,7 @@ public class PulsarNamedBrokerIntegrationTests
                 opts.AddNamedPulsarBroker(theName, b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
 
                 opts.PublishMessage<NamedBrokerMessage>()
-                    .ToPulsarTopicOnNamedBroker(theName, topic).SendInline();
+                    .ToPulsarTopicOnNamedBroker(theName, topic);
                 opts.ListenToPulsarTopicOnNamedBroker(theName, topic)
                     .SubscriptionName("sub-" + Guid.NewGuid().ToString("N"))
                     .BeginAtEarliest();

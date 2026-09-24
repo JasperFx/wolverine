@@ -48,8 +48,8 @@ public class durable_inbox_is_real_4028 : IAsyncLifetime
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "redis_durable_4028");
 
-                opts.PublishMessage<BlockingRedisMessage>().ToRedisStream(_streamKey).SendInline();
-                opts.PublishMessage<RetryOnceRedisMessage>().ToRedisStream(_streamKey).SendInline();
+                opts.PublishMessage<BlockingRedisMessage>().ToRedisStream(_streamKey);
+                opts.PublishMessage<RetryOnceRedisMessage>().ToRedisStream(_streamKey);
 
                 opts.ListenToRedisStream(_streamKey, "durable-real-group")
                     .UseDurableInbox()

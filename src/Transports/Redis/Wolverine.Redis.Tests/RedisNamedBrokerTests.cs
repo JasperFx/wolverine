@@ -138,7 +138,7 @@ public class RedisNamedBrokerTests : IClassFixture<SecondRedisServerFixture>
                 opts.UseRedisTransport(_serverAConn).AutoProvision();
                 opts.AddNamedRedisBroker(theName, _serverBConn).AutoProvision();
 
-                opts.PublishMessage<RedisBrokerMessage>().ToRedisStreamOnNamedBroker(theName, streamKey).SendInline();
+                opts.PublishMessage<RedisBrokerMessage>().ToRedisStreamOnNamedBroker(theName, streamKey);
                 opts.ListenToRedisStreamOnNamedBroker(theName, streamKey, "named-group");
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

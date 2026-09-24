@@ -56,7 +56,7 @@ public class delete_stream_entry_on_ack_4058
                     .AutoProvision()
                     .DeleteStreamEntryOnAck(true);
 
-                opts.PublishMessage<DeleteOnAckMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<DeleteOnAckMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, group).StartFromBeginning();
 
                 opts.Discovery.IncludeType(typeof(DeleteOnAckHandler));
@@ -104,7 +104,7 @@ public class delete_stream_entry_on_ack_4058
             {
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
 
-                opts.PublishMessage<DeleteOnAckMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<DeleteOnAckMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, group).StartFromBeginning();
 
                 opts.Discovery.IncludeType(typeof(DeleteOnAckHandler));
@@ -250,7 +250,7 @@ public class delete_stream_entry_on_ack_on_an_old_server_4058 : IAsyncLifetime
             {
                 opts.UseRedisTransport(_container.GetConnectionString()).AutoProvision();
 
-                opts.PublishMessage<DeleteOnAckMessage>().ToRedisStream(streamKey).SendInline();
+                opts.PublishMessage<DeleteOnAckMessage>().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "old-server-ok-group").StartFromBeginning();
                 opts.Discovery.IncludeType(typeof(DeleteOnAckHandler));
             }).StartAsync(TestContext.Current.CancellationToken);

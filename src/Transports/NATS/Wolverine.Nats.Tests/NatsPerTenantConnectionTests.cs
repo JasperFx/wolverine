@@ -135,7 +135,7 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
                     .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
                     .AddTenant("tenantB", cfg => cfg.ConnectionString = _serverBUrl);
 
-                opts.PublishMessage<OrderPlaced>().ToNatsSubject(baseSubject).SendInline();
+                opts.PublishMessage<OrderPlaced>().ToNatsSubject(baseSubject);
                 opts.ListenToNatsSubject(baseSubject);
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

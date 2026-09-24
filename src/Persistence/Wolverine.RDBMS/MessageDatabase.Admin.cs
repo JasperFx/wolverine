@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -16,6 +17,64 @@ namespace Wolverine.RDBMS;
 public abstract partial class MessageDatabase<T>
 {
     public abstract Task<PersistedCounts> FetchCountsAsync();
+
+    /// <summary>
+    /// GH-4499 follow-up. Populate <see cref="PersistedCounts.OldestOutgoing" /> — the timestamp of the head
+    /// of the durable outbox — so the stuck-outbox health signal has a discriminator to work with. A no-op
+    /// leaving the value null when the column is not there.
+    /// </summary>
+    /// <remarks>
+    /// <para>The <c>timestamp</c> column on the outgoing table only exists when
+    /// <see cref="DurabilitySettings.OutboxStaleTime" /> is set — see each provider's
+    /// <c>OutgoingEnvelopeTable</c> — so this is gated on the same setting rather than probing the schema.
+    /// Leaving it null is the documented "NOT MEASURED" signal and stands the health check down, which is
+    /// the same rule <see cref="PersistedCounts.ScheduledDue" /> established.</para>
+    ///
+    /// <para>Shared here rather than repeated per provider: <c>min(timestamp)</c> needs no dialect-specific
+    /// syntax, and every provider that reaches this base class has the same column.</para>
+    /// </remarks>
+    protected async Task fetchOldestOutgoingAsync(PersistedCounts counts)
+    {
+        if (!Durability.OutboxStaleTime.HasValue) return;
+
+        await using var conn = await DataSource.OpenConnectionAsync();
+        try
+        {
+            var raw = await conn
+                .CreateCommand(
+                    $"select min({DatabaseConstants.Timestamp}) from {QuotedTableNameFor(DatabaseConstants.OutgoingTable)}")
+                .ExecuteScalarAsync();
+
+            // Every provider writes this column in UTC -- Postgres via `now() at time zone 'utc'`, SQLite via
+            // `datetime('now')` -- but they hand it back as three different CLR types, and two of the three
+            // carry no offset with them. A value with no offset has to be read as UTC explicitly: the
+            // framework default is to assume LOCAL, which silently shifts the head by the machine's offset
+            // and reported a timestamp five hours in the future on a UTC-5 box. That is the same trap as
+            // GH-3645's timestamp headers.
+            counts.OldestOutgoing = raw switch
+            {
+                // Postgres: the driver materialises timestamptz as a DateTimeOffset already
+                DateTimeOffset value => value.ToUniversalTime(),
+
+                // SQL Server and MySQL: a DateTime, whose Kind is Unspecified for these columns
+                DateTime value => new DateTimeOffset(
+                    value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value,
+                    TimeSpan.Zero).ToUniversalTime(),
+
+                // SQLite: the column is TEXT, e.g. "2026-09-23 19:26:15"
+                string value when DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed) => parsed,
+
+                // DBNull, or anything unrecognised: an empty outbox has no head, and NOT MEASURED is the
+                // safe reading for a value that cannot be interpreted
+                _ => null
+            };
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
 
     public virtual Task DeleteAllHandledAsync()
     {

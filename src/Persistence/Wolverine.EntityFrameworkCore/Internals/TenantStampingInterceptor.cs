@@ -38,7 +38,8 @@ public class TenantStampingInterceptor : SaveChangesInterceptor
 
         if (ConjoinedTenancy.IsTenantDisabled(context.GetType(), contextTenantId))
         {
-            throw new UnknownTenantIdException(contextTenantId);
+            // GH-4586: the tenant is registered, it was switched off -- say which
+            throw new DisabledTenantException(contextTenantId);
         }
 
         foreach (var entry in context.ChangeTracker.Entries())

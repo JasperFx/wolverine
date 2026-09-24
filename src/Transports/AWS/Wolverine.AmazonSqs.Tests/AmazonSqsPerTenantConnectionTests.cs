@@ -82,7 +82,7 @@ public class AmazonSqsPerTenantConnectionTests : IAsyncLifetime
                 configureTransport(opts);
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.PublishMessage<TenantColorMessage>().ToSqsQueue(queue).SendInline();
+                opts.PublishMessage<TenantColorMessage>().ToSqsQueue(queue);
                 opts.ListenToSqsQueue(queue);
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

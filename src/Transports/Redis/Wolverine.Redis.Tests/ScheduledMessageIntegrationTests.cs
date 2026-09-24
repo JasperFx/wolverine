@@ -34,7 +34,7 @@ public class ScheduledMessageIntegrationTests
                 
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
-                opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
+                opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
                     .StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -96,7 +96,7 @@ public class ScheduledMessageIntegrationTests
                 
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
-                opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
+                opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
                     .StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -146,7 +146,7 @@ public class ScheduledMessageIntegrationTests
                 
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
-                opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
+                opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
                     .StartFromBeginning();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
