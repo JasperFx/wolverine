@@ -29,6 +29,58 @@ public partial class NodeAgentController
 
     private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt);
 
+    private int _lastUndeclaredAssignmentCount;
+
+    /// <summary>
+    ///     GH-4555. A placement the target node cannot honor is silent from the leader's side: the node throws
+    ///     <c>Unable to find a shard with path '...'</c> on start, so no assignment row is ever written, so the
+    ///     next evaluation sees the agent as unplaced and makes the identical decision. The reporter measured
+    ///     that loop running for twelve hours at ~504 failed starts an hour, and had to reconstruct it from
+    ///     application logs because the leader said nothing at all.
+    ///
+    ///     <para>
+    ///     GH-4562/GH-4563 closed the placement bug that caused it, so this is a tripwire rather than a fix:
+    ///     if the grid ever produces such a placement again, the cluster says so from the side that decided it.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Only agents that <b>some</b> node declares are checked. Durability and listener agents are
+    ///     advertised at the family level rather than per URI -- <c>MessageStoreCollection</c> publishes one
+    ///     <c>DurabilityCapabilityUri</c> for all of them -- so their absence from a node's capabilities means
+    ///     nothing. And an agent no node declares is the case the GH-3341 rescue exists to place deliberately.
+    ///     Latched on the count so a steady state is not re-logged every evaluation.
+    ///     </para>
+    /// </summary>
+    internal static void WarnAboutUndeclaredAssignments(AssignmentGrid grid,
+        IEnumerable<AssignmentGrid.Agent> beingIssued, ILogger logger, ref int lastReportedCount)
+    {
+        // Only the assignments this evaluation is actually dispatching, which in a settled cluster is
+        // none: there is no reason to re-examine placements every node has already confirmed.
+        var undeliverable = beingIssued
+            .Where(x => x.AssignedNode != null && !x.AssignedNode.Declares(x.Uri))
+            .Where(x => grid.Nodes.Any(n => n.Declares(x.Uri)))
+            .ToArray();
+
+        if (undeliverable.Length == lastReportedCount)
+        {
+            return;
+        }
+
+        lastReportedCount = undeliverable.Length;
+
+        if (undeliverable.Length == 0)
+        {
+            return;
+        }
+
+        var sample = string.Join(", ", undeliverable.Take(5)
+            .Select(x => $"{x.Uri} -> Node {x.AssignedNode!.AssignedId}"));
+
+        logger.LogWarning(
+            "{Count} agent assignment(s) were made to nodes that do not advertise the agent, and those agents cannot start there: {Sample}{More}. This is a Wolverine defect -- please report it with the node capability rows from wolverine_nodes.",
+            undeliverable.Length, sample, undeliverable.Length > 5 ? $", and {undeliverable.Length - 5} more" : "");
+    }
+
     /// <summary>
     ///     GH-3750: refresh the pending-assignment ledger for agents a resolving batch command just
     ///     confirmed. The dispatcher's in-flight hold ends the moment the command resolves, but the
@@ -161,12 +213,14 @@ public partial class NodeAgentController
         }
 
         var commands = new AgentCommands();
+        var issued = new List<AssignmentGrid.Agent>();
 
         foreach (var agent in grid.AllAgents)
         {
             if (agent.TryBuildAssignmentCommand(out var agentCommand))
             {
                 commands.Add(agentCommand);
+                issued.Add(agent);
             }
         }
 
@@ -185,6 +239,8 @@ public partial class NodeAgentController
 
             commands.Add(new StopRemoteAgent(report.AgentUri, report.ExistingNode.ToDestination()));
         }
+
+        WarnAboutUndeclaredAssignments(grid, issued, _logger, ref _lastUndeclaredAssignmentCount);
 
         // GH-3604 / D3+D6: before the observer logs anything, so a slow start isn't punished with a
         // duplicate control-queue flood and a matching burst of AssignmentChanged telemetry rows.
