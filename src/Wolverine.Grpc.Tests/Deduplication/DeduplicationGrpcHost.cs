@@ -33,7 +33,7 @@ public sealed class DeduplicationGrpcHost : IAsyncDisposable
     public IServiceProvider Services => _app?.Services
         ?? throw new InvalidOperationException("Host has not been started yet.");
 
-    public static async Task<DeduplicationGrpcHost> StartAsync()
+    public static async Task<DeduplicationGrpcHost> StartAsync(Action<WolverineOptions>? configure = null)
     {
         var host = new DeduplicationGrpcHost();
 
@@ -50,6 +50,8 @@ public sealed class DeduplicationGrpcHost : IAsyncDisposable
             opts.Discovery.IncludeType(typeof(DedupEchoHandler));
 
             opts.Services.AddSingleton<IMessageDeduplicator>(host.Deduplicator);
+
+            configure?.Invoke(opts);
         });
 
         builder.Services.AddCodeFirstGrpc();
