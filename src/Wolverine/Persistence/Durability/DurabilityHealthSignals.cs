@@ -46,6 +46,7 @@ public sealed class DurabilityHealthSignals
     private DateTimeOffset _previousCountsAt;
 
     private int _stuckRecoveryCycles;
+    private int _stuckOutboxCycles;
     private int _stuckScheduledCycles;
 
     public DurabilityHealthSignals(DurabilitySettings settings)
@@ -225,6 +226,38 @@ public sealed class DurabilityHealthSignals
         // ⚠️ null is NOT MEASURED, and stands the signal down rather than guessing. A store that does
         // not report due counts says nothing here, which is the same rule the property documents: a
         // check that reads a number it cannot interpret is what produced the noise above.
+        // GH-4499 follow-up. The outbox half, which the GH-4499 fix deliberately gave up: Handled counts
+        // INBOX completions, and a successfully sent outgoing envelope is deleted rather than marked, so
+        // there is no completion counter to read for the outbox.
+        //
+        // The head of the queue answers it instead, and answers it better than any counter: a draining
+        // outbox keeps replacing its oldest row, so OldestOutgoing advances; a stuck one does not move at
+        // all. That is GH-4476's question -- are these the SAME rows -- answered directly rather than
+        // inferred from a quantity.
+        //
+        // Note this also flags a single wedged envelope at the head of an otherwise-flowing outbox, which is
+        // correct: that envelope is stuck.
+        //
+        // ⚠️ null is NOT MEASURED. The outgoing table only carries a timestamp column when
+        // DurabilitySettings.OutboxStaleTime is set, so most stores say nothing here and the signal stands
+        // down rather than guessing -- the same rule ScheduledDue's null case sets below.
+        var oldestOutgoing = counts.OldestOutgoing;
+        if (counts.Outgoing > 0 && oldestOutgoing.HasValue && _previousCounts.OldestOutgoing == oldestOutgoing)
+        {
+            _stuckOutboxCycles++;
+            if (_stuckOutboxCycles >= threshold)
+            {
+                degraded.Add(
+                    $"Outbox may be stuck — the oldest of {counts.Outgoing} pending outgoing envelopes has " +
+                    $"been at the head of the queue since {oldestOutgoing.Value:u}, unchanged over " +
+                    $"{_stuckOutboxCycles} consecutive checks");
+            }
+        }
+        else
+        {
+            _stuckOutboxCycles = 0;
+        }
+
         var due = counts.ScheduledDue;
         if (due is > 0 && due >= (_previousCounts.ScheduledDue ?? 0))
         {
@@ -250,6 +283,7 @@ public sealed class DurabilityHealthSignals
             Outgoing = source.Outgoing,
             Scheduled = source.Scheduled,
             ScheduledDue = source.ScheduledDue,
+            OldestOutgoing = source.OldestOutgoing,
             DeadLetter = source.DeadLetter,
             Handled = source.Handled
         };
