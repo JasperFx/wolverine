@@ -52,6 +52,8 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     private string nodeColumns => advertisesLoad ? $"{NodeColumns}, {LoadFactor}" : NodeColumns;
 
+    public bool AdvertisesNodeLoad => true;
+
     public Task ClearAllAsync(CancellationToken cancellationToken)
     {
         return _dataSource.CreateCommand($"delete from {_nodeTable}")

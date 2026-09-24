@@ -696,6 +696,15 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             nodeTable.AddColumn("version", "TEXT");
             nodeTable.AddColumn("capabilities", "TEXT");
 
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and SqliteNodePersistence gates every statement naming it on
+            // the same flag. REAL rather than TEXT -- unlike the timestamps around it, this value is only
+            // ever compared numerically and never round-tripped through a format.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "REAL");
+            }
+
             yield return nodeTable;
 
             var assignmentTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.NodeAssignmentsTableName)));

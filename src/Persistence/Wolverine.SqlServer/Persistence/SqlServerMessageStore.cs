@@ -140,7 +140,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
     {
-        return new SqlServerNodePersistence(databaseSettings, this);
+        return new SqlServerNodePersistence(databaseSettings, this, Durability);
     }
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
@@ -818,6 +818,14 @@ group by o.name, ps.index_id, i.name";
             // unbounded varchar. 500 is the width the rest of this node-table family already uses.
             nodeTable.AddColumn("version", "varchar(500)");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
+
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and SqlServerNodePersistence gates every statement naming it on
+            // the same flag. `float` is T-SQL's IEEE double.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "float").AllowNulls();
+            }
 
             yield return nodeTable;
 

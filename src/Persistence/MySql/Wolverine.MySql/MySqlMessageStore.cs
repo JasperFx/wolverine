@@ -575,6 +575,14 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "TEXT").AllowNulls();
 
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and MySqlNodePersistence gates every statement naming it on the
+            // same flag. Plain DOUBLE with no modifiers in the type string, per GH-3983.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "DOUBLE").AllowNulls();
+            }
+
             yield return nodeTable;
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));

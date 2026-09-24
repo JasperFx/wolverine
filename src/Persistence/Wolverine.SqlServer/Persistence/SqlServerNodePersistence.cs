@@ -21,17 +21,30 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     private readonly DbObjectName _assignmentTable;
     private readonly int _lockId;
     private readonly DbObjectName _restrictionTable;
+    private readonly DurabilitySettings _durability;
 
-    public SqlServerNodePersistence(DatabaseSettings settings, IMessageDatabase database)
+    public SqlServerNodePersistence(DatabaseSettings settings, IMessageDatabase database,
+        DurabilitySettings durability)
     {
         _settings = settings;
         _database = database;
+        _durability = durability;
         var schemaName = settings.SchemaName ?? "dbo";
         _nodeTable = new DbObjectName(schemaName, DatabaseConstants.NodeTableName);
         _assignmentTable = new DbObjectName(schemaName, DatabaseConstants.NodeAssignmentsTableName);
         _lockId = schemaName.GetDeterministicHashCode();
         _restrictionTable = new DbObjectName(schemaName, DatabaseConstants.AgentRestrictionsTableName);
     }
+
+    // GH-4593: load_factor is only provisioned behind this flag (SqlServerMessageStore.AllObjects), so
+    // every statement naming it is gated on it too -- otherwise an un-migrated database (AutoCreate.None,
+    // or no DDL rights) fails node startup on an invalid column name. Read live rather than captured:
+    // this is constructed before the flag is reliably set.
+    private bool advertisesLoad => _durability.CapacityAwareAssignment;
+
+    private string nodeColumns => advertisesLoad ? $"{NodeColumns}, {LoadFactor}" : NodeColumns;
+
+    public bool AdvertisesNodeLoad => true;
 
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
@@ -97,7 +110,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        await using var cmd = conn.CreateCommand($"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable}");
+        await using var cmd = conn.CreateCommand($"select {nodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable}");
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -170,7 +183,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.OpenAsync(cancellationToken);
         
         await using var cmd = conn.CreateCommand(
-            $"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};select id, uri, type, node from {_restrictionTable}");
+            $"select {nodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};select id, uri, type, node from {_restrictionTable}");
         
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -230,7 +243,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.OpenAsync(cancellationToken);
 
         await using var cmd = CommandExtensions.CreateCommand(conn,
-                $"select {NodeColumns} from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
+                $"select {nodeColumns} from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
@@ -258,8 +271,19 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var count = await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
-            .With("id", node.NodeId).ExecuteNonQueryAsync(cancellationToken);
+        // GH-4593: the load advertisement rides the same single-statement heartbeat write, so the leader
+        // never places agents against a reading older than one HealthCheckPollingTime.
+        var cmd = conn.CreateCommand(advertisesLoad
+                ? $"update {_nodeTable} set health_check = GETUTCDATE(), {LoadFactor} = @load where id = @id"
+                : $"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
+            .With("id", node.NodeId);
+
+        if (advertisesLoad)
+        {
+            cmd = cmd.With("load", (object?)node.LoadFactor ?? DBNull.Value);
+        }
+
+        var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
 
@@ -278,15 +302,26 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         // in memory. The delete cascades any surviving assignment rows; the caller restores them.
         var strings = node.Capabilities.Select(x => x.ToString()).Join("\n");
 
-        await conn.CreateCommand(
-                $"SET IDENTITY_INSERT {_nodeTable} ON; delete from {_nodeTable} where id = @id; insert into {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) values (@id, @number, @uri, @capabilities, @description, @version, GETUTCDATE()); SET IDENTITY_INSERT {_nodeTable} OFF;")
+        // GH-4593: delete-then-insert rather than an upsert, so the load column only joins the column and
+        // value lists -- there is no "do update set" half to splice here.
+        var loadColumn = advertisesLoad ? $", {LoadFactor}" : string.Empty;
+        var loadValue = advertisesLoad ? ", @load" : string.Empty;
+
+        var cmd = conn.CreateCommand(
+                $"SET IDENTITY_INSERT {_nodeTable} ON; delete from {_nodeTable} where id = @id; insert into {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check{loadColumn}) values (@id, @number, @uri, @capabilities, @description, @version, GETUTCDATE(){loadValue}); SET IDENTITY_INSERT {_nodeTable} OFF;")
             .With("id", node.NodeId)
             .With("number", node.AssignedNodeNumber)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
             .With("capabilities", strings)
             .With("description", node.Description)
-            .With("version", node.Version.ToString())
-            .ExecuteNonQueryAsync(cancellationToken);
+            .With("version", node.Version.ToString());
+
+        if (advertisesLoad)
+        {
+            cmd = cmd.With("load", (object?)node.LoadFactor ?? DBNull.Value);
+        }
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
     }
@@ -318,6 +353,17 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             node.Capabilities.AddRange(capabilities
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries)
                 .Select(x => new Uri(x)));
+        }
+
+        // GH-4593: resolved by name -- a select that stops appending the column should fail loudly here
+        // rather than read a wrong hard-coded ordinal.
+        if (advertisesLoad)
+        {
+            var loadFactor = reader.GetOrdinal(LoadFactor);
+            if (!await reader.IsDBNullAsync(loadFactor))
+            {
+                node.LoadFactor = await reader.GetFieldValueAsync<double>(loadFactor);
+            }
         }
 
         return node;

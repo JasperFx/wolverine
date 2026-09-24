@@ -283,6 +283,15 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             nodeTable.AddColumn("version", "VARCHAR2(4000)");
             nodeTable.AddColumn("capabilities", "VARCHAR2(4000)").AllowNulls();
 
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and OracleNodePersistence gates every statement naming it on
+            // the same flag. BINARY_DOUBLE rather than NUMBER: it is a true IEEE double with no precision
+            // or scale to declare, and it does not come back as OracleDecimal.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "BINARY_DOUBLE").AllowNulls();
+            }
+
             yield return nodeTable;
 
             var assignmentTable = new Table(new OracleObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName.ToUpperInvariant()));

@@ -22,12 +22,14 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 
     private readonly DatabaseSettings _settings;
     private readonly DbObjectName _restrictionTable;
+    private readonly DurabilitySettings _durability;
 
     public MySqlNodePersistence(DatabaseSettings settings, MySqlMessageStore database,
         MySqlDataSource dataSource)
     {
         _settings = settings;
         _database = database;
+        _durability = database.Durability;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         var schemaName = settings.SchemaName ?? "wolverine";
         _nodeTable = new DbObjectName(schemaName, NodeTableName);
@@ -37,6 +39,16 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         _lockId = schemaName.GetDeterministicHashCode();
     }
+
+    // GH-4593: load_factor is only provisioned behind this flag (MySqlMessageStore.AllObjects), so every
+    // statement naming it is gated on it too -- otherwise an un-migrated database (AutoCreate.None, or no
+    // DDL rights) fails node startup on an unknown column. Read live rather than captured: this is
+    // constructed before the flag is reliably set.
+    private bool advertisesLoad => _durability.CapacityAwareAssignment;
+
+    private string nodeColumns => advertisesLoad ? $"{NodeColumns}, {LoadFactor}" : NodeColumns;
+
+    public bool AdvertisesNodeLoad => true;
 
     public Task ClearAllAsync(CancellationToken cancellationToken)
     {
@@ -96,7 +108,7 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         // Load nodes
         await using var nodeCmd = conn.CreateCommand();
-        nodeCmd.CommandText = $"SELECT {NodeColumns} FROM {_nodeTable}";
+        nodeCmd.CommandText = $"SELECT {nodeColumns} FROM {_nodeTable}";
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         while (await nodeReader.ReadAsync(cancellationToken))
         {
@@ -169,7 +181,7 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         // Load nodes
         await using var nodeCmd = conn.CreateCommand();
-        nodeCmd.CommandText = $"SELECT {NodeColumns} FROM {_nodeTable}";
+        nodeCmd.CommandText = $"SELECT {nodeColumns} FROM {_nodeTable}";
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         while (await nodeReader.ReadAsync(cancellationToken))
         {
@@ -234,7 +246,7 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         // Load node
         await using var nodeCmd = conn.CreateCommand();
-        nodeCmd.CommandText = $"SELECT {NodeColumns} FROM {_nodeTable} WHERE id = @id";
+        nodeCmd.CommandText = $"SELECT {nodeColumns} FROM {_nodeTable} WHERE id = @id";
         nodeCmd.Parameters.AddWithValue("@id", nodeId);
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         if (await nodeReader.ReadAsync(cancellationToken))
@@ -329,9 +341,20 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 
     public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
-        var count = await _dataSource
-            .CreateCommand($"UPDATE {_nodeTable} SET health_check = UTC_TIMESTAMP(6) WHERE id = @id")
-            .With("id", node.NodeId).ExecuteNonQueryAsync(token);
+        // GH-4593: the load advertisement rides the same single-statement heartbeat write, so the leader
+        // never places agents against a reading older than one HealthCheckPollingTime.
+        var cmd = _dataSource
+            .CreateCommand(advertisesLoad
+                ? $"UPDATE {_nodeTable} SET health_check = UTC_TIMESTAMP(6), {LoadFactor} = @load WHERE id = @id"
+                : $"UPDATE {_nodeTable} SET health_check = UTC_TIMESTAMP(6) WHERE id = @id")
+            .With("id", node.NodeId);
+
+        if (advertisesLoad)
+        {
+            cmd = cmd.With("load", (object?)node.LoadFactor ?? DBNull.Value);
+        }
+
+        var count = await cmd.ExecuteNonQueryAsync(token);
 
         // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
         // instead of blindly re-inserting a skeleton (fresh node_number, empty capabilities) here.
@@ -346,15 +369,27 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
         // + capabilities so the resurrected row matches the identity the process still uses in memory.
         var capabilities = string.Join(",", node.Capabilities.Select(x => x.ToString()));
 
+        // GH-4593: an upsert, so the load column is spliced into three places -- column list, values list,
+        // and the ON DUPLICATE KEY UPDATE set list.
+        var loadColumn = advertisesLoad ? $", {LoadFactor}" : string.Empty;
+        var loadValue = advertisesLoad ? ", @load" : string.Empty;
+        var loadUpdate = advertisesLoad ? $", {LoadFactor} = @load" : string.Empty;
+
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            $"INSERT INTO {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) VALUES (@id, @number, @uri, @capabilities, @description, @version, UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE node_number = @number, uri = @uri, capabilities = @capabilities, description = @description, version = @version, health_check = UTC_TIMESTAMP(6)";
+            $"INSERT INTO {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check{loadColumn}) VALUES (@id, @number, @uri, @capabilities, @description, @version, UTC_TIMESTAMP(6){loadValue}) ON DUPLICATE KEY UPDATE node_number = @number, uri = @uri, capabilities = @capabilities, description = @description, version = @version, health_check = UTC_TIMESTAMP(6){loadUpdate}";
         cmd.Parameters.AddWithValue("@id", node.NodeId);
         cmd.Parameters.AddWithValue("@number", node.AssignedNodeNumber);
         cmd.Parameters.AddWithValue("@uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString());
         cmd.Parameters.AddWithValue("@capabilities", capabilities);
         cmd.Parameters.AddWithValue("@description", node.Description);
         cmd.Parameters.AddWithValue("@version", node.Version.ToString());
+
+        if (advertisesLoad)
+        {
+            // AddWithValue, so a null reading has to be DBNull explicitly
+            cmd.Parameters.AddWithValue("@load", (object?)node.LoadFactor ?? DBNull.Value);
+        }
 
         await cmd.ExecuteNonQueryAsync(token);
 
@@ -453,6 +488,17 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
             {
                 var capabilities = capabilitiesStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 node.Capabilities.AddRange(capabilities.Select(x => new Uri(x.Trim())));
+            }
+        }
+
+        // GH-4593: resolved by name -- a select that stops appending the column should fail loudly here
+        // rather than read a wrong hard-coded ordinal.
+        if (advertisesLoad)
+        {
+            var loadFactor = reader.GetOrdinal(LoadFactor);
+            if (!await reader.IsDBNullAsync(loadFactor))
+            {
+                node.LoadFactor = Convert.ToDouble(reader.GetValue(loadFactor));
             }
         }
 

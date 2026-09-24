@@ -130,6 +130,20 @@ public partial class WolverineRuntime
                     $"{nameof(DurabilitySettings.CapacityAwareAssignment)} back to false.");
             }
 
+            // GH-4593: a monitor is not enough -- the reading has to survive the round trip through the
+            // message store, and before this every store but PostgreSQL dropped it on the floor. A node
+            // that advertises nothing counts as having unlimited headroom, so the feature does not merely
+            // fail to help there, it makes every node look equally idle. Warn rather than refuse: the
+            // cluster still works, just without the capacity input, and refusing would break an
+            // application that turned the flag on against a store that has since been implemented.
+            if (Options.Durability.CapacityAwareAssignment && !Storage.Nodes.AdvertisesNodeLoad)
+            {
+                Logger.LogWarning(
+                    "{Setting} is enabled and a {Monitor} is configured, but the message store in use ({Store}) does not persist a node's load reading. Every node will advertise nothing, which the leader reads as unlimited headroom, so agent placement will ignore capacity entirely. See {Issue}.",
+                    nameof(DurabilitySettings.CapacityAwareAssignment), nameof(INodeLoadMonitor),
+                    Storage.GetType().Name, "https://github.com/JasperFx/wolverine/issues/4593");
+            }
+
             if (Options.Schedules.Any())
             {
                 // "Silently never fires" is not a degradation, it is a refusal: these modes run no

@@ -660,7 +660,9 @@ public class DurabilitySettings : IDescribeMyself
     ///     <see cref="NodeLoadMonitor" />) on every heartbeat; the leader prefers the least-loaded
     ///     nodes, never places onto a node at or above <see cref="NodeOverloadThreshold" />, and sheds
     ///     agents off overloaded nodes onto nodes that still have headroom. Requires a message store
-    ///     that persists the load advertisement (PostgreSQL today). Off by default.
+    ///     that persists the load advertisement — PostgreSQL, SQL Server, MySQL, Oracle, SQLite, RavenDB
+    ///     and Azure Cosmos DB all do (GH-4593); a store that does not is reported as a startup warning.
+    ///     Off by default.
     ///     <para>
     ///         Setting this to true <b>requires</b> a <see cref="NodeLoadMonitor" />; there is no
     ///         default. Starting a host with this on and no monitor is a startup error.
@@ -683,9 +685,12 @@ public class DurabilitySettings : IDescribeMyself
     ///         take the entire partition — a shard database's agents are never split to relieve pressure.
     ///     </para>
     ///     <para>
-    ///         Enabling this provisions a load_factor column on the wolverine_nodes table. With
-    ///         <c>AutoCreate.None</c> — or a process without DDL rights — apply the schema migration
-    ///         before turning this on; otherwise every heartbeat fails against the missing column.
+    ///         On a relational store, enabling this provisions a <c>load_factor</c> column on the
+    ///         <c>wolverine_nodes</c> table. With <c>AutoCreate.None</c> — or a process without DDL
+    ///         rights — apply the schema migration before turning this on; otherwise every heartbeat
+    ///         fails against the missing column. Every statement naming the column is gated on this same
+    ///         flag, so leaving it off migrates nothing and reads nothing. The document stores have no
+    ///         schema to migrate: an absent property simply reads back as "not advertising".
     ///     </para>
     /// </summary>
     public bool CapacityAwareAssignment { get; set; }

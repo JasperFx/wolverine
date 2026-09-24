@@ -143,9 +143,10 @@ public class DatabaseConstants
     public static readonly string HealthCheck = "health_check";
     public static readonly string Capabilities = "capabilities";
 
-    // GH-3959: per-node load advertisement. Deliberately NOT part of NodeColumns -- every store's
-    // readNode is a positional read over that shared list, and only PostgreSQL persists this column
-    // -- and then only when DurabilitySettings.CapacityAwareAssignment provisioned it.
+    // GH-3959, extended to every store by GH-4593: per-node load advertisement. Deliberately NOT part of
+    // NodeColumns -- every store's readNode is a positional read over that shared list, and this column is
+    // only provisioned when DurabilitySettings.CapacityAwareAssignment asked for it. Each store appends it
+    // through its own `nodeColumns` property and reads it back by NAME rather than by ordinal.
     public static readonly string LoadFactor = "load_factor";
 
     public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Version}, {Capabilities}";
