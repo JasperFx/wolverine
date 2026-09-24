@@ -188,6 +188,11 @@ public static class WolverineOptionsFisherExtensions
         // registered wherever the integration is -- an ancillary-only host included (GH-4145).
         services.TryAddScoped<ScopedDocumentSessionHolder>();
 
+        // GH-4571. The seam generated code calls to put a logical deduplication claim inside the Fisher
+        // session's transaction. Registered here, alongside the frame provider that emits the call, so an
+        // ancillary-only host gets it too.
+        services.TryAddSingleton<IFisherDeduplicator, FisherDeduplicator>();
+
         // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
         // a Fisher ancillary store by resolving this provider from the store marker type. Registered
         // here (not in FisherIntegration.Configure) so the singleton is present in the codegen-time

@@ -24,6 +24,22 @@ public static class IncomingTableNaming
     /// </summary>
     public static bool IsIncomingTable(string? tableName)
     {
+        return names(tableName, DatabaseConstants.IncomingTable);
+    }
+
+    /// <summary>
+    /// GH-4571. Whether <paramref name="tableName"/> — possibly schema-qualified, possibly prefixed —
+    /// names the logical deduplication table. Same reasoning as <see cref="IsIncomingTable"/>: the
+    /// commit-race classifier behind a transactional deduplication claim has to tell its own primary key
+    /// violation apart from one raised by the application's own tables in the same transaction.
+    /// </summary>
+    public static bool IsDeduplicationTable(string? tableName)
+    {
+        return names(tableName, DatabaseConstants.DeduplicationTableName);
+    }
+
+    private static bool names(string? tableName, string bareTableName)
+    {
         if (string.IsNullOrWhiteSpace(tableName)) return false;
 
         // Strip a schema qualifier ("wolverine.wolverine_incoming_envelopes") and any quoting the
@@ -31,7 +47,7 @@ public static class IncomingTableNaming
         var bare = tableName.Split('.').Last().Trim('[', ']', '"', '`', '\'', ' ');
 
         // An exact match covers the unprefixed table; EndsWith covers TablePrefixing's "{schema}_" form
-        return bare == DatabaseConstants.IncomingTable
-               || bare.EndsWith($"_{DatabaseConstants.IncomingTable}", StringComparison.Ordinal);
+        return bare == bareTableName
+               || bare.EndsWith($"_{bareTableName}", StringComparison.Ordinal);
     }
 }
