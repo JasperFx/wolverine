@@ -213,6 +213,16 @@ internal static class GrpcDeduplication
         // A gRPC service method is never enrolled in a Wolverine transaction of its own -- it forwards to
         // the bus, and any transaction belongs to the handler on the other side. So the claim is always
         // already committed by the time the forward runs, and the compensating release is always needed.
+        //
+        // GH-4566 asked whether this path should instead go through ChainDeduplicationExtensions.
+        // ApplyDeduplication and pick up GH-4505's transactional claim. It cannot, and the reason is
+        // structural rather than a missing wire-up: all three gRPC chain types return an empty
+        // HandlerCalls(), so an RPC method's parameters never surface as service dependencies, so no
+        // persistence provider's CanApply ever matches, so no transaction support is ever applied -- and
+        // TryBuildTransactionalDeduplication requires the session and commit frames to be present.
+        // It would return false on every gRPC chain and emit exactly this code. Pinned by
+        // Wolverine.Grpc.Tests.Deduplication.grpc_chains_are_never_transactional_4566, which fails if
+        // that ever stops being true.
         yield return new ReleaseDeduplicationIdOnFailureFrame(read.Variable, chain.AncillaryStoreType,
             deduplicatorField.Usage, cancellation);
     }
