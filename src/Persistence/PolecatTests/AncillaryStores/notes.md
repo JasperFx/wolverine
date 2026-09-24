@@ -14,6 +14,7 @@ scenarios.
 | `multi_stream_projection_with_side_effects_on_ancillary_store` | `inline_projection_side_effects_on_ancillary_polecat_store` (inline projection `RaiseSideEffects` → `PublishMessage` relayed through the Wolverine outbox) |
 | `tenant_partitioned_ancillary_store` | *(not mirrored — see below)* |
 | *(generic attribute — new in GH-3109)* | `storage_attribute_routes_to_polecat_store` (`[Storage(typeof(T))]` parity with `[PolecatStore]`) |
+| `deduplication_rides_an_ancillary_marten_transaction` | `deduplication_rides_an_ancillary_polecat_transaction` (GH-4605; the claim table is resolved through the store marker, so it must land in the ancillary schema and roll back with it) |
 
 ## Polecat-specific differences
 
@@ -27,6 +28,16 @@ scenarios.
   role, so SQL-Server ancillary stores share `wolverine://messages`. The per-store identity that
   must be unique on SQL Server is the agent `Uri` (`engine/server/database/envelope-schema`), which
   is what `ancillary_store_subject_uri_uniqueness` asserts.
+
+* **The ancillary envelope schema does not default to the store's document schema.** Marten's
+  ancillary `IntegrateWithWolverine` falls through to `store.Options.DatabaseSchemaName`; Polecat's
+  (`AncillaryWolverineOptionsPolecatExtensions`) falls through to the literal `"wolverine"`, the same
+  as the primary store's own fallback would on a host that set `Durability.MessageStorageSchemaName`.
+  For ancillary stores in *separate databases* that is harmless. For ancillary stores that are
+  *schemas in one database* — the shape `storage_attribute_routes_to_polecat_store` and
+  `deduplication_rides_an_ancillary_polecat_transaction` use — it means both stores' Wolverine tables
+  collide unless `IntegrateWithWolverine(x => x.SchemaName = ...)` is spelled out. Worth knowing before
+  writing a test here that asserts "which schema did the row land in".
 
 * **Inline (not async-daemon) side effects.** Polecat relays projection side effects through
   `StoreOptions.Events.MessageOutbox`. The Wolverine integration wires the ancillary store's outbox
