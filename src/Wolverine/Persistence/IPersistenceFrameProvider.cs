@@ -85,7 +85,48 @@ public interface IPersistenceFrameProvider
     Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container);
     Frame DetermineUpdateFrame(Variable saga, IServiceContainer container);
     Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container);
-    
+
+    /// <summary>
+    ///     The update frame for an entity that arrived as a <see cref="Update{T}" /> return value, rather
+    ///     than as a saga Wolverine itself read into a local of its own. GH-4613.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     <see cref="DetermineUpdateFrame" /> serves two callers that need different code, and the
+    ///     difference is not visible in its arguments. <see cref="Sagas.SagaChain" /> calls it for a saga
+    ///     Wolverine loaded a moment earlier, so the session or context is already tracking that instance
+    ///     and a version, revision or ETag from the read is in scope. <c>Update&lt;T&gt;.BuildFrame</c>
+    ///     calls it for whatever the handler returned, which may be an entity built from the message, taken
+    ///     from a request body, or loaded with <c>AsNoTracking()</c> — nothing tracks it, and there was no
+    ///     read to declare a version against.
+    ///     </para>
+    ///     <para>
+    ///     A provider whose write is unconditional — every document store that spells this
+    ///     <c>session.Store(entity)</c> — needs no override; the default delegates and the two paths stay
+    ///     identical. Override it when the saga path does something the storage-action path must not,
+    ///     which in practice means either optimistic concurrency (Redis compare-and-swap, Marten's
+    ///     <c>UpdateRevision</c>, Cosmos' <c>IfMatchEtag</c>) or, for EF Core, relying on change tracking
+    ///     that a returned entity was never enrolled in.
+    ///     </para>
+    /// </remarks>
+    Frame DetermineStorageUpdateFrame(Variable entity, IServiceContainer container)
+        => DetermineUpdateFrame(entity, container);
+
+    /// <summary>
+    ///     The insert frame for an entity that arrived as an <see cref="Insert{T}" /> return value rather
+    ///     than as a saga Wolverine is starting. GH-4613, and the same reasoning as
+    ///     <see cref="DetermineStorageUpdateFrame" />.
+    /// </summary>
+    /// <remarks>
+    ///     There is deliberately no <c>DetermineStorageStoreFrame</c> or storage-action delete: nothing but
+    ///     <c>Store&lt;T&gt;.BuildFrame</c> calls <see cref="DetermineStoreFrame" />, and nothing but
+    ///     <c>Delete&lt;T&gt;.BuildFrame</c> calls the single-argument
+    ///     <see cref="DetermineDeleteFrame(Variable,IServiceContainer)" />, so both of those are already
+    ///     the storage-action entry point and an alias would carry no information.
+    /// </remarks>
+    Frame DetermineStorageInsertFrame(Variable entity, IServiceContainer container)
+        => DetermineInsertFrame(entity, container);
+
     /// <summary>
     /// Create an "upsert" Frame for the variable. Not every persistence provider will be able to support this
     /// and should throw NotSupportedException if it does not

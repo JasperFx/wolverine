@@ -48,7 +48,16 @@ public class ConjoinedTenancyModelCustomizer : WolverineModelCustomizer
 
             entity.Property(nameof(IHasTenantId.TenantId))
                 .HasColumnName(StorageConstants.TenantIdColumn)
-                .HasDefaultValue(StorageConstants.DefaultTenantId);
+                .HasDefaultValue(StorageConstants.DefaultTenantId)
+                // GH-4612. The query filter does not apply to SaveChanges, so without this an UPDATE or
+                // DELETE matched on the primary key alone and a DETACHED entity -- one built from a
+                // message or a request body, whose TenantId is null only because it was never loaded --
+                // reached whatever tenant happened to own that id. As a concurrency token, tenant_id
+                // joins the where clause of every update and delete, and TenantStampingInterceptor pins
+                // its ORIGINAL value to the context's tenant, so the statement can only ever match a row
+                // this tenant owns. A cross-tenant attempt matches nothing and EF reports it the way it
+                // reports any zero-row write, with DbUpdateConcurrencyException.
+                .IsConcurrencyToken();
 
             entity.HasIndex(nameof(IHasTenantId.TenantId));
 

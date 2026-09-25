@@ -81,3 +81,18 @@ internal class EnlistDbContextInOutbox : AsyncFrame, IFlushesMessages
         yield return _dbContext;
     }
 }
+
+/// <summary>
+/// GH-4611. Flushes the outbox for a conjoined multi-tenanted DbContext in Lightweight mode.
+/// <see cref="IDbContextBuilder{T}.BuildAndEnrollAsync" /> already enlisted the MessageContext, so
+/// cascades are buffered; there is no explicit transaction to commit, but the buffer still has to be
+/// flushed after the SaveChangesAsync postprocessor. Implements <see cref="IFlushesMessages" /> so an
+/// HttpChain does not also append its own flush after the response writer.
+/// </summary>
+internal class FlushTenantedDbContextOutbox : FlushOutgoingMessages, IFlushesMessages
+{
+    public FlushTenantedDbContextOutbox()
+    {
+        CommentText = "GH-4611: flush the buffered cascades after SaveChangesAsync commits";
+    }
+}

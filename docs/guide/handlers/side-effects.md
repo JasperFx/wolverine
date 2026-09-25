@@ -255,7 +255,7 @@ public static class StoreManyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/StorageActionCompliance.cs#L431-L448' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_unit_of_work_as_side_effect' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/StorageActionCompliance.cs#L524-L541' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_unit_of_work_as_side_effect' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `UnitOfWork<T>` is really just a `List<IStorageAction<T>>` that can relay zero to many storage

@@ -38,6 +38,8 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
     Justification = "EFCore codegen frame provider — entity / DbContext types statically rooted via persistence registration. See AOT guide.")]
 [UnconditionalSuppressMessage("Trimming", "IL2075",
     Justification = "EFCore codegen frame provider — DbContext.SaveChangesAsync etc. lookups on statically-rooted DbContext types. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2060",
+    Justification = "EFCore codegen frame provider — MakeGenericMethod over EfCoreStorageActionApplier's helpers, closed at codegen time over entity / DbContext types mapped in a registered DbContext. See AOT guide.")]
 [UnconditionalSuppressMessage("AOT", "IL3050",
     Justification = "EFCore codegen frame provider — closed generics over runtime DbContext / entity types at codegen time. See AOT guide.")]
 internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
@@ -288,9 +290,48 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             return new CommentFrame("No explicit update necessary with EF Core without a Version property");
         }
-        
+
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         return new IncrementSagaVersionIfNecessary(dbContextType, saga);
+    }
+
+    /// <summary>
+    ///     GH-4613. Unlike the saga above, an entity returned as <c>Update&lt;T&gt;</c> is not something
+    ///     Wolverine loaded, so the DbContext may never have seen it -- and change tracking cannot save
+    ///     what it is not tracking. Attach it through the same helper the
+    ///     <c>IStorageAction&lt;T&gt;</c> path already used, so the two return types become literally the
+    ///     same generated call.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately no <see cref="IncrementSagaVersionIfNecessary" /> here, even for a type that has a
+    ///     read/write <c>Version</c> property. The saga convention of bumping <c>Version</c> belongs to a
+    ///     saga chain that loaded the saga and holds the version it read; the <c>IStorageAction&lt;T&gt;</c>
+    ///     path never bumped it, and this issue is precisely the report that the two paths must agree.
+    ///     <c>SagaChain</c> still goes through <see cref="DetermineUpdateFrame" />, so EF Core saga
+    ///     optimistic concurrency is untouched.
+    /// </remarks>
+    public Frame DetermineStorageUpdateFrame(Variable entity, IServiceContainer container)
+    {
+        return applierCall(nameof(EfCoreStorageActionApplier.UpdateAsync), entity, container);
+    }
+
+    /// <summary>
+    ///     Builds a call to one of <see cref="EfCoreStorageActionApplier" />'s entity-level helpers, so the
+    ///     <c>Update&lt;T&gt;</c> / <c>Store&lt;T&gt;</c> return types and the
+    ///     <c>IStorageAction&lt;T&gt;</c> return type run literally the same code. GH-4613 was the two
+    ///     paths quietly disagreeing.
+    /// </summary>
+    private MethodCall applierCall(string methodName, Variable entity, IServiceContainer container)
+    {
+        var dbContextType = DetermineDbContextType(entity.VariableType, container);
+
+        var method = typeof(EfCoreStorageActionApplier).GetMethod(methodName)!
+            .MakeGenericMethod(entity.VariableType, dbContextType);
+
+        var call = new MethodCall(typeof(EfCoreStorageActionApplier), method);
+        call.Arguments[1] = entity;
+
+        return call;
     }
 
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
@@ -317,9 +358,15 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
+    /// <summary>
+    ///     GH-4613. Only <c>Store&lt;T&gt;.BuildFrame</c> reaches this, so it is always an entity the
+    ///     handler returned. It used to forward to <see cref="DetermineUpdateFrame" />, which meant a
+    ///     comment frame for any type without a <c>Version</c> property -- <c>Storage.Store()</c> did
+    ///     nothing at all on EF Core, including for the new-entity case the operations guide documents.
+    /// </summary>
     public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return DetermineUpdateFrame(saga, container);
+        return applierCall(nameof(EfCoreStorageActionApplier.StoreAsync), saga, container);
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
@@ -340,6 +387,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var enrolledInTransaction = false;
         var multiTenantTransaction = false;
+        var tenantedLightweight = false;
         if (mode == TransactionMiddlewareMode.Eager)
         {
             if (isMultiTenanted(container, dbContextType))
@@ -356,8 +404,24 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 enrolledInTransaction = true;
             }
         }
+        else if (isMultiTenanted(container, dbContextType))
+        {
+            // GH-4611: Lightweight mode never took the multi-tenanted branch at all, so the DbContext was
+            // resolved from the container -- where the only registration is the one marked "STRICTLY FOR
+            // EF CORE MIGRATIONS", built through BuildForMain() and therefore pinned to *DEFAULT*. Writes
+            // were stamped with the default tenant sentinel and readable by every tenant. Build it
+            // through the tenant builder here too, just without the explicit BeginTransactionAsync that
+            // Eager mode adds (SaveChanges' implicit transaction covers the write, and skipping the
+            // explicit begin keeps this compatible with EnableRetryOnFailure -- same reasoning as
+            // EnlistDbContextInOutbox below).
+            //
+            // This also closes the second half of GH-4611 for free: BuildAndEnrollAsync enlists the
+            // MessageContext in the outbox, which is exactly what the GH-3291 branch below does for a
+            // non-tenanted DbContext, and why that branch's old !isMultiTenanted guard is gone.
+            chain.Middleware.Insert(0, typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType));
+            tenantedLightweight = true;
+        }
         else if (isHttpChain(chain)
-                 && !isMultiTenanted(container, dbContextType)
                  && chain.ShouldFlushOutgoingMessages()
                  && hasDatabaseBackedMessagePersistence(container))
         {
@@ -398,7 +462,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         chain.Postprocessors.Add(call);
 
-        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbContextType);
+        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbContextType,
+            tenantedLightweight);
     }
 
     // Eager mode wraps the rest of the chain in a transaction middleware's try/catch. The commit +
@@ -413,10 +478,14 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     //  - Multi-tenant (StartDatabaseTransactionForDbContext): commit the DbContext transaction directly,
     //    then flush the MessageContext. The postprocessor is IFlushesMessages so the chain does not also
     //    add a standalone FlushOutgoingMessages (which would flush after the response and before commit).
+    //  - Multi-tenant in Lightweight mode (CreateTenantedDbContext with no BeginTransactionAsync,
+    //    GH-4611): nothing to commit, but BuildAndEnrollAsync did enlist the outbox, so the buffered
+    //    cascades need an IFlushesMessages postprocessor of their own after SaveChanges.
     //  - Lightweight mode (no try-block wrap, no commit frame): a standalone FlushOutgoingMessages
     //    postprocessor is the only flush trigger and must stay.
     private static void applyEagerCommitOrLightweightFlush(IChain chain, TransactionMiddlewareMode mode,
-        bool enrolledInTransaction, bool multiTenantTransaction, Type dbContextType)
+        bool enrolledInTransaction, bool multiTenantTransaction, Type dbContextType,
+        bool tenantedLightweight)
     {
         if (enrolledInTransaction)
         {
@@ -425,6 +494,18 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         else if (multiTenantTransaction)
         {
             chain.Postprocessors.Add(new CommitTenantedDbContextTransaction(dbContextType));
+        }
+        else if (tenantedLightweight)
+        {
+            // GH-4611: BuildAndEnrollAsync enlisted the MessageContext in the outbox, so cascades are
+            // buffered rather than sent immediately. There is no explicit transaction to commit in
+            // Lightweight mode, but the buffer still has to be flushed AFTER the SaveChangesAsync
+            // postprocessor -- and, for an HTTP endpoint, before the response writer, which is why the
+            // frame is IFlushesMessages rather than a plain FlushOutgoingMessages.
+            if (chain.ShouldFlushOutgoingMessages())
+            {
+                chain.Postprocessors.Add(new FlushTenantedDbContextOutbox());
+            }
         }
         else if (mode != TransactionMiddlewareMode.Eager
                  && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
@@ -527,6 +608,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var enrolledInTransaction = false;
         var multiTenantTransaction = false;
+        var tenantedLightweight = false;
         if (mode == TransactionMiddlewareMode.Eager)
         {
             if (isMultiTenanted(container, dbType))
@@ -542,8 +624,14 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 enrolledInTransaction = true;
             }
         }
-        else if (isHttpChain(chain) && !isMultiTenanted(container, dbType)
-                                    && hasDatabaseBackedMessagePersistence(container))
+        else if (isMultiTenanted(container, dbType))
+        {
+            // GH-4611, the storage-action counterpart of the branch in the no-entity overload above. See
+            // there for why Lightweight mode has to build the DbContext through the tenant builder too.
+            chain.Middleware.Insert(0, typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType));
+            tenantedLightweight = true;
+        }
+        else if (isHttpChain(chain) && hasDatabaseBackedMessagePersistence(container))
         {
             // GH-3353, the storage-action counterpart to the GH-3291 branch in the no-entity overload
             // above: a Wolverine.Http endpoint has no incoming envelope, so its MessageContext.Transaction
@@ -578,7 +666,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Postprocessors.Add(call);
 
         // See applyEagerCommitOrLightweightFlush + the no-entity overload above (GH-2917).
-        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbType);
+        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbType,
+            tenantedLightweight);
     }
 
     public bool CanApply(IChain chain, IServiceContainer container)
