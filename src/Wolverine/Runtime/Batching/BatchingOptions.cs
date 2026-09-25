@@ -215,11 +215,14 @@ public class BatchingOptions : IAsyncDisposable
     {
         public IMessageHandler Build(WolverineRuntime runtime, IMessageBatcher batcher, BatchingOptions options)
         {
-            var parentChain = runtime.Handlers.ChainFor(batcher.BatchMessageType);
+            // A batch handler registered with AddMessageHandler has no discovered chain, but it has a chain of
+            // its own and is fully able to run the batch, so it counts.
+            var parentChain = runtime.Handlers.ChainOrRegisteredHandlerChainFor(batcher.BatchMessageType);
             if (parentChain == null)
             {
+                // Name the batch type the batcher actually produces: a custom IMessageBatcher need not produce T[].
                 throw new InvalidOperationException(
-                    $"This Wolverine application has a configuration for batching messages of type {typeof(T).FullNameInCode()}, but there is no known handler for {typeof(T).FullNameInCode()}[]");
+                    $"This Wolverine application has a configuration for batching messages of type {typeof(T).FullNameInCode()}, but there is no known handler for its batch type {batcher.BatchMessageType.FullNameInCode()}");
             }
 
             // A batcher that groups by group id needs the application's partitioning rules to
