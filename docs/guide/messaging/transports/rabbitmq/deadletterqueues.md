@@ -135,7 +135,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 With native dead lettering, failed messages land in a RabbitMQ dead letter queue and are only visible
 through RabbitMQ tooling. Tools that manage Wolverine's *durable* dead letters (for example
-[CritterWatch](https://github.com/JasperFx/CritterWatch)) can't see or replay them.
+[CritterWatch](https://critterwatch.jasperfx.net/)) can't see or replay them.
 
 `EnableDeadLetterQueueRecovery()` starts a background listener that consumes the native dead letter
 queue(s) and copies each message into Wolverine's durable dead letter storage (the
