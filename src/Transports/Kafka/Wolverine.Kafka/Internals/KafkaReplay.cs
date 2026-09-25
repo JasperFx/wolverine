@@ -41,10 +41,11 @@ internal sealed class KafkaReplay
         var pipeline = _runtime.Pipeline;
         var callback = new ReplayChannelCallback();
 
-        // Throwaway, Assign-only consumer: unique group, no commits, no offset store.
+        // Throwaway, Assign-only consumer: unique group sharing the live group's prefix, no commits, no
+        // offset store.
         var config = new ConsumerConfig(_transport.ConsumerConfig)
         {
-            GroupId = $"{_runtime.Options.ServiceName}-replay-{Guid.NewGuid():N}",
+            GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName),
             EnableAutoCommit = false,
             EnableAutoOffsetStore = false
         };
@@ -101,6 +102,12 @@ internal sealed class KafkaReplay
                 envelope.PartitionId = result.Partition.Value;
                 envelope.MessageType ??= messageTypeName;
 
+                // The live receivers stamp Destination when they accept an envelope, and the pipeline relies
+                // on it: the executor logs it after every handler run and dead-lettering keys the inbox row
+                // on it. Without it each replayed record threw a NullReferenceException after its handler
+                // succeeded, and one whose handler failed could not be dead-lettered.
+                envelope.Destination ??= topic.Uri;
+
                 await pipeline.InvokeAsync(envelope, callback);
                 replayed++;
 
@@ -121,6 +128,39 @@ internal sealed class KafkaReplay
             request.Topic, replayed);
 
         return new KafkaReplayResult { RecordsReplayed = replayed, PartitionsReplayed = ends.Count };
+    }
+
+    /// <summary>
+    /// The throwaway replay group is named after the group the topic's live listener consumes under —
+    /// the topic's own group id, else that of a <see cref="KafkaTopicGroup"/> subscribing to it
+    /// (<c>ListenToKafkaTopics(...)</c> keeps its consumer config on the group, not on the topic), else
+    /// the transport's, else the service name. Brokers commonly grant consumer groups by prefix
+    /// (Confluent Cloud ACLs are the usual case), and the live group is the one prefix the application
+    /// is known to hold; the service name alone defaults to the entry assembly name, which such an ACL
+    /// refuses with "Group authorization failed".
+    /// </summary>
+    internal static string ReplayGroupIdFor(KafkaTopic topic, KafkaTransport transport, string serviceName)
+    {
+        var liveGroupId = topic.ConsumerConfig?.GroupId;
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            liveGroupId = transport.TopicGroups
+                .Where(x => x.TopicNames.Contains(topic.TopicName))
+                .Select(x => x.ConsumerConfig?.GroupId)
+                .FirstOrDefault(x => !string.IsNullOrEmpty(x));
+        }
+
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            liveGroupId = transport.ConsumerConfig.GroupId;
+        }
+
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            liveGroupId = serviceName;
+        }
+
+        return $"{liveGroupId}-replay-{Guid.NewGuid():N}";
     }
 
     private List<TopicPartition> ResolvePartitions(KafkaReplayRequest request)
