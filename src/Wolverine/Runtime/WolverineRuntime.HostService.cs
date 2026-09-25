@@ -691,6 +691,8 @@ public partial class WolverineRuntime
             }
         }
 
+        Options.MessagePartitioning.AssertTopologyGroupingIsUnambiguous(Handlers.Chains.Select(x => x.MessageType));
+
         // Build message-type-to-ancillary-store mapping for durable inbox routing.
         // When a handler targets an ancillary store on a different database, incoming
         // envelopes should be persisted in that store for transactional atomicity.

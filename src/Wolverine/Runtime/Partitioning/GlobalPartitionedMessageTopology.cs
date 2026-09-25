@@ -212,6 +212,40 @@ public class GlobalPartitionedMessageTopology
         _subscriptions.Add(new Subscription { BaseType = typeof(T), Scope = RoutingScope.Implements });
     }
 
+    internal List<IGroupingRule> GroupingRules { get; } = new();
+
+    /// <summary>
+    ///     Use the Envelope.TenantId as the GroupId of the messages published through this topology.
+    ///     Unlike <see cref="MessagePartitioningRules.ByTenantId" />, this reaches no other message. Once a
+    ///     topology declares a grouping rule, the application-wide rules no longer apply to its messages.
+    /// </summary>
+    public void GroupByTenantId()
+    {
+        GroupBy(new TenantGroupingRule());
+    }
+
+    /// <summary>
+    ///     Determine the GroupId of the messages published through this topology that can be cast to
+    ///     "T". Once a topology declares a grouping rule, the application-wide rules no longer apply to
+    ///     its messages.
+    /// </summary>
+    public void GroupBy<T>(Func<T, string> strategy)
+    {
+        GroupBy(new MessageGrouping<T>(strategy));
+    }
+
+    /// <summary>
+    ///     Determine the GroupId of the messages published through this topology with a custom rule.
+    ///     Rules on one topology are evaluated in the order they are declared. Once a topology declares
+    ///     a grouping rule, the application-wide rules no longer apply to its messages.
+    /// </summary>
+    public void GroupBy(IGroupingRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        GroupingRules.Add(rule);
+        _options.MessagePartitioning.TopologyGroupingChanged();
+    }
+
     /// <summary>
     ///     Create a publishing rule for all message types from within the
     ///     specified namespace
