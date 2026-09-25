@@ -43,6 +43,58 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L64-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Subscriptions across multiple nodes
+
+When several nodes of the same application listen to a Pub/Sub topic, Wolverine has all of them share **one**
+subscription. Pub/Sub load balances a subscription across all of its subscribers, so each message is handled
+**once** by one node in the cluster. That's the normal competing consumers behavior you'd expect from any other
+queue.
+
+If you really do want every node to receive its own copy of every message, like for cache invalidation, you can
+opt into a separate subscription per node, named `{subscription}.{node number}`:
+
+```cs
+opts.ListenToPubsubTopic("cache-invalidation")
+    // Every node gets its own subscription, so every node handles every message
+    .SubscriptionPerNode();
+
+// Or for every listener created by conventional routing
+opts.UsePubsub("your-project-id")
+    .UseConventionalRouting(x => x.ConfigureListeners((listener, _) => listener.SubscriptionPerNode()));
+```
+
+Leader-pinned and exclusive listeners always use a single shared subscription and ignore `SubscriptionPerNode()`.
+
+::: warning
+Pub/Sub keeps every subscription around, and keeps adding messages to it, until it has been inactive for its
+expiration period (31 days by default). A per-node subscription is named after the node number, and a node that
+isn't using a durable message store gets a new random number every time it starts. Every restart then leaves an
+orphaned subscription behind that keeps collecting messages. Use `SubscriptionPerNode()` with a durable message
+store, or set a short `ExpirationPolicy` through `ConfigurePubsubSubscription()`.
+:::
+
+Two *different* applications listening to the same topic with the same subscription name will also share that
+subscription, and compete for its messages rather than each getting a copy. If each application needs its own
+copy, give them distinct subscriptions.
+
+::: info Upgrading to 6.41
+Before Wolverine 6.41, every competing consumers listener used a subscription per node by default. Each node
+received a copy of every message, so a message was handled once per node instead of once per cluster (see
+[#4615](https://github.com/JasperFx/wolverine/issues/4615)). As of 6.41, all nodes share one subscription named
+after the topic, and the per-node behavior requires `SubscriptionPerNode()`.
+
+When you upgrade:
+
+* A Pub/Sub subscription only receives messages published *after* it was created. Messages still waiting in the
+  old `{subscription}.{n}` subscriptions are **not** moved to the new shared subscription. Let the old nodes drain
+  them before you shut them down.
+* During a rolling deployment, old nodes are still reading the per-node subscriptions while new nodes read the
+  shared one, so a message can be handled more than once until the rollout finishes. A durable inbox discards
+  those duplicates.
+* After the rollout, delete the leftover `{subscription}.{n}` subscriptions. Wolverine won't delete them for you,
+  and Pub/Sub keeps adding every new message to them until they expire.
+:::
+
 ## Long running handlers and the ack extension budget
 
 While Wolverine is processing a Pub/Sub message, the Pub/Sub client keeps the message's ack deadline alive

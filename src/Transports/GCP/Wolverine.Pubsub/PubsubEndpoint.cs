@@ -32,6 +32,12 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     internal bool IsDeadLetter;
 
+    /// <summary>
+    ///     GH-4615. When true, a competing-consumers listener provisions its own subscription per node, so every
+    ///     node receives a copy of every message. False by default: all nodes share one subscription.
+    /// </summary>
+    internal bool IsSubscriptionPerNode;
+
     public PubsubServerOptions Server = new();
 
     internal PubsubTransport Transport => _transport;
@@ -122,18 +128,16 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             return;
         }
 
-        // Only competing-consumer listeners get a per-node subscription so that each node
-        // load balances a distinct copy of the stream. A leader-pinned (or otherwise
-        // single-node) listener must read from one shared, cluster-stable subscription;
-        // otherwise every node creates its own subscription and Pub/Sub fans a copy of every
-        // message to each, breaking the single-consumer (leader-only) guarantee.
+        // GH-4615: by default every node reads from ONE shared subscription. Pub/Sub load balances a subscription
+        // across all of its subscribers, which is exactly competing consumers. A subscription per node makes
+        // Pub/Sub deliver a copy of every message to every node instead, so that is strictly opt in, and never
+        // for a leader-pinned or exclusive listener, which must stay single-consumer.
         //
         // Applied once here (before per-connection provisioning) so the mutated subscription id is shared by the
         // default project and every tenant project.
-        if ((IsListener || IsDeadLetter) && !IsDeadLetter && ListenerScope == ListenerScope.CompetingConsumers)
+        if (IsListener && !IsDeadLetter && IsSubscriptionPerNode && ListenerScope == ListenerScope.CompetingConsumers)
         {
-            Server.Subscription.Name =
-                Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
+            Server.Subscription.Name = subscriptionNameForThisNode();
         }
 
         // Provision on the default/shared connection...
@@ -148,6 +152,16 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
                 await provisionAsync(logger, _transport.GetTenantClients(tenant));
             }
         }
+    }
+
+    private SubscriptionName subscriptionNameForThisNode()
+    {
+        var subscriptionId = Server.Subscription.Name.SubscriptionId;
+        var suffix = $".{_transport.NodeIdentifier}";
+
+        return subscriptionId.EndsWith(suffix)
+            ? Server.Subscription.Name
+            : new SubscriptionName(Server.Subscription.Name.ProjectId, subscriptionId + suffix);
     }
 
     private async Task provisionAsync(ILogger logger, PubsubClientSet clients)
