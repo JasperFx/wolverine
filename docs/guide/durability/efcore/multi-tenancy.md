@@ -295,12 +295,21 @@ with EF Core query filters:
 * A global query filter binds every query to the tenant of the current message or HTTP request — there are no named filters for your team to remember, and no "one forgotten `IgnoreQueryFilters()`" data leakage from ad hoc LINQ
 * On `SaveChanges`, inserted entities are stamped with the ambient tenant id (after any `TenantIdStyle` correction)
 * Updates or deletes against an entity belonging to a *different* tenant throw `CrossTenantWriteException` instead of quietly crossing tenant boundaries
+* The `tenant_id` column is also mapped as an EF Core concurrency token, so `tenant_id = @currentTenant` joins the `where` clause of every update and delete. That covers the case the `CrossTenantWriteException` check cannot see: a *detached* entity (`Update(new Invoice { Id = someId })`, or anything built from a message or a request body) has no `TenantId` of its own to compare, so the guarantee has to come from the SQL. A detached write aimed at another tenant's row matches nothing, and EF Core reports that the way it reports any zero-row write, with `DbUpdateConcurrencyException`
 * Sagas implementing `ITenanted` get tenant-scoped loads — the same saga id in two different tenants are two different sagas as far as loading is concerned
 * All of Wolverine's existing tenant id detection (message `TenantId`, [HTTP tenant detection](/guide/http/multi-tenancy.html#tenant-id-detection), `InvokeForTenantAsync()`) flows through unchanged
 
 Because conjoined tenancy is a single database, the messaging storage is just the plain, non-tenanted message store —
 there's no per-tenant inbox/outbox to manage, and the transactional middleware and outbox work exactly as they do in
 a single-tenant application.
+
+::: tip
+All of this works in either `TransactionMiddlewareMode`. In `Lightweight` mode Wolverine still builds the `DbContext`
+through the tenant builder and still enrolls it in the outbox -- it just skips the explicit `BeginTransactionAsync()`
+and lets `SaveChangesAsync()` supply its own transaction, exactly as it does for a non-tenanted `DbContext`. Before
+6.41 the `Lightweight` path missed both, so writes landed under the `*DEFAULT*` sentinel and HTTP cascades were sent
+before the save committed.
+:::
 
 Note that a `DbContext` type registered with conjoined tenancy is pinned to the tenant id of the message being handled
 at the time it's created. If you need to query across tenants for administrative functions, use `IgnoreQueryFilters()`

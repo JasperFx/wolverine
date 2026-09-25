@@ -23,7 +23,11 @@ public record Update<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         {
             provider.ApplyTransactionSupport(chain, container, typeof(T));
             var value = new EntityVariable(variable);
-            var frame = provider.DetermineUpdateFrame(value, container).WrapIfNotNull(variable);
+
+            // GH-4613: deliberately NOT DetermineUpdateFrame. The entity here is whatever the handler
+            // returned, with no preceding read to track it or to declare a version against, which is a
+            // different job from updating a saga Wolverine just loaded.
+            var frame = provider.DetermineStorageUpdateFrame(value, container).WrapIfNotNull(variable);
             return frame;
         }
 

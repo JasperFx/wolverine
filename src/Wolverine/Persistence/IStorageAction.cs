@@ -23,8 +23,15 @@ public interface IStorageAction<T> : ISideEffectAware
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
             provider.ApplyTransactionSupport(chain, container, typeof(T));
-            var value = new EntityVariable(variable);
-            return provider.DetermineStorageActionFrame(typeof(T), value, container).WrapIfNotNull(variable);
+
+            // GH-4613: DetermineStorageActionFrame wants the ACTION -- it becomes the
+            // IStorageAction<T> argument of the provider's applier -- so pass the variable itself. An
+            // EntityVariable here rewrites the usage to "x.Entity" and the type to T, which does not
+            // compile. Unreachable for Wolverine's own Insert<T>/Update<T>/Store<T>/Delete<T> (each
+            // declares its own BuildFrame) and for a variable typed exactly IStorageAction<T> (Storage
+            // .TryApply handles that one), but a user-defined type implementing IStorageAction<T> lands
+            // here.
+            return provider.DetermineStorageActionFrame(typeof(T), variable, container).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));
