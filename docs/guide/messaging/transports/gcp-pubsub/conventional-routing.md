@@ -47,6 +47,13 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L130-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+As of 6.41, every node of an application shares one subscription for each conventionally routed listener, so each
+message is handled once across the cluster. Before 6.41 each node got its own subscription and handled every
+message. See [Subscriptions across multiple nodes](/guide/messaging/transports/gcp-pubsub/listening#subscriptions-across-multiple-nodes)
+to opt back into a subscription per node, and for the upgrade steps.
+:::
+
 ## Handler Type Naming <Badge type="tip" text="5.25" />
 
 By default, conventional routing names topics/subscriptions after the **message type**. In modular monolith scenarios
