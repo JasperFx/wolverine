@@ -192,7 +192,17 @@ public interface IGroupingRule
 <!-- endSnippet -->
 
 Definitely note that these rules are fall through, and the order you declare the rules
-are important. Also note that when you call into this syntax below it's combinatorial (just meaning that you
+are important.
+
+::: warning
+These rules are one list for the whole application, no matter which `PublishToPartitionedLocalMessaging()`
+call you chain them onto, and the first rule that matches wins. `ByTenantId()` matches every message that carries a
+tenant id, so in a multi-tenant application no rule declared after it is ever reached -- and extensions that each
+configure their own topology append to that same list in registration order. To give one topology its own grouping,
+see [Grouping Rules Scoped to a Topology](#grouping-rules-scoped-to-a-topology).
+:::
+
+Also note that when you call into this syntax below it's combinatorial (just meaning that you
 don't start over if you call into it multiple times):
 
 <!-- snippet: sample_configuring_message_grouping_rules -->
@@ -331,6 +341,64 @@ builder.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L44-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_local_partitioned_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Grouping Rules Scoped to a Topology <Badge type="tip" text="6.41" />
+
+A partitioned topology can declare its own grouping rules with `GroupByTenantId()`, `GroupBy<T>()` or
+`GroupBy(IGroupingRule)`. Those rules reach only the message types that topology publishes, and they are tried
+**before** the application-wide `MessagePartitioning` rules — so a topology rule wins for its own messages no
+matter what order the two were declared in:
+
+<!-- snippet: sample_topology_scoped_grouping -->
+<a id='snippet-sample_topology_scoped_grouping'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Invoices of one tenant share that tenant's invoice number series,
+    // so the invoice messages -- and only those -- are grouped by tenant
+    opts.MessagePartitioning.PublishToPartitionedLocalMessaging("invoices", 4, topology =>
+    {
+        topology.MessagesImplementing<IInvoiceCommand>();
+        topology.GroupByTenantId();
+    });
+
+    // The tenant rule above cannot reach these, whatever order the two are declared in
+    opts.MessagePartitioning.PublishToPartitionedLocalMessaging("orders", 4, topology =>
+    {
+        topology.MessagesImplementing<IOrderCommand>();
+        topology.GroupBy<IOrderCommand>(x => x.OrderId);
+    });
+
+    // Still reached by both topologies for any message their own rules don't match --
+    // the topology rules narrow the grouping, they don't replace this
+    opts.MessagePartitioning.UseInferredMessageGrouping();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L76-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_topology_scoped_grouping' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Rules on one topology are evaluated in the order they are declared. An explicit `GroupId` on the envelope still wins.
+The same methods exist on a global partitioned topology.
+
+The rules are **additive, not authoritative**. A topology's own rules go first, and when none of them matches the
+message in hand, the application-wide rules still get their say. So the full order for any message is:
+
+1. An explicit `GroupId` on the envelope or `DeliveryOptions`
+2. The rules of the topology publishing it, in declaration order
+3. The application-wide `MessagePartitioning` rules, in declaration order
+
+::: tip
+Falling through matters most for `UseInferredMessageGrouping()`. The saga and aggregate identities it infers land
+in the application-wide list, so they stay available to every topology. Giving one topology a narrower rule — say
+`GroupByTenantId()` for messages that carry a tenant id — never costs its other messages the inferred identity they
+would otherwise have been grouped by.
+:::
+
+A message type can be published to more than one partitioned topology, but an envelope has only one `GroupId`, so
+at most one of those topologies may declare grouping rules for it — otherwise which topology goes first at step 2
+would matter, which is the very thing this feature exists to remove. Wolverine checks this for every handled message
+type at startup and refuses to start otherwise; a type the application only publishes fails on its first send instead.
 
 ## Partitioned Processing at any Endpoint
 

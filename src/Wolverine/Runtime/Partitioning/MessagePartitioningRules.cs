@@ -14,6 +14,8 @@ public class MessagePartitioningRules
     private readonly List<Func<Type, bool>> _processingExemptions = new();
     private ImHashMap<Type, bool> _processingExemptionCache = ImHashMap<Type, bool>.Empty;
     private bool _useInferredGrouping;
+    private bool _hasTopologyGrouping;
+    private ImHashMap<Type, IGroupingRule[]?> _topologyGroupingCache = ImHashMap<Type, IGroupingRule[]?>.Empty;
 
     public MessagePartitioningRules(WolverineOptions options)
     {
@@ -29,6 +31,7 @@ public class MessagePartitioningRules
     public void AddPublishingTopology(Func<WolverineOptions, MessagePartitioningRules, PartitionedMessageTopology> factory)
     {
         ShardedMessageTopologies.Add(factory(_options, this));
+        _topologyGroupingCache = ImHashMap<Type, IGroupingRule[]?>.Empty;
     }
     
     /// <summary>
@@ -48,6 +51,7 @@ public class MessagePartitioningRules
         topology.AssertValidity();
         
         ShardedMessageTopologies.Add(topology);
+        _topologyGroupingCache = ImHashMap<Type, IGroupingRule[]?>.Empty;
     }
     
     /// <summary>
@@ -66,6 +70,7 @@ public class MessagePartitioningRules
         topology.AssertValidity();
 
         GlobalPartitionedTopologies.Add(topology);
+        _topologyGroupingCache = ImHashMap<Type, IGroupingRule[]?>.Empty;
 
         // Also register with sharded topologies so route discovery finds it
         // The external topology is already registered for listening/sending
@@ -131,7 +136,10 @@ public class MessagePartitioningRules
     }
 
     /// <summary>
-    /// Use any known TenantId as the message GroupId
+    /// Use any known TenantId as the message GroupId. The rules on <see cref="MessagePartitioningRules"/>
+    /// are one application-wide, first-match-wins list, and this rule matches every message that carries a
+    /// tenant id, so in a multi-tenant application no rule declared after it is ever reached. To group only
+    /// the messages of one partitioned topology by tenant, use <c>GroupByTenantId()</c> on that topology.
     /// </summary>
     public MessagePartitioningRules ByTenantId()
     {
@@ -201,6 +209,25 @@ public class MessagePartitioningRules
     {
         if (envelope.GroupId.IsNotEmpty()) return envelope.GroupId;
 
+        // A topology's own grouping rules go first for the messages that topology publishes, so they win
+        // over the application-wide list however the two were declared. They are ADDITIVE, not
+        // authoritative: when none of them match, the application-wide rules below still get their say.
+        // That is what keeps a global rule -- above all the saga/aggregate identity that
+        // UseInferredMessageGrouping() infers -- reachable from every topology, so narrowing one
+        // topology's grouping never silently drops the fallback the rest of the application relies on.
+        if (_hasTopologyGrouping && envelope.Message != null
+                                 && TopologyGroupingFor(envelope.Message.GetType()) is { } topologyRules)
+        {
+            foreach (var rule in topologyRules)
+            {
+                if (rule.TryFindIdentity(envelope, out var topologyGroupId))
+                {
+                    envelope.GroupId = topologyGroupId;
+                    return topologyGroupId;
+                }
+            }
+        }
+
         foreach (var rule in _rules)
         {
             if (rule.TryFindIdentity(envelope, out var groupId))
@@ -212,6 +239,54 @@ public class MessagePartitioningRules
         }
 
         return null;
+    }
+
+    internal void TopologyGroupingChanged()
+    {
+        _hasTopologyGrouping = true;
+        _topologyGroupingCache = ImHashMap<Type, IGroupingRule[]?>.Empty;
+    }
+
+    /// <summary>
+    /// The grouping rules of the one partitioned topology that publishes this message type and declares
+    /// its own grouping, to be tried ahead of the application-wide rules, or null when no such topology
+    /// exists and the application-wide rules are the whole story
+    /// </summary>
+    internal IGroupingRule[]? TopologyGroupingFor(Type messageType)
+    {
+        if (_topologyGroupingCache.TryFind(messageType, out var cached)) return cached;
+
+        var declaring = ShardedMessageTopologies
+            .Where(x => x.GroupingRules.Count != 0 && x.Matches(messageType))
+            .Select(x => (Name: x.Uri.ToString(), Rules: x.GroupingRules))
+            .Concat(GlobalPartitionedTopologies
+                .Where(x => x.GroupingRules.Count != 0 && x.Matches(messageType))
+                .Select(x => (Name: x.ExternalTopology?.Uri.ToString() ?? "a global partitioned topology", Rules: x.GroupingRules)))
+            .ToArray();
+
+        if (declaring.Length > 1)
+        {
+            throw new InvalidOperationException(
+                $"Message type {messageType.FullNameInCode()} is published to more than one partitioned topology that declares its own grouping rules ({declaring.Select(x => x.Name).Join(", ")}). An envelope has a single GroupId, so only one topology can decide it.");
+        }
+
+        var rules = declaring.Length == 1 ? declaring[0].Rules.ToArray() : null;
+        _topologyGroupingCache = _topologyGroupingCache.AddOrUpdate(messageType, rules);
+        return rules;
+    }
+
+    /// <summary>
+    /// Resolve topology-scoped grouping for every known message type up front, so an ambiguous
+    /// configuration fails at startup rather than on the first send
+    /// </summary>
+    internal void AssertTopologyGroupingIsUnambiguous(IEnumerable<Type> messageTypes)
+    {
+        if (!_hasTopologyGrouping) return;
+
+        foreach (var messageType in messageTypes)
+        {
+            TopologyGroupingFor(messageType);
+        }
     }
 
     internal bool TryFindTopology(Type messageType, out PartitionedMessageTopology? topology)
