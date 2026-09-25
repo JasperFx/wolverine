@@ -49,8 +49,50 @@ public class kafka_replay_envelope_and_group
         sink.Destinations.ShouldBe([$"kafka://topic/{topic}"]);
 
         // Before the fix the executor dereferenced the missing Destination right after the handler returned,
-        // so every successfully handled record was logged -- and counted -- as a failure.
-        errors.Entries.ShouldBeEmpty();
+        // so every successfully handled record was logged -- and counted -- as a failure. Asserted on that
+        // exception rather than on an empty log: ErrorLogSink is a host-wide ILoggerProvider, so a broker
+        // hiccup or a rebalance during this real-Kafka test writes unrelated Error entries.
+        errors.Entries.ShouldNotContain(x => x.Contains(nameof(NullReferenceException)));
+    }
+
+    [Fact]
+    public void the_live_listening_endpoint_of_a_directly_listened_topic_is_the_topic()
+    {
+        var (_, transport) = buildTransport();
+        var topic = transport.Topics["orders"];
+        topic.ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-orders" };
+
+        KafkaReplay.LiveListeningEndpointFor(topic, transport).Uri.ShouldBe(topic.Uri);
+    }
+
+    [Fact]
+    public void the_live_listening_endpoint_of_a_group_consumed_topic_is_the_group()
+    {
+        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
+        options.ListenToKafkaTopics("payments", "orders");
+        var group = transport.TopicGroups.Single();
+        var topic = transport.Topics["orders"];
+
+        // Envelope.MarkReceived would stamp the group's Uri, not the topic's, so a replayed envelope has to
+        // carry the same one
+        KafkaReplay.LiveListeningEndpointFor(topic, transport).Uri.ShouldBe(group.Uri);
+        group.Uri.ShouldNotBe(topic.Uri);
+    }
+
+    [Fact]
+    public void replay_group_ignores_the_ephemeral_hot_tail_group()
+    {
+        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
+        var topic = transport.Topics["orders"];
+
+        // The state ApplyHotTailConfig leaves behind once a TailFromLatest() listener has been built: the
+        // topic's own group id is a throwaway named after ServiceName, which is the one prefix the broker
+        // ACL that motivated all of this refuses
+        topic.IsHotTail = true;
+        topic.ConsumerConfig = new ConsumerConfig { GroupId = "OrderService-hot-tail-e6f1c2d3" };
+
+        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
+            .ShouldStartWith("tenant-a-replay-");
     }
 
     [Fact]
