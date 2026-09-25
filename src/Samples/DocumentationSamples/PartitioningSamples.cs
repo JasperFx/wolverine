@@ -71,6 +71,31 @@ public class PartitioningSamples
         #endregion
     }
 
+    public static async Task configure_topology_scoped_grouping()
+    {
+        #region sample_topology_scoped_grouping
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Invoices of one tenant share that tenant's invoice number series,
+            // so the invoice messages -- and only those -- are grouped by tenant
+            opts.MessagePartitioning.PublishToPartitionedLocalMessaging("invoices", 4, topology =>
+            {
+                topology.MessagesImplementing<IInvoiceCommand>();
+                topology.GroupByTenantId();
+            });
+
+            // The tenant rule above cannot reach these, whatever order the two are declared in
+            opts.MessagePartitioning.PublishToPartitionedLocalMessaging("orders", 4, topology =>
+            {
+                topology.MessagesImplementing<IOrderCommand>();
+                topology.GroupBy<IOrderCommand>(x => x.OrderId);
+            });
+        });
+
+        #endregion
+    }
+
     public class MySpecialGroupingRule : IGroupingRule
     {
         public bool TryFindIdentity(Envelope envelope, out string groupId)
@@ -195,6 +220,8 @@ public static class ApproveInvoiceHandler
 
     #endregion
 }
+
+public interface IInvoiceCommand;
 
 #region sample_order_commands_for_partitioning
 public interface IOrderCommand
