@@ -137,6 +137,28 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return null;
     }
 
+    /// <summary>
+    ///     The chain that owns the handling of <paramref name="messageType" />: the discovered chain if there is
+    ///     one, otherwise the chain of a pre-canned <see cref="MessageHandler" /> registered with
+    ///     <see cref="WolverineOptions.AddMessageHandler(Type, IMessageHandler)" />. Returns null when neither
+    ///     exists.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="ChainFor(Type)" /> reads the discovered chains only. That is right for anything that needs
+    ///     generated code, and wrong for anything that only needs the chain's runtime settings -- batching, for
+    ///     one, which needs the batch type's chain for its failure rules and its envelope identity, and would
+    ///     otherwise refuse a batch handler that is perfectly able to run. Reads the pre-canned map directly
+    ///     rather than through <see cref="HandlerFor(Type)" />, so a miss is not memoized and an
+    ///     <see cref="IAgentCommand" /> type does not take the agent path.
+    /// </remarks>
+    internal HandlerChain? ChainOrRegisteredHandlerChainFor(Type messageType)
+    {
+        return ChainFor(messageType)
+               ?? (_handlers.TryFind(messageType, out var handler) && handler is MessageHandler { Chain: { } chain }
+                   ? chain
+                   : null);
+    }
+
     public HandlerChain? ChainFor<T>()
     {
         return ChainFor(typeof(T));
