@@ -209,8 +209,12 @@ public class MessagePartitioningRules
     {
         if (envelope.GroupId.IsNotEmpty()) return envelope.GroupId;
 
-        // A topology that declares its own grouping rules is authoritative for its messages: the
-        // application-wide list below is not consulted for them, even when none of its rules match
+        // A topology's own grouping rules go first for the messages that topology publishes, so they win
+        // over the application-wide list however the two were declared. They are ADDITIVE, not
+        // authoritative: when none of them match, the application-wide rules below still get their say.
+        // That is what keeps a global rule -- above all the saga/aggregate identity that
+        // UseInferredMessageGrouping() infers -- reachable from every topology, so narrowing one
+        // topology's grouping never silently drops the fallback the rest of the application relies on.
         if (_hasTopologyGrouping && envelope.Message != null
                                  && TopologyGroupingFor(envelope.Message.GetType()) is { } topologyRules)
         {
@@ -222,8 +226,6 @@ public class MessagePartitioningRules
                     return topologyGroupId;
                 }
             }
-
-            return null;
         }
 
         foreach (var rule in _rules)
@@ -247,7 +249,8 @@ public class MessagePartitioningRules
 
     /// <summary>
     /// The grouping rules of the one partitioned topology that publishes this message type and declares
-    /// its own grouping, or null when no such topology exists and the application-wide rules apply
+    /// its own grouping, to be tried ahead of the application-wide rules, or null when no such topology
+    /// exists and the application-wide rules are the whole story
     /// </summary>
     internal IGroupingRule[]? TopologyGroupingFor(Type messageType)
     {

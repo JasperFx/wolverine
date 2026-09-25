@@ -47,7 +47,7 @@ public class topology_scoped_grouping
     }
 
     [Fact]
-    public void a_topology_with_its_own_rules_does_not_fall_back_to_the_application_wide_rules()
+    public void a_topology_rule_that_does_not_match_falls_through_to_the_application_wide_rules()
     {
         var options = new WolverineOptions();
         options.MessagePartitioning.ByMessage<Coffee1>(x => x.Brand);
@@ -57,7 +57,33 @@ public class topology_scoped_grouping
             topology.GroupByTenantId();
         });
 
-        groupIdOf(options, new Coffee1("Dark", "Paul Newman's"), tenantId: null).ShouldBeNull();
+        // The topology's rule wins whenever it matches...
+        groupIdOf(options, new Coffee1("Dark", "Paul Newman's"), "red").ShouldBe("red");
+
+        // ...and with no tenant id to group by, the application-wide rule still gets its say. The rules are
+        // additive: narrowing this topology's grouping does not strip the fallback off its messages.
+        groupIdOf(options, new Coffee1("Dark", "Paul Newman's"), tenantId: null).ShouldBe("Paul Newman's");
+    }
+
+    [Fact]
+    public void an_unmatched_topology_rule_falls_through_to_inferred_grouping()
+    {
+        var options = new WolverineOptions();
+        options.MessagePartitioning.UseInferredMessageGrouping();
+        options.MessagePartitioning.PublishToPartitionedLocalMessaging("tenants", 3, topology =>
+        {
+            topology.Message<StartCoffeeOrder>();
+            topology.GroupByTenantId();
+        });
+
+        // Stands in for what MaybeInferGrouping() adds to the application-wide list at startup for a saga
+        // or aggregate command -- the identity that must never stop being a fallback, because losing it
+        // silently downgrades ordering from per-saga to nothing at all
+        options.MessagePartitioning.ByMessage(typeof(StartCoffeeOrder),
+            typeof(StartCoffeeOrder).GetProperty(nameof(StartCoffeeOrder.OrderId))!);
+
+        groupIdOf(options, new StartCoffeeOrder("order-1"), "red").ShouldBe("red");
+        groupIdOf(options, new StartCoffeeOrder("order-1"), tenantId: null).ShouldBe("order-1");
     }
 
     [Fact]
@@ -195,6 +221,8 @@ public class topology_scoped_grouping
 }
 
 public record ScopedGroupingProbe(string Id);
+
+public record StartCoffeeOrder(string OrderId);
 
 public static class ScopedGroupingProbeHandler
 {

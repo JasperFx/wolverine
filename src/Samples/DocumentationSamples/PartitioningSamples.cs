@@ -91,6 +91,10 @@ public class PartitioningSamples
                 topology.MessagesImplementing<IOrderCommand>();
                 topology.GroupBy<IOrderCommand>(x => x.OrderId);
             });
+
+            // Still reached by both topologies for any message their own rules don't match --
+            // the topology rules narrow the grouping, they don't replace this
+            opts.MessagePartitioning.UseInferredMessageGrouping();
         });
 
         #endregion

@@ -243,9 +243,10 @@ public abstract class PartitionedMessageTopology
     internal List<IGroupingRule> GroupingRules { get; } = new();
 
     /// <summary>
-    ///     Use the Envelope.TenantId as the GroupId of the messages published through this topology.
-    ///     Unlike <see cref="MessagePartitioningRules.ByTenantId" />, this reaches no other message. Once a
-    ///     topology declares a grouping rule, the application-wide rules no longer apply to its messages.
+    ///     Use the Envelope.TenantId as the GroupId of the message types published through this topology.
+    ///     Unlike <see cref="MessagePartitioningRules.ByTenantId" />, this reaches no other message type.
+    ///     A topology's own rules are consulted before the application-wide rules, and the application-wide
+    ///     rules still apply to any of its messages that none of them match.
     /// </summary>
     public void GroupByTenantId()
     {
@@ -254,8 +255,8 @@ public abstract class PartitionedMessageTopology
 
     /// <summary>
     ///     Determine the GroupId of the messages published through this topology that can be cast to
-    ///     "T". Once a topology declares a grouping rule, the application-wide rules no longer apply to
-    ///     its messages.
+    ///     "T". This rule is consulted before the application-wide rules, which still apply to any of this
+    ///     topology's messages it does not match.
     /// </summary>
     public void GroupBy<T>(Func<T, string> strategy)
     {
@@ -264,8 +265,8 @@ public abstract class PartitionedMessageTopology
 
     /// <summary>
     ///     Determine the GroupId of the messages published through this topology with a custom rule.
-    ///     Rules on one topology are evaluated in the order they are declared. Once a topology declares
-    ///     a grouping rule, the application-wide rules no longer apply to its messages.
+    ///     Rules on one topology are evaluated in the order they are declared, ahead of the application-wide
+    ///     rules, which still apply to any of this topology's messages none of them match.
     /// </summary>
     public void GroupBy(IGroupingRule rule)
     {
