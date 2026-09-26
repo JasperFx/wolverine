@@ -80,7 +80,10 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
-        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
+        // GH-4630: the check no longer opens an explicit transaction on a Wolverine-mapped DbContext.
+        // Its own SaveChangesAsync commits the inbox row on SaveChanges' implicit transaction, which is
+        // what makes the check usable from Lightweight mode at all.
+        dbContext.Database.CurrentTransaction.ShouldBeNull();
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted.Data!.Length.ShouldBe(0);
@@ -118,8 +121,10 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         var durabilitySettings = new DurabilitySettings();
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         ok.ShouldBeTrue();
-        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
-        
+
+        // GH-4630: no explicit transaction to commit -- see happy_path_eager_idempotency.
+        dbContext.Database.CurrentTransaction.ShouldBeNull();
+
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;
         
