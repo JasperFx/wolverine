@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Weasel.EntityFrameworkCore;
+using Weasel.EntityFrameworkCore.Batching;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.EntityFrameworkCore.Internals.Migrations;
@@ -294,6 +295,12 @@ public static class WolverineEntityCoreExtensions
         services.AddDbContext<T>((s, b) =>
         {
             configure(s, b);
+
+            // weasel#621: BatchedQuery only batches into one round trip when its interceptor is on
+            // the DbContext, and only materializes faithfully through EF Core when it does. Without
+            // this, the query plans EFCoreBatchingPolicy batches each take their own round trip.
+            b.UseWeaselBatchedQueries();
+
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         // Cache models per (context type, wolverine schema) -- GH-3497
         b.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
