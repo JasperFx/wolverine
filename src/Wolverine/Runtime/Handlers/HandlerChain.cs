@@ -301,23 +301,27 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return Task.FromResult(found);
     }
 
-    // AttachTypesSynchronously walks Assembly.ExportedTypes on the *generated*
-    // handler assembly (or the pre-compiled one in TypeLoadMode.Static) to
-    // resolve the generated handler class by name. Trim removal of the
-    // generated handler class would already break Wolverine at runtime; the
-    // ExportedTypes walk is finding a type that's known by construction.
+    // AttachTypesSynchronously resolves the generated handler class by name in the *generated*
+    // handler assembly (or the pre-compiled one in TypeLoadMode.Static). Trim removal of the
+    // generated handler class would already break Wolverine at runtime; the lookup is finding a
+    // type that's known by construction.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "ExportedTypes walk over the generated handler assembly to attach the generated handler type; the type is known by construction at codegen time. See AOT guide.")]
+        Justification = "Name lookup (Assembly.GetType, then an ExportedTypes walk) over the generated handler assembly to attach the generated handler type; the type is known by construction at codegen time. See AOT guide.")]
     [UnconditionalSuppressMessage("Trimming", "IL2074",
-        Justification = "_handlerType assignment from ExportedTypes.FirstOrDefault — the generated handler type carries its codegen-emitted public constructor; trim preserves it because the type itself is rooted by the assembly load. See AOT guide.")]
+        Justification = "_handlerType assignment from Assembly.GetType / ExportedTypes.FirstOrDefault — the generated handler type carries its codegen-emitted public constructor; trim preserves it because the type itself is rooted by the assembly load. See AOT guide.")]
     [UnconditionalSuppressMessage("Trimming", "IL2077",
-        Justification = "_handlerType is populated by ExportedTypes scan on the generated assembly; the resolved Type's constructors are emitted by the same codegen step that produced the type, so trimming preserves them in any practical setup.")]
+        Justification = "_handlerType is populated by a name lookup on the generated assembly; the resolved Type's constructors are emitted by the same codegen step that produced the type, so trimming preserves them in any practical setup.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "QuickBuild closes IFinder<TParameter> via MakeGenericType + Activator.CreateInstance; AOT consumers run pre-generated handlers via TypeLoadMode.Static so the reflective close never fires.")]
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
+        // GH-4625: resolve the generated handler by its full name (a targeted lookup, as HttpChain has done
+        // since GH-2908); fall back to the ExportedTypes walk only if it misses. The walk ran once per handler
+        // chain from AssertPreBuiltTypesExist, and under Native AOT every walk rebuilds runtime type
+        // information for each exported type, so it was most of WolverineRuntime.StartAsync.
+        _handlerType = assembly.GetType($"{containingNamespace}.{TypeName}")
+                       ?? assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
 
         if (_handlerType == null)
         {
