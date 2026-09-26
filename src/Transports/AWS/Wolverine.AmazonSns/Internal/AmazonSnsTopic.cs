@@ -183,7 +183,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         // TODO there is no "listening" to SNS topics, so not sure what to do this this one. Maybe Endpoint is the wrong class to use here?
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Amazon SNS topic '{TopicName}' ({Uri}) is a publish-only endpoint. SNS topics cannot be listened to directly. Subscribe an SQS queue to the topic and listen to that queue instead with ListenToSqsQueue().");
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -218,7 +219,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         }
 
         var protocol = new SnsSenderProtocol(runtime, this,
-            Parent.SnsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
+            Parent.SnsClient ?? throw new InvalidOperationException(AmazonSnsTransport.NotInitializedMessage(Uri)));
         return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SnsSenderProtocol>());
     }
@@ -274,7 +275,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
             if (client == null)
             {
-                throw new InvalidOperationException($"Parent {nameof(AmazonSnsTransport)} has not been initialized");
+                throw new InvalidOperationException(AmazonSnsTransport.NotInitializedMessage(Uri));
             }
 
             if (Parent.AutoProvision)
@@ -300,17 +301,13 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     private async Task setupAsync(IAmazonSimpleNotificationService client)
     {
         Configuration.Name = TopicName;
-        try
-        {
-            var response = await client.CreateTopicAsync(Configuration);
 
-            TopicArn = response.TopicArn;
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
+        // GH-4518: this used to catch, Console.WriteLine(e), and rethrow. A framework writing a stack trace
+        // straight to stdout is exactly the noise that makes a configuration problem read as a Wolverine bug;
+        // the caller already wraps this in WolverineSnsTransportException naming the topic.
+        var response = await client.CreateTopicAsync(Configuration);
+
+        TopicArn = response.TopicArn;
     }
     
     private async Task loadTopicArnIfEmptyAsync(IAmazonSimpleNotificationService client)
@@ -321,7 +318,10 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
             if (response == null)
             {
-                throw new NullReferenceException($"Could not find Amazon SNS topic '{TopicName}'");
+                // GH-4518: this used to be a NullReferenceException, which reads as a Wolverine bug once it is
+                // wrapped by WolverineSnsTransportException and the user drills into the inner exception.
+                throw new InvalidOperationException(
+                    $"Could not find the Amazon SNS topic '{TopicName}'. Either enable AutoProvision() on the SNS transport so Wolverine creates the topic, or create it out of band before the application starts. If the topic does exist, check the region and credentials passed to UseAmazonSnsTransport() -- a topic in another account or region is invisible to this client.");
             }
             
             TopicArn = response.TopicArn;
@@ -353,13 +353,27 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             switch (subscription.Type)
             {
                 case AmazonSnsSubscriptionType.Sqs:
-                    var getQueueResponse = await sqsClient.GetQueueUrlAsync(subscription.Endpoint);
+                    GetQueueUrlResponse getQueueResponse;
+                    try
+                    {
+                        getQueueResponse = await sqsClient.GetQueueUrlAsync(subscription.Endpoint);
+                    }
+                    catch (Amazon.SQS.Model.QueueDoesNotExistException e)
+                    {
+                        // GH-4518: the SDK's "The specified queue does not exist." names neither the queue nor the
+                        // ordering requirement, and the WolverineSnsTransportException wrapper only names the topic.
+                        throw new InvalidOperationException(
+                            $"Cannot subscribe the Amazon SQS queue '{subscription.Endpoint}' to the SNS topic '{TopicName}' because that queue does not exist. The queue must be created before the SNS subscription is provisioned -- either register it on the SQS transport with AutoProvision() enabled, or create it out of band. Check too that the SQS client is pointed at the same account and region as the SNS client.",
+                            e);
+                    }
+
                     endpoint = await getSqsSubscriptionEndpointAsync(sqsClient, getQueueResponse.QueueUrl);
 
                     await setQueuePolicyForTopic(sqsClient, new (getQueueResponse.QueueUrl, endpoint,  TopicArn));
                     break;
                 default:
-                    throw new NotImplementedException("AmazonSnsSubscriptionType not implemented");
+                    throw new NotSupportedException(
+                        $"Wolverine does not support the Amazon SNS subscription type '{subscription.Type}' for topic '{TopicName}'. Only {nameof(AmazonSnsSubscriptionType.Sqs)} subscriptions can be provisioned by Wolverine today; create any other subscription type out of band.");
             }
 
             var subscribeRequest = new SubscribeRequest(TopicArn, subscription.Protocol, endpoint);

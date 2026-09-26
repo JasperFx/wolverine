@@ -41,10 +41,15 @@ internal sealed class KafkaReplay
         var pipeline = _runtime.Pipeline;
         var callback = new ReplayChannelCallback();
 
-        // Throwaway, Assign-only consumer: unique group, no commits, no offset store.
+        // Both the replay group id and the Destination stamp below have to imitate whichever endpoint
+        // actually listens to this topic, which is not always the topic itself.
+        var liveEndpoint = LiveListeningEndpointFor(topic, _transport);
+
+        // Throwaway, Assign-only consumer: unique group sharing the live group's prefix, no commits, no
+        // offset store.
         var config = new ConsumerConfig(_transport.ConsumerConfig)
         {
-            GroupId = $"{_runtime.Options.ServiceName}-replay-{Guid.NewGuid():N}",
+            GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName),
             EnableAutoCommit = false,
             EnableAutoOffsetStore = false
         };
@@ -101,6 +106,18 @@ internal sealed class KafkaReplay
                 envelope.PartitionId = result.Partition.Value;
                 envelope.MessageType ??= messageTypeName;
 
+                // The live receivers stamp Destination when they accept an envelope, and the pipeline relies
+                // on it: the executor logs it after every handler run and dead-lettering keys the inbox row
+                // on it. Without it each replayed record threw a NullReferenceException after its handler
+                // succeeded, and one whose handler failed could not be dead-lettered.
+                //
+                // Envelope.MarkReceived stamps the *listener's* Address, which for a topic consumed through
+                // ListenToKafkaTopics(...) is the group endpoint's Uri rather than the topic's -- so this has
+                // to follow the same endpoint the group id does, or the dead letter row, the metrics tag and
+                // the endpoint the pipeline resolves from Destination all name something the live path never
+                // names.
+                envelope.Destination ??= liveEndpoint.Uri;
+
                 await pipeline.InvokeAsync(envelope, callback);
                 replayed++;
 
@@ -121,6 +138,72 @@ internal sealed class KafkaReplay
             request.Topic, replayed);
 
         return new KafkaReplayResult { RecordsReplayed = replayed, PartitionsReplayed = ends.Count };
+    }
+
+    /// <summary>
+    /// The throwaway replay group is named after the group the topic's live listener consumes under —
+    /// see <see cref="LiveListeningEndpointFor" /> for which endpoint that is — else the transport's, else
+    /// the service name. Brokers commonly grant consumer groups by prefix (Confluent Cloud ACLs are the
+    /// usual case), and the live group is the one prefix the application is known to hold; the service
+    /// name alone defaults to the entry assembly name, which such an ACL refuses with "Group
+    /// authorization failed".
+    ///
+    /// <para>A hot-tail listener's group is deliberately not borrowed; see <see cref="liveGroupIdOf" />.</para>
+    /// </summary>
+    internal static string ReplayGroupIdFor(KafkaTopic topic, KafkaTransport transport, string serviceName)
+    {
+        var liveGroupId = liveGroupIdOf(LiveListeningEndpointFor(topic, transport));
+
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            liveGroupId = transport.ConsumerConfig.GroupId;
+        }
+
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            // Unreachable from a started host: KafkaTransport.tryBuildSystemEndpoints does
+            // ConsumerConfig.GroupId ??= Options.ServiceName at bootstrap, so the transport branch above has
+            // already answered. Kept for a replay resolved before that runs.
+            liveGroupId = serviceName;
+        }
+
+        return $"{liveGroupId}-replay-{Guid.NewGuid():N}";
+    }
+
+    /// <summary>
+    /// The endpoint whose live listener would have received this topic's records. Normally the topic
+    /// itself, but <c>ListenToKafkaTopics(...)</c> keeps both the consumer config and the listener's
+    /// Address on the <see cref="KafkaTopicGroup" /> rather than on the individual topics, so a topic
+    /// consumed that way has to imitate the group instead.
+    /// </summary>
+    internal static KafkaTopic LiveListeningEndpointFor(KafkaTopic topic, KafkaTransport transport)
+    {
+        // A topic under its own consumer group is its own listener. GetEffectiveConsumerConfig() fills this
+        // in from the transport when the listener is built, so after bootstrap it is set for every topic
+        // that really does listen -- and null for one that only gets replayed.
+        if (topic is KafkaTopicGroup || !string.IsNullOrEmpty(topic.ConsumerConfig?.GroupId))
+        {
+            return topic;
+        }
+
+        return transport.TopicGroups.FirstOrDefault(x => x.TopicNames.Contains(topic.TopicName)) ?? topic;
+    }
+
+    /// <summary>
+    /// The group id a replay may borrow a prefix from, or null when the endpoint has none worth borrowing.
+    /// </summary>
+    private static string? liveGroupIdOf(KafkaTopic endpoint)
+    {
+        // A hot-tail listener joins an ephemeral, per-process {ServiceName}-hot-tail-{guid} group, and
+        // ApplyHotTailConfig stamps that onto this very ConsumerConfig when the listener is built. Borrowing
+        // it would nest one throwaway group inside another and still leave the replay on the ServiceName
+        // prefix this method exists to get off, so fall through to the transport's group instead.
+        if (endpoint.IsHotTail)
+        {
+            return null;
+        }
+
+        return endpoint.ConsumerConfig?.GroupId;
     }
 
     private List<TopicPartition> ResolvePartitions(KafkaReplayRequest request)

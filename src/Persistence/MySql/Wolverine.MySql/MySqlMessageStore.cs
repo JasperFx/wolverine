@@ -112,11 +112,11 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         }
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
         table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
-        table.AddColumn(definition.JsonBodyColumnName, "JSON").NotNull();
+        table.AddColumn(definition.JsonBodyColumnName, "LONGBLOB").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
         {
             table.AddColumn<DateTimeOffset>(definition.TimestampColumnName)
@@ -146,8 +146,8 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         await conn.CloseAsync();
     }
 
-    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
-        string idColumnName)
+    protected override Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName,
+        string idColumnName, CancellationToken token)
     {
         if (ids.Length == 0) return Task.CompletedTask;
 
@@ -157,7 +157,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         var placeholders = MySqlCommandExtensions.WithIdList(cmd, "id", ids);
         cmd.CommandText = $"DELETE FROM {tableName.QualifiedName} WHERE {idColumnName} IN ({placeholders})";
 
-        return cmd.ExecuteNonQueryAsync();
+        return cmd.ExecuteNonQueryAsync(token);
     }
 
     protected override async Task<bool> TryAttainLockAsync(int lockId, MySqlConnection connection,
@@ -235,6 +235,9 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
                 .ExecuteScalarAsync();
 
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
+
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
 
         return counts;
     }
@@ -467,7 +470,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         }
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName,
         byte[] json,
         CancellationToken token)
     {
@@ -488,7 +491,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
                 $"INSERT INTO {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) VALUES (@id, @json, @message)";
             cmd.Parameters.AddWithValue("@id", Guid.NewGuid());
             cmd.Parameters.AddWithValue("@json", json);
-            cmd.Parameters.AddWithValue("@message", messageTypeName);
+            cmd.Parameters.AddWithValue("@message", messageTypeName!);
         }
 
         await cmd.ExecuteNonQueryAsync(token);
@@ -571,6 +574,14 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("(UTC_TIMESTAMP(6))");
             nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "TEXT").AllowNulls();
+
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and MySqlNodePersistence gates every statement naming it on the
+            // same flag. Plain DOUBLE with no modifiers in the type string, per GH-3983.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "DOUBLE").AllowNulls();
+            }
 
             yield return nodeTable;
 

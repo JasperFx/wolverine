@@ -195,6 +195,30 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void UseAncillaryStorageFromAssemblyContaining<T>(Type storeType);
 
     /// <summary>
+    ///     Route every message handler, HTTP endpoint and gRPC service whose type is in
+    ///     <paramref name="namespace" />, or any namespace below it, to the ancillary (secondary) store
+    ///     identified by <paramref name="storeType" />. Use this instead of
+    ///     <see cref="UseAncillaryStorageFromAssembly" /> when several modules share one assembly.
+    /// </summary>
+    /// <remarks>
+    ///     Matching uses the namespace of the handler or endpoint type, not of the message. An explicit
+    ///     <c>[Storage]</c> attribute still wins, as does an earlier ancillary storage policy.
+    /// </remarks>
+    /// <param name="storeType">The store marker type, e.g. <c>typeof(IPlayerStore)</c></param>
+    /// <param name="namespace">Every handler, endpoint and gRPC service in this namespace is routed</param>
+    void UseAncillaryStorageFromNamespace(Type storeType, string @namespace);
+
+    /// <summary>
+    ///     Route every message handler, HTTP endpoint and gRPC service in the namespace of
+    ///     <typeparamref name="T" />, or any namespace below it, to the ancillary (secondary) store
+    ///     identified by <paramref name="storeType" />. Sugar over
+    ///     <see cref="UseAncillaryStorageFromNamespace" />.
+    /// </summary>
+    /// <param name="storeType">The store marker type, e.g. <c>typeof(IPlayerStore)</c></param>
+    /// <typeparam name="T">Any type in the module's root namespace</typeparam>
+    void UseAncillaryStorageFromNamespaceContaining<T>(Type storeType);
+
+    /// <summary>
     ///     Write a log message with the given log level when message execution starts.
     ///     This would also include any audited members of the message
     /// </summary>

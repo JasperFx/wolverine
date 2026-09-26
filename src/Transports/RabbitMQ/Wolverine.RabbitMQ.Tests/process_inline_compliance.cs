@@ -13,29 +13,38 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class ProcessInlineFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public ProcessInlineFixture() : base($"rabbitmq://queue/inline1".ToUri())
+    // GH-4520/GH-4559. The first of these was the literal "inline1" and the declaration below said
+    // "quorum1" -- a copy-paste from QuorumQueueFixture, and the only name here that was not an "inline"
+    // one. This fixture therefore declared quorum_queue_compliance's queue as CLASSIC, whichever class ran
+    // second got a 406 "inequivalent arg 'x-queue-type'" that the old tolerate-and-continue path swallowed,
+    // and that suite ran against a classic queue while its own assertion -- which read Wolverine's
+    // configuration objects rather than the broker -- stayed green. A generated name cannot be typed wrong
+    // and cannot collide with another fixture or an earlier run. Static so the whole class shares one pair:
+    // xUnit builds a new fixture per test method.
+    private static readonly string TheSendingQueue = RabbitTesting.NextQueueName();
+    private static readonly string TheListeningQueue = RabbitTesting.NextQueueName();
+
+    public ProcessInlineFixture() : base($"rabbitmq://queue/{TheSendingQueue}".ToUri())
     {
     }
 
     public async ValueTask InitializeAsync()
     {
-        OutboundAddress = $"rabbitmq://queue/inline1".ToUri();
+        OutboundAddress = $"rabbitmq://queue/{TheSendingQueue}".ToUri();
 
         await SenderIs(opts =>
         {
-            var listener = RabbitTesting.NextListenerName();
-
             opts.Durability.Mode = DurabilityMode.Solo;
 
             opts.UseRabbitMq()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .DisableDeadLetterQueueing()
-                .DeclareQueue("quorum1").ConfigureListeners(l => l.ProcessInline());
+                .DeclareQueue(TheSendingQueue).ConfigureListeners(l => l.ProcessInline());
 
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "inline_sender");
 
-            opts.ListenToRabbitQueue("inline2").TelemetryEnabled(false);
+            opts.ListenToRabbitQueue(TheListeningQueue).TelemetryEnabled(false);
         });
 
         await ReceiverIs(opts =>
@@ -45,10 +54,10 @@ public class ProcessInlineFixture : TransportComplianceFixture, IAsyncLifetime
             opts.UseRabbitMq()
                 .DisableDeadLetterQueueing()
                 .ConfigureListeners(l => l.ProcessInline());
-            
+
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "inline_receiver");
-            
-            opts.ListenToRabbitQueue("inline1").TelemetryEnabled(false);
+
+            opts.ListenToRabbitQueue(TheSendingQueue).TelemetryEnabled(false);
         });
     }
 

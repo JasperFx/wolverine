@@ -185,8 +185,8 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
         if (count == 0)
         {
-            throw new Exception(
-                $"Saga version mismatch for {typeof(T).FullName} with id {id}. Possible concurrent update detected.");
+            throw new SagaConcurrencyException(
+                $"Saga of type {document.GetType().FullNameInCode()} and id {id} cannot be updated because of optimistic concurrency violations");
         }
 
         document.Version++;

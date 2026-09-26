@@ -1,9 +1,12 @@
 using System.Data.Common;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Util;
 
 namespace Wolverine.Oracle.Util;
 
@@ -95,6 +98,25 @@ internal static class OracleEnvelopeReader
             sentAt,
             replayable
         );
+    }
+
+    public static async Task<Envelope> ReadExternalAsync(DbDataReader reader,
+        ExternalMessageTable externalTable,
+        CancellationToken cancellation = default)
+    {
+        var envelope = new Envelope
+        {
+            Id = await ReadGuidAsync(reader, 0),
+            Data = await reader.GetFieldValueAsync<byte[]>(1, cancellation),
+            Destination = externalTable.Uri,
+            MessageType = externalTable.MessageType?.ToMessageTypeName(),
+        };
+        if (externalTable.MessageTypeColumnName.IsNotEmpty())
+        {
+            var messageTypeName = await reader.GetFieldValueAsync<string>(2, cancellation);
+            envelope.MessageType = messageTypeName.IsNotEmpty() ? messageTypeName : envelope.MessageType;
+        }
+        return envelope;
     }
 
     /// <summary>

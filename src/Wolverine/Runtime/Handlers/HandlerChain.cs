@@ -157,7 +157,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (illegalSagas.Any())
         {
             throw new InvalidSagaException(
-                $"Illegal static method {illegalSagas.Select(x => x.ToString()).Join(", ")}. Handler methods for existing saga data mush be instance methods");
+                $"Illegal static method {illegalSagas.Select(x => x.ToString()).Join(", ")}. Handler methods for existing saga data must be instance methods");
         }
     }
 
@@ -229,8 +229,15 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             if (handler.Creates.Any(x => x.VariableType == typeof(Envelope)))
             {
+                // GH-4532: people write this because they want to control delivery of a cascading
+                // message, which Wolverine supports three other ways. Naming them is the whole point --
+                // "you cannot do this" without "do this instead" leaves the reader stuck.
                 throw new InvalidHandlerException(
-                    $"Invalid Wolverine handler signature. Method {handler} creates a {typeof(Envelope).FullNameInCode()}");
+                    $"Invalid Wolverine handler signature: {handler} returns or creates a {typeof(Envelope).FullNameInCode()}. " +
+                    "Handlers return the message itself; to control how a cascading message is delivered, return " +
+                    $"new DeliveryMessage<T>(message, new {nameof(DeliveryOptions)} {{ ... }}), implement {nameof(ISendMyself)} on the message, " +
+                    $"or return an {nameof(OutgoingMessages)} collection. To send with full control from inside the handler, " +
+                    $"take {nameof(IMessageBus)} as a parameter.");
             }
         }
 
@@ -781,7 +788,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         // IsTransactional is only final once [Transactional] and the stores' own policies have both had
         // their say. Reading either one earlier produced a chain that silently wove nothing in.
         // Idempotent, so a chain reached twice is woven once.
-        this.ApplyDeduplication();
+        this.ApplyDeduplication(rules, container);
 
         // Use Wolverine Parameter Attribute on any middleware
         foreach (var methodCall in Middleware.OfType<MethodCall>().ToArray())

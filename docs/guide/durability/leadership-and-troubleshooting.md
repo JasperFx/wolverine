@@ -77,6 +77,188 @@ Running your Wolverine application like this means that Wolverine is able to mor
 and outbox at start up time, and also to immediately recover any persisted incoming or outgoing messages from the previous
 execution of the service on your local development box.
 
+## Capacity-Aware Agent Assignment <Badge type="tip" text="6.40" />
+
+Let's say you're running a multi-tenanted system with a database per tenant, and Wolverine is spreading a few thousand
+Marten async daemon agents across your cluster. Out of the box, the leader divides those agents up evenly by node count
+and hopes for the best. That works fine when every agent costs about the same, but honestly, that's very often not the
+case -- one node draws the three busiest tenant databases and spends its life in garbage collection while its neighbors
+sit there mostly idle.
+
+Capacity-aware assignment lets each node tell the leader how loaded it actually is, and the leader takes that into
+account when it decides where agents should run:
+
+<!-- snippet: sample_capacity_aware_assignment -->
+<a id='snippet-sample_capacity_aware_assignment'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithPostgresql("some connection string");
+
+        // Let the leader take each node's advertised load into account
+        // when it decides where agents run
+        opts.Durability.CapacityAwareAssignment = true;
+
+        // Required! There's deliberately no default here
+        opts.Durability.NodeLoadMonitor = new MemoryPressureLoadMonitor();
+
+        // Optional, these are the defaults
+        opts.Durability.NodeOverloadThreshold = 90;
+        opts.Durability.OverloadShedBatchSize = 1;
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CapacityAwareAssignment.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_capacity_aware_assignment' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+Turning this on provisions a new `load_factor` column on the `wolverine_nodes` table. If you're running with
+`AutoCreate.None` -- or in a process that doesn't have DDL rights against your database -- apply the schema migration
+*before* you flip the flag on. Every statement that names that column is gated on the flag too, so leaving it off
+migrates nothing and reads nothing.
+:::
+
+### You Have to Supply the Load Monitor
+
+There's deliberately no default `INodeLoadMonitor`. What "load" even means is specific to what your application does --
+memory for a node running thousands of daemon shards, queue depth or handler latency for a node doing ordinary message
+work -- and any built in default would just be a guess that looks authoritative while being wrong for most deployments.
+
+Starting up with `CapacityAwareAssignment` on and no monitor is a startup exception rather than a quiet fallback, and
+that's worth explaining because the failure mode here is nastier than it first looks. A node that advertises *nothing*
+is read by the leader as having unlimited headroom. So a missing or broken monitor doesn't make the feature inert on
+that node, it makes that node the cluster's favorite place to put new work.
+
+For the memory case there's `MemoryPressureLoadMonitor` in the box, which reports this process's resident memory as a
+percentage of the memory limit it's actually running under. A rising reading is taken immediately while a falling one
+decays gradually, so one lucky GC can't mask sustained pressure.
+
+::: warning
+`MemoryPressureLoadMonitor` needs a memory limit to actually exist. On a bare VM, or a container started without
+`--memory`, there's no ceiling to measure against and it returns null rather than inventing a denominator. If you're
+running somewhere that the limit is known to your application but not visible to the process, there's a constructor
+overload that takes the limit in bytes.
+:::
+
+Writing your own is a single method:
+
+<!-- snippet: sample_writing_a_node_load_monitor -->
+<a id='snippet-sample_writing_a_node_load_monitor'></a>
+```cs
+public class QueueDepthLoadMonitor : INodeLoadMonitor
+{
+    private readonly IWorkTracker _tracker;
+
+    // Do whatever dependency injection you need in your own constructor,
+    // just remember that this is a singleton
+    public QueueDepthLoadMonitor(IWorkTracker tracker)
+    {
+        _tracker = tracker;
+    }
+
+    public QueueDepthLoadMonitor() : this(new NullWorkTracker())
+    {
+    }
+
+    public double? CurrentLoad()
+    {
+        // This is called on every heartbeat, so it needs to be cheap and it
+        // absolutely cannot block
+        var depth = _tracker.CurrentDepth;
+
+        // Return null if you genuinely have no signal right now. Careful though,
+        // the leader reads "no reading" as "this node has headroom" -- so don't
+        // use null as a way of saying "lightly loaded"
+        if (depth < 0) return null;
+
+        // 0-100, where 100 means "completely full"
+        return Math.Clamp(100.0 * depth / _tracker.Capacity, 0, 100);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CapacityAwareAssignment.cs#L51-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writing_a_node_load_monitor' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And then just hand Wolverine your implementation:
+
+<!-- snippet: sample_custom_node_load_monitor -->
+<a id='snippet-sample_custom_node_load_monitor'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithPostgresql("some connection string");
+
+        opts.Durability.CapacityAwareAssignment = true;
+        opts.Durability.NodeLoadMonitor = new QueueDepthLoadMonitor();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CapacityAwareAssignment.cs#L36-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_node_load_monitor' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### The Two Thresholds
+
+`NodeOverloadThreshold` (90 by default) is the line where a node starts *shedding* agents. The line where it starts
+*receiving* them again sits 10 points lower. In between the two, a node neither sheds nor receives -- it just keeps
+running what it already has.
+
+A single threshold is probably what you expected, so it's worth saying why there are two. If the shed line and the
+receive line were the same number, a node sitting right at the threshold would shed an agent, drop below the line,
+immediately look like a valid target again, and get the agent right back on the next evaluation. The band gives the
+reading somewhere to settle.
+
+`OverloadShedBatchSize` (1 by default) caps how many agents per scheme come off an overloaded node in any one
+evaluation. Shedding only ever happens when some *other* node can take the work, too. An overloaded node with nowhere
+to shed to keeps what it's running, because a node that's struggling is still better than no node at all.
+
+### How Hard That Line Is Depends on Where the Agent Can Go
+
+This part surprises people, so it's worth being explicit about. The overload threshold is a hard rule in some
+distribution paths and only a strong preference in others.
+
+For plain even distribution, it's a hard line. Every node is a candidate there, so refusing the overloaded ones can only
+ever delay an agent, and waiting is better than piling more work onto a node that's already in trouble.
+
+For the capability-aware paths -- group affinity for multi-database event stores, blue/green deployments across mixed
+capabilities, and the durability agent spread -- it's a preference instead. Those candidate sets have already been
+narrowed down by what each node actually declares it can run, and stacking a second hard constraint on top can empty a
+set completely. An empty candidate set in those paths isn't "the agent waits a bit," it's a shard database with nothing
+running against it and no self-heal until somebody restarts something. So a node with headroom always wins, but an
+overloaded node still beats nothing at all.
+
+::: tip
+Group affinity will move a whole partition off an overloaded node, but only when another candidate can take the entire
+thing. A shard database's agents are never split up just to relieve memory pressure.
+:::
+
+### When Nobody Has Headroom
+
+If every node in the cluster is over the line, the leader deliberately leaves agents unassigned rather than piling them
+onto a node that's already struggling.
+
+That's the right call, but be aware that it's a *quiet* symptom compared to a crash loop. Nothing is throwing, nothing
+is restarting, and the only outward sign is that some work isn't happening. If you're enabling this feature, it's worth
+setting up an alert on agents that stay unassigned across several evaluations.
+
+### Which Databases Support This
+
+All of them. PostgreSQL, Sql Server, MySQL, Oracle, Sqlite, RavenDb, and Azure Cosmos Db all persist and read back a
+node's advertised load.
+
+::: tip
+If you somehow end up with a message store that *doesn't* support the load advertisement, Wolverine logs a warning at
+startup rather than letting you believe the feature is working. It'll still run, it just won't have any capacity
+information to work with.
+:::
+
+### Where This Is Headed
+
+Fair warning that this is the first piece of something bigger rather than a finished story. Today, the cluster has an
+opinion about how much work a node should take instead of just dividing by node count and hoping. The obvious next step
+is for it to have an opinion about how many nodes there should *be*, which is real dynamic scaling support. I don't
+want to promise a date on that, but this is the foundation it would be built on, so the knob isn't meant to read as a
+one-off.
+
 ## Metrics <Badge type="tip" text="3.6" />
 
 ::: tip
@@ -112,7 +294,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.UpdateMetricsPeriod = 10.Seconds();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L203-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_persistence_metrics' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L219-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_persistence_metrics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Metrics polling with many tenant databases <Badge type="tip" text="6.18" />

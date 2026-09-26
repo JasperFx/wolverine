@@ -31,8 +31,7 @@ public class HttpEndpoint : Endpoint, IInlineRequestReplyEndpoint
 
         using var scope = runtime.Services.CreateScope();
         var client = scope.ServiceProvider.GetRequiredService<IWolverineHttpTransportClient>()
-                     ?? throw new InvalidOperationException(
-                         "IWolverineHttpTransportClient is not registered in the service container");
+                     ?? throw new InvalidOperationException(NoClientRegisteredMessage(OutboundUri));
 
         var reply = await client.InvokeAsync(OutboundUri, request, SerializerOptions);
 
@@ -54,6 +53,18 @@ public class HttpEndpoint : Endpoint, IInlineRequestReplyEndpoint
 
     internal bool SupportsNativeScheduledSend { get; set; }
     public string OutboundUri { get; set; } = string.Empty;
+
+    /// <summary>
+    /// GH-4530. "IWolverineHttpTransportClient is not registered in the service container" named neither the
+    /// destination nor the fix, and the interface name is not something the user ever typed -- so they could
+    /// not even grep their own code for it. Name the destination, the AddHttpClient call keyed on it, and
+    /// the docs page.
+    /// </summary>
+    internal static string NoClientRegisteredMessage(string outboundUri)
+    {
+        return
+            $"No HTTP transport client is registered for '{outboundUri}'. Wolverine sends to HTTP endpoints through a named HttpClient: call builder.Services.AddHttpClient(\"{outboundUri}\", client => ...) for this destination, or register your own IWolverineHttpTransportClient. See https://wolverinefx.net/guide/http/transport.html.";
+    }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {

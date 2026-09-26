@@ -135,6 +135,147 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         return false;
     }
 
+    /// <summary>
+    /// GH-4567. Bound the handled-envelope reap, as PostgreSQL and SQL Server already do. Without an
+    /// override the base returns null and <c>DeleteExpiredHandledEnvelopesCommand</c> falls back to one
+    /// unbounded statement.
+    /// </summary>
+    /// <remarks>
+    /// SQLite has no <c>DELETE ... LIMIT</c> in its default build, but every ordinary table has a
+    /// <c>rowid</c>, so the bound goes through a subquery — the same shape as PostgreSQL's <c>ctid</c> one.
+    /// It matters more here than anywhere else: a SQLite write takes a lock over the whole database file
+    /// and there is only one writer, so a long reap stalls every other write in the application, not just
+    /// contending inbox traffic.
+    /// </remarks>
+    public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
+    {
+        var table = this.TableNameFor(DatabaseConstants.IncomingTable);
+
+        return
+            $"delete from {table} where rowid in (select rowid from {table} " +
+            $"where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @now limit {batchSize});";
+    }
+
+    /// <summary>
+    /// GH-4567. Bound the deduplication-claim reap. Fisher-backed applications took the unbounded path,
+    /// and a busy chain under the default 24-hour window accumulates a day of claims before the reaper
+    /// runs. Same rowid bound as <see cref="BatchedDeleteExpiredHandledEnvelopesSql"/>.
+    /// </summary>
+    public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
+    {
+        var table = this.TableNameFor(DatabaseConstants.DeduplicationTableName);
+
+        return
+            $"delete from {table} where rowid in (select rowid from {table} " +
+            $"where {DatabaseConstants.Expires} <= @now limit {batchSize});";
+    }
+
+    /// <summary>
+    /// GH-4565. Whether <paramref name="ex"/> is a unique-constraint violation raised by the INBOX table
+    /// specifically, as opposed to anywhere else in the transaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>Distinct from <see cref="isExceptionFromDuplicateEnvelope"/>, which is deliberately
+    /// table-agnostic: its caller has already established that the failing insert was the inbox one, and it
+    /// is reused for the deduplication table and the dynamic listener registry. This predicate is for
+    /// callers with no such context — the <c>Discard()</c> rule in <c>FisherIntegration</c>, which sees
+    /// every exception a handler's transaction can raise.</para>
+    ///
+    /// <para>SQLite names the columns, and therefore the tables, in the message:
+    /// <c>UNIQUE constraint failed: wolverine_incoming_envelopes.id</c>, comma-separated for a composite
+    /// key. <c>SqliteException</c> exposes nothing structured, so the message is what is read.</para>
+    /// </remarks>
+    public static bool IsDuplicateIncomingEnvelope(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is SqliteException sqliteException
+                && isUniqueViolation(sqliteException)
+                && tablesFrom(sqliteException.Message).Any(IncomingTableNaming.IsIncomingTable))
+            {
+                return true;
+            }
+
+            if (current is AggregateException aggregate
+                && aggregate.InnerExceptions.Any(IsDuplicateIncomingEnvelope))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// GH-4571. Whether <paramref name="ex"/> is the one failure a transactional deduplication claim's
+    /// optimistic check cannot prevent: two genuinely concurrent callers both read "not claimed", both
+    /// enlist the INSERT, and the second to commit trips the deduplication table's primary key.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to the deduplication table for the same reason <see cref="IsDuplicateIncomingEnvelope"/> is
+    /// scoped to the inbox: a bare constraint-code test would also match a duplicate key raised by the
+    /// application's own documents in the same transaction, and report that to the caller as "already
+    /// handled". SQLite puts the table name in the message and nowhere else.
+    /// </remarks>
+    public static bool IsDuplicateDeduplicationClaim(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is SqliteException sqliteException
+                && isUniqueViolation(sqliteException)
+                && tablesFrom(sqliteException.Message).Any(IncomingTableNaming.IsDeduplicationTable))
+            {
+                return true;
+            }
+
+            if (current is AggregateException aggregate
+                && aggregate.InnerExceptions.Any(IsDuplicateDeduplicationClaim))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool isUniqueViolation(SqliteException ex)
+        // SQLITE_CONSTRAINT_PRIMARYKEY (1555), SQLITE_CONSTRAINT_UNIQUE (2067), or the bare
+        // SQLITE_CONSTRAINT (19) older builds report
+        => ex.SqliteExtendedErrorCode is 1555 or 2067 || ex.SqliteErrorCode == 19;
+
+    /// <summary>
+    /// The table names out of <c>UNIQUE constraint failed: t.a, t.b</c>. Empty when the message is not
+    /// that shape — a composite key lists one <c>table.column</c> pair per constraint column.
+    /// </summary>
+    /// <remarks>
+    /// The driver wraps SQLite's own text, so the whole message reads
+    /// <c>SQLite Error 19: 'UNIQUE constraint failed: wolverine_incoming_envelopes.id'.</c> — note the
+    /// closing quote and period AFTER the column name. Trimming them is not cosmetic: leave them on and
+    /// the last '.' in the pair is that trailing one rather than the table/column separator, so every
+    /// table name comes out wrong and the predicate answers false for the inbox itself.
+    /// </remarks>
+    private static IEnumerable<string> tablesFrom(string message)
+    {
+        const string marker = "constraint failed:";
+
+        var start = message.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) yield break;
+
+        foreach (var pair in message.Substring(start + marker.Length).Split(','))
+        {
+            // Strip a trailing "(19)" the raw sqlite text can carry...
+            var trimmed = pair.Trim();
+            var parenthesis = trimmed.IndexOf('(');
+            if (parenthesis >= 0) trimmed = trimmed.Substring(0, parenthesis);
+
+            // ...then the driver's own quoting and sentence punctuation
+            trimmed = trimmed.Trim().TrimEnd('.', '\'', '"', ' ');
+
+            var lastDot = trimmed.LastIndexOf('.');
+            if (lastDot > 0) yield return trimmed.Substring(0, lastDot);
+        }
+    }
+
     protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
     {
         if (limit > 0)
@@ -150,9 +291,9 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         }
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
-        var table = new Weasel.Sqlite.Tables.Table(definition.TableName);
+        var table = new Weasel.Sqlite.Tables.Table(prefixedTableName(definition.TableName));
         table.AddColumn(definition.IdColumnName, "TEXT").AsPrimaryKey();
         table.AddColumn(definition.JsonBodyColumnName, "TEXT").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
@@ -182,13 +323,15 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         await conn.CloseAsync();
     }
 
-    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
-        string idColumnName)
+    protected override Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName,
+        string idColumnName, CancellationToken token)
     {
         var idList = string.Join(",", ids.Select(id => $"'{id:D}'"));
-        return tx.CreateCommand($"delete from {tableName.QualifiedName} where lower({idColumnName}) IN ({idList})")
-            .ExecuteNonQueryAsync();
+        return tx.CreateCommand($"delete from {prefixedTableName(tableName)} where lower({idColumnName}) IN ({idList})")
+            .ExecuteNonQueryAsync(token);
     }
+
+    private string prefixedTableName(DbObjectName tableName) => TablePrefixing.Apply(tableName.Schema, tableName.Name);
 
     // Polling lock: delegate to the AdvisoryLock instance. The previous override here
     // ran INSERT OR IGNORE and returned true unconditionally, which falsely reported
@@ -248,7 +391,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
     protected override DbCommand buildFetchSql(SqliteConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
     {
-        return conn.CreateCommand($"select {columnNames.Join(", ")} from {tableName.QualifiedName} LIMIT {maxRecords}");
+        return conn.CreateCommand($"select {columnNames.Join(", ")} from {prefixedTableName(tableName)} LIMIT {maxRecords}");
     }
 
     public override async Task<PersistedCounts> FetchCountsAsync()
@@ -289,6 +432,9 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             .ExecuteScalarAsync();
 
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
+
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
 
         return counts;
     }
@@ -466,15 +612,16 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         }
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName, byte[] json,
         CancellationToken token)
     {
         await using var conn = await DataSource.OpenConnectionAsync(token).ConfigureAwait(false);
+        var tableName = prefixedTableName(table.TableName);
 
         if (table.MessageTypeColumnName.IsEmpty())
         {
             await conn.CreateCommand(
-                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
+                    $"insert into {tableName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
                 .With("id", Guid.NewGuid().ToString())
                 .With("json", System.Text.Encoding.UTF8.GetString(json))
                 .ExecuteNonQueryAsync(token);
@@ -482,10 +629,10 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         else
         {
             await conn.CreateCommand(
-                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
+                    $"insert into {tableName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
                 .With("id", Guid.NewGuid().ToString())
                 .With("json", System.Text.Encoding.UTF8.GetString(json))
-                .With("message", messageTypeName)
+                .With("message", messageTypeName!)
                 .ExecuteNonQueryAsync(token);
         }
 
@@ -548,6 +695,15 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             nodeTable.AddColumn("health_check", "TEXT").NotNull().DefaultValueByExpression("(datetime('now'))");
             nodeTable.AddColumn("version", "TEXT");
             nodeTable.AddColumn("capabilities", "TEXT");
+
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and SqliteNodePersistence gates every statement naming it on
+            // the same flag. REAL rather than TEXT -- unlike the timestamps around it, this value is only
+            // ever compared numerically and never round-tripped through a format.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "REAL");
+            }
 
             yield return nodeTable;
 

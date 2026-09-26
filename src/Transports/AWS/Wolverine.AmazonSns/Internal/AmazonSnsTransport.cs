@@ -3,6 +3,7 @@ using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Spectre.Console;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -24,6 +25,17 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
 
     public AmazonSnsTransport() : this(SnsProtocol)
     {
+    }
+
+    /// <summary>
+    /// GH-4517: the SNS client is only built during host startup, so a null client has exactly two causes
+    /// a user can act on. Name both instead of the bare "has not been initialized".
+    /// </summary>
+    internal static string NotInitializedMessage(Uri? endpointUri = null)
+    {
+        var target = endpointUri == null ? string.Empty : $" for endpoint '{endpointUri}'";
+        return
+            $"The Amazon SNS transport has not been initialized{target}. Either UseAmazonSnsTransport() was never called on WolverineOptions, or the Wolverine host has not been started yet -- the underlying IAmazonSimpleNotificationService client is created during host startup.";
     }
 
     internal AmazonSnsTransport(IAmazonSimpleNotificationService snsClient, IAmazonSQS sqsClient) : this()
@@ -147,9 +159,10 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
     {
         if (uri.Scheme != Protocol)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri));
+            throw new ArgumentOutOfRangeException(nameof(uri),
+                $"Amazon SNS Uris must use the format '{Protocol}://{{topicName}}': {uri}");
         }
-        
+
         return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? Topics[uri.OriginalString.Split("//")[1].TrimEnd('/')];
     }
 
@@ -186,9 +199,17 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// GH-4518: this used to be a bare NotImplementedException, which crashed any read-only tooling that
+    /// enumerates transports for diagnostics -- `wolverine-diagnostics describe`, CritterWatch's transport
+    /// view -- on any host that registered SNS at all. The keys are attribute names from
+    /// <see cref="AmazonSnsTopic.GetAttributesAsync"/>.
+    /// </summary>
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
-        throw new NotImplementedException();
+        yield return new PropertyColumn("Topic Name", "name");
+        yield return new PropertyColumn("Subscriptions", "SubscriptionsConfirmed", Justify.Right);
+        yield return new PropertyColumn("Pending", "SubscriptionsPending", Justify.Right);
     }
     
     internal AmazonSnsTopic EndpointForTopic(string topicName)

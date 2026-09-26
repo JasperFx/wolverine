@@ -169,14 +169,4 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         CancellationToken cancellationToken);
 
     IAdvisoryLock AdvisoryLock { get; }
-
-    Task PollForMessagesFromExternalTablesAsync(IListener listener,
-        IWolverineRuntime settings, ExternalMessageTable externalTable,
-        IReceiver receiver,
-        CancellationToken token);
-
-    Task MigrateExternalMessageTable(ExternalMessageTable messageTable);
-
-    Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json, CancellationToken token);
-    
 }

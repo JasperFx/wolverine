@@ -45,7 +45,7 @@ public static class TenantEndpoints
     }
 
     // Soft delete: the tenant's rows stay put, but any further work for the
-    // tenant is rejected with UnknownTenantIdException until re-enabled
+    // tenant is rejected with DisabledTenantException until re-enabled
     [NotTenanted]
     [WolverinePost("/tenants/{tenantId}/disable")]
     public static Task Disable(string tenantId, IDynamicTenantSource<string> tenants)

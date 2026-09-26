@@ -210,7 +210,7 @@ public class CompleteOrderHandler1228388417 : MessageHandler
         await using var documentSession = _outboxedSessionFactory.OpenSession(context);
         var completeOrder = (CompleteOrder)context.Envelope.Message;
         string sagaId = context.Envelope.SagaId ?? completeOrder.Id;
-        if (string.IsNullOrEmpty(sagaId)) throw new IndeterminateSagaStateIdException(context.Envelope);
+        if (string.IsNullOrEmpty(sagaId)) throw new IndeterminateSagaStateIdException(context.Envelope, typeof(Order), "Id");
         
         // Try to load the existing saga document
         var order = await documentSession.LoadAsync<Order>(sagaId, cancellation).ConfigureAwait(false);

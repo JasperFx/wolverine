@@ -185,8 +185,11 @@ public class redis_persistence_frame_provider
         provider.DetermineDeleteFrame(new Variable(typeof(string), "sagaId"), saga, container)
             .ShouldBeOfType<RedisSagaDeleteFrame>();
 
+        // GH-4613: a storage action now says so through its own entry point, rather than being inferred
+        // from the "update1.Entity" shape of the variable's usage string
         var fromAnAction = new Variable(typeof(OwnedSaga), "update1.Entity");
-        provider.DetermineUpdateFrame(fromAnAction, container).ShouldBeOfType<RedisWriteFrame>();
+        provider.DetermineStorageUpdateFrame(fromAnAction, container).ShouldBeOfType<RedisWriteFrame>();
+        provider.DetermineStorageInsertFrame(fromAnAction, container).ShouldBeOfType<RedisWriteFrame>();
 
         // Storage.Store() is an explicit "just write it" side effect, not the saga update path
         provider.DetermineStoreFrame(saga, container).ShouldBeOfType<RedisWriteFrame>();

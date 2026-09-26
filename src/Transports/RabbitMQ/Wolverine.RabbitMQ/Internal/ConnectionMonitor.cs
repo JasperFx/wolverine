@@ -62,7 +62,7 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     public Task<IChannel> CreateChannelAsync(ushort? consumerDispatchConcurrency = null)
     {
         var connection = _connection
-            ?? throw new InvalidOperationException("The connection is not initialized");
+            ?? throw new InvalidOperationException(RabbitMqTransport.NotInitializedMessage(Role));
 
         var wolverineOptions = new WolverineRabbitMqChannelOptions();
         _transport.ChannelCreationOptions?.Invoke(wolverineOptions);

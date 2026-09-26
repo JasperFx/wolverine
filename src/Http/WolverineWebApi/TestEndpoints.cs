@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Marten;
 using Wolverine.Http;
 using JasperFx.Core;
@@ -128,6 +130,10 @@ public static class TestEndpoints
 
     #endregion
 
+    // GH-4528. Exists only so a test can drive the body-read failure that is NOT malformed JSON.
+    [WolverinePost("/undeserializable")]
+    public static string PostUndeserializable(UndeserializableRequest request) => request.Name;
+
     #region sample_simple_wolverine_http_endpoint_async
     [WolverinePost("/question2")]
     public static Task<ArithmeticResults> PostJsonAsync(Question question)
@@ -224,4 +230,31 @@ public class Question
 public enum Direction
 {
     North, East, West, South
+}
+/// <summary>
+/// GH-4528. A request type System.Text.Json refuses to deserialize -- its converter throws a
+/// NotSupportedException rather than a JsonException, which is the class of failure that used to
+/// surface as a naked 400 with no body at all. Stands in for the real causes: a member STJ cannot
+/// handle, a polymorphic base with no discriminator, or a custom converter that throws.
+/// </summary>
+[JsonConverter(typeof(ThrowingConverter))]
+public class UndeserializableRequest
+{
+    public string Name { get; set; } = "nobody";
+}
+
+public class ThrowingConverter : JsonConverter<UndeserializableRequest>
+{
+    public override UndeserializableRequest Read(ref Utf8JsonReader reader, Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        throw new NotSupportedException("This type cannot be deserialized");
+    }
+
+    public override void Write(Utf8JsonWriter writer, UndeserializableRequest value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("name", value.Name);
+        writer.WriteEndObject();
+    }
 }

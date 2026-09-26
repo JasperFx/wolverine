@@ -142,6 +142,14 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         _mapIncoming.Value(envelope, incoming);
 
+        // GH-4595: the protocol version is transport plumbing that MapEnvelopeToOutgoing stamps onto
+        // every send, so it has no business surviving a round trip as an envelope header. Mappers
+        // whose writeIncomingHeaders copies the wire headers wholesale were keeping it, and re-sending
+        // that envelope -- the dead letter sender path, most visibly -- then wrote the field twice.
+        // Harmless where outgoing headers are a dictionary; a malformed entry on Redis and Kafka,
+        // whose outgoing headers are lists that accept duplicate names.
+        envelope.Headers.Remove(TransportConstants.ProtocolVersion);
+
         var contentType = envelope.ContentType;
         var serializer = _endpoint.TryFindSerializer(contentType) ?? _endpoint.DefaultSerializer;
         envelope.Serializer = serializer;

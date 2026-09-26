@@ -207,15 +207,85 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
-## Recipe: Marten Concurrency Conflicts as 409 <Badge type="tip" text="6.30" />
+## Concurrency Conflicts as 409 <Badge type="tip" text="6.39" />
 
-An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a Marten session can lose an
+An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a session can lose an
 optimistic concurrency race -- two clients posting to the same aggregate at the same time. Without a handler
 the exception escapes the endpoint as an unhandled **500**, even though nothing went wrong with the data:
 optimistic concurrency did its job. **409 Conflict** is the honest status for that.
 
-The `OnException` middleware convention is all you need. There are two exception types to cover, and the
-second one is easy to miss:
+There is a one line opt in for this:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    // Marten. Also available as MapPolecatConcurrencyFailuresToConflict()
+    opts.MapMartenConcurrencyFailuresToConflict();
+});
+```
+
+That single call does everything the hand written recipe below used to: it maps every
+`JasperFx.ConcurrencyException` **and** Marten's `StreamLockedException` to a 409 `ProblemDetails`, applies
+to the transactional chains, and stamps `ProducesProblem(409)` so your OpenAPI document advertises the
+conflict. It takes the same optional predicate `AddMiddleware` does if you want to narrow it further:
+
+```csharp
+opts.MapMartenConcurrencyFailuresToConflict(chain => chain.Method.HandlerType == typeof(OrderEndpoints));
+```
+
+::: tip Which call do I want?
+| Store | Call |
+| --- | --- |
+| Marten | `opts.MapMartenConcurrencyFailuresToConflict()` |
+| Polecat | `opts.MapPolecatConcurrencyFailuresToConflict()` |
+| Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
+
+The store specific calls exist because `Marten.Exceptions.StreamLockedException` and
+`Polecat.Exceptions.StreamLockedException` do **not** derive from `JasperFx.ConcurrencyException` and are not
+visible to `WolverineFx.Http` on its own. On Marten or Polecat, `MapConcurrencyFailuresToConflict()` alone
+would leave the `FetchForExclusiveWriting` path returning 500s. Fisher needs no equivalent -- its exclusive
+methods are optimistic and throw `EventStreamUnexpectedMaxEventIdException`, which is a
+`ConcurrencyException`.
+:::
+
+## Unknown Tenants as 404 <Badge type="tip" text="6.39" />
+
+There are two different tenancy failures on an HTTP request, and only one of them was handled:
+
+| Failure | Meaning | Status |
+| --- | --- | --- |
+| **Missing** tenant id | "you did not say which tenant" | 400, already handled by `[RequiresTenant]` / `TenantId.AssertExists()` |
+| **Unknown** tenant id | "the tenant you named does not exist" | was an unhandled **500** |
+
+An unknown tenant id throws `JasperFx.MultiTenancy.UnknownTenantIdException` from the store or from
+Wolverine's own tenant sources. That is a client side error, so:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.MapUnknownTenantToNotFound();
+});
+```
+
+maps it to a 404 `ProblemDetails` titled `Unknown tenant`, and stamps `ProducesProblem(404)` on the tenanted
+chains so your OpenAPI document advertises it. It applies by default to chains declared `[RequiresTenant]` or
+`[MaybeTenanted]` -- a chain that resolves no tenant cannot fail to resolve one -- and takes the same optional
+predicate the other mappings do.
+
+::: tip Why 404 and not 400
+404 reads as "the thing you addressed does not exist", which keeps 400 meaning "you did not say which
+tenant". Collapsing both onto one status loses the distinction a caller needs to tell a routing bug from a
+provisioning one.
+:::
+
+For **message handlers** the equivalent guidance is `OnException<UnknownTenantIdException>().MoveToErrorQueue()`
+-- never retry it, since it is deterministic.
+
+### Rolling your own
+
+If you want different status codes, a different `ProblemDetails` shape, or extra exception types, the
+`OnException` middleware convention is all you need. There are two exception types to cover, and the second
+one is easy to miss:
 
 <!-- snippet: sample_marten_concurrency_exception_middleware -->
 <a id='snippet-sample_marten_concurrency_exception_middleware'></a>

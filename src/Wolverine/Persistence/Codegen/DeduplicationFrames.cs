@@ -134,10 +134,13 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
 /// discarded as a duplicate of its own failed attempt.
 ///
 /// <para>
-/// Emitted ONLY into non-transactional chains. When the chain is transactional the claim is written
-/// inside the same transaction as the handler's work, so a rollback removes it and a compensating
-/// release would be both redundant and wrong — it would delete a claim that no longer exists, or
-/// worse, one that a concurrent caller has since legitimately taken.
+/// GH-4505. Emitted into every chain whose claim was written by <see cref="IMessageDeduplicator" />,
+/// which is to say every chain that does NOT have a store able to write the claim inside the handler's
+/// own transaction. That is not the same as "non-transactional": a <c>[Transactional]</c> chain on a
+/// plain RDBMS message store still claims on a separate connection, and its first failed attempt would
+/// permanently poison the id without this. A chain whose provider supplies
+/// <see cref="TransactionalDeduplication" /> instead gets no release frame at all, because a rollback
+/// takes the uncommitted claim with it and there is nothing to give back.
 /// </para>
 ///
 /// <para>
@@ -168,6 +171,26 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
     private string deduplicatorUsage => _deduplicatorUsage ?? _deduplicator!.Usage;
     private string cancellationUsage => _cancellationUsage ?? _cancellation!.Usage;
 
+    /// <summary>The claimed id, for a subclass that needs it before the try block.</summary>
+    protected Variable DeduplicationId => _deduplicationId;
+
+    /// <summary>Usage of the <see cref="IMessageDeduplicator" />, for a subclass emitting its own call.</summary>
+    protected string DeduplicatorUsage => deduplicatorUsage;
+
+    /// <summary><c>typeof(...)</c> for the ancillary store, or <c>null</c>, rendered for codegen.</summary>
+    protected string AncillaryStoreMarkerUsage => _ancillaryStoreMarker == null
+        ? "null"
+        : $"typeof({_ancillaryStoreMarker.FullNameInCode()})";
+
+    /// <summary>
+    /// GH-4547. Hook for a chain type whose failure response is FLUSHED before this frame's finally can
+    /// run, and which therefore has to arrange the compensating release earlier. Emitted immediately
+    /// before the try block, so the claim already exists.
+    /// </summary>
+    protected virtual void writeBeforeTry(ISourceWriter writer)
+    {
+    }
+
     /// <summary>
     /// Name of the <c>bool</c> the generated code sets when execution threw. Chain types that can fail
     /// without throwing widen the release test around it — see <see cref="BuildReleaseCondition" />.
@@ -195,6 +218,8 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
         // `throw;` rather than `throw e;` so the original stack trace survives to the error policies --
         // this frame compensates for a failure, it does not handle one, and swallowing here would turn
         // every handler exception into a silent success.
+        writeBeforeTry(writer);
+
         writer.Write($"var {ThrewFlag} = false;");
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);

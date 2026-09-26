@@ -36,9 +36,50 @@ public partial class AssignmentGrid
             return;
         }
 
-        if (_nodes.Count == 1)
+        // Per-node counts must only consider the agents in this pass — otherwise a filtered pass
+        // would detach or count agents that belong to a different pass of the same scheme.
+        var agentSet = agents.ToHashSet();
+        int countOn(Node node) => node.Agents.Count(agentSet.Contains);
+
+        // Only nodes with headroom receive placements — and "headroom" sits a hysteresis band below
+        // the shed line (see Node.IsAcceptingAgents), so a node hovering at the boundary doesn't have
+        // this pass place agents that the next pass sheds. When capacity-aware assignment is off, no
+        // node is ever flagged and this is exactly the full node list (today's behavior).
+        var receiving = _nodes.Where(x => x.IsAcceptingAgents).ToList();
+        if (receiving.Count == 0)
         {
-            var node = _nodes.Single();
+            // No node has real headroom: leave the unassigned remainder waiting. The next evaluation
+            // re-reads freshly advertised loads and places them as soon as anyone recovers.
+            //
+            // GH-4590: this returns BEFORE the shed pass, and the order matters. Shedding is only ever
+            // a move, and with nowhere to move to, detaching would stop agents that nothing then
+            // re-places -- one batch per evaluation until the scheme is running nowhere at all. On a
+            // single-node cluster that is unconditional: one node over the line used to drain itself
+            // to zero (3 -> 2 -> 1 -> 0) and stay there for as long as the pressure held, taking the
+            // durability agents and daemon shards with it. An overloaded node still running its work
+            // is strictly better than that.
+            return;
+        }
+
+        // GH-3959 shed pass: an overloaded node gives up a bounded number of this pass's agents per
+        // evaluation — gradual on purpose, since pressure is re-sampled every heartbeat. The detached
+        // agents join the missing queue below and land on a node with headroom, which the early return
+        // above has already established exists. An operator's pin outranks the shed: detaching a
+        // pinned agent just makes ApplyRestrictions pin it right back next evaluation, a permanent
+        // shed/pin fight.
+        foreach (var node in _nodes.Where(x => x.IsOverloaded))
+        {
+            foreach (var agent in node.Agents
+                         .Where(x => agentSet.Contains(x) && !x.IsPinned)
+                         .Take(OverloadShedBatchSize).ToArray())
+            {
+                agent.Detach();
+            }
+        }
+
+        if (receiving.Count == 1 && _nodes.Count == 1)
+        {
+            var node = receiving.Single();
             foreach (var agent in agents)
             {
                 node.Assign(agent);
@@ -47,12 +88,7 @@ public partial class AssignmentGrid
             return;
         }
 
-        // Per-node counts must only consider the agents in this pass — otherwise a filtered pass
-        // would detach or count agents that belong to a different pass of the same scheme.
-        var agentSet = agents.ToHashSet();
-        int countOn(Node node) => node.Agents.Count(agentSet.Contains);
-
-        var spread = (double)agents.Count / _nodes.Count;
+        var spread = (double)agents.Count / receiving.Count;
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
 
@@ -69,16 +105,35 @@ public partial class AssignmentGrid
         // still produces zero commands and this cannot induce reassignment churn. The ordering is a
         // snapshot taken before any assignment, which keeps a single pass filling nodes in blocks rather
         // than round-robining, and AssignedId keeps it deterministic when the foreign load ties.
-        var ordered = _nodes
-            .OrderBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
+        //
+        // GH-3959: advertised load leads the ordering — the least-pressured node with headroom fills
+        // first, Orleans-style — but in 10-point bands, not raw readings. Raw readings almost never
+        // tie exactly, so ordering on them would leave the foreign-count order below deciding nothing
+        // and every family's pass chasing the same marginally-least-loaded node between two
+        // heartbeats: precisely the cross-scheme stacking GH-3877 fixed. Within a band the readings
+        // are treated as equal and the foreign count discriminates.
+        //
+        // A node advertising nothing sorts into the MIDDLE band, not the lowest. It is still eligible
+        // (IsAcceptingAgents stays true for it, which is what keeps stores with no load persistence on
+        // today's behavior), but "I have no reading" must not read as "I am the emptiest node in the
+        // cluster" — that made a node mid-rolling-upgrade, or one whose sampler was throwing, the
+        // preferred target for every placement precisely when it was least understood. When NO node
+        // advertises — the feature off, or a store that cannot persist the reading — every node lands
+        // in the same band and this is the original foreign-count/AssignedId ordering unchanged.
+        var ordered = receiving
+            .OrderBy(x => Math.Floor((x.LoadFactor ?? UnadvertisedLoadBand) / 10))
+            .ThenBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
             .ThenBy(x => x.AssignedId)
             .ToList();
 
-        // First, pair down number of running agents if necessary. Might have to steal some later
-        foreach (var node in _nodes)
+        // First, pair down number of running agents if necessary. Might have to steal some later.
+        // Overloaded nodes are exempt: their reduction is the rate-limited shed pass above, not a
+        // ceiling computed over the nodes still accepting work. Pinned agents are never detached —
+        // they count toward the ceiling, so a node carrying pins gives up more of its unpinned
+        // agents instead.
+        foreach (var node in receiving)
         {
-            var extras = node.Agents.Where(agentSet.Contains).Skip(maximum).ToArray();
-            foreach (var agent in extras)
+            foreach (var agent in node.ExtrasAboveCeiling(agentSet.Contains, maximum))
             {
                 agent.Detach();
             }
@@ -194,6 +249,10 @@ public partial class AssignmentGrid
             .ThenBy(g => g.Key, StringComparer.Ordinal)
             .ToList();
 
+        // GH-4592: how many partitions may move off an overloaded node in this pass. The unit is a
+        // partition rather than an agent because a partition is what this method refuses to split.
+        var shedsRemaining = Math.Max(1, OverloadShedBatchSize);
+
         foreach (var group in groups)
         {
             // A group is one placement unit — except under mixed capabilities, where members declared by
@@ -221,32 +280,48 @@ public partial class AssignmentGrid
 
             foreach (var members in partitions)
             {
-                // Candidate nodes for the whole partition: nodes capable of running every member (all nodes
-                // when capabilities are homogeneous) — plus any node that was already running part of it
-                // when the grid was assembled. The grandfathering mirrors the even paths, which leave
-                // running agents in place regardless of declared capabilities: a node's capability snapshot
-                // is persisted once at node startup, so a node that started before (say) a tenant database
-                // was provisioned never declares that database's agents even though it is happily running
-                // them.
+                // Set when this partition is being taken off an overloaded incumbent, so the placement
+                // below does not hand it straight back.
+                Node? shedFrom = null;
+
+                // Candidate nodes for the whole partition: nodes that can run every member (all nodes when
+                // capabilities are homogeneous), where a member the node is already running counts as one it
+                // can run. That grandfathering mirrors the even paths, which leave running agents in place
+                // regardless of declared capabilities: a node's capability snapshot is persisted once at node
+                // startup, so a node that started before (say) a tenant database was provisioned never
+                // declares that database's agents even though it is happily running them. It is per member,
+                // not per partition: running one member must not make a node a home for members it neither
+                // declares nor runs — during blue/green, that sends the new version's agents to a blue node
+                // that cannot build them.
                 var candidates = sameCapabilities
                     ? nodes
-                    : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))
-                                       || members.Any(m => m.OriginalNode == n)).ToList();
+                    : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n) || m.OriginalNode == n))
+                        .ToList();
 
                 if (candidates.Count == 0)
                 {
-                    // GH-3341: a whole group whose members are all unassigned AND declared by no node is a
-                    // stale-snapshot artifact, not a genuine blue/green gap. A node captures its
-                    // event-subscription capabilities once at startup (StartLocalAgentProcessingAsync), so a
-                    // shard database provisioned after every surviving node started is absent from all their
-                    // snapshots even though every node can run it — the agents are still enumerated as
-                    // supported by AllKnownAgentsAsync. When such a group's incumbent was a departed node,
-                    // the OriginalNode grandfathering above cannot rescue it, and the per-member fallback
-                    // below would park every member: the shard silently stops projecting with no running
-                    // agent, no log, and no self-heal until a restart refreshes the snapshots. Treat the
-                    // whole group as assignable to any node so it always has a home, kept together to
-                    // preserve the connection-pool affinity this method exists to provide.
-                    if (members.All(m => m.AssignedNode == null && m.CandidateNodes.Count == 0))
+                    // GH-3341: a whole partition declared by no node at all is a stale-snapshot artifact,
+                    // not a genuine blue/green gap. A node captures its event-subscription capabilities once
+                    // at startup (StartLocalAgentProcessingAsync), so a shard database provisioned after
+                    // every surviving node started is absent from all their snapshots even though every node
+                    // can run it — the agents are still enumerated as supported by AllKnownAgentsAsync. When
+                    // such a group's incumbent was a departed node, the OriginalNode grandfathering above
+                    // cannot rescue it, and the per-member fallback below would park every member: the shard
+                    // silently stops projecting with no running agent, no log, and no self-heal until a
+                    // restart refreshes the snapshots. Treat the whole partition as assignable to any node so
+                    // it always has a home, kept together to preserve the connection-pool affinity this
+                    // method exists to provide.
+                    //
+                    // GH-4562: this tests the partition's capabilities ONLY, never whether its members are
+                    // running. Every member of a partition shares one capabilityKey — the sorted ids of its
+                    // candidate nodes — so either all of them are declared by no node or none of them are,
+                    // and "undeclared" is the whole of the condition. It used to also require every member to
+                    // be unassigned, which was redundant while a single running member grandfathered its node
+                    // into the candidates and covered the rest. Now that grandfathering is per member, a node
+                    // running PART of an undeclared partition no longer carries the rest, so this is the only
+                    // thing standing between such a partition and the per-member fallback, which would
+                    // scatter it one agent per node and open a connection pool per node to that database.
+                    if (members.All(m => m.CandidateNodes.Count == 0))
                     {
                         candidates = nodes;
                     }
@@ -265,16 +340,9 @@ public partial class AssignmentGrid
                                 continue;
                             }
 
-                            var candidate = member.CandidateNodes
-                                .OrderBy(n => load.GetValueOrDefault(n))
-                                .ThenBy(n => n.IsLeader)
-                                .ThenBy(n => n.AssignedId)
+                            var candidate = InCapacityOrder(member.CandidateNodes, n => load.GetValueOrDefault(n))
                                 .FirstOrDefault()
-                                ?? nodes
-                                    .OrderBy(n => load.GetValueOrDefault(n))
-                                    .ThenBy(n => n.IsLeader)
-                                    .ThenBy(n => n.AssignedId)
-                                    .First();
+                                ?? InCapacityOrder(nodes, n => load.GetValueOrDefault(n)).First();
 
                             candidate.Assign(member);
                             load[candidate] += 1;
@@ -298,26 +366,54 @@ public partial class AssignmentGrid
                 if (incumbent != null && candidates.Contains(incumbent) &&
                     load[incumbent] + members.Count <= maximum)
                 {
-                    load[incumbent] += members.Count;
-                    remember(siblingHosts, incumbent);
-                    continue;
+                    // GH-4592: an OVERLOADED incumbent gives its partition up instead of keeping it --
+                    // but only when somewhere else can actually take the whole thing, and only for a
+                    // bounded number of partitions per evaluation.
+                    //
+                    // Both conditions matter. A partition is indivisible, so "shed" here means moving a
+                    // whole shard database's agents; detaching with nowhere to put them would stop that
+                    // database projecting entirely (GH-4590, the same mistake the even path made). And a
+                    // node hosting twenty databases that shed all twenty at once would hand the cluster a
+                    // connection-pool stampede and twenty rounds of projection catch-up, so pressure is
+                    // relieved a partition at a time and re-sampled on the next heartbeat.
+                    var shedding = incumbent.IsOverloaded
+                                   && shedsRemaining > 0
+                                   && candidates.Any(n => !ReferenceEquals(n, incumbent)
+                                                          && n.IsAcceptingAgents
+                                                          && load[n] + members.Count <= maximum);
+
+                    if (!shedding)
+                    {
+                        load[incumbent] += members.Count;
+                        remember(siblingHosts, incumbent);
+                        continue;
+                    }
+
+                    shedsRemaining--;
+                    shedFrom = incumbent;
                 }
 
                 // Otherwise the least-loaded candidate hosts the whole partition — preferring a node that
                 // already hosts a sibling partition of this same group, so a split group still costs as few
                 // connection pools per database as its capability split allows (tie-breaks: non-leader
                 // first, then node id).
-                var node = candidates
-                    .Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum)
-                    .OrderBy(n => load[n])
-                    .ThenBy(n => n.IsLeader)
-                    .ThenBy(n => n.AssignedId)
+                // GH-4592: a node being shed FROM must not win its own partition straight back. Every
+                // other candidate stays eligible, including non-accepting ones -- see InCapacityOrder on
+                // why capacity is a preference and never a filter here.
+                // Not defensive: the shed above only fires once it has found another candidate that is
+                // accepting AND has room for the whole partition, so excluding the source cannot empty
+                // this. Said out loud because the two halves are thirty lines apart, and a future change
+                // that breaks the invariant would otherwise hand the partition straight back to the node
+                // it was just taken off -- a move command per evaluation, forever, achieving nothing.
+                var placeable = shedFrom == null
+                    ? candidates
+                    : candidates.Where(n => !ReferenceEquals(n, shedFrom)).ToList();
+
+                var node = InCapacityOrder(
+                        placeable.Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum),
+                        n => load[n])
                     .FirstOrDefault()
-                    ?? candidates
-                        .OrderBy(n => load[n])
-                        .ThenBy(n => n.IsLeader)
-                        .ThenBy(n => n.AssignedId)
-                        .First();
+                    ?? InCapacityOrder(placeable, n => load[n]).First();
 
                 foreach (var agent in members)
                 {
@@ -401,6 +497,11 @@ public partial class AssignmentGrid
         // Detach anything parked on a node that cannot run it, so the passes below can move it. This also
         // covers the "nobody is capable" case: everything ends up detached rather than latched onto a node
         // that will only throw.
+        //
+        // GH-4591: a PIN is not spared here, unlike the ceiling passes. Capability is a hard requirement
+        // and a pin to a node that cannot run the agent is an instruction that cannot be carried out --
+        // leaving it would park the agent on a node that only throws "Unrecognized agent scheme". The
+        // ceiling below is a different matter: that is a preference about balance, which a pin outranks.
         foreach (var agent in agents.Where(x => x.AssignedNode != null && !capableNodes.Contains(x.AssignedNode!)))
         {
             agent.Detach();
@@ -460,10 +561,10 @@ public partial class AssignmentGrid
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread);
 
+        var remainderSet = remainder.ToHashSet();
         foreach (var node in capableNodes)
         {
-            var extras = node.ForCurrentlyAssigned(remainder).Skip(maximum).ToArray();
-            foreach (var agent in extras)
+            foreach (var agent in node.ExtrasAboveCeiling(remainderSet.Contains, maximum))
             {
                 agent.Detach();
             }
@@ -471,7 +572,15 @@ public partial class AssignmentGrid
 
         var missing = new Queue<Agent>(remainder.Where(x => x.AssignedNode == null));
 
-        foreach (var node in capableNodes)
+        // GH-4592: fill the capable nodes with headroom first. Preference, not a filter -- capability is
+        // already a hard constraint here (an incapable node throws "Unrecognized agent scheme"), and
+        // refusing the overloaded ones on top of that can leave a durability agent with nowhere legal to
+        // go. The PREFERRED placements above are untouched on purpose: they exist to follow another
+        // family's per-database co-location, and second-guessing that on load would reopen the
+        // connection-pool problem GH-3785 closed.
+        var byCapacity = InCapacityOrder(capableNodes, n => n.ForCurrentlyAssigned(remainder).Count()).ToList();
+
+        foreach (var node in byCapacity)
         {
             if (missing.Count == 0)
             {
@@ -495,8 +604,8 @@ public partial class AssignmentGrid
         {
             var agent = missing.Dequeue();
 
-            var node = capableNodes.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
-                       ?? capableNodes.FirstOrDefault(x => !x.IsLeader) ?? capableNodes.First();
+            var node = byCapacity.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
+                       ?? byCapacity.FirstOrDefault(x => !x.IsLeader) ?? byCapacity.First();
             node.Assign(agent);
         }
     }
@@ -583,11 +692,11 @@ public partial class AssignmentGrid
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
 
-        // First, pair down number of running agents if necessary. Might have to steal some later
+        // First, pair down number of running agents if necessary. Might have to steal some later.
+        // GH-4591: pinned agents are never detached here; see Node.ExtrasAboveCeiling.
         foreach (var node in nodes)
         {
-            var extras = node.ForCurrentlyAssigned(agents).Skip(maximum).ToArray();
-            foreach (var agent in extras)
+            foreach (var agent in node.ExtrasAboveCeiling(agentSet.Contains, maximum))
             {
                 agent.Detach();
             }
@@ -597,12 +706,18 @@ public partial class AssignmentGrid
         var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count).ToList();
         foreach (var agent in missing)
         {
-            // First try to find a node that has less than the minimum number of nodes
-            var candidate = agent
-                .CandidateNodes
-                .FirstOrDefault(x => countOn(x) < minimum)
-                            // Or fall back to the least loaded down node
-                            ?? agent.CandidateNodes.MinBy(countOn);
+            // GH-4592: among the nodes CAPABLE of this agent, prefer the ones with headroom and the
+            // lighter advertised load — a preference, never a filter, because the candidate set here is
+            // already narrowed by declared capability and a second hard constraint can empty it. An
+            // agent with one capable node still goes to that node even when it is over the line, which
+            // is the right answer: a version's agent not running at all during a blue/green rollout is
+            // worse than it running on a busy node.
+            //
+            // With capacity-aware assignment off, every node is accepting and none advertises a load, so
+            // this is the original "first under the minimum, else least loaded" behavior unchanged.
+            var candidate = InCapacityOrder(agent.CandidateNodes.Where(x => countOn(x) < minimum), countOn)
+                    .FirstOrDefault()
+                ?? InCapacityOrder(agent.CandidateNodes, countOn).FirstOrDefault();
 
             candidate?.Assign(agent);
         }

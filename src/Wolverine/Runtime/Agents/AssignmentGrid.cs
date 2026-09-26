@@ -49,6 +49,63 @@ public partial class AssignmentGrid
     /// </summary>
     public DateTimeOffset EvaluationTime { get; internal set; }
 
+    /// <summary>
+    ///     How many agents per scheme the distribution methods move off an overloaded node in one
+    ///     evaluation. Stamped from <see cref="DurabilitySettings.OverloadShedBatchSize" />.
+    /// </summary>
+    public int OverloadShedBatchSize { get; internal set; } = 1;
+
+    /// <summary>
+    ///     The load reading a node that advertises nothing is ordered as. Deliberately mid-range: such
+    ///     a node is still eligible for placement, but must not outrank nodes that have actually
+    ///     reported themselves lightly loaded. See the ordering in
+    ///     <see cref="DistributeEvenly(string, Func{Uri, bool})" />.
+    /// </summary>
+    internal const double UnadvertisedLoadBand = 50;
+
+    /// <summary>
+    ///     A node's advertised load bucketed into 10-point bands. Raw readings almost never tie, so
+    ///     ordering on them directly would leave every subsequent tie-break deciding nothing and have
+    ///     each family's pass chase the same marginally-least-loaded node between two heartbeats —
+    ///     the cross-scheme stacking GH-3877 fixed. Within a band the readings are treated as equal.
+    /// </summary>
+    internal static double LoadBandOf(Node node) => Math.Floor((node.LoadFactor ?? UnadvertisedLoadBand) / 10);
+
+    /// <summary>
+    ///     GH-4592. Order candidate nodes for a placement: nodes with headroom first, then by advertised
+    ///     load band, then by whatever per-pass count the caller is balancing, then the existing
+    ///     deterministic tie-breaks.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This is a PREFERENCE, not a filter, and that is the whole design decision in the
+    ///         capability-aware distribution paths. <see cref="DistributeEvenly(string, Func{Uri, bool})" />
+    ///         can safely refuse to place onto an overloaded node because every node is a candidate there,
+    ///         so refusing some of them can never strand an agent that nothing else could have run. In the
+    ///         capability-aware paths the candidate set has ALREADY been narrowed — by declared
+    ///         capabilities, by the GH-3341 rescue for a partition no node declares, by the GH-4562
+    ///         per-member grandfathering — and stacking a second hard constraint on top of that can empty
+    ///         it. An empty candidate set in those methods is not "the agent waits": it is a shard
+    ///         database that silently stops projecting with no running agent, no log, and no self-heal
+    ///         until a restart, which is precisely the failure GH-3341 exists to prevent. Memory pressure
+    ///         is transient; a stalled shard is not.
+    ///     </para>
+    ///     <para>
+    ///         With capacity-aware assignment off, every node is accepting and none advertises a load, so
+    ///         the first two keys are constant and this is exactly the pre-existing
+    ///         load/IsLeader/AssignedId ordering.
+    ///     </para>
+    /// </remarks>
+    internal static IOrderedEnumerable<Node> InCapacityOrder(IEnumerable<Node> nodes, Func<Node, int> load)
+    {
+        return nodes
+            .OrderBy(n => n.IsAcceptingAgents ? 0 : 1)
+            .ThenBy(LoadBandOf)
+            .ThenBy(load)
+            .ThenBy(n => n.IsLeader)
+            .ThenBy(n => n.AssignedId);
+    }
+
     public IReadOnlyList<Agent> AgentsForScheme(string scheme)
     {
         return _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
@@ -82,6 +139,7 @@ public partial class AssignmentGrid
     {
         var node = new Node(this, wolverineNode.AssignedNodeNumber, wolverineNode.NodeId, wolverineNode.Capabilities);
         node.ControlUri = wolverineNode.ControlUri;
+        node.LoadFactor = wolverineNode.LoadFactor;
 
         node.IsLeader = wolverineNode.ActiveAgents.Contains(NodeAgentController.LeaderUri);
         

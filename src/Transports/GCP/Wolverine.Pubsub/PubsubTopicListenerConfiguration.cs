@@ -54,6 +54,21 @@ public class PubsubTopicListenerConfiguration : InteroperableListenerConfigurati
     }
 
     /// <summary>
+    ///     Opt into a separate Google Cloud Platform Pub/Sub subscription for every node, named
+    ///     "{subscription}.{node}". Pub/Sub delivers a copy of every message to every subscription, so
+    ///     <b>every node receives and handles every message</b>. Only use this for deliberate per-node
+    ///     broadcast, like cache invalidation. By default, all nodes share one subscription and each
+    ///     message is handled once across the cluster. Ignored for leader-pinned or exclusive listeners.
+    /// </summary>
+    /// <returns></returns>
+    public PubsubTopicListenerConfiguration SubscriptionPerNode()
+    {
+        add(e => e.IsSubscriptionPerNode = true);
+
+        return this;
+    }
+
+    /// <summary>
     ///     Configure the underlying Google Cloud Platform Pub/Sub subscriber.
     /// </summary>
     /// <param name="configure"></param>

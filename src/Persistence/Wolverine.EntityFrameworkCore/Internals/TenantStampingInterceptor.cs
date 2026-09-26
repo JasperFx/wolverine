@@ -38,7 +38,8 @@ public class TenantStampingInterceptor : SaveChangesInterceptor
 
         if (ConjoinedTenancy.IsTenantDisabled(context.GetType(), contextTenantId))
         {
-            throw new UnknownTenantIdException(contextTenantId);
+            // GH-4586: the tenant is registered, it was switched off -- say which
+            throw new DisabledTenantException(contextTenantId);
         }
 
         foreach (var entry in context.ChangeTracker.Entries())
@@ -62,6 +63,17 @@ public class TenantStampingInterceptor : SaveChangesInterceptor
                     {
                         throw new CrossTenantWriteException(entry.Metadata.ClrType, tenanted.TenantId,
                             contextTenantId, entry.State);
+                    }
+
+                    // GH-4612: TenantId is mapped as a concurrency token, so its ORIGINAL value -- not
+                    // the value stamped above -- is what lands in the UPDATE/DELETE where clause. For an
+                    // entity loaded through the tenant filter the original is already this tenant's id;
+                    // for a DETACHED one the snapshot was taken before the stamp and reads null, which
+                    // would match no row at all. Pin it either way so a detached write of your own row
+                    // works and a detached write of somebody else's cannot.
+                    if (entry.State != EntityState.Added)
+                    {
+                        entry.Property(nameof(ITenanted.TenantId)).OriginalValue = contextTenantId;
                     }
 
                     stampTenantOrdinal(context, entry, tenanted);

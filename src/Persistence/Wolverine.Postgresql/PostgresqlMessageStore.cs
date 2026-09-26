@@ -274,7 +274,7 @@ select {owner} from owners where {owner} is not null";
             $"(select ctid from {table} where {owner} in ({deadOwnerList}) limit {batchSize});";
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
         table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
@@ -301,11 +301,11 @@ select {owner} from owners where {owner} is not null";
         await conn.CloseAsync();
     }
 
-    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
-        string idColumnName)
+    protected override Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName,
+        string idColumnName, CancellationToken token)
     {
         return tx.CreateCommand($"delete from {tableName.QualifiedName} where {idColumnName} = ANY(@ids)")
-            .As<NpgsqlCommand>().With("ids", ids).ExecuteNonQueryAsync();
+            .As<NpgsqlCommand>().With("ids", ids).ExecuteNonQueryAsync(token);
 
     }
 
@@ -340,6 +340,9 @@ select {owner} from owners where {owner} is not null";
 
         counts.Outgoing = await estimateTableCount(DatabaseConstants.OutgoingTable);
         counts.DeadLetter = await estimateTableCount(DatabaseConstants.DeadLetterTable);
+
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
 
         return counts;
     }
@@ -771,7 +774,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         }
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName, byte[] json,
         CancellationToken token)
     {
         await using var conn = CreateConnection();
@@ -791,7 +794,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                     $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
                 .With("id", Guid.NewGuid())
                 .With("json", json, NpgsqlDbType.Jsonb)
-                .With("message", messageTypeName)
+                .With("message", messageTypeName!)
                 .ExecuteNonQueryAsync(token);
         }
         
@@ -953,6 +956,13 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("now()");
             nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "text[]").AllowNulls();
+
+            // GH-3959: provisioned only behind the opt-in so an upgrade migrates nothing.
+            // PostgresqlNodePersistence gates every statement naming it on the same flag.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "double precision").AllowNulls();
+            }
 
             yield return nodeTable;
 

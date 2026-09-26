@@ -415,8 +415,18 @@ public class UseKafkaUsingNamedConnectionTests
         options.Services.AddSingleton<IConfiguration>(configuration);
 
         var provider = options.Services.BuildServiceProvider();
-        Should.Throw<InvalidOperationException>(() => provider.GetRequiredService<KafkaNamedConnectionSource>())
-            .Message.ShouldContain("kafka");
+
+        // Still an InvalidOperationException, which is what this asserted before GH-4527 replaced the bare
+        // throw -- MissingNamedConnectionStringsException derives from it precisely so this keeps working.
+        var ex = Should.Throw<MissingNamedConnectionStringsException>(() =>
+            provider.GetRequiredService<KafkaNamedConnectionSource>());
+
+        ex.ShouldBeAssignableTo<InvalidOperationException>();
+        ex.Message.ShouldContain("kafka");
+
+        // ...and it carries the richer detail the aggregated startup check produces
+        ex.Missing.Single().Name.ShouldBe("kafka");
+        ex.Message.ShouldContain("builder.AddKafka(\"kafka\")");
     }
 
     [Fact]

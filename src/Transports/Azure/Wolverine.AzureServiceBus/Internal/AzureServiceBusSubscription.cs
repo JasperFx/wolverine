@@ -63,9 +63,15 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         return Parent.BuildListenerForSubscription(runtime, receiver, this);
     }
 
+    // GH-4510. Structural, not just a throw: a sticky handler binding used to make LocalTransport treat this
+    // receive-only subscription as a local send target, and building the sender took host startup down from
+    // inside PrepopulateRoutingCache. Answering false here keeps it out of routing entirely.
+    protected internal override bool supportsSending => false;
+
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException(
+            $"The Azure Service Bus subscription '{SubscriptionName}' ({Uri}) is a listen-only endpoint. Azure Service Bus subscriptions cannot be sent to directly. Publish to the parent topic '{Topic.TopicName}' instead with ToAzureServiceBusTopic(\"{Topic.TopicName}\"), and the broker will fan the message out to this subscription.");
     }
 
     public override async ValueTask<bool> CheckAsync()

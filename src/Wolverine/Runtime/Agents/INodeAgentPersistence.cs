@@ -83,5 +83,18 @@ public interface INodeAgentPersistence
     Task<bool> TryAttainLeadershipLockAsync(CancellationToken token);
 
     Task ReleaseLeadershipLockAsync();
-    
+
+    /// <summary>
+    /// GH-4593. Whether this store persists and reads back <see cref="WolverineNode.LoadFactor" />, so that
+    /// <see cref="DurabilitySettings.CapacityAwareAssignment" /> can actually see what a node advertises.
+    ///
+    /// <para>
+    /// Defaults to <see langword="false" />, which is the conservative answer for a store that has never
+    /// heard of this: a node advertising nothing is treated by the leader as having unlimited headroom, so a
+    /// store that silently drops the reading turns the feature into a no-op. The runtime warns at startup
+    /// when the flag is on and the store answers <see langword="false" /> — before GH-4593 that combination
+    /// was simply quiet, and every store but PostgreSQL was in it.
+    /// </para>
+    /// </summary>
+    bool AdvertisesNodeLoad => false;
 }

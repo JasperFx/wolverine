@@ -612,7 +612,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
         if (client == null)
         {
-            throw new InvalidOperationException($"Parent {nameof(AmazonSqsTransport)} has not been initialized");
+            throw new InvalidOperationException(AmazonSqsTransport.NotInitializedMessage(Uri));
         }
 
         try
@@ -694,7 +694,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     {
         if (_parent.Client == null)
         {
-            throw new InvalidOperationException("The parent transport has not yet been initialized");
+            throw new InvalidOperationException(AmazonSqsTransport.NotInitializedMessage(Uri));
         }
 
         Mapper ??= BuildMapper(runtime);
@@ -766,7 +766,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         }
 
         var protocol = new SqsSenderProtocol(runtime, this,
-            _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
+            _parent.Client ?? throw new InvalidOperationException(AmazonSqsTransport.NotInitializedMessage(Uri)));
         var sender = new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
 

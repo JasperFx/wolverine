@@ -240,6 +240,41 @@ public abstract class PartitionedMessageTopology
         _subscriptions.Add(new Subscription { BaseType = typeof(T), Scope = RoutingScope.Implements });
     }
 
+    internal List<IGroupingRule> GroupingRules { get; } = new();
+
+    /// <summary>
+    ///     Use the Envelope.TenantId as the GroupId of the message types published through this topology.
+    ///     Unlike <see cref="MessagePartitioningRules.ByTenantId" />, this reaches no other message type.
+    ///     A topology's own rules are consulted before the application-wide rules, and the application-wide
+    ///     rules still apply to any of its messages that none of them match.
+    /// </summary>
+    public void GroupByTenantId()
+    {
+        GroupBy(new TenantGroupingRule());
+    }
+
+    /// <summary>
+    ///     Determine the GroupId of the messages published through this topology that can be cast to
+    ///     "T". This rule is consulted before the application-wide rules, which still apply to any of this
+    ///     topology's messages it does not match.
+    /// </summary>
+    public void GroupBy<T>(Func<T, string> strategy)
+    {
+        GroupBy(new MessageGrouping<T>(strategy));
+    }
+
+    /// <summary>
+    ///     Determine the GroupId of the messages published through this topology with a custom rule.
+    ///     Rules on one topology are evaluated in the order they are declared, ahead of the application-wide
+    ///     rules, which still apply to any of this topology's messages none of them match.
+    /// </summary>
+    public void GroupBy(IGroupingRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        GroupingRules.Add(rule);
+        _options.MessagePartitioning.TopologyGroupingChanged();
+    }
+
     internal Endpoint SelectSlot(Envelope contextEnvelope)
     {
         if (contextEnvelope == null) throw new ArgumentNullException(nameof(contextEnvelope));

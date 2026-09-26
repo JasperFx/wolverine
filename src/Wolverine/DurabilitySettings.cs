@@ -656,6 +656,69 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxLocalAgentReconciliationsPerTick { get; set; } = 50;
 
     /// <summary>
+    ///     Opt in to capacity-aware agent assignment. Each node advertises its current load (see
+    ///     <see cref="NodeLoadMonitor" />) on every heartbeat; the leader prefers the least-loaded
+    ///     nodes, never places onto a node at or above <see cref="NodeOverloadThreshold" />, and sheds
+    ///     agents off overloaded nodes onto nodes that still have headroom. Requires a message store
+    ///     that persists the load advertisement — PostgreSQL, SQL Server, MySQL, Oracle, SQLite, RavenDB
+    ///     and Azure Cosmos DB all do (GH-4593); a store that does not is reported as a startup warning.
+    ///     Off by default.
+    ///     <para>
+    ///         Setting this to true <b>requires</b> a <see cref="NodeLoadMonitor" />; there is no
+    ///         default. Starting a host with this on and no monitor is a startup error.
+    ///     </para>
+    ///     <para>
+    ///         How strictly load is honored depends on how constrained the placement already is.
+    ///         <see cref="Runtime.Agents.AssignmentGrid.DistributeEvenly(string)" /> treats the overload
+    ///         threshold as a hard line — every node is a candidate there, so refusing the overloaded
+    ///         ones cannot strand an agent, and an agent waits rather than being piled onto a node that
+    ///         cannot start it. The capability-aware paths — group affinity for multi-database event
+    ///         stores, blue/green across mixed capabilities, and the durability-agent affinity spread —
+    ///         treat it as a strong preference instead: their candidate sets are already narrowed by
+    ///         declared capabilities, so a second hard constraint could empty one and leave a shard
+    ///         database with no running agent at all. There, a node with headroom always wins, but an
+    ///         overloaded node still beats nothing.
+    ///     </para>
+    ///     <para>
+    ///         Group affinity additionally moves whole partitions off an overloaded node, at most
+    ///         <see cref="OverloadShedBatchSize" /> per evaluation and only when another candidate can
+    ///         take the entire partition — a shard database's agents are never split to relieve pressure.
+    ///     </para>
+    ///     <para>
+    ///         On a relational store, enabling this provisions a <c>load_factor</c> column on the
+    ///         <c>wolverine_nodes</c> table. With <c>AutoCreate.None</c> — or a process without DDL
+    ///         rights — apply the schema migration before turning this on; otherwise every heartbeat
+    ///         fails against the missing column. Every statement naming the column is gated on this same
+    ///         flag, so leaving it off migrates nothing and reads nothing. The document stores have no
+    ///         schema to migrate: an absent property simply reads back as "not advertising".
+    ///     </para>
+    /// </summary>
+    public bool CapacityAwareAssignment { get; set; }
+
+    /// <summary>
+    ///     Advertised load percentage at or above which a node is considered overloaded: it begins
+    ///     shedding agents, and stops receiving new ones starting 10 points below this value.
+    ///     Default 90.
+    /// </summary>
+    public double NodeOverloadThreshold { get; set; } = 90;
+
+    /// <summary>
+    ///     Maximum number of agents per scheme the leader moves off an overloaded node in one
+    ///     assignment evaluation. Default 1. Shedding only happens when some other node can take the
+    ///     work — an overloaded node with nowhere to shed to keeps what it is running.
+    /// </summary>
+    public int OverloadShedBatchSize { get; set; } = 1;
+
+    /// <summary>
+    ///     Sampler for this node's own load. <b>Required</b> when
+    ///     <see cref="CapacityAwareAssignment" /> is enabled — there is deliberately no default,
+    ///     because what "load" means is specific to what the application does. See
+    ///     <see cref="Runtime.Agents.INodeLoadMonitor" />, and
+    ///     <see cref="Runtime.Agents.MemoryPressureLoadMonitor" /> for the memory case.
+    /// </summary>
+    public Runtime.Agents.INodeLoadMonitor? NodeLoadMonitor { get; set; }
+
+    /// <summary>
     ///     GH-3970: how many consecutive assignment ticks may fail to <i>build or start</i> an agent on this
     ///     node before the node releases it to a capable peer, using the same embargo as
     ///     <see cref="MaxLocalAgentRestartsBeforeRelease" />.
@@ -854,6 +917,9 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(AssignmentSettleNodeCount), AssignmentSettleNodeCount);
         desc.AddValue(nameof(LocalAgentReconciliationThreshold), LocalAgentReconciliationThreshold);
         desc.AddValue(nameof(MaxLocalAgentReconciliationsPerTick), MaxLocalAgentReconciliationsPerTick);
+        desc.AddValue(nameof(CapacityAwareAssignment), CapacityAwareAssignment);
+        desc.AddValue(nameof(NodeOverloadThreshold), NodeOverloadThreshold);
+        desc.AddValue(nameof(OverloadShedBatchSize), OverloadShedBatchSize);
         desc.AddValue(nameof(TenantCheckPeriod), TenantCheckPeriod);
         desc.AddValue(nameof(UpdateMetricsPeriod), UpdateMetricsPeriod);
         desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);

@@ -8,6 +8,11 @@ namespace Wolverine.CosmosDb.Internals;
 
 public partial class CosmosDbMessageStore : INodeAgentPersistence
 {
+    // GH-4593: a document store has no schema to migrate and no column to gate. Unlike RavenDB this one
+    // maps through a hand-written DTO rather than storing the WolverineNode whole, so the property had to
+    // be added to CosmosWolverineNode and to both halves of its mapping.
+    bool INodeAgentPersistence.AdvertisesNodeLoad => true;
+
     async Task INodeAgentPersistence.ClearAllAsync(CancellationToken cancellationToken)
     {
         var nodes = await Nodes.LoadAllNodesAsync(cancellationToken);
@@ -367,6 +372,12 @@ public partial class CosmosDbMessageStore : INodeAgentPersistence
                 cancellationToken: cancellationToken);
             var doc = response.Resource;
             doc.LastHealthCheck = DateTimeOffset.UtcNow;
+
+            // GH-4593: the other two write paths rebuild the whole document from the node, but this one
+            // edits the document it just read -- so without this the advertisement would be written once
+            // at registration and never refreshed. This is the once-per-heartbeat path.
+            doc.LoadFactor = node.LoadFactor;
+
             await _container.ReplaceItemAsync(doc, doc.Id, new PartitionKey(DocumentTypes.SystemPartition),
                 cancellationToken: cancellationToken);
             return true;
@@ -459,6 +470,7 @@ public class CosmosWolverineNode
         Started = node.Started;
         Version = node.Version?.ToString();
         Capabilities = node.Capabilities.Select(x => x.ToString()).ToList();
+        LoadFactor = node.LoadFactor;
     }
 
     [JsonProperty("id")]
@@ -505,6 +517,12 @@ public class CosmosWolverineNode
     [JsonPropertyName("capabilities")]
     public List<string> Capabilities { get; set; } = new();
 
+    // GH-4593. Absent on a document written before this shipped, which deserializes to null -- exactly
+    // "this node is not advertising a load reading".
+    [JsonProperty("loadFactor")]
+    [JsonPropertyName("loadFactor")]
+    public double? LoadFactor { get; set; }
+
     public WolverineNode ToWolverineNode()
     {
         var node = new WolverineNode
@@ -515,7 +533,8 @@ public class CosmosWolverineNode
             ControlUri = ControlUri != null ? new Uri(ControlUri) : null,
             LastHealthCheck = LastHealthCheck,
             Started = Started,
-            Version = Version != null ? new Version(Version) : new Version(0, 0, 0, 0)
+            Version = Version != null ? new Version(Version) : new Version(0, 0, 0, 0),
+            LoadFactor = LoadFactor
         };
         node.Capabilities.AddRange(Capabilities.Select(x => new Uri(x)));
         return node;

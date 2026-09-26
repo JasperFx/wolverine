@@ -411,6 +411,31 @@ public static class ValidatedMarkItemReadyHandler
 The `Required`, `OnMissing`, and `MissingMessage` properties behave consistently on all Wolverine attributes
 like `[Entity]` or `[WriteAggregate]` or `[ReadAggregate]`.
 
+### What Happens When the Stream Is Missing
+
+The behavior you get for a missing stream depends on *where the handler method lives*, and that trips people up
+because it is invisible at the call site.
+
+With `Required = true` on a parameter of a normal handler class -- the default, and the code above -- Wolverine
+stops before the handler body runs. In a message handler that means it logs that the required data was missing
+and discards the message. In an HTTP endpoint it means a 404, or whatever you asked for with `OnMissing`.
+
+If the handler method is on the aggregate type itself, though, there is no object for Wolverine to call the
+method on, so it cannot quietly carry on. That case throws `UnknownAggregateException`:
+
+> Could not find an aggregate of type MyApp.Order with id 8a2c4d... The parameter is required; to handle a
+> missing stream in the handler instead of failing, make the parameter nullable or use
+> `[WriteAggregate(Required = false)]` (or the equivalent on `[ReadAggregate]`/`[Aggregate]`).
+
+From there it is an ordinary handler exception. It follows whatever [error handling policy](/guide/handlers/error-handling)
+matches, which with no matching policy means the dead letter queue, and it comes straight back to you if you
+invoked the message inline with `IMessageBus.InvokeAsync()`.
+
+::: tip
+If a missing stream is a legitimate outcome in your system rather than a bug, either make the parameter nullable
+or set `Required = false` so the decision about what a missing stream means is yours and lives in your handler.
+:::
+
 ### Handler Method Signatures
 
 The Marten workflow command handler method signature needs to follow these rules:

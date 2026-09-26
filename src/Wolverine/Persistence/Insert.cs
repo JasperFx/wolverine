@@ -23,7 +23,10 @@ public record Insert<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         {
             provider.ApplyTransactionSupport(chain, container, typeof(T));
             var value = new EntityVariable(variable);
-            return provider.DetermineInsertFrame(value, container).WrapIfNotNull(variable);
+
+            // GH-4613: see DetermineStorageUpdateFrame. Defaults to DetermineInsertFrame, so this is a
+            // no-op for every provider that does not need to tell a returned entity from a saga.
+            return provider.DetermineStorageInsertFrame(value, container).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));

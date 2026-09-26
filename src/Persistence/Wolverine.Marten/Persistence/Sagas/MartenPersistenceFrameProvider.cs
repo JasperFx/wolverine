@@ -9,10 +9,12 @@ using Marten;
 using JasperFx.Events;
 using Marten.Events;
 using Marten.Storage.Metadata;
+using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Requirements;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using IRevisioned = JasperFx.IRevisioned;
@@ -74,6 +76,56 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         }
 
         return container.GetInstance<IDocumentStore>();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-4505. Marten can honour this whenever its store is single-database: Wolverine's message store
+    ///     is then built from <c>store.Storage.Database.DataSource</c> — literally Marten's own
+    ///     <c>NpgsqlDataSource</c>, in the same database and, by default, the same schema
+    ///     (<c>WolverineOptionsMartenExtensions.BuildSinglePostgresqlMessageStore</c>). Queuing the claim
+    ///     onto the session is then the same move Wolverine already makes for its inbox rows.
+    ///     <para>
+    ///     Database-per-tenant falls through to the claim-and-release path deliberately: that composition
+    ///     builds the main message store from <c>MainDatabaseConnectionString</c> / <c>MasterDataSource</c>,
+    ///     which is a different database from the tenant one the session commits to, so a queued claim would
+    ///     be riding the wrong transaction.
+    ///     </para>
+    /// </remarks>
+    public bool TryBuildTransactionalDeduplication(IChain chain, Variable deduplicationId,
+        DeduplicationRequirement requirement, IServiceContainer container,
+        [NotNullWhen(true)] out TransactionalDeduplication? deduplication)
+    {
+        deduplication = null;
+
+        // Not CanApply -- that answers "could this provider own the chain's transaction?", and a chain that
+        // merely takes an IDocumentSession satisfies it without ever committing one. Riding a transaction
+        // that is never committed writes no claim at all, so the endpoint silently loses deduplication
+        // entirely: every replay runs. Ask for the commit frame itself, which is the thing the claim has to
+        // ride. A chain without one genuinely has nothing to ride and belongs on the claim-and-release path.
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
+        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+
+        if (resolveStore(chain, container).As<DocumentStore>().Tenancy.Cardinality !=
+            JasperFx.Descriptors.DatabaseCardinality.Single)
+        {
+            return false;
+        }
+
+        var marker = chain.DetermineAncillaryStoreType();
+        var check = new MartenDeduplicationClaimExistsFrame(deduplicationId, marker, requirement.Required);
+
+        deduplication = new TransactionalDeduplication
+        {
+            Check = check,
+            IsDuplicate = check.Variable,
+            Claim = new QueueMartenDeduplicationClaimFrame(deduplicationId, check.Variable, marker),
+            CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
+                MartenDeduplicationFailures.Classifier,
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
+        };
+
+        return true;
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)

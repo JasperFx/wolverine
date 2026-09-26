@@ -113,7 +113,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     {
         if (_hasGrouped)
         {
-            throw new InvalidOperationException("This HandlerGraph has already been grouped/compiled");
+            // GH-4532: the cause is almost always configuration attempted after the host is up.
+            throw new InvalidOperationException(
+                "This HandlerGraph has already been grouped/compiled. Configure opts.Discovery inside UseWolverine(), not after the host has started.");
         }
     }
 
@@ -697,9 +699,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     {
         lock (_messageTypesLock)
         {
-            if (_messageTypes.TryFind(messageAlias, out var type))
+            if (_messageTypes.TryFind(messageAlias, out var existing))
             {
-                throw new InvalidOperationException($"Cannot register type {type} with alias {messageAlias} because alias is already used");
+                // GH-4532: the old message interpolated the type it found in the map, not the one being
+                // registered, so it named the wrong half of the collision -- and said nothing about
+                // [MessageIdentity], which is how you resolve one.
+                throw new InvalidOperationException(
+                    $"Message types {existing.FullNameInCode()} and {messageType.FullNameInCode()} both resolve to the message alias '{messageAlias}'. " +
+                    "Aliases must be unique because the alias is what Wolverine writes on the wire to identify the message type. " +
+                    $"Give one of them a distinct alias with [{nameof(MessageIdentityAttribute).Replace("Attribute", "")}(\"...\")], or rename the type.");
             }
 
             _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);

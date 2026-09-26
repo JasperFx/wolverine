@@ -1,229 +1,40 @@
-using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using Marten;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Shouldly;
-using Weasel.Core;
 using Weasel.Postgresql;
-using Weasel.Postgresql.Tables;
 using Wolverine;
-using Wolverine.ComplianceTests.Compliance;
-using Wolverine.ErrorHandling;
-using Wolverine.Marten;
-using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS.Transport;
-using Wolverine.Runtime.Handlers;
-using Wolverine.Tracking;
 
 namespace PostgresqlTests.Transport;
 
-public class external_message_tables : IAsyncLifetime
+public class external_message_tables : ExternalTableTransportCompliance
 {
-    public async ValueTask InitializeAsync()
+    public external_message_tables(ITestOutputHelper output) : base(output)
     {
-        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("external");
-    }
-    
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 
-    [Fact]
-    public async Task can_create_basic_table()
+    protected override string connectionString => Servers.PostgresConnectionString;
+    protected override string idColumnType => "uuid";
+    protected override string bodyColumnType => "jsonb";
+    protected override string timestampColumnType => "timestamp with time zone";
+    protected override string messageTypeColumnType => "varchar";
+
+    protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) =>
+        opts.UsePostgresqlPersistenceAndTransport(connectionString, schemaName);
+
+    protected override async ValueTask dropSchemaAsync(string connectionString, string[] schemas, CancellationToken cancellationToken)
     {
-        var definition = new ExternalMessageTable(new DbObjectName("external", "incoming1"))
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+        foreach (var schema in schemas)
         {
-            MessageType = typeof(Message1)
-        };
-
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-                
-                opts.Policies.UseDurableLocalQueues();
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var storage = host.Services.GetRequiredService<IMessageStore>()
-            .As<PostgresqlMessageStore>();
-
-        var table = storage.AddExternalMessageTable(definition).ShouldBeOfType<Table>();
-        table.Columns.Select(x => x.Name).ShouldBe(new string[]{"id", "body", "timestamp"});
-        table.Columns.Select(x => x.Type).ShouldBe(new string[]{"uuid", "jsonb", "timestamp with time zone"});
-        table.PrimaryKeyColumns.Single().ShouldBe("id");
-        
-
-        using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync(TestContext.Current.CancellationToken);
-
-        await table.MigrateAsync(conn);
-
-        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
-        
-        delta.Difference.ShouldBe(SchemaPatchDifference.None);
-        
-    }
-    
-    [Fact]
-    public async Task can_create_basic_table_with_message_type()
-    {
-        var definition = new ExternalMessageTable(new DbObjectName("external", "incoming1"))
-        {
-            MessageType = typeof(Message1),
-            MessageTypeColumnName = "message_type"
-        };
-
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var storage = host.Services.GetRequiredService<IMessageStore>()
-            .As<PostgresqlMessageStore>();
-
-        var table = storage.AddExternalMessageTable(definition).ShouldBeOfType<Table>();
-        table.Columns.Select(x => x.Name).ShouldBe(new string[]{"id", "body", "timestamp", "message_type"});
-        table.Columns.Select(x => x.Type).ShouldBe(new string[]{"uuid", "jsonb", "timestamp with time zone", "varchar"});
-        table.PrimaryKeyColumns.Single().ShouldBe("id");
-        
-
-        using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync(TestContext.Current.CancellationToken);
-
-        await table.MigrateAsync(conn);
-
-        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
-        
-        delta.Difference.ShouldBe(SchemaPatchDifference.None);
-        
-    }
-    
-    [Fact]
-    public async Task end_to_end_default_message_type()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("external", "incoming1", table =>
-                {
-                    table.MessageType = typeof(Message1);
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message1>(host).ExecuteAndWaitAsync(
-            _ => host.SendMessageThroughExternalTable("external.incoming1", new Message1()));
-
-        var envelope = tracked.Received.SingleEnvelope<Message1>();
-        envelope.Destination.ShouldBe(new Uri("external-table://external.incoming1/"));
-    }
-    
-        
-    [Fact]
-    public async Task end_to_end_default_variable_message_types()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("external", "incoming1", table =>
-                {
-                    table.MessageTypeColumnName = "message_type";
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
-            _ => host.SendMessageThroughExternalTable("external.incoming1", new Message2()));
-
-        var envelope = tracked.Received.SingleEnvelope<Message2>();
-        envelope.Destination.ShouldBe(new Uri("external-table://external.incoming1/"));
-    }
-    
-    [Fact]
-    public async Task end_to_end_default_variable_message_types_customize_table_in_every_possible_way()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("external", "incoming1", table =>
-                {
-                    table.IdColumnName = "pk";
-                    table.TimestampColumnName = "added";
-                    table.JsonBodyColumnName = "message_body";
-                    table.MessageTypeColumnName = "message_kind";
-                    
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
-            _ => host.SendMessageThroughExternalTable("external.incoming1", new Message2()));
-
-        var envelope = tracked.Received.SingleEnvelope<Message2>();
-        envelope.Destination.ShouldBe(new Uri("external-table://external.incoming1/"));
-    }
-
-    [Fact]
-    public async Task pull_in_message_that_goes_to_dead_letter_queue_and_replay_it()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.ScheduledJobPollingTime = 1.Seconds();
-                
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("external", "incoming4", table =>
-                {
-                    table.IdColumnName = "pk";
-                    table.TimestampColumnName = "added";
-                    table.JsonBodyColumnName = "message_body";
-                    table.MessageType = typeof(BlowsUpMessage);
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        // Rig it up to fail
-        var waiter = BlowsUpMessageHandler.WaiterForCall(true);
-
-        await host.SendMessageThroughExternalTable("external.incoming4", new BlowsUpMessage(), token: TestContext.Current.CancellationToken);
-        var storage = host.GetRuntime().Storage;
-        Guid[] ids = new Guid[0];
-        while (!ids.Any())
-        {
-            var queued = await storage.DeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()), CancellationToken.None);
-            ids = queued.Envelopes.Select(x => x.Envelope.Id).ToArray();
+            await conn.DropSchemaAsync(schema, cancellationToken);
         }
-        
-        // need to reset it
-        var dlq = BlowsUpMessageHandler.WaiterForCall(false);
-        await storage.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
-        await dlq;
-        BlowsUpMessageHandler.LastReceived.ShouldNotBeNull();
     }
-
 }
 
 public static class Bootstrapping
@@ -236,9 +47,15 @@ public static class Bootstrapping
         {
             opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres")!);
 
-            // Or
+            // Or choose a different provider; MySql, Sqlite, SqlServer, and Oracle are supported.
             // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
-            
+            // opts.UseMySqlPersistenceAndTransport(builder.Configuration.GetConnectionString("mysql"));
+            // opts.UseSqlitePersistenceAndTransport(builder.Configuration.GetConnectionString("sqlite"));
+            // Oracle has no combined "PersistenceAndTransport" helper; its database queue transport
+            // is opted into fluently. The external table listening below needs only the persistence.
+            // opts.PersistMessagesWithOracle(builder.Configuration.GetConnectionString("oracle")!)
+            //     .EnableMessageTransport();
+
             // Or
             // opts.Services
             //     .AddMarten(builder.Configuration.GetConnectionString("postgres"))
@@ -297,57 +114,3 @@ public static class Bootstrapping
 }
 
 public class ExternalMessage;
-
-public static class Message1Handler
-{
-    public static void Handle(Message1 message)
-    {
-        Debug.WriteLine("Got a Message1");
-    }
-    
-    public static void Handle(Message2 message)
-    {
-        Debug.WriteLine("Got a Message2");
-    }
-    
-    public static void Handle(Message3 message)
-    {
-        Debug.WriteLine("Got a Message3");
-    }
-    
-}
-
-public record BlowsUpMessage;
-
-public static class BlowsUpMessageHandler
-{
-    public static TaskCompletionSource Waiter { get; private set; } = new();
-    
-    public static void Configure(HandlerChain chain)
-    {
-        chain.OnAnyException().MoveToErrorQueue();
-    }
-    
-    public static bool WillBlowUp { get; set; } = true;
-
-    public static Task WaiterForCall(bool shouldThrow)
-    {
-        LastReceived = null!;
-        WillBlowUp = shouldThrow;
-        Waiter = new TaskCompletionSource();
-        return Waiter.Task;
-    }
-
-    public static void Handle(BlowsUpMessage message)
-    {
-        if (WillBlowUp)
-        {
-            throw new Exception("You stink!");
-        }
-        
-        LastReceived = message;
-        Waiter.SetResult();
-    }
-
-    public static BlowsUpMessage LastReceived { get; set; } = null!;
-}

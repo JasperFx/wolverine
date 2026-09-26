@@ -287,6 +287,50 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     internal bool MaxDegreeOfParallelismIsExplicit { get; private set; }
 
     /// <summary>
+    /// GH-4059. The <see cref="EndpointMode"/> a LISTENING-side fluent call asked for -- <c>ProcessInline()</c>,
+    /// <c>UseDurableInbox()</c>, <c>BufferedInMemory()</c>, <c>ProcessInParallelWithNativeAcks()</c> -- or null
+    /// when the listening side never named one.
+    /// </summary>
+    internal EndpointMode? ListenerRequestedMode { get; private set; }
+
+    /// <summary>
+    /// GH-4059. The <see cref="EndpointMode"/> a SENDING-side fluent call asked for -- <c>SendInline()</c>,
+    /// <c>UseDurableOutbox()</c>, <c>BufferedInMemory()</c> -- or null when the sending side never named one.
+    /// </summary>
+    internal EndpointMode? SubscriberRequestedMode { get; private set; }
+
+    /// <summary>
+    /// GH-4059. Assign <see cref="Mode"/> on behalf of the listening side, remembering that it was the
+    /// listening side that asked.
+    /// </summary>
+    /// <remarks>
+    /// <para><see cref="Mode"/> is one property governing both directions, so on any transport where
+    /// publishing and listening resolve to the same <see cref="Endpoint"/> object -- a RabbitMQ queue, a Redis
+    /// stream, a Pulsar topic -- whichever side's delayed configuration is applied last wins, and the other
+    /// side's request disappears without a word.</para>
+    ///
+    /// <para>Recording the request separately from the outcome is what lets
+    /// <see cref="ListenerConfigurationValidator"/> see the collision at all. A guard in the <see cref="Mode"/>
+    /// setter could not: both sides are delayed configuration, so it would catch one ordering and miss the
+    /// reverse -- the same reasoning as GH-3712's parallelism clamp.</para>
+    /// </remarks>
+    internal void RequestListenerMode(EndpointMode mode)
+    {
+        ListenerRequestedMode = mode;
+        Mode = mode;
+    }
+
+    /// <summary>
+    /// GH-4059. Assign <see cref="Mode"/> on behalf of the sending side, remembering that it was the sending
+    /// side that asked. See <see cref="RequestListenerMode"/>.
+    /// </summary>
+    internal void RequestSubscriberMode(EndpointMode mode)
+    {
+        SubscriberRequestedMode = mode;
+        Mode = mode;
+    }
+
+    /// <summary>
     /// GH-3712. The explicitly configured <see cref="MaxDegreeOfParallelism"/> that <see cref="Compile"/>
     /// discarded because this endpoint's mode ignores it. Null when nothing was discarded.
     /// </summary>
@@ -853,6 +897,29 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// cannot: a cumulative offset commit has no way to express a gap.
     /// </summary>
     protected virtual bool supportsNativeAck => false;
+
+    /// <summary>
+    /// GH-4510. Can anything ever <em>send</em> to this endpoint? Default is <c>true</c>: almost every endpoint is
+    /// either bidirectional or outbound. A listen-only endpoint answers <c>false</c> -- an Azure Service Bus
+    /// subscription (you publish to its topic instead) and a Kafka topic group (you publish to the topic) are the
+    /// two today, and both previously answered a <c>CreateSender</c> call by throwing.
+    ///
+    /// <para>
+    /// This exists because a sticky handler binding says only "deliver this message type to this listener". It is
+    /// not a claim that the endpoint is a valid local send target -- but <see cref="Transports.Local.LocalTransport"/>
+    /// treated every sticky-bound endpoint as one, so <c>PrepopulateRoutingCache</c> built a sending agent for a
+    /// receive-only subscription at startup and took the whole host down with it. A structural answer here is
+    /// better than catching the throw, because it also keeps such an endpoint out of routing tables and
+    /// diagnostics where it never belonged.
+    /// </para>
+    /// </summary>
+    protected internal virtual bool supportsSending => true;
+
+    /// <summary>
+    /// GH-4510. Public read of <see cref="supportsSending"/> for the routing and local-transport code that has to
+    /// ask the question from outside the endpoint's own assembly.
+    /// </summary>
+    internal bool CanSend => supportsSending;
 
     /// <summary>
     /// GH-4060. Can a message handed back to this listener with <see cref="IChannelCallback.DeferAsync"/> ever be

@@ -10,7 +10,7 @@ namespace Wolverine.RDBMS.Transport;
 internal class ExternalMessageTableListener : IListener
 {
     private readonly ExternalMessageTable _messageTable;
-    private readonly IMessageDatabase _database;
+    private readonly IExternalDbTransportStore _database;
     private readonly WolverineOptions _runtimeOptions;
     private readonly CancellationTokenSource _cancellation;
     private readonly Task _task;
@@ -19,7 +19,7 @@ internal class ExternalMessageTableListener : IListener
 
     public ExternalMessageTableListener(ExternalMessageTable messageTable, IWolverineRuntime runtime, IReceiver receiver)
     {
-        var database = runtime.Storage as IMessageDatabase;
+        var database = runtime.Storage as IExternalDbTransportStore;
 
         _messageTable = messageTable;
         _database = database ?? throw new InvalidOperationException(

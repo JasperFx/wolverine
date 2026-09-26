@@ -1,209 +1,34 @@
-using System.Diagnostics;
 using IntegrationTests;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Shouldly;
-using Spectre.Console;
-using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine;
-using Wolverine.ComplianceTests.Compliance;
-using Wolverine.Persistence.Durability;
-using Wolverine.RDBMS.Transport;
+using Wolverine.ComplianceTests;
 using Wolverine.SqlServer;
-using Wolverine.SqlServer.Persistence;
-using Wolverine.Tracking;
-using Table = Weasel.SqlServer.Tables.Table;
 
 namespace SqlServerTests.Transport;
 
-public class external_message_tables : IAsyncLifetime
+public class external_message_tables : ExternalTableTransportCompliance
 {
-    public async ValueTask InitializeAsync()
+    public external_message_tables(ITestOutputHelper output) : base(output)
     {
-        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("outside");
-
-        // end_to_end_default_variable_message_types listens on outgoing.incoming1, and only "outside"
-        // was ever dropped -- so any row that run did not consume stayed there forever and the NEXT
-        // run's SingleEnvelope<Message2>() saw it too. Observed as "Received 4 messages of type
-        // Message2" from a test that published exactly one, then passing again once the backlog had
-        // been drained, which is the signature that makes this kind of flake read as someone's diff.
-        await conn.DropSchemaAsync("outgoing");
-    }
-    
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 
-    [Fact]
-    public async Task can_create_basic_table()
+    protected override string connectionString => Servers.SqlServerConnectionString;
+    protected override string idColumnType => "uniqueidentifier";
+    protected override string bodyColumnType => "varbinary(max)";
+    protected override string timestampColumnType => "datetimeoffset";
+    protected override string messageTypeColumnType => "varchar(250)";
+
+    protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) => 
+        opts.UseSqlServerPersistenceAndTransport(connectionString, schemaName);
+
+    protected override async ValueTask dropSchemaAsync(string connectionString, string[] schemas, CancellationToken cancellationToken)
     {
-        var definition = new ExternalMessageTable( new DbObjectName("outside", "incoming1"))
+        await using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(cancellationToken);
+        foreach (var schema in schemas)
         {
-            MessageType = typeof(Message1)
-        };
-
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var storage = host.Services.GetRequiredService<IMessageStore>()
-            .As<SqlServerMessageStore>();
-
-        var table = storage.AddExternalMessageTable(definition).ShouldBeOfType<Table>();
-        table.Columns.Select(x => x.Name).ShouldBe(new string[]{"id", "body", "timestamp"});
-        table.Columns.Select(x => x.Type).ShouldBe(new string[]{"uniqueidentifier", "varbinary(max)", "datetimeoffset"});
-        table.PrimaryKeyColumns.Single().ShouldBe("id");
-        
-
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync(TestContext.Current.CancellationToken);
-
-        await table.MigrateAsync(conn);
-
-        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
-        
-        delta.Difference.ShouldBe(SchemaPatchDifference.None);
-        
+            await conn.DropSchemaAsync(schema, cancellationToken);
+        }
     }
-    
-    [Fact]
-    public async Task can_create_basic_table_with_message_type()
-    {
-        var definition = new ExternalMessageTable(new DbObjectName("outside", "incoming1"))
-        {
-            MessageType = typeof(Message1),
-            MessageTypeColumnName = "message_type"
-        };
-
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var storage = host.Services.GetRequiredService<IMessageStore>()
-            .As<SqlServerMessageStore>();
-
-        var table = storage.AddExternalMessageTable(definition).ShouldBeOfType<Table>();
-        table.Columns.Select(x => x.Name).ShouldBe(new string[]{"id", "body", "timestamp", "message_type"});
-        table.Columns.Select(x => x.Type).ShouldBe(new string[]{"uniqueidentifier", "varbinary(max)", "datetimeoffset", "varchar(250)"});
-        table.PrimaryKeyColumns.Single().ShouldBe("id");
-        
-
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync(TestContext.Current.CancellationToken);
-
-        await table.MigrateAsync(conn);
-
-        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
-        
-        delta.Difference.ShouldBe(SchemaPatchDifference.None);
-        
-    }
-
-    [Fact]
-    public async Task end_to_end_default_message_type()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("outside", "incoming1", table =>
-                {
-                    table.MessageType = typeof(Message1);
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var tracked = await host
-            .TrackActivity()
-            .Timeout(1.Minutes())
-            .WaitForMessageToBeReceivedAt<Message1>(host)
-            .ExecuteAndWaitAsync(
-            _ => host.SendMessageThroughExternalTable("outside.incoming1", new Message1()));
-
-        var envelope = tracked.Received.SingleEnvelope<Message1>();
-        envelope.Destination.ShouldBe(new Uri("external-table://outside.incoming1/"));
-    }
-    
-    [Fact]
-    public async Task end_to_end_default_variable_message_types()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("outgoing", "incoming1", table =>
-                {
-                    table.MessageTypeColumnName = "message_type";
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
-            _ => host.SendMessageThroughExternalTable("outgoing.incoming1", new Message2()));
-
-        var envelope = tracked.Received.SingleEnvelope<Message2>();
-        envelope.Destination.ShouldBe(new Uri("external-table://outgoing.incoming1/"));
-    }
-
-    [Fact]
-    public async Task end_to_end_default_variable_message_types_customize_table_in_every_possible_way()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-
-                opts.ListenForMessagesFromExternalDatabaseTable("outside", "incoming1", table =>
-                {
-                    table.IdColumnName = "pk";
-                    table.TimestampColumnName = "added";
-                    table.JsonBodyColumnName = "message_body";
-                    table.MessageTypeColumnName = "message_kind";
-                    
-                    table.PollingInterval = 1.Seconds();
-                });
-
-            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
-            _ => host.SendMessageThroughExternalTable("outside.incoming1", new Message2()));
-
-        var envelope = tracked.Received.SingleEnvelope<Message2>();
-        envelope.Destination.ShouldBe(new Uri("external-table://outside.incoming1/"));
-    }
-    
-}
-
-public static class Message1Handler
-{
-    public static void Handle(Message1 message)
-    {
-        Debug.WriteLine("Got a Message1");
-    }
-    
-    public static void Handle(Message2 message)
-    {
-        Debug.WriteLine("Got a Message2");
-    }
-    
-    public static void Handle(Message3 message)
-    {
-        Debug.WriteLine("Got a Message3");
-    }
-    
 }

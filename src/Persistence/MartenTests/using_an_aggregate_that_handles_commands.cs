@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 using Marten;
 using JasperFx.Events;
 using Marten.Events;
@@ -102,6 +103,24 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
         await theHost.TrackActivity().SendMessageAndWaitAsync(new IncrementB2(theStreamId));
 
         await OnAggregate(a => { a.BCount.ShouldBe(1); });
+    }
+
+    // GH-4513: when the handler method lives on the aggregate itself there is no target to invoke it
+    // on, so a missing stream throws instead of logging and stopping the way a required parameter on a
+    // separate handler class does. The message has to name the remedy, because the remedy is a decision
+    // only the handler author can make.
+    [Fact]
+    public async Task missing_stream_throws_unknown_aggregate_with_the_remedy()
+    {
+        var missingId = Guid.NewGuid();
+
+        var ex = await Should.ThrowAsync<UnknownAggregateException>(() =>
+            theHost.InvokeAsync(new IncrementA2(missingId)));
+
+        ex.Message.ShouldContain(typeof(SelfLetteredAggregate).FullNameInCode());
+        ex.Message.ShouldContain(missingId.ToString());
+        ex.Message.ShouldContain("make the parameter nullable");
+        ex.Message.ShouldContain("Required = false");
     }
 }
 

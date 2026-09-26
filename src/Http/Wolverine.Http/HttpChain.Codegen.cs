@@ -53,7 +53,7 @@ public partial class HttpChain
             // have run, and the compensating-release frame depends on it. AssembleTypes is the first
             // point after both. Idempotent, so a chain assembled into two GeneratedAssemblies (which
             // happens under `codegen write` -- see GH-3692) is woven once.
-            this.ApplyDeduplication();
+            this.ApplyDeduplication(assembly.Rules, _parent.Container);
 
             _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
 

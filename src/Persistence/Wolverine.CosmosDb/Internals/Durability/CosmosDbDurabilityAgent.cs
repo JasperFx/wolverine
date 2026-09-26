@@ -76,12 +76,24 @@ public partial class CosmosDbDurabilityAgent : IAgent
             // RDBMS providers' expiration timer that first fires a minute after startup.
             var lastExpiredTime = DateTimeOffset.MinValue;
 
+            // GH-4509: same shape, its own cadence. MinValue makes the first tick sweep immediately.
+            var lastHandledCleanup = DateTimeOffset.MinValue;
+
             while (!_combined.IsCancellationRequested)
             {
                 try
                 {
                     await tryRecoverIncomingMessages();
                     await tryRecoverOutgoingMessagesAsync();
+
+                    // GH-4509: handled inbox documents were never deleted on this provider -- keepUntil was
+                    // stamped and nothing read it back, so they accumulated forever, bodies included.
+                    var handledCleanupAt = DateTimeOffset.UtcNow;
+                    if (handledCleanupAt > lastHandledCleanup.Add(_settings.HandledMessageCleanupPollingTime))
+                    {
+                        await tryDeleteExpiredHandledEnvelopes();
+                        lastHandledCleanup = handledCleanupAt;
+                    }
 
                     if (_settings.DeadLetterQueueExpirationEnabled)
                     {
@@ -146,6 +158,75 @@ public partial class CosmosDbDurabilityAgent : IAgent
         }
 
         return _health.Evaluate(Status, Uri, counts, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// GH-4509. Delete inbox documents whose <c>keepUntil</c> has passed. Without this,
+    /// <c>MarkIncomingEnvelopeAsHandledAsync</c> stamped a <c>keepUntil</c> that nothing ever read back:
+    /// there was no equivalent of the RDBMS <c>DeleteExpiredHandledEnvelopesCommand</c>, no <c>ttl</c> is
+    /// written, and container TTL is off, so handled inbox documents were kept forever.
+    /// </summary>
+    /// <remarks>
+    /// <para>This bites harder on Cosmos than on a SQL store. <c>IncomingMessage.PartitionKey</c> is the
+    /// envelope's destination, so every handled envelope for one listening endpoint piles into a single
+    /// logical partition — a 20 GB hard ceiling and a 10k RU/s cap. <c>FetchCountsAsync</c>, which
+    /// <c>CheckHealthAsync</c> calls on every health check, counts that pile cross-partition too.</para>
+    ///
+    /// <para>Unlike <see cref="tryDeleteExpiredDeadLetters" />, this query is necessarily cross-partition:
+    /// dead letters all share one partition key, handled inbox documents do not. Each delete therefore has
+    /// to carry the document's own partition key, which is why the projection selects it.</para>
+    ///
+    /// <para>Bounded by <see cref="DurabilitySettings.HandledMessageCleanupBatchSize" /> and
+    /// <see cref="DurabilitySettings.HandledMessageCleanupMaxBatchesPerCycle" />. Those knobs read as
+    /// general durability settings but were referenced only from <c>Wolverine.RDBMS.DurabilityAgent</c>, so
+    /// on Cosmos they did nothing at all before this.</para>
+    /// </remarks>
+    private async Task tryDeleteExpiredHandledEnvelopes()
+    {
+        // Compared as TIMESTAMPS, not as strings. keepUntil is persisted as an ISO-8601 string that keeps
+        // whatever offset it was written with -- documents in this container carry "-05:00" -- and Cosmos
+        // compares two strings lexicographically, so `c.keepUntil < @now` against a UTC-rendered parameter
+        // is meaningless the moment the two offsets differ. It deleted a document half an hour short of its
+        // expiry in test. DateTimeToTimestamp normalises both sides to epoch milliseconds, and it reads the
+        // offset, so it is also correct for documents already written by an older version.
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var query = new QueryDefinition(
+                "SELECT c.id, c.partitionKey FROM c WHERE c.docType = @docType AND c.status = @status " +
+                "AND DateTimeToTimestamp(c.keepUntil) < @now")
+            .WithParameter("@docType", DocumentTypes.Incoming)
+            .WithParameter("@status", EnvelopeStatus.Handled)
+            .WithParameter("@now", now);
+
+        using var iterator = _container.GetItemQueryIterator<dynamic>(query,
+            requestOptions: new QueryRequestOptions
+            {
+                MaxItemCount = _settings.HandledMessageCleanupBatchSize
+            });
+
+        var batches = 0;
+        while (iterator.HasMoreResults && batches < _settings.HandledMessageCleanupMaxBatchesPerCycle
+                                       && !_combined.IsCancellationRequested)
+        {
+            var response = await iterator.ReadNextAsync(_combined.Token);
+            batches++;
+
+            foreach (var item in response)
+            {
+                string id = item.id;
+                string partitionKey = item.partitionKey;
+
+                try
+                {
+                    await _container.DeleteItemAsync<dynamic>(id, new PartitionKey(partitionKey),
+                        cancellationToken: _combined.Token);
+                }
+                catch (CosmosException)
+                {
+                    // Best effort, the same as the dead letter sweep: another node may have taken it, and
+                    // the next cycle picks up anything this one missed
+                }
+            }
+        }
     }
 
     private async Task tryDeleteExpiredDeadLetters()

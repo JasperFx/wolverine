@@ -232,6 +232,14 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         
         foreach (var endpoint in chain.ByEndpoint.SelectMany(x => x.Endpoints))
         {
+            // GH-4510. A sticky handler binding says "deliver this message type to this listener". It is NOT a
+            // claim that anything can send to the endpoint, and conflating the two crashed host startup: an
+            // Azure Service Bus subscription is receive-only -- you publish to its topic -- so building a
+            // sending agent for it threw NotSupportedException out of PrepopulateRoutingCache, which runs for
+            // every discovered message type during StartAsync. On 5.x routes were built lazily on first send,
+            // so a message type that was only ever received never hit this path at all.
+            if (!endpoint.CanSend) continue;
+
             yield return endpoint;
         }
     }

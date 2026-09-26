@@ -28,7 +28,7 @@ public class UpdatedAggregate : IResponseAware
         }
         else
         {
-            throw new InvalidOperationException($"UpdatedAggregate cannot be used because Chain {chain} is not marked as an aggregate handler.");
+            throw new InvalidOperationException($"UpdatedAggregate cannot be used because Chain {chain} is not marked as an aggregate handler. Are you missing an [AggregateHandler] or [Aggregate] attribute on the handler?");
         }
     }
 
@@ -67,7 +67,7 @@ public class UpdatedAggregate<T> : IResponseAware
         }
         else
         {
-            throw new InvalidOperationException($"UpdatedAggregate cannot be used because Chain {chain} is not marked as an aggregate handler.");
+            throw new InvalidOperationException($"UpdatedAggregate cannot be used because Chain {chain} is not marked as an aggregate handler. Are you missing an [AggregateHandler] or [Aggregate] attribute on the handler?");
         }
     }
 }
@@ -76,23 +76,7 @@ internal class FetchLatestByGuid<T> : MethodCall where T : class, new()
 {
     public FetchLatestByGuid(Variable id) : base(typeof(global::Polecat.Events.IEventOperations), ReflectionHelper.GetMethod<global::Polecat.Events.IEventOperations>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None))!)
     {
-        var resolvedId = id;
-        if (id.VariableType != typeof(Guid))
-        {
-            // Try to unwrap StronglyTypedId to its underlying Guid value
-            var valueType = ValueTypeInfo.ForType(id.VariableType);
-            if (valueType != null && valueType.SimpleType == typeof(Guid))
-            {
-                resolvedId = new MemberAccessVariable(id, valueType.ValueProperty);
-            }
-            else
-            {
-                throw new ArgumentOutOfRangeException(
-                    $"Cannot use type {id.VariableType.FullNameInCode()} as a Guid aggregate identity.");
-            }
-        }
-
-        Arguments[0] = resolvedId;
+        Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(Guid));
     }
 }
 
@@ -100,22 +84,27 @@ internal class FetchLatestByString<T> : MethodCall where T : class, new()
 {
     public FetchLatestByString(Variable id) : base(typeof(global::Polecat.Events.IEventOperations), ReflectionHelper.GetMethod<global::Polecat.Events.IEventOperations>(x => x.FetchLatest<T>("", CancellationToken.None))!)
     {
-        var resolvedId = id;
-        if (id.VariableType != typeof(string))
+        Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(string));
+    }
+}
+
+internal static class UpdatedAggregateIdentity
+{
+    /// <summary>
+    /// The variable to pass to <c>FetchLatest</c>: the identity itself when it is already the primitive
+    /// stream identity type, or the strong typed identifier's inner value when it wraps one.
+    /// </summary>
+    internal static Variable Resolve(Variable id, Type simpleType)
+    {
+        if (id.VariableType == simpleType) return id;
+
+        var valueType = ValueTypeInfo.ForType(id.VariableType);
+        if (valueType != null && valueType.SimpleType == simpleType)
         {
-            // Try to unwrap StronglyTypedId to its underlying string value
-            var valueType = ValueTypeInfo.ForType(id.VariableType);
-            if (valueType != null && valueType.SimpleType == typeof(string))
-            {
-                resolvedId = new MemberAccessVariable(id, valueType.ValueProperty);
-            }
-            else
-            {
-                throw new ArgumentOutOfRangeException(
-                    $"Cannot use type {id.VariableType.FullNameInCode()} as a string aggregate identity.");
-            }
+            return new MemberAccessVariable(id, valueType.ValueProperty);
         }
 
-        Arguments[0] = resolvedId;
+        throw new ArgumentOutOfRangeException(nameof(id),
+            $"Cannot use {id.VariableType.FullNameInCode()} as the identity for UpdatedAggregate. The aggregate identity has to be a {simpleType.NameInCode()}, or a strong typed identifier wrapping a {simpleType.NameInCode()}.");
     }
 }

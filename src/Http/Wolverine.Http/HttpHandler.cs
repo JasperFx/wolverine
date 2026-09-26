@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 using Wolverine.Http.Runtime.MultiTenancy;
+using Wolverine.Persistence;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Wolverine.Http;
@@ -18,6 +19,13 @@ public abstract class HttpHandler
 {
     private readonly WolverineHttpOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
+
+    /// <summary>
+    /// GH-4528. The non-standard but widely-understood "client closed request" status (nginx), used only for
+    /// logging and metrics when the client aborts mid-request -- nothing is actually written to a socket that
+    /// is already gone. <see cref="StatusCodes"/> has no constant for it because it is not an IANA code.
+    /// </summary>
+    public const int ClientClosedRequest = 499;
 
     // ReSharper disable once PublicConstructorInAbstractClass
     public HttpHandler(WolverineHttpOptions wolverineHttpOptions)
@@ -115,6 +123,45 @@ public abstract class HttpHandler
         return context.Response.WriteAsync(text, context.RequestAborted);
     }
 
+    /// <summary>
+    /// GH-4547. Arrange for a logical deduplication claim to be released <b>before</b> a failure response
+    /// reaches the caller.
+    ///
+    /// <para>
+    /// GH-4501 gave the HTTP chain a compensating release in a <c>finally</c>, keyed on the response
+    /// status. That is correct but not atomic with the response: <c>WriteProblems</c> flushes the 404 and
+    /// only then does the finally run the DELETE, so a client that retries promptly under the same
+    /// <c>Idempotency-Key</c> can beat the release and be told "already handled" for work that never
+    /// happened -- the exact failure GH-4501 set out to remove. The window is one database round trip,
+    /// which is comfortably inside an automatic retry policy.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="HttpResponse.OnStarting(Func{Task})" /> callbacks are awaited before the response
+    /// headers are flushed, so releasing there closes the window. The generated <c>finally</c> is kept as
+    /// well, for the paths where no response ever starts (a throw), and a double release is harmless --
+    /// <c>IDeduplicationStore.ReleaseAsync</c> is a DELETE and is documented as idempotent.
+    /// </para>
+    /// </summary>
+    public static void ReleaseDeduplicationClaimBeforeFailureResponse(HttpContext context,
+        IMessageDeduplicator deduplicator, string? deduplicationId, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return;
+
+        context.Response.OnStarting(async () =>
+        {
+            // 400 and up, not "not 2xx" -- a 3xx is an answer, and a POST that redirects to the resource
+            // it just created has succeeded exactly once and must keep its claim. Same rule the finally
+            // uses, deliberately.
+            if (context.Response.StatusCode >= 400)
+            {
+                await deduplicator
+                    .ReleaseAsync(deduplicationId, ancillaryStoreMarker, context.RequestAborted)
+                    .ConfigureAwait(false);
+            }
+        });
+    }
+
     public void ApplyHttpAware(object target, HttpContext context)
     {
         if (target is IHttpAware a) a.Apply(context);
@@ -172,9 +219,21 @@ public abstract class HttpHandler
 
             return (body, HandlerContinuation.Continue);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            context.Response.StatusCode = 204;
+            // GH-4528: this used to set a 204. A client that disconnects mid-upload then showed as a
+            // *successful* no-content response in access logs and metrics, which is how a rash of aborted
+            // uploads hides. Nothing is actually sent on an aborted request -- the socket is gone -- so the
+            // status here exists only for logging and metrics, and it must not read as success. 499 is the
+            // widely-understood "client closed request" convention (nginx, and what most access-log
+            // pipelines already bucket separately).
+            context.Response.StatusCode = ClientClosedRequest;
+
+            var logger = context.RequestServices.GetService<ILogger<T>>();
+            logger?.LogDebug(
+                "The client aborted the request to {Url} while Wolverine was reading the JSON body for {Type}",
+                context.Request.Path, typeof(T).FullNameInCode());
+
             return (default, HandlerContinuation.Stop);
         }
         catch (Exception e)
@@ -201,7 +260,29 @@ public abstract class HttpHandler
             }
             else
             {
-                context.Response.StatusCode = 400;
+                // GH-4528: this used to be a naked `StatusCode = 400` -- no ProblemDetails, no body, no
+                // Content-Type. The client learned nothing and the only clue was the server log.
+                //
+                // It is also the wrong *class* of status. What lands here is not malformed JSON (that is
+                // JsonException, above) but a type System.Text.Json cannot handle: a NotSupportedException
+                // for a member it cannot deserialize, a throw from a custom JsonConverter, a
+                // JsonSerializerOptions mismatch. Those are server-side configuration bugs, and no amount of
+                // fixing the request body will help, so answer 500 and say which type and which exception --
+                // the two things that actually locate the bug.
+                await Results.Problem(new()
+                {
+                    Type = "https://httpstatuses.com/500",
+                    Title = "Request body could not be deserialized",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail =
+                        $"The request body could not be deserialized to {typeof(T).FullNameInCode()}. This is a server side serialization problem rather than a malformed request: {e.GetType().Name} was thrown while reading the body. Check the JsonSerializerOptions and any custom JsonConverter registered for this type.",
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        { "exceptionType", e.GetType().FullName },
+                        { "targetType", typeof(T).FullNameInCode() }
+                    }
+                }).ExecuteAsync(context);
             }
 
             return (default, HandlerContinuation.Stop);

@@ -33,7 +33,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         {
             if (uri.Host != RabbitMqEndpoint.TopicSegment)
             {
-                throw new ArgumentOutOfRangeException(nameof(uri));
+                throw new ArgumentOutOfRangeException(nameof(uri),
+                    $"Rabbit MQ topic Uris must use the format '{protocol}://{RabbitMqEndpoint.TopicSegment}/{{exchangeName}}/{{topicName}}': {uri}");
             }
 
             var exchangeName = uri.Segments[1].TrimEnd('/');
@@ -83,8 +84,23 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
-    internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
-    internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
+    internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException(NotInitializedMessage(ConnectionRole.Listening));
+    internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException(NotInitializedMessage(ConnectionRole.Sending));
+
+    /// <summary>
+    /// GH-4517: a missing Rabbit MQ connection has three causes a user can act on -- no UseRabbitMq() call at all,
+    /// a host that has not been started, or that side of the connection being deliberately switched off. Name all
+    /// three rather than the bare "has not been created yet or is disabled".
+    /// </summary>
+    internal static string NotInitializedMessage(ConnectionRole role)
+    {
+        var (side, disabledBy) = role == ConnectionRole.Listening
+            ? ("listening", nameof(RabbitMqTransportExpression.UseSenderConnectionOnly))
+            : ("sending", nameof(RabbitMqTransportExpression.UseListenerConnectionOnly));
+
+        return
+            $"The Rabbit MQ {side} connection has not been created. Either UseRabbitMq() was never called on WolverineOptions, the Wolverine host has not been started yet (connections are opened during host startup), or the {side} side is disabled by {disabledBy}().";
+    }
 
     /// <summary>
     /// Null-safe access to the listening connection for health checks.
@@ -244,7 +260,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     {
         // TODO -- consider adding retries on this?
         if (ConnectionFactory == null)
-            throw new InvalidOperationException("Rabbit MQ transport has not been initialized");
+            throw new InvalidOperationException(
+                "The Rabbit MQ transport has no ConnectionFactory. UseRabbitMq() was never called on WolverineOptions, or it was called without a connection (host/uri/connection string).");
         
         using var activity = WolverineTracing.ActivitySource.StartActivity("rabbitmq connect", ActivityKind.Client);
         
@@ -422,7 +439,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     {
         if (_listenerConnection != null) return _listenerConnection.CreateChannelAsync();
         if (_sendingConnection != null) return _sendingConnection.CreateChannelAsync();
-        throw new InvalidOperationException("Rabbit MQ Transport has not been initialized");
+        throw new InvalidOperationException(
+            "The Rabbit MQ transport has neither a listening nor a sending connection, so no administrative channel can be opened. Either UseRabbitMq() was never called on WolverineOptions, or the Wolverine host has not been started yet -- connections are opened during host startup.");
     }
 
     public async Task WithAdminChannelAsync(Func<IChannel, Task> operation)

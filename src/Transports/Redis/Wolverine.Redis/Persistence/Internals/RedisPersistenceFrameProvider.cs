@@ -99,6 +99,14 @@ public class RedisPersistenceFrameProvider : IPersistenceFrameProvider
             : store(saga);
     }
 
+    // GH-4613 gave the storage-action path entry points of its own, so "the handler returned this
+    // entity" is now something core states rather than something this provider infers. Storage actions
+    // stay last-write-wins for the reason spelled out on usesOptimisticConcurrency below: there was no
+    // preceding read to declare a revision against.
+    public Frame DetermineStorageInsertFrame(Variable entity, IServiceContainer container) => store(entity);
+
+    public Frame DetermineStorageUpdateFrame(Variable entity, IServiceContainer container) => store(entity);
+
     // Storage.Store() is an explicit "just write it" side effect rather than the saga update path, so
     // it deliberately stays last-write-wins.
     public Frame DetermineStoreFrame(Variable saga, IServiceContainer container) => store(saga);
@@ -134,13 +142,21 @@ public class RedisPersistenceFrameProvider : IPersistenceFrameProvider
 
     /// <summary>
     /// Compare-and-swap applies to registered sagas, and only to a saga Wolverine read into a local of
-    /// its own — that read is what declares the revision the write depends on. Storage actions hand the
-    /// provider a synthetic member access like <c>update1.Entity</c> with no preceding read, so they
-    /// stay last-write-wins.
+    /// its own — that read is what declares the revision the write depends on. A storage action has no
+    /// preceding read, so it stays last-write-wins, which is now expressed by overriding
+    /// <see cref="DetermineStorageInsertFrame" /> / <see cref="DetermineStorageUpdateFrame" /> rather than
+    /// by this method.
     /// </summary>
+    /// <remarks>
+    /// GH-4613. This used to read <c>!variable.Usage.Contains('.') &amp;&amp; isRegisteredSaga(...)</c>,
+    /// inferring "came from a storage action" from the <c>update1.Entity</c> shape of the generated usage
+    /// string. That worked, but it made compare-and-swap depend on how core happens to name a variable:
+    /// a rename there would have silently downgraded every saga write to last-write-wins, with nothing
+    /// failing to say so.
+    /// </remarks>
     private static bool usesOptimisticConcurrency(Variable variable, IServiceContainer container)
     {
-        return !variable.Usage.Contains('.') && isRegisteredSaga(variable.VariableType, container);
+        return isRegisteredSaga(variable.VariableType, container);
     }
 
     private static bool isRegisteredSaga(Type type, IServiceContainer container)

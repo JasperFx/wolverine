@@ -526,6 +526,18 @@ Each replayed record flows through your handlers again, exactly like live consum
 replayed envelopes pass through the same inbox + de-duplication path.
 :::
 
+The throwaway consumer's group id is `{live group}-replay-{guid}`, where the live group is the topic's own
+consumer group id if it has one, otherwise that of a `ListenToKafkaTopics(...)` group subscribing to the
+topic, otherwise the transport's, otherwise the service name. On a broker whose
+ACLs grant consumer groups by prefix — the usual Confluent Cloud setup — the replay is therefore allowed
+wherever the live listener is.
+
+One exception: a `TailFromLatest()` listener consumes under an ephemeral, per-process
+`{ServiceName}-hot-tail-{guid}` group, which is no more likely to be granted by a prefix ACL than the service
+name itself. A replay of such a topic skips that group and falls through to the transport's group id, so
+setting a granted prefix with `ConfigureConsumers(x => x.GroupId = "...")` covers the replay. The hot-tail
+listener itself still names its group after `ServiceName`; that is tracked separately.
+
 Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
 

@@ -121,7 +121,29 @@ public class strong_named_identifiers : IAsyncLifetime
         aggregate2!.BCount.ShouldBe(2);
     }
 
-    
+    // GH-4514: UpdatedAggregate used to refuse a strong typed identifier outright with
+    // "Wolverine does not yet support strong typed identifiers for the aggregate workflow",
+    // citing an issue (#1167) that had already been closed by the handler-side support the
+    // tests above exercise.
+    [Fact]
+    public async Task use_updated_aggregate_as_the_response_with_a_strong_typed_identifier()
+    {
+        var streamId = Guid.NewGuid();
+        using var session = theHost.DocumentStore().LightweightSession();
+        session.Events.StartStream<StrongLetterAggregate>(streamId, new AEvent(), new BEvent());
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var (tracked, updated) = await theHost
+            .InvokeMessageAndWaitAsync<StrongLetterAggregate>(new RaiseStrong(new LetterId(streamId), 2, 3));
+
+        tracked.Sent.AllMessages().ShouldBeEmpty();
+
+        // The aggregate came back already holding the events this message appended
+        updated.ShouldNotBeNull();
+        updated.ACount.ShouldBe(3);
+        updated.BCount.ShouldBe(4);
+        updated.Id.ShouldBe(new LetterId(streamId));
+    }
 }
 
 #region sample_using_strong_typed_identifier_with_aggregate_handler_workflow
@@ -133,8 +155,26 @@ public record IncrementBOnBoth(LetterId Id1, LetterId Id2);
 
 public record FetchCounts(LetterId Id);
 
+public record RaiseStrong(LetterId Id, int A, int B);
+
 public static class StrongLetterHandler
 {
+    public static (UpdatedAggregate, Events) Handle(RaiseStrong command, [WriteAggregate] StrongLetterAggregate aggregate)
+    {
+        var events = new Events();
+        for (int i = 0; i < command.A; i++)
+        {
+            events.Add(new AEvent());
+        }
+
+        for (int i = 0; i < command.B; i++)
+        {
+            events.Add(new BEvent());
+        }
+
+        return (new UpdatedAggregate(), events);
+    }
+
     public static StrongLetterAggregate Handle(FetchCounts counts,
         [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
 

@@ -68,7 +68,7 @@ public class Bug_2361_outbox_stuck_with_tenanted_broker
                     .UseDurableOutbox();
 
                 // Listen on the tenant's queue
-                opts.ListenToRabbitQueue(queueName);
+                opts.ListenToRabbitQueue(queueName).UseDurableInbox();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Clean up any stale outbox data from previous runs

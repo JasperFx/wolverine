@@ -10,15 +10,17 @@ namespace Wolverine.Persistence.Sagas;
 internal class PullSagaIdFromMessageFrame : SyncFrame
 {
     private readonly Type _messageType;
+    private readonly Type _sagaType;
     private readonly MemberInfo _sagaIdMember;
     private readonly Type? _sagaIdType;
     private readonly bool _isStrongTypedId;
     private Variable? _envelope;
     private Variable? _message;
 
-    public PullSagaIdFromMessageFrame(Type messageType, MemberInfo sagaIdMember)
+    public PullSagaIdFromMessageFrame(Type messageType, Type sagaType, MemberInfo sagaIdMember)
     {
         _messageType = messageType;
+        _sagaType = sagaType;
         _sagaIdMember = sagaIdMember;
 
         _sagaIdType = sagaIdMember.GetMemberType();
@@ -35,6 +37,15 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
 
     public Variable SagaId { get; }
 
+    /// <summary>
+    /// GH-4531: the saga type and identity member name the failure message needs, rendered for a C# call.
+    /// </summary>
+    private string csharpDiagnosticArguments =>
+        $"typeof({_sagaType.FullNameInCode()}), \"{_sagaIdMember.Name}\"";
+
+    private string fsharpDiagnosticArguments =>
+        $"typeof<{_sagaType.FSharpName()}>, \"{_sagaIdMember.Name}\"";
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (_isStrongTypedId)
@@ -46,7 +57,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             writer.Write(
                 $"{_sagaIdType.NameInCode()} {SagaChain.SagaIdVariableName} = {_message!.Usage}.{_sagaIdMember.Name} ?? {_envelope!.Usage}.{nameof(Envelope.SagaId)};");
             writer.Write(
-                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
+                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
         }
         else
         {
@@ -61,12 +72,12 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             if (_sagaIdType == typeof(Guid))
             {
                 writer.Write(
-                    $"if ({SagaId.Usage} == System.Guid.Empty) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
+                    $"if ({SagaId.Usage} == System.Guid.Empty) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
             }
             else
             {
                 writer.Write(
-                    $"if ({SagaId.Usage} == 0) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
+                    $"if ({SagaId.Usage} == 0) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
             }
         }
 
@@ -85,7 +96,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             // Read straight from the message and reject the default value.
             writer.Write($"let {id} = {messageMember}");
             writer.Write($"BLOCK:if {id}.Equals(Unchecked.defaultof<{_sagaIdType!.FSharpName()}>) then");
-            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.Write($"raise ({ex}({_envelope.Usage}, {fsharpDiagnosticArguments}))");
             writer.FinishBlock();
         }
         else if (_sagaIdType == typeof(string))
@@ -93,7 +104,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             // F# has no `??`; fall back to the envelope's saga id when the message member is null.
             writer.Write($"let {id} = if isNull {messageMember} then {envelopeSagaId} else {messageMember}");
             writer.Write($"BLOCK:if System.String.IsNullOrEmpty({id}) then");
-            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.Write($"raise ({ex}({_envelope.Usage}, {fsharpDiagnosticArguments}))");
             writer.FinishBlock();
         }
         else
@@ -111,7 +122,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             writer.FinishBlock();
             writer.FinishBlock();
             writer.Write($"BLOCK:if {id} = Unchecked.defaultof<{fsharpType}> then");
-            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.Write($"raise ({ex}({_envelope.Usage}, {fsharpDiagnosticArguments}))");
             writer.FinishBlock();
         }
 
@@ -128,7 +139,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
 
         // Check for default value
         writer.Write(
-            $"if ({SagaChain.SagaIdVariableName}.Equals(default({typeNameInCode}))) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope!.Usage});");
+            $"if ({SagaChain.SagaIdVariableName}.Equals(default({typeNameInCode}))) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope!.Usage}, {csharpDiagnosticArguments});");
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)

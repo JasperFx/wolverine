@@ -204,6 +204,83 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await Should.ThrowAsync<CrossTenantWriteException>(() => blue.SaveChangesAsync());
     }
 
+    /// <summary>
+    ///     GH-4612. The two tests above only cover an entity read out of the database, whose
+    ///     <c>TenantId</c> already carries the other tenant's id for the interceptor to catch. A
+    ///     DETACHED entity -- <c>Update(new ConjoinedItem { Id = someoneElsesId })</c>, the shape an HTTP
+    ///     request body or a message payload produces -- has a null <c>TenantId</c> only because it was
+    ///     never loaded, so the interceptor stamped it with the caller's tenant, the cross-tenant check
+    ///     passed, and EF matched the row by key alone. The write not only crossed the boundary, it moved
+    ///     the row into the caller's tenant.
+    /// </summary>
+    [Fact]
+    public async Task detached_update_cannot_reach_another_tenants_row()
+    {
+        var id = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(id, "green's own")));
+
+        var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
+        blue.Items.Update(new ConjoinedItem { Id = id, Name = "hijacked by blue" });
+
+        // Either refusal is acceptable: a CrossTenantWriteException, or EF's own "affected 0 rows"
+        // report once the write is scoped to the caller's tenant in SQL. What is NOT acceptable is a
+        // silent success.
+        await Should.ThrowAsync<Exception>(() => blue.SaveChangesAsync());
+
+        var green = await theBuilder.BuildAsync("green", CancellationToken.None);
+        var survivor = await green.Items.SingleAsync(x => x.Id == id, TestContext.Current.CancellationToken);
+        survivor.Name.ShouldBe("green's own");
+        survivor.TenantId.ShouldBe("green");
+    }
+
+    /// <summary>
+    ///     GH-4612, the delete half. EF emitted <c>DELETE ... WHERE Id = @p0</c> with no tenant predicate
+    ///     at all, so another tenant's row simply disappeared.
+    /// </summary>
+    [Fact]
+    public async Task detached_delete_cannot_reach_another_tenants_row()
+    {
+        var id = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(id, "green's own")));
+
+        var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
+        blue.Items.Remove(new ConjoinedItem { Id = id });
+
+        await Should.ThrowAsync<Exception>(() => blue.SaveChangesAsync());
+
+        var green = await theBuilder.BuildAsync("green", CancellationToken.None);
+        (await green.Items.FindAsync([id], TestContext.Current.CancellationToken)).ShouldNotBeNull();
+    }
+
+    /// <summary>
+    ///     GH-4612 positive control. Scoping detached writes to the context's tenant must not break the
+    ///     legitimate case: a detached update or delete of the caller's OWN row still has to work, since
+    ///     that is exactly what a <c>Storage.Update()</c> / <c>Storage.Delete()</c> return value of an
+    ///     entity built from the message does (GH-4613).
+    /// </summary>
+    [Fact]
+    public async Task detached_update_and_delete_of_your_own_row_still_work()
+    {
+        var updateId = Guid.NewGuid();
+        var deleteId = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(updateId, "before")));
+        await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(deleteId, "doomed")));
+
+        var writer = await theBuilder.BuildAsync("green", CancellationToken.None);
+        writer.Items.Update(new ConjoinedItem { Id = updateId, Name = "after" });
+        await writer.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var remover = await theBuilder.BuildAsync("green", CancellationToken.None);
+        remover.Items.Remove(new ConjoinedItem { Id = deleteId });
+        await remover.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var reader = await theBuilder.BuildAsync("green", CancellationToken.None);
+        var updated = await reader.Items.SingleAsync(x => x.Id == updateId, TestContext.Current.CancellationToken);
+        updated.Name.ShouldBe("after");
+        updated.TenantId.ShouldBe("green");
+        (await reader.Items.FindAsync([deleteId], TestContext.Current.CancellationToken)).ShouldBeNull();
+    }
+
     [Fact]
     public async Task explicitly_stamped_foreign_tenant_id_on_insert_is_rejected()
     {

@@ -40,6 +40,10 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
         // IBatchQueryPlan<T>) must execute standalone.
         if (frame is FetchSpecificationFrame fsf && !fsf.CanBatch) return false;
 
+        // GH-4505. A deduplication check on an OPTIONAL id has to stay standalone: batch enlistment is
+        // unconditional code, and an unkeyed message is supposed to cost no round trip at all.
+        if (frame is MartenDeduplicationClaimExistsFrame dedup && !dedup.CanBatch) return false;
+
         return true;
     }
 

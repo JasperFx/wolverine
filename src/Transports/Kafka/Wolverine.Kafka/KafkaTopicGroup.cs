@@ -81,6 +81,11 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         return ValueTask.FromResult((IListener)listener);
     }
 
+    // GH-4510. The same structural answer the Azure Service Bus subscription now gives: a sticky handler
+    // binding must not make a listen-only endpoint a local send target, or building its sender takes host
+    // startup down from inside PrepopulateRoutingCache.
+    protected internal override bool supportsSending => false;
+
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         throw new NotSupportedException("KafkaTopicGroup is a listen-only endpoint. Use KafkaTopic for publishing.");

@@ -62,7 +62,7 @@ public class PubsubEndpointTests
     }
 
     [Fact]
-    public async Task competing_consumer_listener_gets_per_node_subscription()
+    public async Task competing_consumer_listener_shares_one_subscription_by_default()
     {
         var transport = createTransport();
         transport.AssignedNodeNumber = 5;
@@ -75,8 +75,47 @@ public class PubsubEndpointTests
 
         await endpoint.SetupAsync(NullLogger.Instance);
 
-        // Competing consumers should each read from their own per-node subscription
+        // GH-4615: competing consumers all read from the one shared subscription, and Pub/Sub load balances it
+        endpoint.Server.Subscription.Name.SubscriptionId.ShouldBe("foo");
+    }
+
+    [Fact]
+    public async Task competing_consumer_listener_gets_per_node_subscription_when_opted_in()
+    {
+        var transport = createTransport();
+        transport.AssignedNodeNumber = 5;
+
+        var endpoint = new PubsubEndpoint("foo", transport)
+        {
+            IsListener = true,
+            ListenerScope = ListenerScope.CompetingConsumers,
+            IsSubscriptionPerNode = true
+        };
+
+        await endpoint.SetupAsync(NullLogger.Instance);
+
         endpoint.Server.Subscription.Name.SubscriptionId.ShouldBe("foo.5");
+    }
+
+    [Fact]
+    public async Task per_node_subscription_in_solo_mode_uses_the_unique_node_id()
+    {
+        var transport = createTransport();
+
+        // Every Solo node is node 1, so the node number cannot tell two Solo services apart
+        transport.AssignedNodeNumber = 1;
+        transport.SoloNodeId = "abc123";
+
+        var endpoint = new PubsubEndpoint("foo", transport)
+        {
+            IsListener = true,
+            ListenerScope = ListenerScope.CompetingConsumers,
+            IsSubscriptionPerNode = true
+        };
+
+        await endpoint.SetupAsync(NullLogger.Instance);
+
+        endpoint.Server.Subscription.Name.SubscriptionId.ShouldBe("foo.abc123");
     }
 
     [Fact]
@@ -88,7 +127,10 @@ public class PubsubEndpointTests
         var endpoint = new PubsubEndpoint("foo", transport)
         {
             IsListener = true,
-            ListenerScope = ListenerScope.PinnedToLeader
+            ListenerScope = ListenerScope.PinnedToLeader,
+
+            // Even when opted in, a leader-pinned listener must stay single-consumer
+            IsSubscriptionPerNode = true
         };
 
         await endpoint.SetupAsync(NullLogger.Instance);

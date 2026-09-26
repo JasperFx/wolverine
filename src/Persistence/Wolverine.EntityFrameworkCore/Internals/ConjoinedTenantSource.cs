@@ -83,7 +83,8 @@ internal class ConjoinedTenantSource<T> : IDynamicTenantSource<string> where T :
         tenantId = options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
         if (ConjoinedTenancy.IsTenantDisabled(typeof(T), tenantId))
         {
-            throw new UnknownTenantIdException(tenantId);
+            // GH-4586: the tenant is registered, it was switched off -- say which
+            throw new DisabledTenantException(tenantId);
         }
 
         // Every conjoined tenant shares the application database

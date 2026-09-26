@@ -20,6 +20,15 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public readonly LightweightCache<string, PubsubEndpoint> Topics;
 
     internal int AssignedNodeNumber;
+
+    // Every Solo node is node 1 (#3188), so a Solo node keys on its always-unique UniqueNodeId instead, the same
+    // way the per-node response endpoint does (#3189)
+    internal string? SoloNodeId;
+
+    /// <summary>
+    ///     Suffix for an opted-in per-node subscription (GH-4615)
+    /// </summary>
+    internal string NodeIdentifier => SoloNodeId ?? Math.Abs(AssignedNodeNumber).ToString();
     public PubsubDeadLetterOptions DeadLetter = new();
     public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
 
@@ -141,6 +150,9 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
             await ConfigureSubscriberApiBuilder(subApiBuilder);
 
         AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
+        SoloNodeId = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : null;
         PublisherApiClient = await pubBuilder.BuildAsync();
         SubscriberApiClient = await subApiBuilder.BuildAsync();
 
@@ -209,7 +221,8 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     {
         if (uri.Scheme != Protocol)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri));
+            throw new ArgumentOutOfRangeException(nameof(uri),
+                $"Google Cloud Pub/Sub Uris must use the format '{Protocol}://{{projectId}}/{{topicName}}': {uri}");
         }
 
         return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ??

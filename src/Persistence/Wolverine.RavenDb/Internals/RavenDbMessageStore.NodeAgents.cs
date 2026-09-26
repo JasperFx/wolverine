@@ -13,6 +13,11 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 {
     private const int NodePersistenceMaxAttempts = 25;
 
+    // GH-4593: a document store has no schema to migrate and no column to gate, so the whole-document
+    // write paths carry LoadFactor unconditionally -- a property that is not there deserializes to null,
+    // which is exactly "this node is not advertising".
+    public bool AdvertisesNodeLoad => true;
+
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
         // Shouldn't really get called at runtime, so we're doing it crudely
@@ -329,6 +334,17 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
         session.Advanced.Patch<WolverineNode, DateTimeOffset>(
             node.NodeId.ToString(), x => x.LastHealthCheck, DateTimeOffset.UtcNow);
+
+        // GH-4593: LoadFactor rides every OTHER path for free, because those store the WolverineNode
+        // whole -- but this one deliberately patches single properties, so without a second patch the
+        // advertisement would be written once at registration and then never refreshed again. This is the
+        // once-per-heartbeat path, which is the only one that keeps the reading current.
+        if (_options.Durability.CapacityAwareAssignment)
+        {
+            session.Advanced.Patch<WolverineNode, double?>(
+                node.NodeId.ToString(), x => x.LoadFactor, node.LoadFactor);
+        }
+
         await session.SaveChangesAsync(cancellationToken);
         return true;
     }

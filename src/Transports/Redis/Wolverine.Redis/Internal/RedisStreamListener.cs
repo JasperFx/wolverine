@@ -30,6 +30,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
 
+    // GH-4521. True when the startup XACKDEL capability probe could not reach a verdict. The first
+    // unknown-command ack failure then says so explicitly, so the warning at startup and the error at
+    // runtime read as one story rather than two unrelated lines.
+    private bool _probeWasInconclusive;
+
     // When non-null, this listener consumes over a tenant's dedicated multiplexer (broker-per-tenant)
     // instead of the transport's shared connection. GH-3309.
     private readonly IConnectionMultiplexer? _connection;
@@ -95,9 +100,13 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
 
         if (supported == null)
         {
+            // GH-4521: name the consequence, not just the uncertainty. If the probe was wrong the listener
+            // consumes happily and settles nothing, which looks like a healthy endpoint that redelivers forever.
+            _probeWasInconclusive = true;
+
             _logger.LogWarning(
-                "Unable to confirm that the Redis server behind stream {StreamKey} (db {DatabaseId}) supports the {Command} command required by DeleteStreamEntryOnAck(true). Starting anyway, but acknowledgements will fail at runtime if the server is older than Redis 8.2.",
-                _endpoint.StreamKey, _endpoint.DatabaseId, RedisStreamCapabilities.XackDel);
+                "Unable to confirm that the Redis server behind stream {StreamKey} (db {DatabaseId}) supports the {Command} command required by DeleteStreamEntryOnAck(true). Starting anyway, but if the server is older than Redis 8.2 every acknowledgement will fail, entries will accumulate in the pending list of consumer group {ConsumerGroup} indefinitely, and the listener will look healthy while redelivering the same entries. Watch for an error naming that command on the first settle.",
+                _endpoint.StreamKey, _endpoint.DatabaseId, RedisStreamCapabilities.XackDel, _endpoint.ConsumerGroup);
         }
     }
 
@@ -122,10 +131,14 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     {
         if (RedisStreamCapabilities.IsUnknownCommandFailure(ex))
         {
+            var probeNote = _probeWasInconclusive
+                ? " The startup capability probe for this command was inconclusive and warned that this could happen; this is that failure."
+                : string.Empty;
+
             _logger.LogError(ex,
-                "Redis rejected the acknowledgement command for stream {StreamKey} (db {DatabaseId}) as unknown while {Context} envelope {EnvelopeId}. No message on this listener is being acknowledged, and entries will accumulate in the pending list of consumer group {ConsumerGroup} indefinitely. DeleteStreamEntryOnAck(true) requires {Command}, which needs Redis 8.2 or later; upgrade the server or call DeleteStreamEntryOnAck(false).",
+                "Redis rejected the acknowledgement command for stream {StreamKey} (db {DatabaseId}) as unknown while {Context} envelope {EnvelopeId}. No message on this listener is being acknowledged, and entries will accumulate in the pending list of consumer group {ConsumerGroup} indefinitely. DeleteStreamEntryOnAck(true) requires {Command}, which needs Redis 8.2 or later; upgrade the server or call DeleteStreamEntryOnAck(false).{ProbeNote}",
                 _endpoint.StreamKey, _endpoint.DatabaseId, context, envelope.Id, _endpoint.ConsumerGroup,
-                RedisStreamCapabilities.XackDel);
+                RedisStreamCapabilities.XackDel, probeNote);
         }
         else
         {
@@ -243,7 +256,24 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             // BlockTimeout, matching the previous "no messages -> wait BlockTimeout before polling again" behavior.
             _autoClaimWatch.Restart();
             _loop = new BackgroundReceiveLoop(Address, _logger, pollOnceAsync, _cancellation.Token,
-                _endpoint.BlockTimeoutMilliseconds.Milliseconds());
+                _endpoint.BlockTimeoutMilliseconds.Milliseconds())
+            {
+                // GH-4521. A stream or consumer group that goes missing while the app runs -- dropped by an
+                // operator, or a Redis/emulator restarted empty -- is exactly GH-4215's "the broker entity does
+                // not exist": the loop is alive, no retry of the receive itself can succeed, and it heals the
+                // moment the entity is back. Classifying it here makes the condition visible on
+                // EndpointHealthSnapshot, and so to health checks, wolverine-diagnostics and CritterWatch.
+                //
+                // Only reachable on the AutoProvision-off path: pollOnceAsync still handles the AutoProvision
+                // case inline with its own fast create-and-retry, because EntityMissing carries a deliberate
+                // 5-second backoff (BackgroundReceiveLoop.backoffFor) and routing the self-healing case through
+                // it would turn a 200ms startup blip into a 5-second stall.
+                IsEntityMissing = IsMissingStreamOrGroup
+
+                // No RedeclareAsync: with AutoProvision off, re-creating a consumer group the application did
+                // not create is not Wolverine's call to make. The loop keeps retrying and reporting
+                // EntityMissing until an operator creates it, and then heals on its own.
+            };
             _loop.Start();
 
             // Start the scheduled messages polling loop
@@ -426,9 +456,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     }
 
     // One iteration of the consumer loop, driven by BackgroundReceiveLoop. Returns true when it read+processed
-    // entries (loop continues immediately), false when idle (loop applies the BlockTimeout idle delay). The NOGROUP
-    // handling is kept here: provision-and-retry when AutoProvision is on, otherwise stop the listener — the same
-    // fail-fast behavior as before. Other exceptions propagate to BackgroundReceiveLoop's log-and-backoff policy.
+    // entries (loop continues immediately), false when idle (loop applies the BlockTimeout idle delay).
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
         var database = getDatabase();
@@ -485,24 +513,41 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
 
             return true;
         }
-        catch (RedisServerException ex) when (
-            ex.Message.Contains("NOGROUP", StringComparison.OrdinalIgnoreCase) ||
-            ex.Message.Contains("no such key", StringComparison.OrdinalIgnoreCase))
+        catch (RedisServerException ex) when (IsMissingStreamOrGroup(ex) && _transport.AutoProvision)
         {
-            if (_transport.AutoProvision)
-            {
-                _logger.LogWarning(ex, "Consumer group or stream missing for {StreamKey}/{Group}. Attempting to create and retry.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
-                await EnsureGroupExistsAsync(database);
-                await Task.Delay(TimeSpan.FromMilliseconds(200), token);
-                return false;
-            }
-
-            _logger.LogError(ex, "Redis stream/consumer group missing for {StreamKey}/{Group}, and AutoProvision is disabled. Enable AutoProvision() or run AddResourceSetupOnStartup() to create resources.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
-            _status = ListeningStatus.Stopped;
-            // Cancel the shared token so the BackgroundReceiveLoop stops (no point retrying a misconfiguration).
-            await _cancellation.CancelAsync();
+            // Wolverine owns this group, so recreate it and retry on the next iteration -- unchanged, and
+            // deliberately NOT routed through the loop's EntityMissing path. That path carries a flat
+            // 5-second backoff (BackgroundReceiveLoop.backoffFor), which is right for an entity only an
+            // operator can restore but turns this self-healing 200ms blip into a 5-second stall -- long
+            // enough to blow the default 5-second tracked-session timeout in tests and to stall real traffic.
+            _logger.LogWarning(ex, "Consumer group or stream missing for {StreamKey}/{Group}. Attempting to create and retry.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
+            await EnsureGroupExistsAsync(database);
+            await Task.Delay(TimeSpan.FromMilliseconds(200), token);
             return false;
         }
+
+        // GH-4521: with AutoProvision OFF the exception is deliberately NOT caught. It propagates to the
+        // BackgroundReceiveLoop, which classifies it through IsEntityMissing -- so the loop reports
+        // ReceiveLoopStatus.EntityMissing (visible on EndpointHealthSnapshot, and so to health checks,
+        // wolverine-diagnostics and CritterWatch), backs off, throttles the log to the 1st and every 60th
+        // failure, and heals back to Running the moment an operator recreates the stream and group.
+        //
+        // What that replaces: this used to log once at Error, set the listener Stopped, and cancel its own
+        // shared token. No exception reached the host, nothing observable said the listener had stopped, and
+        // messages on that stream were never read again until the next restart -- even if an operator created
+        // the group a minute later.
+    }
+
+    /// <summary>
+    /// GH-4521. The stream itself is gone ("no such key") or the consumer group on it is ("NOGROUP").
+    /// Both are the same thing from the receive loop's point of view: the entity XREADGROUP needs does not
+    /// exist, and no amount of retrying the read can conjure it.
+    /// </summary>
+    internal static bool IsMissingStreamOrGroup(Exception e)
+    {
+        return e is RedisServerException &&
+               (e.Message.Contains("NOGROUP", StringComparison.OrdinalIgnoreCase) ||
+                e.Message.Contains("no such key", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

@@ -119,12 +119,14 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     // diagnostic description.
     [IgnoreDescription]
     public NatsConnection Connection =>
-        _connection ?? throw new InvalidOperationException("NATS connection not initialized");
+        _connection ?? throw new InvalidOperationException(
+            "The NATS connection has not been created. Either UseNats() was never called on WolverineOptions, or the Wolverine host has not been started yet -- the connection is opened during host startup.");
 
     [IgnoreDescription]
     public INatsJSContext JetStreamContext =>
         _jetStreamContext
-        ?? throw new InvalidOperationException("JetStream context not initialized");
+        ?? throw new InvalidOperationException(
+            $"The NATS JetStream context has not been created. Either UseNats() was never called on WolverineOptions, the Wolverine host has not been started yet, or JetStream is disabled by {nameof(NatsTransportConfiguration)}.{nameof(NatsTransportConfiguration.EnableJetStream)} = false.");
 
     protected override IEnumerable<NatsEndpoint> endpoints() => _endpoints;
 

@@ -1,3 +1,4 @@
+using JasperFx;
 using Shouldly;
 using Weasel.Sqlite;
 using Weasel.Sqlite.Tables;
@@ -177,12 +178,19 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         // I'm rewinding the version to make it throw
         saga.Version = 1;
 
-        await Should.ThrowAsync<Exception>(async () =>
+        // GH-4511: this has to be SagaConcurrencyException rather than a bare Exception so that
+        // OnException<ConcurrencyException>() matches on Sqlite exactly as it does on every other
+        // lightweight saga provider
+        var ex = await Should.ThrowAsync<SagaConcurrencyException>(async () =>
         {
             await _theSchema.UpdateAsync(saga, db, CancellationToken.None);
             await db.CommitAsync();
             await db.DisposeAsync();
         });
+
+        ex.ShouldBeAssignableTo<ConcurrencyException>();
+        ex.Message.ShouldContain(typeof(LightweightSaga).FullName!);
+        ex.Message.ShouldContain(saga.Id.ToString());
     }
 }
 

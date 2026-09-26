@@ -140,7 +140,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
     {
-        return new SqlServerNodePersistence(databaseSettings, this);
+        return new SqlServerNodePersistence(databaseSettings, this, Durability);
     }
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
@@ -153,6 +153,59 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// GH-4565. Whether <paramref name="ex"/> is a unique-constraint violation raised by the INBOX table
+    /// specifically, as opposed to anywhere else in the transaction.
+    /// </summary>
+    /// <remarks>
+    /// <para>Distinct from <see cref="isExceptionFromDuplicateEnvelope"/>, which is deliberately
+    /// table-agnostic: its caller has already established that the failing insert was the inbox one, and it
+    /// is reused for the deduplication table and the dynamic listener registry. This predicate is for
+    /// callers with no such context — the <c>Discard()</c> rule in <c>PolecatIntegration</c>, which sees
+    /// every exception a handler's transaction can raise.</para>
+    ///
+    /// <para><c>SqlException</c> carries no table name, but 2627 / 2601 always name the object in the
+    /// message: <c>Violation of PRIMARY KEY constraint 'pkey_x'. Cannot insert duplicate key in object
+    /// 'schema.table'.</c> Nothing but the message will say, so the message is what is read.</para>
+    /// </remarks>
+    public static bool IsDuplicateIncomingEnvelope(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is SqlException sqlEx
+                && (sqlEx.Number == 2627 || sqlEx.Number == 2601)
+                && IncomingTableNaming.IsIncomingTable(objectNameFrom(sqlEx.Message)))
+            {
+                return true;
+            }
+
+            if (current is AggregateException aggregate
+                && aggregate.InnerExceptions.Any(IsDuplicateIncomingEnvelope))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The object name out of <c>Cannot insert duplicate key in object 'schema.table'</c>, or null when the
+    /// message is not that shape.
+    /// </summary>
+    private static string? objectNameFrom(string message)
+    {
+        const string marker = "in object '";
+
+        var start = message.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+
+        start += marker.Length;
+        var end = message.IndexOf('\'', start);
+
+        return end < 0 ? null : message.Substring(start, end - start);
     }
 
     public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
@@ -242,6 +295,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             var counts = await tryFetchCountsFromPartitionStatsAsync();
             if (counts != null)
             {
+        // GH-4499 follow-up: the head of the outbox, so a stuck outbox can be told from a busy one
+        await fetchOldestOutgoingAsync(counts);
+
                 return counts;
             }
         }
@@ -485,7 +541,7 @@ group by o.name, ps.index_id, i.name";
         await conn.CloseAsync();
     }
 
-    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string? messageTypeName, byte[] json,
         CancellationToken token)
     {
         await using var conn = CreateConnection();
@@ -505,14 +561,14 @@ group by o.name, ps.index_id, i.name";
                     $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
                 .With("id", Guid.NewGuid())
                 .With("json", json)
-                .With("message", messageTypeName)
+                .With("message", messageTypeName!)
                 .ExecuteNonQueryAsync(token);
         }
         
         await conn.CloseAsync();
     }
 
-    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
         table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
@@ -530,7 +586,7 @@ group by o.name, ps.index_id, i.name";
         return table;
     }
 
-    protected override async Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
+    protected override async Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName, CancellationToken token)
     {
         var builder = new BatchBuilder();
 
@@ -545,7 +601,7 @@ group by o.name, ps.index_id, i.name";
         batch.Connection = (SqlConnection)tx.Connection!;
         batch.Transaction = (SqlTransaction)tx;
 
-        await batch.ExecuteNonQueryAsync();
+        await batch.ExecuteNonQueryAsync(token);
     }
 
     protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)
@@ -762,6 +818,14 @@ group by o.name, ps.index_id, i.name";
             // unbounded varchar. 500 is the width the rest of this node-table family already uses.
             nodeTable.AddColumn("version", "varchar(500)");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
+
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
+            // an upgrade migrates nothing, and SqlServerNodePersistence gates every statement naming it on
+            // the same flag. `float` is T-SQL's IEEE double.
+            if (Durability.CapacityAwareAssignment)
+            {
+                nodeTable.AddColumn(DatabaseConstants.LoadFactor, "float").AllowNulls();
+            }
 
             yield return nodeTable;
 

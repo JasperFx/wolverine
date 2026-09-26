@@ -49,9 +49,17 @@ public static class ExternalDbTransportExtensions
             throw new ArgumentNullException(nameof(message));
         }
 
-        var serializer = runtime.Options.FindSerializer("application/json");
+        var serializer = runtime.Options.FindSerializer(EnvelopeConstants.JsonContentType);
         var json = serializer.WriteMessage(message);
-        var database = runtime.Storage.As<IMessageDatabase>();
+        // `as`, not As<T>(): JasperFx's As<T> is a hard cast, so the null check that used to follow it
+        // here was unreachable and a non-relational message store got a bare InvalidCastException
+        // instead of this explanation. InvalidOperationException to match the equivalent guards in
+        // ExternalMessageTable.BuildListenerAsync and ExternalMessageTableListener.
+        if (runtime.Storage is not IExternalDbTransportStore database)
+        {
+            throw new InvalidOperationException(
+                $"The external table transport option can only be used in combination with a relational database message storage option, but the message store is {runtime.Storage.GetType().FullName}");
+        }
         var messageTypeName = message.GetType().ToMessageTypeName();
 
         var transport = runtime.Options.ExternalDbTransport();
@@ -72,7 +80,7 @@ public static class ExternalDbTransportExtensions
     }
     
     /// <summary>
-    ///     Quick access to the Rabbit MQ Transport within this application.
+    ///     Quick access to the External DB Transport within this application.
     ///     This is for advanced usage
     /// </summary>
     /// <param name="endpoints"></param>

@@ -7,53 +7,39 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
-#pragma warning disable CS9113 // Parameter is unread
-internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch
-#pragma warning restore CS9113
+/// <summary>
+///     Bridges Marten's projection side effect publishing to Wolverine's outgoing message
+///     machinery. All of the behavior lives in the store agnostic
+///     <see cref="ProjectionSideEffectSink" /> so that this bridge, Polecat's and Fisher's stay
+///     identical -- they diverged once already, which is how GH-4556 shipped fixed on one store
+///     and broken on the other two.
+/// </summary>
+internal class MartenToWolverineMessageBatch : IMessageBatch
 {
+    private readonly ProjectionSideEffectSink _sink;
+
+    public MartenToWolverineMessageBatch(MessageContext context, DocumentSessionBase session)
+    {
+        _sink = new ProjectionSideEffectSink(context, c => new MartenEnvelopeTransaction(session, c));
+    }
+
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {
-        return Context.PublishAsync(message, new DeliveryOptions { TenantId = tenantId });
+        return _sink.PublishAsync(message, new MessageMetadata(tenantId));
     }
 
     /// <summary>
-    ///     Metadata-aware overload backing <see cref="IMessageSink.PublishAsync{T}(T, MessageMetadata)"/>
-    ///     (JasperFx.Events 1.29+). Maps the incoming <see cref="MessageMetadata"/>
-    ///     onto a <see cref="DeliveryOptions"/> so projection-authored side-effect
-    ///     messages can override tenant, correlation id, causation id, and headers
-    ///     on a per-message basis. See https://github.com/JasperFx/wolverine/issues/2545.
+    ///     Metadata-aware overload backing <see cref="IMessageSink.PublishAsync{T}(T, MessageMetadata)" />
+    ///     (JasperFx.Events 1.29+).
     /// </summary>
     public ValueTask PublishAsync<T>(T message, MessageMetadata metadata)
     {
-        var options = new DeliveryOptions
-        {
-            TenantId = metadata.TenantId
-        };
-
-        if (metadata.CorrelationIdEnabled)
-        {
-            options.CorrelationId = metadata.CorrelationId;
-        }
-
-        if (metadata.CausationIdEnabled)
-        {
-            options.CausationId = metadata.CausationId;
-        }
-
-        if (metadata.HeadersEnabled)
-        {
-            foreach (var header in metadata.Headers!)
-            {
-                options.Headers[header.Key] = header.Value?.ToString();
-            }
-        }
-
-        return Context.PublishAsync(message, options);
+        return _sink.PublishAsync(message, metadata);
     }
 
     public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
-        return Context.FlushOutgoingMessagesAsync();
+        return _sink.FlushAsync();
     }
 
     public Task BeforeCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)

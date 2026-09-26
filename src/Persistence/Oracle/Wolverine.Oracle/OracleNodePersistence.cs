@@ -23,11 +23,13 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     private readonly DbObjectName _nodeTable;
     private readonly DatabaseSettings _settings;
     private readonly DbObjectName _restrictionTable;
+    private readonly DurabilitySettings _durability;
 
     public OracleNodePersistence(DatabaseSettings settings, OracleMessageStore database, OracleDataSource dataSource)
     {
         _settings = settings;
         _database = database;
+        _durability = database.Durability;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         var schemaName = (settings.SchemaName ?? "WOLVERINE").ToUpperInvariant();
         _nodeTable = new DbObjectName(schemaName, NodeTableName.ToUpperInvariant());
@@ -36,6 +38,16 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         _lockId = schemaName.GetDeterministicHashCode();
     }
+
+    // GH-4593: load_factor is only provisioned behind this flag (OracleMessageStore.AllObjects), so every
+    // statement naming it is gated on it too -- otherwise an un-migrated database (AutoCreate.None, or no
+    // DDL rights) fails node startup with ORA-00904. Read live rather than captured: this is constructed
+    // before the flag is reliably set.
+    private bool advertisesLoad => _durability.CapacityAwareAssignment;
+
+    private string nodeColumns => advertisesLoad ? $"{NodeColumns}, {LoadFactor}" : NodeColumns;
+
+    public bool AdvertisesNodeLoad => true;
 
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
@@ -100,7 +112,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
-        await using var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable}");
+        await using var nodeCmd = conn.CreateCommand($"SELECT {nodeColumns} FROM {_nodeTable}");
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         while (await nodeReader.ReadAsync(cancellationToken))
         {
@@ -166,7 +178,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
-        await using var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable}");
+        await using var nodeCmd = conn.CreateCommand($"SELECT {nodeColumns} FROM {_nodeTable}");
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         while (await nodeReader.ReadAsync(cancellationToken))
         {
@@ -217,7 +229,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         WolverineNode? returnValue = null;
 
-        await using var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable} WHERE id = :id");
+        await using var nodeCmd = conn.CreateCommand($"SELECT {nodeColumns} FROM {_nodeTable} WHERE id = :id");
         nodeCmd.With("id", nodeId);
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         if (await nodeReader.ReadAsync(cancellationToken))
@@ -331,9 +343,18 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(token);
-        await using var cmd = conn.CreateCommand(
-            $"UPDATE {_nodeTable} SET health_check = SYSTIMESTAMP AT TIME ZONE 'UTC' WHERE id = :id");
+        // GH-4593: the load advertisement rides the same single-statement heartbeat write, so the leader
+        // never places agents against a reading older than one HealthCheckPollingTime.
+        await using var cmd = conn.CreateCommand(advertisesLoad
+            ? $"UPDATE {_nodeTable} SET health_check = SYSTIMESTAMP AT TIME ZONE 'UTC', {LoadFactor} = :load WHERE id = :id"
+            : $"UPDATE {_nodeTable} SET health_check = SYSTIMESTAMP AT TIME ZONE 'UTC' WHERE id = :id");
         cmd.With("id", node.NodeId);
+
+        if (advertisesLoad)
+        {
+            cmd.With("load", (object?)node.LoadFactor ?? DBNull.Value);
+        }
+
         var count = await cmd.ExecuteNonQueryAsync(token);
 
         await conn.CloseAsync();
@@ -356,14 +377,25 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         deleteCmd.With("id", node.NodeId);
         await deleteCmd.ExecuteNonQueryAsync(token);
 
+        // GH-4593: delete-then-insert rather than a MERGE, so the load column only joins the column and
+        // value lists.
+        var loadColumn = advertisesLoad ? $", {LoadFactor}" : string.Empty;
+        var loadValue = advertisesLoad ? ", :load" : string.Empty;
+
         await using var insertCmd = conn.CreateCommand(
-            $"INSERT INTO {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) VALUES (:id, :nodenum, :uri, :capabilities, :description, :version, SYSTIMESTAMP AT TIME ZONE 'UTC')");
+            $"INSERT INTO {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check{loadColumn}) VALUES (:id, :nodenum, :uri, :capabilities, :description, :version, SYSTIMESTAMP AT TIME ZONE 'UTC'{loadValue})");
         insertCmd.With("id", node.NodeId);
         insertCmd.With("nodenum", node.AssignedNodeNumber);
         insertCmd.With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString());
         insertCmd.With("capabilities", capabilities);
         insertCmd.With("description", node.Description);
         insertCmd.With("version", node.Version.ToString());
+
+        if (advertisesLoad)
+        {
+            insertCmd.With("load", (object?)node.LoadFactor ?? DBNull.Value);
+        }
+
         await insertCmd.ExecuteNonQueryAsync(token);
 
         await conn.CloseAsync();
@@ -481,6 +513,18 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
             {
                 var capabilities = capabilitiesStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 node.Capabilities.AddRange(capabilities.Select(x => new Uri(x.Trim())));
+            }
+        }
+
+        // GH-4593: resolved by name -- a select that stops appending the column should fail loudly here
+        // rather than read a wrong hard-coded ordinal. Convert rather than GetFieldValue<double>, in the
+        // house style for this store: ODP.NET hands numerics back as OracleDecimal.
+        if (advertisesLoad)
+        {
+            var loadFactor = reader.GetOrdinal(LoadFactor);
+            if (!await reader.IsDBNullAsync(loadFactor))
+            {
+                node.LoadFactor = Convert.ToDouble(reader.GetValue(loadFactor));
             }
         }
 

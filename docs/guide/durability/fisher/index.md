@@ -95,6 +95,12 @@ vocabulary — `[WriteModel]`, `[ReadModel]`, `[DeciderFunction]` and `[DcbModel
 That handler is also unit testable without a database -- see
 [Unit Testing Aggregate Handlers](/guide/durability/unit-testing-aggregate-handlers).
 
+Because the workflow is shared, so is its behavior when the event stream does not exist: a required parameter on
+a handler class logs and discards in a message handler and returns a 404 in an HTTP endpoint, while a handler
+method on the aggregate type itself throws `Wolverine.Fisher.UnknownAggregateException`. See
+[What Happens When the Stream Is Missing](/guide/durability/marten/event-sourcing.html#what-happens-when-the-stream-is-missing)
+for the details and the ways to handle a missing stream yourself.
+
 ## Ancillary stores
 
 A second Fisher store registered with `AddFisherStore<T>()` integrates the same way, and the
@@ -124,6 +130,9 @@ marking every handler <Badge type="tip" text="6.39" />:
 // Every message handler, HTTP endpoint and gRPC service in this assembly commits
 // through the IPlayerStore ancillary store.
 opts.Policies.UseAncillaryStorageFromAssemblyContaining<SomeModuleType>(typeof(IPlayerStore));
+
+// ...or, when several modules share one assembly, scope by namespace (child namespaces included)
+opts.Policies.UseAncillaryStorageFromNamespaceContaining<SomeModuleType>(typeof(IPlayerStore));
 ```
 
 An explicit `[Storage]` or `[FisherStore]` still wins for a single handler that needs to opt out. Note that for

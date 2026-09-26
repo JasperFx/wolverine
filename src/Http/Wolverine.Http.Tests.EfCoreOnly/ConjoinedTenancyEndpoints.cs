@@ -31,6 +31,8 @@ public class ConjoinedNotesDbContext : DbContext
 
 public record CreateNote(Guid Id, string Text);
 
+public record NoteCreated(Guid Id);
+
 public static class ConjoinedNotesEndpoint
 {
     [WolverinePost("/conjoined/notes/create")]
@@ -43,6 +45,17 @@ public static class ConjoinedNotesEndpoint
     public static Task<TenantedNote[]> Get(ConjoinedNotesDbContext db)
     {
         return db.Notes.OrderBy(x => x.Text).ToArrayAsync();
+    }
+
+    // GH-4611: writes an ITenanted entity AND cascades a message through the return tuple. In
+    // Lightweight mode with a conjoined DbContext the cascade was dispatched before SaveChangesAsync,
+    // so a failed save still delivered the message.
+    [WolverinePost("/conjoined/notes/cascade")]
+    public static (Microsoft.AspNetCore.Http.IResult, NoteCreated) PostWithCascade(CreateNote command,
+        ConjoinedNotesDbContext db)
+    {
+        db.Notes.Add(new TenantedNote { Id = command.Id, Text = command.Text });
+        return (Microsoft.AspNetCore.Http.Results.Ok(), new NoteCreated(command.Id));
     }
 
     // GH-3538: a POST endpoint whose ONLY complex parameter is a DbContext. Before the fix the

@@ -1,3 +1,4 @@
+using System.Net;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -119,39 +120,29 @@ public class custom_hub_with_authentication : WebSocketTestContextWithCustomHub<
         ReceivedJson.Count.ShouldBe(1);
     }
 
+    /// <summary>
+    /// GH-4519. These two used to be `client_with_invalid_token_cannot_connect` and
+    /// `client_with_invalid_token_cannot_receive`, and both asserted that nothing arrived --
+    /// which was true, but only because the 401 was logged and swallowed, leaving a host that
+    /// started "successfully" with a permanently dead client. WithAutomaticReconnect() only
+    /// engages after a successful initial connection, so it never recovered. The client now
+    /// fails the host start with the real cause, which subsumes both of the old assertions:
+    /// a host that will not start cannot send or receive anything.
+    /// </summary>
     [Fact]
-    public async Task client_with_invalid_token_cannot_connect()
+    public async Task client_with_invalid_token_fails_host_startup_with_the_real_cause()
     {
-        // This is an IHost that has the SignalR Client
-        // transport configured to connect to a SignalR
-        // server in the "theWebApp" IHost
-        using var client = await StartClientHost(accessToken: "last-years-token");
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await StartClientHost(accessToken: "last-years-token"));
 
-        var tracked = await client
-            .TrackActivity()
-            .IncludeExternalTransports()
-            .AlsoTrack(theWebApp)
-            .Timeout(10.Seconds())
-            .ExecuteAndWaitAsync(c => c.SendViaSignalRClient(clientUri, new ToSecond("Hollywood Brown")));
+        ex.Message.ShouldContain("401 Unauthorized");
+        ex.Message.ShouldContain("AccessTokenProvider");
+        ex.Message.ShouldContain("authorization policy");
 
-        tracked.Received.Envelopes().ShouldBeEmpty();
-        ReceivedJson.ShouldBeEmpty();
-    }
+        // and the underlying HttpRequestException is still there to drill into
+        ex.InnerException.ShouldBeOfType<HttpRequestException>()
+            .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
-    [Fact]
-    public async Task client_with_invalid_token_cannot_receive()
-    {
-        var client = await StartClientHost(accessToken: "last-years-token");
-
-        var tracked = await theWebApp
-            .TrackActivity()
-            .IncludeExternalTransports()
-            .AlsoTrack(client)
-            .Timeout(100.Milliseconds())
-            .DoNotAssertOnExceptionsDetected() // We're not supposed to be able to receive, so don't throw
-            .PublishMessageAndWaitAsync(new FromSecond("Hollywood Brown"));
-
-        tracked.Received.Envelopes().ShouldBeEmpty();
         ReceivedJson.ShouldBeEmpty();
     }
 }

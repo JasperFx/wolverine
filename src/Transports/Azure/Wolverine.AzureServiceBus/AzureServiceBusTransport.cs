@@ -437,6 +437,19 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         foreach (var subscription in Subscriptions) yield return subscription;
     }
 
+    /// <summary>
+    /// GH-4523. The base "too large to fit in a batch (max size: N bytes)" gives the limit and stops, which
+    /// leaves the user holding a number and no move to make. SQS already names both of its remedies, so name
+    /// Azure's: the namespace tier that sets the ceiling, and the claim check that sidesteps it. Also say
+    /// that the send is terminal -- a retry cannot change the size of the message, and an operator watching
+    /// it fail repeatedly deserves to be told that up front.
+    /// </summary>
+    internal static string MessageTooLargeRemedy(Uri endpointUri)
+    {
+        return
+            $"No retry can help, because retrying does not make the message smaller -- this send will fail identically every time until the message or the namespace changes. The ceiling is set by the Service Bus namespace tier (256 KB on Standard, 1 MB on Premium), so either move '{endpointUri}' to a namespace with a larger limit, or keep the payload out of the message entirely with a claim check (WolverineFx.AzureBlobStorage). Catch MessageTooLargeException in a sending failure policy to dead-letter or discard oversized messages rather than letting them block the endpoint.";
+    }
+
     protected override AzureServiceBusEndpoint findEndpointByUri(Uri uri)
     {
         switch (uri.Host)
@@ -465,7 +478,8 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
                 return Topics[topicName];
         }
 
-        throw new ArgumentOutOfRangeException(nameof(uri));
+        throw new ArgumentOutOfRangeException(nameof(uri),
+            $"Azure Service Bus Uris must use the format '{Protocol}://queue/{{queueName}}', '{Protocol}://topic/{{topicName}}', or '{Protocol}://topic/{{topicName}}/{{subscriptionName}}': {uri}");
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)

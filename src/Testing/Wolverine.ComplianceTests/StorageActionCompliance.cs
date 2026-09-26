@@ -19,7 +19,8 @@ public abstract class StorageActionCompliance : IAsyncLifetime
                     .IncludeType(typeof(TodoHandler))
                     .IncludeType(typeof(MarkTaskCompleteIfBrokenHandler))
                     .IncludeType(typeof(ExamineFirstHandler))
-                    .IncludeType(typeof(StoreManyHandler));
+                    .IncludeType(typeof(StoreManyHandler))
+                    .IncludeType(typeof(DetachedTodoHandler));
 
                 configureWolverine(opts);
             }).StartAsync();
@@ -167,6 +168,73 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         (await Load(command.Id))!.Name.ShouldBe("New text");
     }
 
+    /// <summary>
+    /// GH-4613. <c>Store&lt;T&gt;</c> as a declared return type had no coverage at all, and for EF Core it
+    /// silently did nothing: <c>DetermineStoreFrame</c> forwards to <c>DetermineUpdateFrame</c>, which
+    /// emits a comment frame for an entity with no Version property. An upsert of an entity the session
+    /// has never seen has to insert it.
+    /// </summary>
+    [Fact]
+    public async Task use_store_as_return_value_to_insert_a_new_entity()
+    {
+        var command = new CreateTodo2(Guid.NewGuid().ToString(), "Buy milk");
+        await Host.InvokeMessageAndWaitAsync(command);
+
+        var todo = await Load(command.Id);
+        todo.ShouldNotBeNull();
+        todo.Name.ShouldBe("Buy milk");
+    }
+
+    /// <summary>
+    /// GH-4613, the other half of the upsert: the same <c>Store&lt;T&gt;</c> return against an id that
+    /// already exists has to update it.
+    /// </summary>
+    [Fact]
+    public async Task use_store_as_return_value_to_update_an_existing_entity()
+    {
+        var id = Guid.NewGuid().ToString();
+        await Host.InvokeMessageAndWaitAsync(new CreateTodo(id, "Write docs"));
+
+        await Host.InvokeMessageAndWaitAsync(new CreateTodo2(id, "Rewrite docs"));
+
+        (await Load(id))!.Name.ShouldBe("Rewrite docs");
+    }
+
+    /// <summary>
+    /// GH-4613. Every other <c>Update&lt;T&gt;</c> test above hands the handler an entity that Wolverine
+    /// loaded with <c>[Entity]</c>, which for EF Core means the DbContext is already tracking it and
+    /// SaveChanges picks the change up regardless of what frame the provider emitted. An entity built
+    /// from the message -- the same shape as one loaded with <c>AsNoTracking()</c>, or taken from an HTTP
+    /// request body -- is not tracked, and has to be attached before it can be saved.
+    /// </summary>
+    [Fact]
+    public async Task use_update_as_return_value_with_an_untracked_entity()
+    {
+        var id = Guid.NewGuid().ToString();
+        await Host.InvokeMessageAndWaitAsync(new CreateTodo(id, "Write docs"));
+
+        await Host.InvokeMessageAndWaitAsync(new RenameTodoDetached(id, "Renamed while detached"));
+
+        (await Load(id))!.Name.ShouldBe("Renamed while detached");
+    }
+
+    /// <summary>
+    /// GH-4613. The <c>IStorageAction&lt;T&gt;</c> path reaches the provider's storage-action applier
+    /// rather than its update frame, but EF Core's applier calls <c>DbContext.Update()</c> for a
+    /// <c>Store</c> ("not really correct, but let it go"), which marks a brand new entity Modified and
+    /// fails the save instead of inserting it.
+    /// </summary>
+    [Fact]
+    public async Task use_generic_action_as_store_for_an_untracked_new_entity()
+    {
+        var command = new StoreTodoDetached(Guid.NewGuid().ToString(), "Upserted");
+        await Host.InvokeMessageAndWaitAsync(command);
+
+        var todo = await Load(command.Id);
+        todo.ShouldNotBeNull();
+        todo.Name.ShouldBe("Upserted");
+    }
+
     [Fact]
     public async Task do_nothing_as_generic_action()
     {
@@ -285,6 +353,11 @@ public record RenameTodo(string Id, string Name);
 public record RenameTodo2(string TodoId, string Name);
 public record RenameTodo3(string Identity, string Name);
 
+// GH-4613: the entity is built from the message rather than loaded, so the underlying session or
+// DbContext has never seen it
+public record RenameTodoDetached(string Id, string Name);
+public record StoreTodoDetached(string Id, string Name);
+
 public record AlterTodo(string Id, string Name, StorageAction Action);
 
 public record MaybeInsertTodo(string Id, string Name, bool ShouldInsert);
@@ -392,6 +465,26 @@ public static class TodoHandler
 }
 
 #endregion
+
+/// <summary>
+/// GH-4613. Deliberately outside <see cref="TodoHandler" /> so the documentation sample above stays as
+/// it is. Every handler here returns a storage action for an entity the underlying session has never
+/// loaded, which is the case the storage-action return types were quietly dropping on EF Core.
+/// </summary>
+public static class DetachedTodoHandler
+{
+    public static Update<Todo> Handle(RenameTodoDetached command) => Storage.Update(new Todo
+    {
+        Id = command.Id,
+        Name = command.Name
+    });
+
+    public static IStorageAction<Todo> Handle(StoreTodoDetached command) => Storage.Store(new Todo
+    {
+        Id = command.Id,
+        Name = command.Name
+    });
+}
 
 public record CompleteTodo(string Id);
 public record MaybeCompleteTodo(string Id);
