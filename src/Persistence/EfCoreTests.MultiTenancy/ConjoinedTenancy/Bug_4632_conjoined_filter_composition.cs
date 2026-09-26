@@ -77,9 +77,11 @@ public class SoftDeleteTenancyDbContext : DbContext
 ///     <c>OnModelCreating</c> and called <c>HasQueryFilter(tenantFilter)</c> unconditionally. On EF
 ///     Core 9 an entity type has exactly one anonymous query filter and the last writer wins, so an
 ///     <c>ITenanted</c> entity the user had given a soft-delete filter silently lost it: deleted rows
-///     came back and nothing warned. EF Core 10 registers the Wolverine filter under a NAME
-///     (<c>wolverine_conjoined_tenancy</c>) beside the user's anonymous one, so both apply there --
-///     these tests pin that down on both target frameworks.
+///     came back and nothing warned. EF Core 10 fails harder rather than better -- it refuses to let
+///     the NAMED Wolverine filter and the user's anonymous one coexist ("Both anonymous and named
+///     query filters cannot be applied simultaneously"), thrown while the model is built, so the whole
+///     DbContext died at startup. Both are fixed by composing, and these tests run on both target
+///     frameworks. See <c>ConjoinedTenancyModelCustomizer</c> for the long form.
 /// </summary>
 [Collection("multi-tenancy")]
 public class Bug_4632_conjoined_filter_composition : IAsyncLifetime
