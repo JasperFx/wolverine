@@ -683,6 +683,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     }
 
     /// <summary>
+    /// GH-4631. EF Core is designated by a <c>DbContext</c> type or a registered DbContext abstraction —
+    /// the same two spellings <see cref="DetermineDbContextType(IChain,IServiceContainer)" /> already
+    /// resolves when a chain depends on more than one DbContext.
+    /// </summary>
+    public bool OwnsStorageType(Type storageType, IServiceContainer container)
+    {
+        return storageType.CanBeCastTo<DbContext>() || _abstractions.Contains(storageType);
+    }
+
+    /// <summary>
     /// EF Core is the one provider whose transaction owner is a plain service dependency, so it is the one
     /// provider that can tell Wolverine which enrolled store a handler's durable inbox row belongs in
     /// (GH-3870). Deliberately the same <see cref="DetermineDbContextType(IChain,IServiceContainer)" /> the

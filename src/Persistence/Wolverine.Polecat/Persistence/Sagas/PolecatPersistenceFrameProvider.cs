@@ -140,6 +140,15 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         ApplyTransactionSupport(chain, container);
     }
 
+    /// <summary>
+    /// GH-4631. Polecat is designated by one of its own store or session interfaces, which is also what an
+    /// ancillary store marker type (<c>AddPolecatStore&lt;IMyStore&gt;()</c>) derives from.
+    /// </summary>
+    public bool OwnsStorageType(Type storageType, IServiceContainer container)
+    {
+        return storageType.CanBeCastTo<IDocumentStore>() || storageType.CanBeCastTo<IQuerySession>();
+    }
+
     public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain)
