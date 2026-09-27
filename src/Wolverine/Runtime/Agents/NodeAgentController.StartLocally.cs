@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -33,37 +34,34 @@ public partial class NodeAgentController
 
     private Task startSoloHealthCheckLoop()
     {
-        // Suppress the ambient ExecutionContext flow so the AsyncLocal behind
-        // Activity.Current is NOT captured into the forked background task. Without this,
-        // Task.Run snapshots whatever activity happens to be current at scheduling time
-        // and every loop iteration (plus every DB call underneath it) reparents itself to
-        // that one long-lived activity for the entire process lifetime -- producing a
-        // single unbounded trace. See GH-3518. Each tick starts its own fresh, bounded
-        // activity below, gated by ShouldTraceHealthCheck() so the sampling period is
-        // actually honored in Solo mode.
-        using (ExecutionContext.SuppressFlow())
+        // Detached so the AsyncLocal behind Activity.Current is NOT captured into the forked
+        // background task. Without this, Task.Run snapshots whatever activity happens to be
+        // current at scheduling time and every loop iteration (plus every DB call underneath
+        // it) reparents itself to that one long-lived activity for the entire process
+        // lifetime -- producing a single unbounded trace. See GH-3518; the helper is GH-4650's
+        // generalisation of the same fix. Each tick starts its own fresh, bounded activity
+        // below, gated by ShouldTraceHealthCheck() so the sampling period is actually honored
+        // in Solo mode.
+        return DetachedTask.Run(async () =>
         {
-            return Task.Run(async () =>
+            while (!_cancellation.IsCancellationRequested)
             {
-                while (!_cancellation.IsCancellationRequested)
+                try
                 {
-                    try
-                    {
-                        await Task.Delay(_runtime.Options.Durability.CheckAssignmentPeriod, _cancellation.Token);
+                    await Task.Delay(_runtime.Options.Durability.CheckAssignmentPeriod, _cancellation.Token);
 
-                        using var activity = ShouldTraceHealthCheck()
-                            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments")
-                            : null;
+                    using var activity = ShouldTraceHealthCheck()
+                        ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments")
+                        : null;
 
-                        await startAllAgentsAsync();
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Just done
-                    }
+                    await startAllAgentsAsync();
                 }
-            }, _cancellation.Token);
-        }
+                catch (OperationCanceledException)
+                {
+                    // Just done
+                }
+            }
+        }, _cancellation.Token);
     }
 
     private async Task startAllAgentsAsync()

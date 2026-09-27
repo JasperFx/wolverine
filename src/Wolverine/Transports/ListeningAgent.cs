@@ -7,6 +7,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.WorkerQueues;
+using Wolverine.Util;
 
 namespace Wolverine.Transports;
 
@@ -783,7 +784,9 @@ internal class InboxHealthRestarter : IDisposable
 
     public InboxHealthRestarter(IListenerCircuit parent, IWolverineRuntime runtime, ILogger logger)
     {
-        _task = Task.Run(() => ProbeLoopAsync(parent, runtime, logger, _cancellation.Token));
+        // GH-4650. Detached, so the probe's store calls and the listener it restarts do not land under
+        // whatever activity the retry-block worker that paused the listener happened to carry.
+        _task = DetachedTask.Run(() => ProbeLoopAsync(parent, runtime, logger, _cancellation.Token));
     }
 
     private static async Task ProbeLoopAsync(

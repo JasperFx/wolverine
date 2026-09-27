@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
@@ -361,8 +362,10 @@ public partial class WolverineRuntime : IAgentRuntime
         // GH-3604 (D1): the heartbeat runs on its OWN loop, independent of executeHealthChecks. See
         // writeHeartbeats. Start it first so a slow first assignment evaluation can't delay the very
         // first heartbeat either.
-        _heartbeatLoop = Task.Run(writeHeartbeats, Cancellation);
-        _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
+        // GH-4650. Both detached: each tick starts its own bounded activity, and neither loop should
+        // inherit whatever was current when the host started.
+        _heartbeatLoop = DetachedTask.Run(writeHeartbeats, Cancellation);
+        _healthCheckLoop = DetachedTask.Run(executeHealthChecks, Cancellation);
     }
 
     // GH-3604 (D1): keep the node heartbeat wholly independent of DoHealthChecksAsync and the agent-command

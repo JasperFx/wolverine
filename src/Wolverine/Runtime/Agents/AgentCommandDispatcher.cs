@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Threading.Channels;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -348,7 +349,10 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
             lock (_gate)
             {
-                _worker ??= Task.Run(() => parent.runLaneAsync(this, destination));
+                // GH-4650. Detached, so the lane never inherits whatever activity was current at the
+                // first Enqueue for this destination -- today that is executeHealthChecks, outside any
+                // span, but only by call ordering.
+                _worker ??= DetachedTask.Run(() => parent.runLaneAsync(this, destination));
             }
         }
     }
