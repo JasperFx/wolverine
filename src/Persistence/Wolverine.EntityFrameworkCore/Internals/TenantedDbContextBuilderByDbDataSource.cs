@@ -15,6 +15,7 @@ using Weasel.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
+using Weasel.EntityFrameworkCore.Batching;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -75,6 +76,11 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var builder = new DbContextOptionsBuilder<T>();
 
         builder.UseApplicationServiceProvider(_serviceProvider);
+        // GH-4624 / weasel#621: this builder constructs its own DbContextOptionsBuilder, so it never
+        // passes through the registration in AddDbContextWithWolverineIntegration. Without the
+        // interceptor here, batched query plans still return correct results but each takes its own
+        // round trip -- the batching is silently lost on every tenanted DbContext.
+        builder.UseWeaselBatchedQueries();
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         // Cache models per (context type, wolverine schema) -- GH-3497
         builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
@@ -174,6 +180,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var connectionString = await findDataSource(tenantId);
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
+        builder.UseWeaselBatchedQueries();
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         // Cache models per (context type, wolverine schema) -- GH-3497
         builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
@@ -195,6 +202,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var dataSource = _store.Main.As<IMessageDatabase>().Settings.DataSource;
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
+        builder.UseWeaselBatchedQueries();
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         // Cache models per (context type, wolverine schema) -- GH-3497
         builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();

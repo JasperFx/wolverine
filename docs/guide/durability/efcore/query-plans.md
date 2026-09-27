@@ -53,6 +53,21 @@ public class OrdersForCustomer(Guid customerId) : QueryListPlan<OrderDbContext, 
 Everything LINQ-to-EF supports — `Include`, `OrderBy`, `Select`, `Skip`,
 `Take`, projection into DTOs — works inside `Query()`.
 
+::: warning Upgrading from Weasel 9.34 or earlier
+That sentence was not true of a *batched* plan before Weasel 9.35. A batched query used to
+materialize by reflection over the entity's scalar properties rather than by running EF Core's query
+pipeline, so anything that was not flat came back incomplete and nothing reported an error -- owned
+types, owned JSON columns, complex properties and `Include`d navigations were left null or empty, and
+a list query with a collection `Include` returned one parent row per child row. Saving one of those
+entities afterwards wrote the empty members to the database.
+
+A plan running on its own was never affected, which is what made this so easy to miss:
+`EFCoreBatchingPolicy` starts batching as soon as a handler has two batch-capable plans, so adding an
+unrelated second plan silently changed what the first one returned. Weasel 9.35 runs every batched
+query through EF Core, so a batched plan now returns exactly what the same plan returns standalone.
+See [weasel#621](https://github.com/JasperFx/weasel/issues/621).
+:::
+
 ## Using a plan in a handler
 
 The simplest pattern: inject your `DbContext` into the handler and execute the
@@ -153,6 +168,21 @@ Batching is available whenever the plan type implements
 `IQueryPlan` and `IBatchQueryPlan`, so inheriting from them is enough —
 no extra opt-in needed. Plans that implement only `IQueryPlan<TDb, TResult>`
 run standalone via `FetchAsync(db, ct)`.
+
+::: tip
+Collapsing those plans into **one** round trip needs Weasel's batched-query interceptor on the
+`DbContext`. `AddDbContextWithWolverineIntegration()` registers it for you, and so do the
+multi-tenanted and conjoined `DbContext` builders, so this only needs your attention if you construct
+`DbContextOptions` yourself -- call `UseWeaselBatchedQueries()` when you do. Without the interceptor
+each plan simply takes its own round trip, with identical results.
+:::
+
+Weasel also declines to batch, and logs a warning once per `DbContext` type, when another
+`DbCommandInterceptor` is registered -- a batch would bypass whatever that interceptor does to the
+command -- when the execution strategy retries on failure, or when the query is a split query. The
+results are correct in every one of those cases; what you lose is the single round trip, and you lose
+it quietly. So if you registered a command interceptor of your own and were counting on batching,
+that warning is the one to look for.
 
 ## `[FromQuerySpecification]` — attribute-driven spec construction <Badge type="tip" text="5.x" />
 

@@ -208,20 +208,21 @@ public class a_dbcontext_model_that_is_not_flat : IAsyncLifetime
 
     /// <summary>
     ///     weasel#628, against the EF-created schema. The contract #4635 asks for is "no
-    ///     <c>DROP COLUMN</c> is rendered": Weasel's translation of the EF model should recognise every
-    ///     column EF itself created, so the delta has nothing to remove. It does not.
+    ///     <c>DROP COLUMN</c> is rendered": Weasel's translation of the EF model recognises every column
+    ///     EF itself created, so the delta has nothing to remove.
     /// </summary>
     /// <remarks>
-    ///     <b>This pins the defect, it does not accept it.</b> Weasel's EF Core mapper does not see a
-    ///     table-split <c>ComplexProperty</c>'s columns at all, so it reports the two columns EF created
-    ///     for <c>Facility.Footprint</c> as <em>extras</em> — columns in the database with nothing in the
-    ///     model to justify them — and a <c>CreateOrUpdate</c> apply issues <c>DROP COLUMN</c> for both. An
-    ///     application on EF migrations plus Wolverine's resource setup therefore loses those columns, and
-    ///     their data, on its next boot. Owned types (<c>OwnsOne</c>) are mapped correctly, which is why
-    ///     the <c>address_*</c> columns are not in the list.
+    ///     Fixed upstream in Weasel 9.35.1, and this test was flipped when Wolverine took that version
+    ///     (GH-4624). Before it, Weasel's EF Core mapper could not see a table-split
+    ///     <c>ComplexProperty</c>'s columns at all, so it reported the two columns EF created for
+    ///     <c>Facility.Footprint</c> as <em>extras</em> -- columns in the database with nothing in the
+    ///     model to justify them -- and a <c>CreateOrUpdate</c> apply issued <c>DROP COLUMN</c> for both.
+    ///     An application on EF migrations plus Wolverine's resource setup lost those columns, and their
+    ///     data, on its next boot. Owned types (<c>OwnsOne</c>) were always mapped correctly, which is why
+    ///     the <c>address_*</c> columns were never at risk and are still asserted here as a control.
     /// </remarks>
     [Fact]
-    public async Task weasel_would_drop_the_table_split_complex_type_columns()
+    public async Task no_drop_column_is_rendered_against_an_ef_created_schema()
     {
         using var scope = _host.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<FacilityDbContext>();
@@ -237,13 +238,11 @@ public class a_dbcontext_model_that_is_not_flat : IAsyncLifetime
         facilities.WriteUpdate(new SqlServerMigrator(), writer);
         var sql = writer.ToString();
 
-        // What this SHOULD be -- and what this assertion becomes once weasel#628 is fixed:
-        //     sql.ShouldNotContain("DROP COLUMN");
-        sql.ShouldContain("DROP COLUMN");
-        sql.ShouldContain("footprint_width");
-        sql.ShouldContain("footprint_depth");
+        // The whole point: the table-split complex type's columns are part of the model Weasel sees,
+        // so there is nothing for the delta to remove.
+        sql.ShouldNotContain("DROP COLUMN");
 
-        // ...while the owned type's columns are mapped correctly and are left alone
+        // ...and the owned type's columns, which were never mis-mapped, are still left alone
         sql.ShouldNotContain("address_city");
     }
 }
@@ -299,34 +298,26 @@ public class a_non_flat_model_under_wolverine_managed_migrations
         return names.OrderBy(x => x).ToArray();
     }
 
-#if NET10_0_OR_GREATER
-    /// <summary>
-    ///     GH-4635, and a second, distinct mapper defect that only the new EF 10 lane can see. A complex
-    ///     property mapped with <c>ToJson()</c> is rendered by Weasel's EF Core mapper as a
-    ///     <c>jsonb</c> column — a PostgreSQL type — regardless of the provider, so on SQL Server the
-    ///     CREATE TABLE is rejected outright and the host never starts.
-    /// </summary>
-    /// <remarks>
-    ///     <b>Pinned, not fixed.</b> This is why the EF 9 assertions below are compiled out here: on EF 10
-    ///     the migration does not get far enough to produce a table to inspect at all. It is also the first
-    ///     concrete thing the <c>CIEfCoreNet10</c> lane bought — both suites have multi-targeted since
-    ///     #3540 and CI has been running only the net9.0 half.
-    /// </remarks>
-    [Fact]
-    public async Task the_host_cannot_start_at_all_because_json_columns_are_rendered_as_jsonb()
+    private static async Task<Dictionary<string, string>> columnTypesOfFacilities()
     {
-        await FacilitySchema.DropAsync();
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var ex = await Should.ThrowAsync<Exception>(async () =>
+        var types = new Dictionary<string, string>();
+        await using var reader = await conn
+            .CreateCommand(
+                "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = 'depots' and TABLE_NAME = 'facilities'")
+            .ExecuteReaderAsync(TestContext.Current.CancellationToken);
+
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
         {
-            using var host = await startAsync();
-        });
+            types[await reader.GetFieldValueAsync<string>(0, TestContext.Current.CancellationToken)] =
+                await reader.GetFieldValueAsync<string>(1, TestContext.Current.CancellationToken);
+        }
 
-        // What this SHOULD be once the mapper asks the provider for its JSON type:
-        //     the host starts, and the assertions in the #else branch below apply here too
-        ex.ToString().ShouldContain("jsonb");
+        return types;
     }
-#else
+
     /// <summary>
     ///     The half that works: the scalar columns, the key, and the owned type's table-split columns are
     ///     all created.
@@ -347,29 +338,29 @@ public class a_non_flat_model_under_wolverine_managed_migrations
     }
 
     /// <summary>
-    ///     weasel#628 from the create side. The two columns of the table-split <c>ComplexProperty</c> are
-    ///     simply absent.
+    ///     weasel#628 from the create side, fixed in Weasel 9.35.1 (GH-4624). The two columns of the
+    ///     table-split <c>ComplexProperty</c> are created along with everything else; before 9.35.1 they
+    ///     were simply absent.
     /// </summary>
     [Fact]
-    public async Task the_table_split_complex_type_columns_are_never_created()
+    public async Task the_table_split_complex_type_columns_are_created()
     {
         await FacilitySchema.DropAsync();
         using var host = await startAsync();
 
         var columns = await columnsOfFacilities();
 
-        // What these SHOULD be -- and what they become once weasel#628 is fixed:
-        //     ShouldContain, both of them
-        columns.ShouldNotContain("footprint_width");
-        columns.ShouldNotContain("footprint_depth");
+        columns.ShouldContain("footprint_width");
+        columns.ShouldContain("footprint_depth");
     }
 
     /// <summary>
-    ///     ...and the consequence, which is the part worth being loud about: the application starts
-    ///     cleanly, reports a healthy schema, and then fails on the first read of the entity.
+    ///     ...and the consequence that made it worth being loud about: before the fix the application
+    ///     started cleanly, reported a healthy schema, and then failed on the first read of the entity.
+    ///     It now reads.
     /// </summary>
     [Fact]
-    public async Task and_so_the_very_first_query_over_the_entity_fails()
+    public async Task and_so_a_query_over_the_entity_succeeds()
     {
         await FacilitySchema.DropAsync();
         using var host = await startAsync();
@@ -377,10 +368,41 @@ public class a_non_flat_model_under_wolverine_managed_migrations
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FacilityDbContext>();
 
-        var ex = await Should.ThrowAsync<SqlException>(async () =>
+        await Should.NotThrowAsync(async () =>
             await db.Facilities.ToListAsync(TestContext.Current.CancellationToken));
+    }
 
-        ex.Message.ShouldContain("footprint");
+#if NET10_0_OR_GREATER
+    /// <summary>
+    ///     A complex property mapped with <c>ToJson()</c>, and a <c>ComplexCollection</c> -- both EF 10
+    ///     only, which is why this is the one test in this class that stays behind the <c>#if</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Weasel's EF Core mapper used to render a JSON member as a <c>jsonb</c> column -- a PostgreSQL
+    ///     type -- whatever the provider, so on SQL Server the CREATE TABLE was rejected outright and the
+    ///     host never started. GH-4635 pinned that as broken; Weasel 9.35.1 fixed it by asking the
+    ///     provider for its own JSON type, and this test was flipped when Wolverine took that version
+    ///     (GH-4624). It is the reason the <c>CIEfCoreNet10</c> lane exists: nothing in the net9.0 half
+    ///     can see it, because neither member can be expressed on EF 9.
+    /// </remarks>
+    [Fact]
+    public async Task the_json_mapped_members_are_created_with_the_providers_own_json_type()
+    {
+        await FacilitySchema.DropAsync();
+
+        // The host starting at all is the assertion -- it could not, before 9.35.1
+        using var host = await startAsync();
+
+        var types = await columnTypesOfFacilities();
+
+        // Keys.ShouldContain rather than ShouldContainKey: the latter is ambiguous between Shouldly's
+        // IDictionary and IReadOnlyDictionary overloads for a Dictionary<,> on net10.0
+        types.Keys.ShouldContain("location");
+        types.Keys.ShouldContain("contacts");
+
+        // ...and emphatically not as Postgres' jsonb, which is what SQL Server rejected
+        types["location"].ShouldNotBe("jsonb");
+        types["contacts"].ShouldNotBe("jsonb");
     }
 #endif
 }
