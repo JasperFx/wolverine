@@ -65,10 +65,35 @@ public class ConjoinedTenancyModelCustomizer : WolverineModelCustomizer
             // instance executing each query, so the filter always evaluates against the
             // tenant that specific context is pinned to even though the model is cached
             var filter = buildTenantFilter(entityType, context);
+
+            // GH-4632. This customizer runs AFTER the user's OnModelCreating, so an ITenanted entity
+            // may already carry a query filter the user declared themselves -- a soft delete filter,
+            // typically. Both EF generations punish assigning ours on top of it:
+            //
+            //   * EF 9 has exactly ONE anonymous filter slot per entity type and the last writer
+            //     wins, so the user's filter was silently discarded. Soft-deleted rows came back
+            //     and nothing warned.
+            //   * EF 10 added NAMED filters but forbids mixing: an anonymous filter and a named one
+            //     on the same entity type throws "Both anonymous and named query filters cannot be
+            //     applied simultaneously" while the model is built, which fails the whole DbContext
+            //     at startup.
+            //
+            // Composing into the user's own anonymous filter is the one shape both generations
+            // accept, and it keeps IgnoreQueryFilters() meaning exactly what it always meant.
 #if NET10_0_OR_GREATER
-            entity.HasQueryFilter(ConjoinedTenancy.QueryFilterName, filter);
+            var anonymous = entity.Metadata.GetDeclaredQueryFilters()
+                .FirstOrDefault(x => x.IsAnonymous)?.Expression;
+            if (anonymous == null)
+            {
+                entity.HasQueryFilter(ConjoinedTenancy.QueryFilterName, filter);
+            }
+            else
+            {
+                entity.HasQueryFilter(combine(anonymous, filter));
+            }
 #else
-            entity.HasQueryFilter(filter);
+            var existing = entity.Metadata.GetQueryFilter();
+            entity.HasQueryFilter(existing == null ? filter : combine(existing, filter));
 #endif
         }
 
@@ -106,6 +131,35 @@ public class ConjoinedTenancyModelCustomizer : WolverineModelCustomizer
                 .Property<int>(ConjoinedTenancy.TenantOrdinalPropertyName)
                 .HasColumnName(options.Partitioning!.TenantOrdinalColumn)
                 .ValueGeneratedNever();
+        }
+    }
+
+    // GH-4632. The two filters were written independently and therefore have DIFFERENT
+    // ParameterExpression instances for the same entity type. EF matches parameters by
+    // reference, so the tenant predicate has to be re-bound onto the user's parameter
+    // before the two bodies can be ANDed into one lambda
+    private static LambdaExpression combine(LambdaExpression existing, LambdaExpression tenantFilter)
+    {
+        var parameter = existing.Parameters[0];
+        var rebound = new ParameterRebinder(tenantFilter.Parameters[0], parameter).Visit(tenantFilter.Body)!;
+
+        return Expression.Lambda(Expression.AndAlso(existing.Body, rebound), parameter);
+    }
+
+    private sealed class ParameterRebinder : ExpressionVisitor
+    {
+        private readonly ParameterExpression _from;
+        private readonly ParameterExpression _to;
+
+        public ParameterRebinder(ParameterExpression from, ParameterExpression to)
+        {
+            _from = from;
+            _to = to;
+        }
+
+        protected override Expression VisitParameter(ParameterExpression node)
+        {
+            return ReferenceEquals(node, _from) ? _to : base.VisitParameter(node);
         }
     }
 

@@ -854,21 +854,44 @@ partial class Build
             RunTestProject(oracleTests);
         });
 
+    AbsolutePath EfCoreTests => RootDirectory / "src" / "Persistence" / "EfCoreTests" / "EfCoreTests.csproj";
+
+    AbsolutePath EfCoreMultiTenancyTests => RootDirectory / "src" / "Persistence" / "EfCoreTests.MultiTenancy" /
+                                            "EfCoreTests.MultiTenancy.csproj";
+
+    /// <param name="framework">
+    /// Which target framework the two EF suites run on, or null to inherit <c>--framework</c>.
+    /// Both projects multi-target net9.0;net10.0 and <c>Directory.Packages.props</c> resolves EF Core 9
+    /// for net9.0 and EF Core 10 for net10.0, so the framework IS the EF Core major version under test.
+    /// CI passes <c>--framework net9.0</c> globally (tests.yml), which is why <see cref="CIEfCore" />
+    /// alone never exercised EF 10 in CI even though both suites have multi-targeted since #3540.
+    /// See GH-4635.
+    /// </param>
+    void runEfCoreSuites(string framework)
+    {
+        BuildTestProjectsWithFramework(framework, EfCoreTests, EfCoreMultiTenancyTests);
+        // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
+        // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
+        // See GH-2588.
+        StartDockerServices("postgresql", "sqlserver", "rabbitmq");
+
+        RunTestProjects([EfCoreTests, EfCoreMultiTenancyTests], frameworkOverride: framework);
+    }
+
     Target CIEfCore => _ => _
         .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var efCoreTests = RootDirectory / "src" / "Persistence" / "EfCoreTests" / "EfCoreTests.csproj";
-            var efCoreMultiTenancy = RootDirectory / "src" / "Persistence" / "EfCoreTests.MultiTenancy" / "EfCoreTests.MultiTenancy.csproj";
+        .Executes(() => runEfCoreSuites(null));
 
-            BuildTestProjects(efCoreTests, efCoreMultiTenancy);
-            // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
-            // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
-            // See GH-2588.
-            StartDockerServices("postgresql", "sqlserver", "rabbitmq");
-
-            RunTestProjects([efCoreTests, efCoreMultiTenancy]);
-        });
+    /// <summary>
+    /// GH-4635. The same two EF suites on net10.0 / EF Core 10. A SEPARATE matrix job rather than a
+    /// second framework inside <see cref="CIEfCore" />: this matrix is minute-bound, not wall-clock
+    /// bound, and doubling an existing lane's work is the one thing the 20 minute cap is there to
+    /// prevent. As its own job the EF 10 run costs wall clock only against the other 34 jobs already
+    /// running in parallel.
+    /// </summary>
+    Target CIEfCoreNet10 => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runEfCoreSuites("net10.0"));
 
     // ─── Transport CI Targets ──────────────────────────────────────────
 

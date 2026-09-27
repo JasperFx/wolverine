@@ -48,8 +48,6 @@ internal static class EfCoreOpFrames
         provider.ApplyTransactionSupport(chain, container);
         chain.IsTransactional = true;
 
-        AssertEagerIsPossible(chain, container, dbContextType, provider);
-
         return new ExecuteEfCoreOpFrame(variable, dbContextType).WrapIfNotNull(variable);
     }
 
@@ -128,45 +126,6 @@ internal static class EfCoreOpFrames
         return direct.Concat(tenanted).Distinct().ToArray();
     }
 
-    /// <summary>
-    ///     GH-4629. An operation that bypasses <c>SaveChanges</c> only has its transaction if the chain
-    ///     can open one, and a <c>DbContext</c> configured with <c>EnableRetryOnFailure()</c> refuses to
-    ///     -- EF Core's retrying execution strategy will not run a user-initiated transaction. Say so at
-    ///     code generation time, where the fix is a configuration change, rather than on the first
-    ///     message the application handles.
-    /// </summary>
-    private static void AssertEagerIsPossible(IChain chain, IServiceContainer container, Type dbContextType,
-        EFCorePersistenceFrameProvider provider)
-    {
-        if (provider.ResolveEffectiveMode(chain) != TransactionMiddlewareMode.Eager) return;
-
-        if (!RetriesOnFailure(container, dbContextType)) return;
-
-        throw new InvalidOperationException(
-            $"{chain.Description} returns an {nameof(EfCoreOp)} that writes outside SaveChangesAsync, so it needs the eager transaction -- but {dbContextType.FullNameInCode()} is configured with EnableRetryOnFailure(), and EF Core's retrying execution strategy refuses a user-initiated transaction. Either drop EnableRetryOnFailure() for this DbContext, or do the work through the DbContext yourself inside an explicit execution strategy.");
-    }
-
-    private static bool RetriesOnFailure(IServiceContainer container, Type dbContextType)
-    {
-        try
-        {
-            using var nested = container.Services.CreateScope();
-            var service = nested.ServiceProvider.GetService(dbContextType);
-
-            var context = service as DbContext
-                          ?? (nested.ServiceProvider.GetService(
-                              typeof(IDbContextBuilder<>).MakeGenericType(dbContextType)) as IDbContextBuilder)
-                          ?.BuildForMain();
-
-            return context?.Database.CreateExecutionStrategy().RetriesOnFailure ?? false;
-        }
-        catch (Exception)
-        {
-            // Never let the diagnostic itself be the failure. A DbContext that cannot be built here
-            // will fail loudly somewhere far more informative.
-            return false;
-        }
-    }
 }
 
 /// <summary>

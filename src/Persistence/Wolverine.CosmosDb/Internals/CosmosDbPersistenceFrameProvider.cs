@@ -36,6 +36,21 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
         ApplyTransactionSupport(chain, container);
     }
 
+    /// <summary>
+    /// GH-4631. Cosmos DB claims ORDINARY chains — a <see cref="Container"/> dependency or an
+    /// <c>ICosmosDbOp</c> return — so it genuinely co-applies with EF Core on a handler that takes both,
+    /// and a designation has to be able to resolve here or that handler could not be built at all.
+    /// Cosmos DB has no session interface; the thing a handler depends on, and therefore the thing a
+    /// designation names, is the SDK's own <see cref="Container"/> / <see cref="Database"/> /
+    /// <see cref="CosmosClient"/>.
+    /// </summary>
+    public bool OwnsStorageType(Type storageType, IServiceContainer container)
+    {
+        return storageType.CanBeCastTo<Container>()
+               || storageType.CanBeCastTo<Database>()
+               || storageType.CanBeCastTo<CosmosClient>();
+    }
+
     public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain)

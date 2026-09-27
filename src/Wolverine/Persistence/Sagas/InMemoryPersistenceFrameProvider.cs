@@ -21,6 +21,9 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         // Nothing
     }
 
+    // GH-4631: CanApply is unconditionally false, so this provider can never be one of the two
+    // candidates in the ambiguous-owner failure. No OwnsStorageType override is needed -- no
+    // designation could ever have to resolve here.
     public bool CanApply(IChain chain, IServiceContainer container)
     {
         return false;

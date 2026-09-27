@@ -48,6 +48,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public const string TransactionModeKey = "TransactionMiddlewareMode";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
     private ImHashMap<Type, Type> _abstractions = ImHashMap<Type, Type>.Empty;
+    private ImHashMap<Type, bool> _retryingExecutionStrategies = ImHashMap<Type, bool>.Empty;
 
     public TransactionMiddlewareMode DefaultMode { get; set; } = TransactionMiddlewareMode.Eager;
 
@@ -415,8 +416,11 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var enrolledInTransaction = false;
         var multiTenantTransaction = false;
         var tenantedLightweight = false;
+        var lightweightEnlisted = false;
         if (mode == TransactionMiddlewareMode.Eager)
         {
+            assertNoRetryingExecutionStrategy(chain, container, dbContextType);
+
             if (isMultiTenanted(container, dbContextType))
             {
                 var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
@@ -456,12 +460,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // whose MessageContext is enlisted by MessageContext.ReadEnvelope at runtime - its
             // MessageContext.Transaction stays null in Lightweight mode. Cascaded messages would then be
             // sent immediately, before the SaveChangesAsync postprocessor commits, silently dropping the
-            // transactional-outbox guarantee for HTTP endpoints (message handlers are unaffected). Enroll
-            // the DbContext in the outbox WITHOUT an explicit BeginTransactionAsync (SaveChanges' implicit
-            // transaction covers the write, and skipping the explicit begin keeps this compatible with EF
-            // Core's EnableRetryOnFailure). Setting enrolledInTransaction = true makes the code below add
-            // the CommitEfCoreEnvelopeTransaction postprocessor (which flushes after commit) instead of a
-            // standalone, pre-commit FlushOutgoingMessages. Restricted to HttpChain on purpose.
+            // transactional-outbox guarantee for HTTP endpoints. Enroll the DbContext in the outbox
+            // WITHOUT an explicit BeginTransactionAsync (SaveChanges' implicit transaction covers the
+            // write, and skipping the explicit begin keeps this compatible with EF Core's
+            // EnableRetryOnFailure). Setting enrolledInTransaction = true makes the code below add the
+            // CommitEfCoreEnvelopeTransaction postprocessor (which flushes after commit) instead of a
+            // standalone, pre-commit FlushOutgoingMessages.
             //
             // GH-3358: deliberately NOT gated on chain.RequiresOutbox(). HttpChain.RequiresOutbox() only
             // reflects an injected IMessageBus/IMessageContext dependency - an endpoint that injects the
@@ -471,6 +475,30 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // message-database guard above keeps persistence-less applications on send-now.
             chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbContextType));
             enrolledInTransaction = true;
+        }
+        else if (!isHttpChain(chain) && chain.RequiresOutbox() && hasDatabaseBackedMessagePersistence(container))
+        {
+            // GH-4630: the message-handler counterpart of the GH-3291 branch above. The old comment there
+            // said "message handlers are unaffected", which was true of the symptom it described -- a
+            // handler's MessageContext IS enlisted at runtime (as ITSELF, MessageContext.cs ReadEnvelope),
+            // so its cascades buffer instead of being sent early. What it is NOT is atomic: a
+            // MessageContext-as-transaction writes each envelope with Envelope.StoreAndForwardAsync(), a
+            // separate database write that the handler's own SaveChangesAsync neither covers nor knows
+            // about. Crash between the two and the entity exists with no message to show for it, which is
+            // exactly the guarantee operations.md advertises.
+            //
+            // Enlisting the DbContext instead puts the envelope rows in the handler's unit of work. Same
+            // guards as the HTTP branch: without database-backed message persistence there is no outbox
+            // to protect and EfCoreEnvelopeTransaction's constructor would throw on every message.
+            // HandlerChain.RequiresOutbox() is always true, so the call is documentation of intent more
+            // than a filter -- but a chain type that says otherwise should be believed.
+            //
+            // Unlike the HTTP branch this does NOT set enrolledInTransaction, because
+            // CommitEfCoreEnvelopeTransaction would drag EfCoreEnvelopeTransaction.CommitAsync's inbox
+            // bookkeeping onto a path that has no transaction for it to run in. A message handler's inbox
+            // row is the pipeline's business; all this path owes the outbox is the scrape and a save.
+            chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbContextType, chain.Idempotency));
+            lightweightEnlisted = true;
         }
 
         var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
@@ -490,7 +518,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Postprocessors.Add(call);
 
         applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbContextType,
-            tenantedLightweight);
+            tenantedLightweight, lightweightEnlisted);
     }
 
     // Eager mode wraps the rest of the chain in a transaction middleware's try/catch. The commit +
@@ -508,11 +536,15 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     //  - Multi-tenant in Lightweight mode (CreateTenantedDbContext with no BeginTransactionAsync,
     //    GH-4611): nothing to commit, but BuildAndEnrollAsync did enlist the outbox, so the buffered
     //    cascades need an IFlushesMessages postprocessor of their own after SaveChanges.
+    //  - Lightweight message handler with an enlisted DbContext (GH-4630): the pipeline does the flush,
+    //    so this only owes the scrape + the save that persists what the scrape produced.
     //  - Lightweight mode (no try-block wrap, no commit frame): a standalone FlushOutgoingMessages
     //    postprocessor is the only flush trigger and must stay.
+    //
+    // Exactly one of these runs, and at most one of them flushes.
     private static void applyEagerCommitOrLightweightFlush(IChain chain, TransactionMiddlewareMode mode,
         bool enrolledInTransaction, bool multiTenantTransaction, Type dbContextType,
-        bool tenantedLightweight)
+        bool tenantedLightweight, bool lightweightEnlisted)
     {
         if (enrolledInTransaction)
         {
@@ -529,10 +561,19 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // Lightweight mode, but the buffer still has to be flushed AFTER the SaveChangesAsync
             // postprocessor -- and, for an HTTP endpoint, before the response writer, which is why the
             // frame is IFlushesMessages rather than a plain FlushOutgoingMessages.
-            if (chain.ShouldFlushOutgoingMessages())
-            {
-                chain.Postprocessors.Add(new FlushTenantedDbContextOutbox());
-            }
+            //
+            // GH-4630: a message handler's pipeline does its own flush, so that chain gets the scrape
+            // and the save without one. Neither shape ran the domain event scrapers before.
+            chain.Postprocessors.Add(chain.ShouldFlushOutgoingMessages()
+                ? new FlushTenantedDbContextOutbox(dbContextType)
+                : new ScrapeDomainEventsAndSaveChanges(dbContextType, false));
+        }
+        else if (lightweightEnlisted)
+        {
+            // GH-4630. No flush here: Executor/TracingExecutor call FlushOutgoingMessagesAsync() once
+            // the handler returns, and adding a second trigger would either double-send or trip the
+            // MultiFlushMode.OnlyOnce warning.
+            chain.Postprocessors.Add(new ScrapeDomainEventsAndSaveChanges(dbContextType, false));
         }
         else if (mode != TransactionMiddlewareMode.Eager
                  && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
@@ -540,6 +581,62 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 #pragma warning disable CS4014
             chain.Postprocessors.Add(new FlushOutgoingMessages());
 #pragma warning restore CS4014
+        }
+    }
+
+    /// <summary>
+    ///     GH-4630. <see cref="TransactionMiddlewareMode.Eager" /> emits an explicit
+    ///     <c>BeginTransactionAsync()</c>, and EF Core's retrying execution strategy refuses
+    ///     user-initiated transactions outright. Left alone that is a runtime failure on the first
+    ///     message through every handler that touches this DbContext, with an EF Core exception that
+    ///     says nothing about Wolverine. Fail while the chain is being built instead, and name the way
+    ///     out.
+    /// </summary>
+    private void assertNoRetryingExecutionStrategy(IChain chain, IServiceContainer container, Type dbContextType)
+    {
+        if (!_retryingExecutionStrategies.TryFind(dbContextType, out var retries))
+        {
+            retries = detectsRetryingExecutionStrategy(container, dbContextType);
+            _retryingExecutionStrategies = _retryingExecutionStrategies.AddOrUpdate(dbContextType, retries);
+        }
+
+        if (!retries) return;
+
+        // GH-4629 + GH-4630. Both diagnostics land here, and they must NOT offer the same remedy. A
+        // chain that is merely configured for Eager can genuinely move to Lightweight. A chain that
+        // FORCED Eager -- it returns an EfCoreOp writing outside SaveChangesAsync, or carries
+        // [RequiresEagerTransaction] -- cannot: ResolveEffectiveMode returns Eager for it ahead of
+        // every tag, attribute and default, so telling that user to switch modes sends them round a
+        // loop back to this same exception.
+        if (EfCoreOpFrames.RequiresEagerTransaction(chain))
+        {
+            throw new InvalidOperationException(
+                $"{chain.Description} needs the eager transaction because it writes outside SaveChangesAsync -- it returns an {nameof(EfCoreOp)}, or is marked [{nameof(RequiresEagerTransactionAttribute)}] -- but {dbContextType.FullNameInCode()} is registered with EnableRetryOnFailure(), and EF Core's retrying execution strategy refuses the user-initiated transaction that needs. " +
+                $"Switching to {nameof(TransactionMiddlewareMode)}.{nameof(TransactionMiddlewareMode.Lightweight)} will NOT help here, because the operation forces {nameof(TransactionMiddlewareMode.Eager)} whatever the configuration says. " +
+                $"Either drop EnableRetryOnFailure() from the DbContext registration, or do the work through the DbContext yourself inside an explicit execution strategy instead of returning an {nameof(EfCoreOp)}.");
+        }
+
+        throw new InvalidOperationException(
+            $"{chain.Description} uses the EF Core transactional middleware in {nameof(TransactionMiddlewareMode)}.{nameof(TransactionMiddlewareMode.Eager)} mode, but {dbContextType.FullNameInCode()} is registered with EnableRetryOnFailure(). " +
+            $"EF Core's retrying execution strategy does not allow the explicit BeginTransactionAsync() that Eager mode emits, so this chain would throw on every message. " +
+            $"Either switch to {nameof(TransactionMiddlewareMode)}.{nameof(TransactionMiddlewareMode.Lightweight)} -- UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight) for the whole application, or [Transactional(Mode = TransactionMiddlewareMode.Lightweight)] on just this handler -- or drop EnableRetryOnFailure() from the DbContext registration.");
+    }
+
+    private static bool detectsRetryingExecutionStrategy(IServiceContainer container, Type dbContextType)
+    {
+        try
+        {
+            using var nested = container.Services.CreateScope();
+            var dbContext = resolveDbContext(nested, dbContextType);
+            return dbContext.Database.CreateExecutionStrategy().RetriesOnFailure;
+        }
+        catch (Exception)
+        {
+            // The DbContext cannot be built here at all (an opaque registration, a tenant builder with
+            // no tenants yet, an in-memory provider). This check is a courtesy that turns a runtime
+            // failure into a startup one; it is not itself a gate, so a DbContext we cannot inspect is
+            // left alone exactly as before.
+            return false;
         }
     }
 
@@ -647,8 +744,11 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var enrolledInTransaction = false;
         var multiTenantTransaction = false;
         var tenantedLightweight = false;
+        var lightweightEnlisted = false;
         if (mode == TransactionMiddlewareMode.Eager)
         {
+            assertNoRetryingExecutionStrategy(chain, container, dbType);
+
             if (isMultiTenanted(container, dbType))
             {
                 var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
@@ -686,6 +786,14 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbType));
             enrolledInTransaction = true;
         }
+        else if (!isHttpChain(chain) && chain.RequiresOutbox() && hasDatabaseBackedMessagePersistence(container))
+        {
+            // GH-4630, the storage-action counterpart of the message-handler branch in the no-entity
+            // overload above. See there for why a Lightweight message handler's cascades need the
+            // DbContext enlisted even though its MessageContext already buffers them.
+            chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbType, chain.Idempotency));
+            lightweightEnlisted = true;
+        }
 
         var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
         if (abstractionType != null)
@@ -705,7 +813,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         // See applyEagerCommitOrLightweightFlush + the no-entity overload above (GH-2917).
         applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbType,
-            tenantedLightweight);
+            tenantedLightweight, lightweightEnlisted);
     }
 
     public bool CanApply(IChain chain, IServiceContainer container)
@@ -718,6 +826,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var serviceDependencies = chain.ServiceDependencies(container, Type.EmptyTypes).ToArray();
         return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>() || _abstractions.Contains(x));
+    }
+
+    /// <summary>
+    /// GH-4631. EF Core is designated by a <c>DbContext</c> type or a registered DbContext abstraction —
+    /// the same two spellings <see cref="DetermineDbContextType(IChain,IServiceContainer)" /> already
+    /// resolves when a chain depends on more than one DbContext.
+    /// </summary>
+    public bool OwnsStorageType(Type storageType, IServiceContainer container)
+    {
+        return storageType.CanBeCastTo<DbContext>() || _abstractions.Contains(storageType);
     }
 
     /// <summary>

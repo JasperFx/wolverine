@@ -97,13 +97,31 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
         captured.ContextTenantId.ShouldBe("red");
 
         // After Handle ran and called MarkCompleted, Marten removes the saga row.
+        //
+        // GH-4634: this used to query store2.QuerySession() -- the DEFAULT tenant -- against a store on
+        // AllDocumentsAreMultiTenanted. The saga was never written there, so the assertion was green
+        // whatever the saga row did, including if MarkCompleted had silently done nothing. Query "red",
+        // the tenant the saga actually lives in, and assert the default tenant separately so a saga that
+        // leaked out of its tenant cannot pass either.
         var store2 = _host.Services.GetRequiredService<IDocumentStore>();
-        await using var session = store2.QuerySession();
-        var remaining = await session.Query<TenantedRabbitSaga>()
-            .Where(x => x.Id == sagaId)
-            .ToListAsync(token: TestContext.Current.CancellationToken);
 
-        remaining.ShouldBeEmpty();
+        await using (var session = store2.QuerySession("red"))
+        {
+            var remaining = await session.Query<TenantedRabbitSaga>()
+                .Where(x => x.Id == sagaId)
+                .ToListAsync(token: TestContext.Current.CancellationToken);
+
+            remaining.ShouldBeEmpty();
+        }
+
+        await using (var defaultSession = store2.QuerySession())
+        {
+            var leaked = await defaultSession.Query<TenantedRabbitSaga>()
+                .Where(x => x.Id == sagaId)
+                .ToListAsync(token: TestContext.Current.CancellationToken);
+
+            leaked.ShouldBeEmpty();
+        }
     }
 }
 

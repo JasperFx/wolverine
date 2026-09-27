@@ -145,6 +145,60 @@ public class LightweightAttributeHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/transaction_middleware_mode_tests.cs#L270-L279' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_usage_of_transaction_middleware_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Lightweight Mode and the Outbox <Badge type="tip" text="6.41" />
+
+`Lightweight` mode skips the explicit `BeginTransactionAsync()`, but it does not skip the outbox. Wolverine
+enrolls your `DbContext` in the outbox either way, so the rows for any message you cascade or publish out of a
+handler are written by the very same `SaveChangesAsync()` call that saves your entities. Either both land or
+neither does.
+
+::: warning
+Before 6.41 that was only true in `Eager` mode and for HTTP endpoints. A message handler in `Lightweight` mode
+buffered its cascades in memory and then wrote them in a *second* database call, after `SaveChangesAsync()` had
+already committed. Nothing was ever sent early, so you would not have seen a duplicate or an out-of-order
+message -- but a failure in between left you with the entity row and no message to go with it, which is exactly
+what the outbox exists to prevent.
+:::
+
+Two more things follow from the enrollment, and both are worth knowing before you move a handler to
+`Lightweight`:
+
+* Your domain event scrapers run. See [Publishing Domain Events](/guide/durability/efcore/domain-events) --
+  `PublishDomainEventsFromEntityFrameworkCore()` was inert in `Lightweight` mode before 6.41, in all three of
+  its forms.
+* `AutoApplyTransactions(IdempotencyStyle.Eager)` really does check the inbox now. The insert behind that check
+  works perfectly well inside the implicit transaction `SaveChangesAsync()` opens, so there was never a reason
+  for `Lightweight` to opt out of it -- but before 6.41 it silently did, and you got no deduplication at all.
+
+::: tip
+The one thing `Lightweight` genuinely cannot give you is a rollback. There is no explicit transaction, so a
+handler that calls `SaveChangesAsync()` itself and then throws has already committed. What you get from
+`Lightweight` is atomicity between the entity write and the outgoing messages, not a handler-wide undo. If you
+want the undo, use `Eager`.
+:::
+
+### EnableRetryOnFailure and Eager mode <Badge type="tip" text="6.41" />
+
+EF Core's retrying execution strategy will not let you open your own transaction, and `Eager` mode opens one on
+your behalf before your handler runs. Put the two together and every single message through that handler fails,
+with an EF Core exception that never mentions Wolverine.
+
+Wolverine now catches that combination while it is building the handler, so you find out at startup instead of
+in production:
+
+```
+<handler> uses the EF Core transactional middleware in TransactionMiddlewareMode.Eager mode, but
+MyDbContext is registered with EnableRetryOnFailure(). EF Core's retrying execution strategy does not
+allow the explicit BeginTransactionAsync() that Eager mode emits, so this chain would throw on every
+message. Either switch to TransactionMiddlewareMode.Lightweight -- UseEntityFrameworkCoreTransactions(
+TransactionMiddlewareMode.Lightweight) for the whole application, or [Transactional(Mode =
+TransactionMiddlewareMode.Lightweight)] on just this handler -- or drop EnableRetryOnFailure() from the
+DbContext registration.
+```
+
+`Lightweight` is usually the answer. It never opens a transaction of its own, which is the whole reason it is
+compatible with a retrying execution strategy.
+
 ## Set-Based Operations and EfCoreOps <Badge type="tip" text="6.41" />
 
 Sooner or later a handler has to archive ten thousand rows, call a stored procedure, or delete
@@ -213,11 +267,10 @@ public static async Task Handle(ArchiveOldOrders command, OrdersDbContext db, Ca
 ```
 
 ::: warning
-`Eager` mode and EF Core's `EnableRetryOnFailure()` cannot both be true, because a retrying
-execution strategy refuses to run a transaction you opened yourself. When a chain needs the eager
-transaction and the `DbContext` is configured to retry, Wolverine tells you during code generation
--- where the fix is a configuration change -- rather than on the first message the deployed
-application handles.
+An operation that forces `Eager` runs headlong into `EnableRetryOnFailure()`, for the reason
+described in [EnableRetryOnFailure and Eager mode](#enableretryonfailure-and-eager-mode) above.
+Wolverine catches the pairing here too, while it is building the handler, so a chain that returns
+an operation against a retrying `DbContext` fails at startup rather than on every message.
 :::
 
 ### Set-based writes and conjoined multi-tenancy

@@ -169,8 +169,57 @@ public class efcore_ops_tests : IAsyncLifetime
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
     }
 
+    /// <summary>
+    ///     GH-4629 meeting GH-4630. Both landed an EnableRetryOnFailure diagnostic, and after the merge
+    ///     only the mode-driven one is reachable -- ApplyTransactionSupport runs before the op frames do.
+    ///     What matters is that the surviving message does not tell THIS user to switch to Lightweight:
+    ///     the op forces Eager ahead of every tag, attribute and default, so that advice would loop them
+    ///     straight back here.
+    /// </summary>
     [Fact]
-    public async Task insert_many_of_10k_rows_is_one_save_changes()
+    public async Task an_op_forcing_eager_against_a_retrying_dbcontext_names_a_remedy_that_can_work()
+    {
+        var ex = await Should.ThrowAsync<Exception>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Durability.Mode = DurabilityMode.Solo;
+
+                    opts.Services.AddDbContextWithWolverineIntegration<OpsDbContext>(
+                        x => x.UseNpgsql(Servers.PostgresConnectionString, o => o.EnableRetryOnFailure()),
+                        "efcore_ops");
+
+                    opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "efcore_ops");
+
+                    // Lightweight on purpose: the op is what forces Eager here, not the configuration.
+                    opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
+                    opts.Policies.AutoApplyTransactions();
+
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<EfCoreOpHandlers>();
+                }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        var message = ex.ToString();
+        message.ShouldContain("EnableRetryOnFailure");
+        message.ShouldContain("will NOT help");
+    }
+
+    /// <summary>
+    ///     The claim is that <c>InsertMany</c> is an <c>AddRange</c> -- a count of saves that does not
+    ///     grow with the row count -- not that the handler saves exactly once.
+    /// </summary>
+    /// <remarks>
+    ///     Two saves, not one, since GH-4630: a Lightweight message handler now enlists the DbContext in
+    ///     the outbox, and the postprocessor that scrapes domain events saves again afterwards so the
+    ///     envelope rows a cascade tracked AFTER the middleware's save are not stranded. This handler
+    ///     cascades nothing and registers no scrapers, so that second save is a no-op at the database --
+    ///     but it is still a second pass over the change tracker, which is not free with 10k entities in
+    ///     it. Worth revisiting; it is not a merge artifact, it is the shape of the two features together.
+    /// </remarks>
+    [Fact]
+    public async Task insert_many_of_10k_rows_does_not_save_once_per_row()
     {
         OpsSaveChangesRecorder.Start();
         try
@@ -181,7 +230,7 @@ public class efcore_ops_tests : IAsyncLifetime
         finally
         {
             var saves = OpsSaveChangesRecorder.Stop();
-            saves.ShouldBe(1);
+            saves.ShouldBe(2);
         }
 
         using var scope = _lightweight.Services.CreateScope();
