@@ -68,6 +68,11 @@ internal class DelegatingMessageInbox : IMessageInbox
         return (envelope.Store?.Inbox ?? _inner).MarkIncomingEnvelopeAsHandledAsync(envelope);
     }
 
+    public Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        return (envelope.Store?.Inbox ?? _inner).DeleteIncomingEnvelopeAsync(envelope);
+    }
+
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
         // Going to purposely leave this naive and let the whole thing be retried

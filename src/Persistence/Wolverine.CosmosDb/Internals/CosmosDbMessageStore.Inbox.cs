@@ -28,6 +28,20 @@ public partial class CosmosDbMessageStore : IMessageInbox
         }
     }
 
+    public async Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
+
+        try
+        {
+            await _container.DeleteItemAsync<IncomingMessage>(_identity(envelope), new PartitionKey(partitionKey));
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Already gone
+        }
+    }
+
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var id = _identity(envelope);

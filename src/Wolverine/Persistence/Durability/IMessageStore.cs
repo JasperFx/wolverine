@@ -47,6 +47,22 @@ public interface IMessageInbox
     // Only called by DurableReceiver
     Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes);
 
+    /// <summary>
+    ///     Remove an incoming envelope's row outright, rather than retiring it as
+    ///     <see cref="EnvelopeStatus.Handled" />. GH-4645: this node parked a scheduled envelope in the inbox
+    ///     under its eventual remote destination, then forwarded it to that destination's transport when it
+    ///     came due -- so the message was never handled here and the parking row has to disappear completely.
+    ///     Marking it handled is not enough: the database-backed queue transports probe the inbox by
+    ///     <c>received_at</c> with no status filter to suppress duplicate queue rows, so a retained Handled row
+    ///     deletes the very message this node just sent.
+    /// </summary>
+    /// <remarks>
+    ///     The default implementation falls back to <see cref="MarkIncomingEnvelopeAsHandledAsync(Envelope)" />
+    ///     so that message stores outside this repository keep compiling. Every store Wolverine ships overrides
+    ///     it with a real delete, and any store used with a database-backed queue transport must.
+    /// </remarks>
+    Task DeleteIncomingEnvelopeAsync(Envelope envelope) => MarkIncomingEnvelopeAsHandledAsync(envelope);
+
     // Good as is
     Task ReleaseIncomingAsync(int ownerId, Uri receivedAt);
 }

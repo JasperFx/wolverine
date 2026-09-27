@@ -48,6 +48,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        return Task.CompletedTask;
+    }
+
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
     {
         return null;

@@ -40,6 +40,13 @@ public partial class RavenDbMessageStore : IMessageInbox
         await op.WaitForCompletionAsync();
     }
 
+    public async Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        using var session = _store.OpenAsyncSession();
+        session.Delete(_identity(envelope));
+        await session.SaveChangesAsync();
+    }
+
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         using var session = _store.OpenAsyncSession();

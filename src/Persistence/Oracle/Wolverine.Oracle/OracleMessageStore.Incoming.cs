@@ -171,6 +171,18 @@ internal partial class OracleMessageStore
         await conn.CloseAsync();
     }
 
+    public async Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
+        await using var cmd = conn.CreateCommand(
+            $"DELETE FROM {SchemaName}.{DatabaseConstants.IncomingTable} " +
+            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
+        cmd.With("id", envelope.Id);
+        cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
+        await cmd.ExecuteNonQueryAsync(_cancellation);
+        await conn.CloseAsync();
+    }
+
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
