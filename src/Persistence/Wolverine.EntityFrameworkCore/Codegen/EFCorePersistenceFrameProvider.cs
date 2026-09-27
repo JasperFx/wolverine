@@ -359,6 +359,33 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     }
 
     /// <summary>
+    ///     GH-4629. Apply a whole <c>UnitOfWork&lt;T&gt;</c> through one call, so the <c>Store</c>
+    ///     existence checks become a single <c>WHERE key IN (...)</c> instead of a <c>FindAsync</c>
+    ///     round trip per entity. See <see cref="EfCoreStorageActionApplier.ApplyActionsAsync{TEntity,TDbContext}" />.
+    /// </summary>
+    public bool TryBuildUnitOfWorkFrame(Type entityType, Variable unitOfWork, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame)
+    {
+        // The batch query needs DbContext.Set<TEntity>(), which is class-constrained
+        if (!entityType.IsClass)
+        {
+            frame = null;
+            return false;
+        }
+
+        var dbContextType = DetermineDbContextType(entityType, container);
+
+        var method = typeof(EfCoreStorageActionApplier).GetMethod(nameof(EfCoreStorageActionApplier.ApplyActionsAsync))!
+            .MakeGenericMethod(entityType, dbContextType);
+
+        var call = new MethodCall(typeof(EfCoreStorageActionApplier), method);
+        call.Arguments[1] = unitOfWork;
+
+        frame = call;
+        return true;
+    }
+
+    /// <summary>
     ///     GH-4613. Only <c>Store&lt;T&gt;.BuildFrame</c> reaches this, so it is always an entity the
     ///     handler returned. It used to forward to <see cref="DetermineUpdateFrame" />, which meant a
     ///     comment frame for any type without a <c>Version</c> property -- <c>Storage.Store()</c> did
@@ -518,6 +545,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     /// <summary>
     /// Resolves the effective transaction mode for a chain by checking (in order):
+    /// 0. Whether anything in the chain writes OUTSIDE SaveChangesAsync, which forces Eager
     /// 1. The chain tag (set when TransactionalAttribute.Modify has already run)
     /// 2. The [Transactional] attribute directly on handler methods/types (for when
     ///    side effects are processed by SideEffectPolicy before the attribute's Modify runs)
@@ -525,6 +553,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     internal TransactionMiddlewareMode ResolveEffectiveMode(IChain chain)
     {
+        // GH-4629. A set-based operation is its own statement: in Lightweight mode there is no
+        // transaction around it, so it commits whether or not the SaveChangesAsync carrying the
+        // outbox ever does. That is not a preference to be overridden by configuration, an
+        // attribute or a policy -- it is the chain saying it needs a transaction. Checked ahead of
+        // everything else for exactly that reason.
+        if (EfCoreOpFrames.RequiresEagerTransaction(chain))
+        {
+            return TransactionMiddlewareMode.Eager;
+        }
+
         // Check the tag first (set by TransactionalAttribute.Modify when it has already run)
         if (chain.Tags.TryGetValue(TransactionModeKey, out var modeObj))
         {

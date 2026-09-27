@@ -99,6 +99,15 @@ public class UnitOfWork<T> : List<IStorageAction<T>>, ISideEffectAware
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
             provider.ApplyTransactionSupport(chain, container, typeof(T));
+
+            // GH-4629: let a provider apply the whole unit of work at once when it can beat the
+            // per-action loop below -- EF Core batches the Store existence checks into one query
+            // rather than one FindAsync per entity.
+            if (provider.TryBuildUnitOfWorkFrame(typeof(T), variable, container, out var bulk))
+            {
+                return bulk.WrapIfNotNull(variable);
+            }
+
             var element = new Variable(typeof(T), "item_of_" + variable.Usage);
             var inner = provider.DetermineStorageActionFrame(typeof(T), element, container);
 

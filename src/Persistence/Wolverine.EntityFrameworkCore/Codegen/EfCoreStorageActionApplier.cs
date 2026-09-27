@@ -1,4 +1,7 @@
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Persistence;
 
@@ -15,6 +18,10 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
     Justification = "A key property's ClrType comes from the EF Core model and is rooted by it; Activator only needs the default value of a primitive key type. See AOT guide / #2755.")]
 [UnconditionalSuppressMessage("Trimming", "IL2087",
     Justification = "TEntity is closed at codegen time over an entity type mapped in a registered DbContext, so the model already roots it. See AOT guide / #2755.")]
+[UnconditionalSuppressMessage("Trimming", "IL2091",
+    Justification = "TEntity is closed at codegen time over an entity type mapped in a registered DbContext, so the model already roots it. See AOT guide / #2755.")]
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "GH-4629 batch existence check: List<TKey> closed over a primary key type from the EF Core model, which roots it. See AOT guide / #2755.")]
 public static class EfCoreStorageActionApplier
 {
     public static async Task ApplyAction<TEntity, TDbContext>(TDbContext context, IStorageAction<TEntity> action) where TDbContext : DbContext
@@ -36,6 +43,189 @@ public static class EfCoreStorageActionApplier
                 await UpdateAsync(context, action.Entity);
                 break;
 
+        }
+    }
+
+    /// <summary>
+    ///     GH-4629. Apply a whole <see cref="UnitOfWork{T}" /> at once.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     The per-action loop this replaces paid two costs that only show up in bulk. Every
+    ///     <c>Store</c> was a <c>FindAsync</c> round trip of its own, so a unit of work of a thousand
+    ///     entities was a thousand queries; and <c>isTracked</c> walked the whole change tracker on
+    ///     every call, which is quadratic in the size of the unit of work all by itself. Here the
+    ///     change tracker is read once into a set, and every <c>Store</c> whose key is set is resolved
+    ///     by a single <c>WHERE key IN (...)</c>.
+    ///     </para>
+    ///     <para>
+    ///     A unit of work of one action is deliberately handed straight to <see cref="ApplyAction{TEntity,TDbContext}" />:
+    ///     there is nothing to batch, and the single-entity path stays byte for byte what it was.
+    ///     So does the composite-key and shadow-key case, which cannot be expressed as one <c>IN</c>
+    ///     query and falls back to <see cref="StoreAsync{TEntity,TDbContext}" /> per entity.
+    ///     </para>
+    /// </remarks>
+    public static async Task ApplyActionsAsync<TEntity, TDbContext>(TDbContext context,
+        IEnumerable<IStorageAction<TEntity>> actions, CancellationToken cancellationToken)
+        where TDbContext : DbContext where TEntity : class
+    {
+        var list = actions as IReadOnlyList<IStorageAction<TEntity>> ?? actions.ToList();
+        if (list.Count == 0) return;
+
+        if (list.Count == 1)
+        {
+            await ApplyAction(context, list[0]).ConfigureAwait(false);
+            return;
+        }
+
+        var tracked = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        foreach (var entry in context.ChangeTracker.Entries())
+        {
+            tracked.Add(entry.Entity);
+        }
+
+        var batch = await StoreBatch<TEntity>.BuildAsync(context, list, tracked, cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var action in list)
+        {
+            if (action.Entity == null) continue;
+
+            switch (action.Action)
+            {
+                case StorageAction.Delete:
+                    context.Remove(action.Entity);
+                    break;
+
+                case StorageAction.Insert:
+                    await context.AddAsync(action.Entity, cancellationToken).ConfigureAwait(false);
+                    break;
+
+                case StorageAction.Update:
+                    if (!tracked.Contains(action.Entity))
+                    {
+                        context.Update(action.Entity);
+                    }
+
+                    break;
+
+                case StorageAction.Store:
+                    if (tracked.Contains(action.Entity)) break;
+                    await batch.StoreAsync(context, action.Entity).ConfigureAwait(false);
+                    break;
+            }
+
+            tracked.Add(action.Entity);
+        }
+    }
+
+    /// <summary>
+    ///     The one existence query behind <see cref="ApplyActionsAsync{TEntity,TDbContext}" />, and the
+    ///     lookup of what it found.
+    /// </summary>
+    private sealed class StoreBatch<TEntity> where TEntity : class
+    {
+        private readonly Dictionary<object, object> _existing = new();
+        private PropertyInfo? _key;
+
+        /// <summary>
+        ///     False when the entity's identity cannot be expressed as one comparable column -- a
+        ///     composite key, or a shadow key with no CLR property. Those fall back to the unchanged
+        ///     per-entity <see cref="StoreAsync{TEntity,TDbContext}" />.
+        /// </summary>
+        private bool usable => _key != null;
+
+        public static async Task<StoreBatch<TEntity>> BuildAsync(DbContext context,
+            IReadOnlyList<IStorageAction<TEntity>> actions, HashSet<object> tracked,
+            CancellationToken cancellationToken)
+        {
+            var batch = new StoreBatch<TEntity>();
+
+            var stores = actions
+                .Where(x => x.Action == StorageAction.Store && x.Entity != null && !tracked.Contains(x.Entity))
+                .ToArray();
+
+            if (stores.Length == 0) return batch;
+
+            var primaryKey = context.Model.FindEntityType(typeof(TEntity))?.FindPrimaryKey();
+            if (primaryKey is not { Properties.Count: 1 }) return batch;
+
+            var property = primaryKey.Properties[0].PropertyInfo;
+            if (property == null) return batch;
+
+            batch._key = property;
+
+            var keyType = property.PropertyType;
+            var listType = typeof(List<>).MakeGenericType(keyType);
+            var keys = (IList)Activator.CreateInstance(listType)!;
+            var seen = new HashSet<object>();
+
+            foreach (var action in stores)
+            {
+                var value = property.GetValue(action.Entity);
+                if (value == null || value.Equals(defaultValueOf(keyType))) continue;
+                if (seen.Add(value)) keys.Add(value);
+            }
+
+            if (keys.Count == 0) return batch;
+
+            // One WHERE key IN (...) for the entire unit of work. The rows come back TRACKED on
+            // purpose: that is what FindAsync did per entity, and it is what lets CurrentValues
+            // .SetValues below carry correct original values into the UPDATE -- which matters for a
+            // concurrency token like the conjoined tenant_id (GH-4612).
+            var parameter = Expression.Parameter(typeof(TEntity), "x");
+            var contains = listType.GetMethod(nameof(List<object>.Contains), [keyType])!;
+            var predicate = Expression.Lambda<Func<TEntity, bool>>(
+                Expression.Call(Expression.Constant(keys, listType), contains,
+                    Expression.Property(parameter, property)), parameter);
+
+            var found = await context.Set<TEntity>().Where(predicate).ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var row in found)
+            {
+                var value = property.GetValue(row);
+                if (value != null)
+                {
+                    batch._existing[value] = row;
+                }
+            }
+
+            return batch;
+        }
+
+        public async Task StoreAsync<TDbContext>(TDbContext context, TEntity entity) where TDbContext : DbContext
+        {
+            if (!usable)
+            {
+                await EfCoreStorageActionApplier.StoreAsync(context, entity).ConfigureAwait(false);
+                return;
+            }
+
+            var value = _key!.GetValue(entity);
+            if (value == null || value.Equals(defaultValueOf(_key.PropertyType)))
+            {
+                // No key to look a row up by, so there is no row. Update() is what the single-entity
+                // path does here, and EF marks an entity with an unset key Added rather than Modified.
+                context.Update(entity);
+                return;
+            }
+
+            if (_existing.TryGetValue(value, out var existing))
+            {
+                if (!ReferenceEquals(existing, entity))
+                {
+                    context.Entry(existing).CurrentValues.SetValues(entity);
+                }
+
+                return;
+            }
+
+            await context.AddAsync(entity).ConfigureAwait(false);
+
+            // A second Store of the same key in the same unit of work must find this one, exactly as
+            // FindAsync used to find it in the change tracker.
+            _existing[value] = entity;
         }
     }
 

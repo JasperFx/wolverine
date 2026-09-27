@@ -147,6 +147,28 @@ public interface IPersistenceFrameProvider
 
     Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container);
 
+    /// <summary>
+    ///     GH-4629. Apply an entire <see cref="UnitOfWork{T}" /> in one frame, for a provider that can
+    ///     do better in bulk than the default "loop and apply one action at a time".
+    /// </summary>
+    /// <remarks>
+    ///     Returning <see langword="false" /> -- the default -- keeps the shipped behaviour, which is
+    ///     the right answer for every provider whose per-action work is already a purely in-memory
+    ///     session call. EF Core overrides it because <c>Store</c> has no upsert statement to lean on
+    ///     and has to ask the database whether each row exists: one <c>WHERE key IN (...)</c> for the
+    ///     whole unit of work instead of a <c>FindAsync</c> round trip apiece.
+    /// </remarks>
+    /// <param name="entityType">The unit of work's entity type.</param>
+    /// <param name="unitOfWork">The variable holding the <see cref="UnitOfWork{T}" />.</param>
+    /// <param name="container">Active codegen service container.</param>
+    /// <param name="frame">The bulk frame, when the provider has one.</param>
+    bool TryBuildUnitOfWorkFrame(Type entityType, Variable unitOfWork, IServiceContainer container,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Frame? frame)
+    {
+        frame = null;
+        return false;
+    }
+
     Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity);
 
     /// <summary>
