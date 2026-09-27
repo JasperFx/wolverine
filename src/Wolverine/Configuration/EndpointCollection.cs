@@ -64,8 +64,16 @@ public interface IEndpointCollection : IAsyncDisposable
 public class EndpointCollection : IEndpointCollection
 {
     private readonly object _channelLock = new();
+    private readonly object _listenerLock = new();
 
-    private readonly Dictionary<Uri, ListeningAgent> _listeners = new();
+    // GH-4646: this was a plain Dictionary. StartAgents.StartBatchAsync fans agent starts out across
+    // up to Durability.MaxAgentStartParallelism threads (10 by default), so a failover that hands this
+    // node several exclusive listener agents at once had that many threads writing the dictionary while
+    // GlobalPartitionedRoute read it on every send. A read that caught a resize corrupted the instance
+    // for good: every later lookup threw "Operations that change non-concurrent collections must have
+    // exclusive access", and the node never routed again until it was replaced. ImHashMap gives the
+    // send path a lock-free read; writers swap the map under _listenerLock so no start is lost.
+    private ImHashMap<Uri, ListeningAgent> _listeners = ImHashMap<Uri, ListeningAgent>.Empty;
     private readonly WolverineOptions _options;
     private readonly WolverineRuntime _runtime;
 
@@ -101,7 +109,7 @@ public class EndpointCollection : IEndpointCollection
             }
         }
 
-        foreach (var value in _listeners.Values) await value.DisposeAsync();
+        foreach (var kv in _listeners.Enumerate()) await kv.Value.DisposeAsync();
     }
 
     public IEnumerable<ISendingAgent> ActiveSendingAgents()
@@ -158,14 +166,14 @@ public class EndpointCollection : IEndpointCollection
 
     public IEnumerable<IListeningAgent> ActiveListeners()
     {
-        return _listeners.Values;
+        return _listeners.Enumerate().Select(x => x.Value);
     }
 
     public IReadOnlyList<EndpointHealthSnapshot> CollectEndpointHealth()
     {
         var snapshots = new List<EndpointHealthSnapshot>();
 
-        foreach (var listener in _listeners.Values)
+        foreach (var listener in ActiveListeners())
         {
             var loopHealth = receiveLoopHealthOf(listener);
             snapshots.Add(new EndpointHealthSnapshot(
@@ -370,12 +378,12 @@ public class EndpointCollection : IEndpointCollection
 
     public IListeningAgent? FindListeningAgent(Uri uri)
     {
-        return _listeners.GetValueOrDefault(uri);
+        return _listeners.TryFind(uri, out var agent) ? agent : null;
     }
 
     public IListeningAgent? FindListeningAgent(string endpointName)
     {
-        return _listeners.Values.FirstOrDefault(x => x.Endpoint.EndpointName.EqualsIgnoreCase(endpointName));
+        return ActiveListeners().FirstOrDefault(x => x.Endpoint.EndpointName.EqualsIgnoreCase(endpointName));
     }
 
     public async Task StartListenersAsync()
@@ -394,7 +402,7 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)
     {
-        if (_listeners.TryGetValue(endpoint.Uri, out var agent))
+        if (_listeners.TryFind(endpoint.Uri, out var agent))
         {
             await agent.StopAndDrainAsync();
         }
@@ -478,7 +486,7 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)
     {
-        if (_listeners.TryGetValue(endpoint.Uri, out var agent))
+        if (_listeners.TryFind(endpoint.Uri, out var agent))
         {
             if (agent.Status == ListeningStatus.Accepting) return;
             await agent.StartAsync();
@@ -488,12 +496,12 @@ public class EndpointCollection : IEndpointCollection
         endpoint.Compile(_runtime);
         agent = new ListeningAgent(endpoint, _runtime);
         await agent.StartAsync().ConfigureAwait(false);
-        _listeners[agent.Uri] = agent;
+        await registerListenerAsync(agent);
     }
 
     public async Task StartListenerAsync(Endpoint endpoint, IListener listener, CancellationToken cancellationToken)
     {
-        if (_listeners.TryGetValue(endpoint.Uri, out var agent))
+        if (_listeners.TryFind(endpoint.Uri, out var agent))
         {
             if (agent.Status == ListeningStatus.Accepting) return;
             await agent.StartAsync();
@@ -503,7 +511,25 @@ public class EndpointCollection : IEndpointCollection
         endpoint.Compile(_runtime);
         agent = new ListeningAgent(endpoint, _runtime);
         await agent.StartAsync().ConfigureAwait(false);
-        _listeners[agent.Uri] = agent;
+        await registerListenerAsync(agent);
+    }
+
+    // The check-then-start above cannot be held under _listenerLock without serializing every agent
+    // start, which is exactly the parallelism GH-3604 added. So the swap happens here instead, and a
+    // second start of the SAME endpoint that slipped past the check loses: the registered agent stands
+    // and the duplicate is disposed rather than left polling an exclusive queue unreachably.
+    private async Task registerListenerAsync(ListeningAgent agent)
+    {
+        lock (_listenerLock)
+        {
+            if (!_listeners.TryFind(agent.Uri, out _))
+            {
+                _listeners = _listeners.AddOrUpdate(agent.Uri, agent);
+                return;
+            }
+        }
+
+        await agent.DisposeAsync();
     }
 
     public LocalQueue? LocalQueueForMessageType(Type messageType)
@@ -621,9 +647,9 @@ public class EndpointCollection : IEndpointCollection
     /// </summary>
     public void LatchAllReceivers()
     {
-        foreach (var listener in _listeners.Values)
+        foreach (var kv in _listeners.Enumerate())
         {
-            listener.LatchReceiver();
+            kv.Value.LatchReceiver();
         }
 
         foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<DurableLocalQueue>())
