@@ -33,16 +33,17 @@ namespace Wolverine.ComplianceTests;
 ///     <para>
 ///         <b>The host is deliberately on <see cref="TenantIdStyle.ForceLowerCase" />.</b> Every tenant id
 ///         the battery uses is already lower case, so it changes nothing for items 1-6 and 8 — but it is
-///         the one setting that makes the <c>Envelope.TenantId</c> / <c>MessageContext.TenantId</c>
-///         precedence split in item 7 observable at all. A fixture whose store also has the setting
-///         (Marten does; Polecat and Fisher do not) should set it there too.
+///         the one setting that makes item 7 mean anything. It is what exposed GH-4640: the envelope kept
+///         the raw casing while the context was normalised, so Polecat and Fisher, which build their
+///         session from <c>Envelope.TenantId</c>, wrote the wrong <c>tenant_id</c>. Fixed in
+///         <c>MessageContext.ReadEnvelope</c>; item 7 now guards it on all three stores. A fixture whose
+///         store also has the setting (Marten does; Polecat and Fisher do not) should set it there too.
 ///     </para>
 ///     <para>
-///         <b>On skipping.</b> Two items genuinely do not apply everywhere — the default tenant cannot be
-///         disabled on a store that has no such switch, and a store with no <c>TenantIdStyle</c> of its own
-///         cannot normalise anything. Those are expressed as overridable skip reasons rather than an
-///         absent test, so the runner reports the gap out loud instead of a fixture quietly running two
-///         fewer tests than its siblings.
+///         <b>On skipping.</b> One item genuinely does not apply everywhere — the default tenant cannot be
+///         disabled on a store that has no such switch. That is expressed as an overridable skip reason
+///         rather than an absent test, so the runner reports the gap out loud instead of a fixture quietly
+///         running one fewer test than its siblings.
 ///     </para>
 /// </remarks>
 public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
@@ -131,12 +132,6 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         throw new NotSupportedException(
             $"{GetType().Name} must either override {nameof(defaultTenantUsageDisabledExceptionType)} " +
             $"or override {nameof(defaultTenantDisabledSkipReason)}");
-
-    /// <summary>
-    ///     Non-null when this store has no <c>TenantIdStyle</c> of its own, so Wolverine's normalisation
-    ///     cannot reach the <c>tenant_id</c> it writes.
-    /// </summary>
-    protected virtual string? tenantIdStyleSkipReason => null;
 
     protected TenantedTracker theTracker => theHost.Services.GetRequiredService<TenantedTracker>();
 
@@ -383,26 +378,25 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
     // ----------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task the_envelope_tenant_id_is_not_normalised_while_the_context_is()
+    public async Task the_envelope_tenant_id_is_normalised_like_the_context()
     {
-        // The root cause behind the item below, asserted where it actually lives and with no store in
-        // the picture. InvokeForTenantAsync puts the raw string on DeliveryOptions (MessageBus.cs:178),
-        // Executor copies it straight onto the envelope (Executor.cs:182), and only MessageContext's
-        // setter runs it through TenantIdStyle (MessageContext.cs:930 -> MessageBus.cs:87).
+        // GH-4640, asserted where it actually lives and with no store in the picture.
+        // InvokeForTenantAsync puts the raw string on DeliveryOptions (MessageBus.cs:178) and Executor
+        // copies it straight onto the envelope, so the two used to disagree: the context normalised
+        // through TenantIdStyle and the envelope kept "MIXED". MessageContext.ReadEnvelope now writes
+        // the normalised value back onto the envelope, which every execution path passes through.
         var id = Guid.NewGuid();
 
         await theHost.MessageBus().InvokeForTenantAsync("MIXED", new RecordTenantIds(id));
 
         var seen = theTracker.TenantIdsFor(id);
-        seen.EnvelopeTenantId.ShouldBe("MIXED");
         seen.ContextTenantId.ShouldBe("mixed");
+        seen.EnvelopeTenantId.ShouldBe("mixed");
     }
 
     [Fact]
     public async Task force_lower_case_reaches_the_stored_tenant_id()
     {
-        if (tenantIdStyleSkipReason is { } skip) Assert.Skip(skip);
-
         var id = Guid.NewGuid();
 
         // InvokeForTenantAsync and NOT InvokeMessageAndWaitAsync(message, tenantId): the tracking

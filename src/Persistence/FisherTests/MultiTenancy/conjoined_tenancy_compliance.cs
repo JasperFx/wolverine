@@ -68,17 +68,6 @@ public class conjoined_tenancy_compliance : ConjoinedTenancyCompliance
         "so there is nothing to disable. Marten carries it on StoreOptions.Advanced and Polecat " +
         "flattens it onto StoreOptions (polecat#514); Fisher has neither.";
 
-    /// <summary>
-    ///     Same constraint as Polecat, with a sharper edge: Fisher has no <c>TenantIdStyle</c>, and SQLite's
-    ///     default BINARY collation makes the <c>tenant_id</c> comparison case-<b>sensitive</b>, where SQL
-    ///     Server's default collation quietly forgives it. Verified red before being skipped.
-    /// </summary>
-    protected override string? tenantIdStyleSkipReason =>
-        "Fisher has no TenantIdStyle of its own (jasperfx#876) and Wolverine never normalises " +
-        "Envelope.TenantId, which is what Fisher's OutboxedSessionFactory builds the session from. " +
-        "On SQLite the row is not merely stored under the wrong spelling, it is unreadable under the " +
-        "right one: BINARY collation makes tenant_id = 'red' miss a row stored as 'RED'. See GH-4640.";
-
     protected override async Task<TenantedTodo?> LoadTodoAsync(IHost host, string tenantId, Guid id)
     {
         var store = host.Services.GetRequiredService<IDocumentStore>();

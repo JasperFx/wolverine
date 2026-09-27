@@ -47,20 +47,6 @@ public class conjoined_tenancy_compliance : ConjoinedTenancyCompliance
     protected override Type defaultTenantUsageDisabledExceptionType =>
         typeof(DefaultTenantUsageDisabledException);
 
-    /// <summary>
-    ///     Polecat has no <c>TenantIdStyle</c> member at all (jasperfx#876). Its conjoined
-    ///     <c>tenant_id</c> comparisons are exact, so Wolverine normalising <c>RED</c> to <c>red</c> on
-    ///     <c>MessageContext.TenantId</c> never reaches the value Polecat stores: the session is built
-    ///     from <c>Envelope.TenantId</c>, which is never normalised, and the row lands under <c>RED</c>.
-    ///     Verified red before being skipped: the stored <c>tenant_id</c> came back <c>'RED'</c>. The
-    ///     document is still readable under <c>red</c>, but only because SQL Server's default collation is
-    ///     case-insensitive, which is what hides the misspelling until something reads the column.
-    /// </summary>
-    protected override string? tenantIdStyleSkipReason =>
-        "Polecat has no TenantIdStyle of its own (jasperfx#876) and Wolverine never normalises " +
-        "Envelope.TenantId, which is what Polecat's OutboxedSessionFactory builds the session from. " +
-        "See GH-4640.";
-
     protected override async Task<TenantedTodo?> LoadTodoAsync(IHost host, string tenantId, Guid id)
     {
         var store = host.Services.GetRequiredService<IDocumentStore>();
