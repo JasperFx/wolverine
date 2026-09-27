@@ -93,7 +93,10 @@ registration wires three things:
    message instrument, so success and failure rates can be sliced per schedule; the occurrence
    instant is deliberately trace-only, since one distinct value per firing would make those series
    unbounded in cardinality. Both headers round-trip every transport, so the attribution survives to
-   whichever node actually handles the occurrence.
+   whichever node actually handles the occurrence. The publish itself happens inside a short
+   `wolverine.recurring.occurrence` span carrying the same two tags, and that span is the parent the
+   occurrence's envelope points at, so each firing is its own trace rather than a child of whatever
+   activity happened to be current when the agent started.
 
 ## Cron expressions
 
