@@ -215,6 +215,22 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             _messaging.Envelope.Status = EnvelopeStatus.Handled;
         }
 
+        // GH-3744/GH-4628: on a Wolverine-mapped DbContext both the scrape above (a durable route runs
+        // through PersistOutgoingAsync/PersistIncomingAsync, which only Add() an
+        // OutgoingMessage/IncomingMessage to the change tracker) and the handled-row branch just
+        // tracked entities -- and both ran AFTER the SaveChangesAsync that the EF Core transactional
+        // middleware emits. Committing straight from here therefore committed the aggregate and
+        // dropped every envelope those steps produced; the messages were still *sent* in memory, so
+        // tracked-session assertions passed while the durability row was silently missing. Flush the
+        // tracker so they land inside this transaction. This mirrors what
+        // CommitTenantedDbContextTransaction already does on the multi-tenanted path, and is a no-op
+        // when nothing was tracked. The raw (non Wolverine-mapped) branches above write through ADO
+        // commands on this same transaction, so they need no flush.
+        if (DbContext.IsWolverineEnabled())
+        {
+            await DbContext.SaveChangesAsync(cancellation);
+        }
+
         if (DbContext.Database.CurrentTransaction != null)
         {
             await DbContext.Database.CurrentTransaction.CommitAsync(cancellation);
