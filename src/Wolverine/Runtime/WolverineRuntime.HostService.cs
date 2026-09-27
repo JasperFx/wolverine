@@ -1159,7 +1159,9 @@ public partial class WolverineRuntime
             // The failure rule lives on the batch handler chain (the T[] handler), matching any exception:
             // retry the whole batch until it has failed `attempts` times, then re-run each member as its
             // own size-1 batch so only the failing one dead-letters.
-            var batchChain = Handlers.ChainFor(batch.Batcher.BatchMessageType);
+            // Includes a batch handler registered with AddMessageHandler, which would otherwise lose this rule
+            // without a word: it is not a discovered chain, but it is the chain the batch runs on.
+            var batchChain = Handlers.ChainOrRegisteredHandlerChainFor(batch.Batcher.BatchMessageType);
             if (batchChain == null)
             {
                 continue;
