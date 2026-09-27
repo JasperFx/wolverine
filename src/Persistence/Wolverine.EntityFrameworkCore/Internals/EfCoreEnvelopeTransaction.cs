@@ -146,8 +146,14 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         CancellationToken cancellation)
     {
         if (envelope.WasPersistedInInbox) return true;
-        
-        if (DbContext.Database.CurrentTransaction == null)
+
+        // GH-4630: only the raw ADO branch of PersistIncomingAsync needs a transaction of its own -- a
+        // Wolverine-mapped DbContext just tracks an entity and the SaveChangesAsync below opens its own
+        // implicit transaction for it. Forcing an explicit one unconditionally made this check
+        // impossible in Lightweight mode, where nothing downstream would ever commit it and the whole
+        // point of the mode is to stay compatible with EnableRetryOnFailure. In Eager mode a
+        // transaction is always already open by the time this runs, so this is a no-op there.
+        if (DbContext.Database.CurrentTransaction == null && !DbContext.IsWolverineEnabled())
         {
             await DbContext.Database.BeginTransactionAsync(cancellation);
         }

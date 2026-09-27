@@ -118,8 +118,29 @@ persisted to the transactional inbox or outbox (depending on configuration) befo
 To make this as clear as possible, this approach is completely reliant on the EF Core transactional middleware.
 :::
 
+The scraping works the same in both transaction middleware modes. If you run your handlers in
+`TransactionMiddlewareMode.Lightweight`, Wolverine scrapes the `ChangeTracker`, enqueues what it finds, and then
+saves again so the outgoing envelopes land in the same database write -- no explicit transaction required. See
+[Lightweight Mode and the Outbox](/guide/durability/efcore/transactional-middleware#lightweight-mode-and-the-outbox).
+
+::: warning
+Before 6.41 the scrapers only ever ran on the `Eager` paths, so `PublishDomainEventsFromEntityFrameworkCore()` in any
+of its three forms did nothing at all for a `Lightweight` message handler -- silently, with no event published and no
+error to tell you why.
+:::
+
 Also note that this domain event “scraping” is also supported and tested with the `IDbContextOutbox<T>` service 
 if you want to use this in application code outside of Wolverine message handlers or HTTP endpoints.
+
+::: warning
+The one place scraping is still limited is `IDbContextOutboxFactory.CreateForTenantAsync()`. That factory is a
+singleton, so it cannot reach into your request's scope. It runs every scraper you registered with
+`PublishDomainEventsFromEntityFrameworkCore<TEntity>(...)` against the tenant `DbContext` it just built, because those
+are singletons too -- but the scoped `OutgoingDomainEvents` buffer behind the no-argument
+`PublishDomainEventsFromEntityFrameworkCore()` belongs to your scope, not the factory's, so a factory-built outbox
+cannot see what you put in it. Resolve `IDbContextOutbox<T>` from the scope instead when you need that one. Before
+6.41 a factory-built outbox ran no scrapers at all, in any mode.
+:::
 
 If I were building a system that embeds domain event publishing directly in domain model entity classes, I would prefer this approach. But, let’s talk about another option that will not require any changes to Wolverine…
 
