@@ -131,6 +131,14 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
         }
     }
 
+    private static void detachAmbientActivity()
+    {
+        if (Activity.Current != null)
+        {
+            Activity.Current = null;
+        }
+    }
+
     private async ValueTask ProcessMessageAsync(IListener listener, Envelope envelope)
     {
         if (_latched && (!_endpoint.ProcessInlineWhileDraining || _drainComplete.Task.IsCompleted))
@@ -146,6 +154,20 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
 
             return;
         }
+
+        // GH-4649. Inline has no worker-pool boundary: this runs on whatever task drives the listener,
+        // and that task is a bare Task.Run that captured whatever Activity.Current was set when the
+        // listener STARTED -- the Solo-mode startup wolverine_node_assignments span, or the request
+        // that started the listener -- and keeps it for the listener's lifetime. StartReceiving falls
+        // back to Activity.Current for an envelope with no ParentId, so every such message on this
+        // listener was parented under that one stale span. The receivers for the other modes hand off
+        // to a Block<Envelope>, which drops the ambient activity per item (jasperfx#904); this is the
+        // same clear at the same point for the mode that never touches a block. Per message because
+        // each ProcessMessageAsync call starts from the loop's captured context afresh, and guarded
+        // because the common case is already null and the write would copy the execution context.
+        // It cannot reach the loop: an AsyncLocal write inside an awaited method does not propagate
+        // back to the awaiter.
+        detachAmbientActivity();
 
         using var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
 
