@@ -21,6 +21,19 @@ public class CrossTenantWriteException : InvalidOperationException
         State = state;
     }
 
+    /// <summary>
+    ///     GH-4629. The refusal of a SET-BASED write, which is turned away before it runs and so has
+    ///     no entity -- and no other tenant id -- to name. All there is to report is what the
+    ///     statement asked to do and which tenant asked.
+    /// </summary>
+    public CrossTenantWriteException(Type entityType, string contextTenantId, string reason) : base(
+        $"Refusing a set-based write against {entityType.FullName} through a DbContext scoped to tenant '{contextTenantId}'. {reason}")
+    {
+        EntityType = entityType;
+        ContextTenantId = contextTenantId;
+        State = EntityState.Modified;
+    }
+
     public Type EntityType { get; }
     public string? EntityTenantId { get; }
     public string ContextTenantId { get; }

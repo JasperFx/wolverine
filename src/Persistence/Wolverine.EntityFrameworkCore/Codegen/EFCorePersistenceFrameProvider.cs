@@ -360,6 +360,33 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     }
 
     /// <summary>
+    ///     GH-4629. Apply a whole <c>UnitOfWork&lt;T&gt;</c> through one call, so the <c>Store</c>
+    ///     existence checks become a single <c>WHERE key IN (...)</c> instead of a <c>FindAsync</c>
+    ///     round trip per entity. See <see cref="EfCoreStorageActionApplier.ApplyActionsAsync{TEntity,TDbContext}" />.
+    /// </summary>
+    public bool TryBuildUnitOfWorkFrame(Type entityType, Variable unitOfWork, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame)
+    {
+        // The batch query needs DbContext.Set<TEntity>(), which is class-constrained
+        if (!entityType.IsClass)
+        {
+            frame = null;
+            return false;
+        }
+
+        var dbContextType = DetermineDbContextType(entityType, container);
+
+        var method = typeof(EfCoreStorageActionApplier).GetMethod(nameof(EfCoreStorageActionApplier.ApplyActionsAsync))!
+            .MakeGenericMethod(entityType, dbContextType);
+
+        var call = new MethodCall(typeof(EfCoreStorageActionApplier), method);
+        call.Arguments[1] = unitOfWork;
+
+        frame = call;
+        return true;
+    }
+
+    /// <summary>
     ///     GH-4613. Only <c>Store&lt;T&gt;.BuildFrame</c> reaches this, so it is always an entity the
     ///     handler returned. It used to forward to <see cref="DetermineUpdateFrame" />, which meant a
     ///     comment frame for any type without a <c>Version</c> property -- <c>Storage.Store()</c> did
@@ -575,6 +602,20 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         if (!retries) return;
 
+        // GH-4629 + GH-4630. Both diagnostics land here, and they must NOT offer the same remedy. A
+        // chain that is merely configured for Eager can genuinely move to Lightweight. A chain that
+        // FORCED Eager -- it returns an EfCoreOp writing outside SaveChangesAsync, or carries
+        // [RequiresEagerTransaction] -- cannot: ResolveEffectiveMode returns Eager for it ahead of
+        // every tag, attribute and default, so telling that user to switch modes sends them round a
+        // loop back to this same exception.
+        if (EfCoreOpFrames.RequiresEagerTransaction(chain))
+        {
+            throw new InvalidOperationException(
+                $"{chain.Description} needs the eager transaction because it writes outside SaveChangesAsync -- it returns an {nameof(EfCoreOp)}, or is marked [{nameof(RequiresEagerTransactionAttribute)}] -- but {dbContextType.FullNameInCode()} is registered with EnableRetryOnFailure(), and EF Core's retrying execution strategy refuses the user-initiated transaction that needs. " +
+                $"Switching to {nameof(TransactionMiddlewareMode)}.{nameof(TransactionMiddlewareMode.Lightweight)} will NOT help here, because the operation forces {nameof(TransactionMiddlewareMode.Eager)} whatever the configuration says. " +
+                $"Either drop EnableRetryOnFailure() from the DbContext registration, or do the work through the DbContext yourself inside an explicit execution strategy instead of returning an {nameof(EfCoreOp)}.");
+        }
+
         throw new InvalidOperationException(
             $"{chain.Description} uses the EF Core transactional middleware in {nameof(TransactionMiddlewareMode)}.{nameof(TransactionMiddlewareMode.Eager)} mode, but {dbContextType.FullNameInCode()} is registered with EnableRetryOnFailure(). " +
             $"EF Core's retrying execution strategy does not allow the explicit BeginTransactionAsync() that Eager mode emits, so this chain would throw on every message. " +
@@ -601,6 +642,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     /// <summary>
     /// Resolves the effective transaction mode for a chain by checking (in order):
+    /// 0. Whether anything in the chain writes OUTSIDE SaveChangesAsync, which forces Eager
     /// 1. The chain tag (set when TransactionalAttribute.Modify has already run)
     /// 2. The [Transactional] attribute directly on handler methods/types (for when
     ///    side effects are processed by SideEffectPolicy before the attribute's Modify runs)
@@ -608,6 +650,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     internal TransactionMiddlewareMode ResolveEffectiveMode(IChain chain)
     {
+        // GH-4629. A set-based operation is its own statement: in Lightweight mode there is no
+        // transaction around it, so it commits whether or not the SaveChangesAsync carrying the
+        // outbox ever does. That is not a preference to be overridden by configuration, an
+        // attribute or a policy -- it is the chain saying it needs a transaction. Checked ahead of
+        // everything else for exactly that reason.
+        if (EfCoreOpFrames.RequiresEagerTransaction(chain))
+        {
+            return TransactionMiddlewareMode.Eager;
+        }
+
         // Check the tag first (set by TransactionalAttribute.Modify when it has already run)
         if (chain.Tags.TryGetValue(TransactionModeKey, out var modeObj))
         {
