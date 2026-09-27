@@ -191,6 +191,14 @@ public static class WolverineTracing
     public const string ScheduleOccurrence = "wolverine.schedule.occurrence";
 
     /// <summary>
+    /// Span emitted by the recurring message agent around the publish of each occurrence of an
+    /// opts.Schedules schedule, tagged with <see cref="ScheduleName"/> and <see cref="ScheduleOccurrence"/>.
+    /// It is the parent the occurrence's envelope points at, so every firing is its own bounded trace
+    /// rather than a child of whatever activity happened to be current when the agent started.
+    /// </summary>
+    public const string RecurringOccurrence = "wolverine.recurring.occurrence";
+
+    /// <summary>
     /// Activity tag for the saga type full name when processing a saga message
     /// </summary>
     public const string SagaType = "wolverine.saga.type";

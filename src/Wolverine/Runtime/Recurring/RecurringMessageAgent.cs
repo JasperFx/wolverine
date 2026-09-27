@@ -170,7 +170,21 @@ internal class RecurringMessageAgent : SingularAgent
     {
         _cancellation = new CancellationTokenSource();
         _lastTick = TimeProvider.GetUtcNow();
-        _loop = Task.Run(() => runAsync(_cancellation.Token), CancellationToken.None);
+        var token = _cancellation.Token;
+
+        // GH-4647. Task.Run flows the ExecutionContext, so without this the loop captured whatever
+        // Activity.Current was set when the agent started -- in Solo mode the startup
+        // wolverine_node_assignments span, and on a local auto-restart the health-check's -- and kept
+        // it for the life of the host. Every occurrence then stamped that stale activity's id into its
+        // envelope as the ParentId (and its trace id as the bus's correlation id), parenting every
+        // recurring handler execution the process ever ran under one startup-time span. The loop needs
+        // nothing ambient from whoever started it; each occurrence starts its own activity in
+        // publishAsync. Same treatment as the Solo health-check loop (GH-3518).
+        using (ExecutionContext.SuppressFlow())
+        {
+            _loop = Task.Run(() => runAsync(token), CancellationToken.None);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -503,8 +517,18 @@ internal class RecurringMessageAgent : SingularAgent
         // the handler cannot tell which firing it is serving except by string-parsing the dedup id,
         // which exists for deduplication and not for attribution. Normalized to UTC and written
         // round-trippable ("O") so it parses back to the same instant everywhere.
-        options.Headers[RecurringMessage.OccurrenceHeaderKey] =
-            occurrence.ToUniversalTime().ToString("O");
+        var occurrenceHeader = occurrence.ToUniversalTime().ToString("O");
+        options.Headers[RecurringMessage.OccurrenceHeaderKey] = occurrenceHeader;
+
+        // GH-4647. Each occurrence is published inside its own short-lived activity, so the
+        // envelope's ParentId (stamped from Activity.Current below) and the bus's correlation id
+        // (its root id, taken in the MessageBus constructor) point at a bounded root of this
+        // occurrence's own -- never at whatever was ambient on the loop. Started before the bus is
+        // built, on purpose, for that second reason. Carries the same schedule identity the
+        // handler's execution span reads off the headers, so the two join up in a trace.
+        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.RecurringOccurrence);
+        activity?.SetTag(WolverineTracing.ScheduleName, message.Name);
+        activity?.SetTag(WolverineTracing.ScheduleOccurrence, occurrenceHeader);
 
         // The routed-then-persisted spelling of IMessageBus.PublishAsync, taken apart only
         // because the public path never surfaces the envelopes (GH-4180's own analysis) and the
