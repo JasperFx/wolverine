@@ -298,34 +298,26 @@ public class a_non_flat_model_under_wolverine_managed_migrations
         return names.OrderBy(x => x).ToArray();
     }
 
-#if NET10_0_OR_GREATER
-    /// <summary>
-    ///     GH-4635, and a second, distinct mapper defect that only the new EF 10 lane can see. A complex
-    ///     property mapped with <c>ToJson()</c> is rendered by Weasel's EF Core mapper as a
-    ///     <c>jsonb</c> column — a PostgreSQL type — regardless of the provider, so on SQL Server the
-    ///     CREATE TABLE is rejected outright and the host never starts.
-    /// </summary>
-    /// <remarks>
-    ///     <b>Pinned, not fixed.</b> This is why the EF 9 assertions below are compiled out here: on EF 10
-    ///     the migration does not get far enough to produce a table to inspect at all. It is also the first
-    ///     concrete thing the <c>CIEfCoreNet10</c> lane bought — both suites have multi-targeted since
-    ///     #3540 and CI has been running only the net9.0 half.
-    /// </remarks>
-    [Fact]
-    public async Task the_host_cannot_start_at_all_because_json_columns_are_rendered_as_jsonb()
+    private static async Task<Dictionary<string, string>> columnTypesOfFacilities()
     {
-        await FacilitySchema.DropAsync();
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var ex = await Should.ThrowAsync<Exception>(async () =>
+        var types = new Dictionary<string, string>();
+        await using var reader = await conn
+            .CreateCommand(
+                "select COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = 'depots' and TABLE_NAME = 'facilities'")
+            .ExecuteReaderAsync(TestContext.Current.CancellationToken);
+
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
         {
-            using var host = await startAsync();
-        });
+            types[await reader.GetFieldValueAsync<string>(0, TestContext.Current.CancellationToken)] =
+                await reader.GetFieldValueAsync<string>(1, TestContext.Current.CancellationToken);
+        }
 
-        // What this SHOULD be once the mapper asks the provider for its JSON type:
-        //     the host starts, and the assertions in the #else branch below apply here too
-        ex.ToString().ShouldContain("jsonb");
+        return types;
     }
-#else
+
     /// <summary>
     ///     The half that works: the scalar columns, the key, and the owned type's table-split columns are
     ///     all created.
@@ -378,6 +370,39 @@ public class a_non_flat_model_under_wolverine_managed_migrations
 
         await Should.NotThrowAsync(async () =>
             await db.Facilities.ToListAsync(TestContext.Current.CancellationToken));
+    }
+
+#if NET10_0_OR_GREATER
+    /// <summary>
+    ///     A complex property mapped with <c>ToJson()</c>, and a <c>ComplexCollection</c> -- both EF 10
+    ///     only, which is why this is the one test in this class that stays behind the <c>#if</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Weasel's EF Core mapper used to render a JSON member as a <c>jsonb</c> column -- a PostgreSQL
+    ///     type -- whatever the provider, so on SQL Server the CREATE TABLE was rejected outright and the
+    ///     host never started. GH-4635 pinned that as broken; Weasel 9.35.1 fixed it by asking the
+    ///     provider for its own JSON type, and this test was flipped when Wolverine took that version
+    ///     (GH-4624). It is the reason the <c>CIEfCoreNet10</c> lane exists: nothing in the net9.0 half
+    ///     can see it, because neither member can be expressed on EF 9.
+    /// </remarks>
+    [Fact]
+    public async Task the_json_mapped_members_are_created_with_the_providers_own_json_type()
+    {
+        await FacilitySchema.DropAsync();
+
+        // The host starting at all is the assertion -- it could not, before 9.35.1
+        using var host = await startAsync();
+
+        var types = await columnTypesOfFacilities();
+
+        // Keys.ShouldContain rather than ShouldContainKey: the latter is ambiguous between Shouldly's
+        // IDictionary and IReadOnlyDictionary overloads for a Dictionary<,> on net10.0
+        types.Keys.ShouldContain("location");
+        types.Keys.ShouldContain("contacts");
+
+        // ...and emphatically not as Postgres' jsonb, which is what SQL Server rejected
+        types["location"].ShouldNotBe("jsonb");
+        types["contacts"].ShouldNotBe("jsonb");
     }
 #endif
 }
