@@ -20,7 +20,7 @@ namespace CoreTests.Bugs
     /// </summary>
     public class Bug_4625_handler_chain_resolves_its_generated_type_by_full_name
     {
-        private static readonly string GeneratedNamespace = typeof(Bug4625.Generated.Bug4625MessageHandler).Namespace!;
+        private static readonly string _generatedNamespace = typeof(Bug4625.Generated.Bug4625MessageHandler).Namespace!;
 
         [Fact]
         public void attaches_the_type_in_the_containing_namespace_not_the_first_simple_name_match()
@@ -60,7 +60,7 @@ namespace CoreTests.Bugs
             // AssertPreBuiltTypesExist depends on this to fail the start in Static mode.
             var chain = buildChain("Bug4625HandlerThatWasNeverGenerated");
 
-            attach(chain, GeneratedNamespace).ShouldBeFalse();
+            attach(chain, _generatedNamespace).ShouldBeFalse();
         }
 
         private static HandlerChain buildChain(string typeName)
