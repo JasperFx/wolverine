@@ -55,7 +55,9 @@ internal class DeferredAgentCommandRunner : IAsyncDisposable
         _controller = controller;
         _cancellation = cancellation;
 
-        _worker = Task.Run(runAsync, CancellationToken.None);
+        // GH-4650. Detached, so the runner does not carry whatever activity was current when the host
+        // started into every deferred agent start for the life of the process.
+        _worker = DetachedTask.Run(runAsync);
     }
 
     /// <summary>
