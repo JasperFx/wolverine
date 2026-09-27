@@ -4,6 +4,8 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Expressions;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -37,6 +39,19 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
         ApplyTransactionSupport(chain, container);
+    }
+
+    /// <summary>
+    /// GH-4631. RavenDb claims ORDINARY chains — an <see cref="IAsyncDocumentSession"/> dependency or an
+    /// <c>IRavenDbOp</c> return — so it genuinely co-applies with EF Core on a handler that takes both,
+    /// and a designation has to be able to resolve here or that handler could not be built at all.
+    /// RavenDb is designated by its own session or store interface.
+    /// </summary>
+    public bool OwnsStorageType(Type storageType, IServiceContainer container)
+    {
+        return storageType.CanBeCastTo<IAsyncDocumentSession>()
+               || storageType.CanBeCastTo<IDocumentSession>()
+               || storageType.CanBeCastTo<IDocumentStore>();
     }
 
     public bool CanApply(IChain chain, IServiceContainer container)
