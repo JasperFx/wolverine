@@ -61,6 +61,11 @@ jobs:
           - CIAzureServiceBusRouting
           - CICosmosDb
           - CIEfCore
+          # GH-4635: the EF suites multi-target net9.0;net10.0, but the `--framework net9.0` this
+          # workflow passes to every target meant EF Core 10 was compiled and never run. This is the
+          # EF 10 half, as its own job rather than a second framework inside CIEfCore -- the matrix is
+          # runner-MINUTE bound and the 20 minute per-job cap is there to stop a lane doubling its work.
+          - CIEfCoreNet10
           # Fisher is an embedded SQLite file - no container, no service dependency.
           - CIFisher
           - CIGrpc

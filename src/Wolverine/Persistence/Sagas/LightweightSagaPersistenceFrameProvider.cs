@@ -55,6 +55,20 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
         ApplyTransactionSupport(chain, container);
     }
 
+    /// <summary>
+    /// GH-4631. Unlike the other saga-oriented providers, <see cref="CanApply"/> here is not saga-chains-
+    /// only: an ORDINARY handler that injects <c>ISagaStorage&lt;TSaga,TId&gt;</c> directly also claims a
+    /// chain, so this genuinely co-applies with (say) EF Core on a handler that takes both. There is no
+    /// store marker type to name, so the designation is the closed saga-storage interface itself:
+    /// <c>[Transactional(typeof(ISagaStorage&lt;MySaga, Guid&gt;))]</c>.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "Same interface-closure scan as CanApply below, over a type the developer named in a [Transactional]/[Storage] designation; AOT consumers register saga storage types explicitly via the AOT publishing guide.")]
+    public bool OwnsStorageType(Type storageType, IServiceContainer container)
+    {
+        return storageType.Closes(typeof(ISagaStorage<,>));
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2067",
         Justification = "Service-dependency types flow from registered persistence-frame providers; AOT consumers register saga storage types explicitly via the AOT publishing guide so the interface-closure scan resolves against statically-rooted types.")]
     public bool CanApply(IChain chain, IServiceContainer container)

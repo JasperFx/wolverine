@@ -45,7 +45,10 @@ public class TransactionalAttribute : ModifyChainAttribute
         }
 
         chain.ApplyImpliedMiddlewareFromHandlers(rules);
-        var transactionFrameProvider = rules.As<GenerationRules>().GetPersistenceProviders(chain, container);
+        // GH-4631: SelectTransactionOwner, not GetPersistenceProviders. A chain with two candidate
+        // providers needs the designation this attribute may itself be carrying, and an ambiguity with no
+        // designation is an error rather than "whichever provider sorts first".
+        var transactionFrameProvider = rules.As<GenerationRules>().SelectTransactionOwner(chain, container);
         transactionFrameProvider.ApplyTransactionSupport(chain, container);
 
         chain.IsTransactional = true;

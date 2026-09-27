@@ -30,6 +30,17 @@ internal class AutoApplyTransactions : IChainPolicy
                 potentials.Single().ApplyTransactionSupport(chain, container);
                 chain.IsTransactional = true;
             }
+            else if (potentials.Length > 1 && chain is not SagaChain)
+            {
+                // GH-4631. Two providers can own this chain's transaction -- a handler taking both a
+                // DbContext and an IDocumentSession, say. Applying none of them, which is what this
+                // policy used to do, is silent data loss: neither store is ever told to save. A saga
+                // chain is excluded because SagaChain.DetermineFrames resolves its own provider
+                // deterministically from the saga's own state storage.
+                var owner = TransactionOwnerResolution.SelectDesignatedOwner(chain, potentials, container);
+                owner.ApplyTransactionSupport(chain, container);
+                chain.IsTransactional = true;
+            }
         }
     }
 

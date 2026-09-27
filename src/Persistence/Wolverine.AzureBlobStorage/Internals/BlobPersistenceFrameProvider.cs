@@ -48,6 +48,12 @@ public class BlobPersistenceFrameProvider : IPersistenceFrameProvider
     ///         and no unit of work -- so an ordinary chain that merely touches a blob document must never
     ///         resolve to this provider as its transaction owner. See GH-4160.
     ///     </para>
+    ///     <para>
+    ///         GH-4631: because this is saga-chains-only, it can never be one of the two candidates in
+    ///         the ambiguous-owner failure — that check exempts saga chains, whose provider is resolved
+    ///         from the saga's own state storage. So there is deliberately no <c>OwnsStorageType</c>
+    ///         override here; no designation could ever need to resolve to this provider.
+    ///     </para>
     /// </remarks>
     public bool CanApply(IChain chain, IServiceContainer container)
     {

@@ -146,8 +146,14 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         CancellationToken cancellation)
     {
         if (envelope.WasPersistedInInbox) return true;
-        
-        if (DbContext.Database.CurrentTransaction == null)
+
+        // GH-4630: only the raw ADO branch of PersistIncomingAsync needs a transaction of its own -- a
+        // Wolverine-mapped DbContext just tracks an entity and the SaveChangesAsync below opens its own
+        // implicit transaction for it. Forcing an explicit one unconditionally made this check
+        // impossible in Lightweight mode, where nothing downstream would ever commit it and the whole
+        // point of the mode is to stay compatible with EnableRetryOnFailure. In Eager mode a
+        // transaction is always already open by the time this runs, so this is a no-op there.
+        if (DbContext.Database.CurrentTransaction == null && !DbContext.IsWolverineEnabled())
         {
             await DbContext.Database.BeginTransactionAsync(cancellation);
         }
@@ -213,6 +219,22 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             
             _messaging.Envelope.Status = EnvelopeStatus.Handled;
+        }
+
+        // GH-3744/GH-4628: on a Wolverine-mapped DbContext both the scrape above (a durable route runs
+        // through PersistOutgoingAsync/PersistIncomingAsync, which only Add() an
+        // OutgoingMessage/IncomingMessage to the change tracker) and the handled-row branch just
+        // tracked entities -- and both ran AFTER the SaveChangesAsync that the EF Core transactional
+        // middleware emits. Committing straight from here therefore committed the aggregate and
+        // dropped every envelope those steps produced; the messages were still *sent* in memory, so
+        // tracked-session assertions passed while the durability row was silently missing. Flush the
+        // tracker so they land inside this transaction. This mirrors what
+        // CommitTenantedDbContextTransaction already does on the multi-tenanted path, and is a no-op
+        // when nothing was tracked. The raw (non Wolverine-mapped) branches above write through ADO
+        // commands on this same transaction, so they need no flush.
+        if (DbContext.IsWolverineEnabled())
+        {
+            await DbContext.SaveChangesAsync(cancellation);
         }
 
         if (DbContext.Database.CurrentTransaction != null)

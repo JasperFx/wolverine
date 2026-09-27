@@ -25,12 +25,27 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
 
+        AddFactoryRefusalPolicy(options);
+
         // The CritterWatch / saga-explorer ISagaStoreDiagnostics fan-out registration
         // lives in WolverineEntityCoreExtensions.registerEFCoreSagaStoreDiagnostics
         // (called from every entry point that registers this extension). Registering
         // it here would tear at the IServiceCollection after host-build because this
         // extension is itself registered into DI, which trips Wolverine's 3.0+ "no
         // IoC mods from container-registered extensions" policy. Closes wolverine#2735.
+    }
+
+    /// <summary>
+    /// GH-4635. Registered here rather than from <c>UseEntityFrameworkCoreTransactions</c> so that the
+    /// <c>AddDbContextWithWolverineIntegration</c>-only bootstrap (which never calls it) is covered too.
+    /// Idempotent -- both entry points route through this one extension, but an app can register the
+    /// generic and non-generic flavors together.
+    /// </summary>
+    internal static void AddFactoryRefusalPolicy(WolverineOptions options)
+    {
+        if (options.Policies.OfType<DbContextFactoryRefusalPolicy>().Any()) return;
+
+        options.Policies.Add(new DbContextFactoryRefusalPolicy());
     }
 }
 
@@ -57,6 +72,8 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
 
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+
+        EntityFrameworkCoreBackedPersistence.AddFactoryRefusalPolicy(options);
 
         // Auto-allow this DbContext type for service location. EF Core's
         // multi-tenancy registration paths register the DbContext via opaque

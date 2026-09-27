@@ -162,6 +162,31 @@ public static class GenerationRulesExtensions
     }
 
     /// <summary>
+    ///     The provider that owns this chain's transaction, for the explicit <c>[Transactional]</c> path.
+    ///     GH-4631.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="GetPersistenceProviders" /> answers with the first provider in consultation order,
+    ///     which on a chain that depends on two stores is a coin toss the developer never called — the
+    ///     other store's buffered writes are dropped with no diagnostic. This asks for a designation
+    ///     instead, and fails naming both candidates when there is none. Saga chains keep the
+    ///     first-ordered answer, since <see cref="SagaChain" /> resolves its persistence from the saga's
+    ///     own state storage rather than from the chain's dependencies.
+    /// </remarks>
+    internal static IPersistenceFrameProvider SelectTransactionOwner(this GenerationRules rules, IChain chain,
+        IServiceContainer container)
+    {
+        var potentials = rules.OrderedPersistenceProviders().Where(x => x.CanApply(chain, container)).ToArray();
+
+        if (potentials.Length > 1 && chain is not SagaChain)
+        {
+            return TransactionOwnerResolution.SelectDesignatedOwner(chain, potentials, container);
+        }
+
+        return potentials.FirstOrDefault() ?? _nullo;
+    }
+
+    /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
     public static IPersistenceFrameProvider GetPersistenceProviders(this GenerationRules rules, IChain chain,

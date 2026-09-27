@@ -43,6 +43,12 @@ public class RedisPersistenceFrameProvider : IPersistenceFrameProvider
     /// transaction owner and quietly take that role away from the store that actually has one. Sagas
     /// are the one case where the chain genuinely belongs here, because <c>Saga&lt;T&gt;()</c> was an
     /// explicit registration of exactly this type.
+    /// <para>
+    /// GH-4631: because this is saga-chains-only, it can never be one of the two candidates in the
+    /// ambiguous-owner failure — that check exempts saga chains, whose provider is resolved from the
+    /// saga's own state storage. So there is deliberately no <c>OwnsStorageType</c> override here;
+    /// no designation could ever need to resolve to this provider.
+    /// </para>
     /// </remarks>
     public bool CanApply(IChain chain, IServiceContainer container)
     {

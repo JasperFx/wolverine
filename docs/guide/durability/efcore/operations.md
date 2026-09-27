@@ -147,6 +147,14 @@ to persist the storage operation, which should be done within a single transacti
 to the outbox/inbox.
 :::
 
+::: tip
+That single-transaction promise holds in `TransactionMiddlewareMode.Lightweight` too, as of 6.41. There is no explicit
+transaction there, but Wolverine enrolls the `DbContext` in the outbox, so your storage operation and the rows for every
+message the handler cascades are written by one `SaveChangesAsync()`. Before 6.41 a message handler in `Lightweight`
+mode wrote the messages in a separate call afterwards, and a failure in between left the row without them. See
+[Lightweight Mode and the Outbox](/guide/durability/efcore/transactional-middleware#lightweight-mode-and-the-outbox).
+:::
+
 ::: info
 It does not matter whether the entity you hand to `Storage.Update()` or `Storage.Store()` came from a `[Entity]`
 parameter, an `AsNoTracking()` query, an HTTP request body, or a `new` up off the message itself -- Wolverine attaches an

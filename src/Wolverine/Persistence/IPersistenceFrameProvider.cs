@@ -44,6 +44,21 @@ public interface IPersistenceFrameProvider
     Type? TryDetermineTransactionOwnerType(IChain chain, IServiceContainer container) => null;
 
     /// <summary>
+    ///     Does this provider own <paramref name="storageType" />, the type a developer named in a
+    ///     <c>[Transactional(typeof(X))]</c> or <c>[Storage(typeof(X))]</c> designation? GH-4631.
+    /// </summary>
+    /// <remarks>
+    ///     Only consulted when a chain has more than one provider that <see cref="CanApply" /> — a handler
+    ///     taking both an EF Core <c>DbContext</c> and a Marten <c>IDocumentSession</c>, say — where the
+    ///     designation is the only thing that says which store commits. Answer for the shape of type this
+    ///     integration is designated by (EF Core: anything castable to <c>DbContext</c> or a registered
+    ///     DbContext abstraction; the document stores: their own <c>IDocumentStore</c> / session
+    ///     interfaces, which covers an ancillary store marker), not for whether that particular store is
+    ///     registered. Returning false — the default — simply removes this provider from the running.
+    /// </remarks>
+    bool OwnsStorageType(Type storageType, IServiceContainer container) => false;
+
+    /// <summary>
     ///     Use for Saga creation support as returned value
     /// </summary>
     /// <param name="entityType"></param>
