@@ -15,6 +15,7 @@ using Weasel.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals.Migrations;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
+using Weasel.EntityFrameworkCore.Batching;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -163,6 +164,11 @@ public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbCon
     {
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
+        // GH-4624 / weasel#621: this builder constructs its own DbContextOptionsBuilder, so it never
+        // passes through the registration in AddDbContextWithWolverineIntegration. Without the
+        // interceptor here, batched query plans still return correct results but each takes its own
+        // round trip -- the batching is silently lost on every tenanted DbContext.
+        builder.UseWeaselBatchedQueries();
         builder.ReplaceService<IModelCustomizer, ConjoinedTenancyModelCustomizer>();
         // Cache models per (context type, wolverine schema) -- GH-3497
         builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();

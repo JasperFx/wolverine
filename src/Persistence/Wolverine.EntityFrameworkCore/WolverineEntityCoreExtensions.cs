@@ -302,8 +302,8 @@ public static class WolverineEntityCoreExtensions
             b.UseWeaselBatchedQueries();
 
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        // Cache models per (context type, wolverine schema) -- GH-3497
-        b.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
+            // Cache models per (context type, wolverine schema) -- GH-3497
+            b.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         // TryAddEnumerable, NOT TryAddSingleton: TryAddSingleton gates on the service type alone,

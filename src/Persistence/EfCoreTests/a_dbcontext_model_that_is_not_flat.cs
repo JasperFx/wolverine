@@ -208,20 +208,21 @@ public class a_dbcontext_model_that_is_not_flat : IAsyncLifetime
 
     /// <summary>
     ///     weasel#628, against the EF-created schema. The contract #4635 asks for is "no
-    ///     <c>DROP COLUMN</c> is rendered": Weasel's translation of the EF model should recognise every
-    ///     column EF itself created, so the delta has nothing to remove. It does not.
+    ///     <c>DROP COLUMN</c> is rendered": Weasel's translation of the EF model recognises every column
+    ///     EF itself created, so the delta has nothing to remove.
     /// </summary>
     /// <remarks>
-    ///     <b>This pins the defect, it does not accept it.</b> Weasel's EF Core mapper does not see a
-    ///     table-split <c>ComplexProperty</c>'s columns at all, so it reports the two columns EF created
-    ///     for <c>Facility.Footprint</c> as <em>extras</em> — columns in the database with nothing in the
-    ///     model to justify them — and a <c>CreateOrUpdate</c> apply issues <c>DROP COLUMN</c> for both. An
-    ///     application on EF migrations plus Wolverine's resource setup therefore loses those columns, and
-    ///     their data, on its next boot. Owned types (<c>OwnsOne</c>) are mapped correctly, which is why
-    ///     the <c>address_*</c> columns are not in the list.
+    ///     Fixed upstream in Weasel 9.35.1, and this test was flipped when Wolverine took that version
+    ///     (GH-4624). Before it, Weasel's EF Core mapper could not see a table-split
+    ///     <c>ComplexProperty</c>'s columns at all, so it reported the two columns EF created for
+    ///     <c>Facility.Footprint</c> as <em>extras</em> -- columns in the database with nothing in the
+    ///     model to justify them -- and a <c>CreateOrUpdate</c> apply issued <c>DROP COLUMN</c> for both.
+    ///     An application on EF migrations plus Wolverine's resource setup lost those columns, and their
+    ///     data, on its next boot. Owned types (<c>OwnsOne</c>) were always mapped correctly, which is why
+    ///     the <c>address_*</c> columns were never at risk and are still asserted here as a control.
     /// </remarks>
     [Fact]
-    public async Task weasel_would_drop_the_table_split_complex_type_columns()
+    public async Task no_drop_column_is_rendered_against_an_ef_created_schema()
     {
         using var scope = _host.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<FacilityDbContext>();
@@ -237,13 +238,11 @@ public class a_dbcontext_model_that_is_not_flat : IAsyncLifetime
         facilities.WriteUpdate(new SqlServerMigrator(), writer);
         var sql = writer.ToString();
 
-        // What this SHOULD be -- and what this assertion becomes once weasel#628 is fixed:
-        //     sql.ShouldNotContain("DROP COLUMN");
-        sql.ShouldContain("DROP COLUMN");
-        sql.ShouldContain("footprint_width");
-        sql.ShouldContain("footprint_depth");
+        // The whole point: the table-split complex type's columns are part of the model Weasel sees,
+        // so there is nothing for the delta to remove.
+        sql.ShouldNotContain("DROP COLUMN");
 
-        // ...while the owned type's columns are mapped correctly and are left alone
+        // ...and the owned type's columns, which were never mis-mapped, are still left alone
         sql.ShouldNotContain("address_city");
     }
 }
@@ -347,29 +346,29 @@ public class a_non_flat_model_under_wolverine_managed_migrations
     }
 
     /// <summary>
-    ///     weasel#628 from the create side. The two columns of the table-split <c>ComplexProperty</c> are
-    ///     simply absent.
+    ///     weasel#628 from the create side, fixed in Weasel 9.35.1 (GH-4624). The two columns of the
+    ///     table-split <c>ComplexProperty</c> are created along with everything else; before 9.35.1 they
+    ///     were simply absent.
     /// </summary>
     [Fact]
-    public async Task the_table_split_complex_type_columns_are_never_created()
+    public async Task the_table_split_complex_type_columns_are_created()
     {
         await FacilitySchema.DropAsync();
         using var host = await startAsync();
 
         var columns = await columnsOfFacilities();
 
-        // What these SHOULD be -- and what they become once weasel#628 is fixed:
-        //     ShouldContain, both of them
-        columns.ShouldNotContain("footprint_width");
-        columns.ShouldNotContain("footprint_depth");
+        columns.ShouldContain("footprint_width");
+        columns.ShouldContain("footprint_depth");
     }
 
     /// <summary>
-    ///     ...and the consequence, which is the part worth being loud about: the application starts
-    ///     cleanly, reports a healthy schema, and then fails on the first read of the entity.
+    ///     ...and the consequence that made it worth being loud about: before the fix the application
+    ///     started cleanly, reported a healthy schema, and then failed on the first read of the entity.
+    ///     It now reads.
     /// </summary>
     [Fact]
-    public async Task and_so_the_very_first_query_over_the_entity_fails()
+    public async Task and_so_a_query_over_the_entity_succeeds()
     {
         await FacilitySchema.DropAsync();
         using var host = await startAsync();
@@ -377,10 +376,8 @@ public class a_non_flat_model_under_wolverine_managed_migrations
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FacilityDbContext>();
 
-        var ex = await Should.ThrowAsync<SqlException>(async () =>
+        await Should.NotThrowAsync(async () =>
             await db.Facilities.ToListAsync(TestContext.Current.CancellationToken));
-
-        ex.Message.ShouldContain("footprint");
     }
 #endif
 }
