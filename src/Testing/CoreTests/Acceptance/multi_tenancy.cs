@@ -56,6 +56,32 @@ public class multi_tenancy : IAsyncLifetime
         tracked.Executed.SingleEnvelope<TenantedMessage3>().TenantId.ShouldBe("foo");
     }
 
+    /// <summary>
+    ///     GH-4640. <c>InvokeForTenantAsync</c> puts the raw string on <c>DeliveryOptions</c> and the
+    ///     executor copies it straight onto the envelope, so <c>Envelope.TenantId</c> kept the caller's
+    ///     casing while <c>MessageContext.TenantId</c> was normalised. Polecat and Fisher build their
+    ///     session from the envelope, so they wrote the un-normalised <c>tenant_id</c> -- merely wrong on
+    ///     SQL Server's case-insensitive collation, and unreachable on SQLite's BINARY one.
+    ///     <c>MessageContext.ReadEnvelope</c> now writes the normalised value back, and every execution
+    ///     path goes through it.
+    /// </summary>
+    [Fact]
+    public async Task invoke_for_tenant_normalises_the_envelope_tenant_id()
+    {
+        var id = Guid.NewGuid();
+
+        var tracked = await _host.ExecuteAndWaitAsync(async c =>
+        {
+            await c.InvokeForTenantAsync("MiXeD", new TenantedMessage1(id));
+        });
+
+        // The first envelope is the one that carried the caller's spelling; the cascades take their
+        // tenant from the context and were always normalised.
+        tracked.Executed.SingleEnvelope<TenantedMessage1>().TenantId.ShouldBe("mixed");
+        tracked.Executed.SingleEnvelope<TenantedMessage2>().TenantId.ShouldBe("mixed");
+        tracked.Executed.SingleEnvelope<TenantedMessage3>().TenantId.ShouldBe("mixed");
+    }
+
     [Fact]
     public async Task invoke_with_tenant_with_expected_result()
     {

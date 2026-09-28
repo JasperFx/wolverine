@@ -928,6 +928,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
         TenantId = originalEnvelope.TenantId;
+
+        // GH-4640. The setter above runs the value through Durability.TenantIdStyle, so the context is
+        // normalised and the envelope was not -- and Polecat and Fisher build their session from
+        // `Envelope?.TenantId ?? context.TenantId`, so under ForceLowerCase they wrote the raw casing.
+        // On SQL Server's case-insensitive collation that is merely a wrong value in the column; on
+        // SQLite's BINARY collation the row is unreachable under the normalised id.
+        //
+        // Writing the normalised value back here rather than at each assignment site is deliberate:
+        // every execution path -- inbound transports, durable and buffered local queues, sharded
+        // execution, and inline InvokeAsync/InvokeForTenantAsync via Executor.InvokeInlineAsync --
+        // funnels through ReadEnvelope, so one place covers all of them and every reader of
+        // Envelope.TenantId agrees with the context. Guarded so a null tenant can never become
+        // non-null, and a no-op under the default TenantIdStyle.CaseSensitive.
+        if (originalEnvelope.TenantId.IsNotEmpty())
+        {
+            originalEnvelope.TenantId = TenantId;
+        }
+
         UserName = originalEnvelope.UserName;
 
         Transaction = this;
