@@ -2,6 +2,7 @@ using System.Net;
 using JasperFx.Core;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.CosmosDb.Internals;
 
@@ -75,7 +76,8 @@ public partial class CosmosDbMessageStore : IScheduledMessages
                 MessageType = m.MessageType,
                 ScheduledTime = m.ExecutionTime,
                 Destination = m.ReceivedAt,
-                Attempts = m.Attempts
+                Attempts = m.Attempts,
+                TenantId = EnvelopeSerializer.TryReadTenantId(m.Body)
             }).ToList()
         };
     }

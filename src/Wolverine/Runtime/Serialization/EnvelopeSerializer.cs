@@ -271,6 +271,25 @@ public static class EnvelopeSerializer
         return readSingle(br);
     }
 
+    /// <summary>
+    /// The tenant id carried by a stored envelope body, or null when the body is empty or cannot be read.
+    /// Used by the scheduled-message listings, where the tenant lives only in the serialized envelope, so
+    /// one unreadable row costs that row its tenant rather than failing the whole page.
+    /// </summary>
+    public static string? TryReadTenantId(byte[]? body)
+    {
+        if (body == null || body.Length == 0) return null;
+
+        try
+        {
+            return Deserialize(body).TenantId;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     public static void ReadEnvelopeData(Envelope envelope, byte[] buffer)
     {
         using var ms = new MemoryStream(buffer);
