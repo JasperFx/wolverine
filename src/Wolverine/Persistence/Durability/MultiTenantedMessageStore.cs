@@ -271,6 +271,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
     }
 
+    async Task IMessageInbox.DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        await database.Inbox.DeleteIncomingEnvelopeAsync(envelope);
+    }
+
     // GH-4435. Group by the RESOLVED store, and stop swallowing a tenant that cannot be resolved. A
     // skipped group left its rows Incoming, owned by a node that had already handled them, so the
     // recovery sweep re-offered the messages and they were handled twice -- duplicate work reported to

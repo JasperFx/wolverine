@@ -65,6 +65,21 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
+    public async Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    {
+        if (HasDisposed) return;
+
+        // Same identity clause the dead letter move uses to retire the row it is replacing.
+        var builder = ToCommandBuilder();
+        builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
+        builder.AppendParameter(envelope.Id);
+        builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+        builder.AppendParameter(envelope.Destination!.ToString());
+        builder.Append(';');
+
+        await executeCommandBatch(builder, _cancellation);
+    }
+
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         if (HasDisposed) return;
