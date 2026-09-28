@@ -4,6 +4,27 @@
 
 ### WolverineFx (core)
 
+- **`AutoApplyTransactions()` fails the chain build when two persistence providers can own it, instead
+  of silently applying neither. (BREAKING)** (closes
+  [#4631](https://github.com/JasperFx/wolverine/issues/4631)) A handler taking both a `DbContext` and a
+  Marten/Polecat/Fisher `IDocumentSession` matched two providers, and `AutoApplyTransactions` applied
+  **neither** -- no transaction support, no warning, no log line. Whatever the un-owned store buffered
+  was discarded when the scope closed. `[Transactional]` on the same handler was no better: it took the
+  first ordered provider, EF Core since #3359, so the document session was never saved. Both outcomes
+  were silent, and the handler reported success.
+
+  Wolverine now honours an explicit designation -- `[Transactional(typeof(X))]` or
+  `[Storage(typeof(X))]` -- and fails the chain build naming both candidates when there is none. A new
+  optional `IPersistenceFrameProvider.OwnsStorageType` says which types a provider answers for, so a
+  designation resolves to the right one; it defaults to `false`, and EF Core, Marten, Polecat, Fisher,
+  RavenDb, CosmosDb and `LightweightSagaPersistenceFrameProvider` implement it. Saga chains are exempt,
+  because `SagaChain.DetermineFrames` already resolves from the saga's own state storage.
+
+  **This stops an application that starts today.** One that writes through two stores from a single
+  handler has been losing one of those writes all along; after this it refuses to build until the
+  handler says which store owns the transaction. Add the designation, or `[NonTransactional]` to opt
+  out. Two-provider atomicity remains unsupported -- the designated store commits, the other does not.
+
 - **The execution pipeline sheds four per-message costs.** (closes
   [#4322](https://github.com/JasperFx/wolverine/issues/4322)) `Executor.ExecuteAsync` (and its
   tracing twin) allocated a timeout `CancellationTokenSource` — timer registration included — plus a
