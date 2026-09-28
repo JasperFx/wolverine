@@ -199,10 +199,43 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
         if (failures.Count == 0 && groups.Count == 1)
         {
-            // One database owns the whole batch. Await it directly and let everything it throws --
-            // DuplicateIncomingEnvelopeException included -- reach the caller untouched.
-            var single = groups.First();
-            await single.Key.Inbox.StoreIncomingAsync(single.Value);
+            // One database owns the whole batch, so skip the per-group bookkeeping below and await it
+            // directly.
+            var (store, batch) = groups.First();
+
+            // The main store's failures propagate untouched: the receiver pauses for inbox recovery on
+            // those, which is the behavior this path has always had.
+            if (ReferenceEquals(store, Main))
+            {
+                await store.Inbox.StoreIncomingAsync(batch);
+                return;
+            }
+
+            try
+            {
+                await store.Inbox.StoreIncomingAsync(batch);
+            }
+            catch (DuplicateIncomingEnvelopeException)
+            {
+                // GH-4435. Never wrap this -- DurableReceiver's deduplication path keys off the exact type.
+                throw;
+            }
+            catch (Exception e)
+            {
+                // GH-4658. This used to escape RAW, and a raw exception misses the IncludesMainStore check
+                // in DurableReceiver: one tenant's database being down paused the listener for every other
+                // tenant, which is the exact thing the rest of GH-4435 exists to prevent.
+                //
+                // With a broker in front this is the COMMON case rather than an edge. A stranded tenant's
+                // message usually arrives on its own, and so does every redelivery of a deferred one, so
+                // the whole batch resolves to that one tenant's store. Which meant whether a tenant outage
+                // paused the listener came down to nothing but batch composition.
+                //
+                // Nothing committed, so nothing is stamped WasPersistedInInbox -- the receiver's
+                // per-envelope fallback has to re-attempt every one of these.
+                throw new TenantedInboxWriteException(batch, false, [e]);
+            }
+
             return;
         }
 

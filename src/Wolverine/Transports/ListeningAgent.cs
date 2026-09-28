@@ -795,6 +795,16 @@ internal class InboxHealthRestarter : IDisposable
         var delay = TimeSpan.FromSeconds(2);
         var maxDelay = TimeSpan.FromSeconds(30);
 
+        // GH-4658. Probe the MAIN store only. Since GH-4435 a listener pauses for inbox recovery only when
+        // the failure reached the main store -- a tenant database refusing a write defers those envelopes
+        // and leaves the listener running -- so the main store is the only thing whose health this probe is
+        // deciding. MultiTenantedMessageStore.ReleaseIncomingAsync fans out over Main AND every active
+        // tenant database and throws if ANY of them refuses, so probing the composite store held a listener
+        // paused for the whole of an unrelated tenant's outage, long after the main store had come back.
+        var inbox = (runtime.Storage is MultiTenantedMessageStore multiTenanted
+            ? multiTenanted.Main
+            : runtime.Storage).Inbox;
+
         while (!ct.IsCancellationRequested)
         {
             try { await Task.Delay(delay, ct); }
@@ -803,7 +813,7 @@ internal class InboxHealthRestarter : IDisposable
             try
             {
                 // Lightweight probe — releases 0 rows but exercises DB connection
-                await runtime.Storage.Inbox.ReleaseIncomingAsync(0, new Uri("wolverine://inbox-health-probe"));
+                await inbox.ReleaseIncomingAsync(0, new Uri("wolverine://inbox-health-probe"));
 
                 logger.LogInformation("Inbox available again for {Uri}. Restarting listener.", parent.Endpoint.Uri);
                 await parent.StartAsync();
