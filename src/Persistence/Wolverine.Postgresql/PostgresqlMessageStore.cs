@@ -281,7 +281,7 @@ select {owner} from owners where {owner} is not null";
         table.AddColumn(definition.JsonBodyColumnName, "jsonb").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
         {
-            table.AddColumn<DateTimeOffset>(definition.TimestampColumnName).DefaultValueByExpression("((now() at time zone 'utc'))");
+            table.AddColumn<DateTimeOffset>(definition.TimestampColumnName).DefaultValueByExpression("now()");
         }
 
         if (definition.MessageTypeColumnName.IsNotEmpty())
@@ -299,6 +299,65 @@ select {owner} from owners where {owner} is not null";
         await conn.OpenAsync();
         await table.MigrateAsync(conn);
         await conn.CloseAsync();
+    }
+
+    /// <summary>
+    /// GH-4663. The envelope tables' <c>timestamp</c> column was declared with the default
+    /// <c>(now() at time zone 'utc')</c>. That expression yields a <c>timestamp</c> WITHOUT a time zone
+    /// holding the UTC wall clock, which PostgreSQL then coerces into the <c>timestamptz</c> column using
+    /// the *inserting session's* zone -- so on a server whose <c>timezone</c> is not UTC every row was
+    /// stored offset by that many hours. <c>BumpStaleIncomingEnvelopesOperation</c> compares against a true
+    /// UTC cutoff, so a server ahead of UTC handed back envelopes that were still running, and one behind
+    /// UTC never handed back a stranded envelope at all.
+    ///
+    /// <para>
+    /// The declaration is fixed, but a corrected DEFAULT is invisible to Weasel's delta, so this repairs
+    /// tables that are already out there. Only the two envelope tables are repaired: they are the ones the
+    /// stale-time sweeps read. The transport queue tables carry the same column, but their cutoffs compare
+    /// <c>execution_time</c> and <c>keep_until</c>, both written from .NET parameters rather than a default.
+    /// </para>
+    /// </summary>
+    protected override async Task repairLegacyColumnDefaultsAsync(DbConnection conn)
+    {
+        if (Durability.InboxStaleTime.HasValue)
+        {
+            await repairTimestampDefaultAsync(conn, DatabaseConstants.IncomingTable);
+        }
+
+        if (Durability.OutboxStaleTime.HasValue)
+        {
+            await repairTimestampDefaultAsync(conn, DatabaseConstants.OutgoingTable);
+        }
+    }
+
+    private async Task repairTimestampDefaultAsync(DbConnection conn, string tableName)
+    {
+        // Reads the catalog first and only ALTERs a default that is actually the old one, so a healthy
+        // database does not take an ACCESS EXCLUSIVE lock on its inbox table on every single startup.
+        //
+        // Match both spellings PostgreSQL hands this expression back as: 17 renders it
+        // `(now() AT TIME ZONE 'utc'::text)`, and the `timezone('utc'::text, now())` form also occurs.
+        // That version-dependent rendering is exactly why a textual default comparison cannot be the
+        // migration mechanism here, which is what Weasel's DetectColumnDrift warning is about.
+        await conn.CreateCommand(
+                $"""
+                 do $$
+                 declare
+                     existing text;
+                 begin
+                     select pg_get_expr(d.adbin, d.adrelid) into existing
+                     from pg_attrdef d
+                     join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+                     where d.adrelid = to_regclass('{SchemaName}.{tableName}')
+                       and a.attname = '{DatabaseConstants.Timestamp}';
+
+                     if existing is not null
+                        and (lower(existing) like '%at time zone%' or lower(existing) like '%timezone(%') then
+                         execute 'alter table {SchemaName}.{tableName} alter column "{DatabaseConstants.Timestamp}" set default now()';
+                     end if;
+                 end $$;
+                 """)
+            .ExecuteNonQueryAsync(_cancellation);
     }
 
     protected override Task deleteManyAsync(DbTransaction tx, Guid[] ids, DbObjectName tableName,

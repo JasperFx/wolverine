@@ -33,7 +33,7 @@ internal class IncomingEnvelopeTable : Table
         
         if (durability.InboxStaleTime.HasValue)
         {
-            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("(now() at time zone 'utc')");
+            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("now()");
         }
 
         if (durability.EnableInboxPartitioning)

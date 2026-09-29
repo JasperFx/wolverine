@@ -14,7 +14,7 @@ internal class QueueTable : Table
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("((now() at time zone 'utc'))");
+        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()");
 
         // The dequeue path orders by timestamp (TOP/LIMIT n ... ORDER BY timestamp) on every poll.
         // Without this index the ordered LIMIT has to scan + sort the whole queue table; a btree on

@@ -22,7 +22,7 @@ internal class OutgoingEnvelopeTable : Table
 
         if (durability.OutboxStaleTime.HasValue)
         {
-            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("(now() at time zone 'utc')");
+            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("now()");
         }
 
         // GH-3971: the orphaned-message sweep asks `owner_id in (<dead owners>)`, worked out in memory
