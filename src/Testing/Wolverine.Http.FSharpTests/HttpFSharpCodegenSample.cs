@@ -57,6 +57,10 @@ public static class HttpFSharpCodegenSample
         // individual query-string variables and passed to the record constructor.
         var filterChain  = HttpChain.ChainFor<ThingEndpoints>(x => x.Filter(null!), httpGraph);
 
+        // ReadMultipartBody.GenerateFSharpCode — a MultipartReader parameter streams the request
+        // body instead of buffering the form. GH-4680.
+        var uploadChain  = HttpChain.ChainFor<ThingEndpoints>(x => ThingEndpoints.Upload(null!), httpGraph);
+
         // MaybeEndWithResultFrame.GenerateFSharpCode — a static auth-check call whose IResult
         // return is wrapped in MaybeEndWithResultFrame to short-circuit when the check fails.
         var authedChain  = HttpChain.ChainFor<AuthedEndpoints>(x => x.Get(), httpGraph);
@@ -68,7 +72,7 @@ public static class HttpFSharpCodegenSample
         var chains = new[]
         {
             helloChain, createChain, getByIdChain, searchChain, getItemsChain,
-            pagedChain, resultChain, deleteChain, publishChain, filterChain, authedChain
+            pagedChain, resultChain, deleteChain, publishChain, filterChain, uploadChain, authedChain
         };
 
         // TagHttpHandlerFrame.GenerateFSharpCode — applied to all chains via TagHttpHandlerPolicy.

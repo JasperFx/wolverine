@@ -27,6 +27,20 @@ public class HttpFSharpFrameTests
     }
 
     [Fact]
+    public void multipart_reader_qualifies_its_static_helper_by_type()
+    {
+        // GH-4680. ReadMultipartAsync is STATIC, so — unlike the instance ReadJsonAsync, which the F#
+        // emitter qualifies with the member's `this` self identifier (jasperfx#393) — it has to be
+        // qualified by type. The C# emit can call it bare only because the generated handler derives
+        // from HttpHandler; F# resolves no such thing, and a bare call is an FS0039.
+        Code.ShouldContain("Wolverine.Http.HttpHandler.ReadMultipartAsync(httpContext)");
+        Code.ShouldNotContain("this.ReadMultipartAsync");
+
+        // Same struct-tuple rule as ReadJsonAsync: ValueTask<(MultipartReader?, HandlerContinuation)>.
+        Code.ShouldContain("let! struct (reader, multipartContinue)");
+    }
+
+    [Fact]
     public void write_endpoint_types_uses_runtime_type_resolution()
     {
         // typeof<> in F# cannot resolve F# module types (only class/record/DU types).
