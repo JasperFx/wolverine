@@ -12,7 +12,9 @@ open Wolverine.CosmosDb
 open Wolverine.FluentValidation
 open WolverineCosmosFSharpSample
 
-// The well-known Azure Cosmos DB emulator endpoint + key (the emulator is in docker-compose).
+// The well-known Azure Cosmos DB emulator endpoint + key. The emulator is NOT one of the repo's
+// docker-compose services -- CosmosDbTests starts its own through Testcontainers -- so see this
+// sample's README for how to run one.
 [<Literal>]
 let connectionString =
     "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="

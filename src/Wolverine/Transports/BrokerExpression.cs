@@ -45,7 +45,8 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     }
 
     /// <summary>
-    ///     All Rabbit MQ exchanges, queues, and bindings should be declared at runtime by Wolverine.
+    ///     All declared or discovered broker objects (queues, exchanges, bindings, topics, subscriptions)
+    ///     should be created by Wolverine at runtime if they are missing.
     /// </summary>
     /// <returns></returns>
     public TSelf AutoProvision()

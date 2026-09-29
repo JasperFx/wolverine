@@ -35,12 +35,19 @@ naturally.
 ## Running it
 
 CosmosDB needs the Azure Cosmos DB emulator, so the runnable sample is **not** infra-free (the *static*
-F# story in the compile-gate is). Start the repo's docker-compose infrastructure first (the emulator
-takes a minute or two to become ready):
+F# story in the compile-gate is). The emulator is **not** one of the repo's `docker-compose` services —
+`CosmosDbTests` starts its own throwaway container through Testcontainers, which a sample cannot borrow —
+so start one yourself. `Program.fs` connects to the emulator's well-known endpoint and key on
+`localhost:8081`, so the defaults below need no configuration:
 
 ```bash
-docker compose up -d cosmosdb
+docker run -d --name cosmos-emulator -p 8081:8081 -p 10250-10255:10250-10255 \
+  mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+
 dotnet run --project src/Samples/WolverineCosmosFSharpSample --framework net9.0
 ```
+
+The emulator takes a minute or two to become ready, and serves a self-signed certificate — the sample
+already accepts it.
 
 Expected output: `Stored a Thing through the F# Wolverine + CosmosDB handler (with FluentValidation).`

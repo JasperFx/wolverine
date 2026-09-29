@@ -36,8 +36,10 @@ and to start the matching testing services with:
 docker compose up -d
 ```
 
-There's a separate README in the Azure Service Bus tests as those require an actual cloud set up (sorry, but blame
-Microsoft for not having a local Docker based emulator ala Localstack).
+That covers Azure Service Bus too — it runs against the
+[Azure Service Bus emulator](https://wolverinefx.net/guide/messaging/transports/azureservicebus/emulator.html),
+so no cloud subscription is needed. See the [Azure Service Bus tests README](src/Transports/Azure/Wolverine.AzureServiceBus.Tests/README.md)
+for the ports it uses and why there are two emulator instances.
 
 ## Branches
 
