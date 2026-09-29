@@ -1048,7 +1048,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Error trying to persist incoming envelopes at {Uri}", Uri);
+                // GH-4658. Only the failures that actually mean "nothing can be persisted" are an Error
+                // here. A tenant-scoped failure gets its own Warning from the helper below, naming the
+                // same Uri and the envelope count -- and while a tenant's database is down its envelopes
+                // are redelivered continuously, so logging both lines per turn buried the log in Errors
+                // over a condition the listener is deliberately riding out.
+                if (e is not TenantedInboxWriteException { IncludesMainStore: false })
+                {
+                    _logger.LogError(e, "Error trying to persist incoming envelopes at {Uri}", Uri);
+                }
 
                 // GH-4435. Envelopes whose own store committed are already stamped WasPersistedInInbox by
                 // MultiTenantedMessageStore, so the per-envelope path below acks and enqueues those and
