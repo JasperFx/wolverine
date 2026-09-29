@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RavenDb.Internals;
 
@@ -58,7 +59,8 @@ public partial class RavenDbMessageStore : IScheduledMessages
                 MessageType = m.MessageType,
                 ScheduledTime = m.ExecutionTime,
                 Destination = m.ReceivedAt?.ToString(),
-                Attempts = m.Attempts
+                Attempts = m.Attempts,
+                TenantId = EnvelopeSerializer.TryReadTenantId(m.Body)
             }).ToList()
         };
     }

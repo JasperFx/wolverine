@@ -1,5 +1,6 @@
 using Weasel.Core;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RDBMS;
 
@@ -13,9 +14,10 @@ public abstract partial class MessageDatabase<T>
 
         var topSelect = toTopClause(query);
 
-        // Columns: 0=id, 1=message_type, 2=execution_time, 3=received_at, 4=attempts, 5=total_rows
+        // Columns: 0=id, 1=message_type, 2=execution_time, 3=received_at, 4=attempts, 5=total_rows, 6=body
+        // The body is read only for its tenant id, which the incoming table has no column for.
         builder.Append(
-            $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+            $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows, {DatabaseConstants.Body} from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
         writeScheduledMessageWhereClause(query, builder);
 
@@ -56,6 +58,11 @@ public abstract partial class MessageDatabase<T>
             if (!await reader.IsDBNullAsync(3, token))
             {
                 summary.Destination = await reader.GetFieldValueAsync<string>(3, token);
+            }
+
+            if (!await reader.IsDBNullAsync(6, token))
+            {
+                summary.TenantId = EnvelopeSerializer.TryReadTenantId(await reader.GetFieldValueAsync<byte[]>(6, token));
             }
 
             results.Messages.Add(summary);

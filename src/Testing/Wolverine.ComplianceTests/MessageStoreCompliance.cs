@@ -1050,6 +1050,28 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task query_scheduled_messages_carries_each_envelopes_tenant()
+    {
+        var tenanted = ObjectMother.Envelope();
+        tenanted.Status = EnvelopeStatus.Scheduled;
+        tenanted.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+        tenanted.TenantId = "tenant-a";
+
+        var untenanted = ObjectMother.Envelope();
+        untenanted.Status = EnvelopeStatus.Scheduled;
+        untenanted.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(11);
+        untenanted.TenantId = null;
+
+        await thePersistence.Inbox.StoreIncomingAsync([tenanted, untenanted]);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery(), CancellationToken.None);
+
+        results.Messages.Single(x => x.Id == tenanted.Id).TenantId.ShouldBe("tenant-a");
+        results.Messages.Single(x => x.Id == untenanted.Id).TenantId.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task cancel_scheduled_message_by_id()
     {
         var list = new List<Envelope>();

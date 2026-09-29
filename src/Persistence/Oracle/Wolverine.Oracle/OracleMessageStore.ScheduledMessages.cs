@@ -1,5 +1,6 @@
 using Wolverine.Oracle.Util;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
+using Wolverine.Runtime.Serialization;
 using Wolverine.RDBMS;
 
 namespace Wolverine.Oracle;
@@ -13,7 +14,7 @@ internal partial class OracleMessageStore
         var builder = ToOracleCommandBuilder();
 
         builder.Append(
-            $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, COUNT(*) OVER() as total_rows FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+            $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, COUNT(*) OVER() as total_rows, {DatabaseConstants.Body} FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
         writeScheduledMessageWhereClause(query, builder);
 
@@ -54,6 +55,12 @@ internal partial class OracleMessageStore
             if (!await reader.IsDBNullAsync(3, token))
             {
                 summary.Destination = await reader.GetFieldValueAsync<string>(3, token);
+            }
+
+            // The body is read only for its tenant id, which the incoming table has no column for.
+            if (!await reader.IsDBNullAsync(6, token))
+            {
+                summary.TenantId = EnvelopeSerializer.TryReadTenantId(await reader.GetFieldValueAsync<byte[]>(6, token));
             }
 
             results.Messages.Add(summary);
