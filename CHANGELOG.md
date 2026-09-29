@@ -387,6 +387,14 @@
 
 ### WolverineFx.Http
 
+- **Stream large multipart uploads with a `MultipartReader` parameter.** `IFormFile`, `IFormCollection`
+  and `[FromForm]` go through `Request.Form`, which buffers the whole body before the endpoint runs. An
+  endpoint that takes a `MultipartReader` now gets one over the unbuffered body and reads each section as
+  it arrives, with the limits `Request.Form` would apply (`FormOptions`, overridden by
+  `[RequestFormLimits]`). A non-multipart request gets a 415 and a missing boundary a 400. Combining the
+  reader with another body binding fails at startup. See
+  [Streaming Large Uploads](https://wolverinefx.net/guide/http/files.html#streaming-large-uploads).
+
 - **A postprocessor `[FromQuery]`/`[FromHeader]` parameter binds from the wire instead of whatever
   same-typed variable was lying around.** (closes
   [#4314](https://github.com/JasperFx/wolverine/issues/4314)) Postprocessors (`After`/`AfterAsync`/

@@ -16,6 +16,7 @@ public partial class HttpGraph
         new FromQueryAttributeUsage(),
         new AsParamatersAttributeUsage(),
         new FromFileStrategy(),
+        new MultipartReaderStrategy(),
         new HttpChainParameterAttributeStrategy(),
         new FromServicesParameterStrategy(),
         new MessageBusStrategy(),
