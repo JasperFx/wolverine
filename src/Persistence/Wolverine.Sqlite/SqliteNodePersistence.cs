@@ -23,6 +23,9 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
     private readonly DatabaseSettings _settings;
     private readonly DbObjectName _restrictionTable;
     private readonly DurabilitySettings _durability;
+    private readonly DbObjectName _incomingTable;
+    private readonly DbObjectName _outgoingTable;
+    private readonly DbObjectName _nodeRecordTable;
 
     public SqliteNodePersistence(DatabaseSettings settings, SqliteMessageStore database,
         DbDataSource dataSource)
@@ -39,6 +42,15 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         _restrictionTable =
             new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.AgentRestrictionsTableName));
         _assignmentTable = new SqliteObjectName(TablePrefixing.Apply(schemaName, NodeAssignmentsTableName));
+
+        // GH-4668: these three were left as the bare DatabaseConstants names when GH-3943 routed
+        // everything else through the prefix, so on a prefixed store they named tables that do not
+        // exist -- DeleteAsync failed before it could release the departing node's envelopes, and the
+        // node record table could be written but never read or trimmed.
+        _incomingTable = new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.IncomingTable));
+        _outgoingTable = new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.OutgoingTable));
+        _nodeRecordTable =
+            new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.NodeRecordTableName));
 
         _lockId = schemaName.GetDeterministicHashCode();
     }
@@ -109,7 +121,7 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         // GH-3986: same missing cascade as ClearAllAsync -- delete this node's assignments by hand.
         await conn.CreateCommand(
-                $"delete from {_assignmentTable} where {NodeId} = @id;delete from {_nodeTable} where id = @id;update {IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
+                $"delete from {_assignmentTable} where {NodeId} = @id;delete from {_nodeTable} where id = @id;update {_incomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {_outgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
             .With("id", nodeId.ToString())
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();
@@ -428,7 +440,7 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         var records = new List<NodeRecord>();
 
         await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
-        await using var cmd = conn.CreateCommand($"select node_number, event_name, timestamp, description from {NodeRecordTableName} order by id desc LIMIT @limit")
+        await using var cmd = conn.CreateCommand($"select node_number, event_name, timestamp, description from {_nodeRecordTable} order by id desc LIMIT @limit")
             .With("limit", count);
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -454,7 +466,7 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
         await using var cmd = conn.CreateCommand(
-                $"delete from {NodeRecordTableName} where id not in (select id from {NodeRecordTableName} order by id desc limit @retain)")
+                $"delete from {_nodeRecordTable} where id not in (select id from {_nodeRecordTable} order by id desc limit @retain)")
             .With("retain", retainCount);
 
         await cmd.ExecuteNonQueryAsync();
