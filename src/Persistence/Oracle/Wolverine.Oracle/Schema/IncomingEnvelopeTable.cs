@@ -32,7 +32,7 @@ internal class IncomingEnvelopeTable : Table
         if (durability.InboxStaleTime.HasValue)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
         }
 
         // GH-3971: the orphaned-message sweep asks `owner_id in (<dead owners>)`, worked out in memory

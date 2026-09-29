@@ -146,7 +146,7 @@ internal partial class OracleMessageStore
         if (definition.TimestampColumnName.IsNotEmpty())
         {
             table.AddColumn<DateTimeOffset>(definition.TimestampColumnName)
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
         }
 
         if (definition.MessageTypeColumnName.IsNotEmpty())

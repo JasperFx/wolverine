@@ -277,9 +277,9 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             nodeTable.AddColumn("description", "VARCHAR2(4000)").NotNull();
             nodeTable.AddColumn("uri", $"VARCHAR2({AgentUri.MaximumLength})").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started")
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull()
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
             nodeTable.AddColumn("version", "VARCHAR2(4000)");
             nodeTable.AddColumn("capabilities", "VARCHAR2(4000)").AllowNulls();
 
@@ -299,7 +299,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             assignmentTable.AddColumn<Guid>("node_id")
                 .ForeignKeyTo(nodeTable.Identifier, "id", onDelete: CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started")
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
 
             yield return assignmentTable;
 
@@ -311,7 +311,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
                 queueTable.AddColumn<Guid>("node_id").NotNull();
                 queueTable.AddColumn(DatabaseConstants.Body, "BLOB").NotNull();
                 queueTable.AddColumn<DateTimeOffset>("posted").NotNull()
-                    .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
+                    .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
                 queueTable.AddColumn<DateTimeOffset>("expires");
 
                 yield return queueTable;
@@ -331,7 +331,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn("event_name", "VARCHAR2(500)").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp")
-                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
             // GH-4246: widened for the same reason as the SQL Server and MySQL stores. Deliberately plain
             // VARCHAR2 rather than the CHAR length semantics -- Oracle reports data_length in bytes, so a
             // "1000 CHAR" declaration would read back as 4000 and report drift on every schema check.
