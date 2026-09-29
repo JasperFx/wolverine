@@ -4,10 +4,14 @@ using System.Text.Json;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Headers;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Persistence;
@@ -105,6 +109,51 @@ public abstract class HttpHandler
     public static IFormFileCollection? ReadManyFormFileValues(HttpContext context)
     {
         return context.Request.Form.Files;
+    }
+
+    /// <summary>
+    ///     Opens a <see cref="MultipartReader" /> over the unbuffered request body, with the same limits
+    ///     <c>Request.Form</c> would apply: <see cref="FormOptions" />, overridden by the endpoint's
+    ///     <see cref="IFormOptionsMetadata" /> (<c>[RequestFormLimits]</c>).
+    /// </summary>
+    public static async ValueTask<(MultipartReader?, HandlerContinuation)> ReadMultipartAsync(HttpContext context)
+    {
+        if (!MediaTypeHeaderValue.TryParse(context.Request.ContentType, out var mediaType) ||
+            !mediaType.MediaType.StartsWith("multipart/", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
+            return (null, HandlerContinuation.Stop);
+        }
+
+        var options = context.RequestServices.GetService<IOptions<FormOptions>>()?.Value ?? new FormOptions();
+        var limits = context.GetEndpoint()?.Metadata.GetMetadata<IFormOptionsMetadata>();
+        var boundaryLengthLimit = limits?.MultipartBoundaryLengthLimit ?? options.MultipartBoundaryLengthLimit;
+
+        var boundary = HeaderUtilities.RemoveQuotes(mediaType.Boundary).Value;
+        if (string.IsNullOrWhiteSpace(boundary) || boundary.Length > boundaryLengthLimit)
+        {
+            await Results.Problem(new()
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Invalid multipart boundary",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = string.IsNullOrWhiteSpace(boundary)
+                    ? "The multipart Content-Type header has no boundary."
+                    : $"The multipart boundary is longer than the limit of {boundaryLengthLimit} characters.",
+                Instance = context.Request.Path
+            }).ExecuteAsync(context);
+
+            return (null, HandlerContinuation.Stop);
+        }
+
+        var reader = new MultipartReader(boundary, context.Request.Body)
+        {
+            HeadersCountLimit = limits?.MultipartHeadersCountLimit ?? options.MultipartHeadersCountLimit,
+            HeadersLengthLimit = limits?.MultipartHeadersLengthLimit ?? options.MultipartHeadersLengthLimit,
+            BodyLengthLimit = limits?.MultipartBodyLengthLimit ?? options.MultipartBodyLengthLimit
+        };
+
+        return (reader, HandlerContinuation.Continue);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

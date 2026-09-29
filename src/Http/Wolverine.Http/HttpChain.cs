@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
@@ -806,7 +807,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 $"it is decorated with [AcceptsContentType(\"{declaredAccepts.ContentTypes.Join("\", \"")}\")]");
         }
 
-        if (HasRequestType && ReadsRequestBody)
+        if (StreamsMultipartBody)
+        {
+            assertNothingElseReadsTheMultipartBody();
+            assertCanReceiveARequestBody("it takes a MultipartReader, which streams the request body");
+            Metadata.Accepts(typeof(MultipartReader), false, "multipart/form-data");
+        }
+        else if (HasRequestType && ReadsRequestBody)
         {
             if (IsFormData)
             {
@@ -864,6 +871,21 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             "takes a body (POST/PUT/PATCH), or bind from the query string, route, or headers instead.");
     }
 
+    private void assertNothingElseReadsTheMultipartBody()
+    {
+        var other = FileParameters.Any() ? $"the file parameter '{FileParameters[0].Name}'"
+            : IsFormData ? "a form binding"
+            : HasRequestType && ReadsRequestBody ? $"the request body type {RequestType.FullNameInCode()}"
+            : null;
+
+        if (other == null) return;
+
+        throw new InvalidOperationException(
+            $"HTTP endpoint {Method.HandlerType.FullNameInCode()}.{Method.Method.Name} takes a MultipartReader, " +
+            $"which streams the request body, but also reads the body through {other}. The body can only be read " +
+            "once: read every part from the MultipartReader instead.");
+    }
+
     private void applyAntiforgeryMetadata()
     {
         // Check for explicit opt-out via [DisableAntiforgery] on method or class
@@ -883,7 +905,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
 
         // Auto-enable for form data and file upload endpoints when antiforgery is enabled
-        if (_parent.AutoAntiforgeryOnFormEndpoints && (IsFormData || FileParameters.Any()))
+        if (_parent.AutoAntiforgeryOnFormEndpoints && (IsFormData || FileParameters.Any() || StreamsMultipartBody))
         {
             Metadata.WithMetadata(WolverineAntiforgeryMetadata.Required);
         }
@@ -1242,6 +1264,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 
     public bool IsFormData { get; internal set; }
+
+    /// <summary>
+    ///     True when the endpoint takes a <see cref="MultipartReader" /> and
+    ///     streams the multipart body itself, so nothing else on the chain may read the body.
+    /// </summary>
+    public bool StreamsMultipartBody { get; internal set; }
 
     /// <summary>
     ///     True when this chain actually reads a request body — a JSON body, a form, or uploaded files.
