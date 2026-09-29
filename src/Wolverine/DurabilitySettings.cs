@@ -232,6 +232,19 @@ public class DurabilitySettings : IDescribeMyself
     /// be necessary, but it's an imperfect world. Enable this if you see "stuck" envelopes
     /// </summary>
     public TimeSpan? InboxStaleTime { get; set; }
+
+    /// <summary>
+    /// GH-4659. How long a tenant database's writes are held after it refuses one, before a single probe
+    /// is let through to see whether it is back. Defaults to 2 seconds.
+    /// </summary>
+    /// <remarks>
+    /// While a tenant's database is down, its stranded envelopes are deferred back to the broker and
+    /// redelivered immediately, so every one of them retries as fast as the database can refuse a
+    /// connection. This bounds the cost of that spin to one connection attempt per store per cycle; the
+    /// refusals in between never reach the network. Raising it reduces the load on a database that is
+    /// already struggling, at the cost of taking longer to notice it has recovered.
+    /// </remarks>
+    public TimeSpan TenantWriteBrakeCycle { get; set; } = 2.Seconds();
     
     /// <summary>
     /// For persistence mechanisms that support this (PostgreSQL), this directs Wolverine to use partitioning
