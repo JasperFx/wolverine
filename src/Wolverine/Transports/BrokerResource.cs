@@ -27,7 +27,15 @@ public class BrokerResource : IStatefulResource
 
     public async Task Check(CancellationToken token)
     {
+        // GH-4693. "The check said no" and "the check threw" are different findings, and folding them
+        // together made the summary assert the one thing this code does not know. An operator running
+        // `resources check` as a deploy gate was told "Missing known broker resources: ..." for queues
+        // that existed, while the actual cause -- an NRE out of the delta comparison, a permissions
+        // problem, a connectivity blip -- was only readable as a separate Error line further up the log.
+        // Both still fail the gate; they just have to say which one happened.
         var missing = new List<Uri>();
+        var unverifiable = new List<(Uri Uri, Exception Exception)>();
+
         await _transport.ConnectAsync(_runtime);
 
         foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>().Where(x => x.Role == EndpointRole.Application))
@@ -44,14 +52,35 @@ public class BrokerResource : IStatefulResource
             {
                 _runtime.Logger.LogError(e, "Error while checking the existence of required broker endpoint {Uri}",
                     endpoint.Uri);
-                missing.Add(endpoint.Uri);
+                unverifiable.Add((endpoint.Uri, e));
             }
         }
 
+        if (missing.Count == 0 && unverifiable.Count == 0)
+        {
+            return;
+        }
+
+        var parts = new List<string>();
+
         if (missing.Count != 0)
         {
-            throw new Exception($"Missing known broker resources: {missing.Select(x => x.ToString()).Join(", ")}");
+            parts.Add($"Missing known broker resources: {missing.Select(x => x.ToString()).Join(", ")}");
         }
+
+        if (unverifiable.Count != 0)
+        {
+            // The exception TYPE and message, not just the URI. The whole failure mode this replaces was
+            // a summary that named a cause it had not established, so the summary now carries the cause
+            // it actually has.
+            parts.Add(
+                $"Unable to check broker resources: {unverifiable.Select(x => $"{x.Uri} ({x.Exception.GetType().Name}: {x.Exception.Message})").Join(", ")}");
+        }
+
+        // The first unverifiable exception becomes the inner exception so a stack trace survives to
+        // anything catching this, rather than living only in the log.
+        throw new Exception(parts.Join(Environment.NewLine),
+            unverifiable.Count != 0 ? unverifiable[0].Exception : null);
     }
 
     public async Task ClearState(CancellationToken token)
