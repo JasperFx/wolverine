@@ -1122,30 +1122,7 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
         Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
     private static bool RunFSharpCoverage()
     {
-        var frameTypes = LoadedWolverineFrameTypes()
-            .OrderBy(t => t.FullName, StringComparer.Ordinal)
-            .ToArray();
-
-        var implemented = new List<Type>();
-        var skipped = new List<(Type Type, string? Reason)>();
-        var remaining = new List<Type>();
-
-        foreach (var type in frameTypes)
-        {
-            var marker = type.GetCustomAttribute<FSharpEmitAttribute>();
-            if (marker is { Skip: true })
-            {
-                skipped.Add((type, marker.Reason));
-            }
-            else if (EmitsFSharp(type))
-            {
-                implemented.Add(type);
-            }
-            else
-            {
-                remaining.Add(type);
-            }
-        }
+        var (frameTypes, implemented, skipped, remaining) = TallyFSharpCoverage();
 
         AnsiConsole.MarkupLine("[bold green]F# code-generation coverage[/] [grey](issue GH-2969)[/]");
         AnsiConsole.MarkupLine($"  [green]Implemented:[/]              {implemented.Count}");
@@ -1183,6 +1160,58 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
         }
 
         return true;
+    }
+
+    /// <summary>
+    ///     The three buckets <c>fsharp-coverage</c> reports, separated from the console rendering so a
+    ///     test can gate on them. GH-4681: the command gave an exact answer in seconds and nothing ran
+    ///     it, so the remaining count drifted upward on its own — 97 when the issue was filed, 98 a day
+    ///     later. Carved out the same way <see cref="FindCandidateHandlerTypes" /> was, and for the same
+    ///     reason: the interesting logic was reachable only by printing it.
+    /// </summary>
+    internal record FSharpCoverageTally(
+        Type[] AllFrames,
+        List<Type> Implemented,
+        List<(Type Type, string? Reason)> Skipped,
+        List<Type> Remaining);
+
+    /// <summary>
+    ///     Bucket every loaded <see cref="Frame" /> subclass into implemented / intentionally-skipped /
+    ///     remaining. See <see cref="LoadedWolverineFrameTypes" /> for the scoping caveat: the answer is a
+    ///     function of which <c>Wolverine.*</c> assemblies the calling process has actually loaded.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Dev-time fsharp-coverage diagnostics; reflection over loaded Frame types never runs on an AOT-published hot path.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Dev-time fsharp-coverage diagnostics; reflection over loaded Frame types never runs on an AOT-published hot path.")]
+    internal static FSharpCoverageTally TallyFSharpCoverage(IEnumerable<Assembly>? assemblies = null)
+    {
+        var frameTypes = LoadedWolverineFrameTypes(assemblies)
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        var implemented = new List<Type>();
+        var skipped = new List<(Type Type, string? Reason)>();
+        var remaining = new List<Type>();
+
+        foreach (var type in frameTypes)
+        {
+            var marker = type.GetCustomAttribute<FSharpEmitAttribute>();
+            if (marker is { Skip: true })
+            {
+                skipped.Add((type, marker.Reason));
+            }
+            else if (EmitsFSharp(type))
+            {
+                implemented.Add(type);
+            }
+            else
+            {
+                remaining.Add(type);
+            }
+        }
+
+        return new FSharpCoverageTally(frameTypes, implemented, skipped, remaining);
     }
 
     /// <summary>
@@ -1239,12 +1268,15 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
-    private static IEnumerable<Type> LoadedWolverineFrameTypes()
+    private static IEnumerable<Type> LoadedWolverineFrameTypes(IEnumerable<Assembly>? assemblies = null)
     {
-        return AppDomain.CurrentDomain.GetAssemblies()
+        // GH-4681: an explicit set can be passed in so a caller that needs a REPRODUCIBLE answer does not
+        // depend on what the JIT happens to have loaded when it asks. The scan is the default because the
+        // CLI genuinely wants "whatever this host references"; a gate wants the opposite.
+        return (assemblies ?? AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => (a.GetName().Name ?? string.Empty)
+                    .StartsWith("Wolverine", StringComparison.OrdinalIgnoreCase)))
             .Where(a => !a.IsDynamic)
-            .Where(a => (a.GetName().Name ?? string.Empty)
-                .StartsWith("Wolverine", StringComparison.OrdinalIgnoreCase))
             .Distinct()
             .SelectMany(SafeGetTypes)
             .Where(t => t.IsClass && !t.IsAbstract && typeof(Frame).IsAssignableFrom(t))
