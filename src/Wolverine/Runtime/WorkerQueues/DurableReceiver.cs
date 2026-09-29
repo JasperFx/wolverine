@@ -203,6 +203,27 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }, _logger,
             _settings.Cancellation);
 
+        // GH-4664. This block's default budget was 3 retries over ~400ms, and exhausting it discarded the
+        // completion with one line at Information. The envelope's inbox row then stayed Incoming and owned
+        // by THIS node, which is the one state nothing reclaims: the recovery sweep reads owner_id = 0
+        // only, and the dead-node sweep deliberately never touches a live node's rows (GH-3850). So a
+        // database blip during a handler's last millisecond stranded that message until the node next
+        // restarted -- days, in a long-running service -- and DurabilitySettings.InboxStaleTime, whose own
+        // documentation says it "should NOT ever be necessary", was the only way back.
+        //
+        // Unlike the first write of an envelope (GH-4662), there is nothing to hand back to a caller here
+        // and nothing to lose by waiting: the row is already durable, this node still owns it so no other
+        // node can pick it up twice, and the handler has already run. So keep retrying, backing off to the
+        // same 30s ceiling InboxHealthRestarter uses, until the store comes back or the host shuts down --
+        // at which point DrainAsync releases the ownership anyway. The cost is holding the envelope in
+        // memory for the length of the outage.
+        _markAsHandled.MaximumAttempts = int.MaxValue;
+        _markAsHandled.Pauses =
+        [
+            50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds(), 1.Seconds(), 2.Seconds(), 5.Seconds(),
+            10.Seconds(), 30.Seconds()
+        ];
+
         if (_settings.MarkAsHandledBatchSize > 1)
         {
             _completionCoalescer = new InboxCompletionCoalescer(
