@@ -154,6 +154,28 @@ public class tenant_write_brake_4659
     }
 
     [Fact]
+    public async Task a_single_group_batch_is_braked_too()
+    {
+        // The gap this test exists for: MultiTenantedMessageStore has a fast path for a batch that
+        // resolves to ONE store, and it bypassed the brake entirely. That is not an edge case -- with a
+        // broker in front it is the common one. A stranded tenant's message, and every redelivery of a
+        // deferred one, usually arrives on its own, so the whole batch is that single tenant's store and
+        // lands on the fast path. The brake was missing from exactly the path the spin goes down.
+        theTenantInbox.StoreIncomingAsync(Arg.Any<IReadOnlyList<Envelope>>())
+            .Returns(_ => Task.FromException(new TimeoutException("the tenant database is unreachable")));
+
+        theStore = storeWith(10.Seconds());
+
+        for (var i = 0; i < 50; i++)
+        {
+            await Should.ThrowAsync<TenantedInboxWriteException>(() =>
+                ((IMessageInbox)theStore).StoreIncomingAsync(new List<Envelope> { envelopeFor("red") }));
+        }
+
+        await theTenantInbox.Received(1).StoreIncomingAsync(Arg.Any<IReadOnlyList<Envelope>>());
+    }
+
+    [Fact]
     public async Task the_main_store_is_never_braked()
     {
         // A main-store failure pauses the listener for inbox recovery, which is its own back-off. Holding

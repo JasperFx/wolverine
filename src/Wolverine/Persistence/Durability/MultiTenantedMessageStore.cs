@@ -244,17 +244,33 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
                 return;
             }
 
+            // GH-4659. This path needs the brake more than any other one does. As the comment below says,
+            // a stranded tenant's message -- and every redelivery of a deferred one -- usually arrives on
+            // its own, so the whole batch resolves to that single tenant store and lands right here. A
+            // brake that covered only the per-group loop would have missed the spin it was written for.
+            var singleBrake = brakeFor(store);
+            if (!singleBrake.TryEnter())
+            {
+                throw new TenantedInboxWriteException(batch, false,
+                    [new TenantDatabaseBrakedException(batch[0].TenantId)]);
+            }
+
             try
             {
                 await store.Inbox.StoreIncomingAsync(batch);
+                singleBrake.Release();
             }
             catch (DuplicateIncomingEnvelopeException)
             {
                 // GH-4435. Never wrap this -- DurableReceiver's deduplication path keys off the exact type.
+                // A duplicate still proves the database answered, so it releases the brake.
+                singleBrake.Release();
                 throw;
             }
             catch (Exception e)
             {
+                singleBrake.Trip();
+
                 // GH-4658. This used to escape RAW, and a raw exception misses the IncludesMainStore check
                 // in DurableReceiver: one tenant's database being down paused the listener for every other
                 // tenant, which is the exact thing the rest of GH-4435 exists to prevent.
