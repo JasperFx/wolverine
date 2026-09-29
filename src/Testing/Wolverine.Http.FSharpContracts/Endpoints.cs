@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Wolverine;
 
 namespace Wolverine.Http.FSharpContracts;
@@ -85,6 +86,14 @@ public class ThingEndpoints
     public ThingCreated Filter([FromQuery] ThingFilter filter)
     {
         return new ThingCreated(filter.Name ?? "");
+    }
+
+    // A MultipartReader parameter: exercises ReadMultipartBody. See GH-4680.
+    [WolverinePost("/fsharp/upload")]
+    public static async Task<ThingCreated> Upload(MultipartReader reader)
+    {
+        var section = await reader.ReadNextSectionAsync();
+        return new ThingCreated(section?.ContentType ?? "");
     }
 }
 

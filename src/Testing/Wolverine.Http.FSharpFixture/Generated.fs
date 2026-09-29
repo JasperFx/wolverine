@@ -10,6 +10,7 @@ open System.Threading.Tasks
 open Wolverine.Http
 open Wolverine.Runtime
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_hello(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -26,9 +27,10 @@ type GET_fsharp_hello(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
             // The actual HTTP request handler execution
             let result_of_Hello = thingEndpoints.Hello()
 
-            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Hello)
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Hello, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -51,9 +53,10 @@ type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
                 let thingCreated_response = thingEndpoints.Create(command)
 
                 // Writing the response body to JSON because this was the first 'return variable' in the method signature
-                do! this.WriteJsonAsync(httpContext, thingCreated_response)
+                do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -75,9 +78,10 @@ type GET_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOpti
                 // The actual HTTP request handler execution
                 let result_of_GetById = thingEndpoints.GetById(id)
 
-                do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetById)
+                do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetById, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_search(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -95,9 +99,10 @@ type GET_fsharp_search(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
             // The actual HTTP request handler execution
             let result_of_Search = thingEndpoints.Search(q)
 
-            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Search)
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Search, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_things_id_items_count(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -126,12 +131,13 @@ type GET_fsharp_things_id_items_count(wolverineHttpOptions: Wolverine.Http.Wolve
                             // The actual HTTP request handler execution
                             let result_of_GetItems = thingEndpoints.GetItems(id, count)
 
-                            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetItems)
+                            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetItems, 404)
                         | _ ->
                             httpContext.Response.StatusCode <- 404
                             ()
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_paged(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -150,9 +156,10 @@ type GET_fsharp_paged(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
             // The actual HTTP request handler execution
             let result_of_Paged = thingEndpoints.Paged(page)
 
-            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Paged)
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Paged, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_result_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -177,6 +184,7 @@ type GET_fsharp_result_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOpti
                 do! result.ExecuteAsync(httpContext)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type DELETE_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -203,6 +211,7 @@ type DELETE_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpO
                     httpContext.Response.StatusCode <- 204
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type POST_fsharp_publish(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions, wolverineRuntime: Wolverine.Runtime.IWolverineRuntime) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -228,13 +237,14 @@ type POST_fsharp_publish(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptio
                 let thingCreated_response = thingEndpoints.Publish(command, messageContext)
 
                 // Writing the response body to JSON because this was the first 'return variable' in the method signature
-                do! this.WriteJsonAsync(httpContext, thingCreated_response)
+                do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
                 
                 // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
                 do! messageContext.FlushOutgoingMessagesAsync()
 
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_filter(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -257,9 +267,35 @@ type GET_fsharp_filter(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
             let thingCreated_response = thingEndpoints.Filter(thingFilter)
 
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
-            do! this.WriteJsonAsync(httpContext, thingCreated_response)
+            do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type POST_fsharp_upload(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            // Stream the multipart request body without buffering the form
+            let! struct (reader, multipartContinue) = Wolverine.Http.HttpHandler.ReadMultipartAsync(httpContext)
+            if multipartContinue = Wolverine.HandlerContinuation.Stop then
+                ()
+            else
+                
+                // The actual HTTP request handler execution
+                let! thingCreated_response = Wolverine.Http.FSharpContracts.ThingEndpoints.Upload(reader)
+
+                // Writing the response body to JSON because this was the first 'return variable' in the method signature
+                do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -282,11 +318,12 @@ type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
             // The actual HTTP request handler execution
             let result_of_Get = authedEndpoints.Get()
 
-            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Get)
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Get, 404)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GeneratedHttpEndpointRegistry() =
     inherit Wolverine.Http.HttpEndpointRegistry()
     override this.EndpointTypes() : System.Type[] =
-        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.22.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.22.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
+        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.41.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.41.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
 
