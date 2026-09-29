@@ -40,7 +40,7 @@ public partial class WolverineRuntime
 
         public void Sent(Envelope envelope)
         {
-            if (envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
+            if (envelope.MessageType.IsNotEmpty() && !_runtime.IsSystemEndpoint(envelope.Destination))
             {
                 _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination!)
                     .EntryPoint.Post(new RecordSent(envelope.TenantId!, _serviceName));
@@ -54,9 +54,9 @@ public partial class WolverineRuntime
 
         public void Received(Envelope envelope)
         {
-            var isExternal = IsExternalDestination(envelope.Destination);
+            var isExternal = _runtime.IsExternalDestination(envelope.Destination);
 
-            if (isExternal && envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
+            if (isExternal && envelope.MessageType.IsNotEmpty() && !_runtime.IsSystemEndpoint(envelope.Destination))
             {
                 _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination!)
                     .EntryPoint.Post(new RecordReceived(envelope.TenantId!, _serviceName));

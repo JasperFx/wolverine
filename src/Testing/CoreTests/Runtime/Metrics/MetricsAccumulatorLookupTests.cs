@@ -1,6 +1,9 @@
 using CoreTests.Runtime;
+using Microsoft.Extensions.Hosting;
+using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Metrics;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests.Runtime.Metrics;
@@ -44,38 +47,34 @@ public class MetricsAccumulatorLookupTests
         two.MessageType.ShouldBe("MyApp.OtherMessage");
     }
 
-    [Theory]
-    [InlineData("local://durable", true)]
-    [InlineData("rabbitmq://queue/wolverine.response.node1", true)]
-    [InlineData("rabbitmq://queue/incoming", false)]
-    [InlineData("stub://one", false)]
-    public void is_system_endpoint(string uri, bool expected)
-    {
-        // twice, so both the computing and the cached path are exercised
-        WolverineRuntime.IsSystemEndpoint(new Uri(uri)).ShouldBe(expected);
-        WolverineRuntime.IsSystemEndpoint(new Uri(uri)).ShouldBe(expected);
-    }
-
-    [Fact]
-    public void is_system_endpoint_is_false_for_null()
-    {
-        WolverineRuntime.IsSystemEndpoint(null).ShouldBeFalse();
-    }
-
+    // GH-4665: the System classification now asks the endpoint for its EndpointRole, so it needs a real
+    // runtime rather than a mock. MetricsTests/is_system_endpoint_tests covers that half exhaustively,
+    // including the user-local-queue case this bug was about; these keep the External half pinned, which
+    // is still a pure function of the scheme.
     [Theory]
     [InlineData("local://durable", false)]
     [InlineData("stub://one", false)]
     [InlineData("rabbitmq://queue/incoming", true)]
     [InlineData("tcp://localhost:5000", true)]
-    public void is_external_destination(string uri, bool expected)
+    public async Task is_external_destination(string uri, bool expected)
     {
-        WolverineRuntime.IsExternalDestination(new Uri(uri)).ShouldBe(expected);
-        WolverineRuntime.IsExternalDestination(new Uri(uri)).ShouldBe(expected);
+        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(TestContext.Current.CancellationToken);
+        var runtime = host.GetRuntime();
+
+        // twice, so both the computing and the cached path are exercised
+        runtime.IsExternalDestination(new Uri(uri)).ShouldBe(expected);
+        runtime.IsExternalDestination(new Uri(uri)).ShouldBe(expected);
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public void is_external_destination_is_false_for_null()
+    public async Task is_external_destination_is_false_for_null()
     {
-        WolverineRuntime.IsExternalDestination(null).ShouldBeFalse();
+        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(TestContext.Current.CancellationToken);
+
+        host.GetRuntime().IsExternalDestination(null).ShouldBeFalse();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 }
