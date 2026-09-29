@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,7 +19,7 @@ public class on_exception_convention
         _output = output;
     }
 
-    private async Task<(List<string> actions, ITrackedSession session)> invokeMessage<T>(T message,
+    private async Task<(ActionLog actions, ITrackedSession session)> invokeMessage<T>(T message,
         Action<IPolicies>? registration = null)
     {
         var recorder = new OnExceptionRecorder();
@@ -279,7 +281,55 @@ public class on_exception_convention
 // Support types
 public class OnExceptionRecorder
 {
-    public List<string> Actions { get; } = new();
+    public ActionLog Actions { get; } = new();
+}
+
+/// <summary>
+/// A thread-safe append-only log of what each OnException hook did.
+///
+/// <para>This was a plain <c>List&lt;string&gt;</c>, and a handler that cascades MORE THAN ONE message
+/// writes to it from more than one thread: <c>OnException</c> returning an <c>OutgoingMessages</c> of two
+/// messages gets both handled off the same local queue, which runs at a parallelism above one. Concurrent
+/// <c>List&lt;T&gt;.Add</c> is not safe -- two threads can take the same slot, or one can write while the
+/// other is resizing -- so an entry is silently lost and the assertion fails on a message that really was
+/// handled. Observed as <c>every_message_in_the_returned_collection_is_cascaded</c> finding only
+/// "Handled:...:second" in a full-suite run, and passing in isolation, which is what a race looks like
+/// rather than a bug in the code under test.</para>
+///
+/// <para>A queue rather than a <c>ConcurrentBag</c> because the tests dump this to test output for
+/// diagnosis, and insertion order is worth keeping there even though nothing asserts on it.</para>
+/// </summary>
+public sealed class ActionLog : IEnumerable<string>
+{
+    private readonly ConcurrentQueue<string> _actions = new();
+
+    public void Add(string action) => _actions.Enqueue(action);
+
+    public IEnumerator<string> GetEnumerator() => _actions.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+public class action_log_is_safe_for_concurrent_handlers
+{
+    [Fact]
+    public void concurrent_writers_do_not_lose_entries()
+    {
+        // The property the cascading tests depend on. A plain List<string> loses entries here, which is
+        // how every_message_in_the_returned_collection_is_cascaded came to fail in a full-suite run while
+        // passing in isolation -- two cascaded messages handled off one local queue at parallelism > 1.
+        const int writers = 8;
+        const int perWriter = 2000;
+
+        var log = new ActionLog();
+
+        Parallel.For(0, writers, w =>
+        {
+            for (var i = 0; i < perWriter; i++) log.Add($"{w}:{i}");
+        });
+
+        log.Count().ShouldBe(writers * perWriter);
+    }
 }
 
 public class TestAppException : Exception
