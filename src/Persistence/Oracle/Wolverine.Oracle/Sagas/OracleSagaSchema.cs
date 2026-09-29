@@ -74,8 +74,8 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
         table.AddColumn(DatabaseConstants.Body, "CLOB").NotNull();
         table.AddColumn(DatabaseConstants.Version, "NUMBER(10)").DefaultValue(1).NotNull();
-        table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
-        table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
+        table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
+        table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
 
         Table = table;
     }
