@@ -42,6 +42,14 @@ private static async Task publish_by_tenant(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L108-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_by_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+If you're using a separate database per tenant, it's worth reading
+[When a Tenant Database Is Down](/guide/durability/#when-a-tenant-database-is-down) before you go to
+production. One tenant's database being unreachable does *not* stop Wolverine from serving your other
+tenants, but there are a couple of behaviors there that are much easier to understand ahead of time than
+during an outage.
+:::
+
 ## Cascading Messages
 
 As a convenience, you can embed tenant id information into outgoing cascading messages with these helpers:
