@@ -454,12 +454,10 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
 
                 await tx.CommitAsync(cancellationToken);
 
-                // Stamp owning store on each row so downstream pipeline routes
-                // its writes back here. See GH-2576.
-                foreach (var envelope in envelopes)
-                {
-                    envelope.Store = this;
-                }
+                // Mirror onto the in-memory envelopes what the UPDATE above just did to their rows:
+                // owning store (GH-2576) and promoted status (GH-4673).
+                DatabasePersistence.MarkPromotedFromScheduled(envelopes, this,
+                    durabilitySettings.AssignedNodeNumber);
 
                 await runtime.EnqueueDirectlyAsync(envelopes);
             }

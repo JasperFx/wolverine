@@ -1261,6 +1261,60 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// Contract test for https://github.com/JasperFx/wolverine/issues/4673.
+    ///
+    /// The promotion UPDATE sets the row to <c>Incoming</c> owned by this node. The in-memory envelope has
+    /// to say the same thing, because it was READ while the row still said <c>Scheduled</c> and nothing
+    /// else re-reads it.
+    ///
+    /// <para>This is not cosmetic. <see cref="Envelope.IsScheduledForLater"/> answers true on
+    /// <c>Status</c> ALONE, regardless of the clock, so a stale <c>Scheduled</c> makes
+    /// <c>Envelope.MarkReceived</c> re-assert it — and <c>DurableReceiver.receiveOneAsync</c> only enqueues
+    /// an envelope whose status is <c>Incoming</c>. The message is then dropped with nothing logged, while
+    /// its row sits <c>Incoming</c> under a LIVE owner that no recovery path can reclaim: inbox recovery
+    /// takes only <c>owner_id = 0</c>, and the orphan sweep only releases nodes proven dead.</para>
+    /// </summary>
+    [Fact]
+    public virtual async Task scheduled_poll_marks_the_envelope_promoted()
+    {
+        if (thePersistence is not IMessageDatabase database) return;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(-1); // already due
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.ScheduleExecutionAsync(envelope);
+
+        var capturedEnvelopes = new List<Envelope>();
+        var spyRuntime = Substitute.For<IWolverineRuntime>();
+        spyRuntime
+            .EnqueueDirectlyAsync(Arg.Do<IReadOnlyList<Envelope>>(es => capturedEnvelopes.AddRange(es)))
+            .Returns(ValueTask.CompletedTask);
+
+        var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
+
+        await database.PollForScheduledMessagesAsync(
+            spyRuntime, NullLogger.Instance, durabilitySettings, CancellationToken.None);
+
+        var captured = capturedEnvelopes.SingleOrDefault(x => x.Id == envelope.Id);
+        captured.ShouldNotBeNull("Expected the just-scheduled envelope to be picked up by the poller.");
+
+        captured.Status.ShouldBe(EnvelopeStatus.Incoming,
+            "A promoted envelope must not still claim to be Scheduled -- IsScheduledForLater keys on " +
+            "status alone, so MarkReceived would re-assert it and the message would never execute. " +
+            "See GH-4673.");
+
+        captured.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber,
+            "The promotion UPDATE claimed the row for this node, so the in-memory envelope has to agree. " +
+            "See GH-4673.");
+
+        // The envelope is what MarkReceived will be asked about, so assert the actual predicate rather
+        // than only the field it reads -- that is the thing that was wrong.
+        captured.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeFalse(
+            "A due, promoted envelope must not report itself as scheduled for later. See GH-4673.");
+    }
+
+    /// <summary>
     /// GH-4216, lifted out of GH-4209's PostgreSQL-only suite because neither case is partitioning-specific.
     /// Under <see cref="MessageIdentity.IdAndDestination"/> a row that merely shares an id at a *different*
     /// destination is a different message, and scheduled promotion must treat it as one: it may not be
