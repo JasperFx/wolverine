@@ -250,8 +250,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
             catch (Exception e)
             {
+                // GH-4662. This used to read "most likely due to serialization issues", which was a fair
+                // guess back when a durable store failure was swallowed by a RetryBlock and could never
+                // reach this catch. It can now, and an unreachable message store is the more common cause
+                // of the two, so name both -- and name the envelope, which this never did.
                 Runtime.Logger.LogError(e,
-                    "Unable to send an outgoing message, most likely due to serialization issues");
+                    "Unable to send outgoing message {Envelope}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
+                    envelope);
                 Runtime.MessageTracking.DiscardedEnvelope(envelope);
             }
         }
@@ -530,7 +535,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
         catch (Exception e)
         {
-            // This should never happen because all the sending agents catch errors, but you know...
+            // GH-4662. This used to say it should never happen because the sending agents caught
+            // everything. They deliberately do not any more -- a durable store failure propagates -- so
+            // this catch is now load bearing. Swallow it on purpose: a lost acknowledgement is not worth
+            // failing the message that was handled successfully.
             Runtime.Logger.LogError(e, "Failure while sending an acknowledgement for envelope {Id}", envelope.Id);
         }
     }
@@ -564,7 +572,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
         catch (Exception e)
         {
-            // Should never happen, but still.
+            // GH-4662. Same as the success acknowledgement above: this is reachable now that a durable
+            // store failure propagates instead of being swallowed, and it is swallowed here on purpose.
             Runtime.Logger.LogError(e, "Failure while sending a failure acknowledgement for envelope {Id}",
                 envelope.Id);
         }
