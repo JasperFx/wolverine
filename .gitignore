@@ -167,7 +167,6 @@ ClientBin/
 node_modules/
 bower_components/
 .vscode/
-.editorconfig
 omnisharp.json
 
 # RIA/Silverlight projects
