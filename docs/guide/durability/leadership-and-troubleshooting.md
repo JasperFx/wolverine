@@ -394,3 +394,69 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.ScheduledJobPollingTime = 1.Minutes();
     }).StartAsync();
 ```
+
+## When a Tenant's Database Refuses Writes <Badge type="tip" text="6.42" />
+
+If you're using a separate database per tenant, sooner or later one of them will be unreachable while the
+rest of your system is perfectly healthy. Wolverine keeps running for everybody else, but you're going to
+see two exception types in your logs while that's going on, and it's worth knowing which one is telling you
+something.
+
+### `TenantedInboxWriteException`
+
+This is the real one. Wolverine could not write incoming envelopes to one or more tenant message stores:
+
+```
+Failed to store 1 incoming envelope(s) across 1 message store(s)
+```
+
+Three things on it are worth reading:
+
+* `TenantIds` tells you **which** tenants were affected. Start here.
+* `IncludesMainStore` tells you whether the main store was one of the failures. If it's `false`, this is
+  scoped to tenant databases and your listener is still running for everyone else. If it's `true`, nothing
+  can be persisted at all and the listener pauses for inbox recovery.
+* `Unpersisted` holds the envelopes that did not land, and the inner exception is the store's own failure.
+
+Those envelopes are deferred back to the broker, so they'll be redelivered and retried. Nothing is lost.
+
+### `TenantDatabaseBrakedException`
+
+This one is the inner exception of a `TenantedInboxWriteException`, and it does **not** mean what it looks
+like:
+
+```
+The message store for tenant 'red' refused a recent write and is in its retry cool-down,
+so this write was not attempted. See DurabilitySettings.TenantWriteBrakeCycle.
+```
+
+Read that last clause carefully -- *this write was not attempted*. The database wasn't contacted at all.
+Some **earlier** write to that tenant failed within the last cool-down cycle, and Wolverine is holding the
+rest back rather than hammering a database that just told it no.
+
+::: warning
+Don't diagnose from this exception. The actual failure belongs to a different envelope, and it'll be in your
+log a cycle or so earlier. Look for the `TenantedInboxWriteException` whose inner exception is a real
+database error -- a timeout, a refused connection -- and troubleshoot that one instead.
+:::
+
+::: tip
+Expect a lot of these, and don't read the volume as the problem getting worse. A deferred envelope goes
+straight back to the broker and comes straight back again, so while a tenant is down its stranded messages
+retry continuously. That's the steady state, and the whole point of the brake is that each of those turns is
+now free instead of costing a database connection.
+:::
+
+### Tuning the cool-down
+
+One probe per cycle is let through to find out whether the database is back, and a success releases the brake
+immediately.
+
+```csharp
+opts.Durability.TenantWriteBrakeCycle = 2.Seconds();
+```
+
+Raise it if you'd rather not have a struggling database probed so often, and accept that Wolverine will take
+a little longer to notice it has recovered. The main store is never braked -- a main store failure pauses the
+listener for inbox recovery, which is its own back-off, and holding it back would only delay the recovery
+probe.
