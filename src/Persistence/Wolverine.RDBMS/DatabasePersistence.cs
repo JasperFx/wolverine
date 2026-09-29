@@ -12,6 +12,41 @@ namespace Wolverine.RDBMS;
 
 public static class DatabasePersistence
 {
+    /// <summary>
+    ///     Mirror onto the in-memory envelopes what a scheduled-message promotion just did to their rows,
+    ///     before they are handed to <see cref="IWolverineRuntime.EnqueueDirectlyAsync" />.
+    /// </summary>
+    /// <remarks>
+    ///     <para>GH-2576 is the <c>Store</c> half: without it an ancillary store's scheduled message wakes up
+    ///     with a null store and its mark-as-handled SQL goes to the main store, leaving the row Incoming.</para>
+    ///
+    ///     <para>GH-4673 is the status half, and it fails the same way for a different reason. The promotion
+    ///     UPDATE sets the row to <c>Incoming</c> owned by this node, but the envelope was READ while it was
+    ///     still <c>Scheduled</c>, so its in-memory <c>Status</c> still said so. That is not cosmetic:
+    ///     <c>Envelope.IsScheduledForLater</c> answers true on status ALONE — "if it's been scheduled and
+    ///     persisted, it has to be scheduled", regardless of the clock — so when the envelope reached a
+    ///     bridged or non-local listener, <c>MarkReceived</c> re-asserted <c>Scheduled</c> and
+    ///     <c>DurableReceiver.receiveOneAsync</c> then declined to execute it, silently, because it only
+    ///     enqueues an envelope whose status is <c>Incoming</c>.</para>
+    ///
+    ///     <para>The row was left <c>Incoming</c> under a LIVE owner, which no recovery path can reclaim:
+    ///     inbox recovery only takes <c>owner_id = 0</c>, and the orphan sweep only releases nodes proven
+    ///     dead. So the message was wedged for the life of the process with nothing logged.</para>
+    ///
+    ///     <para>Stamping both here keeps the five database stores from drifting; each previously carried
+    ///     its own copy of the <c>Store</c> loop.</para>
+    /// </remarks>
+    public static void MarkPromotedFromScheduled(IReadOnlyList<Envelope> envelopes, IMessageStore store,
+        int ownerId)
+    {
+        foreach (var envelope in envelopes)
+        {
+            envelope.Store = store;
+            envelope.Status = EnvelopeStatus.Incoming;
+            envelope.OwnerId = ownerId;
+        }
+    }
+
     public static DbCommand BuildOutgoingStorageCommand(Envelope envelope, int ownerId,
         IMessageDatabase database)
     {
