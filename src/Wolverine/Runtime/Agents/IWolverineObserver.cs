@@ -51,6 +51,20 @@ public interface IWolverineObserver
     /// </summary>
     Task AgentReleased(Uri agentUri, ShardFailure? failure) => Task.CompletedTask;
 
+    /// <summary>
+    /// An agent could not be started here for a reason no retry can change — the shard is not registered
+    /// on this store, or the daemon has it deliberately paused. <paramref name="reason" /> is the daemon's
+    /// own classification (jasperfx#912), passed through rather than re-derived, so a consumer does not
+    /// have to parse it back out of the exception text.
+    ///
+    /// <para>Fires once per transition, like <see cref="AgentPaused" />, not on every reevaluation. Note
+    /// there is no <c>ShardFailure</c> to go with it: the start never got far enough to produce one, which
+    /// is exactly why the reason has to travel on its own. Default no-op so existing observers are
+    /// unaffected. See GH-4676.</para>
+    /// </summary>
+    Task AgentStartFailed(Uri agentUri, ShardStartFailureReason reason, Exception exception) =>
+        Task.CompletedTask;
+
     // Loop through and decide what you want here.
     Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands);
     
@@ -229,6 +243,27 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         {
             // NullMessageStore does not support node persistence; a storeless Solo node can still run
             // event-subscription agents, and losing the record must not break the health-check sweep.
+        }
+    }
+
+    public async Task AgentStartFailed(Uri agentUri, ShardStartFailureReason reason, Exception exception)
+    {
+        var record = NodeRecord.For(_runtime.Options, NodeRecordType.AgentStartFailed, agentUri);
+
+        // Same shape and reasoning as AgentPaused above, except the reason is a bare enum value rather
+        // than a ShardFailure -- a start that never produced an agent has no failure object to describe.
+        // The exception's own message rides along because for a Faulted-adjacent cause it is the only
+        // thing that names WHAT was misconfigured; the stack trace stays in the log line.
+        record.Description = NodeRecord.TruncateDescription($"{reason}: {exception.Message}");
+
+        try
+        {
+            await _runtime.Storage.Nodes.LogRecordsAsync(record);
+        }
+        catch (NotSupportedException)
+        {
+            // NullMessageStore does not support node persistence; losing the diagnostic record must not
+            // break the start path that reported it.
         }
     }
 

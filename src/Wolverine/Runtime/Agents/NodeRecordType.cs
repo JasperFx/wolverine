@@ -39,7 +39,15 @@ public enum NodeRecordType
     /// the same capability. The record's Description carries the last classified failure when the
     /// agent reported one. See GH-3888.
     /// </summary>
-    AgentReleased
+    AgentReleased,
+
+    /// <summary>
+    /// An agent could not be started on this node for a reason retrying cannot change — the shard is not
+    /// registered on the store, or the daemon has it deliberately paused. The record's Description carries
+    /// the daemon's classified reason (jasperfx#912) so a misconfigured projection name is legible after
+    /// the fact and from another process, rather than only in one node's logs. See GH-4676.
+    /// </summary>
+    AgentStartFailed
 }
 
 // This is marked as ISerializable so that it can go to CritterWatch w/o
