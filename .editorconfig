@@ -1,0 +1,114 @@
+root = true
+
+###############################################################################
+# Wolverine coding conventions
+#
+# The naming rules below encode the one house style described in README.md and
+# CLAUDE.md: member casing follows ACCESSIBILITY, not member kind.
+#
+#   public / internal  -> PascalCase
+#   private / protected -> camelCase
+#   private / protected fields -> _camelCase
+#
+# These are reported by the IDE and by `dotnet format`. They deliberately do NOT
+# run during a build: EnforceCodeStyleInBuild is off, and this repository sets
+# TreatWarningsAsErrors, so promoting them would turn every pre-existing
+# violation into a build error. The intent is to guide new code, not to force a
+# repo-wide rename.
+#
+# There is a lot of pre-existing drift -- roughly 290 hits in Wolverine core
+# alone, mostly PascalCased `protected` members. Do NOT mass-fix those: renaming
+# a protected member is a breaking change for anyone subclassing it. Correct
+# them opportunistically when you are already editing the file.
+###############################################################################
+
+[*]
+charset = utf-8
+indent_style = space
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{json,js,ts,yml,yaml}]
+indent_size = 2
+
+[*.{csproj,props,targets,slnx,xml}]
+indent_size = 2
+
+[*.cs]
+
+# IDE1006 is the diagnostic the naming rules below are reported through. Without
+# this its effective severity is silent, and every rule in this file is inert --
+# verified by probing a deliberate violation.
+dotnet_diagnostic.IDE1006.severity = warning
+
+#### Naming styles ####
+
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+dotnet_naming_style.camel_case.capitalization = camel_case
+
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+
+#### Symbol groups ####
+
+# Order matters: the first rule whose symbol group matches wins, so the narrower
+# field groups are declared before the catch-all instance field group.
+
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.applicable_accessibilities = *
+dotnet_naming_symbols.constants.required_modifiers = const
+
+dotnet_naming_symbols.static_fields.applicable_kinds = field
+dotnet_naming_symbols.static_fields.applicable_accessibilities = private, protected, private_protected
+dotnet_naming_symbols.static_fields.required_modifiers = static
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, protected, private_protected
+
+dotnet_naming_symbols.private_members.applicable_kinds = method, property, event
+dotnet_naming_symbols.private_members.applicable_accessibilities = private, protected, private_protected
+
+dotnet_naming_symbols.public_members.applicable_kinds = method, property, event
+dotnet_naming_symbols.public_members.applicable_accessibilities = public, internal, protected_internal
+
+dotnet_naming_symbols.types_and_namespaces.applicable_kinds = namespace, class, struct, interface, enum, delegate, type_parameter
+dotnet_naming_symbols.types_and_namespaces.applicable_accessibilities = *
+
+#### Rules ####
+
+# Constants are PascalCase whatever their accessibility. The codebase is
+# unanimous on this (19 private consts, all PascalCase), and it is the one place
+# a private member is deliberately not camelCased.
+dotnet_naming_rule.constants_are_pascal_case.symbols = constants
+dotnet_naming_rule.constants_are_pascal_case.style = pascal_case
+dotnet_naming_rule.constants_are_pascal_case.severity = warning
+
+# Deliberately unenforced. `private static readonly` is genuinely split in this
+# codebase -- about 25 PascalCase against 15 underscore-prefixed -- so there is
+# no house convention here to encode, and picking one would flag a large number
+# of existing fields over a choice nobody has actually made. Declared rather
+# than omitted so the catch-all below does not claim them by accident.
+dotnet_naming_rule.static_fields_unenforced.symbols = static_fields
+dotnet_naming_rule.static_fields_unenforced.style = camel_case
+dotnet_naming_rule.static_fields_unenforced.severity = none
+
+dotnet_naming_rule.private_fields_are_underscore_camel_case.symbols = private_fields
+dotnet_naming_rule.private_fields_are_underscore_camel_case.style = underscore_camel_case
+dotnet_naming_rule.private_fields_are_underscore_camel_case.severity = warning
+
+# The rule most likely to surprise someone arriving from another .NET codebase:
+# a private or protected method is camelCased here, including private static
+# helpers -- buildSenderIfMissing(), writeOutgoingHeader(), tableExistsAsync().
+dotnet_naming_rule.private_members_are_camel_case.symbols = private_members
+dotnet_naming_rule.private_members_are_camel_case.style = camel_case
+dotnet_naming_rule.private_members_are_camel_case.severity = warning
+
+dotnet_naming_rule.public_members_are_pascal_case.symbols = public_members
+dotnet_naming_rule.public_members_are_pascal_case.style = pascal_case
+dotnet_naming_rule.public_members_are_pascal_case.severity = warning
+
+dotnet_naming_rule.types_are_pascal_case.symbols = types_and_namespaces
+dotnet_naming_rule.types_are_pascal_case.style = pascal_case
+dotnet_naming_rule.types_are_pascal_case.severity = warning
