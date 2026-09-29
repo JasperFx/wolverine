@@ -21,14 +21,21 @@ namespace Wolverine.Persistence.Durability;
 public class TenantedInboxWriteException : Exception
 {
     public TenantedInboxWriteException(IReadOnlyList<Envelope> unpersisted, bool includesMainStore,
-        IReadOnlyList<Exception> failures)
+        IReadOnlyList<Exception> failures, IReadOnlyList<string>? tenantIds = null)
         : base(
             $"Failed to store {unpersisted.Count} incoming envelope(s) across {failures.Count} message store(s)",
             failures.Count == 1 ? failures[0] : new AggregateException(failures))
     {
         Unpersisted = unpersisted;
         IncludesMainStore = includesMainStore;
+        TenantIds = tenantIds ?? unpersisted.Select(x => x.TenantId ?? string.Empty).Distinct().ToArray();
     }
+
+    /// <summary>
+    /// GH-4659. The tenants whose stores refused the write. Carried so an operator can tell WHICH tenant
+    /// is down from the log line alone — the exception previously named only a count of stores.
+    /// </summary>
+    public IReadOnlyList<string> TenantIds { get; }
 
     /// <summary>
     /// The envelopes that were not persisted. Envelopes belonging to a store whose write DID commit are

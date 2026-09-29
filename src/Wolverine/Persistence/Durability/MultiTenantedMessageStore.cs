@@ -131,21 +131,54 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             return;
         }
 
+        // GH-4659. A deferred envelope comes straight back from the broker, so while this tenant's
+        // database is down its stranded messages spin as fast as the database can refuse a connection.
+        // Refuse for free instead: no connection, no socket, no log line per turn.
+        var brake = brakeFor(database);
+        if (!brake.TryEnter())
+        {
+            throw new TenantedInboxWriteException([envelope], false,
+                [new TenantDatabaseBrakedException(envelope.TenantId)]);
+        }
+
         try
         {
             await database.Inbox.StoreIncomingAsync(envelope);
+            brake.Release();
         }
         catch (DuplicateIncomingEnvelopeException)
         {
             // GH-4435. Never wrap this -- DurableReceiver's deduplication path keys off the exact type.
+            // A duplicate still proves the database answered, so it releases the brake.
+            brake.Release();
             throw;
         }
         catch (Exception e)
         {
+            brake.Trip();
+
             // GH-4435. Mark the failure tenant-scoped so the receiver defers this one envelope back to
             // the broker instead of pausing a listener that serves every other tenant.
             throw new TenantedInboxWriteException([envelope], false, [e]);
         }
+    }
+
+    // GH-4659. Keyed on the store instance rather than the tenant id: many tenant ids can resolve to one
+    // database, and a brake belongs to the database that is actually down. _byTenant is AddOrUpdate-only
+    // with no eviction, so a store handle is stable for the life of the host.
+    private ImHashMap<IMessageStore, TenantWriteBrake> _brakes = ImHashMap<IMessageStore, TenantWriteBrake>.Empty;
+
+    private TenantWriteBrake brakeFor(IMessageStore store)
+    {
+        if (_brakes.TryFind(store, out var brake))
+        {
+            return brake;
+        }
+
+        brake = new TenantWriteBrake(_runtime.DurabilitySettings.TenantWriteBrakeCycle);
+        _brakes = _brakes.AddOrUpdate(store, brake);
+
+        return brake;
     }
 
     async Task IMessageInbox.StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
@@ -211,9 +244,22 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
         foreach (var pair in groups)
         {
+            // GH-4659. Main is never braked: a failure there pauses the listener for inbox recovery, which
+            // is its own back-off, and holding it back would delay the recovery probe itself.
+            var isMain = ReferenceEquals(pair.Key, Main);
+            var brake = isMain ? null : brakeFor(pair.Key);
+
+            if (brake is { } held && !held.TryEnter())
+            {
+                failures.Add(new TenantDatabaseBrakedException(pair.Value[0].TenantId));
+                unpersisted.AddRange(pair.Value);
+                continue;
+            }
+
             try
             {
                 await pair.Key.Inbox.StoreIncomingAsync(pair.Value);
+                brake?.Release();
 
                 // GH-4435. The caller decides what to ack from the exception below, and it re-runs the
                 // whole batch through the per-envelope path. An envelope whose group DID commit must not
@@ -224,15 +270,18 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             catch (DuplicateIncomingEnvelopeException e)
             {
                 // A store's batched insert is all-or-nothing, so nothing in this group landed.
+                // A duplicate still proves the database answered, so it releases the brake.
+                brake?.Release();
                 duplicates.AddRange(e.Duplicates);
                 unpersisted.AddRange(pair.Value);
             }
             catch (Exception e)
             {
+                brake?.Trip();
                 failures.Add(e);
                 unpersisted.AddRange(pair.Value);
 
-                if (ReferenceEquals(pair.Key, Main))
+                if (isMain)
                 {
                     includesMainStore = true;
                 }
