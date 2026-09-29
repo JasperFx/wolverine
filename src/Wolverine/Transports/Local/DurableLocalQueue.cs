@@ -20,7 +20,6 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private readonly WolverineRuntime _runtime;
     private readonly IMessageSerializer _serializer;
     private readonly DurabilitySettings _settings;
-    private readonly RetryBlock<Envelope> _storeAndEnqueue;
 
     // GH-4319. The local durable queue was the last per-message inbox INSERT that never batched: every
     // publish opened its own pooled connection for one row. Null when StoreIncomingBatchSize is 1.
@@ -70,8 +69,6 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
 
         _receiver = new DurableReceiver(endpoint, runtime, Pipeline);
-
-        _storeAndEnqueue = new RetryBlock<Envelope>((e, _) => storeAndEnqueueAsync(e), _logger, _runtime.Cancellation);
 
         if (_settings.StoreIncomingBatchSize > 1)
         {
@@ -176,7 +173,6 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver?.SafeDispose();
         CircuitBreaker?.SafeDisposeSynchronously();
         _receiver?.SafeDispose();
-        _storeAndEnqueue.SafeDispose();
     }
 
     ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
@@ -194,10 +190,9 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         var receiver = _receiver;
 
         receiver?.Latch();
-        await _storeAndEnqueue.DrainAsync();
 
-        // The RetryBlock's own action awaits the coalescer, so draining it already covers any flush the
-        // block itself started. This catches a flush that a caller abandoned mid-await.
+        // GH-4662 removed the store-and-enqueue RetryBlock -- the write is awaited by its caller now --
+        // so the coalescer is the only thing left here that can hold a started flush.
         if (_storeCoalescer != null)
         {
             await _storeCoalescer.DrainAsync();
@@ -256,7 +251,9 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             envelope.OwnerId = TransportConstants.AnyNode;
         }
 
-        return new ValueTask(_storeAndEnqueue.PostAsync(envelope));
+        // GH-4662: awaited rather than posted to a RetryBlock, so a store that stays down fails the
+        // publish instead of discarding the envelope behind the caller's back.
+        return new ValueTask(storeAndEnqueueAsync(envelope));
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -304,14 +301,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             // Store/TenantId, and they can only group on what is already on the envelope.
             assignAncillaryStoreIfNeeded(envelope);
 
-            if (_storeCoalescer != null)
-            {
-                await _storeCoalescer.StoreAsync(envelope);
-            }
-            else
-            {
-                await _inbox.StoreIncomingAsync(envelope);
-            }
+            // GH-4662: retried inline, and on exhaustion the exception reaches whoever called
+            // PublishAsync/ScheduleAsync. Before this it was swallowed by a RetryBlock that had
+            // already handed the caller a completed task, so a store outage lost the message with
+            // nothing but an Information line to show for it.
+            await DurableWriteRetry.ExecuteAsync(
+                () => _storeCoalescer != null
+                    ? _storeCoalescer.StoreAsync(envelope)
+                    : _inbox.StoreIncomingAsync(envelope),
+                envelope, _logger, _runtime.Cancellation);
 
             envelope.WasPersistedInInbox = true;
         }
