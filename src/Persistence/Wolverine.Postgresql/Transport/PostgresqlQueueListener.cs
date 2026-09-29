@@ -160,7 +160,7 @@ SELECT message.{DatabaseConstants.Body} from message;
 WITH moved AS (
     DELETE FROM {_scheduledTableName} WHERE CTID IN (
         SELECT ctid FROM {_scheduledTableName}
-        WHERE {DatabaseConstants.ExecutionTime} <= (now() at time zone 'utc')
+        WHERE {DatabaseConstants.ExecutionTime} <= now()
           AND id NOT IN (SELECT id FROM {_queueTableName})
         ORDER BY {DatabaseConstants.ExecutionTime}
         LIMIT ? FOR UPDATE SKIP LOCKED
@@ -320,9 +320,9 @@ SELECT {DatabaseConstants.Body} FROM popped");
         try
         {
             var builder = new BatchBuilder();
-            builder.Append($"delete from {_queueTableName} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= (now() at time zone 'utc')");
+            builder.Append($"delete from {_queueTableName} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= now()");
             builder.StartNewCommand();
-            builder.Append($"delete from {_queue.ScheduledTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= (now() at time zone 'utc')");
+            builder.Append($"delete from {_queue.ScheduledTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= now()");
             await using var batch = builder.Compile();
 
             batch.Connection = conn;

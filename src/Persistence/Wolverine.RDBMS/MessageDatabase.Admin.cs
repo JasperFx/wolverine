@@ -45,9 +45,10 @@ public abstract partial class MessageDatabase<T>
                     $"select min({DatabaseConstants.Timestamp}) from {QuotedTableNameFor(DatabaseConstants.OutgoingTable)}")
                 .ExecuteScalarAsync();
 
-            // Every provider writes this column in UTC -- Postgres via `now() at time zone 'utc'`, SQLite via
-            // `datetime('now')` -- but they hand it back as three different CLR types, and two of the three
-            // carry no offset with them. A value with no offset has to be read as UTC explicitly: the
+            // Every provider writes this column as a true UTC instant -- Postgres via `now()` into a
+            // timestamptz (GH-4663; it used to be `now() at time zone 'utc'`, which was not), SQLite via
+            // `datetime('now')` -- but they hand it back as three different CLR types, and two of the
+            // three carry no offset with them. A value with no offset has to be read as UTC explicitly: the
             // framework default is to assume LOCAL, which silently shifts the head by the machine's offset
             // and reported a timestamp five hours in the future on a UTC-5 box. That is the same trap as
             // GH-3645's timestamp headers.
@@ -341,6 +342,34 @@ public abstract partial class MessageDatabase<T>
 
             await Migrator.ApplyAllAsync(conn, migration, autoCreate, new MigrationLogger(Logger), ct: _cancellation);
         }
+
+        if (autoCreate != AutoCreate.None)
+        {
+            await repairLegacyColumnDefaultsAsync(conn);
+        }
+    }
+
+    /// <summary>
+    /// Correct column DEFAULT expressions that a previous version of Wolverine declared wrongly.
+    ///
+    /// <para>
+    /// This exists because Weasel does not compare defaults unless a table opts into
+    /// <c>DetectColumnDrift</c>, which Wolverine never sets and which Weasel itself warns against for
+    /// datetime defaults (they canonicalize non-trivially, so a textual comparison produces perpetual
+    /// false-positive migrations). A column whose name and type still match is "the same" column, so a
+    /// corrected declaration reaches new databases only — every deployed one keeps the old default
+    /// forever. That is how GH-2634's Oracle fix silently never reached existing Oracle deployments.
+    /// </para>
+    ///
+    /// <para>
+    /// Runs inside the migration advisory lock, and deliberately runs even when the schema diff is empty,
+    /// because an already-provisioned database is exactly the case that needs repairing. Implementations
+    /// must be idempotent and must not take a lock when there is nothing to correct.
+    /// </para>
+    /// </summary>
+    protected virtual Task repairLegacyColumnDefaultsAsync(DbConnection conn)
+    {
+        return Task.CompletedTask;
     }
 
     private async Task truncateEnvelopeDataAsync(DbConnection conn)

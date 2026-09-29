@@ -214,9 +214,15 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         await using var conn = await dataSource!.OpenConnectionAsync();
         try
         {
-            await using var cmd = conn.CreateCommand("select (now())::timestamp");
-            var raw = (DateTime)(await cmd.ExecuteScalarAsync())!;
-            return new DateTimeOffset(raw, 0.Hours());
+            // GH-4663: `(now())::timestamp` drops the offset and yields the session's *local* wall clock,
+            // which this then relabelled as UTC. Read the timestamptz instead, so the instant survives a
+            // server whose time zone is not UTC. Read through GetFieldValue<DateTimeOffset> rather than
+            // ExecuteScalar: Npgsql materialises timestamptz as a DateTime with Kind = Utc by default,
+            // which the cast would reject.
+            await using var cmd = conn.CreateCommand("select now()");
+            await using var reader = await cmd.ExecuteReaderAsync();
+            await reader.ReadAsync();
+            return (await reader.GetFieldValueAsync<DateTimeOffset>(0)).ToUniversalTime();
         }
         finally
         {
