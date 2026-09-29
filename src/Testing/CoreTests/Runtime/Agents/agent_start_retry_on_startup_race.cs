@@ -1,5 +1,7 @@
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.Events;
+using JasperFx.Events.Daemon;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -23,6 +25,7 @@ public class agent_start_retry_on_startup_race
 {
     private readonly WolverineOptions _options;
     private readonly IWolverineRuntime _runtime;
+    private readonly IWolverineObserver _observer = Substitute.For<IWolverineObserver>();
     private readonly CancellationTokenSource _cancellation = new();
 
     public agent_start_retry_on_startup_race()
@@ -38,7 +41,7 @@ public class agent_start_retry_on_startup_race
         _runtime = Substitute.For<IWolverineRuntime>();
         _runtime.Options.Returns(_options);
         _runtime.DurabilitySettings.Returns(_options.Durability);
-        _runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
+        _runtime.Observer.Returns(_observer);
     }
 
     private NodeAgentController controllerFor(params FlakyAgent[] agents)
@@ -118,6 +121,119 @@ public class agent_start_retry_on_startup_race
         agent.AttemptCount.ShouldBe(1);
     }
 
+    // GH-4676. jasperfx#912 classified WHY a shard would not start, and two of those reasons describe a
+    // standing condition rather than a race. Before this, a projection that was simply not registered
+    // burned the full retry budget on every reevaluation, forever -- the GH-3519 loop for a cause no
+    // retry can fix.
+
+    private static Func<Exception> failing(ShardStartFailureReason reason)
+        => () => new ShardStartException("Incident:All", "the daemon said so", reason);
+
+    [Theory]
+    [InlineData(ShardStartFailureReason.ShardNotRegistered)]
+    [InlineData(ShardStartFailureReason.AgentPaused)]
+    public async Task a_reason_no_retry_can_fix_stops_the_loop_at_once(ShardStartFailureReason reason)
+    {
+        var uri = new Uri("event-subscriptions://marten/incident/all");
+        var agent = new FlakyAgent(uri, int.MaxValue, failing(reason));
+        var controller = controllerFor(agent);
+
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+
+        // One attempt, not the default three. The remaining two would have re-asked a question the
+        // daemon has already answered.
+        agent.AttemptCount.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(ShardStartFailureReason.HighWaterNotRunning)]
+    [InlineData(ShardStartFailureReason.StartRace)]
+    [InlineData(ShardStartFailureReason.Faulted)]
+    [InlineData(ShardStartFailureReason.Unknown)]
+    public async Task every_other_reason_still_spends_the_whole_budget(ShardStartFailureReason reason)
+    {
+        // The guard against over-reading the classification: only the two non-transient reasons that
+        // name a standing condition short-circuit. Faulted and Unknown are NOT transient either, and
+        // they must keep today's behaviour — the inner exception decides, and a retry is free to help.
+        var uri = new Uri("event-subscriptions://marten/incident/all");
+        var agent = new FlakyAgent(uri, int.MaxValue, failing(reason));
+        var controller = controllerFor(agent);
+
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+
+        agent.AttemptCount.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task an_unregistered_shard_reaches_the_observer_with_its_reason()
+    {
+        // The reason travels as the daemon's own enum rather than as text, so CritterWatch does not
+        // have to parse it back out of an exception message.
+        var uri = new Uri("event-subscriptions://marten/incident/all");
+        var controller = controllerFor(new FlakyAgent(uri, int.MaxValue,
+            failing(ShardStartFailureReason.ShardNotRegistered)));
+
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+
+        await _observer.Received(1)
+            .AgentStartFailed(uri, ShardStartFailureReason.ShardNotRegistered, Arg.Any<Exception>());
+        await _observer.DidNotReceive().AgentPaused(Arg.Any<Uri>(), Arg.Any<ShardFailure?>());
+    }
+
+    [Fact]
+    public async Task a_paused_agent_is_reported_through_the_existing_paused_path()
+    {
+        // GH-3638 already owns "paused, and restarting it is the wrong move". A start that fails for
+        // that reason joins it rather than growing a second reporting path.
+        var uri = new Uri("event-subscriptions://marten/incident/all");
+        var controller = controllerFor(new FlakyAgent(uri, int.MaxValue,
+            failing(ShardStartFailureReason.AgentPaused)));
+
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+
+        await _observer.Received(1).AgentPaused(uri, null);
+        await _observer.DidNotReceive()
+            .AgentStartFailed(Arg.Any<Uri>(), Arg.Any<ShardStartFailureReason>(), Arg.Any<Exception>());
+    }
+
+    [Fact]
+    public async Task the_report_fires_once_per_transition_not_once_per_reevaluation()
+    {
+        // The whole complaint is noise on every CheckAssignmentPeriod. Reporting per tick would swap
+        // a retry storm for a log storm.
+        var uri = new Uri("event-subscriptions://marten/incident/all");
+        var controller = controllerFor(new FlakyAgent(uri, int.MaxValue,
+            failing(ShardStartFailureReason.ShardNotRegistered)));
+
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+
+        await _observer.Received(1)
+            .AgentStartFailed(uri, ShardStartFailureReason.ShardNotRegistered, Arg.Any<Exception>());
+    }
+
+    [Fact]
+    public async Task the_reason_is_found_through_a_wrapping_exception()
+    {
+        // By the time StartAgentAsync asks, the daemon's exception has already been wrapped in an
+        // AgentStartingException — and an agent family is free to wrap it again on the way out. The
+        // classification has to survive both, or this whole feature is inert in production while
+        // passing a test that throws it bare.
+        var uri = new Uri("event-subscriptions://marten/incident/all");
+        var agent = new FlakyAgent(uri, int.MaxValue, () => new InvalidOperationException("wrapped",
+            new AggregateException(
+                new ShardStartException("Incident:All", "no such shard",
+                    ShardStartFailureReason.ShardNotRegistered))));
+        var controller = controllerFor(agent);
+
+        await Should.ThrowAsync<AgentStartingException>(() => controller.StartAgentAsync(uri));
+
+        agent.AttemptCount.ShouldBe(1);
+        await _observer.Received(1)
+            .AgentStartFailed(uri, ShardStartFailureReason.ShardNotRegistered, Arg.Any<Exception>());
+    }
+
     private class FlakyAgentFamily : IAgentFamily
     {
         private readonly Dictionary<Uri, FlakyAgent> _agents = new();
@@ -143,11 +259,20 @@ public class agent_start_retry_on_startup_race
     private class FlakyAgent : IAgent
     {
         private readonly int _failuresBeforeSuccess;
+        private readonly Func<Exception> _failure;
 
-        public FlakyAgent(Uri uri, int failuresBeforeSuccess)
+        public FlakyAgent(Uri uri, int failuresBeforeSuccess, Func<Exception>? failure = null)
         {
             Uri = uri;
             _failuresBeforeSuccess = failuresBeforeSuccess;
+
+            // The real thing as of JasperFx 2.76.0. This used to be a bare Exception reproducing the
+            // message shape, because ShardStartException's constructors were internal to JasperFx.Events;
+            // jasperfx#912 made them public, so the stand-in is gone and these tests now exercise the
+            // exact type and Reason the daemon throws.
+            _failure = failure ?? (() => new ShardStartException("Incident:All",
+                "High-water detection is not running yet, so the shard could not be positioned.",
+                ShardStartFailureReason.HighWaterNotRunning));
         }
 
         public int AttemptCount { get; private set; }
@@ -160,11 +285,7 @@ public class agent_start_retry_on_startup_race
             AttemptCount++;
             if (AttemptCount <= _failuresBeforeSuccess)
             {
-                // Stands in for the ShardStartException JasperFxAsyncDaemon.StartAgentAsync(ShardName)
-                // now throws instead of a bare, causeless Exception (its constructors are internal to
-                // JasperFx.Events, so this reproduces the message shape rather than the type).
-                throw new Exception(
-                    "Unable to start a subscription agent for 'Incident:All'. High-water detection is not running yet, so the shard could not be positioned.");
+                throw _failure();
             }
 
             Status = AgentStatus.Running;

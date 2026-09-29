@@ -378,6 +378,14 @@ public partial class NodeAgentController
         }
         catch (Exception e)
         {
+            // GH-4676: the daemon classifies why a shard would not start, and two of those reasons say the
+            // condition is not one this node can wait out. Report them for what they are instead of letting
+            // them look like just another failed attempt.
+            if (findUnstartableShard(e) is { } unstartable)
+            {
+                await reportUnstartableAgentAsync(agentUri, unstartable, e);
+            }
+
             // GH-3970: count it before it propagates. The caller (StartBatchAsync) logs and swallows, and
             // the leader is told only that the agent is "unconfirmed" -- which it deliberately does not
             // treat as a failure (GH-3750) -- so without this ledger nothing anywhere distinguishes "this
@@ -447,7 +455,11 @@ public partial class NodeAgentController
             }
             catch (Exception e)
             {
-                if (attempt >= maxAttempts || _cancellation.IsCancellationRequested)
+                // GH-4676: spending the rest of the budget here is pure waste when the daemon has already
+                // said the shard is not registered, or is paused on purpose. Neither answer changes in the
+                // 750ms this loop would otherwise sleep, and StartAgentAsync reports the reason.
+                if (attempt >= maxAttempts || _cancellation.IsCancellationRequested ||
+                    findUnstartableShard(e) != null)
                 {
                     throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
                 }
@@ -583,6 +595,77 @@ public partial class NodeAgentController
     /// </summary>
     private static bool canSelfHeal(ShardFailure? failure)
         => failure == null || failure.Category == ShardFailureCategory.Other;
+
+    /// <summary>
+    /// Find a <see cref="ShardStartException" /> in an exception chain whose classified reason says that
+    /// retrying is pointless. jasperfx#912 gave the daemon's start failures a <c>Reason</c> and an
+    /// <c>IsTransient</c>; <c>ShardNotRegistered</c> (no such shard on this store — a misnamed or
+    /// undeployed projection) and <c>AgentPaused</c> (the daemon is holding it stopped on purpose, almost
+    /// always an error pause) are the two that describe a standing condition rather than a race.
+    ///
+    /// <para>The chain is walked rather than the exception type-tested, because by the time this is asked
+    /// in <see cref="StartAgentAsync" /> the original has been wrapped in an
+    /// <see cref="AgentStartingException" />. Returns null for every other exception, which keeps the
+    /// pre-existing behaviour for <c>Faulted</c>, <c>Unknown</c> and the two transient reasons — the
+    /// whole point of the classification is that only these two are new information. See GH-4676.</para>
+    /// </summary>
+    private static ShardStartException? findUnstartableShard(Exception? exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.InnerExceptions)
+                {
+                    if (findUnstartableShard(inner) is { } nested) return nested;
+                }
+
+                return null;
+            }
+
+            if (current is ShardStartException { IsTransient: false } shard &&
+                shard.Reason is ShardStartFailureReason.ShardNotRegistered or ShardStartFailureReason.AgentPaused)
+            {
+                return shard;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Report a start that failed for a reason no retry can change, once per transition. See GH-4676.
+    /// </summary>
+    private async Task reportUnstartableAgentAsync(Uri agentUri, ShardStartException shard, Exception thrown)
+    {
+        if (shard.Reason == ShardStartFailureReason.AgentPaused)
+        {
+            // GH-3638 already owns "this agent is paused and restarting it is the wrong move", including
+            // the once-per-transition dedup, so this goes down that path rather than growing a second one.
+            // Null failure: the daemon paused the shard before this node ever held an agent object, so
+            // there is no ShardFailure to hand over and the reason travels to the observer on its own.
+            await reportAgentPausedAsync(agentUri, null);
+            return;
+        }
+
+        if (!_reportedFailures.TryAdd(agentUri, 0))
+        {
+            return;
+        }
+
+        _logger.LogError(thrown,
+            "Agent {AgentUri} cannot be started on node {NodeNumber}: {Reason}. No shard by that name is registered on the store, so this is a configuration problem rather than a transient one and retrying will not fix it. Check that the projection or subscription is registered and named as the assignment expects.",
+            agentUri, _runtime.Options.Durability.AssignedNodeNumber, shard.Reason);
+
+        try
+        {
+            await _observer.AgentStartFailed(agentUri, shard.Reason, thrown);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error notifying observers that agent {AgentUri} could not be started", agentUri);
+        }
+    }
 
     /// <summary>
     /// Surface a locally-owned agent that stopped or paused on a failure: log it with the classified

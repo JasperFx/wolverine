@@ -17,7 +17,6 @@ internal class DurableSendingAgent : SendingAgent
     private readonly ILogger _logger;
     private readonly IMessageOutbox _outbox;
     private readonly SemaphoreSlim _queueLock = new(1, 1);
-    private readonly RetryBlock<Envelope> _storeAndForward;
 
     // GH-4319. Null when the batch sizes are 1. The store gates the send, so these coalescers are
     // strictly timer-free: a lone envelope is written immediately and batches only ever form behind a
@@ -68,19 +67,6 @@ internal class DurableSendingAgent : SendingAgent
                 settings.StoreOutgoingBatchSize, endpoint.Uri, logger);
         }
 
-        _storeAndForward = new RetryBlock<Envelope>(async (e, _) =>
-        {
-            if (_storeCoalescer != null)
-            {
-                await _storeCoalescer.StoreAsync(e);
-            }
-            else
-            {
-                await _outbox.StoreOutgoingAsync(e, _settings.AssignedNodeNumber);
-            }
-
-            await _sending.PostAsync(e);
-        }, _logger, settings.Cancellation);
     }
 
     public override bool IsDurable => true;
@@ -102,7 +88,6 @@ internal class DurableSendingAgent : SendingAgent
         await _deleteOutgoingMany.DrainAsync();
         await _deleteOutgoingOne.DrainAsync();
         await _enqueueForRetry.DrainAsync();
-        await _storeAndForward.DrainAsync();
     }
 
     public override async ValueTask DisposeAsync()
@@ -111,7 +96,6 @@ internal class DurableSendingAgent : SendingAgent
         _deleteOutgoingMany.Dispose();
         _deleteOutgoingOne.Dispose();
         _enqueueForRetry.Dispose();
-        _storeAndForward.Dispose();
         _queueLock.Dispose();
     }
 
@@ -252,7 +236,21 @@ internal class DurableSendingAgent : SendingAgent
     protected override async Task storeAndForwardAsync(Envelope envelope)
     {
         using var activity = Endpoint.TelemetryEnabled ? WolverineTracing.StartSending(envelope) : null;
-        await _storeAndForward.PostAsync(envelope);
+
+        // GH-4662: the outbox row is this envelope's only durable home, so its write is retried inline
+        // and, on exhaustion, thrown to whoever called PublishAsync/SendAsync. A RetryBlock handed the
+        // caller a completed task after the first failed attempt and then discarded the envelope with an
+        // Information line -- the message was neither persisted nor sent, and the caller was told it was
+        // sent. SendingAgent.StoreAndForwardAsync only logs Sent after this returns, so a throw here now
+        // makes its "a store that throws still reports no send" comment true.
+        await DurableWriteRetry.ExecuteAsync(
+            () => _storeCoalescer != null
+                ? _storeCoalescer.StoreAsync(envelope)
+                : _outbox.StoreOutgoingAsync(envelope, _settings.AssignedNodeNumber),
+            envelope, _logger, _settings.Cancellation);
+
+        await _sending.PostAsync(envelope);
+
         activity?.Stop();
     }
 }
