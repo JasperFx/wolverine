@@ -45,7 +45,18 @@ internal class GlobalPartitionedRoute : IMessageRoute
         // to hand it to -- and more to the point, the broker delivery IS the durability story in that
         // mode, so short-circuiting it would drop the message on a crash between send and handling.
         // Always go through the broker.
-        if (!_nativeAcks)
+        // GH-4673. The shortcut is only safe when the message is handled NOW. A scheduled message is
+        // handled later -- seconds or hours -- and slot ownership at send time says nothing about who owns
+        // the slot when it comes due. Taking the shortcut parks it in the inbox at the companion local
+        // queue's address, and that address exists on EVERY node (LocalQueue.IsSingleNodeListener is
+        // deliberately false, GH-3856), so whichever node's scheduled poller wins the advisory lock when it
+        // comes due executes it -- concurrently with the real slot owner, under the same group id, which
+        // is the one thing global partitioning is there to prevent.
+        //
+        // Parking it at the external slot instead makes ownership a question asked when it is due rather
+        // than when it is sent. The owning node's listener picks it up; a non-owner forwards it to the
+        // slot through the GH-4645 path. Both answers are correct whoever polls.
+        if (!_nativeAcks && !envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
         {
             // Check if this slot's exclusive listener is active on the current node
             var externalEndpoint = _externalEndpoints[slot];
