@@ -51,7 +51,6 @@ public class FSharpCoverageRatchet
         "Wolverine.Http.CodeGen.ParsedCollectionFormValue",
         "Wolverine.Http.CodeGen.ParsedCollectionQueryStringValue",
         "Wolverine.Http.CodeGen.ReadClaimFrame",
-        "Wolverine.Http.CodeGen.ReadMultipartBody",
         "Wolverine.Http.CodeGen.RequestServicesFrame",
         "Wolverine.Http.CodeGen.RequirementResultHttpFrame",
         "Wolverine.Http.CodeGen.ResponseCacheFrame",
