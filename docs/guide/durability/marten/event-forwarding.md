@@ -31,6 +31,14 @@ new events, and the resulting event messages go out as cascading messages only a
 like any other outbox usage. **There is no guarantee about ordering in this case.** Instead, Wolverine is trying to have these
 events processed as soon as possible.
 
+::: warning
+Only sessions that are part of the Wolverine outbox forward their events. Those are the sessions Wolverine opens for message
+handlers and HTTP endpoints, sessions from `OutboxedSessionFactory.OpenSession(...)`, and any session you enroll with
+`IMartenOutbox.Enroll()`. A session opened directly from `IDocumentStore`, like `LightweightSession()`, is a plain Marten
+session with no outbox and does **not** forward: events appended through it reach no Wolverine handler. Enroll it with
+`IMartenOutbox` first if you need them forwarded.
+:::
+
 To opt into this feature, set `MartenIntegration.UseFastEventForwarding = true` inside the
 configure callback on `IntegrateWithWolverine()` as shown in this application bootstrapping
 sample below:

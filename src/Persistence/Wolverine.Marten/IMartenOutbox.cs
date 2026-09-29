@@ -1,4 +1,5 @@
 using Marten;
+using Wolverine.Marten.Publishing;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
@@ -33,7 +34,11 @@ public class MartenOutbox : MessageContext, IMartenOutbox
         var martenEnvelopeTransaction = new MartenEnvelopeTransaction(session, this);
         Transaction = martenEnvelopeTransaction;
         
-        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(this, martenEnvelopeTransaction.Store));
+        // The same listeners as a session opened by the OutboxedSessionFactory, so an enrolled session
+        // also forwards its events when that's enabled
+        OutboxedSessionFactory.AddOutboxListeners(session, this, martenEnvelopeTransaction,
+            Runtime.TryFindExtension<MartenIntegration>()?.UseFastEventForwarding ?? false,
+            Runtime.Options.Tracking.EnableEventAppendTracking);
     }
 
     public IDocumentSession? Session { get; private set; }

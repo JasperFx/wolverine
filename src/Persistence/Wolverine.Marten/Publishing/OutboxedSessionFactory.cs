@@ -195,17 +195,46 @@ public class OutboxedSessionFactory
         var transaction = new MartenEnvelopeTransaction(session, context);
         context.EnlistInOutbox(transaction);
 
-        if (_shouldPublishEvents)
+        AddOutboxListeners(session, context, transaction, _shouldPublishEvents, _shouldTrackAppends);
+    }
+
+    /// <summary>
+    /// Wires the listeners that make a Marten session part of the Wolverine outbox: forwarding of the
+    /// appended events (<paramref name="publishEvents"/>), reporting them to the observer
+    /// (<paramref name="trackAppends"/>), and then flushing the outgoing messages after the commit. Shared
+    /// by the sessions this factory opens and by <see cref="MartenOutbox.Enroll"/>, so a session enrolled
+    /// in an <see cref="IMartenOutbox"/> behaves like one opened here. A session that already carries a
+    /// forwarding or tracking listener -- one opened by this factory and then enrolled -- keeps it, so its
+    /// events are not published twice.
+    /// </summary>
+    internal static void AddOutboxListeners(IDocumentSession session, MessageContext context,
+        MartenEnvelopeTransaction transaction, bool publishEvents, bool trackAppends)
+    {
+        if (publishEvents && !hasListener<PublishIncomingEventsBeforeCommit>(session))
         {
             session.Listeners.Add(new PublishIncomingEventsBeforeCommit(context));
         }
 
-        if (_shouldTrackAppends)
+        if (trackAppends && !hasListener<NotifyObserverOfAppendedEvents>(session))
         {
             session.Listeners.Add(new NotifyObserverOfAppendedEvents(context));
         }
 
         session.Listeners.Add(new FlushOutgoingMessagesOnCommit(context, transaction.Store));
+    }
+
+    private static bool hasListener<T>(IDocumentSession session) where T : IDocumentSessionListener
+    {
+        var listeners = session.Listeners;
+        for (var i = 0; i < listeners.Count; i++)
+        {
+            if (listeners[i] is T)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>
