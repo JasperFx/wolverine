@@ -188,6 +188,10 @@ public class AccountHandlerTests
             // Another option
             .IgnoreMessagesMatchingType(type => type.CanBeCastTo<IAgentCommand>())
 
+            // And when the message TYPE cannot tell the traffic apart, filter
+            // on the envelope itself
+            .IgnoreEnvelopes(e => e.Destination == new Uri("rabbitmq://queue/audit-log"))
+
             // There are many other options as well
             .InvokeMessageAndWaitAsync(debitAccount);
 
@@ -195,6 +199,27 @@ public class AccountHandlerTests
         overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
     }
 
+    #endregion
+
+    #region sample_ignore_envelopes_on_a_shared_host
+    private static async Task scoping_a_tracked_session_by_envelope(IHost host, Guid tenantId)
+    {
+        var debitAccount = new DebitAccount(111, 300);
+
+        var session = await host
+            .TrackActivity()
+
+            // This host also runs background subscriptions and other tests' work, so the same
+            // message types are legitimately in flight for more than one reason at once and
+            // IgnoreMessageType cannot separate them. The predicate sees the whole Envelope, so
+            // scope on whatever actually distinguishes this flow -- here, the tenant under test.
+            .IgnoreEnvelopes(e => e.TenantId != tenantId.ToString())
+
+            .InvokeMessageAndWaitAsync(debitAccount);
+
+        session.Sent.SingleMessage<AccountOverdrawn>()
+            .AccountId.ShouldBe(debitAccount.AccountId);
+    }
     #endregion
 }
 
