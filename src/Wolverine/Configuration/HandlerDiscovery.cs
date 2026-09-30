@@ -244,6 +244,62 @@ public sealed partial class HandlerDiscovery
             .ToArray();
     }
 
+    /// <summary>
+    /// GH-4702. The types that look like they were meant to be handlers but were never discovered, because
+    /// conventional discovery matches the "Handler"/"Consumer" suffix EXACTLY and a plural name --
+    /// OrderHandlers, BillingConsumers -- does not end with either. Plural reads naturally for a class holding
+    /// several Handle methods, so it is easy to hit, and the only downstream trace is a much later
+    /// Information-level "No routes can be determined for Envelope".
+    ///
+    /// Note the asymmetry that makes this a real trap rather than a typo: plural IS accepted at the METHOD
+    /// level -- Handles and Consumes are both in <see cref="_validMethods"/> -- just not at the type level.
+    ///
+    /// Call only AFTER <see cref="FindCalls"/>, which is what runs specifyConventionalHandlerDiscovery() to
+    /// populate <see cref="HandlerQuery"/>'s includes. Asking before that would report every candidate as a
+    /// miss. There is deliberately no equivalent on the static-registry path: it does not scan at all, so it
+    /// has no rejected-candidate set to report.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification =
+            "Startup diagnostic over the same assemblies conventional discovery already scanned, and only reachable from the scanning branch of HandlerGraph.compileWithRuntimeScanning -- a trimmed or AOT app runs the static-registry branch, which never calls this. See AOT guide.")]
+    internal IReadOnlyList<Type> FindNearMissHandlerTypes()
+    {
+        if (_conventionalDiscoveryDisabled)
+        {
+            // No conventional include was ever added, so EVERY concrete type in the assembly is technically
+            // unmatched. Nothing here is a "near miss" -- the user asked for explicit control.
+            return [];
+        }
+
+        string[] pluralSuffixes = [HandlerChain.HandlerSuffix + "s", HandlerChain.ConsumerSuffix + "s"];
+
+        // The name test is the gate, so GetMethods() only ever runs on the handful of plural-named types
+        // rather than on every type in the application. TypeRepository memoizes its per-assembly type list
+        // (the same one HandlerQuery.Find just walked), so re-reading it costs no further reflection.
+        return TypeRepository
+            .FindTypes(Assemblies, TypeClassification.Concretes | TypeClassification.Closed,
+                type => pluralSuffixes.Any(suffix => type.Name.EndsWith(suffix, StringComparison.Ordinal)))
+            .Distinct()
+
+            // Already discovered by some other convention -- [WolverineHandler], IWolverineHandler, Saga, or
+            // a user's own CustomizeHandlerDiscovery suffix. Wolverine's own ValidMessageHandlers sample is
+            // this case.
+            .Where(type => !HandlerQuery.Includes.Matches(type))
+
+            // Deliberately opted out ([WolverineIgnore]) or ineligible whatever it is named (not public).
+            // Renaming would not help, so the suggestion below would be wrong.
+            .Where(type => !HandlerQuery.Excludes.Matches(type))
+
+            // IncludeType() registers a type without going through HandlerQuery at all
+            .Where(type => !_explicitTypes.Contains(type))
+
+            // Finally, the expensive part: does it actually declare something discovery would have taken?
+            // Reuses the very method rules FindCalls uses, so this cannot drift from what "handler-shaped"
+            // means.
+            .Where(type => actionsFromType(type).Any())
+            .ToList();
+    }
+
     // Locates the pre-generated HandlerRegistry subclass in the application assembly and
     // returns its captured handler types. The single-assembly ExportedTypes walk is far
     // cheaper than conventional discovery's multi-assembly scan + convention filtering.

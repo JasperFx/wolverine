@@ -499,6 +499,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             }
 
             methods = Discovery.FindCalls(options);
+
+            warnAboutNearMissHandlerTypes(logger);
         }
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
@@ -511,6 +513,23 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         else
         {
             AddRange(calls);
+        }
+    }
+
+    /// <summary>
+    /// GH-4702. Inside the scanning branch only, and after FindCalls has populated the conventional includes.
+    /// A plural-named class with handler-shaped methods is otherwise invisible: it never enters the handler
+    /// query, so nothing downstream can name it -- the one signal today is an Information-level "No routes
+    /// can be determined" long after startup, with no mention of the class.
+    /// </summary>
+    private void warnAboutNearMissHandlerTypes(ILogger logger)
+    {
+        foreach (var type in Discovery.FindNearMissHandlerTypes())
+        {
+            logger.LogWarning(
+                "Type {HandlerType} has handler-shaped methods but was not discovered: conventional discovery matches the '{HandlerSuffix}' / '{ConsumerSuffix}' suffix exactly. Rename it to {Suggestion}, mark it [WolverineHandler], or add it with opts.Discovery.IncludeType<{TypeName}>().",
+                type.FullNameInCode(), HandlerChain.HandlerSuffix, HandlerChain.ConsumerSuffix,
+                type.Name[..^1], type.Name);
         }
     }
 
