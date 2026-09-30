@@ -16,6 +16,8 @@ using Wolverine.Util;
 
 namespace EfCoreTests.Bugs;
 
+// Regression test for GH-4701.
+//
 // One message type is delivered to two Rabbit MQ queues, so under MessageIdentity.IdAndDestination the inbox holds one
 // row per queue with the SAME envelope id. The handler on the first queue runs inside an EF Core transaction, and
 // EfCoreEnvelopeTransaction.CommitAsync marks its inbox row handled on the application's own connection. That statement

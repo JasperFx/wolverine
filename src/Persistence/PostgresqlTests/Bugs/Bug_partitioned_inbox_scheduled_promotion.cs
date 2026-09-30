@@ -196,9 +196,10 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
     }
 
     /// <summary>
-    /// The mark-as-handled that transactional middleware (EfCoreEnvelopeTransaction) issues inside the application's
-    /// own transaction has to survive the same pair. It used to be a separate statement matching the id alone with no
-    /// status predicate, so moving the redelivered row into the handled partition collided with the retained one.
+    /// GH-4701. The mark-as-handled that transactional middleware (EfCoreEnvelopeTransaction) issues inside the
+    /// application's own transaction has to survive the same pair. It used to be a separate statement matching the id
+    /// alone with no status predicate, so moving the redelivered row into the handled partition collided with the
+    /// retained one.
     /// </summary>
     [Fact]
     public async Task a_redelivered_row_can_be_retired_inside_the_callers_transaction()

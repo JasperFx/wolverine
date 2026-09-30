@@ -344,8 +344,8 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
-    /// The mark-as-handled that transactional middleware (EF Core's <c>EfCoreEnvelopeTransaction</c>) issues on the
-    /// application's own connection and transaction. Runs on every store and identity shape, including the
+    /// GH-4701. The mark-as-handled that transactional middleware (EF Core's <c>EfCoreEnvelopeTransaction</c>) issues
+    /// on the application's own connection and transaction. Runs on every store and identity shape, including the
     /// partitioned PostgreSQL inbox.
     /// </summary>
     [Fact]
@@ -365,11 +365,11 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
-    /// Under <see cref="MessageIdentity.IdAndDestination"/> a row sharing the id at another destination is a different
-    /// message: the copy of a fanned-out message whose own handler may not have run yet. Marking it handled here means a
-    /// node that stops before that handler runs loses the copy for good, because the durability agent only recovers
-    /// Incoming rows. The same identity rule as <c>MarkAsHandledSql</c>, and the twin of the GH-4216 promotion tests.
-    /// Skipped under IdOnly, where a shared id at another destination is by definition the same identity.
+    /// GH-4701. Under <see cref="MessageIdentity.IdAndDestination"/> a row sharing the id at another destination is a
+    /// different message: the copy of a fanned-out message whose own handler may not have run yet. Marking it handled
+    /// here means a node that stops before that handler runs loses the copy for good, because the durability agent only
+    /// recovers Incoming rows. The same identity rule as <c>MarkAsHandledSql</c>, and the twin of the GH-4216 promotion
+    /// tests. Skipped under IdOnly, where a shared id at another destination is by definition the same identity.
     /// </summary>
     [Fact]
     public virtual async Task mark_as_handled_in_transaction_leaves_a_shared_id_at_another_destination_alone()
