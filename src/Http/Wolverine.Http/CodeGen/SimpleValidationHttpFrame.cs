@@ -56,14 +56,22 @@ public static class SimpleValidationHttpFrameHelpers
 /// </summary>
 internal class SimpleValidationHttpFrame : AsyncFrame
 {
-    private static int _count;
+    private readonly int _index;
     private readonly Variable _variable;
     private Variable? _context;
 
-    public SimpleValidationHttpFrame(Variable variable)
+    // GH-4714: numbered per CHAIN rather than from a process-wide static, so this chain's generated code
+    // depends only on this chain. Index 0 keeps the bare name.
+    public SimpleValidationHttpFrame(Variable variable, int index)
     {
         _variable = variable;
-        _variable.OverrideName(_variable.Usage + ++_count);
+        _index = index;
+
+        if (index > 0)
+        {
+            _variable.OverrideName(_variable.Usage + index);
+        }
+
         uses.Add(_variable);
     }
 
@@ -80,9 +88,9 @@ internal class SimpleValidationHttpFrame : AsyncFrame
         writer.Write(
             $"BLOCK:if ({typeof(SimpleValidationHttpFrameHelpers).FullNameInCode()}.{nameof(SimpleValidationHttpFrameHelpers.HasErrors)}({_variable.Usage}))");
         writer.Write(
-            $"var problemDetails{_count} = {typeof(SimpleValidationHttpFrameHelpers).FullNameInCode()}.{nameof(SimpleValidationHttpFrameHelpers.CreateProblemDetails)}({_variable.Usage});");
+            $"var problemDetails{_index} = {typeof(SimpleValidationHttpFrameHelpers).FullNameInCode()}.{nameof(SimpleValidationHttpFrameHelpers.CreateProblemDetails)}({_variable.Usage});");
         writer.Write(
-            $"await {nameof(HttpHandler.WriteProblems)}(problemDetails{_count}, {_context!.Usage}).ConfigureAwait(false);");
+            $"await {nameof(HttpHandler.WriteProblems)}(problemDetails{_index}, {_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
         writer.BlankLine();

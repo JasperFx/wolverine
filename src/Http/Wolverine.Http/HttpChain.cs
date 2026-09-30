@@ -513,13 +513,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override Frame? CreateSimpleValidationFrame(Variable variable)
     {
         Metadata.Produces(400, contentType: "application/problem+json");
-        return new SimpleValidationHttpFrame(variable);
+        return new SimpleValidationHttpFrame(variable, NextContinuationVariableIndex());
     }
 
     public override Frame? CreateRequirementResultFrame(Variable variable)
     {
         Metadata.Produces(400, contentType: "application/problem+json");
-        return new RequirementResultHttpFrame(variable);
+        return new RequirementResultHttpFrame(variable, NextContinuationVariableIndex());
     }
 
     public override Frame[] AddStopConditionIfNull(Variable variable)

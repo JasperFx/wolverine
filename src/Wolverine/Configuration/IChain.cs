@@ -377,6 +377,13 @@ public interface IChain
     /// </summary>
     /// <param name="variable">The variable containing validation messages</param>
     /// <returns>A frame that checks for validation messages and aborts if any exist, or null if not supported</returns>
+    /// <summary>
+    /// GH-4714. The suffix for the next continuation variable generated into this chain's method. Index 0
+    /// takes the bare name. Defaulted so an implementation outside this repository keeps compiling; every
+    /// chain Wolverine ships derives from <c>Chain&lt;,&gt;</c>, which counts per chain.
+    /// </summary>
+    int NextContinuationVariableIndex() => 0;
+
     Frame? CreateSimpleValidationFrame(Variable variable);
 
     /// <summary>

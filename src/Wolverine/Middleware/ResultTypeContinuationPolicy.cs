@@ -90,7 +90,8 @@ public class ResultTypeContinuationPolicy : IRulesAwareContinuationStrategy
             return false;
         }
 
-        frame = new ResultTypeHandlerFrame(resultVariable);
+        // GH-4714: the index comes from the chain, so nothing outside this chain can renumber it.
+        frame = new ResultTypeHandlerFrame(resultVariable, chain.NextContinuationVariableIndex());
         return true;
     }
 
@@ -118,15 +119,23 @@ public class ResultTypeContinuationPolicy : IRulesAwareContinuationStrategy
 /// </summary>
 internal class ResultTypeHandlerFrame : SyncFrame
 {
-    private static int _count;
+    private readonly int _index;
     private readonly Variable _variable;
     private Variable? _logger;
     private Variable? _registry;
 
-    public ResultTypeHandlerFrame(Variable variable)
+    // GH-4714: numbered per CHAIN rather than from a process-wide static, so this chain's generated code
+    // depends only on this chain. Index 0 keeps the bare name.
+    public ResultTypeHandlerFrame(Variable variable, int index)
     {
         _variable = variable;
-        _variable.OverrideName(_variable.Usage + ++_count);
+        _index = index;
+
+        if (index > 0)
+        {
+            _variable.OverrideName(_variable.Usage + index);
+        }
+
         uses.Add(_variable);
     }
 

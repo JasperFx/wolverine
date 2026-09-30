@@ -103,17 +103,37 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
 
+    private int _continuationVariableCount;
+
+    /// <summary>
+    /// GH-4714. The suffix for the next continuation variable generated into THIS chain's method. Index 0
+    /// takes the bare name, so the overwhelmingly common single-frame chain generates a stable
+    /// <c>handlerContinuation</c> forever.
+    /// </summary>
+    /// <remarks>
+    /// These frames used to number from a process-wide <c>static int _count</c>, so a variable's name
+    /// depended on how many frames of that kind had been constructed EARLIER IN THE PROCESS, in other
+    /// chains. Adding one DI singleton renumbered ~48 unrelated generated handlers, which is a steady source
+    /// of merge conflicts in committed <c>Internal/Generated</c> code and makes drift gates fire on files the
+    /// author never touched. The static was also not atomic, so chains compiled concurrently could race on it.
+    /// A chain's generated code now depends only on that chain.
+    /// </remarks>
+    public virtual int NextContinuationVariableIndex()
+    {
+        return _continuationVariableCount++;
+    }
+
     /// <summary>
     /// Default implementation for message handlers: log validation messages and return
     /// </summary>
     public virtual Frame? CreateSimpleValidationFrame(Variable variable)
     {
-        return new SimpleValidationHandlerFrame(variable);
+        return new SimpleValidationHandlerFrame(variable, NextContinuationVariableIndex());
     }
 
     public virtual Frame? CreateRequirementResultFrame(Variable variable)
     {
-        return new RequirementResultHandlerFrame(variable);
+        return new RequirementResultHandlerFrame(variable, NextContinuationVariableIndex());
     }
 
     public bool IsTransactional { get; set; }
