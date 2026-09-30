@@ -11,6 +11,19 @@ public sealed partial class WolverineRuntime
         var groups = envelopes.GroupBy(x => x.Destination ?? TransportConstants.LocalUri).ToArray();
         foreach (var group in groups)
         {
+            // GH-4700. Has to come before FindListenerCircuit, which answers yes for ANY local:// address.
+            // A global partition's companion local queue exists on every node by design (GH-3856), so
+            // "I can build a circuit here" is not the same question as "this slot is mine to run". The
+            // scheduled poller is deliberately unfiltered -- it takes every due row behind one per-database
+            // advisory lock, and GH-4645 depends on it promoting rows for destinations it does not serve --
+            // so this is where ownership has to be settled.
+            var slotUri = Endpoints.GlobalPartitionSlotFor(group.Key);
+            if (slotUri != null && !thisNodeOwnsPartitionSlot(slotUri))
+            {
+                await forwardToPartitionSlotAsync(group, slotUri);
+                continue;
+            }
+
             var listener = Endpoints.FindListenerCircuit(group.Key);
             if (listener != null)
             {
@@ -47,6 +60,64 @@ public sealed partial class WolverineRuntime
         }
     }
 
+    /// <summary>
+    /// GH-4700. The same question GlobalPartitionedRoute asks at send time: is this slot's exclusive
+    /// listener accepting HERE. Asked of the external endpoint, because the companion local queue cannot
+    /// answer it.
+    /// </summary>
+    private bool thisNodeOwnsPartitionSlot(Uri slotUri)
+    {
+        return Endpoints.FindListeningAgent(slotUri) is { Status: ListeningStatus.Accepting };
+    }
+
+    /// <summary>
+    /// GH-4700. A scheduled retry parks in the inbox at the address it was received on, and for a message
+    /// that took GlobalPartitionedRoute's local shortcut that address is the companion local queue. Slot
+    /// ownership at reschedule time says nothing about who owns it when the retry comes due -- the same
+    /// reasoning as GH-4673, reached through the retry path instead of the send path -- so a non-owner
+    /// hands it to the slot rather than running it. The owning node's listener picks it up through the
+    /// existing bridge.
+    ///
+    /// The ordering is the whole trick, and both halves are load-bearing:
+    ///
+    /// The destination is rewritten BEFORE the send because DurableReceiver stamps the listener's address
+    /// only when the envelope has none (<c>Destination ??= Uri</c>). Forwarding it untouched would park the
+    /// row at the companion queue address on the OWNING node too, which moves the bug rather than fixing it.
+    ///
+    /// The parked address is captured BEFORE the rewrite because the inbox row has to be retired at the
+    /// address it was actually written under -- <c>received_at</c>, which is part of the identity under
+    /// MessageIdentity.IdAndDestination. Deleting by the live destination after the send would miss it and
+    /// strand the row, which is exactly the GH-4645 data loss. OutgoingMessageBatch also assigns
+    /// <c>Destination</c> itself, so the live value cannot be trusted once the envelope is handed over.
+    /// </summary>
+    private async Task forwardToPartitionSlotAsync(IEnumerable<Envelope> group, Uri slotUri)
+    {
+        ISendingAgent sender;
+        try
+        {
+            sender = Endpoints.GetOrBuildSendingAgent(slotUri);
+        }
+        catch (UnknownTransportException e)
+        {
+            await deadLetterUnknownDestinationAsync(group, e);
+            return;
+        }
+
+        foreach (var envelope in group)
+        {
+            var parkedAt = envelope.Destination;
+
+            Logger.LogDebug(
+                "Forwarding envelope {Id} ({MessageType}) from the global partition companion queue {Parked} to slot {Slot}, which this node does not own",
+                envelope.Id, envelope.MessageType, parkedAt, slotUri);
+
+            envelope.Destination = slotUri;
+
+            await sender.EnqueueOutgoingAsync(envelope);
+            await retireForwardedInboxRowAsync(envelope, parkedAt);
+        }
+    }
+
     // GH-4645. Everything reaching this method was read out of the inbox -- the scheduled poll promotes a
     // row to Incoming, takes ownership of it, and hands it here. The listener branch above settles that row
     // as part of handling the message (DurableReceiver.CompleteAsync -> MarkIncomingEnvelopeAsHandledAsync),
@@ -65,12 +136,23 @@ public sealed partial class WolverineRuntime
     //
     // On every other transport the same orphan row is a quieter bug in its own right: once this node dies
     // and its rows are released back to AnyNode, recovery re-enqueues a message that was already delivered.
-    private async Task retireForwardedInboxRowAsync(Envelope envelope)
+    /// <param name="parkedAt">
+    /// GH-4700. The address the inbox row was written under, when that is not the envelope's current
+    /// destination -- the partition-slot forward above rewrites the destination before sending. The delete
+    /// matches on id AND received_at, so it has to be given the original address; a stand-in envelope
+    /// carries it rather than mutating the live one back, which would race the outgoing send.
+    /// </param>
+    private async Task retireForwardedInboxRowAsync(Envelope envelope, Uri? parkedAt = null)
     {
         try
         {
             var inbox = envelope.Store?.Inbox ?? Storage.Inbox;
-            await inbox.DeleteIncomingEnvelopeAsync(envelope);
+
+            var target = parkedAt == null || parkedAt == envelope.Destination
+                ? envelope
+                : new Envelope { Id = envelope.Id, Destination = parkedAt };
+
+            await inbox.DeleteIncomingEnvelopeAsync(target);
         }
         catch (Exception e)
         {
