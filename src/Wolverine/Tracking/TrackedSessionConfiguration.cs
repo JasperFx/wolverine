@@ -87,6 +87,27 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    /// GH-4704. Do not track any envelope matching this filter. The envelope-level twin of
+    /// <see cref="IgnoreMessagesMatchingType"/>, for when the message type alone cannot tell the traffic
+    /// apart -- a shared host running background subscriptions or another test's tail alongside the flow
+    /// under test, where the same message type is legitimately in flight for more than one reason at once.
+    /// The predicate sees the whole <see cref="Envelope"/>, so it can filter on destination, tenant id,
+    /// correlation id, headers, or anything else the caller stamped.
+    /// </summary>
+    /// <remarks>
+    /// Two things worth knowing before reaching for this. It narrows what gets <em>recorded</em>, not what
+    /// completion requires: a session can still time out waiting on a message it deliberately never
+    /// consumes. And acknowledgements are never ignored regardless of the filter, because the session's own
+    /// acknowledgement APIs depend on them being recorded.
+    /// </remarks>
+    /// <param name="filter">Return true for an envelope this session should not track</param>
+    public TrackedSessionConfiguration IgnoreEnvelopes(Func<Envelope, bool> filter)
+    {
+        Session.IgnoreEnvelopes(filter);
+        return this;
+    }
+
+    /// <summary>
     /// Track — and allow assertions on — messages marked <see cref="ISystemCommand"/>, which a tracked
     /// session ignores by default. Use this when the traffic under test IS the system/monitoring traffic
     /// (e.g. asserting a monitoring host received a telemetry message). A never-ending system feed can

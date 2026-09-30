@@ -38,6 +38,11 @@ internal partial class TrackedSession : ITrackedSession
     // filtering is handled directly in isIgnoredMessageType so the system-command rule can be
     // toggled off by IncludeSystemCommands().
     private readonly List<Func<Type, bool>> _ignoreMessageRules = [];
+
+    // GH-4704. Test-supplied ignore rules that see the whole envelope rather than just its message type,
+    // for when the same message type is legitimately in flight for more than one reason at once.
+    private readonly List<Func<Envelope, bool>> _ignoreEnvelopeRules = [];
+
     private bool _ignoreSystemCommands = true;
     private CancellationTokenSource _cancellation = new();
 
@@ -76,6 +81,30 @@ internal partial class TrackedSession : ITrackedSession
         }
 
         return _ignoreMessageRules.Any(x => x(messageType));
+    }
+
+    /// <summary>
+    /// GH-4704. The whole ignore decision for one envelope: the message-type rules above, then any
+    /// envelope-level rules. Acknowledgements are checked first and never ignored, for the same reason
+    /// <see cref="isIgnoredMessageType"/> exempts them -- the session's acknowledgement APIs depend on
+    /// them being recorded, and an envelope predicate is far more likely to sweep one up by accident than
+    /// a message-type predicate is.
+    /// </summary>
+    private bool isIgnored(Envelope envelope)
+    {
+        var messageType = envelope.Message?.GetType();
+
+        if (messageType == typeof(Acknowledgement) || messageType == typeof(FailureAcknowledgement))
+        {
+            return false;
+        }
+
+        if (isIgnoredMessageType(messageType))
+        {
+            return true;
+        }
+
+        return _ignoreEnvelopeRules.Any(x => x(envelope));
     }
 
     /// <summary>
@@ -519,8 +548,7 @@ internal partial class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        var messageType = envelope.Message?.GetType();
-        if (isIgnoredMessageType(messageType))
+        if (isIgnored(envelope))
         {
             return;
         }
@@ -540,8 +568,7 @@ internal partial class TrackedSession : ITrackedSession
         Exception? ex = null)
     {
         // Ignore these
-        var messageType = envelope.Message?.GetType();
-        if (isIgnoredMessageType(messageType))
+        if (isIgnored(envelope))
         {
             return;
         }
@@ -652,6 +679,11 @@ internal partial class TrackedSession : ITrackedSession
     public void IgnoreMessageTypes(Func<Type, bool> filter)
     {
         _ignoreMessageRules.Add(filter);
+    }
+
+    public void IgnoreEnvelopes(Func<Envelope, bool> filter)
+    {
+        _ignoreEnvelopeRules.Add(filter);
     }
 
     public void LogStatus(string message)
