@@ -221,6 +221,22 @@ public sealed partial class HandlerDiscovery
             Assemblies.Fill(options.ApplicationAssembly);
         }
 
+        // GH-4699. The registry stands in for the assembly scan, so it has to be subject to the same
+        // switch the scan is: handlerTypes is *conventionally discovered* output, captured by an earlier
+        // `codegen write`, and DisableConventionalDiscovery() says not to use any of it. Without this the
+        // flag was silently inert in TypeLoadMode.Static (and under UseStaticRegistries()) and the
+        // excluded handlers were registered and dispatched anyway -- the stale generated body still
+        // attaches, because a chain keeps its message-type-derived TypeName. The loud version, a
+        // MissingPreBuiltTypesException naming chains the application had excluded, was only the visible
+        // half. Mirrors the _conventionalDiscoveryDisabled branch in FindCalls above.
+        if (_conventionalDiscoveryDisabled)
+        {
+            return _explicitTypes
+                .Distinct()
+                .SelectMany(actionsFromType)
+                .ToArray();
+        }
+
         return handlerTypes
             .Concat(_explicitTypes)
             .Distinct()
