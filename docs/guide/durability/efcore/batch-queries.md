@@ -60,7 +60,7 @@ One round-trip, no manual batch wiring, no change to the plan classes.
 
 ## Pattern 2 — Manual `IBatchQueryPlan<TDbContext, TResult>`
 
-When a query doesn't fit the `QueryPlan<>` / `QueryListPlan<>` shape — for example, a projection into a DTO or a pre-aggregated count — implement `IBatchQueryPlan` directly:
+When a query doesn't fit the `QueryPlan<>` / `QueryListPlan<>` shape — for example, a pre-aggregated count or any other scalar result — implement `IBatchQueryPlan` directly:
 
 ```csharp
 public class OrderCountFor(Guid customerId) : IBatchQueryPlan<OrderDbContext, int>

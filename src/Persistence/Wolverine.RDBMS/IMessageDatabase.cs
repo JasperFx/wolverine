@@ -123,6 +123,26 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
     }
 
     /// <summary>
+    /// GH-4705. The mark-as-handled statement as TEXT, for the stores that queue it into somebody else's
+    /// batch instead of executing it themselves — Marten's <c>QueueSqlCommand</c>, Polecat's and Fisher's
+    /// <c>ITransactionParticipant</c>. All three hand-wrote <c>... where id = ?</c>, which retires every
+    /// destination's copy of a fanned-out message under
+    /// <see cref="MessageIdentity.IdAndDestination"/> and misses the partition-aware shape entirely — on
+    /// Marten, whose store is PostgreSQL, the one provider where <c>EnableInboxPartitioning</c> exists.
+    /// <c>MessageDatabase&lt;T&gt;</c> answers with the very statement it runs itself, so the two cannot
+    /// drift apart again. This default is the unpartitioned identity-matching form, for other
+    /// implementations.
+    /// </summary>
+    MarkAsHandledCommand BuildMarkIncomingAsHandled(Envelope envelope, DateTimeOffset keepUntil,
+        string idExpression, string uriExpression, string keepUntilExpression)
+    {
+        var sql =
+            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
+
+        return new MarkAsHandledCommand(sql, [keepUntil, envelope.Id, envelope.Destination!.ToString()]);
+    }
+
+    /// <summary>
     ///     Access the current count of persisted envelopes
     /// </summary>
     /// <returns></returns>

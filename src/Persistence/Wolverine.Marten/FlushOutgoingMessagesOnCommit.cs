@@ -44,10 +44,14 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
         {
             if (_context.Envelope.WasPersistedInInbox)
             {
-                // Determine which incoming table to update. The envelope may have been
+                // Determine which store's incoming table to update. The envelope may have been
                 // persisted in the ancillary store (if on a different database) or the
                 // main store (default). We need to update the correct table.
-                var incomingTableName = _messageStore.IncomingFullName;
+                //
+                // GH-4705: the STORE rather than just its table name, so the statement can come from
+                // MessageDatabase<T> instead of being hand-written here. Its MarkAsHandledTableName is
+                // the same table, spelled the way that store's own mark-as-handled spells it.
+                var incomingStore = _messageStore;
 
                 if (_messageStore.Role == MessageStoreRole.Ancillary)
                 {
@@ -70,7 +74,7 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                         // the mark-handled separately via its own connection.
                         if (envelopeStore.Uri == _messageStore.Uri)
                         {
-                            incomingTableName = envelopeStore.IncomingFullName;
+                            incomingStore = envelopeStore;
                         }
                         else
                         {
@@ -84,7 +88,7 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                         if (_context.Runtime.Storage is PostgresqlMessageStore mainStore
                             && mainStore.Uri == _messageStore.Uri)
                         {
-                            incomingTableName = mainStore.IncomingFullName;
+                            incomingStore = mainStore;
                         }
                         else
                         {
@@ -96,7 +100,15 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                 }
 
                 var keepUntil = DateTimeOffset.UtcNow.Add(_context.Runtime.Options.Durability.KeepAfterMessageHandling);
-                session.QueueSqlCommand($"update {incomingTableName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = ? where id = ?", keepUntil, _context.Envelope.Id);
+
+                // GH-4705: this used to be a hand-written "... where id = ?", which retired EVERY
+                // destination's copy of a fanned-out message under IdAndDestination -- including copies whose
+                // own handler had not run, which are then never recovered because the durability agent only
+                // picks up Incoming rows -- and skipped the partition-aware shape on the one provider that
+                // has inbox partitioning. QueueSqlCommand binds positionally, so the store hands back the
+                // arguments in placeholder order rather than this method trying to mirror it.
+                var markHandled = incomingStore.BuildMarkIncomingAsHandled(_context.Envelope, keepUntil, "?", "?", "?");
+                session.QueueSqlCommand(markHandled.Sql, markHandled.Arguments);
 
                 // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
                 // above is only durable if this batch commits. See _queuedHandledUpdate.

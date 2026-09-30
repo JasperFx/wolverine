@@ -837,11 +837,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         // -- which also falls through to InMemoryPersistenceFrameProvider and does nothing. EF Core is
         // where that loses data rather than merely doing nothing, because its change tracker makes an
         // in-place mutation look like it should persist.
-        if (DbContextTypesFromLoadAttributes(chain, container).Any())
-        {
-            return true;
-        }
-
         var serviceDependencies = chain.ServiceDependencies(container, Type.EmptyTypes).ToArray();
         return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>() || _abstractions.Contains(x));
     }

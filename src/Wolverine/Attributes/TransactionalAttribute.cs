@@ -48,17 +48,22 @@ public class TransactionalAttribute : ModifyChainAttribute
         // GH-4631: SelectTransactionOwner, not GetPersistenceProviders. A chain with two candidate
         // providers needs the designation this attribute may itself be carrying, and an ambiguity with no
         // designation is an error rather than "whichever provider sorts first".
-        var transactionFrameProvider = rules.As<GenerationRules>().SelectTransactionOwner(chain, container);
+        var found = rules.As<GenerationRules>()
+            .TrySelectTransactionOwner(chain, container, out var transactionFrameProvider);
+
         transactionFrameProvider.ApplyTransactionSupport(chain, container);
 
-        // GH-4716: SelectTransactionOwner falls back to InMemoryPersistenceFrameProvider when nothing
-        // claimed the chain, and that provider's ApplyTransactionSupport is an empty method. Claiming the
-        // chain is transactional after applying no transaction is worse than the silence: IChain consumers
-        // read this flag as "commits a unit of work" and act on it -- HTTP's ConflictMapping filter puts
-        // 409 middleware and a ProducesProblem(409) on an endpoint that can never raise one. Only the
-        // fallback provider reports CanApply == false; every provider SelectTransactionOwner can actually
-        // return was filtered on it being true.
-        if (transactionFrameProvider.CanApply(chain, container))
+        // GH-4716: the owner falls back to InMemoryPersistenceFrameProvider when nothing claimed the chain,
+        // and that provider's ApplyTransactionSupport is an empty method. Claiming the chain is transactional
+        // after applying no transaction is worse than the silence: IChain consumers read this flag as
+        // "commits a unit of work" and act on it -- HTTP's ConflictMapping filter puts 409 middleware and a
+        // ProducesProblem(409) on an endpoint that can never raise one.
+        //
+        // GH-4717: this asks whether an owner was FOUND rather than re-testing the returned provider's
+        // CanApply. A chain whose store is reachable only through [Entity] and its siblings is claimed
+        // through CanPersist by a provider whose CanApply answers false, and the old inference would have
+        // applied a real transaction and then reported the chain as non-transactional.
+        if (found)
         {
             chain.IsTransactional = true;
         }

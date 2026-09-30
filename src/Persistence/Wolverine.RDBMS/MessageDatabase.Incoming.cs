@@ -141,28 +141,94 @@ public abstract partial class MessageDatabase<T>
 
     protected string MarkAsHandledSql(string idExpression, string uriExpression)
     {
+        return buildMarkAsHandled(idExpression, uriExpression, "@keepUntil", null, default).Sql;
+    }
+
+    /// <summary>
+    /// GH-4705. The mark-as-handled statement in a form a store can queue into somebody <i>else's</i> batch --
+    /// Marten's <c>QueueSqlCommand</c>, Polecat's and Fisher's <c>ITransactionParticipant</c> -- rather than
+    /// execute on a connection of its own. Those three each hand-wrote <c>... where id = ?</c>, which is both
+    /// GH-4701 failure modes (every destination's copy of a fanned-out message retired at once, and a
+    /// redelivered row that cannot be retired at all) on stores that never went through this class.
+    ///
+    /// <para>
+    /// Drivers that bind by NAME pass their own placeholders -- <c>"@id"</c>, <c>"@uri"</c>,
+    /// <c>"@keepUntil"</c> -- and ignore <see cref="MarkAsHandledCommand.Arguments" />. Drivers that bind by
+    /// POSITION pass the same marker for all three (<c>"?"</c>) and bind <c>Arguments</c> in the order given.
+    /// The order is produced here, beside the branches that decide it, precisely so that a caller never has to
+    /// mirror it: under inbox partitioning the id and destination each appear three times, and how many times
+    /// depends on <see cref="MessageIdentity" />.
+    /// </para>
+    /// </summary>
+    public MarkAsHandledCommand BuildMarkIncomingAsHandled(Envelope envelope, DateTimeOffset keepUntil,
+        string idExpression, string uriExpression, string keepUntilExpression)
+    {
+        return buildMarkAsHandled(idExpression, uriExpression, keepUntilExpression, envelope, keepUntil);
+    }
+
+    private MarkAsHandledCommand buildMarkAsHandled(string idExpression, string uriExpression,
+        string keepUntilExpression, Envelope? envelope, DateTimeOffset keepUntil)
+    {
         var table = MarkAsHandledTableName;
 
+        // Collected in placeholder order as the statement is composed. Null envelope means a name-binding
+        // caller that only wants the SQL, so nothing is accumulated.
+        var arguments = new List<object>();
+        void id() => arguments.Add(envelope!.Id);
+        void uri() => arguments.Add(envelope!.Destination!.ToString());
+        void keep() => arguments.Add(keepUntil);
+        var collecting = envelope != null;
+
         var update =
-            $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
+            $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
 
         if (!Durability.EnableInboxPartitioning)
         {
-            return update;
+            if (collecting)
+            {
+                keep();
+                id();
+                uri();
+            }
+
+            return new MarkAsHandledCommand(update, arguments.ToArray());
         }
 
         // The existence check has to use whichever identity the TABLE was keyed with, not the row-matching
         // clause above. Under IdOnly a redelivery at a different destination is the SAME identity -- the key is
         // (id, status) and received_at is not part of it -- so an existence check that also matched received_at
         // would miss the handled row it is looking for and let the collision through anyway.
-        var handledExists = Durability.MessageIdentity == MessageIdentity.IdOnly
+        var identityIsIdOnly = Durability.MessageIdentity == MessageIdentity.IdOnly;
+
+        var handledExists = identityIsIdOnly
             ? $"select 1 from {table} h where h.id = {idExpression} and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'"
             : $"select 1 from {table} h where h.id = {idExpression} and h.{DatabaseConstants.ReceivedAt} = {uriExpression} and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'";
 
-        return
+        if (collecting)
+        {
+            // delete ... where id = ? and received_at = ?
+            id();
+            uri();
+
+            // ... and exists (select 1 ... h.id = ? [and h.received_at = ?])
+            id();
+            if (!identityIsIdOnly)
+            {
+                uri();
+            }
+
+            // update ... keep_until = ? where id = ? and received_at = ?
+            keep();
+            id();
+            uri();
+        }
+
+        var sql =
             $"delete from {table} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' " +
             $"and exists ({handledExists});" +
             $"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'";
+
+        return new MarkAsHandledCommand(sql, arguments.ToArray());
     }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)

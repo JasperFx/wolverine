@@ -330,6 +330,9 @@ public partial class HttpChain
         {
             if (ContentTypes.Any())
                 return ContentTypes;
+            // A response with no type has no body, so there is no content type to advertise.
+            if (Type == null || Type == typeof(void))
+                return [];
             if (Type == typeof(string))
                 return new[] { "text/plain" };
             if (Type == typeof(ProblemDetails))

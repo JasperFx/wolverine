@@ -130,6 +130,16 @@ public class QueryPlan_specs : IAsyncLifetime
         blue.Count.ShouldBe(1);
         blue.Single().Name.ShouldBe("Blue Sofa");
     }
+
+    [Fact]
+    public async Task plans_can_project_into_a_type_without_a_parameterless_constructor()
+    {
+        var single = await _db.QueryByPlanAsync(new FirstApprovedItemName(), cancellation: TestContext.Current.CancellationToken);
+        var list = await _db.QueryByPlanAsync(new ApprovedItemNames(), cancellation: TestContext.Current.CancellationToken);
+
+        single.ShouldBe(new ItemName("Blue Sofa"));
+        list.ShouldBe([new ItemName("Blue Sofa"), new ItemName("Green Lamp"), new ItemName("Red Chair")]);
+    }
 }
 
 // Test DbContext — distinct from SampleDbContext to avoid cross-test state
@@ -170,4 +180,19 @@ public class ItemsOrderedByName : QueryListPlan<QueryPlanDbContext, Item>
 {
     public override IQueryable<Item> Query(QueryPlanDbContext db)
         => db.Items.OrderBy(x => x.Name);
+}
+
+// No parameterless constructor -- the plan base classes must not demand new() of their result
+public record ItemName(string Name);
+
+public class FirstApprovedItemName : QueryPlan<QueryPlanDbContext, ItemName>
+{
+    public override IQueryable<ItemName> Query(QueryPlanDbContext db)
+        => db.Items.Where(x => x.Approved).OrderBy(x => x.Name).Select(x => new ItemName(x.Name));
+}
+
+public class ApprovedItemNames : QueryListPlan<QueryPlanDbContext, ItemName>
+{
+    public override IQueryable<ItemName> Query(QueryPlanDbContext db)
+        => db.Items.Where(x => x.Approved).OrderBy(x => x.Name).Select(x => new ItemName(x.Name));
 }

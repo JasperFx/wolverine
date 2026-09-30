@@ -318,6 +318,34 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             ], ignoreOrder: true);
     }
 
+    // A problem-details [Entity] miss must advertise the ProblemDetails body it writes, not just the status
+    // code. Without a response TYPE the content never reaches the document, and a client generated from it
+    // cannot see that the miss carries a problem document.
+    [Theory]
+    [InlineData("/shapes/entity-miss/problem404/{id}", "404")]
+    [InlineData("/shapes/entity-miss/problem400/{id}", "400")]
+    public void a_problem_details_entity_miss_advertises_its_problem_document(string path, string status)
+    {
+        ResponseContentTypesFor(path, "get", status).ShouldContain("application/problem+json");
+        ResponseSchemaFor(path, "get", status, "application/problem+json").ShouldBe("ProblemDetails");
+    }
+
+    [Fact]
+    public void a_simple_404_entity_miss_advertises_no_body()
+    {
+        ResponseContentTypesFor("/shapes/entity-miss/simple404/{id}", "get", "404").ShouldBeEmpty();
+    }
+
+    // The same defect on the Validate() conventions: both write a ProblemDetails body on refusal.
+    [Theory]
+    [InlineData("/shapes/validation/simple")]
+    [InlineData("/shapes/validation/requirement")]
+    public void a_validate_refusal_advertises_its_problem_document(string path)
+    {
+        ResponseContentTypesFor(path, "post", "400").ShouldContain("application/problem+json");
+        ResponseSchemaFor(path, "post", "400", "application/problem+json").ShouldBe("ProblemDetails");
+    }
+
     #region harness helpers
 
     private JsonElement operationFor(string path, string httpMethod)
@@ -393,6 +421,36 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
         return schema.TryGetProperty("properties", out var properties)
             ? properties.EnumerateObject().Select(x => x.Name).ToList()
             : [];
+    }
+
+    /// <summary>
+    /// The content types advertised for one response status of an operation, empty for a bodiless response.
+    /// </summary>
+    public IReadOnlyList<string> ResponseContentTypesFor(string path, string httpMethod, string status)
+    {
+        var operation = operationFor(path, httpMethod);
+        var responses = operation.GetProperty("responses");
+
+        responses.TryGetProperty(status, out var response).ShouldBeTrue(
+            $"Operation {httpMethod} {path} advertises no {status} response. Known: " +
+            string.Join(", ", responses.EnumerateObject().Select(x => x.Name)));
+
+        return response.TryGetProperty("content", out var content)
+            ? content.EnumerateObject().Select(x => x.Name).ToList()
+            : [];
+    }
+
+    /// <summary>
+    /// The components/schemas name a response's content schema refers to.
+    /// </summary>
+    public string? ResponseSchemaFor(string path, string httpMethod, string status, string contentType)
+    {
+        var schema = operationFor(path, httpMethod)
+            .GetProperty("responses").GetProperty(status)
+            .GetProperty("content").GetProperty(contentType)
+            .GetProperty("schema");
+
+        return schema.TryGetProperty("$ref", out var reference) ? reference.GetString()!.Split('/').Last() : null;
     }
 
     /// <summary>

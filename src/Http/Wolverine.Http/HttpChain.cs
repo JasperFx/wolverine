@@ -512,13 +512,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override Frame? CreateSimpleValidationFrame(Variable variable)
     {
-        Metadata.Produces(400, contentType: "application/problem+json");
+        // Typed for the same reason as the problem-details branches of AddStopConditionIfNull below.
+        Metadata.Produces<ProblemDetails>(400, "application/problem+json");
         return new SimpleValidationHttpFrame(variable, NextContinuationVariableIndex());
     }
 
     public override Frame? CreateRequirementResultFrame(Variable variable)
     {
-        Metadata.Produces(400, contentType: "application/problem+json");
+        Metadata.Produces<ProblemDetails>(400, "application/problem+json");
         return new RequirementResultHttpFrame(variable, NextContinuationVariableIndex());
     }
 
@@ -591,11 +592,16 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 Metadata.Produces(404);
                 return [new SetStatusCodeAndReturnIfEntityIsNullFrame(data)];
                 
+            // Produces<ProblemDetails>, not Produces(..., contentType:). Without a response TYPE the content
+            // never reaches the generated OpenAPI document -- Swashbuckle emits the status with no content and
+            // Microsoft.AspNetCore.OpenApi an empty schema -- so a client generating from the spec cannot see
+            // that the miss carries a problem document. Covered by openapi_shape_tests and
+            // entity_miss_swashbuckle_document.
             case OnMissing.ProblemDetailsWith400:
-                Metadata.Produces(400, contentType: "application/problem+json");
+                Metadata.Produces<ProblemDetails>(400, "application/problem+json");
                 return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
             case OnMissing.ProblemDetailsWith404:
-                Metadata.Produces(404, contentType: "application/problem+json");
+                Metadata.Produces<ProblemDetails>(404, "application/problem+json");
                 return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
 
             case OnMissing.EmptyContentWith204:
