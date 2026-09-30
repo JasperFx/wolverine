@@ -343,6 +343,77 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         counts.Handled.ShouldBe(4);
     }
 
+    /// <summary>
+    /// GH-4701. The mark-as-handled that transactional middleware (EF Core's <c>EfCoreEnvelopeTransaction</c>) issues
+    /// on the application's own connection and transaction. Runs on every store and identity shape, including the
+    /// partitioned PostgreSQL inbox.
+    /// </summary>
+    [Fact]
+    public virtual async Task mark_envelope_as_handled_in_transaction()
+    {
+        if (thePersistence is not IMessageDatabase database) return;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        await markAsHandledInTransactionAsync(database, envelope);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Incoming.ShouldBe(0);
+        counts.Handled.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// GH-4701. Under <see cref="MessageIdentity.IdAndDestination"/> a row sharing the id at another destination is a
+    /// different message: the copy of a fanned-out message whose own handler may not have run yet. Marking it handled
+    /// here means a node that stops before that handler runs loses the copy for good, because the durability agent only
+    /// recovers Incoming rows. The same identity rule as <c>MarkAsHandledSql</c>, and the twin of the GH-4216 promotion
+    /// tests. Skipped under IdOnly, where a shared id at another destination is by definition the same identity.
+    /// </summary>
+    [Fact]
+    public virtual async Task mark_as_handled_in_transaction_leaves_a_shared_id_at_another_destination_alone()
+    {
+        if (thePersistence is not IMessageDatabase database) return;
+        if (identityStyle() != MessageIdentity.IdAndDestination) return;
+
+        var handled = ObjectMother.Envelope();
+        handled.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(handled);
+
+        var elsewhere = ObjectMother.Envelope();
+        elsewhere.Id = handled.Id;
+        elsewhere.Destination = new Uri("stub://elsewhere");
+        elsewhere.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(elsewhere);
+
+        await markAsHandledInTransactionAsync(database, handled);
+
+        var rows = await thePersistence.Admin.AllIncomingAsync();
+
+        rows.Single(x => x.Id == handled.Id && x.Destination == handled.Destination)
+            .Status.ShouldBe(EnvelopeStatus.Handled);
+
+        rows.Single(x => x.Id == elsewhere.Id && x.Destination == elsewhere.Destination)
+            .Status.ShouldBe(EnvelopeStatus.Incoming,
+                "Matching on the id alone retires a copy whose own handler has not run yet, and a Handled row is never recovered.");
+    }
+
+    /// <summary>
+    /// Mark the envelope handled the way <c>EfCoreEnvelopeTransaction.CommitAsync</c> does: on a caller-owned
+    /// connection, inside a caller-owned transaction, then commit.
+    /// </summary>
+    protected async Task markAsHandledInTransactionAsync(IMessageDatabase database, Envelope envelope)
+    {
+        await using var conn = await database.DataSource.OpenConnectionAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+
+        await database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, envelope,
+            DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None);
+
+        await tx.CommitAsync();
+    }
+
     [Fact]
     public async Task schedule_execution()
     {
