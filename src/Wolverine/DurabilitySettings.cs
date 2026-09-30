@@ -582,6 +582,33 @@ public class DurabilitySettings : IDescribeMyself
     public int AgentStartBatchSize { get; set; } = 50;
 
     /// <summary>
+    ///     GH-4720. Compress agent command payloads on the wire, under the separate
+    ///     <c>binary/wolverine+gzip</c> content type. Off by default.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     An agent command carries a list of agent URIs, which at cluster scale is both large and extremely
+    ///     compressible — nearly all of it is repeated scheme, family, projection and database structure.
+    ///     Measured 3.9x on a GUID-dominated URI shape and up to 24x on a structural one, at roughly 5ms for
+    ///     7,592 agents. That shrinks the control queue rows a large cluster writes and re-reads on every
+    ///     poll, and it raises the ceiling under <c>Options.MaxIncomingEnvelopeDataSize</c>.
+    ///     </para>
+    ///     <para>
+    ///     <b>Turn this on only once every node in the cluster is running a version that can read it.</b>
+    ///     Reading is unconditional from this version forward, so the upgrade path is: deploy everywhere
+    ///     first, then enable. A node that predates the content type will reject the command rather than
+    ///     misread it — loudly, but it will still reject it, and agent assignment to that node stops until it
+    ///     is upgraded. It is off by default for exactly that reason; a rolling deploy is the normal case.
+    ///     </para>
+    ///     <para>
+    ///     Compression does not REPLACE chunking by <see cref="AgentStartBatchSize" /> (GH-4718). It scales
+    ///     the constant; it does not bound anything, and at tens of thousands of agents even a 10x saving is
+    ///     back over the reader's limit.
+    ///     </para>
+    /// </remarks>
+    public bool CompressAgentCommands { get; set; }
+
+    /// <summary>
     ///     GH-3604 / D3: the maximum number of agents a receiving node starts concurrently when it
     ///     handles a <c>StartAgents</c> batch. Daemon-agent starts are I/O bound (database round-trips),
     ///     so starting them with bounded parallelism instead of serially lets a batch complete well

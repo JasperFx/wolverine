@@ -775,6 +775,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     // applied), so it introduces no cycle among Wolverine's own locks.
     private readonly object _compileLock = new();
 
+    /// <summary>
+    /// GH-4720. Whether an <see cref="ISerializable" /> agent command sent through this endpoint is written
+    /// with <see cref="CompressedIntrinsicSerializer" /> rather than the plain intrinsic one. Stamped from
+    /// <c>Durability.CompressAgentCommands</c> at compile time, because the envelope constructor that makes
+    /// this choice has the endpoint and nothing else.
+    /// </summary>
+    internal bool CompressAgentCommands { get; private set; }
+
     public void Compile(IWolverineRuntime runtime)
     {
         if (_hasCompiled)
@@ -788,6 +796,8 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             {
                 return;
             }
+
+            CompressAgentCommands = runtime.Options.Durability.CompressAgentCommands;
 
             compile(runtime);
 

@@ -10,6 +10,7 @@ using Wolverine.Runtime.Deduplication;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -76,7 +77,15 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             // throws MissingMethodException under Native AOT -- and this route is built for
             // FailureAcknowledgement on any app with an external endpoint, so closing it here killed
             // every AOT-published app at startup.
-            Serializer = IntrinsicSerializer.Instance.SerializerFor(messageType);
+            // GH-4720: an agent command is a list of agent URIs, which at cluster scale is both large and
+            // extremely compressible (measured 3.9x-24x). The compressed form is a SEPARATE content type, so
+            // the receiving node selects it by the content type on the envelope rather than by sniffing the
+            // payload -- and a node too old to know that content type fails to find a serializer by name
+            // instead of misparsing gzip bytes as UTF-8.
+            Serializer = runtime.Options.Durability.CompressAgentCommands
+                         && messageType.CanBeCastTo(typeof(IAgentCommand))
+                ? CompressedIntrinsicSerializer.Instance
+                : IntrinsicSerializer.Instance.SerializerFor(messageType);
         }
         else if (WolverineSystemPart.WithinDescription)
         {
