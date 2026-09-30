@@ -134,14 +134,15 @@ public class AzureServiceBusEnvelope : Envelope
         HasBeenAcked = true;
     }
 
-    private Dictionary<string, object>? buildDiagnosticProperties()
+    // GH-4729: never null. The SDK's DeadLetterMessageAsync overload that takes propertiesToModify asserts it
+    // non-null, so an envelope with no stamped diagnostics has to pass an empty dictionary, not null.
+    private Dictionary<string, object> buildDiagnosticProperties()
     {
-        Dictionary<string, object>? properties = null;
+        var properties = new Dictionary<string, object>();
         foreach (var key in DeadLetterQueueConstants.DiagnosticHeaders)
         {
             if (Headers.TryGetValue(key, out var value) && value != null)
             {
-                properties ??= new Dictionary<string, object>();
                 properties[key] = value;
             }
         }
