@@ -104,26 +104,3 @@ public class SRMessage2;
 public class SRMessage3;
 
 public class SRMessage4;
-
-public class SRMessageHandlers
-{
-    public Task Handle(SRMessage1 message)
-    {
-        return Task.Delay(100.Milliseconds());
-    }
-
-    public Task Handle(SRMessage2 message)
-    {
-        return Task.Delay(100.Milliseconds());
-    }
-
-    public Task Handle(SRMessage3 message)
-    {
-        return Task.Delay(100.Milliseconds());
-    }
-
-    public Task Handle(SRMessage4 message)
-    {
-        return Task.Delay(100.Milliseconds());
-    }
-}
