@@ -109,6 +109,16 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
         return false;
     }
 
+    /// <summary>
+    ///     GH-4718: remove control queue rows by id. A row whose body cannot be deserialized never becomes an
+    ///     Envelope, so it has no other way out of the table — and left there it poisons this node's control
+    ///     queue on every subsequent poll.
+    /// </summary>
+    public Task DeleteRowsAsync(List<Guid> ids, CancellationToken cancellationToken)
+    {
+        return DeleteEnvelopesAsync(ids.Select(id => new Envelope { Id = id }).ToList(), cancellationToken);
+    }
+
     public Task DeleteEnvelopesAsync(List<Envelope> envelopes, CancellationToken cancellationToken)
     {
         if (_deleteBlock == null)

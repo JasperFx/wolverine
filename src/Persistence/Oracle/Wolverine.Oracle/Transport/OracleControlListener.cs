@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine.Configuration;
+using Wolverine.Oracle.Util;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -123,17 +124,44 @@ internal class OracleControlListener : IListener
 
             // 2) Pull anything addressed to this node.
             var envelopes = new List<Envelope>();
+            var unreadable = new List<Guid>();
             await using (var selectCmd = conn.CreateCommand(
-                             $"SELECT body FROM {_transport.TableName.QualifiedName} WHERE node_id = :node"))
+                             $"SELECT id, message_type, body FROM {_transport.TableName.QualifiedName} WHERE node_id = :node"))
             {
                 selectCmd.With("node", _transport.Options.UniqueNodeId);
 
                 await using var reader = await selectCmd.ExecuteReaderAsync(token);
                 while (await reader.ReadAsync(token))
                 {
-                    var body = await reader.GetFieldValueAsync<byte[]>(0, token);
-                    envelopes.Add(EnvelopeSerializer.Deserialize(body));
+                    var id = await OracleEnvelopeReader.ReadGuidAsync(reader, 0, token);
+                    var messageType = await reader.GetFieldValueAsync<string>(1, token);
+                    var body = await reader.GetFieldValueAsync<byte[]>(2, token);
+
+                    try
+                    {
+                        envelopes.Add(EnvelopeSerializer.Deserialize(body));
+                    }
+                    catch (Exception e)
+                    {
+                        // GH-4718: one unreadable row used to abort the whole poll, so this node received no
+                        // control message at all for as long as the row sat there -- the leader's "confirmed
+                        // 0 of N agents" stall. Quarantine the row, name it, and let the rest through.
+                        _logger.LogError(e,
+                            "Discarding an unreadable control queue message {ControlMessageId} of type {MessageType} ({BodyLength} bytes) addressed to node {NodeId}. The message cannot be processed and has been deleted so that the control queue keeps draining; if this is an agent command, the leader will re-evaluate and reissue it. A body larger than Options.MaxIncomingEnvelopeDataSize ({MaxDataSize} bytes) is the usual cause.",
+                            id, messageType, body.Length, _transport.Options.UniqueNodeId,
+                            EnvelopeSerializer.Limits.MaxDataSize);
+
+                        unreadable.Add(id);
+                    }
                 }
+            }
+
+            foreach (var id in unreadable)
+            {
+                await using var deleteCmd = conn.CreateCommand(
+                    $"DELETE FROM {_transport.TableName.QualifiedName} WHERE id = :id");
+                deleteCmd.With("id", id);
+                await deleteCmd.ExecuteNonQueryAsync(token);
             }
 
             if (envelopes.Count == 0) return;

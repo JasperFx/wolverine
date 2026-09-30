@@ -460,14 +460,22 @@ public partial class NodeAgentController
             }
         }
 
+        // GH-4718: stops were the last command type still built as one mega-batch -- AgentStartBatchSize
+        // bounded the starts above and the reassignments below, but never this. A node shedding every agent
+        // it holds (a scale-down, a rolling deploy, a rebalance away) emitted ONE StopRemoteAgents carrying
+        // its whole assignment: at field scale that is thousands of agent URIs and a serialized envelope of
+        // several MB, which the destination refuses to read at all past Options.MaxIncomingEnvelopeDataSize,
+        // and which AgentBatchTimeouts.ReplyWindowFor then makes the leader wait out for days. Chunked like
+        // the starts, so one knob bounds all three.
         foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1)
                      .ToArray())
         {
-            var stopAgents = new StopRemoteAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
-
             foreach (var message in group) commands.Remove(message);
 
-            commands.Add(stopAgents);
+            foreach (var chunk in group.Select(x => x.AgentUri).Chunk(batchSize))
+            {
+                commands.Add(new StopRemoteAgents(group.Key, chunk));
+            }
         }
 
         // GH-3749: reassignment was the one command type never batched, so a rebalance moving thousands of
