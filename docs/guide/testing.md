@@ -168,6 +168,10 @@ private static async Task using_tracked_sessions_advanced(IHost otherWolverineSy
         // Another option
         .IgnoreMessagesMatchingType(type => type.CanBeCastTo<IAgentCommand>())
 
+        // And when the message TYPE cannot tell the traffic apart, filter
+        // on the envelope itself
+        .IgnoreEnvelopes(e => e.Destination == new Uri("rabbitmq://queue/audit-log"))
+
         // There are many other options as well
         .InvokeMessageAndWaitAsync(debitAccount);
 
@@ -175,6 +179,8 @@ private static async Task using_tracked_sessions_advanced(IHost otherWolverineSy
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L202' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ::: tip
 As of 6.17.3, tracked sessions ignore Wolverine's own framework traffic by default — anything marked
@@ -191,6 +197,54 @@ yourself:
 acknowledgement APIs depend on them.
 :::
 
+### Scoping a session by envelope
+
+`IgnoreMessageType<T>()` and `IgnoreMessagesMatchingType()` can only separate traffic by *message type*,
+which does not help on a shared host where the same message type is legitimately in flight for more than
+one reason at once — background subscriptions, hosted services, or another test's tail. A session that
+keeps recording that traffic waits on it, and times out.
+
+`IgnoreEnvelopes()` is the envelope-level twin. The predicate sees the whole `Envelope`, so you can scope
+on destination, tenant id, correlation id, a header your test stamped, or anything else that actually
+distinguishes the flow under test:
+
+<!-- snippet: sample_ignore_envelopes_on_a_shared_host -->
+<a id='snippet-sample_ignore_envelopes_on_a_shared_host'></a>
+```cs
+private static async Task scoping_a_tracked_session_by_envelope(IHost host, Guid tenantId)
+{
+    var debitAccount = new DebitAccount(111, 300);
+
+    var session = await host
+        .TrackActivity()
+
+        // This host also runs background subscriptions and other tests' work, so the same
+        // message types are legitimately in flight for more than one reason at once and
+        // IgnoreMessageType cannot separate them. The predicate sees the whole Envelope, so
+        // scope on whatever actually distinguishes this flow -- here, the tenant under test.
+        .IgnoreEnvelopes(e => e.TenantId != tenantId.ToString())
+
+        .InvokeMessageAndWaitAsync(debitAccount);
+
+    session.Sent.SingleMessage<AccountOverdrawn>()
+        .AccountId.ShouldBe(debitAccount.AccountId);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L204-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ignore_envelopes_on_a_shared_host' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Two things are worth knowing before reaching for it:
+
+* It narrows what gets **recorded**, not what completion requires. A session can still time out waiting on
+  a message it deliberately never consumes.
+* Acknowledgements are never ignored, whatever the filter says, because the session's own acknowledgement
+  APIs depend on them being recorded.
+
+If you want to scope by correlation id, write that predicate yourself —
+`IgnoreEnvelopes(e => e.CorrelationId != mine)`. Wolverine deliberately does not offer a built-in version,
+because that would be a promise that a correlation id survives every transport, HTTP endpoint and interop
+mapping, and any gap would surface as a session that silently stops waiting rather than as an error.
+
 ### Timeouts govern the whole session
 
 `Timeout()` bounds the *entire* tracked session, including any stage it runs — so a stage that does
@@ -204,8 +258,6 @@ await host.TrackActivity().Timeout(30.Seconds())
     .PauseThenCatchUpOnMartenDaemonActivity()
     .InvokeMessageAndWaitAsync(command);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 ### Forcing projection catch-up outside a tracked session
 
@@ -307,7 +359,7 @@ public class When_message_is_sent : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var hostBuilder = Host.CreateDefaultBuilder();
         hostBuilder.ConfigureServices(
@@ -376,10 +428,10 @@ public class When_message_is_sent : IAsyncLifetime
             .ShouldBeOfType<FileAdded>();
     }
 
-    public async Task DisposeAsync() => await _host.StopAsync();
+    public async ValueTask DisposeAsync() => await _host.StopAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L213-L321' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L247-L355' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
@@ -426,7 +478,7 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
         opts.Policies.UseDurableInboxOnAllListeners();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 // Should finish cleanly
 var tracked = await host.SendMessageAndWaitAsync(new TriggerScheduledMessage("Chiefs"));
@@ -456,13 +508,13 @@ using var sender = await Host.CreateDefaultBuilder()
     {
         opts.PublishMessage<ScheduledMessage>().ToPort(port2);
         opts.ListenAtPort(port1);
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 using var receiver = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.ListenAtPort(port2);
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 // Should finish cleanly
 var tracked = await sender
@@ -655,7 +707,7 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
     // I happen to like NSubstitute for mocking or dynamic stubs
     private readonly IDocumentSession theDocumentSession = Substitute.For<IDocumentSession>();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var command = new DebitAccount(theAccount.Id, 1200);
         await DebitAccountHandler.Handle(command, theAccount, theDocumentSession, theContext);
@@ -686,13 +738,13 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
             .ScheduleDelay.ShouldBe(10.Days());
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L89-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L88-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `TestMessageContext` mostly just collects an array of objects that are sent, published, or scheduled. The
@@ -735,7 +787,7 @@ spy.WhenInvokedMessageOf<NumberRequest>(endpointName:"incoming")
 var response3 = await context.EndpointFor("incoming")
     .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L502-L533' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L566-L597' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Stubbing All External Transports
@@ -797,7 +849,7 @@ using var host = await Host.CreateDefaultBuilder()
     // messages to run completely locally
     .ConfigureServices(services => services.DisableAllExternalWolverineTransports())
 
-    .StartAsync();
+    .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/disabling_all_external_transports.cs#L12-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -821,7 +873,7 @@ await using var host = await AlbaHost.For<Program>(x =>
     x.ConfigureServices(services => services.DisableAllExternalWolverineTransports());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L24-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L23-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, I'm bootstrapping the `IHost` for my production application with 
@@ -850,7 +902,7 @@ public static async Task reset_everything(IHost host)
     await host.ClearAllWolverineStorageAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L52-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clear_all_wolverine_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L51-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clear_all_wolverine_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The method is the union of two things:
