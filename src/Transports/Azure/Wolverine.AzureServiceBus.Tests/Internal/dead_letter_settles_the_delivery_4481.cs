@@ -117,7 +117,7 @@ public class dead_letter_settles_the_delivery_4481
             .Single(c => c.GetMethodInfo().Name == nameof(ServiceBusReceiver.DeadLetterMessageAsync))
             .GetArguments()[1];
 
-        properties.ShouldNotBeNull("Without the stamp this is null and the diagnostics never reach the DLQ.");
+        properties.ShouldNotBeNull();
         properties[DeadLetterQueueConstants.ExceptionTypeHeader]
             .ShouldBe(typeof(InvalidOperationException).FullName);
         properties[DeadLetterQueueConstants.ExceptionMessageHeader].ShouldBe("it blew up");
