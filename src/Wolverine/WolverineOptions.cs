@@ -251,6 +251,11 @@ public sealed partial class WolverineOptions
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
         _serializers.Add(IntrinsicSerializer.MimeType, IntrinsicSerializer.Instance);
 
+        // GH-4720: registered unconditionally, and independently of whether this node ever WRITES compressed
+        // agent commands. Reading has to work on every node in the cluster before any node can safely start
+        // writing it, which is the whole rollout story for a format that travels between nodes.
+        _serializers.Add(CompressedIntrinsicSerializer.MimeType, CompressedIntrinsicSerializer.Instance);
+
         UseSystemTextJsonForSerialization();
 
         CodeGeneration = new GenerationRules("Internal.Generated");
