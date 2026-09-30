@@ -54,7 +54,7 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
                 var keepUntil = DateTimeOffset.UtcNow.Add(_context.Runtime.Options.Durability.KeepAfterMessageHandling);
                 // Use ITransactionParticipant to execute the SQL in the same transaction
                 session.AddTransactionParticipant(new MarkIncomingAsHandledParticipant(
-                    _messageStore.IncomingFullName, _context.Envelope.Id, keepUntil));
+                    _messageStore, _context.Envelope, keepUntil));
 
                 // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
                 // above is only durable if this batch commits. See _queuedHandledUpdate.
@@ -104,12 +104,17 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
             }
 
             var keepUntil = DateTimeOffset.UtcNow.Add(_context.Runtime.Options.Durability.KeepAfterMessageHandling);
+
+            // GH-4705: same statement the store runs itself, so it matches id AND received_at.
+            var markHandled =
+                _messageStore.BuildMarkIncomingAsHandled(_context.Envelope, keepUntil, "@id", "@uri", "@keepUntil");
+
             await using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;
-            cmd.CommandText =
-                $"update {_messageStore.IncomingFullName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
+            cmd.CommandText = markHandled.Sql;
             cmd.Parameters.AddWithValue("@keepUntil", keepUntil);
             cmd.Parameters.AddWithValue("@id", _context.Envelope.Id);
+            cmd.Parameters.AddWithValue("@uri", _context.Envelope.Destination!.ToString());
             await cmd.ExecuteNonQueryAsync(token);
 
             // Deliberately do NOT flip _context.Envelope.Status to Handled here: this
@@ -125,25 +130,30 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
 
 internal class MarkIncomingAsHandledParticipant : ITransactionParticipant
 {
-    private readonly string _incomingFullName;
-    private readonly Guid _envelopeId;
+    private readonly SqliteMessageStore _messageStore;
+    private readonly Envelope _envelope;
     private readonly DateTimeOffset _keepUntil;
 
-    public MarkIncomingAsHandledParticipant(string incomingFullName, Guid envelopeId, DateTimeOffset keepUntil)
+    public MarkIncomingAsHandledParticipant(SqliteMessageStore messageStore, Envelope envelope, DateTimeOffset keepUntil)
     {
-        _incomingFullName = incomingFullName;
-        _envelopeId = envelopeId;
+        _messageStore = messageStore;
+        _envelope = envelope;
         _keepUntil = keepUntil;
     }
 
     public async Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
     {
+        // GH-4705: the statement comes from the message store rather than being written here, so it matches
+        // the whole inbox identity -- received_at as well as id -- and cannot drift from the one the store
+        // runs itself. Binding is by name, so the Arguments the store hands back are not needed.
+        var markHandled = _messageStore.BuildMarkIncomingAsHandled(_envelope, _keepUntil, "@id", "@uri", "@keepUntil");
+
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
-        cmd.CommandText =
-            $"update {_incomingFullName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
+        cmd.CommandText = markHandled.Sql;
         cmd.Parameters.AddWithValue("@keepUntil", _keepUntil);
-        cmd.Parameters.AddWithValue("@id", _envelopeId);
+        cmd.Parameters.AddWithValue("@id", _envelope.Id);
+        cmd.Parameters.AddWithValue("@uri", _envelope.Destination!.ToString());
         await cmd.ExecuteNonQueryAsync(token);
     }
 }
