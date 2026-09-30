@@ -51,7 +51,17 @@ public class TransactionalAttribute : ModifyChainAttribute
         var transactionFrameProvider = rules.As<GenerationRules>().SelectTransactionOwner(chain, container);
         transactionFrameProvider.ApplyTransactionSupport(chain, container);
 
-        chain.IsTransactional = true;
+        // GH-4716: SelectTransactionOwner falls back to InMemoryPersistenceFrameProvider when nothing
+        // claimed the chain, and that provider's ApplyTransactionSupport is an empty method. Claiming the
+        // chain is transactional after applying no transaction is worse than the silence: IChain consumers
+        // read this flag as "commits a unit of work" and act on it -- HTTP's ConflictMapping filter puts
+        // 409 middleware and a ProducesProblem(409) on an endpoint that can never raise one. Only the
+        // fallback provider reports CanApply == false; every provider SelectTransactionOwner can actually
+        // return was filtered on it being true.
+        if (transactionFrameProvider.CanApply(chain, container))
+        {
+            chain.IsTransactional = true;
+        }
     }
 
     public IdempotencyStyle? Idempotency { get; set; }

@@ -57,10 +57,12 @@ public class configuring_idempotency_style
         
         var runtime = host.GetRuntime();
         
-        // Just seeing that this caught
-        runtime.Handlers.ChainFor<DoSomething>()!.IsTransactional.ShouldBeTrue();
-        
+        // Just seeing that this caught. GH-4716: this used to read IsTransactional, which was true on this
+        // host only because [Transactional] set it after applying no transaction -- there is no persistence
+        // registered here for it to apply. Idempotency is what this test is actually about and proves the
+        // attribute was reached just as well.
         runtime.Handlers.ChainFor<DoSomething>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<DoSomething>()!.IsTransactional.ShouldBeFalse();
         
         // Override by transactional attribute!
         runtime.Handlers.ChainFor<TM4>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
