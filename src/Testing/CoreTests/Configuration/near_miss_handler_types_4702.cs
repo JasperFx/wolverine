@@ -10,9 +10,9 @@ using Xunit;
 namespace CoreTests.Configuration;
 
 // GH-4702. Conventional discovery matches the "Handler"/"Consumer" suffix exactly, so a plural-named class
-// never enters the handler query and its Handle methods are never seen. Wolverine's own test suite has real
-// instances of this (SRMessageHandlers, duplicated across the transport smoke tests, whose four Handle
-// methods have never run), which is why a startup warning is worth the scan.
+// never enters the handler query and its Handle methods are never seen. Wolverine's own test suite had real
+// instances of this: SRMessageHandlers, duplicated across seven transport smoke tests, whose four Handle
+// methods had never run. This warning is what found them, and GH-4708 deleted them.
 //
 // The asymmetry that makes it easy to hit: plural IS accepted at the method level -- Handles and Consumes
 // are both valid handler method names -- just not at the type level.
