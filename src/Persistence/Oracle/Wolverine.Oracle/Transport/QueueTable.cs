@@ -13,6 +13,6 @@ internal class QueueTable : Table
         AddColumn(DatabaseConstants.Body, "BLOB").NotNull();
         AddColumn(DatabaseConstants.MessageType, "VARCHAR2(500)").NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
+        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
     }
 }
