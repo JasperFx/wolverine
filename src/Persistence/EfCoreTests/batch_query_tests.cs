@@ -132,6 +132,43 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
             list.Count.ShouldBe(2);
         }
     }
+
+    [Fact]
+    public async Task plans_can_project_into_a_type_without_a_parameterless_constructor_when_batched()
+    {
+        var id = await InsertItemAsync("Projected Single");
+        var prefix = Guid.NewGuid().ToString("N")[..8];
+        await InsertItemAsync($"{prefix}_a");
+        await InsertItemAsync($"{prefix}_b");
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
+
+        var batch = db.CreateBatchQuery();
+        var singleTask = new ItemSummaryById(id).FetchAsync(batch, db);
+        var listTask = new ItemSummariesByPrefix(prefix).FetchAsync(batch, db);
+        await batch.ExecuteAsync(TestContext.Current.CancellationToken);
+
+        (await singleTask).ShouldBe(new ItemSummary(id, "Projected Single"));
+        (await listTask).Select(x => x.Name).ShouldBe([$"{prefix}_a", $"{prefix}_b"]);
+    }
+}
+
+// A positional record has no parameterless constructor, so these plans only compile because
+// QueryPlan<,> / QueryListPlan<,> do not require new() of their result type
+public record ItemSummary(Guid Id, string Name);
+
+public class ItemSummaryById(Guid id) : QueryPlan<ItemsDbContext, ItemSummary>
+{
+    public override IQueryable<ItemSummary> Query(ItemsDbContext db)
+        => db.Items.Where(x => x.Id == id).Select(x => new ItemSummary(x.Id, x.Name));
+}
+
+public class ItemSummariesByPrefix(string prefix) : QueryListPlan<ItemsDbContext, ItemSummary>
+{
+    public override IQueryable<ItemSummary> Query(ItemsDbContext db)
+        => db.Items.Where(x => x.Name.StartsWith(prefix)).OrderBy(x => x.Name)
+            .Select(x => new ItemSummary(x.Id, x.Name));
 }
 
 /// <summary>

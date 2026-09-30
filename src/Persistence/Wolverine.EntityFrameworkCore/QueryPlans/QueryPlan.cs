@@ -20,7 +20,7 @@ namespace Wolverine.EntityFrameworkCore;
 public abstract class QueryPlan<TDbContext, TEntity>
     : IQueryPlan<TDbContext, TEntity?>, IBatchQueryPlan<TDbContext, TEntity?>
     where TDbContext : DbContext
-    where TEntity : class, new()
+    where TEntity : class
 {
     /// <summary>
     /// Build the <see cref="IQueryable{T}"/> the plan represents. Called once per
