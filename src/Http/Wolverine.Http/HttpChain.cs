@@ -514,13 +514,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         // Typed for the same reason as the problem-details branches of AddStopConditionIfNull below.
         Metadata.Produces<ProblemDetails>(400, "application/problem+json");
-        return new SimpleValidationHttpFrame(variable);
+        return new SimpleValidationHttpFrame(variable, NextContinuationVariableIndex());
     }
 
     public override Frame? CreateRequirementResultFrame(Variable variable)
     {
         Metadata.Produces<ProblemDetails>(400, "application/problem+json");
-        return new RequirementResultHttpFrame(variable);
+        return new RequirementResultHttpFrame(variable, NextContinuationVariableIndex());
     }
 
     public override Frame[] AddStopConditionIfNull(Variable variable)

@@ -77,14 +77,22 @@ public class RequirementResultContinuationPolicy : IContinuationStrategy
 /// </summary>
 internal class RequirementResultHandlerFrame : SyncFrame
 {
-    private static int _count;
+    private readonly int _index;
     private readonly Variable _variable;
     private Variable? _logger;
 
-    public RequirementResultHandlerFrame(Variable variable)
+    // GH-4714: numbered per CHAIN rather than from a process-wide static, so this chain's generated code
+    // depends only on this chain. Index 0 keeps the bare name.
+    public RequirementResultHandlerFrame(Variable variable, int index)
     {
         _variable = variable;
-        _variable.OverrideName(_variable.Usage + ++_count);
+        _index = index;
+
+        if (index > 0)
+        {
+            _variable.OverrideName(_variable.Usage + index);
+        }
+
         uses.Add(_variable);
     }
 

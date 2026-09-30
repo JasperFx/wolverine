@@ -14,14 +14,22 @@ namespace Wolverine.Http.CodeGen;
 /// </summary>
 internal class RequirementResultHttpFrame : AsyncFrame
 {
-    private static int _count;
+    private readonly int _index;
     private readonly Variable _variable;
     private Variable? _context;
 
-    public RequirementResultHttpFrame(Variable variable)
+    // GH-4714: numbered per CHAIN rather than from a process-wide static, so this chain's generated code
+    // depends only on this chain. Index 0 keeps the bare name.
+    public RequirementResultHttpFrame(Variable variable, int index)
     {
         _variable = variable;
-        _variable.OverrideName(_variable.Usage + ++_count);
+        _index = index;
+
+        if (index > 0)
+        {
+            _variable.OverrideName(_variable.Usage + index);
+        }
+
         uses.Add(_variable);
     }
 
@@ -37,22 +45,22 @@ internal class RequirementResultHttpFrame : AsyncFrame
         writer.Write(
             $"BLOCK:if ({_variable.Usage}.{nameof(RequirementResult.Branch)} == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)})");
         writer.Write(
-            $"var problemDetails{_count} = new {typeof(ProblemDetails).FullNameInCode()}();");
+            $"var problemDetails{_index} = new {typeof(ProblemDetails).FullNameInCode()}();");
         writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Status)} = 400;");
+            $"problemDetails{_index}.{nameof(ProblemDetails.Status)} = 400;");
         writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Title)} = \"Validation failed\";");
+            $"problemDetails{_index}.{nameof(ProblemDetails.Title)} = \"Validation failed\";");
         writer.Write(
             $"BLOCK:if ({_variable.Usage}.{nameof(RequirementResult.Messages)}.Length > 0)");
         writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Extensions)}[\"errors\"] = {_variable.Usage}.{nameof(RequirementResult.Messages)};");
+            $"problemDetails{_index}.{nameof(ProblemDetails.Extensions)}[\"errors\"] = {_variable.Usage}.{nameof(RequirementResult.Messages)};");
         writer.FinishBlock();
         writer.Write("BLOCK:else");
         writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Detail)} = \"Invalid Request\";");
+            $"problemDetails{_index}.{nameof(ProblemDetails.Detail)} = \"Invalid Request\";");
         writer.FinishBlock();
         writer.Write(
-            $"await {nameof(HttpHandler.WriteProblems)}(problemDetails{_count}, {_context!.Usage}).ConfigureAwait(false);");
+            $"await {nameof(HttpHandler.WriteProblems)}(problemDetails{_index}, {_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
         writer.BlankLine();
