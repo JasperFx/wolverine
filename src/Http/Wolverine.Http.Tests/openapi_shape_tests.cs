@@ -331,12 +331,9 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
     }
 
     [Fact]
-    public void a_simple_404_entity_miss_does_not_advertise_problem_details()
+    public void a_simple_404_entity_miss_advertises_no_body()
     {
-        // This stack renders any untyped response as application/json with an empty schema, so "no body"
-        // is not observable here -- only that a bodiless miss does not claim to be a problem document.
-        ResponseContentTypesFor("/shapes/entity-miss/simple404/{id}", "get", "404")
-            .ShouldNotContain("application/problem+json");
+        ResponseContentTypesFor("/shapes/entity-miss/simple404/{id}", "get", "404").ShouldBeEmpty();
     }
 
     // The same defect on the Validate() conventions: both write a ProblemDetails body on refusal.
