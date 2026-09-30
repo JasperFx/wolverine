@@ -824,8 +824,93 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             return TryDetermineDbContextType(sagaType, container) != null;
         }
 
+        // GH-4712. The same detection Marten added for GH-2941, for the same two reasons. Chain
+        // .ServiceDependencies only walks Middleware.OfType<MethodCall>(), and every load frame in the
+        // [Entity] family resolves its DbContext through IMethodVariables.FindVariable at codegen time
+        // instead -- a local in the generated method, never a chain dependency -- so the policy and the
+        // frames look at two different things that never meet. AND on a message handler the attributes'
+        // Modify() does not run until HandlerChain.applyCustomizations, long after AutoApplyTransactions
+        // has already decided, so the frames do not exist to be found either.
+        //
+        // Without this, a handler that loads an entity declaratively and mutates it emits no
+        // SaveChangesAsync at all, with AutoApplyTransactions() or with an explicit [Transactional]
+        // -- which also falls through to InMemoryPersistenceFrameProvider and does nothing. EF Core is
+        // where that loses data rather than merely doing nothing, because its change tracker makes an
+        // in-place mutation look like it should persist.
+        if (DbContextTypesFromLoadAttributes(chain, container).Any())
+        {
+            return true;
+        }
+
         var serviceDependencies = chain.ServiceDependencies(container, Type.EmptyTypes).ToArray();
         return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>() || _abstractions.Contains(x));
+    }
+
+    /// <summary>
+    /// GH-4712. The DbContext types implied by this chain's load attributes, which are invisible to
+    /// <c>ServiceDependencies</c>. Deliberately keyed off the ATTRIBUTES rather than the frames they
+    /// inject, so it works on both orderings -- HTTP matches parameters during chain construction, message
+    /// handlers not until codegen, long after this is asked.
+    ///
+    /// Shared by <see cref="CanApply" /> and <see cref="DetermineDbContextType(IChain,IServiceContainer)" />
+    /// on purpose: they answered from different sets once, and CanApply saying yes while
+    /// DetermineDbContextType could not name a context failed the whole bootstrap.
+    /// </summary>
+    internal IEnumerable<Type> DbContextTypesFromLoadAttributes(IChain chain, IServiceContainer container)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            foreach (var parameter in call.Method.GetParameters())
+            {
+                if (!parameter.GetCustomAttributes().Any(isLoadAttribute))
+                {
+                    continue;
+                }
+
+                // Resolving the entity's own DbContext is what keeps this from claiming a Marten or Polecat
+                // [Entity] chain in an application that registers more than one kind of store.
+                var dbContextType = TryDetermineDbContextType(candidateEntityType(parameter), container);
+                if (dbContextType != null)
+                {
+                    yield return dbContextType;
+                }
+            }
+        }
+    }
+
+    // FromEfCoreAttribute derives from ExplicitEntityAttribute, which derives from EntityAttribute, so the
+    // first test covers [Entity] and [FromEfCore] together.
+    private static bool isLoadAttribute(Attribute attribute)
+    {
+        return attribute is EntityAttribute
+            or AllAttribute
+            or FirstOrDefaultAttribute
+            or QueryableAttribute
+            or FromQuerySpecificationAttribute;
+    }
+
+    /// <summary>
+    /// The entity type a load attribute is asking for. The attributes' own DetermineElementType helpers
+    /// throw on a malformed parameter, which is right when they are building a frame and wrong here --
+    /// CanApply has to answer a question, not fail a bootstrap. A shape this does not recognise falls
+    /// through to the parameter type and simply fails to resolve a DbContext.
+    /// </summary>
+    private static Type candidateEntityType(ParameterInfo parameter)
+    {
+        var type = parameter.ParameterType;
+
+        // [All] and [FromQuerySpecification] take IReadOnlyList<T>; [Queryable] takes IQueryable<T>
+        if (type.IsGenericType)
+        {
+            var definition = type.GetGenericTypeDefinition();
+            if (definition == typeof(IReadOnlyList<>) || definition == typeof(IQueryable<>))
+            {
+                return type.GetGenericArguments()[0];
+            }
+        }
+
+        // [Entity], [FromEfCore] and [FirstOrDefault] take the entity itself
+        return type;
     }
 
     /// <summary>
@@ -947,6 +1032,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
             return contextTypes
                 .Concat(abstractionTypes.Select(x => _abstractions.TryFind(x, out var concrete) ? concrete : null))
+                // GH-4712. A declaratively loaded entity uses its DbContext just as much as a parameter
+                // does, and CanApply now says so -- this has to agree, or a chain it claims cannot name a
+                // context and the bootstrap fails. Two attributes implying two different contexts lands in
+                // the existing "multiple DbContext types detected" error, which already tells the developer
+                // how to designate one.
+                .Concat(DbContextTypesFromLoadAttributes(chain, container))
                 .OfType<Type>() // Removes nullability
                 .Distinct()
                 .ToArray();
