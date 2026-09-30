@@ -18,6 +18,14 @@ public interface IEndpointCollection : IAsyncDisposable
     IEnumerable<IListeningAgent> ActiveListeners();
     ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null);
     Endpoint? EndpointFor(Uri uri);
+
+    /// <summary>
+    /// The external slot endpoint whose global-partition companion local queue is this address, or null when
+    /// the address is not a companion queue. See the implementation for why ownership cannot be asked of the
+    /// local address itself.
+    /// </summary>
+    Uri? GlobalPartitionSlotFor(Uri localQueueUri);
+
     ISendingAgent AgentForLocalQueue(string queueName);
     Endpoint? EndpointByName(string endpointName);
     IListeningAgent? FindListeningAgent(Uri uri);
@@ -423,6 +431,38 @@ public class EndpointCollection : IEndpointCollection
         _singleNodeListeners = _singleNodeListeners.AddOrUpdate(address, isSingleNode);
 
         return isSingleNode;
+    }
+
+    private ImHashMap<Uri, Uri?> _globalPartitionSlots = ImHashMap<Uri, Uri?>.Empty;
+
+    /// <summary>
+    /// GH-4700. The external slot endpoint whose companion local queue is <paramref name="localQueueUri"/>,
+    /// or null when that address is not a global partition's companion queue. The forward map is stamped on
+    /// the external slot (<see cref="Endpoint.GlobalPartitionLocalQueueUri"/>, set in
+    /// GlobalPartitionedMessageTopology), so the reverse lookup is a scan -- cached the way
+    /// <see cref="IsSingleNodeListener"/> is, because the scheduled poller asks it once per distinct
+    /// destination on every pass.
+    ///
+    /// Needed because a companion queue address answers "do I have a listener here?" with yes on EVERY node
+    /// -- LocalQueue.IsSingleNodeListener is deliberately false (GH-3856) and FindListenerCircuit below
+    /// builds a circuit for any local:// scheme. Slot ownership is the only thing that distinguishes the
+    /// nodes, and it is a question about the EXTERNAL endpoint.
+    /// </summary>
+    public Uri? GlobalPartitionSlotFor(Uri localQueueUri)
+    {
+        if (_globalPartitionSlots.TryFind(localQueueUri, out var slotUri))
+        {
+            return slotUri;
+        }
+
+        slotUri = localQueueUri.Scheme == TransportConstants.Local
+            ? _options.Transports.AllEndpoints()
+                .FirstOrDefault(x => x.GlobalPartitionLocalQueueUri == localQueueUri)?.Uri
+            : null;
+
+        _globalPartitionSlots = _globalPartitionSlots.AddOrUpdate(localQueueUri, slotUri);
+
+        return slotUri;
     }
 
     public IListenerCircuit? FindListenerCircuit(Uri address)
