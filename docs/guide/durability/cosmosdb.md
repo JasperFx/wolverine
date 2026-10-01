@@ -158,7 +158,7 @@ All Wolverine document types are stored in the same container, differentiated by
 - `agent-restriction` - Agent restriction documents
 - `lock` - Distributed lock documents
 
-### Several Applications in One Database <Badge type="tip" text="6.44" />
+### Several Applications in One Database <Badge type="tip" text="6.45" />
 
 The container is the unit of clustering. The node registry, leadership, agent assignments and the single
 durability agent all live in it, so **every application pointed at the same container joins one Wolverine

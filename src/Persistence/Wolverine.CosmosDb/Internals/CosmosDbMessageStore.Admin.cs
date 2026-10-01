@@ -153,7 +153,48 @@ public partial class CosmosDbMessageStore : IMessageStoreAdmin
         // The store's own container rather than the default name, so that a container configured through
         // CosmosDbConfiguration.UseContainer() is the one created
         var containerProperties = new ContainerProperties(_container.Id, DocumentTypes.PartitionKeyPath);
-        await database.CreateContainerIfNotExistsAsync(containerProperties);
+
+        try
+        {
+            await database.CreateContainerIfNotExistsAsync(containerProperties);
+        }
+        catch (ArgumentException e)
+        {
+            // CosmosDbConfiguration.UseContainer() exists to aim Wolverine at a container inside a database
+            // shared with other things, which makes "I pointed it at a container I already had, partitioned on
+            // /tenantId" a realistic mistake in a way it never was while the name was fixed at "wolverine". The
+            // SDK does catch it -- it reads the container before deciding to create one, and will not hand back
+            // one whose partition key path is not the requested one -- but it refuses with an ArgumentException
+            // that says only that the two paths differ, leaving the user no way out of a property that is fixed
+            // at container creation and cannot be migrated. Say what to do about it instead.
+            var existing = await tryReadPartitionKeyPathAsync(database);
+            if (existing != null && existing != DocumentTypes.PartitionKeyPath)
+            {
+                throw new InvalidOperationException(
+                    $"The existing CosmosDB container '{_container.Id}' in database '{_databaseName}' is partitioned on '{existing}', but Wolverine requires '{DocumentTypes.PartitionKeyPath}' -- it stamps that property onto every envelope, saga and node document and passes the value explicitly on each write. A container's partition key path cannot be changed after it is created and Wolverine cannot repartition it, so either point CosmosDbConfiguration.UseContainer() at a container name of its own, or let Wolverine create the container itself.",
+                    e);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The partition key path of the store's container as it exists right now, or null when it cannot be read --
+    /// only ever called off the failure path above, where one more round trip costs nothing because the host is
+    /// about to refuse to start anyway.
+    /// </summary>
+    private async Task<string?> tryReadPartitionKeyPathAsync(Database database)
+    {
+        try
+        {
+            var response = await database.GetContainer(_container.Id).ReadContainerAsync();
+            return response.Resource.PartitionKeyPath;
+        }
+        catch (CosmosException)
+        {
+            return null;
+        }
     }
 
     private async Task<int> CountByQueryAsync(string queryText, string docType,
