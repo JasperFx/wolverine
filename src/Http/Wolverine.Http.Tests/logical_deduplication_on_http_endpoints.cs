@@ -3,6 +3,7 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,7 +69,9 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
                     type => type != typeof(DeduplicatedEndpoint)
                             && type != typeof(BenignReplayEndpoint)
                             && type != typeof(RefusingDeduplicatedEndpoint)
-                            && type != typeof(TransactionalDeduplicatedEndpoint)))));
+                            && type != typeof(TransactionalDeduplicatedEndpoint)
+                            && type != typeof(EarlyExitDeduplicatedEndpoint)
+                            && type != typeof(HangUpDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -76,6 +79,8 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         BenignReplayEndpoint.Calls.Clear();
         RefusingDeduplicatedEndpoint.Calls.Clear();
         TransactionalDeduplicatedEndpoint.Calls.Clear();
+        EarlyExitDeduplicatedEndpoint.Calls.Clear();
+        HangUpDeduplicatedEndpoint.Calls.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -245,6 +250,69 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         tryBlock.ShouldBeGreaterThan(registration);
     }
 
+    // Middleware that answers 202 (or redirects) before the endpoint runs ends the request without a failure
+    // status. Nothing was done under the key, so the claim has to go too.
+    [Fact]
+    public async Task an_early_success_from_middleware_releases_the_claim()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("accept")).ToUrl("/dedup/early-exit");
+            x.WithRequestHeader("Idempotency-Key", "early-1");
+            x.StatusCodeShouldBe(202);
+        });
+
+        await waitForReleaseAsync("early-1");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/early-exit");
+            x.WithRequestHeader("Idempotency-Key", "early-1");
+            x.StatusCodeShouldBeOk();
+        });
+
+        EarlyExitDeduplicatedEndpoint.Calls.ShouldHaveSingleItem().ShouldBe("real");
+    }
+
+    // A caller that hangs up on a failing request is the one that will retry. The release must not run on the
+    // request's own, now cancelled, token, or the claim outlives the failure and the retry is refused.
+    [Fact]
+    public async Task a_failure_whose_caller_hung_up_still_releases_the_claim()
+    {
+        try
+        {
+            await theHost.Scenario(x =>
+            {
+                x.Post.Json(new DedupRequest("hang up")).ToUrl("/dedup/hang-up");
+                x.WithRequestHeader("Idempotency-Key", "hang-up-1");
+            });
+        }
+        catch (Exception)
+        {
+            // The caller is gone; what matters is the claim.
+        }
+
+        await waitForReleaseAsync("hang-up-1");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("real")).ToUrl("/dedup/hang-up");
+            x.WithRequestHeader("Idempotency-Key", "hang-up-1");
+            x.StatusCodeShouldBeOk();
+        });
+
+        HangUpDeduplicatedEndpoint.Calls.ShouldHaveSingleItem().ShouldBe("real");
+    }
+
+    // For a release that runs in the finally, after the response has gone out.
+    private static async Task waitForReleaseAsync(string key)
+    {
+        for (var attempt = 0; attempt < 100 && await claimCountAsync(key) > 0; attempt++)
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+    }
+
     private static async Task<long> claimCountAsync(string key)
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -400,6 +468,47 @@ public static class BenignReplayEndpoint
     [WolverinePost("/dedup/benign")]
     public static string Post(DedupRequest request)
     {
+        Calls.Add(request.Name);
+        return "ok";
+    }
+}
+
+/// <summary>
+/// Middleware answers 202 before the endpoint runs: a successful early exit, with nothing done under the key.
+/// </summary>
+public static class EarlyExitDeduplicatedEndpoint
+{
+    public static readonly List<string> Calls = [];
+
+    public static IResult Before(DedupRequest request)
+        => request.Name == "accept" ? Results.Accepted() : WolverineContinue.Result();
+
+    [Deduplicated]
+    [WolverinePost("/dedup/early-exit")]
+    public static string Post(DedupRequest request)
+    {
+        Calls.Add(request.Name);
+        return "ok";
+    }
+}
+
+/// <summary>
+/// The caller hangs up, cancelling the request's token, and then the endpoint fails.
+/// </summary>
+public static class HangUpDeduplicatedEndpoint
+{
+    public static readonly List<string> Calls = [];
+
+    [Deduplicated]
+    [WolverinePost("/dedup/hang-up")]
+    public static string Post(DedupRequest request, HttpContext context)
+    {
+        if (request.Name == "hang up")
+        {
+            context.Abort();
+            throw new InvalidOperationException("The endpoint failed after its caller hung up");
+        }
+
         Calls.Add(request.Name);
         return "ok";
     }

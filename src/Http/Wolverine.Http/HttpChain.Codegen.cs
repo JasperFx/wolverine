@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.Policies;
 using Wolverine.Http.Resources;
 using Wolverine.Persistence.Codegen;
 using Wolverine.Logging;
@@ -224,6 +225,12 @@ public partial class HttpChain
         }
 
         yield return Method;
+
+        // The endpoint ran, so a [Deduplicated] claim is now released only on a throw or a failure status.
+        if (Middleware.OfType<ReleaseDeduplicationIdOnHttpFailureFrame>().Any())
+        {
+            yield return new MethodCall(typeof(HttpHandler), nameof(HttpHandler.MarkDeduplicatedEndpointRan));
+        }
 
         var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1))
             .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames()).ToArray();
