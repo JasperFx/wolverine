@@ -859,65 +859,22 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// inject, so it works on both orderings -- HTTP matches parameters during chain construction, message
     /// handlers not until codegen, long after this is asked.
     ///
-    /// Shared by <see cref="CanApply" /> and <see cref="DetermineDbContextType(IChain,IServiceContainer)" />
-    /// on purpose: they answered from different sets once, and CanApply saying yes while
-    /// DetermineDbContextType could not name a context failed the whole bootstrap.
+    /// Reads the same set as core's <see cref="DeclarativeLoadDependencies.DeclarativelyLoadedEntityTypes" />,
+    /// which <c>AutoApplyTransactions</c> and <c>[Transactional]</c> use to claim the chain: if the two ever
+    /// disagree, a claimed chain cannot name its context and the bootstrap fails.
     /// </summary>
     internal IEnumerable<Type> DbContextTypesFromLoadAttributes(IChain chain, IServiceContainer container)
     {
-        foreach (var call in chain.HandlerCalls())
+        foreach (var entityType in chain.DeclarativelyLoadedEntityTypes())
         {
-            foreach (var parameter in call.Method.GetParameters())
+            // Resolving the entity's own DbContext is what keeps this from claiming a Marten or Polecat
+            // [Entity] chain in an application that registers more than one kind of store.
+            var dbContextType = TryDetermineDbContextType(entityType, container);
+            if (dbContextType != null)
             {
-                if (!parameter.GetCustomAttributes().Any(isLoadAttribute))
-                {
-                    continue;
-                }
-
-                // Resolving the entity's own DbContext is what keeps this from claiming a Marten or Polecat
-                // [Entity] chain in an application that registers more than one kind of store.
-                var dbContextType = TryDetermineDbContextType(candidateEntityType(parameter), container);
-                if (dbContextType != null)
-                {
-                    yield return dbContextType;
-                }
+                yield return dbContextType;
             }
         }
-    }
-
-    // FromEfCoreAttribute derives from ExplicitEntityAttribute, which derives from EntityAttribute, so the
-    // first test covers [Entity] and [FromEfCore] together.
-    private static bool isLoadAttribute(Attribute attribute)
-    {
-        return attribute is EntityAttribute
-            or AllAttribute
-            or FirstOrDefaultAttribute
-            or QueryableAttribute
-            or FromQuerySpecificationAttribute;
-    }
-
-    /// <summary>
-    /// The entity type a load attribute is asking for. The attributes' own DetermineElementType helpers
-    /// throw on a malformed parameter, which is right when they are building a frame and wrong here --
-    /// CanApply has to answer a question, not fail a bootstrap. A shape this does not recognise falls
-    /// through to the parameter type and simply fails to resolve a DbContext.
-    /// </summary>
-    private static Type candidateEntityType(ParameterInfo parameter)
-    {
-        var type = parameter.ParameterType;
-
-        // [All] and [FromQuerySpecification] take IReadOnlyList<T>; [Queryable] takes IQueryable<T>
-        if (type.IsGenericType)
-        {
-            var definition = type.GetGenericTypeDefinition();
-            if (definition == typeof(IReadOnlyList<>) || definition == typeof(IQueryable<>))
-            {
-                return type.GetGenericArguments()[0];
-            }
-        }
-
-        // [Entity], [FromEfCore] and [FirstOrDefault] take the entity itself
-        return type;
     }
 
     /// <summary>

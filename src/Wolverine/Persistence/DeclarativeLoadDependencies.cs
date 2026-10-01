@@ -1,7 +1,11 @@
 using JasperFx;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Middleware;
 
 namespace Wolverine.Persistence;
 
@@ -21,7 +25,7 @@ namespace Wolverine.Persistence;
 /// <para>
 /// On a message handler there is a second, independent miss: the attributes' <c>Modify()</c> does not run until
 /// <c>HandlerChain.applyCustomizations</c>, long after <c>AutoApplyTransactions</c> has already asked. Which is
-/// why this is keyed off the ATTRIBUTES on the handler-call parameters rather than off the frames they inject —
+/// why this is keyed off the ATTRIBUTES on the handler and step method parameters rather than off the frames they inject —
 /// the attributes are readable on both orderings, and the frames are not.
 /// </para>
 /// <para>
@@ -39,9 +43,9 @@ public static class DeclarativeLoadDependencies
     /// </summary>
     public static IEnumerable<Type> DeclarativelyLoadedEntityTypes(this IChain chain)
     {
-        foreach (var call in chain.HandlerCalls())
+        foreach (var method in methodsThatMayLoad(chain))
         {
-            foreach (var parameter in call.Method.GetParameters())
+            foreach (var parameter in method.GetParameters())
             {
                 if (parameter.GetCustomAttributes().Any(isLoadAttribute))
                 {
@@ -49,6 +53,36 @@ public static class DeclarativeLoadDependencies
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Every method whose parameters can carry a load attribute: the handler calls, the middleware method
+    /// calls already on the chain, and the handler types' own <c>Before</c> / <c>Validate</c> / <c>Load</c>
+    /// methods. An <c>[Entity]</c> on a step's parameter loads through the store exactly as one on the handler
+    /// method does, so a chain that only loads there must still be claimed -- otherwise its change-tracked
+    /// writes are silently dropped.
+    /// </summary>
+    /// <remarks>
+    /// The handler types' step methods are read off the TYPE rather than off <c>Middleware</c> because
+    /// <c>[Transactional]</c> is applied before <c>ApplyImpliedMiddlewareFromHandlers</c> has added them, on
+    /// both message handlers and HTTP endpoints.
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Handler-type method walk for Before/Validate/Load methods at codegen time; handler types statically rooted via HandlerDiscovery. Same pattern as Chain.ApplyImpliedMiddlewareFromHandlers.")]
+    private static IEnumerable<MethodInfo> methodsThatMayLoad(IChain chain)
+    {
+        var handlerCalls = chain.HandlerCalls();
+        var methods = handlerCalls.Select(x => x.Method)
+            .Concat(chain.Middleware.OfType<MethodCall>().Select(x => x.Method))
+            .ToList();
+
+        foreach (var handlerType in handlerCalls.Select(x => x.HandlerType).Distinct())
+        {
+            methods.AddRange(MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(chain, handlerType.GetMethods(),
+                MiddlewarePolicy.BeforeMethodNames));
+        }
+
+        return methods.Distinct();
     }
 
     // FromEfCoreAttribute derives from ExplicitEntityAttribute, which derives from EntityAttribute, so the
