@@ -107,8 +107,17 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                 // picks up Incoming rows -- and skipped the partition-aware shape on the one provider that
                 // has inbox partitioning. QueueSqlCommand binds positionally, so the store hands back the
                 // arguments in placeholder order rather than this method trying to mirror it.
+                //
+                // GH-4736: and ONE STATEMENT AT A TIME. QueueSqlCommand rejects any SQL containing a ';',
+                // so the partition-aware shape -- a DELETE followed by an UPDATE -- could never pass through
+                // it as a single string: under EnableInboxPartitioning every durable-inbox message whose
+                // handler committed through a Marten session was dead-lettered. Marten runs queued commands
+                // in the order they were queued, which is the order the DELETE and the UPDATE need.
                 var markHandled = incomingStore.BuildMarkIncomingAsHandled(_context.Envelope, keepUntil, "?", "?", "?");
-                session.QueueSqlCommand(markHandled.Sql, markHandled.Arguments);
+                foreach (var statement in markHandled.Statements)
+                {
+                    session.QueueSqlCommand(statement.Sql, statement.Arguments);
+                }
 
                 // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
                 // above is only durable if this batch commits. See _queuedHandledUpdate.
