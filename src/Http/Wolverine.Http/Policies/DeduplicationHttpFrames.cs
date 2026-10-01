@@ -84,8 +84,11 @@ internal class ReleaseDeduplicationIdOnHttpFailureFrame : ReleaseDeduplicationId
     private Variable? _httpResponse;
     private Variable? _httpContext;
 
+    // Not the request's token: a caller that hung up on a failure is the one that will retry, and a cancelled
+    // release would leave its claim in place.
     public ReleaseDeduplicationIdOnHttpFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
-        : base(deduplicationId, ancillaryStoreMarker)
+        : base(deduplicationId, ancillaryStoreMarker,
+            cancellationUsage: $"{typeof(CancellationToken).FullNameInCode()}.{nameof(CancellationToken.None)}")
     {
     }
 

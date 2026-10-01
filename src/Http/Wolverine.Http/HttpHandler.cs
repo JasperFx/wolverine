@@ -205,7 +205,7 @@ public abstract class HttpHandler
             if (context.Response.StatusCode >= 400)
             {
                 await deduplicator
-                    .ReleaseAsync(deduplicationId, ancillaryStoreMarker, context.RequestAborted)
+                    .ReleaseAsync(deduplicationId, ancillaryStoreMarker, CancellationToken.None)
                     .ConfigureAwait(false);
             }
         });
