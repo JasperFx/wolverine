@@ -10,6 +10,7 @@ open System.Threading.Tasks
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type CreateItemCommandHandler670389475(serviceScopeFactory: Microsoft.Extensions.DependencyInjection.IServiceScopeFactory, domainEventScraperIEnumerable: System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _serviceScopeFactory = serviceScopeFactory
@@ -18,6 +19,7 @@ type CreateItemCommandHandler670389475(serviceScopeFactory: Microsoft.Extensions
     override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         task {
             use serviceScope = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateAsyncScope(_serviceScopeFactory)
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Wolverine.Runtime.ScopedMessageContextHolder>(serviceScope.ServiceProvider).Context <- context
             // This service has been marked as requiring service location independent of Wolverine's ability to use constructor injection of everything else
             let itemsDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<WolverineFSharpSample.ItemsDbContext>(serviceScope.ServiceProvider)
             // The actual message body

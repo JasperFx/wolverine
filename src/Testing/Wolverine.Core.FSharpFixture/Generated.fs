@@ -10,6 +10,7 @@ open Wolverine.Persistence.Sagas
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.ILogger<Wolverine.Core.FSharpContracts.CheckThing>) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage
@@ -23,9 +24,9 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
             System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.CheckThingHandler") |> ignore
             System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.CheckThingHandler") |> ignore
         let checkThingHandler = Wolverine.Core.FSharpContracts.CheckThingHandler()
-        let requirementResult1 = checkThingHandler.Before(checkThing)
+        let requirementResult = checkThingHandler.Before(checkThing)
         // Check RequirementResult and abort if Branch == Stop
-        if Wolverine.Middleware.RequirementResultContinuationPolicy.ShouldStop((_loggerForMessage :> Microsoft.Extensions.Logging.ILogger), requirementResult1) then
+        if Wolverine.Middleware.RequirementResultContinuationPolicy.ShouldStop((_loggerForMessage :> Microsoft.Extensions.Logging.ILogger), requirementResult) then
             ()
         else
             
@@ -35,6 +36,7 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
             this.RecordCauseAndEffect(context, context.Runtime.Observer)
         System.Threading.Tasks.Task.CompletedTask
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.ILogger<Wolverine.Core.FSharpContracts.CreateName>) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage
@@ -52,9 +54,9 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
                 System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.NameHandler") |> ignore
                 System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.NameHandler") |> ignore
             let nameHandler = Wolverine.Core.FSharpContracts.NameHandler()
-            let stringValueIEnumerable1 = nameHandler.Validate(createName)
+            let stringValueIEnumerable = nameHandler.Validate(createName)
             // Check for any simple validation messages and abort if any exist
-            if Wolverine.Middleware.SimpleValidationContinuationPolicy.LogValidationMessages((_loggerForMessage :> Microsoft.Extensions.Logging.ILogger), stringValueIEnumerable1) then
+            if Wolverine.Middleware.SimpleValidationContinuationPolicy.LogValidationMessages((_loggerForMessage :> Microsoft.Extensions.Logging.ILogger), stringValueIEnumerable) then
                 ()
             else
                 
@@ -68,6 +70,7 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
                 this.RecordCauseAndEffect(context, context.Runtime.Observer)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GateHandler1696712162() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
@@ -91,6 +94,7 @@ type GateHandler1696712162() =
             this.RecordCauseAndEffect(context, context.Runtime.Observer)
         System.Threading.Tasks.Task.CompletedTask
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
@@ -104,7 +108,7 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
             System.Diagnostics.Activity.Current.SetTag("Id", incrementCount.Id) |> ignore
         let sagaId = if isNull incrementCount.Id then context.Envelope.SagaId else incrementCount.Id
         if System.String.IsNullOrEmpty(sagaId) then
-            raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope))
+            raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<Wolverine.Core.FSharpContracts.CountingSaga>, "Id"))
         let countingSaga = _inMemorySagaPersistor.Load<Wolverine.Core.FSharpContracts.CountingSaga>(sagaId)
         if isNull (box countingSaga) then
             raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<Wolverine.Core.FSharpContracts.CountingSaga>, sagaId))
@@ -125,6 +129,7 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
             // No unit of work
         System.Threading.Tasks.Task.CompletedTask
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
@@ -149,6 +154,7 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
         // No unit of work
         System.Threading.Tasks.Task.CompletedTask
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type TickHandler1778389912() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =

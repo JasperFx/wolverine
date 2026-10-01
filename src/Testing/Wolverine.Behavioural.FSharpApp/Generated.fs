@@ -8,6 +8,7 @@ open System.Threading.Tasks
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type BehaviouralPingHandler1244766258() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     override this.HandleAsync(_context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
