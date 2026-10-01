@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -11,31 +12,52 @@ namespace Wolverine.Persistence.EventSourcing;
 /// Shared by every event sourcing store integration — see GH-3907.
 /// </summary>
 /// <remarks>
-/// Both store copies of this type were byte-identical apart from an unused <c>using</c> of the store's
-/// own <c>Events</c> namespace: everything here is expressed over <see cref="IEventStream{T}"/> from
-/// JasperFx.Events, so there was never a store dependency to break.
-///
 /// <para>
-/// The constraint is widened from the copies' <c>class</c> to <c>notnull</c>, which is what
-/// <see cref="IEventStream{T}"/> itself declares. This frame is closed reflectively over the aggregate
-/// type, and a <c>class</c> constraint — unlike <c>notnull</c> — is enforced at <c>MakeGenericType</c>
-/// time, so the narrower form would throw for a struct aggregate rather than generate the same correct
-/// code. Strictly wider: nothing that works today changes.
+/// GH-4752: this frame used to be <c>RegisterEventsFrame&lt;T&gt;</c>, closed over the aggregate type
+/// through <c>CloseAndBuildAs</c> — that is, through <see cref="Activator" />. The chain model is built
+/// at startup even under <c>TypeLoadMode.Static</c>, so a Native AOT application reached that
+/// <c>Activator.CreateInstance</c> on the closed generic frame and died with
+/// <c>MissingMethodException: No parameterless constructor defined</c>: the constructor was reachable
+/// only reflectively, so ILC trimmed it. Taking the aggregate type as a plain constructor argument
+/// makes the construction a <c>newobj</c> the compiler emits, which ILC cannot trim — a guarantee
+/// rather than a promise, and it needs no <c>[DynamicDependency]</c> to hold.
+/// </para>
+/// <para>
+/// The remaining reflection — closing <see cref="IEventStream{T}" /> over the aggregate type and
+/// selecting the <c>AppendMany</c> overload off it — is the same shape
+/// <see cref="EventCaptureActionSource" /> has always used, and the same
+/// <c>typeof(IEventStream&lt;&gt;).MakeGenericType(...)</c> that
+/// <see cref="AggregateHandling.FindEventStreamVariable" /> runs earlier in the very same
+/// <c>Apply()</c> call. In GH-4752's native image that call had already succeeded by the time the
+/// frame construction threw, so the interface close is demonstrably fine where the
+/// <c>Activator</c> call was not.
 /// </para>
 /// </remarks>
-internal class RegisterEventsFrame<T> : MethodCall where T : notnull
+internal class RegisterEventsFrame : MethodCall
 {
-    public RegisterEventsFrame(Variable returnVariable) : base(typeof(IEventStream<T>),
-        FindMethod(returnVariable.VariableType))
+    public RegisterEventsFrame(Variable returnVariable, Type aggregateType) : base(
+        EventStreamTypeFor(aggregateType),
+        FindMethod(aggregateType, returnVariable.VariableType))
     {
         Arguments[0] = returnVariable;
         CommentText = "Capturing any possible events returned from the command handlers";
     }
 
-    internal static MethodInfo FindMethod(Type responseType)
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes IEventStream<TAggregate> at codegen time, exactly as AggregateHandling.FindEventStreamVariable already does earlier in the same Apply() call.")]
+    internal static Type EventStreamTypeFor(Type aggregateType) =>
+        typeof(IEventStream<>).MakeGenericType(aggregateType);
+
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "The reflected members are IEventStream<TAggregate>.AppendMany/AppendOne, named via nameof and preserved by the aggregate type's own registration. Same justification as EventCaptureActionSource.")]
+    internal static MethodInfo FindMethod(Type aggregateType, Type responseType)
     {
+        var streamType = EventStreamTypeFor(aggregateType);
+
+        // AppendMany is overloaded - IEnumerable<object> and object[] - so the parameter types have to
+        // be spelled out rather than looked up by name alone.
         return responseType.CanBeCastTo<IEnumerable<object>>()
-            ? ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendMany(new List<object>()))!
-            : ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendOne(null!))!;
+            ? streamType.GetMethod(nameof(IEventStream<object>.AppendMany), [typeof(IEnumerable<object>)])!
+            : streamType.GetMethod(nameof(IEventStream<object>.AppendOne), [typeof(object)])!;
     }
 }
