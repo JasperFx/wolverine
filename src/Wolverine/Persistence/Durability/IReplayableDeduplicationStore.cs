@@ -25,12 +25,13 @@ public interface IReplayableDeduplicationStore
     bool Enabled { get; }
 
     /// <summary>
-    /// Claim <paramref name="deduplicationId" /> with the request's <paramref name="fingerprint" />.
+    /// Claim <paramref name="deduplicationId" /> with the request's <paramref name="fingerprint" />, and a
+    /// <paramref name="claimToken" /> unique to this attempt that recording and releasing must present.
     /// <see langword="false" /> when it is already claimed. As <see cref="IDeduplicationStore.TryClaimAsync" />,
     /// this MUST be an INSERT arbitrated by the primary key, never a SELECT followed by an INSERT. Callers pass a UTC
     /// <paramref name="expires" />.
     /// </summary>
-    Task<bool> TryClaimAsync(string deduplicationId, string fingerprint, DateTimeOffset expires,
+    Task<bool> TryClaimAsync(string deduplicationId, string fingerprint, string claimToken, DateTimeOffset expires,
         CancellationToken cancellation = default);
 
     /// <summary>The claim on <paramref name="deduplicationId" />, or null when there is none.</summary>
@@ -38,16 +39,16 @@ public interface IReplayableDeduplicationStore
 
     /// <summary>
     /// Record the response a repeat of the claimed request is answered with. <see langword="false" /> when the claim
-    /// is gone or already answered, so nothing was recorded.
+    /// is gone, already answered, or no longer this attempt's, so nothing was recorded.
     /// </summary>
-    Task<bool> RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
+    Task<bool> RecordResponseAsync(string deduplicationId, string claimToken, DeduplicatedResponse response,
         CancellationToken cancellation = default);
 
     /// <summary>
-    /// Release the claim, but only while it has no response: a failure after the response was recorded must
-    /// not let the work run again. Idempotent.
+    /// Release this attempt's claim, but only while it has no response: a failure after the response was recorded
+    /// must not let the work run again. Idempotent.
     /// </summary>
-    Task ReleaseUnansweredAsync(string deduplicationId, CancellationToken cancellation = default);
+    Task ReleaseUnansweredAsync(string deduplicationId, string claimToken, CancellationToken cancellation = default);
 
     /// <summary>Delete every expired claim, answered or not, and return how many were removed.</summary>
     Task<int> DeleteExpiredAsync(DateTimeOffset utcNow, CancellationToken cancellation = default);

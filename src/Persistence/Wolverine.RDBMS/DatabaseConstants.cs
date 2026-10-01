@@ -89,6 +89,7 @@ public class DatabaseConstants
     public const string DeduplicatedResponsesTableName = "wolverine_deduplicated_responses";
 
     public const string Fingerprint = "fingerprint";
+    public const string ClaimToken = "claim_token";
     public const string ResponseStatusCode = "status_code";
     public const string ResponseBody = "body";
     public const string ResponseLocation = "location";

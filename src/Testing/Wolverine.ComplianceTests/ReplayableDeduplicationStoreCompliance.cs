@@ -43,6 +43,9 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
         _host.Dispose();
     }
 
+    // One attempt's claim token, unless a test needs another.
+    private const string Token = "attempt-1";
+
     private static string newId() => Guid.NewGuid().ToString();
 
     private static DateTimeOffset expires() => DateTimeOffset.UtcNow.AddHours(1);
@@ -58,7 +61,7 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     {
         var id = newId();
 
-        (await theStore.TryClaimAsync(id, "fingerprint-1", expires())).ShouldBeTrue();
+        (await theStore.TryClaimAsync(id, "fingerprint-1", Token, expires())).ShouldBeTrue();
 
         var stored = await theStore.FindAsync(id);
         stored.ShouldNotBeNull();
@@ -71,8 +74,8 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     {
         var id = newId();
 
-        (await theStore.TryClaimAsync(id, "first", expires())).ShouldBeTrue();
-        (await theStore.TryClaimAsync(id, "second", expires())).ShouldBeFalse();
+        (await theStore.TryClaimAsync(id, "first", Token, expires())).ShouldBeTrue();
+        (await theStore.TryClaimAsync(id, "second", Token, expires())).ShouldBeFalse();
 
         // The loser does not overwrite the winner's fingerprint.
         (await theStore.FindAsync(id))!.Fingerprint.ShouldBe("first");
@@ -88,11 +91,11 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     public async Task recording_a_response_round_trips_it()
     {
         var id = newId();
-        await theStore.TryClaimAsync(id, "fingerprint", expires());
+        await theStore.TryClaimAsync(id, "fingerprint", Token, expires());
 
         // Large and non-ASCII.
         var body = "{\"name\":\"" + new string('é', 6000) + "\"}";
-        (await theStore.RecordResponseAsync(id, new DeduplicatedResponse(201, body, "/orders/42"))).ShouldBeTrue();
+        (await theStore.RecordResponseAsync(id, Token, new DeduplicatedResponse(201, body, "/orders/42"))).ShouldBeTrue();
 
         var stored = await theStore.FindAsync(id);
         stored!.Response.ShouldNotBeNull();
@@ -106,8 +109,8 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     public async Task a_response_without_a_body_or_location_round_trips()
     {
         var id = newId();
-        await theStore.TryClaimAsync(id, "fingerprint", expires());
-        await theStore.RecordResponseAsync(id, new DeduplicatedResponse(200, null, null));
+        await theStore.TryClaimAsync(id, "fingerprint", Token, expires());
+        await theStore.RecordResponseAsync(id, Token, new DeduplicatedResponse(200, null, null));
 
         var response = (await theStore.FindAsync(id))!.Response!;
         response.StatusCode.ShouldBe(200);
@@ -120,30 +123,49 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     {
         // A request outliving a reaped claim must not overwrite the answer of the one that took it next.
         var id = newId();
-        await theStore.TryClaimAsync(id, "fingerprint", expires());
-        await theStore.RecordResponseAsync(id, new DeduplicatedResponse(201, "first", null));
+        await theStore.TryClaimAsync(id, "fingerprint", Token, expires());
+        await theStore.RecordResponseAsync(id, Token, new DeduplicatedResponse(201, "first", null));
 
-        (await theStore.RecordResponseAsync(id, new DeduplicatedResponse(200, "second", null))).ShouldBeFalse();
+        (await theStore.RecordResponseAsync(id, Token, new DeduplicatedResponse(200, "second", null))).ShouldBeFalse();
 
         (await theStore.FindAsync(id))!.Response!.Body.ShouldBe("first");
     }
 
     [Fact]
+    public async Task a_stale_attempt_cannot_record_on_or_release_its_successors_claim()
+    {
+        // Attempt 1's claim expired mid-request and was reaped; attempt 2 took the key.
+        var id = newId();
+        await theStore.TryClaimAsync(id, "fingerprint", Token, DateTimeOffset.UtcNow.AddSeconds(-5));
+        await theStore.DeleteExpiredAsync(DateTimeOffset.UtcNow);
+        (await theStore.TryClaimAsync(id, "fingerprint", "attempt-2", expires())).ShouldBeTrue();
+
+        (await theStore.RecordResponseAsync(id, Token, new DeduplicatedResponse(201, "stale", null))).ShouldBeFalse();
+        await theStore.ReleaseUnansweredAsync(id, Token);
+
+        var stored = await theStore.FindAsync(id);
+        stored.ShouldNotBeNull();
+        stored.Response.ShouldBeNull();
+
+        (await theStore.RecordResponseAsync(id, "attempt-2", new DeduplicatedResponse(201, "fresh", null))).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task recording_on_an_unknown_id_records_nothing()
     {
-        (await theStore.RecordResponseAsync(newId(), new DeduplicatedResponse(201, "{}", null))).ShouldBeFalse();
+        (await theStore.RecordResponseAsync(newId(), Token, new DeduplicatedResponse(201, "{}", null))).ShouldBeFalse();
     }
 
     [Fact]
     public async Task releasing_an_unanswered_claim_frees_the_id()
     {
         var id = newId();
-        await theStore.TryClaimAsync(id, "fingerprint", expires());
+        await theStore.TryClaimAsync(id, "fingerprint", Token, expires());
 
-        await theStore.ReleaseUnansweredAsync(id);
+        await theStore.ReleaseUnansweredAsync(id, Token);
 
         (await theStore.FindAsync(id)).ShouldBeNull();
-        (await theStore.TryClaimAsync(id, "fingerprint", expires())).ShouldBeTrue();
+        (await theStore.TryClaimAsync(id, "fingerprint", Token, expires())).ShouldBeTrue();
     }
 
     [Fact]
@@ -151,10 +173,10 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     {
         // A failure after the response is recorded must not free the id.
         var id = newId();
-        await theStore.TryClaimAsync(id, "fingerprint", expires());
-        await theStore.RecordResponseAsync(id, new DeduplicatedResponse(201, "{}", null));
+        await theStore.TryClaimAsync(id, "fingerprint", Token, expires());
+        await theStore.RecordResponseAsync(id, Token, new DeduplicatedResponse(201, "{}", null));
 
-        await theStore.ReleaseUnansweredAsync(id);
+        await theStore.ReleaseUnansweredAsync(id, Token);
 
         (await theStore.FindAsync(id))!.Response.ShouldNotBeNull();
     }
@@ -162,7 +184,7 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
     [Fact]
     public async Task releasing_an_unclaimed_id_is_a_no_op()
     {
-        await theStore.ReleaseUnansweredAsync(newId());
+        await theStore.ReleaseUnansweredAsync(newId(), Token);
     }
 
     [Fact]
@@ -171,7 +193,7 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
         var id = newId();
 
         var results = await Task.WhenAll(Enumerable.Range(0, 8)
-            .Select(i => theStore.TryClaimAsync(id, $"fingerprint-{i}", expires())));
+            .Select(i => theStore.TryClaimAsync(id, $"fingerprint-{i}", Token, expires())));
 
         results.Count(x => x).ShouldBe(1);
     }
@@ -184,13 +206,13 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
         var live = newId();
         var moreExpired = Enumerable.Range(0, 4).Select(_ => newId()).ToArray();
 
-        await theStore.TryClaimAsync(answered, "fingerprint", DateTimeOffset.UtcNow.AddSeconds(-5));
-        await theStore.RecordResponseAsync(answered, new DeduplicatedResponse(201, "{}", null));
-        await theStore.TryClaimAsync(unanswered, "fingerprint", DateTimeOffset.UtcNow.AddSeconds(-5));
-        await theStore.TryClaimAsync(live, "fingerprint", expires());
+        await theStore.TryClaimAsync(answered, "fingerprint", Token, DateTimeOffset.UtcNow.AddSeconds(-5));
+        await theStore.RecordResponseAsync(answered, Token, new DeduplicatedResponse(201, "{}", null));
+        await theStore.TryClaimAsync(unanswered, "fingerprint", Token, DateTimeOffset.UtcNow.AddSeconds(-5));
+        await theStore.TryClaimAsync(live, "fingerprint", Token, expires());
         foreach (var expired in moreExpired)
         {
-            await theStore.TryClaimAsync(expired, "fingerprint", DateTimeOffset.UtcNow.AddSeconds(-5));
+            await theStore.TryClaimAsync(expired, "fingerprint", Token, DateTimeOffset.UtcNow.AddSeconds(-5));
         }
 
         (await theStore.DeleteExpiredAsync(DateTimeOffset.UtcNow)).ShouldBeGreaterThanOrEqualTo(6);

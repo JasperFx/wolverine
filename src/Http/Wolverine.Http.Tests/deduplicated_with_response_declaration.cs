@@ -101,9 +101,47 @@ public class deduplicated_with_response_declaration
             x.Contains("/declaration/storeless") && x.Contains("does not implement IReplayableDeduplicationStore"));
     }
 
-    private static async Task<IAlbaHost> startAsync(CapturingLoggerProvider logs, bool persist = false,
-        bool enable = false)
+    [Fact]
+    public void an_unknown_scope_is_refused_at_startup()
     {
+        Should.Throw<InvalidOperationException>(() =>
+                HttpChain.ChainFor(typeof(UnknownScopeDeduplicatedResponse), "Post"))
+            .Message.ShouldContain("unknown DeduplicationScope value 8");
+    }
+
+    [Fact]
+    public async Task a_requirement_a_policy_sets_is_validated_at_startup()
+    {
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => startAsync(new CapturingLoggerProvider(),
+            endpoint: typeof(PolicyDeduplicatedResponse),
+            configure: chain => chain.DeduplicatedWithResponse =
+                new DeduplicatedWithResponseRequirement { Scope = DeduplicationScope.None }));
+
+        ex.Message.ShouldContain("needs a DeduplicationScope");
+    }
+
+    [Fact]
+    public async Task a_requirement_a_policy_sets_is_in_the_endpoint_metadata()
+    {
+        await using var host = await startAsync(new CapturingLoggerProvider(),
+            endpoint: typeof(PolicyDeduplicatedResponse),
+            configure: chain => chain.DeduplicatedWithResponse =
+                new DeduplicatedWithResponseRequirement { Scope = DeduplicationScope.User });
+
+        var codes = host.Services.GetServices<EndpointDataSource>().SelectMany(x => x.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(x => x.RoutePattern.RawText == "/declaration/policy")
+            .Metadata.OfType<IProducesResponseTypeMetadata>().Select(x => x.StatusCode).ToArray();
+
+        codes.ShouldContain(409);
+        codes.ShouldContain(422);
+    }
+
+    private static async Task<IAlbaHost> startAsync(CapturingLoggerProvider logs, bool persist = false,
+        bool enable = false, Type? endpoint = null, Action<HttpChain>? configure = null)
+    {
+        endpoint ??= typeof(StorelessDeduplicatedResponse);
+
         var builder = WebApplication.CreateBuilder([]);
         builder.Logging.AddProvider(logs);
 
@@ -123,8 +161,12 @@ public class deduplicated_with_response_declaration
         builder.Services.AddWolverineHttp();
 
         var host = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
+        {
             opts.CustomizeHttpEndpointDiscovery(q =>
-                q.Excludes.WithCondition("Not the endpoint under test", type => type != typeof(StorelessDeduplicatedResponse)))));
+                q.Excludes.WithCondition("Not the endpoint under test", type => type != endpoint));
+
+            if (configure != null) opts.ConfigureEndpoints(configure);
+        }));
 
         if (persist) await ((IHost)host).ResetResourceState();
 
@@ -207,5 +249,20 @@ public static class StorelessDeduplicatedResponse
 {
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/declaration/storeless")]
+    public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+[WolverineIgnore]
+public static class UnknownScopeDeduplicatedResponse
+{
+    [DeduplicatedWithResponse((DeduplicationScope)8)]
+    [WolverinePost("/declaration/unknown-scope")]
+    public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+// No attribute: the tests' policy sets the requirement.
+public static class PolicyDeduplicatedResponse
+{
+    [WolverinePost("/declaration/policy")]
     public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
 }

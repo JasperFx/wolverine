@@ -35,19 +35,20 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
         _batchSize = batchSize;
 
         _insertSql =
-            $"insert into {table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}, {DatabaseConstants.Fingerprint}) values (@id, @expires, @fingerprint)";
+            $"insert into {table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}, {DatabaseConstants.Fingerprint}, {DatabaseConstants.ClaimToken}) values (@id, @expires, @fingerprint, @token)";
         _findSql =
             $"select {DatabaseConstants.Fingerprint}, {DatabaseConstants.ResponseStatusCode}, {DatabaseConstants.ResponseBody}, {DatabaseConstants.ResponseLocation} from {table} where {DatabaseConstants.DeduplicationId} = @id";
         _recordSql =
-            $"update {table} set {DatabaseConstants.ResponseStatusCode} = @status, {DatabaseConstants.ResponseBody} = @body, {DatabaseConstants.ResponseLocation} = @location where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ResponseStatusCode} is null";
+            $"update {table} set {DatabaseConstants.ResponseStatusCode} = @status, {DatabaseConstants.ResponseBody} = @body, {DatabaseConstants.ResponseLocation} = @location where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ClaimToken} = @token and {DatabaseConstants.ResponseStatusCode} is null";
         _deleteUnansweredSql =
-            $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ResponseStatusCode} is null";
+            $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ClaimToken} = @token and {DatabaseConstants.ResponseStatusCode} is null";
         _deleteExpiredSql = $"delete from {table} where {DatabaseConstants.Expires} <= @now";
     }
 
     public bool Enabled => true;
 
-    public async Task<bool> TryClaimAsync(string deduplicationId, string fingerprint, DateTimeOffset expires,
+    public async Task<bool> TryClaimAsync(string deduplicationId, string fingerprint, string claimToken,
+        DateTimeOffset expires,
         CancellationToken cancellation = default)
     {
         if (deduplicationId.IsEmpty()) throw new ArgumentNullException(nameof(deduplicationId));
@@ -57,7 +58,8 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
             await using var cmd = _dataSource.CreateCommand(_insertSql)
                 .With("id", deduplicationId)
                 .With("expires", expires)
-                .With("fingerprint", fingerprint);
+                .With("fingerprint", fingerprint)
+                .With("token", claimToken);
 
             await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
             return true;
@@ -93,24 +95,27 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
             await readStringAsync(reader, 3, cancellation).ConfigureAwait(false)));
     }
 
-    public async Task<bool> RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
+    public async Task<bool> RecordResponseAsync(string deduplicationId, string claimToken, DeduplicatedResponse response,
         CancellationToken cancellation = default)
     {
         await using var cmd = _dataSource.CreateCommand(_recordSql)
             .With("id", deduplicationId)
+            .With("token", claimToken)
             .With("status", response.StatusCode)
             .With("body", (object?)response.Body ?? DBNull.Value)
             .With("location", (object?)response.Location ?? DBNull.Value);
 
-        // Never over an answer: a claim reaped mid-request may have been taken and answered by another.
+        // Only this attempt's claim, and never over an answer: a claim reaped mid-request may have been taken by another.
         return await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false) > 0;
     }
 
-    public async Task ReleaseUnansweredAsync(string deduplicationId, CancellationToken cancellation = default)
+    public async Task ReleaseUnansweredAsync(string deduplicationId, string claimToken,
+        CancellationToken cancellation = default)
     {
         if (deduplicationId.IsEmpty()) return;
 
-        await using var cmd = _dataSource.CreateCommand(_deleteUnansweredSql).With("id", deduplicationId);
+        await using var cmd = _dataSource.CreateCommand(_deleteUnansweredSql).With("id", deduplicationId)
+            .With("token", claimToken);
         await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
     }
 

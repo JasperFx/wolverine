@@ -246,15 +246,19 @@ public abstract class HttpHandler
         return $"{tenant.Length}:{tenant}|{user.Length}:{user}|{endpoint.Length}:{endpoint}|{key}";
     }
 
-    // The name, else the name identifier or "sub": JWT bearer often maps no name. Anonymous callers share "".
+    // The first non-blank of the name, the name identifier and "sub": JWT bearer often maps no name. Anonymous
+    // callers share "".
     private static string userOf(HttpContext context)
     {
         var principal = context.User;
         if (principal?.Identity is not { IsAuthenticated: true } identity) return string.Empty;
 
-        return identity.Name
-               ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
-               ?? principal.FindFirst("sub")?.Value
+        return new[]
+               {
+                   identity.Name,
+                   principal.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                   principal.FindFirst("sub")?.Value
+               }.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
                ?? throw new InvalidOperationException(
                    $"[DeduplicatedWithResponse] scopes {context.Request.Method} {context.Request.Path} by user, but the authenticated caller has no name, name identifier or 'sub' claim to scope by, so every such caller would share one scope. See GH-4742");
     }
@@ -383,7 +387,7 @@ public abstract class HttpHandler
     /// status, gives the claim back before it is flushed.
     /// </summary>
     public static void ReleaseDeduplicatedResponseBeforeFailureResponse(HttpContext context,
-        DeduplicatedResponses responses, string? deduplicationId, Type? ancillaryStoreMarker)
+        DeduplicatedResponses responses, string? deduplicationId, string claimToken, Type? ancillaryStoreMarker)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return;
 
@@ -391,7 +395,7 @@ public abstract class HttpHandler
         {
             if (!IsDeduplicatedWorkDone(context))
             {
-                await responses.ReleaseUnansweredAsync(deduplicationId, ancillaryStoreMarker).ConfigureAwait(false);
+                await responses.ReleaseUnansweredAsync(deduplicationId, claimToken, ancillaryStoreMarker).ConfigureAwait(false);
             }
         });
     }

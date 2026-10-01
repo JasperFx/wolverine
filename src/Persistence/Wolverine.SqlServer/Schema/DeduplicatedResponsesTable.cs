@@ -13,6 +13,7 @@ internal class DeduplicatedResponsesTable : Table
         AddColumn(DatabaseConstants.DeduplicationId, "varchar(250)").NotNull().AsPrimaryKey();
         AddColumn<DateTimeOffset>(DatabaseConstants.Expires).NotNull();
         AddColumn(DatabaseConstants.Fingerprint, "varchar(64)").NotNull();
+        AddColumn(DatabaseConstants.ClaimToken, "varchar(36)").NotNull();
         AddColumn(DatabaseConstants.ResponseStatusCode, "int");
         AddColumn(DatabaseConstants.ResponseBody, "nvarchar(max)");
         AddColumn(DatabaseConstants.ResponseLocation, "nvarchar(max)");

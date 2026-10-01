@@ -18,6 +18,7 @@ internal class DeduplicatedResponsesTable : Table
         AddColumn(DatabaseConstants.DeduplicationId, "varchar(250)").NotNull().AsPrimaryKey();
         AddColumn<DateTimeOffset>(DatabaseConstants.Expires).NotNull();
         AddColumn(DatabaseConstants.Fingerprint, "varchar(64)").NotNull();
+        AddColumn(DatabaseConstants.ClaimToken, "varchar(36)").NotNull();
 
         // Null until answered. Text, not jsonb, so a replay is byte-identical.
         AddColumn(DatabaseConstants.ResponseStatusCode, "integer");

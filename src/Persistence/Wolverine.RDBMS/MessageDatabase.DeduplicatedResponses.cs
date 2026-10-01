@@ -27,19 +27,20 @@ public abstract partial class MessageDatabase<T> : IReplayableDeduplicationStore
     bool IReplayableDeduplicationStore.Enabled => _deduplicatedResponses != null;
 
     Task<bool> IReplayableDeduplicationStore.TryClaimAsync(string deduplicationId, string fingerprint,
-        DateTimeOffset expires, CancellationToken cancellation)
-        => deduplicatedResponses.TryClaimAsync(deduplicationId, fingerprint, expires, cancellation);
+        string claimToken, DateTimeOffset expires, CancellationToken cancellation)
+        => deduplicatedResponses.TryClaimAsync(deduplicationId, fingerprint, claimToken, expires, cancellation);
 
     Task<DeduplicatedResponseClaim?> IReplayableDeduplicationStore.FindAsync(string deduplicationId,
         CancellationToken cancellation)
         => deduplicatedResponses.FindAsync(deduplicationId, cancellation);
 
-    Task<bool> IReplayableDeduplicationStore.RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
-        CancellationToken cancellation)
-        => deduplicatedResponses.RecordResponseAsync(deduplicationId, response, cancellation);
+    Task<bool> IReplayableDeduplicationStore.RecordResponseAsync(string deduplicationId, string claimToken,
+        DeduplicatedResponse response, CancellationToken cancellation)
+        => deduplicatedResponses.RecordResponseAsync(deduplicationId, claimToken, response, cancellation);
 
-    Task IReplayableDeduplicationStore.ReleaseUnansweredAsync(string deduplicationId, CancellationToken cancellation)
-        => deduplicatedResponses.ReleaseUnansweredAsync(deduplicationId, cancellation);
+    Task IReplayableDeduplicationStore.ReleaseUnansweredAsync(string deduplicationId, string claimToken,
+        CancellationToken cancellation)
+        => deduplicatedResponses.ReleaseUnansweredAsync(deduplicationId, claimToken, cancellation);
 
     Task<int> IReplayableDeduplicationStore.DeleteExpiredAsync(DateTimeOffset utcNow, CancellationToken cancellation)
         => deduplicatedResponses.DeleteExpiredAsync(utcNow, cancellation);

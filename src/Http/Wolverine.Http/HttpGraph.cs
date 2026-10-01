@@ -255,6 +255,9 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // sitting in the entry assembly instead. Assert here so the whole picture is reported at once.
         AssertPreBuiltTypesExist();
 
+        // GH-4742. A requirement a policy set is validated here, at startup, and its refusal codes described.
+        foreach (var chain in _chains) chain.FinalizeDeduplicatedWithResponse();
+
         warnAboutDeduplicatedResponsesWithoutStorage(logger);
 
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
@@ -266,17 +269,17 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// </summary>
     private void warnAboutDeduplicatedResponsesWithoutStorage(ILogger logger)
     {
-        var routes = _chains
-            .Where(x => x.DeduplicatedWithResponse != null && x.AncillaryStoreType == null)
-            .Select(x => x.RoutePattern?.RawText ?? x.Description)
+        // By the store each chain claims in: the main one, or its ancillary store.
+        var byStore = _chains.Where(x => x.DeduplicatedWithResponse != null)
+            .GroupBy(x => x.AncillaryStoreType)
             .ToArray();
 
-        if (routes.Length == 0) return;
+        if (byStore.Length == 0) return;
 
-        string? reason;
+        IWolverineRuntime runtime;
         try
         {
-            reason = DeduplicatedResponses.WhyUnsupported(Container.GetInstance<IWolverineRuntime>());
+            runtime = Container.GetInstance<IWolverineRuntime>();
         }
         catch (Exception)
         {
@@ -284,11 +287,24 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
             return;
         }
 
-        if (reason == null) return;
+        foreach (var chains in byStore)
+        {
+            string? reason;
+            try
+            {
+                reason = DeduplicatedResponses.WhyUnsupported(runtime, chains.Key);
+            }
+            catch (Exception)
+            {
+                continue;
+            }
 
-        logger.LogWarning(
-            "[DeduplicatedWithResponse] is used by {Routes}, but {Reason}, so those endpoints will fail at their first request. See GH-4742",
-            routes.Join(", "), reason);
+            if (reason == null) continue;
+
+            logger.LogWarning(
+                "[DeduplicatedWithResponse] is used by {Routes}, but {Reason}, so those endpoints will fail at their first request. See GH-4742",
+                chains.Select(x => x.RoutePattern?.RawText ?? x.Description).Join(", "), reason);
+        }
     }
 
     internal static void ResolveDuplicateTypeNames(IReadOnlyList<HttpChain> chains)

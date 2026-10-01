@@ -73,6 +73,15 @@ public class scoping_a_deduplication_id
     }
 
     [Fact]
+    public void a_blank_name_falls_back_rather_than_scoping_to_the_anonymous_user()
+    {
+        HttpHandler.ScopeDeduplicationId(
+                authenticated(new Claim(ClaimTypes.Name, ""), new Claim(ClaimTypes.NameIdentifier, "id-1")), "k",
+                DeduplicationScope.User, null)
+            .ShouldBe("0:|4:id-1|0:|k");
+    }
+
+    [Fact]
     public void an_authenticated_caller_with_nothing_to_scope_by_is_refused()
     {
         // Otherwise every such caller would share the empty user, and one could be answered with another's response.

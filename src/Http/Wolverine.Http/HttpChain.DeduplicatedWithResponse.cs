@@ -17,6 +17,9 @@ public partial class HttpChain
     /// </summary>
     public DeduplicatedWithResponseRequirement? DeduplicatedWithResponse { get; set; }
 
+    private const DeduplicationScope KnownDeduplicationScopes =
+        DeduplicationScope.Tenant | DeduplicationScope.User | DeduplicationScope.Endpoint;
+
     /// <summary>
     /// Refuses a defect in the endpoint's own declaration, which every host that discovers it shares, and
     /// registers the refusal codes before the metadata is built.
@@ -26,14 +29,36 @@ public partial class HttpChain
         if (DeduplicatedWithResponse is not { } requirement) return;
 
         assertDeduplicatedWithResponseIsValid(requirement);
+        _validatedDeduplicatedWithResponse = requirement;
 
-        if (requirement.Required)
+        if (requirement.Required && !_producesMissingKey)
         {
             Metadata.Produces<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+            _producesMissingKey = true;
         }
 
-        Metadata.Produces<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
-        Metadata.Produces<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json");
+        if (!_producesRefusals)
+        {
+            Metadata.Produces<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+            Metadata.Produces<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json");
+            _producesRefusals = true;
+        }
+    }
+
+    private DeduplicatedWithResponseRequirement? _validatedDeduplicatedWithResponse;
+    private bool _producesMissingKey;
+    private bool _producesRefusals;
+
+    /// <summary>
+    /// After the policies, before the endpoint is built: validate and describe a requirement a policy set, at
+    /// startup like one from the attribute.
+    /// </summary>
+    internal void FinalizeDeduplicatedWithResponse()
+    {
+        if (!ReferenceEquals(DeduplicatedWithResponse, _validatedDeduplicatedWithResponse))
+        {
+            validateDeduplicatedWithResponse();
+        }
     }
 
     private void assertDeduplicatedWithResponseIsValid(DeduplicatedWithResponseRequirement requirement)
@@ -42,6 +67,13 @@ public partial class HttpChain
         {
             throw new InvalidOperationException(
                 $"[DeduplicatedWithResponse] on {Description} needs a {nameof(DeduplicationScope)}: a stored response is replayed to anyone who presents the same key and request. Use DeduplicationScope.User, or Tenant | User. See GH-4742");
+        }
+
+        // An undefined bit would pass as "scoped" while scoping by nothing.
+        if ((requirement.Scope & ~KnownDeduplicationScopes) != 0)
+        {
+            throw new InvalidOperationException(
+                $"[DeduplicatedWithResponse] on {Description} has an unknown {nameof(DeduplicationScope)} value {(int)requirement.Scope}. See GH-4742");
         }
 
         if (Deduplication != null)
@@ -90,9 +122,10 @@ public partial class HttpChain
 
         frames.Add(scoped);
         frames.Add(fingerprint);
-        frames.Add(new ClaimDeduplicatedResponseFrame(scoped.Variable, fingerprint.Variable, requirement.Window,
-            AncillaryStoreType, requirement.KeyName));
-        frames.Add(new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, AncillaryStoreType));
+        var claim = new ClaimDeduplicatedResponseFrame(scoped.Variable, fingerprint.Variable, requirement.Window,
+            AncillaryStoreType, requirement.KeyName);
+        frames.Add(claim);
+        frames.Add(new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, AncillaryStoreType));
 
         Middleware.InsertRange(0, frames);
 
@@ -101,7 +134,7 @@ public partial class HttpChain
         // outbox) this lands after both.
         var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages);
         Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
-            new RecordDeduplicatedResponseFrame(scoped.Variable, ResourceVariable ?? Method.Creates.First(),
+            new RecordDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, ResourceVariable ?? Method.Creates.First(),
                 MissingResponseBodyStatusCode, AncillaryStoreType));
     }
 

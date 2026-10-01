@@ -40,7 +40,7 @@ public sealed class DeduplicatedResponses
     /// Null when this request won the claim, or has no key to claim. Otherwise the claim it lost to.
     /// </summary>
     public async ValueTask<DeduplicatedResponseClaim?> TryClaimAsync(string? deduplicationId, string? fingerprint,
-        TimeSpan? window, Type? ancillaryStoreMarker)
+        string claimToken, TimeSpan? window, Type? ancillaryStoreMarker)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
 
@@ -52,7 +52,7 @@ public sealed class DeduplicatedResponses
 
         for (var attempt = 0; attempt < ClaimAttempts; attempt++)
         {
-            if (await store.TryClaimAsync(id, fingerprint!, expires).ConfigureAwait(false)) return null;
+            if (await store.TryClaimAsync(id, fingerprint!, claimToken, expires).ConfigureAwait(false)) return null;
 
             var winner = await store.FindAsync(id).ConfigureAwait(false);
             if (winner != null)
@@ -69,18 +69,18 @@ public sealed class DeduplicatedResponses
     }
 
     /// <summary>Record the response on the claim. Null records nothing.</summary>
-    public async ValueTask RecordResponseAsync(string? deduplicationId, DeduplicatedResponse? response,
-        Type? ancillaryStoreMarker)
+    public async ValueTask RecordResponseAsync(string? deduplicationId, string claimToken,
+        DeduplicatedResponse? response, Type? ancillaryStoreMarker)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId) || response is null) return;
 
         try
         {
-            if (!await storeFor(ancillaryStoreMarker).RecordResponseAsync(StorageIdFor(deduplicationId), response)
+            if (!await storeFor(ancillaryStoreMarker).RecordResponseAsync(StorageIdFor(deduplicationId), claimToken, response)
                     .ConfigureAwait(false))
             {
                 _logger.LogWarning(
-                    "The claim on deduplicated id '{DeduplicationId}' expired or was answered before its response could be recorded",
+                    "The claim on deduplicated id '{DeduplicationId}' expired, or was taken or answered by another request, before its response could be recorded",
                     deduplicationId);
             }
         }
@@ -94,13 +94,14 @@ public sealed class DeduplicatedResponses
     }
 
     /// <summary>Release the claim if no response was recorded on it.</summary>
-    public async ValueTask ReleaseUnansweredAsync(string? deduplicationId, Type? ancillaryStoreMarker)
+    public async ValueTask ReleaseUnansweredAsync(string? deduplicationId, string claimToken,
+        Type? ancillaryStoreMarker)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return;
 
         try
         {
-            await storeFor(ancillaryStoreMarker).ReleaseUnansweredAsync(StorageIdFor(deduplicationId))
+            await storeFor(ancillaryStoreMarker).ReleaseUnansweredAsync(StorageIdFor(deduplicationId), claimToken)
                 .ConfigureAwait(false);
         }
         catch (Exception e)
@@ -118,9 +119,7 @@ public sealed class DeduplicatedResponses
 
     private IReplayableDeduplicationStore storeFor(Type? ancillaryStoreMarker)
     {
-        var store = ancillaryStoreMarker == null
-            ? mainStoreOf(_runtime)
-            : _runtime.Stores.FindAncillaryStore(ancillaryStoreMarker);
+        var store = messageStoreFor(_runtime, ancillaryStoreMarker);
 
         return store switch
         {
@@ -133,15 +132,19 @@ public sealed class DeduplicatedResponses
     }
 
     // With a database per tenant, claims live in the main database; a Tenant scope still keeps them apart.
-    private static IMessageStore mainStoreOf(IWolverineRuntime runtime)
-        => runtime.Storage is MultiTenantedMessageStore tenanted ? tenanted.Main : runtime.Storage;
+    private static IMessageStore messageStoreFor(IWolverineRuntime runtime, Type? ancillaryStoreMarker)
+    {
+        if (ancillaryStoreMarker != null) return runtime.Stores.FindAncillaryStore(ancillaryStoreMarker);
+
+        return runtime.Storage is MultiTenantedMessageStore tenanted ? tenanted.Main : runtime.Storage;
+    }
 
     /// <summary>
-    /// Why the host's message store cannot back <c>[DeduplicatedWithResponse]</c>, or null when it can. For the
-    /// startup warning.
+    /// Why the message store a chain claims in cannot back <c>[DeduplicatedWithResponse]</c>, or null when it can.
+    /// For the startup warning.
     /// </summary>
-    internal static string? WhyUnsupported(IWolverineRuntime runtime)
-        => mainStoreOf(runtime) switch
+    internal static string? WhyUnsupported(IWolverineRuntime runtime, Type? ancillaryStoreMarker)
+        => messageStoreFor(runtime, ancillaryStoreMarker) switch
         {
             IReplayableDeduplicationStore { Enabled: true } => null,
             IReplayableDeduplicationStore =>

@@ -112,6 +112,14 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         }
     }
 
+    /// <summary>GH-4742. A bounded reap: response bodies make one unbounded delete a long lock.</summary>
+    public override string? BatchedDeleteExpiredDeduplicatedResponsesSql(int batchSize)
+    {
+        return
+            $"delete from {SchemaName}.{DatabaseConstants.DeduplicatedResponsesTableName} " +
+            $"where {DatabaseConstants.Expires} <= @now limit {batchSize};";
+    }
+
     public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);

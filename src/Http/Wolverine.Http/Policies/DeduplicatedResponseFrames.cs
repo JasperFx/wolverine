@@ -137,9 +137,13 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
         _ancillaryStoreMarker = ancillaryStoreMarker;
         _keyName = keyName;
         Variable = new Variable(typeof(DeduplicatedResponseClaim), "deduplicatedResponseClaim", this);
+        ClaimToken = new Variable(typeof(string), "deduplicationClaimToken", this);
     }
 
     public Variable Variable { get; }
+
+    /// <summary>Unique to this attempt: only its holder may record on or release the claim.</summary>
+    public Variable ClaimToken { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -149,7 +153,9 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 
         writer.WriteComment("GH-4742: claim the key, or answer from the claim this request lost to");
         writer.Write(
-            $"var {Variable.Usage} = await {_responses!.Usage}.{nameof(DeduplicatedResponses.TryClaimAsync)}({_deduplicationId.Usage}, {_fingerprint.Usage}, {window}, {MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
+            $"var {ClaimToken.Usage} = {typeof(Guid).FullNameInCode()}.{nameof(Guid.NewGuid)}().{nameof(Guid.ToString)}();");
+        writer.Write(
+            $"var {Variable.Usage} = await {_responses!.Usage}.{nameof(DeduplicatedResponses.TryClaimAsync)}({_deduplicationId.Usage}, {_fingerprint.Usage}, {ClaimToken.Usage}, {window}, {MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
         writer.Write($"BLOCK:if ({Variable.Usage} != null)");
         writer.Write(
             $"await {nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.Usage}, {Variable.Usage}, {_fingerprint.Usage}, {Constant.For(_keyName).Usage}).ConfigureAwait(false);");
@@ -184,13 +190,16 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
+    private readonly Variable _claimToken;
     private readonly Type? _ancillaryStoreMarker;
     private Variable? _responses;
     private Variable? _httpContext;
 
-    public ReleaseUnansweredDeduplicatedResponseFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
+    public ReleaseUnansweredDeduplicatedResponseFrame(Variable deduplicationId, Variable claimToken,
+        Type? ancillaryStoreMarker)
     {
         _deduplicationId = deduplicationId;
+        _claimToken = claimToken;
         _ancillaryStoreMarker = ancillaryStoreMarker;
     }
 
@@ -200,7 +209,7 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
 
         writer.WriteComment("GH-4742: give the claim back unless the work was done, before a response is flushed");
         writer.Write(
-            $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.ReleaseDeduplicatedResponseBeforeFailureResponse)}({_httpContext!.Usage}, {_responses!.Usage}, {_deduplicationId.Usage}, {marker});");
+            $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.ReleaseDeduplicatedResponseBeforeFailureResponse)}({_httpContext!.Usage}, {_responses!.Usage}, {_deduplicationId.Usage}, {_claimToken.Usage}, {marker});");
 
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);
@@ -210,7 +219,7 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
         writer.Write(
             $"BLOCK:if (!{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.IsDeduplicatedWorkDone)}({_httpContext.Usage}))");
         writer.Write(
-            $"await {_responses.Usage}.{nameof(DeduplicatedResponses.ReleaseUnansweredAsync)}({_deduplicationId.Usage}, {marker}).ConfigureAwait(false);");
+            $"await {_responses.Usage}.{nameof(DeduplicatedResponses.ReleaseUnansweredAsync)}({_deduplicationId.Usage}, {_claimToken.Usage}, {marker}).ConfigureAwait(false);");
         writer.FinishBlock();
         writer.FinishBlock();
     }
@@ -218,6 +227,7 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         yield return _deduplicationId;
+        yield return _claimToken;
 
         _responses = chain.FindVariable(typeof(DeduplicatedResponses));
         yield return _responses;
@@ -234,16 +244,18 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
 internal class RecordDeduplicatedResponseFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
+    private readonly Variable _claimToken;
     private readonly Variable _resource;
     private readonly int _missingResourceStatusCode;
     private readonly Type? _ancillaryStoreMarker;
     private Variable? _responses;
     private Variable? _httpContext;
 
-    public RecordDeduplicatedResponseFrame(Variable deduplicationId, Variable resource, int missingResourceStatusCode,
-        Type? ancillaryStoreMarker)
+    public RecordDeduplicatedResponseFrame(Variable deduplicationId, Variable claimToken, Variable resource,
+        int missingResourceStatusCode, Type? ancillaryStoreMarker)
     {
         _deduplicationId = deduplicationId;
+        _claimToken = claimToken;
         _resource = resource;
         _missingResourceStatusCode = missingResourceStatusCode;
         _ancillaryStoreMarker = ancillaryStoreMarker;
@@ -254,13 +266,14 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
     {
         writer.WriteComment("GH-4742: the work is done; record the response, so a repeat is answered with it");
         writer.Write(
-            $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
+            $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {_claimToken.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         yield return _deduplicationId;
+        yield return _claimToken;
 
         _responses = chain.FindVariable(typeof(DeduplicatedResponses));
         yield return _responses;
