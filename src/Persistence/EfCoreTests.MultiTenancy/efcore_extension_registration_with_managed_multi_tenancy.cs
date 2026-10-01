@@ -5,6 +5,7 @@ using SharedPersistenceModels.Orders;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
 
 namespace EfCoreTests.MultiTenancy;
@@ -36,6 +37,17 @@ public class efcore_extension_registration_with_managed_multi_tenancy
         new EntityFrameworkCoreBackedPersistence<OrdersDbContext>().Configure(options);
 
         return options;
+    }
+
+    [Fact]
+    public void the_method_pre_compilation_policies_are_registered_once()
+    {
+        // Three extensions ran. One copy of the query plan policy per extension injected one fetch per copy
+        // for every query plan returned from Load, and the generated method declared the plan's result twice.
+        var policies = configure().CodeGeneration.MethodPreCompilation;
+
+        policies.OfType<EFCoreQuerySpecificationPolicy>().Count().ShouldBe(1);
+        policies.OfType<EFCoreBatchingPolicy>().Count().ShouldBe(1);
     }
 
     [Fact]

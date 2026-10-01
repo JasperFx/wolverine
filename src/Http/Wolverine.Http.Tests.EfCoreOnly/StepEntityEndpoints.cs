@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Persistence;
 
 namespace Wolverine.Http.Tests.EfCoreOnly;
@@ -31,6 +33,29 @@ public class StepEntityItem
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+public class StepEntityItemById : QueryPlan<StepEntityDbContext, StepEntityItem>
+{
+    private readonly Guid _id;
+
+    public StepEntityItemById(Guid id)
+    {
+        _id = id;
+    }
+
+    public override IQueryable<StepEntityItem> Query(StepEntityDbContext dbContext)
+    {
+        return dbContext.Items.Where(x => x.Id == _id);
+    }
+}
+
+public class AllStepEntityItems : QueryListPlan<StepEntityDbContext, StepEntityItem>
+{
+    public override IQueryable<StepEntityItem> Query(StepEntityDbContext dbContext)
+    {
+        return dbContext.Items;
+    }
 }
 
 // The entity is loaded ONLY by the step. The endpoint takes no DbContext, so nothing but the step's
@@ -71,5 +96,40 @@ public static class StepEntityReadEndpoint
     public static string Get([Entity] StepEntityItem item)
     {
         return item.Name;
+    }
+}
+
+[WolverineIgnore]
+public static class StepEntityQueryPlanEndpoint
+{
+    public static StepEntityItemById Load(Guid id)
+    {
+        return new StepEntityItemById(id);
+    }
+
+    [WolverineGet("/step-entity/{id}/name-from-plan")]
+    public static string Get(StepEntityItem? item)
+    {
+        return item?.Name ?? "missing";
+    }
+}
+
+// Two plans on one endpoint are batched into one round trip, and both results flow into Validate
+[WolverineIgnore]
+public static class StepEntityTwoPlansEndpoint
+{
+    public static ProblemDetails Validate(StepEntityItem? item, IReadOnlyList<StepEntityItem> all)
+    {
+        return item == null || all.Count == 0
+            ? new ProblemDetails { Status = 404 }
+            : WolverineContinue.NoProblems;
+    }
+
+    [WolverinePost("/step-entity/{id}/two-plans")]
+    public static void Post(
+        [FromQuerySpecification(typeof(StepEntityItemById))] StepEntityItem? item,
+        [FromQuerySpecification(typeof(AllStepEntityItems))] IReadOnlyList<StepEntityItem> all)
+    {
+        item!.Name = "renamed";
     }
 }

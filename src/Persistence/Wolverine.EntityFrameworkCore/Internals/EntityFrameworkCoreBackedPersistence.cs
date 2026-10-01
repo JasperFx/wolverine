@@ -18,12 +18,7 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
     {
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
 
-        // EFCoreQuerySpecificationPolicy detects IQueryPlan<TDbContext,TResult>-typed
-        // variables produced by Load/LoadAsync methods and injects FetchSpecificationFrames
-        // to execute them. Must run BEFORE EFCoreBatchingPolicy so those injected frames
-        // (IEFCoreBatchableFrame) are grouped into a single BatchedQuery round-trip.
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+        AddMethodPreCompilationPolicies(options);
 
         AddFactoryRefusalPolicy(options);
 
@@ -33,6 +28,28 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
         // it here would tear at the IServiceCollection after host-build because this
         // extension is itself registered into DI, which trips Wolverine's 3.0+ "no
         // IoC mods from container-registered extensions" policy. Closes wolverine#2735.
+    }
+
+    /// <summary>
+    /// EFCoreQuerySpecificationPolicy detects IQueryPlan&lt;TDbContext,TResult&gt;-typed variables produced by
+    /// Load/LoadAsync methods and injects FetchSpecificationFrames to execute them. It must run BEFORE
+    /// EFCoreBatchingPolicy so those injected frames (IEFCoreBatchableFrame) are grouped into a single
+    /// BatchedQuery round-trip.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent, because every entry point registers its own extension: the non-generic one from
+    /// <c>UseEntityFrameworkCoreTransactions</c> and <c>AddDbContextWithWolverineIntegration</c>, and one
+    /// generic one per DbContext from the multi-tenancy registrations. Each policy is method-wide rather than
+    /// per-DbContext, so a second copy is never more coverage -- the query plan policy would inject a second
+    /// fetch for every plan, and the generated method would declare the plan's result variable twice.
+    /// </remarks>
+    internal static void AddMethodPreCompilationPolicies(WolverineOptions options)
+    {
+        var policies = options.CodeGeneration.MethodPreCompilation;
+        if (policies.OfType<EFCoreQuerySpecificationPolicy>().Any()) return;
+
+        policies.Add(new EFCoreQuerySpecificationPolicy());
+        policies.Add(new EFCoreBatchingPolicy());
     }
 
     /// <summary>
@@ -76,8 +93,7 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
             options.Durability.TenantRegistryRequired = true;
         }
 
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+        EntityFrameworkCoreBackedPersistence.AddMethodPreCompilationPolicies(options);
 
         EntityFrameworkCoreBackedPersistence.AddFactoryRefusalPolicy(options);
 

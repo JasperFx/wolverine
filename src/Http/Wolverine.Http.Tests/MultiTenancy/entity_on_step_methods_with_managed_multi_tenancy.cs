@@ -15,7 +15,7 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 
 /// <summary>
 /// An EF Core application with Wolverine-managed multi-tenancy that also calls
-/// <c>UseEntityFrameworkCoreTransactions()</c>, the configuration the reported defects met in:
+/// <c>UseEntityFrameworkCoreTransactions()</c>, the configuration four separate defects met in:
 ///
 /// <list type="bullet">
 /// <item>
@@ -33,6 +33,11 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 /// the request tenant's, because <c>UseEntityFrameworkCoreTransactions()</c> registered a service-location
 /// source for it ahead of the tenanted one.
 /// </item>
+/// <item>
+/// A query plan returned from <c>Load</c>, or two <c>[FromQuerySpecification]</c> plans batched on one endpoint,
+/// did not compile (<c>CS0128</c>), because this configuration registers the EF Core extension twice and each
+/// copy injected its own fetch -- or its own batch -- for the plans.
+/// </item>
 /// </list>
 ///
 /// Every row is seeded in the tenant database only, so reading through the main database's DbContext shows up
@@ -46,7 +51,9 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
     [
         typeof(StepEntityRenameEndpoint),
         typeof(StepEntityRenameOnEndpoint),
-        typeof(StepEntityReadEndpoint)
+        typeof(StepEntityReadEndpoint),
+        typeof(StepEntityQueryPlanEndpoint),
+        typeof(StepEntityTwoPlansEndpoint)
     ];
 
     private IAlbaHost theHost = null!;
@@ -192,5 +199,33 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         });
 
         (await result.ReadAsTextAsync()).ShouldBe("original");
+    }
+
+    [Fact]
+    public async Task a_query_plan_returned_from_load_compiles_and_reads_the_tenant_database()
+    {
+        var id = await seedInTenantDatabaseAsync();
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url($"/step-entity/{id}/name-from-plan?tenant=red");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("original");
+    }
+
+    [Fact]
+    public async Task two_batched_query_specifications_compile_and_save_to_the_tenant_database()
+    {
+        var id = await seedInTenantDatabaseAsync();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Url($"/step-entity/{id}/two-plans?tenant=red");
+            x.StatusCodeShouldBe(204);
+        });
+
+        (await nameInTenantDatabaseAsync(id)).ShouldBe("renamed");
     }
 }
