@@ -231,6 +231,10 @@ internal class TracingExecutor : IExecutor
                 throw;
             }
 
+            // The failed attempt's cascaded and published messages describe work that is about to be
+            // redone, so drop them as the queued path does before it retries
+            await context.ResetForInlineRetryAsync().ConfigureAwait(false);
+
             return await retry
                 .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
                 .ConfigureAwait(false);
