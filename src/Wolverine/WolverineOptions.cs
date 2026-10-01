@@ -123,10 +123,25 @@ public enum EnvelopeIdGeneration
 
 public class MetricsOptions
 {
+    private WolverineMetricsMode? _mode;
+
     /// <summary>
     /// How should Wolverine collect and publish metrics about message handling and publications?
     /// </summary>
-    public WolverineMetricsMode Mode { get; set; } = WolverineMetricsMode.SystemDiagnosticsMeter;
+    public WolverineMetricsMode Mode
+    {
+        get => _mode ?? WolverineMetricsMode.SystemDiagnosticsMeter;
+        set => _mode = value;
+    }
+
+    /// <summary>
+    /// Is <c>true</c> once anything has assigned <see cref="Mode"/>, even when the assigned value happens to be
+    /// the default <see cref="WolverineMetricsMode.SystemDiagnosticsMeter"/>. Lets configuration that would
+    /// otherwise overwrite <see cref="Mode"/> — add on extensions like CritterWatch monitoring, say — tell an
+    /// application's deliberate choice of <see cref="WolverineMetricsMode.SystemDiagnosticsMeter"/> apart from
+    /// nobody having chosen anything at all. See GH-4753.
+    /// </summary>
+    public bool ModeWasSetExplicitly => _mode.HasValue;
 
     /// <summary>
     /// If using either CritterWatch or Hybrid metrics publishing, this is the period in which
