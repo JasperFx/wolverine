@@ -33,7 +33,12 @@ public static class HttpFSharpCodegenSample
         registry.AddSingleton<IWolverineRuntime>(_ => null!);
 
         var container = new ServiceContainer(registry, registry.BuildServiceProvider());
-        var httpGraph = new HttpGraph(new WolverineOptions { ApplicationAssembly = typeof(ThingEndpoints).Assembly }, container);
+        // GH-4741: exercise the F# emit of the user relay.
+        var httpGraph = new HttpGraph(new WolverineOptions
+        {
+            ApplicationAssembly = typeof(ThingEndpoints).Assembly,
+            EnableRelayOfUserName = true
+        }, container);
 
         // GET (static string response) + POST (JSON body bind + JSON response). The JSON path calls
         // the inherited instance HttpHandler methods ReadJsonAsync/WriteJsonAsync, now qualified with
