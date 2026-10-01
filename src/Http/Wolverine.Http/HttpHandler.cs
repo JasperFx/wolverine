@@ -211,6 +211,16 @@ public abstract class HttpHandler
         });
     }
 
+    private static readonly object _deduplicatedEndpointRan = new();
+
+    /// <summary>Records that a <c>[Deduplicated]</c> endpoint ran, so its claim is not released as unused.</summary>
+    public static void MarkDeduplicatedEndpointRan(HttpContext context)
+        => context.Items[_deduplicatedEndpointRan] = true;
+
+    /// <summary>Did the <c>[Deduplicated]</c> endpoint run, rather than middleware ending the request first?</summary>
+    public static bool DeduplicatedEndpointRan(HttpContext context)
+        => context.Items.ContainsKey(_deduplicatedEndpointRan);
+
     public void ApplyHttpAware(object target, HttpContext context)
     {
         if (target is IHttpAware a) a.Apply(context);

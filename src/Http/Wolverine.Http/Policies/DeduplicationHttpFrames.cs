@@ -89,8 +89,12 @@ internal class ReleaseDeduplicationIdOnHttpFailureFrame : ReleaseDeduplicationId
     {
     }
 
+    // Or the endpoint never ran: middleware ended the request early, even with a success code.
     protected override string BuildReleaseCondition()
-        => $"({ThrewFlag} || {_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} >= 400)";
+    {
+        var ran = $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.DeduplicatedEndpointRan)}({_httpContext!.Usage})";
+        return $"({ThrewFlag} || {_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} >= 400 || !{ran})";
+    }
 
     /// <summary>
     /// GH-4547. The finally alone is too late: WriteProblems flushes the failure response and only then
