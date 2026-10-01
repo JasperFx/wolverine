@@ -20,8 +20,8 @@ namespace Wolverine.Attributes;
 ///
 /// <para>
 /// Requires <c>opts.Durability.EnableMessageDeduplication = true</c>, which provisions the backing
-/// storage. Bootstrapping fails with a clear message if this attribute is used without it, rather
-/// than silently letting every duplicate through.
+/// storage. Without it the chain throws at its first message or request, rather than silently letting
+/// every duplicate through, and a message handler also logs a warning at startup.
 /// </para>
 /// </summary>
 /// <example>

@@ -84,13 +84,20 @@ internal class ReleaseDeduplicationIdOnHttpFailureFrame : ReleaseDeduplicationId
     private Variable? _httpResponse;
     private Variable? _httpContext;
 
+    // Not the request's token: a caller that hung up on a failure is the one that will retry, and a cancelled
+    // release would leave its claim in place.
     public ReleaseDeduplicationIdOnHttpFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker)
-        : base(deduplicationId, ancillaryStoreMarker)
+        : base(deduplicationId, ancillaryStoreMarker,
+            cancellationUsage: $"{typeof(CancellationToken).FullNameInCode()}.{nameof(CancellationToken.None)}")
     {
     }
 
+    // Or the endpoint never ran: middleware ended the request early, even with a success code.
     protected override string BuildReleaseCondition()
-        => $"({ThrewFlag} || {_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} >= 400)";
+    {
+        var ran = $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.DeduplicatedEndpointRan)}({_httpContext!.Usage})";
+        return $"({ThrewFlag} || {_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} >= 400 || !{ran})";
+    }
 
     /// <summary>
     /// GH-4547. The finally alone is too late: WriteProblems flushes the failure response and only then
