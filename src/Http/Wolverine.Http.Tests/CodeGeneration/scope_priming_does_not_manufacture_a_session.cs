@@ -1,8 +1,6 @@
 using Alba;
 using IntegrationTests;
-using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -63,21 +61,28 @@ public class scope_priming_does_not_manufacture_a_session : IAsyncLifetime
         await _host.DisposeAsync();
     }
 
-    private string sourceFor(string method, string url)
+    // Warms the route with a real request rather than calling InitializeSynchronously, which would
+    // re-run codegen against a fresh, empty GeneratedAssembly and poison the chain. See GH-4749.
+    private async Task<string> sourceForAsync(string method, string url)
     {
+        await _host.Scenario(x =>
+        {
+            x.Post.Url(url);
+            x.StatusCodeShouldBeOk();
+        });
+
         var chains = _host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
         var chain = chains.ChainFor(method, url);
         chain.ShouldNotBeNull();
-        chain.As<ICodeFile>().InitializeSynchronously(chains.Rules, chains, _host.Services);
         chain.SourceCode.ShouldNotBeNull();
 
         return chain.SourceCode;
     }
 
     [Fact]
-    public void an_endpoint_with_no_persistence_opens_no_session()
+    public async Task an_endpoint_with_no_persistence_opens_no_session()
     {
-        var code = sourceFor("POST", "/priming/no-persistence");
+        var code = await sourceForAsync("POST", "/priming/no-persistence");
 
         // The endpoint really does service-locate, so the scope -- and the priming -- are in play...
         code.ShouldContain("_serviceScopeFactory.Create");
@@ -90,9 +95,9 @@ public class scope_priming_does_not_manufacture_a_session : IAsyncLifetime
     }
 
     [Fact]
-    public void an_endpoint_that_uses_a_session_is_still_primed_with_it()
+    public async Task an_endpoint_that_uses_a_session_is_still_primed_with_it()
     {
-        var code = sourceFor("POST", "/priming/with-session");
+        var code = await sourceForAsync("POST", "/priming/with-session");
 
         code.ShouldContain("_outboxedSessionFactory.OpenSession");
         code.ShouldContain("ScopedDocumentSessionHolder");

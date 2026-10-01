@@ -108,9 +108,21 @@ public partial class HttpChain
 
         // GH-2908: resolve the generated handler by its full name (a targeted lookup, no GetTypes()
         // enumeration in the pre-generated/Static case); fall back to the reflective scan only if it misses.
-        _handlerType = assembly.GetType($"{containingNamespace}.{_fileName}")
+        var found = assembly.GetType($"{containingNamespace}.{_fileName}")
             ?? assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName)
             ?? assembly.GetTypes().FirstOrDefault(x => x.Name == _fileName);
+
+        // GH-4749: a miss must never discard a type that was already attached. Every call to
+        // InitializeSynchronously hands this chain a BRAND NEW GeneratedAssembly, and AssembleTypes
+        // above no-ops once _generatedType exists -- so a second initialization probes an assembly
+        // that cannot possibly contain this handler. Assigning unconditionally there would null out
+        // a perfectly good _handlerType and leave buildHandler() throwing for the life of the host.
+        // The return still keys off _handlerType so that a chain which has never attached anything
+        // reports false -- HttpGraph.AssertPreBuiltTypesExist relies on that for TypeLoadMode.Static.
+        if (found != null)
+        {
+            _handlerType = found;
+        }
 
         return _handlerType != null;
     }

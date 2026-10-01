@@ -1,6 +1,6 @@
-using JasperFx.CodeGeneration;
-using JasperFx.Core.Reflection;
+using Alba;
 using Shouldly;
+using WolverineWebApi.Samples;
 
 namespace Wolverine.Http.Tests;
 
@@ -38,12 +38,13 @@ namespace Wolverine.Http.Tests;
 /// to every HTTP chain in <c>HttpChain.Codegen.cs</c>, so the cache scope is
 /// exactly one generated handler method.
 ///
-/// We assert on the compiled generated source code (forced by
-/// <see cref="JasperFx.CodeGeneration.CodeFileExtensions.InitializeSynchronously"/>)
-/// because the failing frame composition is only visible after the
-/// MethodFrameArranger pulls variable-producing frames in. The pre-arrangement
+/// We assert on the compiled generated source code because the failing frame
+/// composition is only visible after the MethodFrameArranger pulls
+/// variable-producing frames in. The pre-arrangement
 /// <c>chain.DetermineFrames(...)</c> list never includes the duplicates, but the
-/// final SourceCode does.
+/// final SourceCode does. The compile is forced by making a real request to the
+/// route rather than by calling <c>InitializeSynchronously</c> on a chain this
+/// shared host may already have compiled -- see GH-4749.
 ///
 /// Endpoint under test: <c>POST /todoitems</c> in WolverineWebApi.Samples.
 /// </summary>
@@ -54,14 +55,18 @@ public class Bug_marten_outbox_duplicate_message_context_codegen : IntegrationCo
     }
 
     [Fact]
-    public void http_chain_emits_exactly_one_message_context_declaration()
+    public async Task http_chain_emits_exactly_one_message_context_declaration()
     {
+        // Warm the route with a real request so the chain compiles exactly the way it does in
+        // production. CS0128 on the duplicate declaration would fail this call outright.
+        await Scenario(x =>
+        {
+            x.Post.Json(new CreateTodo("warm the chain")).ToUrl("/todoitems");
+            x.StatusCodeShouldBe(201);
+        });
+
         var chain = HttpChains.ChainFor("POST", "/todoitems");
         chain.ShouldNotBeNull();
-        chain.As<ICodeFile>().InitializeSynchronously(
-            HttpChains.Rules,
-            HttpChains,
-            Host.Services);
 
         var source = chain.SourceCode;
         source.ShouldNotBeNull("Failed to generate the source code");

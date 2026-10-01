@@ -64,7 +64,13 @@ public partial class HttpChain : IEndpointConventionBuilder
         Justification = "QuickBuild closes IFinder<TParameter> via MakeGenericType + Activator.CreateInstance; AOT consumers run pre-generated handlers via TypeLoadMode.Static.")]
     private HttpHandler buildHandler()
     {
-        this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
+        // GH-4749: only initialize when there is nothing to use yet. Each InitializeSynchronously
+        // starts a fresh GeneratedAssembly that this already-assembled chain contributes no types to,
+        // so re-running it is pure waste at best.
+        if (_handlerType == null)
+        {
+            this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
+        }
 
         if (_handlerType == null)
         {
