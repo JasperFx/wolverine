@@ -115,9 +115,14 @@ public class Bug_4736_partitioned_inbox_mark_handled_through_marten : IAsyncLife
         var storage = _host.GetRuntime().Storage;
         var messageTypeName = typeof(PartitionedInboxMessage).ToMessageTypeName();
 
-        (await storage.Admin.AllIncomingAsync())
+        var incoming = (await storage.Admin.AllIncomingAsync())
             .Where(x => x.MessageType == messageTypeName)
-            .ShouldAllBe(x => x.Status == EnvelopeStatus.Handled);
+            .ToArray();
+
+        // ShouldAllBe is vacuous on an empty array, and an empty inbox would mean the row was retired
+        // rather than marked -- the DELETE half of the partitioned command having matched when it must not
+        incoming.ShouldNotBeEmpty();
+        incoming.ShouldAllBe(x => x.Status == EnvelopeStatus.Handled);
 
         // The 6.44.0 failure mode, stated outright
         var deadLetters = await storage.DeadLetters.QueryAsync(
