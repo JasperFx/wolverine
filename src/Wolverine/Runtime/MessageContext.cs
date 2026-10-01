@@ -692,6 +692,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         await ClearAllAsync().ConfigureAwait(false);
 
+        // GH-4743. Handlers flush DURING HandleAsync, not only at the end of the invocation -- a Marten
+        // commit does it through FlushOutgoingMessagesOnCommit.AfterCommitAsync, and generated handlers
+        // call it outright. So an attempt that commits and THEN fails leaves this set, and the final
+        // flush in Executor.InvokeInlineAsync would hit the MultiFlushMode.OnlyOnce guard and silently
+        // drop everything the SUCCESSFUL retry published -- the mirror image of the leak this method
+        // exists to stop. ClearState, which is the baseline the queued path gets from a pooled context,
+        // clears it for the same reason.
+        _hasFlushed = false;
+
         // ClearAllAsync nulls the transaction, but an inline invocation has no inbox row to enlist in:
         // it sends through this context, and outgoing messages still need to be stored and forwarded
         Transaction = this;
