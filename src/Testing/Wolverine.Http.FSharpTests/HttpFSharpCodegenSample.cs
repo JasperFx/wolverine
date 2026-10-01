@@ -8,6 +8,7 @@ using JasperFx.CodeGeneration.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.FSharpContracts;
+using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Runtime;
 
@@ -31,6 +32,9 @@ public static class HttpFSharpCodegenSample
         // Register a placeholder so the ServiceCollectionServerVariableSource can resolve the type;
         // the F# fixture only compiles the generated code, it never executes it.
         registry.AddSingleton<IWolverineRuntime>(_ => null!);
+        // GH-4742: [DeduplicatedWithResponse] resolves DeduplicatedResponses as an injected dependency of
+        // the generated handler, so the container has to know the type. Same placeholder reasoning.
+        registry.AddSingleton<DeduplicatedResponses>(_ => null!);
 
         var container = new ServiceContainer(registry, registry.BuildServiceProvider());
         // GH-4741: exercise the F# emit of the user relay.
@@ -66,6 +70,11 @@ public static class HttpFSharpCodegenSample
         // body instead of buffering the form. GH-4680.
         var uploadChain  = HttpChain.ChainFor<ThingEndpoints>(x => ThingEndpoints.Upload(null!), httpGraph);
 
+        // GH-4742: all six DeduplicatedResponseFrames -- EnableRequestBufferingFrame,
+        // ScopeDeduplicationIdFrame, DeduplicationFingerprintFrame, ClaimDeduplicatedResponseFrame,
+        // ReleaseUnansweredDeduplicatedResponseFrame and RecordDeduplicatedResponseFrame.
+        var dedupChain   = HttpChain.ChainFor<ThingEndpoints>(x => x.Deduplicated(null!), httpGraph);
+
         // MaybeEndWithResultFrame.GenerateFSharpCode — a static auth-check call whose IResult
         // return is wrapped in MaybeEndWithResultFrame to short-circuit when the check fails.
         var authedChain  = HttpChain.ChainFor<AuthedEndpoints>(x => x.Get(), httpGraph);
@@ -77,7 +86,8 @@ public static class HttpFSharpCodegenSample
         var chains = new[]
         {
             helloChain, createChain, getByIdChain, searchChain, getItemsChain,
-            pagedChain, resultChain, deleteChain, publishChain, filterChain, uploadChain, authedChain
+            pagedChain, resultChain, deleteChain, publishChain, filterChain, uploadChain, dedupChain,
+            authedChain
         };
 
         // TagHttpHandlerFrame.GenerateFSharpCode — applied to all chains via TagHttpHandlerPolicy.

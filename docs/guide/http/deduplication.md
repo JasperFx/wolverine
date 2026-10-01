@@ -243,5 +243,3 @@ that dies between the claim and the endpoint finishing leaves the key claimed fo
 - Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
   own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
   `AutoCreate.None`, create it before turning the setting on.
-- F# endpoints are not supported: `[DeduplicatedWithResponse]` throws when the endpoint is compiled, as
-  `[Deduplicated]` does today.

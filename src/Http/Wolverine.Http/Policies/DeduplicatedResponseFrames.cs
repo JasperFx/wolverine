@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Configuration;
 using Wolverine.Http.Runtime;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -23,6 +24,17 @@ internal class EnableRequestBufferingFrame : SyncFrame
         writer.Write(
             $"{typeof(HttpRequestRewindExtensions).FullNameInCode()}.{nameof(HttpRequestRewindExtensions.EnableBuffering)}({_httpContext!.Usage}.{nameof(HttpContext.Request)});");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-4742: buffer the body so the deduplication fingerprint can read it after binding");
+
+        // EnableBuffering is a void extension method; called statically it is a unit-valued statement in F#
+        // exactly as in C#. The single-argument overload is unambiguous.
+        writer.Write(
+            $"{typeof(HttpRequestRewindExtensions).FSharpName()}.{nameof(HttpRequestRewindExtensions.EnableBuffering)}({_httpContext!.FSharpUsage}.{nameof(HttpContext.Request)})");
+        Next?.GenerateFSharpCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -60,6 +72,19 @@ internal class ScopeDeduplicationIdFrame : SyncFrame
         writer.Write(
             $"var {Variable.Usage} = {typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.ScopeDeduplicationId)}({_httpContext!.Usage}, {_key.Usage}, ({typeof(DeduplicationScope).FullNameInCode()}){(int)_scope}, {_tenantId?.Usage ?? "null"});");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment($"GH-4742: the deduplication key is unique within {_scope}");
+
+        // F# has no cast syntax for an integer-to-enum conversion; `enum<T>` is the equivalent of C#'s
+        // `(T)n` for an enum whose underlying type is Int32, which DeduplicationScope's is.
+        var scope = $"enum<{typeof(DeduplicationScope).FSharpName()}>({(int)_scope})";
+
+        writer.Write(
+            $"{Variable.FSharpAssignmentUsage} = {typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.ScopeDeduplicationId)}({_httpContext!.FSharpUsage}, {_key.FSharpUsage}, {scope}, {_tenantId?.FSharpUsage ?? "null"})");
+        Next?.GenerateFSharpCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -103,6 +128,17 @@ internal class DeduplicationFingerprintFrame : AsyncFrame
         writer.Write(
             $"var {Variable.Usage} = await {typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.ComputeDeduplicationFingerprintAsync)}({_httpContext!.Usage}, {_deduplicationId.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-4742: what a repeat must match to be answered with the stored response");
+
+        // `let!` inside the enclosing `task { }` body; `.ConfigureAwait(false)` is dropped because the
+        // computation expression controls scheduling.
+        writer.Write(
+            $"let! {Variable.Usage} = {typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.ComputeDeduplicationFingerprintAsync)}({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage})");
+        Next?.GenerateFSharpCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -165,6 +201,44 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // TimeSpan.FromTicks takes an Int64, and an unsuffixed F# integer literal is Int32 -- a window of
+        // more than ~3.5 minutes would not even fit one. Hence the `L`. The Nullable is spelled out rather
+        // than left to F#'s implicit conversion, so neither branch depends on it.
+        var window = _window.HasValue
+            ? $"{typeof(TimeSpan?).FSharpName()}({typeof(TimeSpan).FSharpName()}.{nameof(TimeSpan.FromTicks)}({_window.Value.Ticks}L))"
+            : $"{typeof(TimeSpan?).FSharpName()}()";
+
+        writer.WriteComment("GH-4742: claim the key, or answer from the claim this request lost to");
+        writer.Write(
+            $"{ClaimToken.FSharpAssignmentUsage} = {typeof(Guid).FSharpName()}.{nameof(Guid.NewGuid)}().{nameof(Guid.ToString)}()");
+        writer.Write(
+            $"let! {Variable.Usage} = {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.TryClaimAsync)}({_deduplicationId.FSharpUsage}, {_fingerprint.FSharpUsage}, {ClaimToken.FSharpUsage}, {window}, {FSharpMarkerUsage(_ancillaryStoreMarker)})");
+
+        // F# has no early `return`, so the C# `if (claim != null) { answer; return; }` becomes an if/else
+        // whose `else` carries the rest of the chain -- the same shape FSharpEmitHelpers.WriteAbortGuard
+        // emits, except that this frame's abort branch does work (answering the repeat) rather than
+        // falling through to a no-op. AnswerDeduplicatedRepeatAsync is an inherited INSTANCE method on
+        // HttpHandler, so it needs the generated member's `this` self identifier (jasperfx#393).
+        writer.Write($"BLOCK:if not (isNull {Variable.FSharpUsage}) then");
+        writer.Write(
+            $"do! this.{nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage}, {_fingerprint.FSharpUsage}, {Constant.For(_keyName).Usage})");
+        writer.FinishBlock();
+
+        writer.Write("BLOCK:else");
+        if (Next != null)
+        {
+            Next.GenerateFSharpCode(method, writer);
+        }
+        else
+        {
+            writer.Write(FSharpEmitHelpers.AbortExpression(method));
+        }
+
+        writer.FinishBlock();
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         yield return _deduplicationId;
@@ -180,6 +254,11 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
     internal static string MarkerUsage(Type? ancillaryStoreMarker) => ancillaryStoreMarker == null
         ? "null"
         : $"typeof({ancillaryStoreMarker.FullNameInCode()})";
+
+    /// <summary>F#'s <c>typeof&lt;T&gt;</c> rather than C#'s <c>typeof(T)</c>.</summary>
+    internal static string FSharpMarkerUsage(Type? ancillaryStoreMarker) => ancillaryStoreMarker == null
+        ? "null"
+        : $"typeof<{ancillaryStoreMarker.FSharpName()}>";
 }
 
 /// <summary>
@@ -221,6 +300,49 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
         writer.Write(
             $"await {_responses.Usage}.{nameof(DeduplicatedResponses.ReleaseUnansweredAsync)}({_deduplicationId.Usage}, {_claimToken.Usage}, {marker}).ConfigureAwait(false);");
         writer.FinishBlock();
+        writer.FinishBlock();
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var marker = ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker);
+
+        writer.WriteComment("GH-4742: give the claim back unless the work was done, before a response is flushed");
+        writer.Write(
+            $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.ReleaseDeduplicatedResponseBeforeFailureResponse)}({_httpContext!.FSharpUsage}, {_responses!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_claimToken.FSharpUsage}, {marker})");
+
+        // The C# emission is a try/FINALLY. F# cannot express that here: a computation expression's
+        // `try ... finally` body must be a synchronous unit expression -- `do!` is illegal inside it
+        // (FS0793) -- and ReleaseUnansweredAsync is awaited. So the finally is split into the two paths it
+        // actually covers, which between them are exactly equivalent:
+        //
+        //   * the normal path, including every early exit, becomes the release guard emitted AFTER the rest
+        //     of the chain but still inside the `try`. C#'s early `return` inside the try reaches the
+        //     finally; F# has no early return, so an aborting frame renders the remainder inside its own
+        //     `else` and execution simply falls through to the guard here;
+        //   * the throwing path becomes the same guard in a `with` handler that rethrows.
+        //
+        // The guard is therefore emitted twice on purpose. `reraise()` is illegal inside a computation
+        // expression (FS0413), so the rethrow preserves the original stack trace via ExceptionDispatchInfo,
+        // as EnrollDbContextInTransaction does.
+        writer.Write("BLOCK:try");
+        Next?.GenerateFSharpCode(method, writer);
+        writeFSharpReleaseGuard(writer, marker);
+        writer.FinishBlock();
+
+        writer.Write("BLOCK:with ex ->");
+        writeFSharpReleaseGuard(writer, marker);
+        writer.Write(
+            $"{typeof(System.Runtime.ExceptionServices.ExceptionDispatchInfo).FSharpName()}.Capture(ex).Throw()");
+        writer.FinishBlock();
+    }
+
+    private void writeFSharpReleaseGuard(ISourceWriter writer, string marker)
+    {
+        writer.Write(
+            $"BLOCK:if not ({typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.IsDeduplicatedWorkDone)}({_httpContext!.FSharpUsage})) then");
+        writer.Write(
+            $"do! {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.ReleaseUnansweredAsync)}({_deduplicationId.FSharpUsage}, {_claimToken.FSharpUsage}, {marker})");
         writer.FinishBlock();
     }
 
@@ -268,6 +390,22 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
         writer.Write(
             $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {_claimToken.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-4742: the work is done; record the response, so a repeat is answered with it");
+
+        // CompleteDeduplicatedRequest<T> is an inherited INSTANCE method, so it needs the generated
+        // member's `this` self identifier (jasperfx#393). Its type argument is written out rather than
+        // inferred from the resource, which F# would otherwise have to pick up through the `T?`
+        // parameter.
+        var complete =
+            $"this.{nameof(HttpHandler.CompleteDeduplicatedRequest)}<{_resource.VariableType.FSharpName()}>({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_resource.FSharpUsage}, {_missingResourceStatusCode})";
+
+        writer.Write(
+            $"do! {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.FSharpUsage}, {_claimToken.FSharpUsage}, {complete}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)})");
+        Next?.GenerateFSharpCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)

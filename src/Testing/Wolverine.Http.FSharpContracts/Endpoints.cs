@@ -95,6 +95,23 @@ public class ThingEndpoints
         var section = await reader.ReadNextSectionAsync();
         return new ThingCreated(section?.ContentType ?? "");
     }
+
+    // GH-4742. [DeduplicatedWithResponse] weaves in all six DeduplicatedResponseFrames: the request
+    // buffering, the scoped key, the fingerprint, the claim (with its short-circuit when the claim is
+    // lost), the try/finally that releases an unanswered claim, and the record of the response. Tenant is
+    // in the scope so the frame's tenant-id dependency is emitted too, and WindowInSeconds is non-zero so
+    // the TimeSpan literal is emitted rather than the null window.
+    //
+    // Required is FALSE deliberately: a required key also weaves DeduplicationIdMissingFrame and
+    // DeduplicationProblemDetailsFrame, which have no F# emitter yet and are still in the
+    // FSharpCoverageRatchet baseline. Turn this on once they do.
+    [DeduplicatedWithResponse(DeduplicationScope.Tenant | DeduplicationScope.User | DeduplicationScope.Endpoint,
+        Required = false, WindowInSeconds = 60)]
+    [WolverinePost("/fsharp/deduplicated")]
+    public ThingCreated Deduplicated(CreateThing command)
+    {
+        return new ThingCreated(command.Name);
+    }
 }
 
 /// <summary>
