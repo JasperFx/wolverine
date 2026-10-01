@@ -14,6 +14,7 @@ using Npgsql;
 using Shouldly;
 using Wolverine.Http.Runtime;
 using Wolverine.Postgresql;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace Wolverine.Http.Tests;
@@ -43,6 +44,10 @@ public class deduplicated_with_response : IAsyncLifetime
 
             // The application assembly is cached process-wide; include this one explicitly.
             opts.Discovery.IncludeAssembly(typeof(deduplicated_with_response).Assembly);
+
+            // The endpoint's cascaded DeduplicatedOrderPlaced needs a routed handler, or it is only ever
+            // recorded as NoRoutes and a_replay_does_not_re_send... could not tell a send from a no-op.
+            opts.Discovery.IncludeType<DeduplicatedOrderPlacedHandler>();
         });
 
         builder.Services.AddWolverineHttp();
@@ -333,6 +338,36 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_replay_does_not_re_send_the_first_requests_cascaded_messages()
+    {
+        // PostOrder cascades a DeduplicatedOrderPlaced alongside its response. A replay writes the stored
+        // body and returns from the claim frame, so it must never reach the endpoint -- and therefore must
+        // never cascade a second time. Runs() already proves the endpoint body ran once; this proves nothing
+        // was PUBLISHED twice, which is the half a client would actually feel.
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("cascade-once");
+
+        var host = (IHost)theHost;
+
+        var first = await host.TrackActivity()
+            .WaitForMessageToBeReceivedAt<DeduplicatedOrderPlaced>(host)
+            .ExecuteAndWaitAsync(_ => postAsync(request, key, 201));
+
+        first.Sent.MessagesOf<DeduplicatedOrderPlaced>().Count().ShouldBe(1);
+
+        var replay = await host.TrackActivity().ExecuteAndWaitAsync(_ => postAsync(request, key, 201));
+        replay.Sent.MessagesOf<DeduplicatedOrderPlaced>().ShouldBeEmpty();
+
+        // The 422 branch: a different body under the same key is refused on the claim, ahead of everything.
+        var refused = await host.TrackActivity()
+            .ExecuteAndWaitAsync(_ => postAsync(new DeduplicatedOrder("cascade-changed"), key, 422));
+        refused.Sent.MessagesOf<DeduplicatedOrderPlaced>().ShouldBeEmpty();
+
+        DeduplicatedResponseEndpoints.Runs("cascade-once").ShouldBe(1);
+        DeduplicatedResponseEndpoints.Runs("cascade-changed").ShouldBe(0);
+    }
+
+    [Fact]
     public async Task the_response_is_recorded_before_it_is_written_and_before_messages_flush()
     {
         // Warm the route with a real request, then read the source it was built from.
@@ -442,6 +477,15 @@ public record DeduplicatedOrder(string Name);
 public record DeduplicatedOrderCreated(Guid Id) : CreationResponse($"/deduplicated-response/orders/{Id}");
 
 public record DeduplicatedOrderPlaced(Guid Id);
+
+// Gives the cascaded DeduplicatedOrderPlaced somewhere to go, so a tracked session can actually count it
+// (a message with no routes is only ever recorded as NoRoutes, never as sent). Body is irrelevant.
+public class DeduplicatedOrderPlacedHandler
+{
+    public void Handle(DeduplicatedOrderPlaced _)
+    {
+    }
+}
 
 public static class DeduplicatedResponseEndpoints
 {

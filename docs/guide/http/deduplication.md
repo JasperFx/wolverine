@@ -193,6 +193,10 @@ The scope is required, and decides whose requests share a key:
 `DeduplicationScope.None` is refused at startup. Use `User`, or `Tenant | User`, unless every caller who
 could present a key is trusted to see the others' responses.
 
+Because anonymous callers all share one empty user, `User` on an endpoint with no authorization scopes by
+nothing — exactly what refusing `None` prevents. The host logs a warning naming the route at startup; it
+is only a warning because the caller may already be authenticated by an upstream gateway.
+
 ### What counts as the same request
 
 The request is compared by a SHA-256 of the bytes sent — the method and path, the query string and the
@@ -211,12 +215,17 @@ cleanup removes it, so a repeat can be answered a little after its window.
 
 The key is claimed before the endpoint runs. The response is recorded on the claim after the endpoint
 and any transactional commit, and before the response is written or cascaded messages flush, so a
-failure after the work was done finds the claim answered and a retry is answered from it. On EF Core
-endpoints whose commit also flushes the outbox, the response is recorded after both.
+failure after the work was done finds the claim answered and a retry is answered from it. That holds on
+EF Core endpoints too: the commit and the outbox flush are separate steps, and the response is recorded
+between them.
 
 Recording the response is a write of its own, not part of the endpoint's transaction. If the process
 dies between the commit and that write, repeats get 409 until the claim expires. They never run twice
 within the window.
+
+Unlike `[Deduplicated]` above, the claim does not ride the endpoint's business transaction: a process
+that dies between the claim and the endpoint finishing leaves the key claimed for the whole window
+(24 hours by default) rather than releasing it with a rolled-back transaction.
 
 ### Requirements and limits
 
@@ -228,7 +237,11 @@ within the window.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
   time to store it.
 - Only the status, body and `Location` are replayed; other response headers are not.
+- Form-encoded requests are not supported: the fingerprint has to re-read the body after binding, and
+  the form read consumes it first. An endpoint that binds a form value is refused at startup. File and
+  multipart uploads are unaffected.
 - Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
   own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
   `AutoCreate.None`, create it before turning the setting on.
-- F# endpoints are not supported.
+- F# endpoints are not supported: `[DeduplicatedWithResponse]` throws when the endpoint is compiled, as
+  `[Deduplicated]` does today.
