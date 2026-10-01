@@ -861,9 +861,7 @@ public partial class WolverineRuntime
 
         // Cheap pre-filter: no marker anywhere in the dependency graph means there is nothing to infer,
         // and the provider (which may build DbContexts to answer) never has to be consulted. A load
-        // attribute reaches its store without appearing in that graph, exactly as it does for transaction
-        // selection (GH-4717), so a chain that loads declaratively still has to ask -- or its inbox row
-        // lands in the main store while its writes commit in the ancillary one.
+        // attribute reaches its store without appearing in that graph.
         var dependencies = chain.ServiceDependencies(_container, Type.EmptyTypes).ToArray();
         if (!markerTypes.Any(dependencies.Contains) && !chain.DeclarativelyLoadedEntityTypes().Any()) return null;
 

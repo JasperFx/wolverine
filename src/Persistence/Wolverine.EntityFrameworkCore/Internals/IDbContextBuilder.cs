@@ -36,10 +36,8 @@ public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext
     ValueTask<T> BuildAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Builds the DbContext for the message's tenant WITHOUT enlisting the <see cref="MessageContext" /> in an EF
-    /// Core outbox transaction, unlike <see cref="BuildAndEnrollAsync" />. For a chain that takes the DbContext but
-    /// is not transactional: nothing would commit a transaction it was enlisted in, so every message it sent or
-    /// scheduled would be written into that transaction and silently dropped.
+    /// Builds the DbContext for the message's tenant without enlisting the <see cref="MessageContext" /> in an
+    /// outbox transaction, unlike <see cref="BuildAndEnrollAsync" />.
     /// </summary>
     ValueTask<T> BuildForTenantAsync(MessageContext messaging, CancellationToken cancellationToken)
     {
@@ -57,10 +55,6 @@ internal class CreateTenantedDbContext<T> : MethodCall where T : DbContext
     }
 }
 
-/// <summary>
-///     The non-enlisting counterpart of <see cref="CreateTenantedDbContext{T}" />: the transactional middleware
-///     inserts that frame itself and commits the transaction it enlists in, and every other chain gets this one.
-/// </summary>
 internal class BuildTenantedDbContext<T> : MethodCall where T : DbContext
 {
     public BuildTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildForTenantAsync(null!, CancellationToken.None))!)
@@ -68,11 +62,8 @@ internal class BuildTenantedDbContext<T> : MethodCall where T : DbContext
     }
 }
 
-/// <summary>
-///     Supplies the tenant's DbContext to any chain the transactional middleware did not already build one for.
-///     The middleware inserts its own enlisting <see cref="CreateTenantedDbContext{T}" />, and a frame that creates
-///     the variable wins over every source, so this only ever serves non-transactional chains.
-/// </summary>
+// Only reached by non-transactional chains: the transactional middleware inserts its own enlisting
+// CreateTenantedDbContext<T>, and nothing would commit a transaction this enlisted in
 internal class TenantedDbContextSource<T> : IVariableSource where T : DbContext
 {
     public bool Matches(Type type)

@@ -31,18 +31,9 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
     }
 
     /// <summary>
-    /// EFCoreQuerySpecificationPolicy detects IQueryPlan&lt;TDbContext,TResult&gt;-typed variables produced by
-    /// Load/LoadAsync methods and injects FetchSpecificationFrames to execute them. It must run BEFORE
-    /// EFCoreBatchingPolicy so those injected frames (IEFCoreBatchableFrame) are grouped into a single
-    /// BatchedQuery round-trip.
+    /// Idempotent: every EF Core extension calls this, and a second copy of either policy generates every fetch
+    /// twice. The query plan policy must run before batching so its fetches can be batched.
     /// </summary>
-    /// <remarks>
-    /// Idempotent, because every entry point registers its own extension: the non-generic one from
-    /// <c>UseEntityFrameworkCoreTransactions</c> and <c>AddDbContextWithWolverineIntegration</c>, and one
-    /// generic one per DbContext from the multi-tenancy registrations. Each policy is method-wide rather than
-    /// per-DbContext, so a second copy is never more coverage -- the query plan policy would inject a second
-    /// fetch for every plan, and the generated method would declare the plan's result variable twice.
-    /// </remarks>
     internal static void AddMethodPreCompilationPolicies(WolverineOptions options)
     {
         var policies = options.CodeGeneration.MethodPreCompilation;
@@ -78,12 +69,8 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
     {
         options.CodeGeneration.ReferenceAssembly(GetType().Assembly);
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
-        // Inserted first, not appended. The first matching source wins, and UseEntityFrameworkCoreTransactions()
-        // appends a service-location source for every DbContext already registered -- which includes T, because
-        // the multi-tenancy registrations add a scoped T for EF Core migrations. That call runs inside the
-        // UseWolverine() callback, before this extension is applied from the container, so appending here
-        // let it win: any chain that did not build the DbContext through the transactional middleware
-        // resolved the main database's DbContext from the container instead of the request tenant's.
+        // First, so it wins over the service-location source UseEntityFrameworkCoreTransactions() adds for the
+        // main-database T registered for EF Core migrations
         options.CodeGeneration.Sources.Insert(0, new TenantedDbContextSource<T>());
 
         if (ConjoinedTenancy.IsConjoined(typeof(T)))

@@ -14,46 +14,8 @@ using Xunit;
 
 namespace Wolverine.Http.Tests.MultiTenancy;
 
-/// <summary>
-/// An EF Core application with Wolverine-managed multi-tenancy that also calls
-/// <c>UseEntityFrameworkCoreTransactions()</c>, the configuration four separate defects met in:
-///
-/// <list type="bullet">
-/// <item>
-/// <c>[Entity]</c> on a step method's parameter (<c>Validate</c>, <c>Before</c>, <c>Load</c>) did not make the
-/// chain transactional, so a change to the loaded entity was silently never saved. Only the endpoint
-/// method's own parameters were scanned for load attributes.
-/// </item>
-/// <item>
-/// The same step <c>[Entity]</c> did not even compile against a route id: EF Core's load frame never declared
-/// its dependency on the identity, so the frame parsing the route value was ordered after the load.
-/// </item>
-/// <item>
-/// A chain whose DbContext is not built by the transactional middleware -- a non-transactional
-/// <c>[Entity]</c>, or a query plan -- resolved the main database's DbContext from the container rather than
-/// the request tenant's, because <c>UseEntityFrameworkCoreTransactions()</c> registered a service-location
-/// source for it ahead of the tenanted one.
-/// </item>
-/// <item>
-/// A query plan returned from <c>Load</c>, or two <c>[FromQuerySpecification]</c> plans batched on one endpoint,
-/// did not compile (<c>CS0128</c>), because this configuration registers the EF Core extension twice and each
-/// copy injected its own fetch -- or its own batch -- for the plans.
-/// </item>
-/// <item>
-/// A chain that takes the DbContext AND loads through it declaratively failed the bootstrap with "multiple
-/// DbContext types detected". The first lookup of an entity's DbContext under managed tenancy answered the
-/// builder's service type, <c>IDbContextBuilder&lt;T&gt;</c>, and only later lookups answered <c>T</c>.
-/// </item>
-/// <item>
-/// A non-transactional chain that takes the tenant's DbContext enlisted its MessageContext in an EF Core outbox
-/// transaction through <c>BuildAndEnrollAsync</c>, which nothing ever commits, so a message it scheduled was
-/// silently dropped.
-/// </item>
-/// </list>
-///
-/// Every row is seeded in the tenant database only, so reading through the main database's DbContext shows up
-/// as a 404 or a missing row rather than passing by accident.
-/// </summary>
+// Managed multi-tenancy plus UseEntityFrameworkCoreTransactions(). Every row is seeded only in the tenant database,
+// so reading through the main database shows up as a 404 or a missing row.
 public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
 {
     private const string TenantDatabase = "step_entity_red";
@@ -90,7 +52,6 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
             }
         }
 
-        // The table exists in BOTH databases, so a load through the wrong one finds nothing rather than failing
         foreach (var connectionString in new[] { Servers.PostgresConnectionString, theTenantConnectionString })
         {
             await using var conn = new NpgsqlConnection(connectionString);
@@ -122,8 +83,7 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
             opts.Services.AddDbContextWithWolverineManagedMultiTenancy<StepEntityDbContext>(
                 (options, connectionString, _) => options.UseNpgsql(connectionString.Value), AutoCreate.None);
 
-            // After the multi-tenancy registration on purpose: that is the order that let this call's
-            // service-location source for StepEntityDbContext win over the tenanted one
+            // Registration order matters: this has to come after the multi-tenancy registration
             opts.UseEntityFrameworkCoreTransactions();
 
             opts.Policies.AutoApplyTransactions();
@@ -179,7 +139,6 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         return id;
     }
 
-    // Straight from the tenant database, which is where a message scheduled under the "red" tenant is stored
     private async Task<long> scheduledRemindersInTenantDatabaseAsync(Guid id)
     {
         await using var conn = new NpgsqlConnection(theTenantConnectionString);
@@ -190,7 +149,6 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
             """, conn);
         cmd.Parameters.AddWithValue(typeof(StepEntityReminder).ToMessageTypeName());
 
-        // The body is Wolverine's binary envelope format with the serialized message inside it
         cmd.Parameters.AddWithValue(id.ToString());
         return (long)(await cmd.ExecuteScalarAsync())!;
     }

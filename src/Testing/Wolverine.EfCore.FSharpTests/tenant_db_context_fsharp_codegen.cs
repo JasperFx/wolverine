@@ -19,19 +19,12 @@ public record ReadTenantItems;
 [WolverineIgnore]
 public static class ReadTenantItemsHandler
 {
-    // Never transactional, so its tenant DbContext comes from the managed tenancy variable source rather than
-    // from the transactional middleware's own frame
     [NonTransactional]
     public static void Handle(ReadTenantItems command, ItemsDbContext db)
     {
     }
 }
 
-/// <summary>
-///     The variable source that supplies a managed tenant DbContext to a non-transactional chain has to render in
-///     F# as well as C#. It was briefly a frame that only implemented C# generation, so any F# application with such
-///     a handler failed codegen outright.
-/// </summary>
 public class tenant_db_context_fsharp_codegen
 {
     [Fact]
@@ -64,7 +57,6 @@ public class tenant_db_context_fsharp_codegen
 
             var code = generatedAssembly.GenerateFSharpCode(host.Services.GetService<IServiceVariableSource>());
 
-            // Built for the message's tenant without enlisting the MessageContext in an outbox transaction
             code.ShouldContain("BuildForTenantAsync");
             code.ShouldNotContain("BuildAndEnrollAsync");
         }

@@ -64,9 +64,6 @@ internal class LoadEntityWithQueryOptionsFrame : AsyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        // The identity has to be declared as a dependency, not just used in GenerateCode: on a step method's
-        // [Entity] parameter, the frame that parses the route value is added AFTER this one, and without the
-        // dependency the method's frame ordering leaves the load reading the id before it is declared.
         yield return _id;
 
         _context = chain.FindVariable(_dbContextType);

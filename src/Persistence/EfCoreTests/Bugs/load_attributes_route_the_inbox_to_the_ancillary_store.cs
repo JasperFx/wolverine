@@ -17,13 +17,8 @@ using Wolverine.Util;
 
 namespace EfCoreTests.Bugs;
 
-// The GH-3870 inbox routing for handlers whose DbContext is reachable ONLY through a load attribute. Transaction
-// selection recognizes [Entity] and its siblings since GH-4712, but the inbox routing that has to agree with it
-// pre-filtered on ServiceDependencies, which cannot see a load attribute -- so the handler committed through the
-// enrolled DbContext while its durable inbox envelope stayed in the main store, outside that transaction.
-//
-// Reuses GH-3870's DbContext, entity and stores. The [Transactional] case matters separately: that attribute is
-// only applied at codegen, after inbox routing has run, so its step methods are not on the chain yet.
+// GH-3870 inbox routing for handlers that reach their DbContext only through a load attribute.
+// Reuses GH-3870's DbContext, entity and stores.
 
 public record LoadOnHandlerMessage3870(Guid Id);
 
@@ -33,8 +28,7 @@ public record LoadInBeforeTransactionalMessage3870(Guid Id);
 
 public record LoadInBeforeDesignatedMessage3870(Guid Id);
 
-// A second DbContext the handler reads through but does not commit through, so the transaction owner has to be
-// designated. Maps nothing; it only has to be a second candidate.
+// A second DbContext candidate, so the transaction owner has to be designated
 public sealed class Lookup3870DbContext : DbContext
 {
     public Lookup3870DbContext(DbContextOptions<Lookup3870DbContext> options) : base(options)
@@ -75,8 +69,6 @@ public static class LoadInBeforeTransactionalMessage3870Handler
     }
 }
 
-// [Transactional(typeof(X))] is the designation here, and on a message handler it is only applied -- and its
-// chain tag only set -- at codegen, after inbox routing has run
 [WolverineIgnore]
 public static class LoadInBeforeDesignatedMessage3870Handler
 {

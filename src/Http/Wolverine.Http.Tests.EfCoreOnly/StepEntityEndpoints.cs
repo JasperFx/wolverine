@@ -6,10 +6,8 @@ using Wolverine.Persistence;
 
 namespace Wolverine.Http.Tests.EfCoreOnly;
 
-// Every endpoint type in this file is [WolverineIgnore]d. Each one loads a StepEntityItem at chain
-// construction, which throws in any host that does not map it -- and every other host pinned to this assembly
-// discovers its endpoints. entity_on_step_methods_with_managed_multi_tenancy opts them back in through
-// CustomizeHttpEndpointDiscovery, which is additive over the ignore.
+// [WolverineIgnore]d so other hosts scanning this assembly don't build chains for an entity they don't map.
+// entity_on_step_methods_with_managed_multi_tenancy opts them back in.
 
 public class StepEntityDbContext : DbContext
 {
@@ -41,7 +39,7 @@ public class StepEntityItem
     public string Name { get; set; } = string.Empty;
 }
 
-// Only StepEntityTagsEndpoint loads this, so its DbContext lookup is still uncached when that chain is built
+// Loaded only by StepEntityTagsEndpoint, so its DbContext lookup is uncached when that chain is built
 public class StepEntityTag
 {
     public Guid Id { get; set; }
@@ -94,8 +92,6 @@ public class AllStepEntityItems : QueryListPlan<StepEntityDbContext, StepEntityI
     }
 }
 
-// The entity is loaded ONLY by the step. The endpoint takes no DbContext, so nothing but the step's
-// [Entity] tells the transactional middleware this chain writes.
 [WolverineIgnore]
 public static class StepEntityRenameEndpoint
 {
@@ -110,7 +106,6 @@ public static class StepEntityRenameEndpoint
     }
 }
 
-// [Entity] on the endpoint itself -- the control that already worked
 [WolverineIgnore]
 public static class StepEntityRenameOnEndpoint
 {
@@ -121,9 +116,6 @@ public static class StepEntityRenameOnEndpoint
     }
 }
 
-// Never transactional, so its DbContext is not built by the transactional middleware and has to come
-// from the variable sources -- where it used to resolve the main database's DbContext out of the container
-// instead of the request tenant's.
 [WolverineIgnore]
 public static class StepEntityReadEndpoint
 {
@@ -150,7 +142,6 @@ public static class StepEntityQueryPlanEndpoint
     }
 }
 
-// Two plans on one endpoint are batched into one round trip, and both results flow into Validate
 [WolverineIgnore]
 public static class StepEntityTwoPlansEndpoint
 {
@@ -170,9 +161,6 @@ public static class StepEntityTwoPlansEndpoint
     }
 }
 
-// Takes the DbContext directly AND loads an entity type through plans. The first lookup of that entity's
-// DbContext answered IDbContextBuilder<StepEntityDbContext> rather than StepEntityDbContext, so this chain
-// appeared to use two DbContexts and the host failed to start.
 [WolverineIgnore]
 public static class StepEntityTagsEndpoint
 {
@@ -196,9 +184,6 @@ public static class StepEntityReminderHandler
     }
 }
 
-// Never transactional, but takes the tenant's DbContext. Building it must not enlist the request's
-// MessageContext in an EF Core outbox transaction that nothing will ever commit -- the scheduled message would
-// be written into that transaction and silently dropped.
 [WolverineIgnore]
 public static class StepEntityScheduleEndpoint
 {

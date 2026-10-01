@@ -859,9 +859,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// inject, so it works on both orderings -- HTTP matches parameters during chain construction, message
     /// handlers not until codegen, long after this is asked.
     ///
-    /// Reads the same set as core's <see cref="DeclarativeLoadDependencies.DeclarativelyLoadedEntityTypes" />,
-    /// which <c>AutoApplyTransactions</c> and <c>[Transactional]</c> use to claim the chain: if the two ever
-    /// disagree, a claimed chain cannot name its context and the bootstrap fails.
+    /// Must read the same set that <see cref="DeclarativeLoadDependencies.DeclarativelyLoadedEntityTypes" /> uses
+    /// to claim the chain, or a claimed chain cannot name its context.
     /// </summary>
     internal IEnumerable<Type> DbContextTypesFromLoadAttributes(IChain chain, IServiceContainer container)
     {
@@ -895,8 +894,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     public Type? TryDetermineTransactionOwnerType(IChain chain, IServiceContainer container)
     {
-        // A DbContext reached only through a load attribute owns the transaction just as surely as an injected
-        // one -- AutoApplyTransactions and [Transactional] already claim such a chain through the same set
         if (!CanApply(chain, container) && !DbContextTypesFromLoadAttributes(chain, container).Any()) return null;
 
         try
@@ -934,9 +931,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             {
                 if (dbContext.Model.FindEntityType(entityType) != null)
                 {
-                    // The DbContext type, not the builder's service type -- the cache already said so, and a
-                    // cold lookup answering IDbContextBuilder<T> while a warm one answers T made a chain that
-                    // also depends on T directly look like it used two DbContexts.
                     _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, builder.DbContextType);
                     return builder.DbContextType;
                 }
@@ -1065,9 +1059,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     private Type? resolveDesignatedDbContext(IChain chain, Type[] contextTypes)
     {
-        // The tag is only there once the attribute has been applied, which on a message handler is codegen.
-        // The GH-3870 inbox routing asks at startup, before that, so read the attribute directly too -- the same
-        // reason [Storage] is read off the handler below.
+        // The tag is only set at codegen on a message handler, after inbox routing has asked
         var transactionalType = chain.Tags.TryGetValue(TransactionalAttribute.TransactionalDbContextTypeKey, out var tagged)
             && tagged is Type taggedType
                 ? taggedType
@@ -1101,8 +1093,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return null;
     }
 
-    // Where a ModifyChainAttribute can be applied from: the handler method, the handler type, and on a message
-    // handler the message type
     private static Type? findTransactionalAttributeType(IChain chain)
     {
         foreach (var call in chain.HandlerCalls())

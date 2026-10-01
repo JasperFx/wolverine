@@ -15,18 +15,6 @@ using Xunit;
 
 namespace EfCoreTests.Bugs;
 
-/// <summary>
-/// The step-method half of GH-4712. A load attribute on a <c>Before</c> / <c>Validate</c> / <c>Load</c>
-/// parameter loads through the DbContext exactly as one on the handler method does, but only the handler
-/// method's own parameters were scanned, so a handler whose only DbContext use was a step's <c>[Entity]</c>
-/// never got <c>SaveChangesAsync</c> and its change to the loaded entity was silently dropped.
-///
-/// <para>
-/// The explicit <c>[Transactional]</c> case is the one that pins down WHERE the steps are read from: the
-/// attribute is applied before <c>ApplyImpliedMiddlewareFromHandlers</c> has added them to the chain's
-/// middleware, so they have to be read off the handler type.
-/// </para>
-/// </summary>
 [Collection("sqlserver")]
 public class load_attributes_on_step_methods_enroll_the_transaction : IAsyncLifetime
 {
@@ -136,8 +124,7 @@ public record RenameInBeforeTransactional(Guid Id);
 
 public record RenameAllInValidate;
 
-// [WolverineIgnore] for the same reason as the GH-4712 handlers: other hosts in this assembly use conventional
-// discovery and do not map RenamerItem
+// [WolverineIgnore]: other hosts in this assembly use conventional discovery and don't map RenamerItem
 [WolverineIgnore]
 public static class RenameInBeforeHandler
 {
