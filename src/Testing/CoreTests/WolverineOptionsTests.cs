@@ -293,6 +293,48 @@ public class WolverineOptionsTests
         options.Metrics.SamplingPeriod.ShouldBe(5.Seconds());
     }
 
+    [Fact]
+    public void metrics_mode_was_not_set_explicitly_by_default()
+    {
+        new WolverineOptions().Metrics.ModeWasSetExplicitly.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void metrics_mode_was_set_explicitly_after_assigning_a_non_default_value()
+    {
+        var options = new WolverineOptions();
+        options.Metrics.Mode = WolverineMetricsMode.Hybrid;
+
+        options.Metrics.ModeWasSetExplicitly.ShouldBeTrue();
+        options.Metrics.Mode.ShouldBe(WolverineMetricsMode.Hybrid);
+    }
+
+    // The entire point of GH-4753. An application that deliberately pins metrics to
+    // System.Diagnostics.Metrics only has to be distinguishable from one that never
+    // expressed any opinion, so configuration applied afterwards does not silently
+    // overwrite that choice.
+    [Fact]
+    public void metrics_mode_was_set_explicitly_after_assigning_the_default_value()
+    {
+        var options = new WolverineOptions();
+        options.Metrics.Mode = WolverineMetricsMode.SystemDiagnosticsMeter;
+
+        options.Metrics.ModeWasSetExplicitly.ShouldBeTrue();
+        options.Metrics.Mode.ShouldBe(WolverineMetricsMode.SystemDiagnosticsMeter);
+    }
+
+    [Theory]
+    [InlineData(WolverineMetricsMode.SystemDiagnosticsMeter)]
+    [InlineData(WolverineMetricsMode.CritterWatch)]
+    [InlineData(WolverineMetricsMode.Hybrid)]
+    public void metrics_mode_getter_returns_the_assigned_value(WolverineMetricsMode mode)
+    {
+        var options = new WolverineOptions();
+        options.Metrics.Mode = mode;
+
+        options.Metrics.Mode.ShouldBe(mode);
+    }
+
     public interface IFoo;
 
     public class Foo : IFoo;
