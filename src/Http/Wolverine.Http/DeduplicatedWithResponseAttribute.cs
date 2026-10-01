@@ -28,7 +28,8 @@ namespace Wolverine.Http;
 /// public static (OrderCreated, OrderPlaced) Post(PlaceOrder command) { }
 /// </code>
 /// </example>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+// Methods only: on a class it would also reach any endpoint there that returns no resource.
+[AttributeUsage(AttributeTargets.Method)]
 public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
 {
     /// <param name="scope">
@@ -42,13 +43,13 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
 
     public DeduplicationScope Scope { get; }
 
-    /// <inheritdoc cref="DeduplicatedResponseRequirement.Source" />
+    /// <inheritdoc cref="DeduplicatedWithResponseRequirement.Source" />
     public ValueSource Source { get; set; } = ValueSource.Anything;
 
-    /// <inheritdoc cref="DeduplicatedResponseRequirement.Key" />
+    /// <inheritdoc cref="DeduplicatedWithResponseRequirement.Key" />
     public string? Key { get; set; }
 
-    /// <inheritdoc cref="DeduplicatedResponseRequirement.Required" />
+    /// <inheritdoc cref="DeduplicatedWithResponseRequirement.Required" />
     public bool Required { get; set; } = true;
 
     /// <summary>Claim lifetime in seconds; 0 uses <see cref="DurabilitySettings.DeduplicationWindow" />.</summary>
@@ -63,7 +64,7 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
         }
 
         // The rest is validated with the chain, once every attribute has been applied.
-        chain.DeduplicatedResponse = new DeduplicatedResponseRequirement
+        chain.DeduplicatedWithResponse = new DeduplicatedWithResponseRequirement
         {
             Scope = Scope,
             Source = Source,

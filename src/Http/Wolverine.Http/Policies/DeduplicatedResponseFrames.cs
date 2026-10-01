@@ -3,29 +3,16 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
-using Wolverine.Configuration;
 using Wolverine.Http.Runtime;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.Http.Policies;
 
-internal static class DeduplicatedResponseRendering
-{
-    public const string FSharpSkipReason =
-        "Emits C# locals and early returns for [DeduplicatedWithResponse], which is opt-in per endpoint and " +
-        "not yet supported on F# endpoints. See GH-4742.";
-
-    public static string MarkerUsage(Type? ancillaryStoreMarker) => ancillaryStoreMarker == null
-        ? "null"
-        : $"typeof({ancillaryStoreMarker.FullNameInCode()})";
-}
-
 /// <summary>
 /// GH-4742. Makes the body rewindable for the fingerprint. Inserted after <c>DetermineFrames</c> has placed
 /// everything that reads the body, including the audit frame, so it is emitted first.
 /// </summary>
-[FSharpEmit(Skip = true, Reason = DeduplicatedResponseRendering.FSharpSkipReason)]
 internal class EnableRequestBufferingFrame : SyncFrame
 {
     private Variable? _httpContext;
@@ -49,7 +36,6 @@ internal class EnableRequestBufferingFrame : SyncFrame
 /// GH-4742. Produces the scoped key every later frame works on. The tenant id is resolved here as a dependency,
 /// so tenant detection is emitted before this frame whatever the middleware order.
 /// </summary>
-[FSharpEmit(Skip = true, Reason = DeduplicatedResponseRendering.FSharpSkipReason)]
 internal class ScopeDeduplicationIdFrame : SyncFrame
 {
     private readonly Variable _key;
@@ -98,7 +84,6 @@ internal class ScopeDeduplicationIdFrame : SyncFrame
 }
 
 /// <summary>GH-4742. Fingerprints the request for the claim to store.</summary>
-[FSharpEmit(Skip = true, Reason = DeduplicatedResponseRendering.FSharpSkipReason)]
 internal class DeduplicationFingerprintFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
@@ -133,7 +118,6 @@ internal class DeduplicationFingerprintFrame : AsyncFrame
 /// GH-4742. Claims the key with the fingerprint. A request that loses the claim is answered from it (the stored
 /// response, 422 or 409) and stops.
 /// </summary>
-[FSharpEmit(Skip = true, Reason = DeduplicatedResponseRendering.FSharpSkipReason)]
 internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
@@ -143,7 +127,6 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
     private readonly string _keyName;
     private Variable? _responses;
     private Variable? _httpContext;
-    private Variable? _cancellation;
 
     public ClaimDeduplicatedResponseFrame(Variable deduplicationId, Variable fingerprint, TimeSpan? window,
         Type? ancillaryStoreMarker, string keyName)
@@ -166,7 +149,7 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 
         writer.WriteComment("GH-4742: claim the key, or answer from the claim this request lost to");
         writer.Write(
-            $"var {Variable.Usage} = await {_responses!.Usage}.{nameof(DeduplicatedResponses.TryClaimAsync)}({_deduplicationId.Usage}, {_fingerprint.Usage}, {window}, {DeduplicatedResponseRendering.MarkerUsage(_ancillaryStoreMarker)}, {_cancellation!.Usage}).ConfigureAwait(false);");
+            $"var {Variable.Usage} = await {_responses!.Usage}.{nameof(DeduplicatedResponses.TryClaimAsync)}({_deduplicationId.Usage}, {_fingerprint.Usage}, {window}, {MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
         writer.Write($"BLOCK:if ({Variable.Usage} != null)");
         writer.Write(
             $"await {nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.Usage}, {Variable.Usage}, {_fingerprint.Usage}, {Constant.For(_keyName).Usage}).ConfigureAwait(false);");
@@ -186,22 +169,20 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 
         _httpContext = chain.FindVariable(typeof(HttpContext));
         yield return _httpContext;
-
-        _cancellation = chain.FindVariable(typeof(CancellationToken));
-        yield return _cancellation;
     }
+
+    internal static string MarkerUsage(Type? ancillaryStoreMarker) => ancillaryStoreMarker == null
+        ? "null"
+        : $"typeof({ancillaryStoreMarker.FullNameInCode()})";
 }
 
 /// <summary>
-/// GH-4742. Gives back a claim that was never answered: on a throw, or on a 400-and-up answer, before that
-/// answer is flushed (GH-4547). A claim with a recorded response is kept, so a failure after the work was done
-/// cannot let it run again.
+/// GH-4742. Gives the claim back unless the endpoint's work was done: on a throw, a failure status, or any early
+/// exit, including a successful one from middleware. A response that starts first releases it before it is
+/// flushed (GH-4547). Once the work is done the claim is kept, so it never runs twice within the window.
 /// </summary>
-[FSharpEmit(Skip = true, Reason = DeduplicatedResponseRendering.FSharpSkipReason)]
 internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
 {
-    private const string ThrewFlag = "deduplicatedRequestThrew";
-
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
     private Variable? _responses;
@@ -215,25 +196,19 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var marker = DeduplicatedResponseRendering.MarkerUsage(_ancillaryStoreMarker);
+        var marker = ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker);
 
-        writer.WriteComment("GH-4742: release an unanswered claim BEFORE a failure response is flushed to the caller");
+        writer.WriteComment("GH-4742: give the claim back unless the work was done, before a response is flushed");
         writer.Write(
             $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.ReleaseDeduplicatedResponseBeforeFailureResponse)}({_httpContext!.Usage}, {_responses!.Usage}, {_deduplicationId.Usage}, {marker});");
 
-        writer.Write($"var {ThrewFlag} = false;");
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);
         writer.FinishBlock();
 
-        writer.Write("BLOCK:catch");
-        writer.Write($"{ThrewFlag} = true;");
-        writer.Write("throw;");
-        writer.FinishBlock();
-
         writer.Write("BLOCK:finally");
         writer.Write(
-            $"BLOCK:if ({ThrewFlag} || {_httpContext.Usage}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.StatusCode)} >= 400)");
+            $"BLOCK:if (!{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.IsDeduplicatedWorkDone)}({_httpContext.Usage}))");
         writer.Write(
             $"await {_responses.Usage}.{nameof(DeduplicatedResponses.ReleaseUnansweredAsync)}({_deduplicationId.Usage}, {marker}).ConfigureAwait(false);");
         writer.FinishBlock();
@@ -253,31 +228,33 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
 }
 
 /// <summary>
-/// GH-4742. Records the response on the claim, after the endpoint and any commit and before the response is
-/// written or cascaded messages flush, so a later failure finds the claim answered.
+/// GH-4742. Marks the work done and records the response on the claim, after the endpoint and any commit and
+/// before the response is written or cascaded messages flush.
 /// </summary>
-[FSharpEmit(Skip = true, Reason = DeduplicatedResponseRendering.FSharpSkipReason)]
 internal class RecordDeduplicatedResponseFrame : AsyncFrame
 {
     private readonly Variable _deduplicationId;
     private readonly Variable _resource;
+    private readonly int _missingResourceStatusCode;
     private readonly Type? _ancillaryStoreMarker;
     private Variable? _responses;
     private Variable? _httpContext;
 
-    public RecordDeduplicatedResponseFrame(Variable deduplicationId, Variable resource, Type? ancillaryStoreMarker)
+    public RecordDeduplicatedResponseFrame(Variable deduplicationId, Variable resource, int missingResourceStatusCode,
+        Type? ancillaryStoreMarker)
     {
         _deduplicationId = deduplicationId;
         _resource = resource;
+        _missingResourceStatusCode = missingResourceStatusCode;
         _ancillaryStoreMarker = ancillaryStoreMarker;
         uses.Add(resource);
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteComment("GH-4742: record the response, so a repeat is answered with it");
+        writer.WriteComment("GH-4742: the work is done; record the response, so a repeat is answered with it");
         writer.Write(
-            $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {nameof(HttpHandler.RecordDeduplicatedResponse)}({_httpContext!.Usage}, {_resource.Usage}), {DeduplicatedResponseRendering.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
+            $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 

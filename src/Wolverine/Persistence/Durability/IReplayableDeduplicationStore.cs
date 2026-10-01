@@ -27,7 +27,8 @@ public interface IReplayableDeduplicationStore
     /// <summary>
     /// Claim <paramref name="deduplicationId" /> with the request's <paramref name="fingerprint" />.
     /// <see langword="false" /> when it is already claimed. As <see cref="IDeduplicationStore.TryClaimAsync" />,
-    /// this MUST be an INSERT arbitrated by the primary key, never a SELECT followed by an INSERT.
+    /// this MUST be an INSERT arbitrated by the primary key, never a SELECT followed by an INSERT. Callers pass a UTC
+    /// <paramref name="expires" />.
     /// </summary>
     Task<bool> TryClaimAsync(string deduplicationId, string fingerprint, DateTimeOffset expires,
         CancellationToken cancellation = default);
@@ -35,8 +36,11 @@ public interface IReplayableDeduplicationStore
     /// <summary>The claim on <paramref name="deduplicationId" />, or null when there is none.</summary>
     Task<DeduplicatedResponseClaim?> FindAsync(string deduplicationId, CancellationToken cancellation = default);
 
-    /// <summary>Record the response a repeat of the claimed request is answered with.</summary>
-    Task RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
+    /// <summary>
+    /// Record the response a repeat of the claimed request is answered with. <see langword="false" /> when the claim
+    /// is gone or already answered, so nothing was recorded.
+    /// </summary>
+    Task<bool> RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
         CancellationToken cancellation = default);
 
     /// <summary>

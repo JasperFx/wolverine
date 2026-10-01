@@ -984,7 +984,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
         desc.AddValue(nameof(EnableMessageDeduplication), EnableMessageDeduplication);
-        if (EnableMessageDeduplication)
+        if (EnableMessageDeduplication || EnableDeduplicatedResponses)
         {
             desc.AddValue(nameof(DeduplicationWindow), DeduplicationWindow);
             desc.AddValue(nameof(DeduplicationCleanupPollingTime), DeduplicationCleanupPollingTime);

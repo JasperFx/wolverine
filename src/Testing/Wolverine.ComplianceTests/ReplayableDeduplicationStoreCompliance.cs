@@ -24,6 +24,9 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.EnableDeduplicatedResponses = true;
                 opts.Durability.DeduplicationWindow = 1.Hours();
+
+                // Small, so reaping takes several batches.
+                opts.Durability.DeduplicationCleanupBatchSize = 2;
                 opts.Discovery.DisableConventionalDiscovery();
 
                 configurePersistence(opts);
@@ -89,7 +92,7 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
 
         // Large and non-ASCII.
         var body = "{\"name\":\"" + new string('é', 6000) + "\"}";
-        await theStore.RecordResponseAsync(id, new DeduplicatedResponse(201, body, "/orders/42"));
+        (await theStore.RecordResponseAsync(id, new DeduplicatedResponse(201, body, "/orders/42"))).ShouldBeTrue();
 
         var stored = await theStore.FindAsync(id);
         stored!.Response.ShouldNotBeNull();
@@ -110,6 +113,25 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
         response.StatusCode.ShouldBe(200);
         response.Body.ShouldBeNull();
         response.Location.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task an_answered_claim_is_never_answered_again()
+    {
+        // A request outliving a reaped claim must not overwrite the answer of the one that took it next.
+        var id = newId();
+        await theStore.TryClaimAsync(id, "fingerprint", expires());
+        await theStore.RecordResponseAsync(id, new DeduplicatedResponse(201, "first", null));
+
+        (await theStore.RecordResponseAsync(id, new DeduplicatedResponse(200, "second", null))).ShouldBeFalse();
+
+        (await theStore.FindAsync(id))!.Response!.Body.ShouldBe("first");
+    }
+
+    [Fact]
+    public async Task recording_on_an_unknown_id_records_nothing()
+    {
+        (await theStore.RecordResponseAsync(newId(), new DeduplicatedResponse(201, "{}", null))).ShouldBeFalse();
     }
 
     [Fact]
@@ -160,13 +182,18 @@ public abstract class ReplayableDeduplicationStoreCompliance : IAsyncLifetime
         var answered = newId();
         var unanswered = newId();
         var live = newId();
+        var moreExpired = Enumerable.Range(0, 4).Select(_ => newId()).ToArray();
 
         await theStore.TryClaimAsync(answered, "fingerprint", DateTimeOffset.UtcNow.AddSeconds(-5));
         await theStore.RecordResponseAsync(answered, new DeduplicatedResponse(201, "{}", null));
         await theStore.TryClaimAsync(unanswered, "fingerprint", DateTimeOffset.UtcNow.AddSeconds(-5));
         await theStore.TryClaimAsync(live, "fingerprint", expires());
+        foreach (var expired in moreExpired)
+        {
+            await theStore.TryClaimAsync(expired, "fingerprint", DateTimeOffset.UtcNow.AddSeconds(-5));
+        }
 
-        (await theStore.DeleteExpiredAsync(DateTimeOffset.UtcNow)).ShouldBeGreaterThanOrEqualTo(2);
+        (await theStore.DeleteExpiredAsync(DateTimeOffset.UtcNow)).ShouldBeGreaterThanOrEqualTo(6);
 
         (await theStore.FindAsync(answered)).ShouldBeNull();
         (await theStore.FindAsync(unanswered)).ShouldBeNull();

@@ -4,11 +4,13 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
+using Wolverine.Http.Runtime;
 using Wolverine.Postgresql;
 using Xunit;
 
@@ -47,7 +49,8 @@ public class deduplicated_with_response : IAsyncLifetime
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
-                    type => type != typeof(DeduplicatedResponseEndpoints)))));
+                    type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedEndpoint)
+                            && type != typeof(MissingResourceDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -149,9 +152,15 @@ public class deduplicated_with_response : IAsyncLifetime
         await DeduplicatedResponseEndpoints.SlowRequestArrived.WaitAsync(TimeSpan.FromSeconds(10),
             TestContext.Current.CancellationToken);
 
-        await postAsync(request, key, 409);
+        try
+        {
+            await postAsync(request, key, 409);
+        }
+        finally
+        {
+            DeduplicatedResponseEndpoints.ReleaseSlowRequest();
+        }
 
-        DeduplicatedResponseEndpoints.ReleaseSlowRequest();
         var winner = await first;
 
         var repeat = await postAsync(request, key, 201);
@@ -169,9 +178,15 @@ public class deduplicated_with_response : IAsyncLifetime
         await DeduplicatedResponseEndpoints.SlowRequestArrived.WaitAsync(TimeSpan.FromSeconds(10),
             TestContext.Current.CancellationToken);
 
-        await postAsync(new DeduplicatedOrder("something else"), key, 422);
+        try
+        {
+            await postAsync(new DeduplicatedOrder("something else"), key, 422);
+        }
+        finally
+        {
+            DeduplicatedResponseEndpoints.ReleaseSlowRequest();
+        }
 
-        DeduplicatedResponseEndpoints.ReleaseSlowRequest();
         await first;
     }
 
@@ -211,9 +226,10 @@ public class deduplicated_with_response : IAsyncLifetime
         var before = DateTimeOffset.UtcNow;
         await postAsync(new DeduplicatedOrder("windowed"), key, 201, url: "/deduplicated-response/windowed");
 
+        // Anonymous, User-scoped, and stored hashed.
         var expires = await scalarAsync<DateTimeOffset>(
-            $"select expires from {SchemaName}.wolverine_deduplicated_responses where deduplication_id like @id",
-            "%|" + key);
+            $"select expires from {SchemaName}.wolverine_deduplicated_responses where deduplication_id = @id",
+            DeduplicatedResponses.StorageIdFor("0:|0:|0:|" + key));
         expires.ShouldBeInRange(before.AddSeconds(55), DateTimeOffset.UtcNow.AddSeconds(65));
     }
 
@@ -234,6 +250,82 @@ public class deduplicated_with_response : IAsyncLifetime
                 "select count(*) from information_schema.tables where table_schema = @id and table_name = 'wolverine_deduplication'",
                 SchemaName))
             .ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task an_optional_key_left_out_runs_every_time()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DeduplicatedOrder("optional")).ToUrl("/deduplicated-response/optional");
+            x.StatusCodeShouldBe(201);
+        });
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DeduplicatedOrder("optional")).ToUrl("/deduplicated-response/optional");
+            x.StatusCodeShouldBe(201);
+        });
+
+        DeduplicatedResponseEndpoints.Runs("optional").ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task the_key_can_come_from_another_header()
+    {
+        var key = Guid.NewGuid().ToString();
+
+        async Task<IScenarioResult> post() => await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DeduplicatedOrder("other-header")).ToUrl("/deduplicated-response/other-header");
+            x.WithRequestHeader("X-Request-Key", key);
+            x.StatusCodeShouldBe(201);
+        });
+
+        var first = await post();
+        var repeat = await post();
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        DeduplicatedResponseEndpoints.Runs("other-header").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_successful_early_exit_from_middleware_releases_the_claim()
+    {
+        // Middleware answered 202 before the endpoint ran: nothing was done, so nothing may be held.
+        var key = Guid.NewGuid().ToString();
+
+        await postAsync(new DeduplicatedOrder(EarlyExitDeduplicatedEndpoint.Early), key, 202,
+            url: "/deduplicated-response/early-exit");
+        await postAsync(new DeduplicatedOrder("after the early exit"), key, 201,
+            url: "/deduplicated-response/early-exit");
+    }
+
+    [Fact]
+    public async Task a_missing_resource_answered_with_204_is_replayed()
+    {
+        var key = Guid.NewGuid().ToString();
+
+        async Task<IScenarioResult> get() => await theHost.Scenario(x =>
+        {
+            x.Get.Url("/deduplicated-response/maybe");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(204);
+        });
+
+        await get();
+        await get();
+
+        DeduplicatedResponseEndpoints.Runs("maybe").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_response_that_is_not_system_text_json_is_refused()
+    {
+        var ex = await Should.ThrowAsync<NotSupportedException>(() =>
+            postAsync(new DeduplicatedOrder("text"), Guid.NewGuid().ToString(), 200,
+                url: "/deduplicated-response/text"));
+
+        ex.Message.ShouldContain("System.Text.Json");
     }
 
     [Fact]
@@ -336,9 +428,14 @@ public static class DeduplicatedResponseEndpoints
         lock (_runs) return _runs.GetValueOrDefault(name);
     }
 
+    internal static void Count(string name)
+    {
+        lock (_runs) _runs[name] = _runs.GetValueOrDefault(name) + 1;
+    }
+
     private static DeduplicatedOrderCreated run(DeduplicatedOrder request)
     {
-        lock (_runs) _runs[request.Name] = _runs.GetValueOrDefault(request.Name) + 1;
+        Count(request.Name);
         return new DeduplicatedOrderCreated(Guid.NewGuid());
     }
 
@@ -379,4 +476,40 @@ public static class DeduplicatedResponseEndpoints
     [DeduplicatedWithResponse(DeduplicationScope.Tenant)]
     [WolverinePost("/deduplicated-response/tenant")]
     public static DeduplicatedOrderCreated PostTenant(DeduplicatedOrder request) => run(request);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, Required = false)]
+    [WolverinePost("/deduplicated-response/optional")]
+    public static DeduplicatedOrderCreated PostOptional(DeduplicatedOrder request) => run(request);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, Key = "X-Request-Key")]
+    [WolverinePost("/deduplicated-response/other-header")]
+    public static DeduplicatedOrderCreated PostOtherHeader(DeduplicatedOrder request) => run(request);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/text")]
+    public static string PostText(DeduplicatedOrder request) => request.Name;
+}
+
+// Its own class: the Validate middleware above needs a body.
+public static class MissingResourceDeduplicatedEndpoint
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User), NoContentIfMissing]
+    [WolverineGet("/deduplicated-response/maybe")]
+    public static DeduplicatedOrderCreated? Get()
+    {
+        DeduplicatedResponseEndpoints.Count("maybe");
+        return null;
+    }
+}
+
+public static class EarlyExitDeduplicatedEndpoint
+{
+    public const string Early = "early";
+
+    public static IResult Before(DeduplicatedOrder request)
+        => request.Name == Early ? Results.Accepted() : WolverineContinue.Result();
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/early-exit")]
+    public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
 }

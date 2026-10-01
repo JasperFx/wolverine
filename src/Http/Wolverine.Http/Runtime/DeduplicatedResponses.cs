@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -8,9 +10,23 @@ namespace Wolverine.Http.Runtime;
 /// GH-4742. What a <c>[DeduplicatedWithResponse]</c> endpoint's generated code calls to claim its key, record
 /// the response and release a failed claim, against the message store's
 /// <see cref="IReplayableDeduplicationStore" />.
+///
+/// <para>
+/// The store never sees the scoped key, only its SHA-256: the key carries the user and tenant verbatim, and a
+/// case- or accent-insensitive collation (the SQL Server and MySQL defaults) would otherwise let "Han" be
+/// answered with "han"'s response.
+/// </para>
+///
+/// <para>
+/// None of these take the request's cancellation token. A claim cancelled after the INSERT committed would be
+/// orphaned, and the caller that hung up is exactly the one that will retry.
+/// </para>
 /// </summary>
 public sealed class DeduplicatedResponses
 {
+    // The winner of a lost claim can be released before its row is read; retried this often, then refused.
+    private const int ClaimAttempts = 3;
+
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger<DeduplicatedResponses> _logger;
 
@@ -24,24 +40,21 @@ public sealed class DeduplicatedResponses
     /// Null when this request won the claim, or has no key to claim. Otherwise the claim it lost to.
     /// </summary>
     public async ValueTask<DeduplicatedResponseClaim?> TryClaimAsync(string? deduplicationId, string? fingerprint,
-        TimeSpan? window, Type? ancillaryStoreMarker, CancellationToken cancellation)
+        TimeSpan? window, Type? ancillaryStoreMarker)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
 
         var store = storeFor(ancillaryStoreMarker);
+        var id = StorageIdFor(deduplicationId);
 
         // Stored rather than computed at read time, as for [Deduplicated].
         var expires = DateTimeOffset.UtcNow.Add(window ?? _runtime.Options.Durability.DeduplicationWindow);
 
-        // INSERT first, read the winner only on loss. Retried: the winner may be released in between.
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < ClaimAttempts; attempt++)
         {
-            if (await store.TryClaimAsync(deduplicationId, fingerprint!, expires, cancellation).ConfigureAwait(false))
-            {
-                return null;
-            }
+            if (await store.TryClaimAsync(id, fingerprint!, expires).ConfigureAwait(false)) return null;
 
-            var winner = await store.FindAsync(deduplicationId, cancellation).ConfigureAwait(false);
+            var winner = await store.FindAsync(id).ConfigureAwait(false);
             if (winner != null)
             {
                 _logger.LogInformation(
@@ -63,9 +76,13 @@ public sealed class DeduplicatedResponses
 
         try
         {
-            // Not the request's token: a caller that hung up is exactly the one that will retry.
-            await storeFor(ancillaryStoreMarker).RecordResponseAsync(deduplicationId, response, CancellationToken.None)
-                .ConfigureAwait(false);
+            if (!await storeFor(ancillaryStoreMarker).RecordResponseAsync(StorageIdFor(deduplicationId), response)
+                    .ConfigureAwait(false))
+            {
+                _logger.LogWarning(
+                    "The claim on deduplicated id '{DeduplicationId}' expired or was answered before its response could be recorded",
+                    deduplicationId);
+            }
         }
         catch (Exception e)
         {
@@ -83,7 +100,7 @@ public sealed class DeduplicatedResponses
 
         try
         {
-            await storeFor(ancillaryStoreMarker).ReleaseUnansweredAsync(deduplicationId, CancellationToken.None)
+            await storeFor(ancillaryStoreMarker).ReleaseUnansweredAsync(StorageIdFor(deduplicationId))
                 .ConfigureAwait(false);
         }
         catch (Exception e)
@@ -95,10 +112,14 @@ public sealed class DeduplicatedResponses
         }
     }
 
+    /// <summary>The id the store keys a scoped key by.</summary>
+    public static string StorageIdFor(string deduplicationId)
+        => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(deduplicationId)));
+
     private IReplayableDeduplicationStore storeFor(Type? ancillaryStoreMarker)
     {
         var store = ancillaryStoreMarker == null
-            ? _runtime.Storage
+            ? mainStoreOf(_runtime)
             : _runtime.Stores.FindAncillaryStore(ancillaryStoreMarker);
 
         return store switch
@@ -111,12 +132,16 @@ public sealed class DeduplicatedResponses
         };
     }
 
+    // With a database per tenant, claims live in the main database; a Tenant scope still keeps them apart.
+    private static IMessageStore mainStoreOf(IWolverineRuntime runtime)
+        => runtime.Storage is MultiTenantedMessageStore tenanted ? tenanted.Main : runtime.Storage;
+
     /// <summary>
     /// Why the host's message store cannot back <c>[DeduplicatedWithResponse]</c>, or null when it can. For the
     /// startup warning.
     /// </summary>
     internal static string? WhyUnsupported(IWolverineRuntime runtime)
-        => runtime.Storage switch
+        => mainStoreOf(runtime) switch
         {
             IReplayableDeduplicationStore { Enabled: true } => null,
             IReplayableDeduplicationStore =>

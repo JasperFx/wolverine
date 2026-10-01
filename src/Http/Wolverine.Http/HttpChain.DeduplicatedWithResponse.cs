@@ -1,7 +1,6 @@
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Wolverine.Attributes;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
@@ -16,29 +15,17 @@ public partial class HttpChain
     /// GH-4742. Deduplicate on an idempotency key and answer a repeat with the first response, or null for
     /// none. See <see cref="DeduplicatedWithResponseAttribute" />.
     /// </summary>
-    public DeduplicatedResponseRequirement? DeduplicatedResponse { get; set; }
+    public DeduplicatedWithResponseRequirement? DeduplicatedWithResponse { get; set; }
 
     /// <summary>
     /// Refuses a defect in the endpoint's own declaration, which every host that discovers it shares, and
     /// registers the refusal codes before the metadata is built.
     /// </summary>
-    private void validateDeduplicatedResponse()
+    private void validateDeduplicatedWithResponse()
     {
-        if (DeduplicatedResponse is not { } requirement) return;
+        if (DeduplicatedWithResponse is not { } requirement) return;
 
-        if (requirement.Scope == DeduplicationScope.None)
-        {
-            throw new InvalidOperationException(
-                $"[DeduplicatedWithResponse] on {Description} needs a {nameof(DeduplicationScope)}: a stored response is replayed to anyone who presents the same key and request. Use DeduplicationScope.User, or Tenant | User. See GH-4742");
-        }
-
-        assertNotAlsoDeduplicated();
-
-        if (!HasResourceType())
-        {
-            throw new NotSupportedException(
-                $"[DeduplicatedWithResponse] on {Description} returns no resource, so a repeat has no response to replay. Use [Deduplicated] instead. See GH-4742");
-        }
+        assertDeduplicatedWithResponseIsValid(requirement);
 
         if (requirement.Required)
         {
@@ -49,12 +36,24 @@ public partial class HttpChain
         Metadata.Produces<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json");
     }
 
-    private void assertNotAlsoDeduplicated()
+    private void assertDeduplicatedWithResponseIsValid(DeduplicatedWithResponseRequirement requirement)
     {
+        if (requirement.Scope == DeduplicationScope.None)
+        {
+            throw new InvalidOperationException(
+                $"[DeduplicatedWithResponse] on {Description} needs a {nameof(DeduplicationScope)}: a stored response is replayed to anyone who presents the same key and request. Use DeduplicationScope.User, or Tenant | User. See GH-4742");
+        }
+
         if (Deduplication != null)
         {
             throw new InvalidOperationException(
                 $"{Description} has both [Deduplicated] and [DeduplicatedWithResponse]. Use one. See GH-4742");
+        }
+
+        if (!HasResourceType())
+        {
+            throw new NotSupportedException(
+                $"[DeduplicatedWithResponse] on {Description} returns no resource, so a repeat has no response to replay. Use [Deduplicated] instead. See GH-4742");
         }
     }
 
@@ -62,20 +61,19 @@ public partial class HttpChain
     /// Front of the middleware, as for [Deduplicated]: refuse a repeat before any work happens. Called from
     /// AssembleTypes, and idempotent.
     /// </summary>
-    private void applyDeduplicatedResponse()
+    private void applyDeduplicatedWithResponse()
     {
-        if (DeduplicatedResponse is not { } requirement) return;
+        if (DeduplicatedWithResponse is not { } requirement) return;
         if (Middleware.OfType<ClaimDeduplicatedResponseFrame>().Any()) return;
 
-        // A policy may have added [Deduplicated] since construction.
-        assertNotAlsoDeduplicated();
+        // Again: a policy may have set either requirement since construction.
+        assertDeduplicatedWithResponseIsValid(requirement);
 
-        var source = requirement.Source == ValueSource.Anything ? ValueSource.Header : requirement.Source;
-        if (!TryFindVariable(requirement.KeyName, source, typeof(string), out var key))
+        var key = ResolveDeduplicationId(new DeduplicationRequirement
         {
-            throw new InvalidOperationException(
-                $"Cannot resolve the [DeduplicatedWithResponse] key for {Description}. No {source} value named '{requirement.KeyName}' could be found. See GH-4742");
-        }
+            Source = requirement.Source,
+            Key = requirement.Key
+        });
 
         var frames = new List<Frame>();
 
@@ -99,18 +97,19 @@ public partial class HttpChain
         Middleware.InsertRange(0, frames);
 
         // After IHttpAware and any commit, before the flush. The response writer is appended later, in
-        // DetermineFrames, so this lands before it too.
+        // DetermineFrames, so this lands before it too. Where the commit and the flush are one frame (EF Core's
+        // outbox) this lands after both.
         var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages);
         Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
             new RecordDeduplicatedResponseFrame(scoped.Variable, ResourceVariable ?? Method.Creates.First(),
-                AncillaryStoreType));
+                MissingResponseBodyStatusCode, AncillaryStoreType));
     }
 
     /// <summary>Called from DetermineFrames once the response writer is chosen.</summary>
-    private void assertDeduplicatedResponseIsJson()
+    private void assertDeduplicatedWithResponseIsJson()
     {
         // The stored body is System.Text.Json; any other writer would replay different bytes.
-        if (DeduplicatedResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any())
+        if (DeduplicatedWithResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any())
         {
             throw new NotSupportedException(
                 $"{Description} has [DeduplicatedWithResponse], which replays the response as System.Text.Json, but this endpoint writes its response another way. See GH-4742");
@@ -121,9 +120,9 @@ public partial class HttpChain
     /// Called from DetermineFrames after everything that reads the body has been placed, the audit frame
     /// included, so the buffering is emitted ahead of all of them.
     /// </summary>
-    private void bufferRequestForDeduplicatedResponse()
+    private void bufferRequestForDeduplicatedWithResponse()
     {
-        if (DeduplicatedResponse != null && !Middleware.OfType<EnableRequestBufferingFrame>().Any())
+        if (DeduplicatedWithResponse != null && !Middleware.OfType<EnableRequestBufferingFrame>().Any())
         {
             Middleware.Insert(0, new EnableRequestBufferingFrame());
         }

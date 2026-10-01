@@ -39,7 +39,7 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
         _findSql =
             $"select {DatabaseConstants.Fingerprint}, {DatabaseConstants.ResponseStatusCode}, {DatabaseConstants.ResponseBody}, {DatabaseConstants.ResponseLocation} from {table} where {DatabaseConstants.DeduplicationId} = @id";
         _recordSql =
-            $"update {table} set {DatabaseConstants.ResponseStatusCode} = @status, {DatabaseConstants.ResponseBody} = @body, {DatabaseConstants.ResponseLocation} = @location where {DatabaseConstants.DeduplicationId} = @id";
+            $"update {table} set {DatabaseConstants.ResponseStatusCode} = @status, {DatabaseConstants.ResponseBody} = @body, {DatabaseConstants.ResponseLocation} = @location where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ResponseStatusCode} is null";
         _deleteUnansweredSql =
             $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ResponseStatusCode} is null";
         _deleteExpiredSql = $"delete from {table} where {DatabaseConstants.Expires} <= @now";
@@ -86,14 +86,14 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
         }
 
         // Convert: SQLite returns a long.
-        var status = Convert.ToInt32(await reader.GetFieldValueAsync<object>(1, cancellation).ConfigureAwait(false));
+        var status = Convert.ToInt32(reader.GetValue(1));
 
         return new DeduplicatedResponseClaim(fingerprint, new DeduplicatedResponse(status,
             await readStringAsync(reader, 2, cancellation).ConfigureAwait(false),
             await readStringAsync(reader, 3, cancellation).ConfigureAwait(false)));
     }
 
-    public async Task RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
+    public async Task<bool> RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
         CancellationToken cancellation = default)
     {
         await using var cmd = _dataSource.CreateCommand(_recordSql)
@@ -102,7 +102,8 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
             .With("body", (object?)response.Body ?? DBNull.Value)
             .With("location", (object?)response.Location ?? DBNull.Value);
 
-        await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
+        // Never over an answer: a claim reaped mid-request may have been taken and answered by another.
+        return await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false) > 0;
     }
 
     public async Task ReleaseUnansweredAsync(string deduplicationId, CancellationToken cancellation = default)

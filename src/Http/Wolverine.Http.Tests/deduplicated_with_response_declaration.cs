@@ -83,6 +83,15 @@ public class deduplicated_with_response_declaration
     }
 
     [Fact]
+    public async Task a_correctly_configured_host_does_not_warn()
+    {
+        var logs = new CapturingLoggerProvider();
+        await using var host = await startAsync(logs, persist: true, enable: true);
+
+        logs.Warnings.ShouldNotContain(x => x.Contains("[DeduplicatedWithResponse]"));
+    }
+
+    [Fact]
     public async Task without_a_message_store_the_host_warns()
     {
         var logs = new CapturingLoggerProvider();
@@ -92,7 +101,8 @@ public class deduplicated_with_response_declaration
             x.Contains("/declaration/storeless") && x.Contains("does not implement IReplayableDeduplicationStore"));
     }
 
-    private static async Task<IAlbaHost> startAsync(CapturingLoggerProvider logs, bool persist = false)
+    private static async Task<IAlbaHost> startAsync(CapturingLoggerProvider logs, bool persist = false,
+        bool enable = false)
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.Logging.AddProvider(logs);
@@ -103,6 +113,7 @@ public class deduplicated_with_response_declaration
             if (persist)
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "http_deduplicated_declaration");
+                opts.Durability.EnableDeduplicatedResponses = enable;
             }
 
             opts.Discovery.DisableConventionalDiscovery();

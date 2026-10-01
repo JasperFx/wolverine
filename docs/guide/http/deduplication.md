@@ -140,7 +140,7 @@ A claimed key is global: it is not tied to the endpoint, the tenant or the user 
 who knows or can guess another caller's key can claim it first, and the real request is then refused as
 a duplicate. With client-generated UUIDs that is impractical. With a guessable key source — a route
 value, a body member, or a client that reuses simple keys — it is not, so only use one where every
-caller who could present the key is trusted to.
+caller who could present the key is trusted.
 
 `[DeduplicatedWithResponse]` answers a repeat with a stored response, which would turn that into one
 caller reading another's response, so it requires a scope.
@@ -169,12 +169,16 @@ For a given `Idempotency-Key`:
 | The first | Runs normally |
 | The same request again | The first response: its status, body and `Location`. The endpoint does not run |
 | A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
-| The same key while the first is still running | **409** with a `ProblemDetails` body |
+| The same request while the first is still running | **409** with a `ProblemDetails` body |
 | No key | **400**, unless `Required = false` |
 
-A request that fails — it throws, or answers 400 or above — gives the key back, so a retry runs, as
-[below](#failed-requests-do-not-poison-the-key). The refusal codes are registered as endpoint metadata.
-It cannot be combined with `[Deduplicated]` on the same endpoint.
+A request that ends before the endpoint's work is done — it throws, answers 400 or above, or is stopped
+early by middleware, even successfully — gives the key back, so a retry runs. Once the work is done the
+key is kept. The refusal codes are registered as endpoint metadata.
+
+The key comes from the `Idempotency-Key` header unless `Source` and `Key` say otherwise, as for
+[`[Deduplicated]`](#using-a-different-key). The attribute goes on endpoint methods, and cannot be combined
+with `[Deduplicated]` on the same endpoint.
 
 ### Scope
 
@@ -183,7 +187,7 @@ The scope is required, and decides whose requests share a key:
 | Flag | The key is unique within |
 |---|---|
 | `Tenant` | The detected tenant. Requires [tenant id detection](/guide/http/multi-tenancy) |
-| `User` | `ClaimsPrincipal.Identity.Name`. Anonymous callers all share one empty user |
+| `User` | `ClaimsPrincipal.Identity.Name`, else its name identifier or `sub` claim; an authenticated caller with none is refused. Anonymous callers all share one empty user |
 | `Endpoint` | The HTTP method and path, route values included |
 
 `DeduplicationScope.None` is refused at startup. Use `User`, or `Tenant | User`, unless every caller who
@@ -207,7 +211,8 @@ cleanup removes it, so a repeat can be answered a little after its window.
 
 The key is claimed before the endpoint runs. The response is recorded on the claim after the endpoint
 and any transactional commit, and before the response is written or cascaded messages flush, so a
-failure after the work was done finds the claim answered and a retry is answered from it.
+failure after the work was done finds the claim answered and a retry is answered from it. On EF Core
+endpoints whose commit also flushes the outbox, the response is recorded after both.
 
 Recording the response is a write of its own, not part of the endpoint's transaction. If the process
 dies between the commit and that write, repeats get 409 until the claim expires. They never run twice
@@ -216,12 +221,13 @@ within the window.
 ### Requirements and limits
 
 - `Durability.EnableDeduplicatedResponses`, and the PostgreSQL, SQL Server, MySQL or SQLite message store
-  (including Marten's). Without them the host logs a warning at startup and the endpoint throws at its
-  first request.
+  (including Marten's). With a database per tenant, claims are kept in the main database. Without them
+  the host logs a warning at startup and the endpoint throws at its first request.
 - The endpoint must return a resource, written as JSON by System.Text.Json; any other response writer is
   refused when the endpoint is first compiled.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
   time to store it.
+- Only the status, body and `Location` are replayed; other response headers are not.
 - Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
   own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
   `AutoCreate.None`, create it before turning the setting on.

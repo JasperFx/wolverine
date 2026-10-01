@@ -34,7 +34,7 @@ public abstract partial class MessageDatabase<T> : IReplayableDeduplicationStore
         CancellationToken cancellation)
         => deduplicatedResponses.FindAsync(deduplicationId, cancellation);
 
-    Task IReplayableDeduplicationStore.RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
+    Task<bool> IReplayableDeduplicationStore.RecordResponseAsync(string deduplicationId, DeduplicatedResponse response,
         CancellationToken cancellation)
         => deduplicatedResponses.RecordResponseAsync(deduplicationId, response, cancellation);
 

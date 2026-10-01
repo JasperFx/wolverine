@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Shouldly;
+using Wolverine.Http.Runtime;
 using Xunit;
 
 namespace Wolverine.Http.Tests;
@@ -62,13 +63,44 @@ public class scoping_a_deduplication_id
     }
 
     [Fact]
-    public void a_long_scoped_id_is_hashed_rather_than_truncated()
+    public void an_authenticated_caller_with_no_name_scopes_by_name_identifier_then_sub()
     {
-        var a = HttpHandler.ScopeDeduplicationId(context(), new string('a', 300), DeduplicationScope.Endpoint, null)!;
-        var b = HttpHandler.ScopeDeduplicationId(context(), new string('a', 299) + "b", DeduplicationScope.Endpoint, null)!;
+        HttpHandler.ScopeDeduplicationId(authenticated(new Claim(ClaimTypes.NameIdentifier, "id-1")), "k",
+            DeduplicationScope.User, null).ShouldBe("0:|4:id-1|0:|k");
 
-        a.ShouldStartWith("sha256:");
-        a.Length.ShouldBeLessThanOrEqualTo(250);
-        a.ShouldNotBe(b);
+        HttpHandler.ScopeDeduplicationId(authenticated(new Claim("sub", "sub-1")), "k",
+            DeduplicationScope.User, null).ShouldBe("0:|5:sub-1|0:|k");
+    }
+
+    [Fact]
+    public void an_authenticated_caller_with_nothing_to_scope_by_is_refused()
+    {
+        // Otherwise every such caller would share the empty user, and one could be answered with another's response.
+        Should.Throw<InvalidOperationException>(() =>
+                HttpHandler.ScopeDeduplicationId(authenticated(new Claim("role", "admin")), "k",
+                    DeduplicationScope.User, null))
+            .Message.ShouldContain("no name, name identifier or 'sub' claim");
+    }
+
+    [Fact]
+    public void the_stored_id_is_a_case_sensitive_ascii_hash()
+    {
+        // The store never compares the scoped key itself, so a case-insensitive collation cannot merge two users.
+        var han = DeduplicatedResponses.StorageIdFor("0:|3:Han|0:|k");
+        var lowerHan = DeduplicatedResponses.StorageIdFor("0:|3:han|0:|k");
+
+        han.ShouldStartWith("sha256:");
+        han.Length.ShouldBe(71);
+        han.ShouldNotBe(lowerHan);
+        han.ShouldBe(DeduplicatedResponses.StorageIdFor("0:|3:Han|0:|k"));
+    }
+
+    private static HttpContext authenticated(params Claim[] claims)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = "post";
+        context.Request.Path = "/orders";
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+        return context;
     }
 }

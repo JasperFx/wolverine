@@ -214,7 +214,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         // generated OpenAPI document. The status codes are known from the requirement alone, so they do
         // not need to wait for weaving.
         registerDeduplicationMetadata();
-        validateDeduplicatedResponse();
+        validateDeduplicatedWithResponse();
 
         applyMetadata();
     }

@@ -267,7 +267,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     private void warnAboutDeduplicatedResponsesWithoutStorage(ILogger logger)
     {
         var routes = _chains
-            .Where(x => x.DeduplicatedResponse != null && x.AncillaryStoreType == null)
+            .Where(x => x.DeduplicatedWithResponse != null && x.AncillaryStoreType == null)
             .Select(x => x.RoutePattern?.RawText ?? x.Description)
             .ToArray();
 

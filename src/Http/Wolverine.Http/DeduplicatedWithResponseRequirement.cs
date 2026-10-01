@@ -7,7 +7,7 @@ namespace Wolverine.Http;
 /// GH-4742. How a <c>[DeduplicatedWithResponse]</c> endpoint resolves its key, and who the key belongs to. See
 /// <see cref="DeduplicatedWithResponseAttribute" />.
 /// </summary>
-public sealed class DeduplicatedResponseRequirement
+public sealed class DeduplicatedWithResponseRequirement
 {
     /// <summary>Who a key belongs to. Must not be <see cref="DeduplicationScope.None" />.</summary>
     public required DeduplicationScope Scope { get; init; }

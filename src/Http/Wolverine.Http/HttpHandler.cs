@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -221,10 +222,12 @@ public abstract class HttpHandler
         if (target is IHttpAware a) a.Apply(context);
     }
     
-    // A scoped key over the claim table's key length is hashed rather than truncated, which would collide.
-    private const int MaximumDeduplicationIdLength = 250;
+    private const int FingerprintBufferSize = 16 * 1024;
 
     private static readonly byte[] _fingerprintSeparator = [0];
+
+    // Set once the endpoint's work is done: from then on its [DeduplicatedWithResponse] claim is kept.
+    private static readonly object _deduplicatedWorkDone = new();
 
     /// <summary>
     /// GH-4742. Folds the <see cref="DeduplicationScope" /> parts into a <c>[DeduplicatedWithResponse]</c> key.
@@ -237,16 +240,23 @@ public abstract class HttpHandler
         if (string.IsNullOrWhiteSpace(key)) return key;
 
         var tenant = scope.HasFlag(DeduplicationScope.Tenant) ? tenantId ?? string.Empty : string.Empty;
-        var user = scope.HasFlag(DeduplicationScope.User)
-            ? context.User?.Identity?.Name ?? string.Empty
-            : string.Empty;
+        var user = scope.HasFlag(DeduplicationScope.User) ? userOf(context) : string.Empty;
         var endpoint = scope.HasFlag(DeduplicationScope.Endpoint) ? endpointOf(context.Request) : string.Empty;
 
-        var scoped = $"{tenant.Length}:{tenant}|{user.Length}:{user}|{endpoint.Length}:{endpoint}|{key}";
+        return $"{tenant.Length}:{tenant}|{user.Length}:{user}|{endpoint.Length}:{endpoint}|{key}";
+    }
 
-        return scoped.Length <= MaximumDeduplicationIdLength
-            ? scoped
-            : "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(scoped)));
+    // The name, else the name identifier or "sub": JWT bearer often maps no name. Anonymous callers share "".
+    private static string userOf(HttpContext context)
+    {
+        var principal = context.User;
+        if (principal?.Identity is not { IsAuthenticated: true } identity) return string.Empty;
+
+        return identity.Name
+               ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+               ?? principal.FindFirst("sub")?.Value
+               ?? throw new InvalidOperationException(
+                   $"[DeduplicatedWithResponse] scopes {context.Request.Method} {context.Request.Path} by user, but the authenticated caller has no name, name identifier or 'sub' claim to scope by, so every such caller would share one scope. See GH-4742");
     }
 
     /// <summary>
@@ -272,7 +282,7 @@ public abstract class HttpHandler
         hash.AppendData(Encoding.UTF8.GetBytes(request.QueryString.Value ?? string.Empty));
         hash.AppendData(_fingerprintSeparator);
 
-        var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        var buffer = ArrayPool<byte>.Shared.Rent(FingerprintBufferSize);
         try
         {
             request.Body.Position = 0;
@@ -332,26 +342,45 @@ public abstract class HttpHandler
     }
 
     /// <summary>
-    /// GH-4742. The response about to be written, for the claim to store: the resource serialized as
-    /// <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set. Null
-    /// records nothing, which leaves a failure (400 and up) or a missing resource to release the claim.
+    /// GH-4742. Called once the endpoint and any commit have run: the response about to be written, for the claim
+    /// to store, as <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set.
+    /// Unless that response is a failure (400 and up), the work is done and the claim is kept from here on. Null
+    /// records nothing.
     /// </summary>
-    public DeduplicatedResponse? RecordDeduplicatedResponse<T>(HttpContext context, T? resource)
+    public DeduplicatedResponse? CompleteDeduplicatedRequest<T>(HttpContext context, string? deduplicationId,
+        T? resource, int missingResourceStatusCode)
     {
-        if (resource is null || context.Response.StatusCode >= 400) return null;
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
+
+        var status = resource is null ? missingResourceStatusCode : context.Response.StatusCode;
+        if (status >= 400) return null;
+
+        context.Items[_deduplicatedWorkDone] = true;
 
         var location = context.Response.Headers.Location;
 
-        return new DeduplicatedResponse(
-            context.Response.StatusCode,
-            JsonSerializer.Serialize(resource, _jsonOptions),
-            location.Count == 0 ? null : location.ToString());
+        try
+        {
+            return new DeduplicatedResponse(status,
+                resource is null ? null : JsonSerializer.Serialize(resource, _jsonOptions),
+                location.Count == 0 ? null : location.ToString());
+        }
+        catch (Exception e)
+        {
+            // The work is done, so the claim stays: repeats get 409 until it expires rather than running it again.
+            context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(e,
+                "Failed to serialize the response for deduplicated id '{DeduplicationId}' to store it", deduplicationId);
+            return null;
+        }
     }
+
+    /// <summary>GH-4742. Has the endpoint's work been done, so its claim must be kept?</summary>
+    public static bool IsDeduplicatedWorkDone(HttpContext context) => context.Items.ContainsKey(_deduplicatedWorkDone);
 
     /// <summary>
     /// GH-4742. As <see cref="ReleaseDeduplicationClaimBeforeFailureResponse" />, for a
-    /// <c>[DeduplicatedWithResponse]</c> claim: released before a failure response is flushed, and only while
-    /// it has no recorded response.
+    /// <c>[DeduplicatedWithResponse]</c> claim: a response that starts before the work is done, whatever its
+    /// status, gives the claim back before it is flushed.
     /// </summary>
     public static void ReleaseDeduplicatedResponseBeforeFailureResponse(HttpContext context,
         DeduplicatedResponses responses, string? deduplicationId, Type? ancillaryStoreMarker)
@@ -360,7 +389,7 @@ public abstract class HttpHandler
 
         context.Response.OnStarting(async () =>
         {
-            if (context.Response.StatusCode >= 400)
+            if (!IsDeduplicatedWorkDone(context))
             {
                 await responses.ReleaseUnansweredAsync(deduplicationId, ancillaryStoreMarker).ConfigureAwait(false);
             }
