@@ -41,4 +41,22 @@ public class DocumentationSamples
     }
 
     #endregion
+
+    public static void UseOwnContainer()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_cosmos_use_own_container
+
+                // Shares the database with other applications, but keeps a container - and so a Wolverine
+                // cluster - of its own
+                opts.UseCosmosDbPersistence("your-database-name", cosmos =>
+                {
+                    cosmos.UseContainer("wolverine-orders");
+                });
+
+                #endregion
+            }).Build();
+    }
 }

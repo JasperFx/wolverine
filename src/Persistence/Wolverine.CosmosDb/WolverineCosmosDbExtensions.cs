@@ -41,16 +41,17 @@ public static class WolverineCosmosDbExtensions
         options.Services.AddSingleton<IMessageStore>(sp =>
         {
             var client = sp.GetRequiredService<CosmosClient>();
-            var container = client.GetDatabase(databaseName).GetContainer(DocumentTypes.ContainerName);
+            var container = client.GetDatabase(databaseName).GetContainer(configuration.ContainerName);
             var wolverineOptions = sp.GetRequiredService<WolverineOptions>();
             return new CosmosDbMessageStore(client, databaseName, container, wolverineOptions);
         });
 
-        // Register the CosmosDB Container for use by code-generated handlers
+        // Register the CosmosDB Container for use by code-generated handlers. It has to be the same container
+        // the message store uses, or a saga written by a handler and the envelopes about it would live apart.
         options.Services.AddSingleton(sp =>
         {
             var client = sp.GetRequiredService<CosmosClient>();
-            return client.GetDatabase(databaseName).GetContainer(DocumentTypes.ContainerName);
+            return client.GetDatabase(databaseName).GetContainer(configuration.ContainerName);
         });
 
         // GH-3416 -- CosmosDB requires a lowercase "id" on every document. A saga's PascalCase Id only
