@@ -216,19 +216,31 @@ public abstract partial class MessageDatabase<T>
             {
                 uri();
             }
+        }
 
+        var delete = new MarkAsHandledCommand(
+            $"delete from {table} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' " +
+            $"and exists ({handledExists})",
+            arguments.ToArray());
+
+        arguments.Clear();
+
+        if (collecting)
+        {
             // update ... keep_until = ? where id = ? and received_at = ?
             keep();
             id();
             uri();
         }
 
-        var sql =
-            $"delete from {table} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' " +
-            $"and exists ({handledExists});" +
-            $"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'";
+        var retire = new MarkAsHandledCommand(
+            $"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'",
+            arguments.ToArray());
 
-        return new MarkAsHandledCommand(sql, arguments.ToArray());
+        // Two statements. A caller that executes the text on its own connection gets them joined with ';', exactly as
+        // before; one that queues into a batch taking a single statement per command -- Marten's QueueSqlCommand
+        // rejects a ';' outright -- queues each of MarkAsHandledCommand.Statements instead.
+        return MarkAsHandledCommand.Sequence(delete, retire);
     }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)

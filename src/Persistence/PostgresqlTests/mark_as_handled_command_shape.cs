@@ -99,6 +99,33 @@ public class mark_as_handled_command_shape : PostgresqlContext
     }
 
     [Theory]
+    [InlineData(MessageIdentity.IdOnly, false)]
+    [InlineData(MessageIdentity.IdOnly, true)]
+    [InlineData(MessageIdentity.IdAndDestination, false)]
+    [InlineData(MessageIdentity.IdAndDestination, true)]
+    public async Task each_statement_can_be_queued_on_its_own(MessageIdentity identity, bool partitioned)
+    {
+        await using var store = storeFor(identity, partitioned);
+        var envelope = theEnvelope;
+        var keepUntil = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        var command = store.BuildMarkIncomingAsHandled(envelope, keepUntil, "?", "?", "?");
+
+        // Marten's QueueSqlCommand throws on a ';', so under partitioning the delete and the update have to be
+        // queued one at a time -- each with exactly the arguments its own placeholders bind
+        command.Statements.Length.ShouldBe(partitioned ? 2 : 1);
+        foreach (var statement in command.Statements)
+        {
+            statement.Sql.ShouldNotContain(';');
+            statement.Arguments.Length.ShouldBe(statement.Sql.Count(c => c == '?'));
+        }
+
+        // ... and together they are the very statement the store executes itself
+        string.Join(";", command.Statements.Select(x => x.Sql)).ShouldBe(command.Sql);
+        command.Statements.SelectMany(x => x.Arguments).ShouldBe(command.Arguments);
+    }
+
+    [Theory]
     [InlineData(MessageIdentity.IdOnly)]
     [InlineData(MessageIdentity.IdAndDestination)]
     public async Task the_statement_always_matches_the_whole_inbox_identity(MessageIdentity identity)

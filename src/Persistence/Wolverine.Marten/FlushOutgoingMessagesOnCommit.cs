@@ -107,8 +107,14 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                 // picks up Incoming rows -- and skipped the partition-aware shape on the one provider that
                 // has inbox partitioning. QueueSqlCommand binds positionally, so the store hands back the
                 // arguments in placeholder order rather than this method trying to mirror it.
+                //
+                // Under inbox partitioning that is two statements, and QueueSqlCommand rejects a ';' -- so each
+                // one is queued on its own, in order, into the same batch and therefore the same transaction.
                 var markHandled = incomingStore.BuildMarkIncomingAsHandled(_context.Envelope, keepUntil, "?", "?", "?");
-                session.QueueSqlCommand(markHandled.Sql, markHandled.Arguments);
+                foreach (var statement in markHandled.Statements)
+                {
+                    session.QueueSqlCommand(statement.Sql, statement.Arguments);
+                }
 
                 // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
                 // above is only durable if this batch commits. See _queuedHandledUpdate.
