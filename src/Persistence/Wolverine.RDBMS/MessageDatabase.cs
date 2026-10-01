@@ -460,13 +460,27 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public abstract Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation);
 
+    /// <summary>
+    /// GH-4739. The redundant-looking `owner_id &lt;&gt; 0` is what makes the GH-3971 owner index usable here.
+    /// That index is FILTERED on `owner_id &lt;&gt; 0`, and SQL Server will not use a filtered index for a
+    /// parameterized `owner_id = @owner` because the cached plan has to stay correct for @owner = 0 --
+    /// so without the extra clause this update was a clustered index scan of the whole inbox regardless
+    /// of the data, measured at 6,748 logical reads against 3 with only 20k retained Handled rows. Same
+    /// idiom, same reason, as <see cref="Durability.BumpStaleIncomingEnvelopesOperation"/>. Harmless on
+    /// the providers whose owner index is unfiltered, and free insurance on PostgreSQL, where constant
+    /// folding saves the predicate today but an Npgsql MaxAutoPrepare generic plan would not.
+    ///
+    /// Deliberately NOT short-circuited for ownerId == 0: the InboxHealthRestarter probe
+    /// (<see cref="Wolverine.Transports.ListeningAgent"/>) passes 0 precisely so this stays a real
+    /// round-trip that throws when the store is unreachable.
+    /// </summary>
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
         if (HasDisposed) return;
 
         var impacted = await _dataSource
             .CreateCommand(
-                $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
+                $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = 0 where owner_id = @owner and owner_id <> 0 and {DatabaseConstants.ReceivedAt} = @uri")
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);

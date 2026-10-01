@@ -344,8 +344,13 @@ public sealed partial class WolverineOptions
     /// <summary>
     /// When enabled, Wolverine will automatically relay the authenticated user name
     /// from HTTP ClaimsPrincipal through the messaging infrastructure, propagating it
-    /// on outgoing envelopes and into Marten's IDocumentSession.LastModifiedBy
+    /// on outgoing envelopes and into the outboxed session of the Marten, Polecat or Fisher
+    /// integration (LastModifiedBy, or CurrentUserName on Fisher)
     /// </summary>
+    /// <remarks>
+    /// Applies to every HTTP endpoint with a message context, including ones that only open an
+    /// outboxed session.
+    /// </remarks>
     public bool EnableRelayOfUserName { get; set; }
 
     /// <summary>

@@ -69,7 +69,7 @@ public partial class HttpChain
             var loggedType = determineLogMarkerType();
 
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
-            handleMethod.Sources.Add(new MessageBusSource());
+            handleMethod.Sources.Add(new MessageBusSource(_parent.Options.EnableRelayOfUserName));
 
             // Per-method scoping for SourceServiceFromHttpContext<T>(). Registering on the
             // method (rather than WolverineOptions.CodeGeneration.Sources) keeps the

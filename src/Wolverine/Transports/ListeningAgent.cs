@@ -812,7 +812,19 @@ internal class InboxHealthRestarter : IDisposable
 
             try
             {
-                // Lightweight probe — releases 0 rows but exercises DB connection
+                // Lightweight probe — releases 0 rows but exercises DB connection.
+                //
+                // GH-4739. THIS CALL MUST REMAIN A GENUINE DATABASE ROUND-TRIP. Owner 0 can never own a
+                // row (0 IS the unowned marker), and since GH-4739 the release statement also carries
+                // `owner_id <> 0`, so the predicate is now contradictory and SQL Server folds it to a
+                // trivial plan: an empty seek of the owner index, no update locks over the table, and still
+                // a real connection + execute that still throws when the store is unreachable. Measured at
+                // 2 logical reads against 223 for a 20k-row inbox. That is strictly better than what this
+                // used to be -- a full inbox scan taking U-locks against a database already struggling.
+                //
+                // Do NOT "optimize" this by short-circuiting ReleaseIncomingAsync on ownerId == 0. The probe
+                // would then always succeed and restart listeners over a dead database. Negative control:
+                // src/Testing/CoreTests/Transports/inbox_health_probe_4658.cs.
                 await inbox.ReleaseIncomingAsync(0, new Uri("wolverine://inbox-health-probe"));
 
                 logger.LogInformation("Inbox available again for {Uri}. Restarting listener.", parent.Endpoint.Uri);

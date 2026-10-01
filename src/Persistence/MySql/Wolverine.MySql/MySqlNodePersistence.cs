@@ -93,8 +93,10 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
             return Task.CompletedTask;
         }
 
+        // GH-4739: `owner_id <> 0` for parity with the other providers. MySQL's owner index is unfiltered,
+        // so this is a no-op for the plan here, but the statements stay identical across providers.
         return _dataSource.CreateCommand(
-                $"DELETE FROM {_nodeTable} WHERE id = @id; UPDATE {_settings.SchemaName}.{IncomingTable} SET {OwnerId} = 0 WHERE {OwnerId} = @number; UPDATE {_settings.SchemaName}.{OutgoingTable} SET {OwnerId} = 0 WHERE {OwnerId} = @number")
+                $"DELETE FROM {_nodeTable} WHERE id = @id; UPDATE {_settings.SchemaName}.{IncomingTable} SET {OwnerId} = 0 WHERE {OwnerId} = @number AND {OwnerId} <> 0; UPDATE {_settings.SchemaName}.{OutgoingTable} SET {OwnerId} = 0 WHERE {OwnerId} = @number AND {OwnerId} <> 0")
             .With("id", nodeId)
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();

@@ -85,8 +85,13 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         }
 
         var quotedSchema = _settings.SchemaName.QuoteIdentifier();
+
+        // GH-4739: `owner_id <> 0` keeps the PARTIAL owner indexes usable for these two updates. PostgreSQL
+        // const-folds the parameter today, so it is free insurance here rather than a fix, but an Npgsql
+        // MaxAutoPrepare generic plan would not, and this is the same statement that was pathological on
+        // SQL Server.
         return _dataSource.CreateCommand(
-                $"delete from {_nodeTable} where id = :id;update {quotedSchema}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = :number;update {quotedSchema}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = :number;")
+                $"delete from {_nodeTable} where id = :id;update {quotedSchema}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = :number and {OwnerId} <> 0;update {quotedSchema}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = :number and {OwnerId} <> 0;")
             .With("id", nodeId)
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();

@@ -225,6 +225,7 @@ type POST_fsharp_publish(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptio
             let! tenantId = this.TryDetectTenantId(httpContext)
             let messageContext = Wolverine.Runtime.MessageContext(_wolverineRuntime)
             messageContext.TenantId <- tenantId
+            Wolverine.Http.Runtime.UserNameMiddleware.Apply(httpContext, messageContext)
             if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             // Reading the request body via JSON deserialization
             let! struct (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
