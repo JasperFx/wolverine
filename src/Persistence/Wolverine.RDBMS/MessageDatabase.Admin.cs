@@ -236,10 +236,16 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
+    /// <summary>
+    /// GH-4739: `owner_id &lt;&gt; 0` is what lets SQL Server seek the FILTERED owner indexes on both tables
+    /// instead of scanning them -- a parameterized `owner_id = @id` alone cannot use a filtered index,
+    /// because the plan has to remain correct for @id = 0. This runs on every clean shutdown
+    /// (WolverineRuntime.HostService), so on a large inbox it is two full table scans in the shutdown path.
+    /// </summary>
     public Task ReleaseAllOwnershipAsync(int ownerId)
     {
         return CreateCommand(
-                $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = 0 where owner_id = @id;update {QuotedTableNameFor(DatabaseConstants.OutgoingTable)} set owner_id = 0 where owner_id = @id")
+                $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = 0 where owner_id = @id and owner_id <> 0;update {QuotedTableNameFor(DatabaseConstants.OutgoingTable)} set owner_id = 0 where owner_id = @id and owner_id <> 0")
             .With("id", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
     }

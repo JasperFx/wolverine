@@ -93,13 +93,15 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         cmd1.With("id", nodeId);
         await cmd1.ExecuteNonQueryAsync();
 
+        // GH-4739: `owner_id <> 0` for parity with the other providers. Oracle's owner index is unfiltered,
+        // so this is a no-op for the plan here, but the statements stay identical across providers.
         await using var cmd2 = conn.CreateCommand(
-            $"UPDATE {_settings.SchemaName}.{IncomingTable} SET {OwnerId} = 0 WHERE {OwnerId} = :nodeNum");
+            $"UPDATE {_settings.SchemaName}.{IncomingTable} SET {OwnerId} = 0 WHERE {OwnerId} = :nodeNum AND {OwnerId} <> 0");
         cmd2.With("nodeNum", assignedNodeNumber);
         await cmd2.ExecuteNonQueryAsync();
 
         await using var cmd3 = conn.CreateCommand(
-            $"UPDATE {_settings.SchemaName}.{OutgoingTable} SET {OwnerId} = 0 WHERE {OwnerId} = :nodeNum");
+            $"UPDATE {_settings.SchemaName}.{OutgoingTable} SET {OwnerId} = 0 WHERE {OwnerId} = :nodeNum AND {OwnerId} <> 0");
         cmd3.With("nodeNum", assignedNodeNumber);
         await cmd3.ExecuteNonQueryAsync();
 

@@ -121,7 +121,9 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         // GH-3986: same missing cascade as ClearAllAsync -- delete this node's assignments by hand.
         await conn.CreateCommand(
-                $"delete from {_assignmentTable} where {NodeId} = @id;delete from {_nodeTable} where id = @id;update {_incomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {_outgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
+                // GH-4739: `owner_id <> 0` for parity with the other providers. Sqlite has no owner index at
+                // all, so it changes nothing here beyond keeping the statements identical across providers.
+                $"delete from {_assignmentTable} where {NodeId} = @id;delete from {_nodeTable} where id = @id;update {_incomingTable} set {OwnerId} = 0 where {OwnerId} = @number and {OwnerId} <> 0;update {_outgoingTable} set {OwnerId} = 0 where {OwnerId} = @number and {OwnerId} <> 0;")
             .With("id", nodeId.ToString())
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();

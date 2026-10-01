@@ -330,7 +330,10 @@ internal partial class OracleMessageStore
         await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.OwnerId} = 0 " +
-            $"WHERE {DatabaseConstants.OwnerId} = :ownerId AND {DatabaseConstants.ReceivedAt} = :uri");
+            // GH-4739: see MessageDatabase.ReleaseIncomingAsync. Oracle's owner index is unfiltered, so the
+            // extra clause buys nothing here, but keeping the statement identical to the portable one means
+            // the next person does not have to wonder which of the two is right.
+            $"WHERE {DatabaseConstants.OwnerId} = :ownerId AND {DatabaseConstants.OwnerId} <> 0 AND {DatabaseConstants.ReceivedAt} = :uri");
         cmd.With("ownerId", ownerId);
         cmd.With("uri", receivedAt.ToString());
         await cmd.ExecuteNonQueryAsync(_cancellation);
