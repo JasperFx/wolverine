@@ -695,6 +695,17 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // ClearAllAsync nulls the transaction, but an inline invocation has no inbox row to enlist in:
         // it sends through this context, and outgoing messages still need to be stored and forwarded
         Transaction = this;
+
+        // What the failed attempt assigned is rolled back along with its messages: a response it captured
+        // must not be returned if the retry produces none, the saga id it resolved must not leak into
+        // messages the retry publishes before resolving its own, and the acknowledgement ReadEnvelope
+        // queued was discarded with the rest of the outgoing messages, so queue it again
+        if (Envelope != null)
+        {
+            Envelope.Response = null;
+            _sagaId = Envelope.SagaId;
+            queueRequestedAcknowledgement();
+        }
     }
 
     internal ValueTask ForwardScheduledEnvelopeAsync(Envelope envelope)
@@ -972,7 +983,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         Transaction = this;
 
-        if (Envelope.AckRequested && Envelope.ReplyUri != null)
+        queueRequestedAcknowledgement();
+    }
+
+    // The acknowledgement a caller asked for with DeliveryOptions.AckRequested is queued up front as
+    // part of the context's baseline, so that handling the message successfully sends it
+    private void queueRequestedAcknowledgement()
+    {
+        if (Envelope!.AckRequested && Envelope.ReplyUri != null)
         {
             var ack = new Acknowledgement { RequestId = Envelope.Id };
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
