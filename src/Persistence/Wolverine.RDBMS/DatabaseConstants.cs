@@ -65,18 +65,38 @@ public class DatabaseConstants
     /// </para>
     ///
     /// <para>
-    /// Provisioned only when <c>DurabilitySettings.EnableMessageDeduplication</c> is set.
+    /// Provisioned only when <c>DurabilitySettings.MessageDeduplicationMode</c> is anything but
+    /// <c>None</c>.
     /// </para>
     /// </summary>
     public const string DeduplicationTableName = "wolverine_deduplication";
 
     /// <summary>
-    /// GH-4180. The application-defined logical id, and the primary key of
-    /// <see cref="DeduplicationTableName"/>. The uniqueness of this column IS the guarantee --
-    /// the claim is an INSERT that either succeeds or trips this constraint, never a SELECT
-    /// followed by an INSERT.
+    /// GH-4180. The application-defined logical id.
+    ///
+    /// <para>
+    /// Under <c>MessageDeduplicationMode.CompareByString</c> this is the primary key of
+    /// <see cref="DeduplicationTableName"/> and the uniqueness of this column IS the guarantee.
+    /// Under <c>CompareByHash</c> (GH-4757) the key moves to <see cref="DeduplicationHash"/> and this
+    /// becomes a plain, NON-unique column kept purely so a stuck claim can be identified by eye. It
+    /// must not carry a unique constraint in that mode: a case-insensitive collation would still refuse
+    /// <c>abc</c> after <c>Abc</c> and the whole fix would be inert.
+    /// </para>
     /// </summary>
     public const string DeduplicationId = "deduplication_id";
+
+    /// <summary>
+    /// GH-4757. The SHA-256 of <see cref="DeduplicationId"/>'s UTF-8 bytes, and the primary key of
+    /// <see cref="DeduplicationTableName"/> under <c>MessageDeduplicationMode.CompareByHash</c>.
+    ///
+    /// <para>
+    /// A BINARY column, not a hex string. A hex string would be compared under the database's
+    /// collation like any other text, which is the defect this exists to remove rather than relocate.
+    /// Binary has no collation to apply, so the comparison is identical on PostgreSQL, SQL Server,
+    /// MySQL and SQLite.
+    /// </para>
+    /// </summary>
+    public const string DeduplicationHash = "deduplication_hash";
 
     public const string Expires = "expires";
 

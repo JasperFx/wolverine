@@ -86,7 +86,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
                     opts.Discovery.DisableConventionalDiscovery();
                     opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Durability.EnableRecurringMessages = true;
-                    opts.Durability.EnableMessageDeduplication = true;
+                    opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                     configurePersistence(opts);
                 }).StartAsync(TestContext.Current.CancellationToken);
 

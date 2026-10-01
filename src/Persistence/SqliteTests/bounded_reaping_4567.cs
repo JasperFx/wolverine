@@ -37,7 +37,7 @@ public class bounded_reaping_4567 : IAsyncLifetime
                 opts.PersistMessagesWithSqlite(_database.ConnectionString);
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
             }).StartAsync();
 

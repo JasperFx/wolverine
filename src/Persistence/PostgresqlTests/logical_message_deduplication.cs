@@ -37,7 +37,7 @@ public class logical_message_deduplication : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "dedup");
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 opts.Policies.AutoApplyTransactions();
@@ -78,6 +78,12 @@ public class logical_message_deduplication : IAsyncLifetime
         table.ShouldNotBeNull();
         table.HasColumn(DatabaseConstants.DeduplicationId).ShouldBeTrue();
         table.HasColumn(DatabaseConstants.Expires).ShouldBeTrue();
+
+        // GH-4757. CompareByHash moves the arbitrating key onto the binary hash, and the readable id
+        // stays behind as a plain column -- which it has to be NON-unique, or a case-insensitive
+        // collation would still refuse 'abc' after 'Abc'.
+        table.HasColumn(DatabaseConstants.DeduplicationHash).ShouldBeTrue();
+        table.PrimaryKeyColumns.ShouldBe([DatabaseConstants.DeduplicationHash]);
     }
 
     [Fact]

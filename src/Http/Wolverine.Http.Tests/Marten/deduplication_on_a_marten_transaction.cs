@@ -31,7 +31,7 @@ namespace Wolverine.Http.Tests.Marten;
 /// </para>
 /// <para>
 /// Its own host rather than the shared sample app: <c>[Deduplicated]</c> needs
-/// <c>Durability.EnableMessageDeduplication</c>, which provisions a table, and turning that on for every
+/// <c>Durability.MessageDeduplicationMode</c>, which provisions a table, and turning that on for every
 /// endpoint in <c>WolverineWebApi</c> would change what the rest of the suite is testing.
 /// </para>
 /// </remarks>
@@ -48,7 +48,7 @@ public class deduplication_on_a_marten_transaction : IAsyncLifetime
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();
@@ -210,7 +210,7 @@ public class deduplication_without_a_commit_keeps_the_release : IAsyncLifetime
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             // Deliberately NOT AutoApplyTransactions: this endpoint manages its own commit, so nothing adds

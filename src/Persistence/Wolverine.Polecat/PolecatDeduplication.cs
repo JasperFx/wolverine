@@ -7,6 +7,7 @@ using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Durability;
 using Wolverine.Polecat.Persistence.Operations;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
 
@@ -76,11 +77,20 @@ internal class PolecatDeduplicator : IPolecatDeduplicator
         // '?' is the placeholder Polecat parses, NOT '@p0' -- the XML docs describe what a placeholder is
         // rendered INTO, which reads as though the SQL should carry it. Writing '@p0' here throws
         // "Expected at least 1 placeholder(s) '?' but found 0" at the first deduplicated message.
-        var matches = await session.AdvancedSql
-            .QueryAsync<int>(
-                $"select 1 from {table} where {DatabaseConstants.DeduplicationId} = ?",
-                cancellation, deduplicationId)
-            .ConfigureAwait(false);
+        // GH-4757. Under CompareByHash the existence check has to read the same column the claim's INSERT
+        // is arbitrated by. The hash goes in as a 0x... literal rather than a '?' placeholder: AdvancedSql
+        // binds each placeholder through Polecat's own parameter handling, which has no byte[] case, and a
+        // SHA-256 rendered as hex is 64 fixed characters of [0-9a-f] -- there is nothing here to inject.
+        var matches =
+            _runtime.Options.Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash
+                ? await session.AdvancedSql.QueryAsync<int>(
+                        $"select 1 from {table} where {DatabaseConstants.DeduplicationHash} = 0x{DeduplicationHash.HexFor(deduplicationId)}",
+                        cancellation)
+                    .ConfigureAwait(false)
+                : await session.AdvancedSql.QueryAsync<int>(
+                        $"select 1 from {table} where {DatabaseConstants.DeduplicationId} = ?",
+                        cancellation, deduplicationId)
+                    .ConfigureAwait(false);
 
         var claimed = matches.Any();
 
@@ -104,7 +114,8 @@ internal class PolecatDeduplicator : IPolecatDeduplicator
         var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
 
         session.AddTransactionParticipant(
-            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires));
+            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires,
+                _runtime.Options.Durability.MessageDeduplicationMode));
     }
 
     private string tableFor(Type? ancillaryStoreMarker)

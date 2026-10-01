@@ -37,7 +37,7 @@ namespace Wolverine.Persistence.Durability;
 /// </list>
 ///
 /// <para>
-/// Opt-in via <see cref="DurabilitySettings.EnableMessageDeduplication" /> — when disabled, providers
+/// Opt-in via <see cref="DurabilitySettings.MessageDeduplicationMode" /> — when None, providers
 /// MUST return <see cref="NullDeduplicationStore.Instance" /> and MUST NOT provision the backing
 /// table, so existing deployments see no schema migration churn on upgrade.
 /// </para>
@@ -102,7 +102,8 @@ public interface IDeduplicationStore
 
 /// <summary>
 /// Default no-op deduplication store. Returned by <see cref="IMessageStore.Deduplication" /> when
-/// <see cref="DurabilitySettings.EnableMessageDeduplication" /> is <see langword="false" />, or when
+/// <see cref="DurabilitySettings.MessageDeduplicationMode" /> is
+/// <see cref="MessageDeduplicationMode.None" />, or when
 /// the message store has no durable backing at all (<c>NullMessageStore</c>).
 ///
 /// <para>

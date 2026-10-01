@@ -6,6 +6,7 @@ using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Durability;
 using Wolverine.Fisher.Persistence.Operations;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 using Wolverine.Sqlite;
 
@@ -67,11 +68,20 @@ internal class FisherDeduplicator : IFisherDeduplicator
         // same file, and a read on it while this session holds the write lock is the deadlock Fisher's
         // own ITransactionParticipant docs warn about.
         // '?' is the placeholder Fisher parses, matching QueueSqlCommand.
-        var matches = await session.AdvancedSql
-            .QueryAsync<int>(
-                $"select 1 from {table} where {DatabaseConstants.DeduplicationId} = ?",
-                cancellation, deduplicationId)
-            .ConfigureAwait(false);
+        // GH-4757. Under CompareByHash the existence check has to read the same column the claim's INSERT
+        // is arbitrated by. The hash goes in as SQLite's x'...' blob literal rather than a '?' placeholder,
+        // for the reason the Polecat twin gives; a SHA-256 rendered as hex is 64 fixed characters of
+        // [0-9a-f].
+        var matches =
+            _runtime.Options.Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash
+                ? await session.AdvancedSql.QueryAsync<int>(
+                        $"select 1 from {table} where {DatabaseConstants.DeduplicationHash} = x'{DeduplicationHash.HexFor(deduplicationId)}'",
+                        cancellation)
+                    .ConfigureAwait(false)
+                : await session.AdvancedSql.QueryAsync<int>(
+                        $"select 1 from {table} where {DatabaseConstants.DeduplicationId} = ?",
+                        cancellation, deduplicationId)
+                    .ConfigureAwait(false);
 
         var claimed = matches.Any();
 
@@ -95,7 +105,8 @@ internal class FisherDeduplicator : IFisherDeduplicator
         var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
 
         session.AddTransactionParticipant(
-            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires));
+            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires,
+                _runtime.Options.Durability.MessageDeduplicationMode));
     }
 
     private string tableFor(Type? ancillaryStoreMarker)

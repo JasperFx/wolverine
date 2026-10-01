@@ -979,9 +979,9 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
 
         // GH-4180. Every store role, not just Main: a handler chain with an AncillaryStoreType claims
         // its logical id in that store so the claim and the work land in one transaction.
-        if (Durability.EnableMessageDeduplication)
+        if (Durability.MessageDeduplicationMode != MessageDeduplicationMode.None)
         {
-            yield return new DeduplicationTable(SchemaName);
+            yield return new DeduplicationTable(SchemaName, Durability.MessageDeduplicationMode);
         }
 
         // Recurring-message tracking — Main store only (the single cluster-wide agent publishes

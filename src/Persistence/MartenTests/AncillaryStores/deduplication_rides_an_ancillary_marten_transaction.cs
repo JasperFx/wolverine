@@ -44,7 +44,7 @@ public class deduplication_rides_an_ancillary_marten_transaction : IAsyncLifetim
                     .IncludeType(typeof(FailingAncillaryDedupHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 opts.OnException<DivideByZeroException>().Discard();

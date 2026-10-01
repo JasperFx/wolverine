@@ -334,6 +334,11 @@ public abstract partial class MessageDatabase<T>
 
     private async Task migrateAsync(DbConnection conn, AutoCreate autoCreate)
     {
+        if (autoCreate != AutoCreate.None)
+        {
+            await dropLegacyDeduplicationTableAsync(conn);
+        }
+
         var migration = await SchemaMigration.DetermineAsync(conn, _cancellation, Objects);
 
         if (migration.Difference != SchemaPatchDifference.None)
@@ -378,6 +383,80 @@ public abstract partial class MessageDatabase<T>
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// GH-4757. Drop <c>wolverine_deduplication</c> when it is still the pre-GH-4757 shape and the
+    /// application has asked for <see cref="MessageDeduplicationMode.CompareByHash" />.
+    ///
+    /// <para>
+    /// <b>This deletes claims, and there is no alternative.</b> The hash mode's arbitrating key is a
+    /// <c>NOT NULL</c> binary column, and Weasel refuses — correctly — to add one to a table that
+    /// already exists: <c>"column 'deduplication_hash' cannot be added to an existing table"</c> under
+    /// <see cref="AutoCreate.CreateOrUpdate" />. Nor could a backfill rescue it if Weasel allowed the
+    /// column: the hash is SHA-256 computed in the application, so no SQL expression can derive it for
+    /// rows that are already there. Without this the upgrade is a startup failure rather than a
+    /// migration.
+    /// </para>
+    ///
+    /// <para>
+    /// What that costs is bounded and stated in the docs: a claim lives at most
+    /// <see cref="DurabilitySettings.DeduplicationWindow" /> (24 hours by default), so only a retry
+    /// arriving inside that window immediately after the upgrade can run a second time, and only in an
+    /// application that had opted into deduplication at all. An application that cannot accept even
+    /// that sets <see cref="MessageDeduplicationMode.CompareByString" />, which keeps this table and
+    /// this comparison exactly as they are and never reaches here.
+    /// </para>
+    ///
+    /// <para>
+    /// Probed by SELECT rather than by reading the catalog, because the catalog query differs on all
+    /// four engines and SQLite has no <c>information_schema</c> at all. Runs before the migration and
+    /// inside its advisory lock, and is idempotent: once the hash column is there the probe succeeds
+    /// and nothing is dropped.
+    /// </para>
+    /// </summary>
+    private async Task dropLegacyDeduplicationTableAsync(DbConnection conn)
+    {
+        var mode = Durability.MessageDeduplicationMode;
+        if (mode == MessageDeduplicationMode.None) return;
+
+        var table = QuotedTableNameFor(DatabaseConstants.DeduplicationTableName);
+
+        bool hasHashColumn;
+        try
+        {
+            await conn.CreateCommand(
+                    $"select {DatabaseConstants.DeduplicationHash} from {table} where 1 = 0")
+                .ExecuteNonQueryAsync(_cancellation);
+
+            hasHashColumn = true;
+        }
+        catch (DbException)
+        {
+            // Either the table is the other shape, or it does not exist at all. The drop below
+            // distinguishes them: on a fresh database it fails and is swallowed, and Weasel then
+            // creates the table from scratch as it always would.
+            hasHashColumn = false;
+        }
+
+        if (hasHashColumn == (mode == MessageDeduplicationMode.CompareByHash))
+        {
+            // Already the shape this mode wants. The steady state, and the reason this is idempotent.
+            return;
+        }
+
+        try
+        {
+            await conn.CreateCommand($"drop table {table}").ExecuteNonQueryAsync(_cancellation);
+
+            Logger.LogWarning(
+                "Dropped and will recreate {Table} in database {Database}: it was the wrong shape for Durability.MessageDeduplicationMode = {Mode}, and Weasel cannot alter one shape into the other in place. Any logical deduplication claims it held are gone, so a retry arriving inside the {Window} deduplication window may run a second time. See GH-4757",
+                DatabaseConstants.DeduplicationTableName, Name, mode, Durability.DeduplicationWindow);
+        }
+        catch (DbException)
+        {
+            // The table did not exist. Fresh database.
+        }
+    }
+
     private async Task truncateEnvelopeDataAsync(DbConnection conn)
     {
         try
@@ -394,7 +473,7 @@ public abstract partial class MessageDatabase<T>
             // provisioned for every store role, and ClearAllAsync means "no residue from the previous
             // test". A surviving claim would silently refuse the next test's first message as a
             // duplicate -- a green suite over a system that did nothing.
-            if (Durability.EnableMessageDeduplication)
+            if (Durability.MessageDeduplicationMode != MessageDeduplicationMode.None)
             {
                 await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeduplicationTableName)}")
                     .ExecuteNonQueryAsync(_cancellation);

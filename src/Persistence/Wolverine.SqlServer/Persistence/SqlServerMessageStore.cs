@@ -785,9 +785,9 @@ group by o.name, ps.index_id, i.name";
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
 
         // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
-        if (Durability.EnableMessageDeduplication)
+        if (Durability.MessageDeduplicationMode != MessageDeduplicationMode.None)
         {
-            yield return new DeduplicationTable(SchemaName);
+            yield return new DeduplicationTable(SchemaName, Durability.MessageDeduplicationMode);
         }
 
         // Recurring-message tracking — Main store only, behind the opt-in. See the PostgreSQL twin.

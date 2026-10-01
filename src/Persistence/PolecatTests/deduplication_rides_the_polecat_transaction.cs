@@ -57,7 +57,7 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
                     .IncludeType(typeof(PolecatRacingHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 // Discard rather than retry, so each Send is exactly one handler attempt and the

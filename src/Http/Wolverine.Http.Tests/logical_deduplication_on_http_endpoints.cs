@@ -46,7 +46,7 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
             opts.Durability.Mode = DurabilityMode.Solo;
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "http_dedup");
 
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();

@@ -79,7 +79,8 @@ internal class MartenDeduplicator : IMartenDeduplicator
 
     public IQueryHandler<bool> ClaimExistsQuery(string deduplicationId, Type? ancillaryStoreMarker)
     {
-        return new DeduplicationClaimExistsHandler(tableFor(ancillaryStoreMarker), deduplicationId, logDuplicate);
+        return new DeduplicationClaimExistsHandler(tableFor(ancillaryStoreMarker), deduplicationId, logDuplicate,
+            _runtime.Options.Durability.MessageDeduplicationMode);
     }
 
     public void QueueClaim(IDocumentSession session, string deduplicationId, Type? ancillaryStoreMarker)
@@ -89,7 +90,8 @@ internal class MartenDeduplicator : IMartenDeduplicator
         var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
 
         session.QueueOperation(
-            new ClaimDeduplicationId(tableFor(ancillaryStoreMarker), deduplicationId, expires));
+            new ClaimDeduplicationId(tableFor(ancillaryStoreMarker), deduplicationId, expires,
+                _runtime.Options.Durability.MessageDeduplicationMode));
     }
 
     private void logDuplicate(string deduplicationId)

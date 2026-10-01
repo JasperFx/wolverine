@@ -147,7 +147,7 @@ internal class DurabilityAgent : IAgent
         // message -- so enabling the feature without a reaper trades duplicate work for a table that
         // grows without bound. Its own timer, its own transaction, for the same reason as the handled
         // cleanup above. Created only when the feature is on, so nothing changes for anyone else.
-        if (_settings.EnableMessageDeduplication)
+        if (_settings.MessageDeduplicationMode != MessageDeduplicationMode.None)
         {
             _deduplicationCleanupTimer = new Timer(_ =>
             {

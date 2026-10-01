@@ -38,7 +38,7 @@ public class default_duplicate_status_code_for_http : IAsyncLifetime
             opts.Durability.Mode = DurabilityMode.Solo;
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "http_dedup_default");
 
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();

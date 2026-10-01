@@ -49,7 +49,7 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();
@@ -228,7 +228,7 @@ public class fisher_deduplication_without_a_commit_keeps_the_release : IAsyncLif
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             // Deliberately NOT AutoApplyTransactions: this endpoint manages its own commit, so nothing

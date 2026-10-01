@@ -159,7 +159,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         // claims its id in that store, so that the claim and the work it guards land in one
         // transaction; a claim that went to the Main store instead could commit while the ancillary
         // transaction rolled back.
-        if (settings.EnableMessageDeduplication)
+        if (settings.MessageDeduplicationMode != MessageDeduplicationMode.None)
         {
             // ReSharper disable once VirtualMemberCallInConstructor
             Deduplication = BuildDeduplicationStore();
@@ -179,7 +179,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     /// <summary>
     /// Factory hook for the per-database <see cref="IDeduplicationStore" /> when
-    /// <see cref="DurabilitySettings.EnableMessageDeduplication" /> is set. The default returns
+    /// <see cref="DurabilitySettings.MessageDeduplicationMode" /> is set. The default returns
     /// <see cref="RdbmsDeduplicationStore" />, which is portable across every provider that uses
     /// <c>@</c>-prefixed bind variables and <see cref="DbDataSource" />-driven command creation
     /// (Postgres, SqlServer, MySQL, SQLite).
@@ -196,7 +196,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         return new RdbmsDeduplicationStore(_dataSource,
             QuotedTableNameFor(DatabaseConstants.DeduplicationTableName), IsUniqueConstraintViolation,
-            BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize);
+            BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize,
+            Durability.MessageDeduplicationMode);
     }
 
     /// <inheritdoc />

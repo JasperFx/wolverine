@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
 using Weasel.Core;
@@ -10,11 +11,22 @@ namespace Wolverine.RDBMS.Deduplication;
 /// <c>wolverine_deduplication</c> table.
 ///
 /// <para>
-/// The table has exactly two columns — the logical id, which is also the primary key, and an
-/// expiry — so every operation is a plain INSERT / DELETE with no per-provider UPSERT or MERGE
-/// syntax. The same shape works on PostgreSQL, SQL Server, MySQL and SQLite unchanged. Oracle gets
-/// nothing — <c>OracleMessageStore</c> does not derive from <see cref="MessageDatabase{T}" /> and
-/// supplies no deduplication store of its own, so it keeps <see cref="NullDeduplicationStore" />.
+/// The table has two or three columns — the logical id, an expiry, and under
+/// <see cref="MessageDeduplicationMode.CompareByHash" /> a binary hash of the id — so every operation
+/// is a plain INSERT / DELETE with no per-provider UPSERT or MERGE syntax. The same shape works on
+/// PostgreSQL, SQL Server, MySQL and SQLite unchanged. Oracle gets nothing —
+/// <c>OracleMessageStore</c> does not derive from <see cref="MessageDatabase{T}" /> and supplies no
+/// deduplication store of its own, so it keeps <see cref="NullDeduplicationStore" />.
+/// </para>
+///
+/// <para>
+/// GH-4757. <b>Which column arbitrates depends on the mode, and nothing else does.</b> Under
+/// <see cref="MessageDeduplicationMode.CompareByString" /> the INSERT and the DELETE key off
+/// <c>deduplication_id</c> exactly as they always have; under
+/// <see cref="MessageDeduplicationMode.CompareByHash" /> they key off the binary
+/// <c>deduplication_hash</c> and the readable id rides along as a plain column. Both are an INSERT
+/// arbitrated by the primary key — see below — because that property is the feature, not an
+/// implementation detail of either mode.
 /// </para>
 ///
 /// <para>
@@ -36,6 +48,7 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
     private readonly string _deleteExpiredSql;
     private readonly Func<int, string?> _batchedDeleteExpiredSql;
     private readonly int _batchSize;
+    private readonly bool _compareByHash;
 
     /// <param name="table">
     /// The fully rendered storage identifier for the deduplication table, as produced by
@@ -50,12 +63,19 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
     /// unbounded statement is exactly the long-lock problem that moved the handled-envelope cleanup
     /// onto its own timer in the first place (issue #3116).
     /// </param>
+    /// <param name="mode">
+    /// GH-4757. Which column the claim is arbitrated by, matching the shape the provider's
+    /// <c>DeduplicationTable</c> provisioned for the same mode. Never
+    /// <see cref="MessageDeduplicationMode.None" /> — the caller only builds a real store at all when
+    /// deduplication is on.
+    /// </param>
     public RdbmsDeduplicationStore(
         DbDataSource dataSource,
         string table,
         Func<Exception, bool> isUniqueConstraintViolation,
         Func<int, string?> batchedDeleteExpiredSql,
-        int batchSize)
+        int batchSize,
+        MessageDeduplicationMode mode)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _isUniqueConstraintViolation = isUniqueConstraintViolation
@@ -63,10 +83,21 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
         _batchedDeleteExpiredSql = batchedDeleteExpiredSql
                                    ?? throw new ArgumentNullException(nameof(batchedDeleteExpiredSql));
         _batchSize = batchSize;
+        _compareByHash = mode == MessageDeduplicationMode.CompareByHash;
 
-        _insertSql =
-            $"insert into {table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@id, @expires)";
-        _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id";
+        if (_compareByHash)
+        {
+            _insertSql =
+                $"insert into {table} ({DatabaseConstants.DeduplicationHash}, {DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@hash, @id, @expires)";
+            _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationHash} = @hash";
+        }
+        else
+        {
+            _insertSql =
+                $"insert into {table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@id, @expires)";
+            _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id";
+        }
+
         _deleteExpiredSql = $"delete from {table} where {DatabaseConstants.Expires} <= @now";
     }
 
@@ -80,6 +111,11 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
             await using var cmd = _dataSource.CreateCommand(_insertSql)
                 .With("id", deduplicationId)
                 .With("expires", expires);
+
+            // DbType.Binary explicitly rather than letting each driver infer: Npgsql, SqlClient,
+            // MySqlConnector and Microsoft.Data.Sqlite all accept a byte[], and all four infer something
+            // slightly different for it.
+            if (_compareByHash) cmd.With("hash", DeduplicationHash.For(deduplicationId), DbType.Binary);
 
             await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
             return true;
@@ -100,7 +136,10 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
     {
         if (deduplicationId.IsEmpty()) return;
 
-        await using var cmd = _dataSource.CreateCommand(_deleteSql).With("id", deduplicationId);
+        await using var cmd = _compareByHash
+            ? _dataSource.CreateCommand(_deleteSql)
+                .With("hash", DeduplicationHash.For(deduplicationId), DbType.Binary)
+            : _dataSource.CreateCommand(_deleteSql).With("id", deduplicationId);
 
         // DELETE is naturally idempotent -- releasing an unclaimed id affects 0 rows without raising.
         await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
