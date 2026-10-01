@@ -684,6 +684,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Transaction = null;
     }
 
+    /// <summary>
+    ///     Discard everything the failed attempt of an inline invocation queued or enlisted, and put the
+    ///     context back in the state <see cref="ReadEnvelope"/> left it in, so the next attempt starts clean
+    /// </summary>
+    internal async ValueTask ResetForInlineRetryAsync()
+    {
+        await ClearAllAsync().ConfigureAwait(false);
+
+        // ClearAllAsync nulls the transaction, but an inline invocation has no inbox row to enlist in:
+        // it sends through this context, and outgoing messages still need to be stored and forwarded
+        Transaction = this;
+    }
+
     internal ValueTask ForwardScheduledEnvelopeAsync(Envelope envelope)
     {
         if (envelope.Destination == null)
