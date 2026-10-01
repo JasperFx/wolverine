@@ -261,26 +261,26 @@ public partial class WolverineRuntime
             _hasStarted = true; // Have to do this before you can use MessageBus
             await startAgentsAsync();
 
-            if (Options.Durability.AssignedNodeNumber == 0)
-            {
-                throw new InvalidOperationException(
-                    "This Wolverine node was not able to create a non-zero assigned node number");
-            }
-            else
-            {
-                Logger.LogInformation("Wolverine assigned node id for envelope persistence is {NodeNumber}", Options.Durability.AssignedNodeNumber);
-            }
-
             switch (Options.Durability.Mode)
             {
                 case DurabilityMode.Balanced:
                     await loadAgentRestrictionsAsync();
+
+                    // GH-4734. Claim the node row, and with it this node's real assigned node number, BEFORE
+                    // any listener can start stamping owner_id on inbox rows with it. Done after the
+                    // transports, a node starting on a queue backlog claimed that backlog under the
+                    // per-process default node number -- a number in no node table -- and the orphaned
+                    // message sweep then released it as belonging to a departed node and ran it again.
+                    await registerLocalNodeAsync();
+
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
                     await startNodeAgentWorkflowAsync();
                     _idleAgentCleanupLoop = Task.Run(executeIdleSendingAgentCleanup, Cancellation);
                     break;
                 case DurabilityMode.Solo:
+                    // Solo has always registered before the transports start, from inside startAgentsAsync
+                    // above -- see NodeAgentController.StartSoloModeAsync
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
                     _idleAgentCleanupLoop = Task.Run(executeIdleSendingAgentCleanup, Cancellation);
@@ -297,6 +297,20 @@ public partial class WolverineRuntime
                 case DurabilityMode.MediatorOnly:
                     break;
             }
+
+            // GH-4734: reported after the mode switch rather than before it. In Balanced mode the number this
+            // used to print was the per-process default, not the one the node had been assigned -- the
+            // registration that produces the real one had not run yet. Which is the bug this moved: the
+            // listeners had not run yet either, and they were about to stamp that same provisional number
+            // onto every inbox row they claimed.
+            if (Options.Durability.AssignedNodeNumber == 0)
+            {
+                throw new InvalidOperationException(
+                    "This Wolverine node was not able to create a non-zero assigned node number");
+            }
+
+            Logger.LogInformation("Wolverine assigned node id for envelope persistence is {NodeNumber}",
+                Options.Durability.AssignedNodeNumber);
 
             // Pre-populate the per-message-type router cache so the per-message
             // RoutingFor() hot path never pays the first-occurrence
