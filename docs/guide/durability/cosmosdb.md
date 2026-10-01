@@ -143,8 +143,9 @@ var cosmos = builder.AddAzureCosmosDB("cosmos")
 
 ## Container Setup
 
-Wolverine uses a single CosmosDB container named `wolverine` with a partition key path of `/partitionKey`.
-The container is automatically created during database migration if it does not exist.
+Wolverine uses a single CosmosDB container, named `wolverine` by default, with a partition key path of
+`/partitionKey`. The container is automatically created during database migration if it does not exist, but the
+database it lives in is not: create the database ahead of time.
 
 All Wolverine document types are stored in the same container, differentiated by a `docType` field:
 - `incoming` - Incoming message envelopes
@@ -156,6 +157,34 @@ All Wolverine document types are stored in the same container, differentiated by
 - `agent-assignment` - Agent assignment documents
 - `agent-restriction` - Agent restriction documents
 - `lock` - Distributed lock documents
+
+### Several Applications in One Database <Badge type="tip" text="6.44" />
+
+The container is the unit of clustering. The node registry, leadership, agent assignments and the single
+durability agent all live in it, so **every application pointed at the same container joins one Wolverine
+cluster**. That durability agent fires due scheduled messages and recovers the envelopes of dead nodes into the
+local queues of whichever node holds it, and nothing stops that node belonging to a different application. If it
+has no handler for the message, the message is acknowledged and lost.
+
+Give each application its own container with `UseContainer()`. They can still share the database, and its
+throughput:
+
+<!-- snippet: sample_cosmos_use_own_container -->
+<a id='snippet-sample_cosmos_use_own_container'></a>
+```cs
+// Shares the database with other applications, but keeps a container - and so a Wolverine
+// cluster - of its own
+opts.UseCosmosDbPersistence("your-database-name", cosmos =>
+{
+    cosmos.UseContainer("wolverine-orders");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/CosmosDbTests/DocumentationSamples.cs#L50-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cosmos_use_own_container' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine creates the named container on startup in the same way. It does not move existing documents, so
+envelopes and sagas already in the old container are not read from the new one — switch while there is nothing
+in flight.
 
 ## Message Persistence
 

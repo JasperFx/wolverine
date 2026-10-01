@@ -149,7 +149,10 @@ public partial class CosmosDbMessageStore : IMessageStoreAdmin
     public async Task MigrateAsync()
     {
         var database = _client.GetDatabase(_databaseName);
-        var containerProperties = new ContainerProperties(DocumentTypes.ContainerName, DocumentTypes.PartitionKeyPath);
+
+        // The store's own container rather than the default name, so that a container configured through
+        // CosmosDbConfiguration.UseContainer() is the one created
+        var containerProperties = new ContainerProperties(_container.Id, DocumentTypes.PartitionKeyPath);
         await database.CreateContainerIfNotExistsAsync(containerProperties);
     }
 

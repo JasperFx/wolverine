@@ -1,3 +1,5 @@
+using Wolverine.CosmosDb.Internals;
+
 namespace Wolverine.CosmosDb;
 
 /// <summary>
@@ -38,6 +40,60 @@ public class CosmosDbConfiguration
     public CosmosDbConfiguration PartitionSagasById()
     {
         SagasArePartitionedById = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     The container Wolverine keeps its envelopes, sagas and node records in. "wolverine" by default. See
+    ///     <see cref="UseContainer" />.
+    /// </summary>
+    public string ContainerName { get; private set; } = DocumentTypes.ContainerName;
+
+    /// <summary>
+    ///     Keep Wolverine's envelopes, sagas and node records in the named container instead of "wolverine".
+    ///     <para>
+    ///         Everything a Wolverine node shares with its peers lives in that one container: the node registry,
+    ///         leadership, agent assignments, and the single durability agent that fires due scheduled messages and
+    ///         recovers the envelopes of dead nodes. So every application pointed at the same container joins one
+    ///         cluster, and that agent runs on whichever node it is assigned to, into that node's own local queues —
+    ///         even where the node belongs to a different application with no handler for the message. Giving each
+    ///         application its own container makes each its own cluster, while they still share one database and
+    ///         its throughput.
+    ///     </para>
+    ///     <para>
+    ///         Wolverine creates the container on startup as it does the default one, but it does not move
+    ///         documents: envelopes and sagas already written to the old container are not read from the new one.
+    ///     </para>
+    /// </summary>
+    /// <param name="containerName">
+    ///     A CosmosDB container id: not blank, at most 255 characters, without '/', '\', '#' or '?', and not
+    ///     ending in a space
+    /// </param>
+    public CosmosDbConfiguration UseContainer(string containerName)
+    {
+        if (string.IsNullOrWhiteSpace(containerName))
+        {
+            throw new ArgumentException("The container name cannot be blank.", nameof(containerName));
+        }
+
+        if (containerName.Length > 255)
+        {
+            throw new ArgumentException("A CosmosDB container id is at most 255 characters.", nameof(containerName));
+        }
+
+        if (containerName.IndexOfAny(['/', '\\', '#', '?']) >= 0)
+        {
+            throw new ArgumentException(
+                $"A CosmosDB container id cannot contain '/', '\\', '#' or '?', and '{containerName}' does.",
+                nameof(containerName));
+        }
+
+        if (containerName.EndsWith(' '))
+        {
+            throw new ArgumentException("A CosmosDB container id cannot end with a space.", nameof(containerName));
+        }
+
+        ContainerName = containerName;
         return this;
     }
 }

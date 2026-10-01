@@ -93,7 +93,11 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
         return new DatabaseDescriptor(this)
         {
             Engine = "cosmosdb",
-            DatabaseName = _databaseName
+            DatabaseName = _databaseName,
+
+            // The container plays the part a schema does for the relational stores: two applications sharing a
+            // database are told apart by it
+            SchemaOrNamespace = _container.Id
         };
     }
 
