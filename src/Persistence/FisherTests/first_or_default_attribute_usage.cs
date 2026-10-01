@@ -47,20 +47,10 @@ public class first_or_default_attribute_usage : IAsyncLifetime
     [Fact]
     public async Task the_parameter_is_null_when_nothing_is_stored()
     {
-        // Fisher creates a document table lazily on first write, and querying a type whose table was never
-        // created throws "no such table" rather than returning nothing -- the same Fisher characteristic
-        // storage_attribute_routes_to_fisher_store leans on to assert a negative. So establish the table,
-        // then empty it, which is the state an application is actually in once it has used the type.
-        await using (var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession())
-        {
-            var seed = new FiAlertDefaults { Threshold = 1 };
-            session.Store(seed);
-            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-            session.Delete(seed);
-            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
+        // Nothing is seeded here on purpose: FiAlertDefaults has never been written to this database at
+        // all, which is the brand new deployment case that actually matters -- a [FirstOrDefault] read
+        // before anything has ever been stored. A Fisher read of a type nothing has ever stored answers
+        // empty rather than failing, so the parameter has to arrive null.
         var tracked = await _host.InvokeMessageAndWaitAsync(new ReadFiAlertDefaults());
 
         tracked.Sent.SingleMessage<FiAlertDefaultsRead>()

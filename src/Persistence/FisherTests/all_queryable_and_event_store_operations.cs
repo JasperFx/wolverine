@@ -69,19 +69,10 @@ public class all_queryable_and_event_store_operations : IAsyncLifetime
     [Fact]
     public async Task all_gives_an_empty_list_when_nothing_is_stored()
     {
-        // Fisher creates a document table lazily on first write, and querying a type that has never been
-        // written throws "no such table" rather than returning nothing. That is a general Fisher trait, not
-        // something [All] introduces -- so establish the table then empty it, which is the state an
-        // application is actually in once it has used the type at all.
-        await using (var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession())
-        {
-            var seed = new FiWidget { Name = "temp", Hits = 1 };
-            session.Store(seed);
-            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
-            session.Delete(seed);
-            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
+        // Nothing is seeded here on purpose: FiWidget has never been written to this database at all,
+        // which is the brand new deployment case that actually matters. A Fisher read of a type nothing
+        // has ever stored answers empty rather than failing, so [All] has to hand the handler an empty
+        // list.
         var tracked = await _host.InvokeMessageAndWaitAsync(new CountFiWidgets());
         tracked.Sent.SingleMessage<FiWidgetsCounted>().Count.ShouldBe(0);
     }

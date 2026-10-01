@@ -89,9 +89,11 @@ public class storage_attribute_routes_to_fisher_store : IAsyncLifetime
         // ...and demonstrably NOT in the main one. Asserting the negative is the point: a [Storage]
         // that silently fell back to the primary session would still satisfy the assertion above.
         //
-        // Asked of sqlite_master rather than through a session, because on Fisher a document type
-        // whose table was never created throws "no such table" rather than returning null - so the
-        // absence of the TABLE is both the stronger claim and the one that does not need a catch.
+        // Asked of sqlite_master rather than through a session, because a Fisher read of a type nothing
+        // has ever stored answers empty rather than failing - so a session query against the main store
+        // could not tell "Player was never written here" from "written here, but this one is missing",
+        // and on a store that provisions a table on read it would create the very thing being denied.
+        // The absence of the TABLE is both the stronger claim and the one a session cannot fake.
         (await tableExistsAsync(theMainDatabase, "fi_doc_player")).ShouldBeFalse();
         (await tableExistsAsync(theAncillaryDatabase, "fi_doc_player")).ShouldBeTrue();
     }
