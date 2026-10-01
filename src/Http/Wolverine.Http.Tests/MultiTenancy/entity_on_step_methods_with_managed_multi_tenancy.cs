@@ -38,6 +38,11 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 /// did not compile (<c>CS0128</c>), because this configuration registers the EF Core extension twice and each
 /// copy injected its own fetch -- or its own batch -- for the plans.
 /// </item>
+/// <item>
+/// A chain that takes the DbContext AND loads through it declaratively failed the bootstrap with "multiple
+/// DbContext types detected". The first lookup of an entity's DbContext under managed tenancy answered the
+/// builder's service type, <c>IDbContextBuilder&lt;T&gt;</c>, and only later lookups answered <c>T</c>.
+/// </item>
 /// </list>
 ///
 /// Every row is seeded in the tenant database only, so reading through the main database's DbContext shows up
@@ -53,7 +58,8 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         typeof(StepEntityRenameOnEndpoint),
         typeof(StepEntityReadEndpoint),
         typeof(StepEntityQueryPlanEndpoint),
-        typeof(StepEntityTwoPlansEndpoint)
+        typeof(StepEntityTwoPlansEndpoint),
+        typeof(StepEntityTagsEndpoint)
     ];
 
     private IAlbaHost theHost = null!;
@@ -86,6 +92,8 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
                 create schema if not exists step_entity;
                 drop table if exists step_entity.step_entity_items;
                 create table step_entity.step_entity_items ("Id" uuid primary key, "Name" text not null);
+                drop table if exists step_entity.step_entity_tags;
+                create table step_entity.step_entity_tags ("Id" uuid primary key, "Label" text not null);
                 """, conn);
             await cmd.ExecuteNonQueryAsync();
         }
@@ -143,6 +151,20 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
             """insert into step_entity.step_entity_items ("Id", "Name") values ($1, 'original')""", conn);
+        cmd.Parameters.AddWithValue(id);
+        await cmd.ExecuteNonQueryAsync();
+
+        return id;
+    }
+
+    private async Task<Guid> seedTagInTenantDatabaseAsync()
+    {
+        var id = Guid.NewGuid();
+
+        await using var conn = new NpgsqlConnection(theTenantConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            """insert into step_entity.step_entity_tags ("Id", "Label") values ($1, 'red tag')""", conn);
         cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync();
 
@@ -227,5 +249,19 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         });
 
         (await nameInTenantDatabaseAsync(id)).ShouldBe("renamed");
+    }
+
+    [Fact]
+    public async Task a_chain_taking_the_db_context_and_loading_through_plans_starts_and_reads_the_tenant_database()
+    {
+        var id = await seedTagInTenantDatabaseAsync();
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url($"/step-entity/{id}/tags?tenant=red");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("red tag of 1");
     }
 }

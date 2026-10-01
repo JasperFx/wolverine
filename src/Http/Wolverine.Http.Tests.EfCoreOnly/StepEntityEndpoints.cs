@@ -26,6 +26,12 @@ public class StepEntityDbContext : DbContext
             map.ToTable("step_entity_items", "step_entity");
             map.HasKey(x => x.Id);
         });
+
+        modelBuilder.Entity<StepEntityTag>(map =>
+        {
+            map.ToTable("step_entity_tags", "step_entity");
+            map.HasKey(x => x.Id);
+        });
     }
 }
 
@@ -33,6 +39,36 @@ public class StepEntityItem
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+// Only StepEntityTagsEndpoint loads this, so its DbContext lookup is still uncached when that chain is built
+public class StepEntityTag
+{
+    public Guid Id { get; set; }
+    public string Label { get; set; } = string.Empty;
+}
+
+public class StepEntityTagById : QueryPlan<StepEntityDbContext, StepEntityTag>
+{
+    private readonly Guid _id;
+
+    public StepEntityTagById(Guid id)
+    {
+        _id = id;
+    }
+
+    public override IQueryable<StepEntityTag> Query(StepEntityDbContext dbContext)
+    {
+        return dbContext.Set<StepEntityTag>().Where(x => x.Id == _id);
+    }
+}
+
+public class AllStepEntityTags : QueryListPlan<StepEntityDbContext, StepEntityTag>
+{
+    public override IQueryable<StepEntityTag> Query(StepEntityDbContext dbContext)
+    {
+        return dbContext.Set<StepEntityTag>();
+    }
 }
 
 public class StepEntityItemById : QueryPlan<StepEntityDbContext, StepEntityItem>
@@ -131,5 +167,21 @@ public static class StepEntityTwoPlansEndpoint
         [FromQuerySpecification(typeof(AllStepEntityItems))] IReadOnlyList<StepEntityItem> all)
     {
         item!.Name = "renamed";
+    }
+}
+
+// Takes the DbContext directly AND loads an entity type through plans. The first lookup of that entity's
+// DbContext answered IDbContextBuilder<StepEntityDbContext> rather than StepEntityDbContext, so this chain
+// appeared to use two DbContexts and the host failed to start.
+[WolverineIgnore]
+public static class StepEntityTagsEndpoint
+{
+    [WolverineGet("/step-entity/{id}/tags")]
+    public static string Get(
+        StepEntityDbContext db,
+        [FromQuerySpecification(typeof(StepEntityTagById))] StepEntityTag? tag,
+        [FromQuerySpecification(typeof(AllStepEntityTags))] IReadOnlyList<StepEntityTag> all)
+    {
+        return tag == null ? "missing" : $"{tag.Label} of {all.Count}";
     }
 }

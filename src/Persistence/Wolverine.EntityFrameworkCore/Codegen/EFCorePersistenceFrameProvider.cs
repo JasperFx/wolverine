@@ -932,8 +932,11 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             {
                 if (dbContext.Model.FindEntityType(entityType) != null)
                 {
+                    // The DbContext type, not the builder's service type -- the cache already said so, and a
+                    // cold lookup answering IDbContextBuilder<T> while a warm one answers T made a chain that
+                    // also depends on T directly look like it used two DbContexts.
                     _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, builder.DbContextType);
-                    return candidate;
+                    return builder.DbContextType;
                 }
             }
             catch (InvalidOperationException e)
