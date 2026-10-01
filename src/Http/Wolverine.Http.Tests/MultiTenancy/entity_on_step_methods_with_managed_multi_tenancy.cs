@@ -27,6 +27,12 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 /// The same step <c>[Entity]</c> did not even compile against a route id: EF Core's load frame never declared
 /// its dependency on the identity, so the frame parsing the route value was ordered after the load.
 /// </item>
+/// <item>
+/// A chain whose DbContext is not built by the transactional middleware -- a non-transactional
+/// <c>[Entity]</c>, or a query plan -- resolved the main database's DbContext from the container rather than
+/// the request tenant's, because <c>UseEntityFrameworkCoreTransactions()</c> registered a service-location
+/// source for it ahead of the tenanted one.
+/// </item>
 /// </list>
 ///
 /// Every row is seeded in the tenant database only, so reading through the main database's DbContext shows up
@@ -39,7 +45,8 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
     private static readonly Type[] EndpointTypes =
     [
         typeof(StepEntityRenameEndpoint),
-        typeof(StepEntityRenameOnEndpoint)
+        typeof(StepEntityRenameOnEndpoint),
+        typeof(StepEntityReadEndpoint)
     ];
 
     private IAlbaHost theHost = null!;
@@ -92,6 +99,8 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
             opts.Services.AddDbContextWithWolverineManagedMultiTenancy<StepEntityDbContext>(
                 (options, connectionString, _) => options.UseNpgsql(connectionString.Value), AutoCreate.None);
 
+            // After the multi-tenancy registration on purpose: that is the order that let this call's
+            // service-location source for StepEntityDbContext win over the tenanted one
             opts.UseEntityFrameworkCoreTransactions();
 
             opts.Policies.AutoApplyTransactions();
@@ -169,5 +178,19 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         });
 
         (await nameInTenantDatabaseAsync(id)).ShouldBe("renamed");
+    }
+
+    [Fact]
+    public async Task a_non_transactional_load_reads_the_tenant_database()
+    {
+        var id = await seedInTenantDatabaseAsync();
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url($"/step-entity/{id}/name?tenant=red");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("original");
     }
 }

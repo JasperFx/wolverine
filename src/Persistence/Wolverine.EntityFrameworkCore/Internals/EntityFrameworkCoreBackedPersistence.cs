@@ -61,7 +61,13 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
     {
         options.CodeGeneration.ReferenceAssembly(GetType().Assembly);
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
-        options.CodeGeneration.Sources.Add(new TenantedDbContextSource<T>());
+        // Inserted first, not appended. The first matching source wins, and UseEntityFrameworkCoreTransactions()
+        // appends a service-location source for every DbContext already registered -- which includes T, because
+        // the multi-tenancy registrations add a scoped T for EF Core migrations. That call runs inside the
+        // UseWolverine() callback, before this extension is applied from the container, so appending here
+        // let it win: any chain that did not build the DbContext through the transactional middleware
+        // resolved the main database's DbContext from the container instead of the request tenant's.
+        options.CodeGeneration.Sources.Insert(0, new TenantedDbContextSource<T>());
 
         if (ConjoinedTenancy.IsConjoined(typeof(T)))
         {

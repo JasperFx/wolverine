@@ -59,3 +59,17 @@ public static class StepEntityRenameOnEndpoint
         item.Name = "renamed";
     }
 }
+
+// Never transactional, so its DbContext is not built by the transactional middleware and has to come
+// from the variable sources -- where it used to resolve the main database's DbContext out of the container
+// instead of the request tenant's.
+[WolverineIgnore]
+public static class StepEntityReadEndpoint
+{
+    [NonTransactional]
+    [WolverineGet("/step-entity/{id}/name")]
+    public static string Get([Entity] StepEntityItem item)
+    {
+        return item.Name;
+    }
+}
