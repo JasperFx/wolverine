@@ -11,6 +11,7 @@ using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Resources;
+using Wolverine.Http.Runtime;
 using Wolverine.Runtime;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
@@ -254,7 +255,40 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // sitting in the entry assembly instead. Assert here so the whole picture is reported at once.
         AssertPreBuiltTypesExist();
 
+        warnAboutDeduplicatedResponsesWithoutStorage(logger);
+
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
+    }
+
+    /// <summary>
+    /// GH-4742. Warn rather than fail, as [Deduplicated] does: the endpoint may live in an assembly shared with
+    /// a host that never serves it. The endpoint itself throws at its first claim.
+    /// </summary>
+    private void warnAboutDeduplicatedResponsesWithoutStorage(ILogger logger)
+    {
+        var routes = _chains
+            .Where(x => x.DeduplicatedResponse != null && x.AncillaryStoreType == null)
+            .Select(x => x.RoutePattern?.RawText ?? x.Description)
+            .ToArray();
+
+        if (routes.Length == 0) return;
+
+        string? reason;
+        try
+        {
+            reason = DeduplicatedResponses.WhyUnsupported(Container.GetInstance<IWolverineRuntime>());
+        }
+        catch (Exception)
+        {
+            // A diagnostic must never be what takes startup down.
+            return;
+        }
+
+        if (reason == null) return;
+
+        logger.LogWarning(
+            "[DeduplicatedWithResponse] is used by {Routes}, but {Reason}, so those endpoints will fail at their first request. See GH-4742",
+            routes.Join(", "), reason);
     }
 
     internal static void ResolveDuplicateTypeNames(IReadOnlyList<HttpChain> chains)

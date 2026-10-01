@@ -54,6 +54,7 @@ public partial class HttpChain
             // point after both. Idempotent, so a chain assembled into two GeneratedAssemblies (which
             // happens under `codegen write` -- see GH-3692) is woven once.
             this.ApplyDeduplication(assembly.Rules, _parent.Container);
+            applyDeduplicatedResponse();
 
             _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
 
@@ -134,6 +135,8 @@ public partial class HttpChain
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
 
+        assertDeduplicatedResponseIsJson();
+
         if (TryInferMessageIdentity(out var identity))
         {
             if (AuditedMembers.All(x => x.Member != identity))
@@ -157,6 +160,8 @@ public partial class HttpChain
 
             Middleware.Insert(0, new AuditToActivityFrame(this, auditInputType));
         }
+
+        bufferRequestForDeduplicatedResponse();
 
         // Allow for immutable request types that get overwritten by middleware
         if (RequestBodyVariable != null)

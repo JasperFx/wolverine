@@ -19,6 +19,7 @@ using Wolverine.Configuration.Capabilities;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Diagnostics;
+using Wolverine.Http.Runtime;
 using Wolverine.Http.Transport;
 using Wolverine.Http.Validation;
 using Wolverine.Http.Validation.Internals;
@@ -171,6 +172,9 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // service-collection extension registers the singleton on demand; only
         // apps that call UseNewtonsoftJsonForSerialization() pay for it now.
         services.AddSingleton<HttpTransportExecutor>();
+
+        // GH-4742. What [DeduplicatedWithResponse] endpoints claim and record through.
+        services.AddSingleton<DeduplicatedResponses>();
 
         // GH-3690 — the HTTP transport's send side needs an IWolverineHttpTransportClient and an
         // IHttpClientFactory. Every application had to register both by hand, and the samples that got it

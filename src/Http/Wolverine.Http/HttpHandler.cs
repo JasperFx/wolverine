@@ -1,5 +1,8 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -13,8 +16,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Wolverine.Http;
@@ -216,6 +221,152 @@ public abstract class HttpHandler
         if (target is IHttpAware a) a.Apply(context);
     }
     
+    // A scoped key over the claim table's key length is hashed rather than truncated, which would collide.
+    private const int MaximumDeduplicationIdLength = 250;
+
+    private static readonly byte[] _fingerprintSeparator = [0];
+
+    /// <summary>
+    /// GH-4742. Folds the <see cref="DeduplicationScope" /> parts into a <c>[DeduplicatedWithResponse]</c> key.
+    /// Each part is length-prefixed so none can shift another; a missing key passes through so it is still
+    /// refused as missing.
+    /// </summary>
+    public static string? ScopeDeduplicationId(HttpContext context, string? key, DeduplicationScope scope,
+        string? tenantId)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return key;
+
+        var tenant = scope.HasFlag(DeduplicationScope.Tenant) ? tenantId ?? string.Empty : string.Empty;
+        var user = scope.HasFlag(DeduplicationScope.User)
+            ? context.User?.Identity?.Name ?? string.Empty
+            : string.Empty;
+        var endpoint = scope.HasFlag(DeduplicationScope.Endpoint) ? endpointOf(context.Request) : string.Empty;
+
+        var scoped = $"{tenant.Length}:{tenant}|{user.Length}:{user}|{endpoint.Length}:{endpoint}|{key}";
+
+        return scoped.Length <= MaximumDeduplicationIdLength
+            ? scoped
+            : "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(scoped)));
+    }
+
+    /// <summary>
+    /// GH-4742. SHA-256 of the method and path, the query string and the body bytes: what was sent, not the
+    /// bound object. The endpoint is always included, so a key reused on another endpoint is a different request
+    /// even when the scope leaves the endpoint out. Requires a buffered body; null when there is no key.
+    /// </summary>
+    public static async Task<string?> ComputeDeduplicationFingerprintAsync(HttpContext context,
+        string? deduplicationId)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
+
+        var request = context.Request;
+        if (!request.Body.CanSeek)
+        {
+            throw new InvalidOperationException(
+                $"The request body for {request.Method} {request.Path} cannot be rewound, so its deduplication fingerprint cannot be computed. Something replaced HttpRequest.Body with a forward-only stream. See GH-4742");
+        }
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(Encoding.UTF8.GetBytes(endpointOf(request)));
+        hash.AppendData(_fingerprintSeparator);
+        hash.AppendData(Encoding.UTF8.GetBytes(request.QueryString.Value ?? string.Empty));
+        hash.AppendData(_fingerprintSeparator);
+
+        var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        try
+        {
+            request.Body.Position = 0;
+            int read;
+            while ((read = await request.Body.ReadAsync(buffer, context.RequestAborted).ConfigureAwait(false)) > 0)
+            {
+                hash.AppendData(buffer, 0, read);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            request.Body.Position = 0;
+        }
+
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private static string endpointOf(HttpRequest request)
+        => $"{request.Method.ToUpperInvariant()} {request.PathBase}{request.Path}";
+
+    /// <summary>
+    /// GH-4742. Answers a request that lost its claim: the stored response when it is a repeat of the same
+    /// request, 422 when it is a different one, and 409 while the first is still running.
+    /// </summary>
+    public async Task AnswerDeduplicatedRepeatAsync(HttpContext context, DeduplicatedResponseClaim claim,
+        string? fingerprint, string keyName)
+    {
+        if (claim.Fingerprint != fingerprint)
+        {
+            await WriteProblems(StatusCodes.Status422UnprocessableEntity,
+                $"This '{keyName}' was already used for a different request; send a new key for a new request",
+                context, null).ConfigureAwait(false);
+            return;
+        }
+
+        if (claim.Response is not { } response)
+        {
+            await WriteProblems(StatusCodes.Status409Conflict,
+                $"A request with this '{keyName}' is still being processed; retry later", context, null)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        context.Response.StatusCode = response.StatusCode;
+
+        if (response.Location != null)
+        {
+            context.Response.Headers.Location = response.Location;
+        }
+
+        if (response.Body != null)
+        {
+            context.Response.ContentType = "application/json; charset=utf-8";
+            await context.Response.WriteAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// GH-4742. The response about to be written, for the claim to store: the resource serialized as
+    /// <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set. Null
+    /// records nothing, which leaves a failure (400 and up) or a missing resource to release the claim.
+    /// </summary>
+    public DeduplicatedResponse? RecordDeduplicatedResponse<T>(HttpContext context, T? resource)
+    {
+        if (resource is null || context.Response.StatusCode >= 400) return null;
+
+        var location = context.Response.Headers.Location;
+
+        return new DeduplicatedResponse(
+            context.Response.StatusCode,
+            JsonSerializer.Serialize(resource, _jsonOptions),
+            location.Count == 0 ? null : location.ToString());
+    }
+
+    /// <summary>
+    /// GH-4742. As <see cref="ReleaseDeduplicationClaimBeforeFailureResponse" />, for a
+    /// <c>[DeduplicatedWithResponse]</c> claim: released before a failure response is flushed, and only while
+    /// it has no recorded response.
+    /// </summary>
+    public static void ReleaseDeduplicatedResponseBeforeFailureResponse(HttpContext context,
+        DeduplicatedResponses responses, string? deduplicationId, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return;
+
+        context.Response.OnStarting(async () =>
+        {
+            if (context.Response.StatusCode >= 400)
+            {
+                await responses.ReleaseUnansweredAsync(deduplicationId, ancillaryStoreMarker).ConfigureAwait(false);
+            }
+        });
+    }
+
     private static bool isRequestJson(HttpContext context)
     {
         var contentType = context.Request.ContentType;

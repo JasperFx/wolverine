@@ -224,6 +224,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             $"where {DatabaseConstants.Expires} <= @now;";
     }
 
+    /// <summary>GH-4742. As <see cref="BatchedDeleteExpiredDeduplicationClaimsSql" />.</summary>
+    public override string? BatchedDeleteExpiredDeduplicatedResponsesSql(int batchSize)
+    {
+        return
+            $"delete top ({batchSize}) from {SchemaName}.{DatabaseConstants.DeduplicatedResponsesTableName} " +
+            $"where {DatabaseConstants.Expires} <= @now;";
+    }
+
     // GH-3971: deliberately NOT overriding DistinctOwnerIdsSql. The recursive index skip-scan
     // PostgreSQL uses cannot be expressed in T-SQL: SQL Server forbids aggregate functions, TOP and
     // subqueries in the recursive member of a recursive CTE, and every spelling of "next distinct value"
@@ -788,6 +796,12 @@ group by o.name, ps.index_id, i.name";
         if (Durability.EnableMessageDeduplication)
         {
             yield return new DeduplicationTable(SchemaName);
+        }
+
+        // GH-4742. Every store role, behind its own opt-in.
+        if (Durability.EnableDeduplicatedResponses)
+        {
+            yield return new DeduplicatedResponsesTable(SchemaName);
         }
 
         // Recurring-message tracking — Main store only, behind the opt-in. See the PostgreSQL twin.

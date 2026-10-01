@@ -119,16 +119,110 @@ public static async Task<OrderCreated> Post(CreateOrder command) { /* ... */ }
 
 ## What this is not
 
-This is **not** full Stripe-style idempotency-key support. Wolverine does not store the original
+`[Deduplicated]` is **not** full Stripe-style idempotency-key support. It does not store the original
 response and replay it to the second caller; it tells the second caller that the work was already
 done. That is enough to make a create endpoint safe to retry, and it is considerably less machinery
 than storing and versioning response bodies.
 
 If a client genuinely needs the original response body back, it has to fetch the created resource —
 which is why returning a `Location` header from the first request is worth doing.
+Or use [`[DeduplicatedWithResponse]`](#answering-a-repeat-with-the-first-response), which does store it.
 
 ## Failed requests do not poison the key
 
 If your endpoint throws, the claim is released, and a retry with the same `Idempotency-Key` gets
 through. Where the endpoint carries transactional middleware the claim was written inside that
 transaction and rolls back with it; otherwise Wolverine issues a compensating release.
+
+## Who a key belongs to
+
+A claimed key is global: it is not tied to the endpoint, the tenant or the user that claimed it. Anyone
+who knows or can guess another caller's key can claim it first, and the real request is then refused as
+a duplicate. With client-generated UUIDs that is impractical. With a guessable key source — a route
+value, a body member, or a client that reuses simple keys — it is not, so only use one where every
+caller who could present the key is trusted to.
+
+`[DeduplicatedWithResponse]` answers a repeat with a stored response, which would turn that into one
+caller reading another's response, so it requires a scope.
+
+## Answering a repeat with the first response <Badge type="tip" text="6.45" />
+
+`[Deduplicated]` refuses a repeat, so a client whose connection dropped mid-create never learns what it
+created. `[DeduplicatedWithResponse]` answers it instead:
+
+```csharp
+// Program.cs
+opts.Durability.EnableDeduplicatedResponses = true;
+
+[DeduplicatedWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint)]
+[WolverinePost("/orders")]
+public static OrderCreated Post(CreateOrder command, IDocumentSession session)
+{
+    // create the order...
+}
+```
+
+For a given `Idempotency-Key`:
+
+| Request | Answer |
+|---|---|
+| The first | Runs normally |
+| The same request again | The first response: its status, body and `Location`. The endpoint does not run |
+| A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
+| The same key while the first is still running | **409** with a `ProblemDetails` body |
+| No key | **400**, unless `Required = false` |
+
+A request that fails — it throws, or answers 400 or above — gives the key back, so a retry runs, as
+[below](#failed-requests-do-not-poison-the-key). The refusal codes are registered as endpoint metadata.
+It cannot be combined with `[Deduplicated]` on the same endpoint.
+
+### Scope
+
+The scope is required, and decides whose requests share a key:
+
+| Flag | The key is unique within |
+|---|---|
+| `Tenant` | The detected tenant. Requires [tenant id detection](/guide/http/multi-tenancy) |
+| `User` | `ClaimsPrincipal.Identity.Name`. Anonymous callers all share one empty user |
+| `Endpoint` | The HTTP method and path, route values included |
+
+`DeduplicationScope.None` is refused at startup. Use `User`, or `Tenant | User`, unless every caller who
+could present a key is trusted to see the others' responses.
+
+### What counts as the same request
+
+The request is compared by a SHA-256 of the bytes sent — the method and path, the query string and the
+body — never by the bound message, and the key itself is always the caller's. So a retry must resend the
+same bytes: a client that reorders JSON properties, changes whitespace or reserializes the body gets
+a 422. A key reused on another endpoint is a different request even when the scope leaves the endpoint
+out.
+
+### The window
+
+Claims last for the [deduplication window](/guide/durability/idempotency#the-deduplication-window), or
+for `WindowInSeconds` on the attribute. As for `[Deduplicated]`, an expired claim is honoured until the
+cleanup removes it, so a repeat can be answered a little after its window.
+
+### What is guaranteed
+
+The key is claimed before the endpoint runs. The response is recorded on the claim after the endpoint
+and any transactional commit, and before the response is written or cascaded messages flush, so a
+failure after the work was done finds the claim answered and a retry is answered from it.
+
+Recording the response is a write of its own, not part of the endpoint's transaction. If the process
+dies between the commit and that write, repeats get 409 until the claim expires. They never run twice
+within the window.
+
+### Requirements and limits
+
+- `Durability.EnableDeduplicatedResponses`, and the PostgreSQL, SQL Server, MySQL or SQLite message store
+  (including Marten's). Without them the host logs a warning at startup and the endpoint throws at its
+  first request.
+- The endpoint must return a resource, written as JSON by System.Text.Json; any other response writer is
+  refused when the endpoint is first compiled.
+- The request body is buffered to compute the fingerprint, and the resource is serialized a second
+  time to store it.
+- Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
+  own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
+  `AutoCreate.None`, create it before turning the setting on.
+- F# endpoints are not supported.

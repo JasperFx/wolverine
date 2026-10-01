@@ -1,0 +1,131 @@
+using JasperFx.CodeGeneration.Frames;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Wolverine.Attributes;
+using Wolverine.Http.CodeGen;
+using Wolverine.Http.Policies;
+using Wolverine.Persistence;
+using Wolverine.Persistence.Codegen;
+
+namespace Wolverine.Http;
+
+// GH-4742. [DeduplicatedWithResponse], woven on its own: nothing here touches the [Deduplicated] path.
+public partial class HttpChain
+{
+    /// <summary>
+    /// GH-4742. Deduplicate on an idempotency key and answer a repeat with the first response, or null for
+    /// none. See <see cref="DeduplicatedWithResponseAttribute" />.
+    /// </summary>
+    public DeduplicatedResponseRequirement? DeduplicatedResponse { get; set; }
+
+    /// <summary>
+    /// Refuses a defect in the endpoint's own declaration, which every host that discovers it shares, and
+    /// registers the refusal codes before the metadata is built.
+    /// </summary>
+    private void validateDeduplicatedResponse()
+    {
+        if (DeduplicatedResponse is not { } requirement) return;
+
+        if (requirement.Scope == DeduplicationScope.None)
+        {
+            throw new InvalidOperationException(
+                $"[DeduplicatedWithResponse] on {Description} needs a {nameof(DeduplicationScope)}: a stored response is replayed to anyone who presents the same key and request. Use DeduplicationScope.User, or Tenant | User. See GH-4742");
+        }
+
+        assertNotAlsoDeduplicated();
+
+        if (!HasResourceType())
+        {
+            throw new NotSupportedException(
+                $"[DeduplicatedWithResponse] on {Description} returns no resource, so a repeat has no response to replay. Use [Deduplicated] instead. See GH-4742");
+        }
+
+        if (requirement.Required)
+        {
+            Metadata.Produces<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+        }
+
+        Metadata.Produces<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json");
+        Metadata.Produces<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json");
+    }
+
+    private void assertNotAlsoDeduplicated()
+    {
+        if (Deduplication != null)
+        {
+            throw new InvalidOperationException(
+                $"{Description} has both [Deduplicated] and [DeduplicatedWithResponse]. Use one. See GH-4742");
+        }
+    }
+
+    /// <summary>
+    /// Front of the middleware, as for [Deduplicated]: refuse a repeat before any work happens. Called from
+    /// AssembleTypes, and idempotent.
+    /// </summary>
+    private void applyDeduplicatedResponse()
+    {
+        if (DeduplicatedResponse is not { } requirement) return;
+        if (Middleware.OfType<ClaimDeduplicatedResponseFrame>().Any()) return;
+
+        // A policy may have added [Deduplicated] since construction.
+        assertNotAlsoDeduplicated();
+
+        var source = requirement.Source == ValueSource.Anything ? ValueSource.Header : requirement.Source;
+        if (!TryFindVariable(requirement.KeyName, source, typeof(string), out var key))
+        {
+            throw new InvalidOperationException(
+                $"Cannot resolve the [DeduplicatedWithResponse] key for {Description}. No {source} value named '{requirement.KeyName}' could be found. See GH-4742");
+        }
+
+        var frames = new List<Frame>();
+
+        if (requirement.Required)
+        {
+            var missing = new DeduplicationIdMissingFrame(key);
+            frames.Add(missing);
+            frames.Add(new DeduplicationProblemDetailsFrame(missing.Variable, StatusCodes.Status400BadRequest,
+                $"This endpoint requires a '{requirement.KeyName}' idempotency key"));
+        }
+
+        var scoped = new ScopeDeduplicationIdFrame(key, requirement.Scope, Description);
+        var fingerprint = new DeduplicationFingerprintFrame(scoped.Variable);
+
+        frames.Add(scoped);
+        frames.Add(fingerprint);
+        frames.Add(new ClaimDeduplicatedResponseFrame(scoped.Variable, fingerprint.Variable, requirement.Window,
+            AncillaryStoreType, requirement.KeyName));
+        frames.Add(new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, AncillaryStoreType));
+
+        Middleware.InsertRange(0, frames);
+
+        // After IHttpAware and any commit, before the flush. The response writer is appended later, in
+        // DetermineFrames, so this lands before it too.
+        var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages);
+        Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
+            new RecordDeduplicatedResponseFrame(scoped.Variable, ResourceVariable ?? Method.Creates.First(),
+                AncillaryStoreType));
+    }
+
+    /// <summary>Called from DetermineFrames once the response writer is chosen.</summary>
+    private void assertDeduplicatedResponseIsJson()
+    {
+        // The stored body is System.Text.Json; any other writer would replay different bytes.
+        if (DeduplicatedResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any())
+        {
+            throw new NotSupportedException(
+                $"{Description} has [DeduplicatedWithResponse], which replays the response as System.Text.Json, but this endpoint writes its response another way. See GH-4742");
+        }
+    }
+
+    /// <summary>
+    /// Called from DetermineFrames after everything that reads the body has been placed, the audit frame
+    /// included, so the buffering is emitted ahead of all of them.
+    /// </summary>
+    private void bufferRequestForDeduplicatedResponse()
+    {
+        if (DeduplicatedResponse != null && !Middleware.OfType<EnableRequestBufferingFrame>().Any())
+        {
+            Middleware.Insert(0, new EnableRequestBufferingFrame());
+        }
+    }
+}
