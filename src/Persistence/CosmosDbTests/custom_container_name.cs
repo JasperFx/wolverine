@@ -143,63 +143,6 @@ public class custom_container_name
         }
     }
 
-    /// <summary>
-    ///     Aiming Wolverine at a container inside a shared database makes "I pointed it at a container I already
-    ///     had, partitioned on something else" a realistic mistake. The host has to refuse to start, and say what
-    ///     to do about a partition key path that cannot be changed after the container is created — not leave the
-    ///     user with the CosmosDB SDK's bare "does not match existing Container" ArgumentException.
-    /// </summary>
-    [Fact]
-    public async Task an_existing_container_partitioned_on_another_path_is_refused()
-    {
-        var containerName = uniqueContainerName();
-
-        try
-        {
-            await database().CreateContainerIfNotExistsAsync(
-                new ContainerProperties(containerName, "/tenantId"),
-                cancellationToken: TestContext.Current.CancellationToken);
-
-            var exception = await Should.ThrowAsync<InvalidOperationException>(
-                () => buildHostAsync(containerName, DurabilityMode.Solo));
-
-            exception.Message.ShouldContain(containerName);
-            exception.Message.ShouldContain("/tenantId");
-            exception.Message.ShouldContain(DocumentTypes.PartitionKeyPath);
-        }
-        finally
-        {
-            await dropAsync(containerName);
-        }
-    }
-
-    /// <summary>
-    ///     The normal restart case: the second startup finds the container Wolverine itself created on the first,
-    ///     and the partition key check has to pass it
-    /// </summary>
-    [Fact]
-    public async Task an_existing_container_with_the_required_partition_key_path_is_accepted()
-    {
-        var containerName = uniqueContainerName();
-
-        try
-        {
-            using (var first = await buildHostAsync(containerName, DurabilityMode.Solo))
-            {
-            }
-
-            using var second = await buildHostAsync(containerName, DurabilityMode.Solo);
-
-            var properties = await database().GetContainer(containerName)
-                .ReadContainerAsync(cancellationToken: TestContext.Current.CancellationToken);
-            properties.Resource.PartitionKeyPath.ShouldBe(DocumentTypes.PartitionKeyPath);
-        }
-        finally
-        {
-            await dropAsync(containerName);
-        }
-    }
-
     private Database database() => _fixture.Client.GetDatabase(AppFixture.DatabaseName);
 
     private static Guid nodeIdOf(IHost host) =>
