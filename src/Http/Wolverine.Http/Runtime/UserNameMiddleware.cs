@@ -1,12 +1,12 @@
 using System.Diagnostics;
-using JasperFx;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Runtime;
 
+/// <summary>
+/// Copies <c>HttpContext.User.Identity.Name</c> onto the message context. Called by the frame that creates
+/// the context when <see cref="WolverineOptions.EnableRelayOfUserName"/> is on (GH-4741).
+/// </summary>
 public static class UserNameMiddleware
 {
     public static void Apply(HttpContext httpContext, IMessageContext messaging)
@@ -16,26 +16,6 @@ public static class UserNameMiddleware
         {
             messaging.UserName = userName;
             Activity.Current?.SetTag("enduser.id", userName);
-        }
-    }
-}
-
-internal class UserNamePolicy : IHttpPolicy
-{
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
-    {
-        var options = container.GetInstance<WolverineOptions>();
-        if (!options.EnableRelayOfUserName) return;
-
-        foreach (var chain in chains)
-        {
-            var serviceDependencies = chain.ServiceDependencies(container, Type.EmptyTypes).ToArray();
-            if (serviceDependencies.Contains(typeof(IMessageContext)) ||
-                serviceDependencies.Contains(typeof(IMessageBus)))
-            {
-                chain.Middleware.Insert(0,
-                    new MethodCall(typeof(UserNameMiddleware), nameof(UserNameMiddleware.Apply)));
-            }
         }
     }
 }

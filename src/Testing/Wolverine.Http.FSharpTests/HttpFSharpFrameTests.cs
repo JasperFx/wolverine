@@ -41,6 +41,24 @@ public class HttpFSharpFrameTests
     }
 
     [Fact]
+    public void user_name_is_relayed_where_the_message_context_is_created()
+    {
+        // GH-4741: the relay is the first line after the context (and its tenant id) is created.
+        const string creation = "let messageContext = Wolverine.Runtime.MessageContext(_wolverineRuntime)";
+        const string tenant = "messageContext.TenantId <- tenantId";
+        const string relay = "Wolverine.Http.Runtime.UserNameMiddleware.Apply(httpContext, messageContext)";
+
+        Code.ShouldContain(creation);
+
+        var following = Code[(Code.IndexOf(creation, StringComparison.Ordinal) + creation.Length)..]
+            .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .SkipWhile(x => x == tenant)
+            .First();
+
+        following.ShouldBe(relay);
+    }
+
+    [Fact]
     public void write_endpoint_types_uses_runtime_type_resolution()
     {
         // typeof<> in F# cannot resolve F# module types (only class/record/DU types).
