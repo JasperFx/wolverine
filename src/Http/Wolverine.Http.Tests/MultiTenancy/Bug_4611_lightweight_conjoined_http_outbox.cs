@@ -1,8 +1,6 @@
 using Alba;
 using IntegrationTests;
 using JasperFx;
-using JasperFx.CodeGeneration;
-using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -113,11 +111,19 @@ public class Bug_4611_lightweight_conjoined_http_outbox : IAsyncLifetime
     [Fact]
     public async Task lightweight_conjoined_endpoint_enlists_its_cascades_in_the_outbox()
     {
+        // Warm the route with a real request rather than calling InitializeSynchronously -- this host is
+        // shared with the sibling fact above, which already exercises the same route. See GH-4749.
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new CreateNote(Guid.NewGuid(), "warm the chain")).ToUrl("/conjoined/notes/cascade");
+            x.WithRequestHeader("tenant", "red");
+            x.StatusCodeShouldBe(200);
+        });
+
         var graph = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
         var chain = graph.ChainFor("POST", "/conjoined/notes/cascade");
         chain.ShouldNotBeNull();
 
-        chain.As<ICodeFile>().InitializeSynchronously(graph.Rules, graph, theHost.Services);
         var source = chain.SourceCode;
         source.ShouldNotBeNull();
 
