@@ -35,7 +35,7 @@ Wolverine can automatically propagate the authenticated user's identity from the
 
 1. Set on `IMessageContext.UserName` for the current request
 2. Propagated to all outgoing message envelopes via `Envelope.UserName`
-3. Automatically set as `IDocumentSession.LastModifiedBy` when using the Wolverine + Marten integration
+3. Automatically set as `IDocumentSession.LastModifiedBy` when using the Wolverine + Marten or Polecat integration, or `CurrentUserName` on Fisher
 4. Added as an OpenTelemetry tag (`enduser.id`) on the current activity
 
 To enable this feature, set `EnableRelayOfUserName` in your Wolverine configuration:
@@ -49,7 +49,7 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-When this option is enabled, Wolverine will automatically apply middleware to any HTTP endpoint that uses `IMessageContext` or `IMessageBus`. The middleware reads `HttpContext.User?.Identity?.Name` and sets it on the message context before your endpoint code executes.
+When this option is enabled, every Wolverine HTTP endpoint reads `HttpContext.User?.Identity?.Name` and sets it on the message context as the very first thing the generated handler does -- before any store session is opened, and before your endpoint code executes. No endpoint shape is excluded: an endpoint that never mentions `IMessageContext` or `IMessageBus` and only writes through its session gets the relay as well.
 
 The user name is carried on outgoing envelopes, so downstream message handlers will also have access to the original user name via `IMessageContext.UserName` or `Envelope.UserName`. This is particularly useful for auditing and tracking who initiated a chain of messages.
 
