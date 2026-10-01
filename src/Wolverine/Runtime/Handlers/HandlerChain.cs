@@ -496,16 +496,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             $"Could not find a public static method '{methodName}' returning {returnType.FullNameInCode()} on handler types: {handlerTypes.Select(t => t.FullNameInCode()).Join(", ")}");
     }
 
-    // typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(...)
-    // closes the guard-frame generic over the entity type at codegen time.
-    // Same chunk D / I / J / K CloseAndBuildAs pattern.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
+    // GH-4752: constructed DIRECTLY rather than closed over the entity type through CloseAndBuildAs.
+    // The chain model is built at startup even under TypeLoadMode.Static, so the Activator call this
+    // replaces ran inside Native AOT applications against a closed generic frame ILC had never seen
+    // instantiated, and threw "EntityIsNotNullGuardFrame`1[TEntity] is missing native code or metadata".
     public override Frame[] AddStopConditionIfNull(Variable variable)
     {
-        var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(variable, variable.VariableType);
+        var frame = new EntityIsNotNullGuardFrame(variable);
 
         return [frame, new HandlerContinuationFrame(frame)];
     }
@@ -541,10 +538,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         };
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
+    // GH-4752: see the overload above - the frame is constructed directly rather than reflectively.
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
     {
         switch (requirement.OnMissing)
@@ -556,9 +550,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             // to Simple404. Leaving it out of this group would drop it into the `default:` below and
             // start throwing on message handlers that share an [Entity] configuration with an endpoint.
             case OnMissing.EmptyContentWith204:
-                var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(data, data.VariableType);
-                if (frame is IEntityIsNotNullGuard guard) guard.Requirement = requirement;
-                
+                var frame = new EntityIsNotNullGuardFrame(data) { Requirement = requirement };
+
                 return [frame, new HandlerContinuationFrame(frame)];
                 
             default:
@@ -851,16 +844,35 @@ internal interface IEntityIsNotNullGuard
     IDataRequirement? Requirement { get; set; }
 }
 
-internal class EntityIsNotNullGuardFrame<T> : MethodCall, IEntityIsNotNullGuard
+/// <remarks>
+/// GH-4752: the entity type is a constructor argument rather than a generic parameter. Closing this
+/// frame through <c>CloseAndBuildAs</c> put an <see cref="Activator" /> call on a startup path that runs
+/// even under <c>TypeLoadMode.Static</c>, which is how a Native AOT application died with
+/// "EntityIsNotNullGuardFrame`1[TEntity] is missing native code or metadata" - ILC has no reason to
+/// emit an instantiation nothing references statically. The static <see cref="EntityIsNotNullGuard{T}" />
+/// it targets IS referenced, by the generated code that calls <c>Assert</c>, so closing THAT over the
+/// entity type is safe where closing the frame was not.
+/// </remarks>
+internal class EntityIsNotNullGuardFrame : MethodCall, IEntityIsNotNullGuard
 {
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "MethodCall reflects EntityIsNotNullGuard<T>.GetMethod(\"Assert\"); the Assert method is statically referenced via nameof-style binding in the EntityIsNotNullGuard<T> class and survives trimming. The closed-generic EntityIsNotNullGuard<T> is rooted at codegen time per the AOT guide.")]
-    public EntityIsNotNullGuardFrame(Variable variable) : base(typeof(EntityIsNotNullGuard<T>), "Assert")
+    // Resolved off the OPEN generic definition, which is statically referenced by the typeof() below and
+    // therefore keeps its reflection metadata. Looking Assert up on the CLOSED EntityIsNotNullGuard<T>
+    // instead returns null in a native image - ILC emits the instantiation's CODE, because the generated
+    // source calls it, but not reflection metadata for it - and MethodCall then NREs inside IsAsync.
+    private static readonly MethodInfo _assertMethod =
+        typeof(EntityIsNotNullGuard<>).GetMethod(nameof(EntityIsNotNullGuard<object>.Assert))!;
+
+    public EntityIsNotNullGuardFrame(Variable variable) : base(GuardTypeFor(variable.VariableType),
+        _assertMethod)
     {
         Arguments[0] = variable;
         Arguments[2] = Constant.For(variable.Usage);
     }
-    
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes EntityIsNotNullGuard<TEntity> at codegen time; the closed static class is rooted by the generated code that calls its Assert method.")]
+    private static Type GuardTypeFor(Type entityType) => typeof(EntityIsNotNullGuard<>).MakeGenericType(entityType);
+
     public IDataRequirement? Requirement { get; set; }
 }
 

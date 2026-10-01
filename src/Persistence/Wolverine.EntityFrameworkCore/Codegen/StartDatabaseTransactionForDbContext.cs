@@ -82,16 +82,19 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
 
 /// <summary>
 /// Commits the multi-tenant EF Core database transaction started by
-/// <see cref="StartDatabaseTransactionForDbContext" /> and then flushes the MessageContext's outgoing
-/// messages. Emitted as a postprocessor so it runs before the HTTP response writer - committing
-/// before flushing (so the post-send outbox bookkeeping sees committed rows) and flushing before the
-/// response is written (so TrackActivity observes the sent envelopes). Implements
-/// <see cref="IFlushesMessages" /> so the chain does not also add a standalone FlushOutgoingMessages
-/// postprocessor (which would flush after the response, and before the commit). See GH-2917.
+/// <see cref="StartDatabaseTransactionForDbContext" />. Emitted as a postprocessor so it runs before the
+/// HTTP response writer - committing before the flush (so the post-send outbox bookkeeping sees committed
+/// rows) and both before the response is written (so TrackActivity observes the sent envelopes). See
+/// GH-2917.
+/// <para>GH-4742: the flush used to be the last statement of THIS frame. It is now emitted immediately
+/// after it by <see cref="FlushOutboxAfterCommit" />, which carries the <see cref="IFlushesMessages" />
+/// marker this frame used to carry, so the chain still does not add a standalone (pre-commit)
+/// FlushOutgoingMessages — and a postprocessor can now sit strictly between the commit and the flush.
+/// The emitted sequence is unchanged.</para>
 /// </summary>
 /// <remarks>
 /// Before committing, this frame runs any registered <see cref="IDomainEventScraper" />s against the
-/// tenant DbContext exactly as <see cref="Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction.CommitAsync" />
+/// tenant DbContext exactly as <see cref="EfCoreEnvelopeTransaction.CommitAsync(System.Threading.CancellationToken, bool)" />
 /// does on the single-DbContext path (via <see cref="CommitEfCoreEnvelopeTransaction" />). Unlike that
 /// path, the multi-tenant DbContext is created at runtime inside
 /// <see cref="Wolverine.EntityFrameworkCore.Internals.IDbContextBuilder{T}.BuildAndEnrollAsync" />, so the
@@ -100,7 +103,7 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
 /// loop is therefore inlined here so that <c>PublishDomainEventsFromEntityFrameworkCore</c> works under
 /// managed multi-tenancy too.
 /// </remarks>
-internal class CommitTenantedDbContextTransaction : AsyncFrame, IFlushesMessages
+internal class CommitTenantedDbContextTransaction : AsyncFrame
 {
     private readonly Type _dbContextType;
     private Variable _dbContext = null!;
@@ -133,9 +136,8 @@ internal class CommitTenantedDbContextTransaction : AsyncFrame, IFlushesMessages
         writer.Write($"await {_dbContext.Usage}.SaveChangesAsync({_cancellation.Usage}).ConfigureAwait(false);");
 
         writer.WriteComment(
-            "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
+            "Commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)");
         writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
-        writer.Write($"await {_context.Usage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}().ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 

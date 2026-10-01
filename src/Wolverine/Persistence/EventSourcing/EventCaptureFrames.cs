@@ -32,23 +32,26 @@ internal static class EventSourcingDescriptions
 /// the aggregate's event stream.
 /// </summary>
 /// <remarks>
-/// The constraint is <c>notnull</c> rather than <c>class</c> deliberately. This frame is closed
-/// reflectively over the aggregate type, and unlike <c>notnull</c> — which the CLR does not enforce —
-/// a <c>class</c> constraint is enforced at <c>MakeGenericType</c> time, so it would throw for a
-/// struct aggregate instead of generating the same correct code. Wolverine.Polecat's copy carried
-/// <c>class</c> and Wolverine.Marten's carried <c>notnull</c>; unifying on <c>notnull</c> keeps the
-/// wider, working behavior.
+/// GH-4752: the aggregate type is a constructor argument rather than a generic parameter. This frame
+/// used to be <c>ApplyEventsFromAsyncEnumerableFrame&lt;T&gt;</c> closed through <c>CloseAndBuildAs</c>,
+/// i.e. through <see cref="Activator" /> — and because the chain model is built at startup even under
+/// <c>TypeLoadMode.Static</c>, a Native AOT application reached that call and died with
+/// <c>MissingMethodException: No parameterless constructor defined</c>, ILC having trimmed a constructor
+/// nothing referenced statically. A plain constructor argument makes the construction a <c>newobj</c>
+/// the compiler emits, which ILC cannot trim.
 /// </remarks>
-internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction where T : notnull
+internal class ApplyEventsFromAsyncEnumerableFrame : AsyncFrame, IReturnVariableAction
 {
+    private readonly Type _aggregateType;
     private readonly Variable _returnValue;
     private readonly string _storeName;
     private Variable? _stream;
 
-    public ApplyEventsFromAsyncEnumerableFrame(Variable returnValue, string storeName)
+    public ApplyEventsFromAsyncEnumerableFrame(Variable returnValue, string storeName, Type aggregateType)
     {
         _returnValue = returnValue;
         _storeName = storeName;
+        _aggregateType = aggregateType;
         uses.Add(_returnValue);
     }
 
@@ -68,13 +71,13 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _stream = chain.FindVariable(typeof(IEventStream<T>));
+        _stream = chain.FindVariable(RegisterEventsFrame.EventStreamTypeFor(_aggregateType));
         yield return _stream;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var variableName = (typeof(T).Name + "Event").ToCamelCase();
+        var variableName = (_aggregateType.Name + "Event").ToCamelCase();
 
         writer.WriteComment(Description);
         writer.Write(

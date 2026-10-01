@@ -237,6 +237,15 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
             $"delete from {table} where ctid in (select ctid from {table} where {DatabaseConstants.Expires} <= :now limit {batchSize});";
     }
 
+    /// <summary>GH-4742. As <see cref="BatchedDeleteExpiredDeduplicationClaimsSql" />.</summary>
+    public override string? BatchedDeleteExpiredDeduplicatedResponsesSql(int batchSize)
+    {
+        var table = $"{QuotedSchemaName}.{DatabaseConstants.DeduplicatedResponsesTableName}";
+
+        return
+            $"delete from {table} where ctid in (select ctid from {table} where {DatabaseConstants.Expires} <= :now limit {batchSize});";
+    }
+
     /// <summary>
     /// GH-3971: a "loose index scan" (skip scan), which PostgreSQL will not plan on its own. Descends
     /// the <c>owner_id</c> index once per DISTINCT value instead of reading every row, so the steady
@@ -982,6 +991,12 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         if (Durability.EnableMessageDeduplication)
         {
             yield return new DeduplicationTable(SchemaName);
+        }
+
+        // GH-4742. Every store role, behind its own opt-in.
+        if (Durability.EnableDeduplicatedResponses)
+        {
+            yield return new DeduplicatedResponsesTable(SchemaName);
         }
 
         // Recurring-message tracking — Main store only (the single cluster-wide agent publishes

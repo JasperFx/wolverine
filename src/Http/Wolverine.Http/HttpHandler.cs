@@ -1,5 +1,9 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -13,8 +17,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Wolverine.Http;
@@ -205,17 +211,205 @@ public abstract class HttpHandler
             if (context.Response.StatusCode >= 400)
             {
                 await deduplicator
-                    .ReleaseAsync(deduplicationId, ancillaryStoreMarker, context.RequestAborted)
+                    .ReleaseAsync(deduplicationId, ancillaryStoreMarker, CancellationToken.None)
                     .ConfigureAwait(false);
             }
         });
     }
+
+    private static readonly object _deduplicatedEndpointRan = new();
+
+    /// <summary>Records that a <c>[Deduplicated]</c> endpoint ran, so its claim is not released as unused.</summary>
+    public static void MarkDeduplicatedEndpointRan(HttpContext context)
+        => context.Items[_deduplicatedEndpointRan] = true;
+
+    /// <summary>Did the <c>[Deduplicated]</c> endpoint run, rather than middleware ending the request first?</summary>
+    public static bool DeduplicatedEndpointRan(HttpContext context)
+        => context.Items.ContainsKey(_deduplicatedEndpointRan);
 
     public void ApplyHttpAware(object target, HttpContext context)
     {
         if (target is IHttpAware a) a.Apply(context);
     }
     
+    private const int FingerprintBufferSize = 16 * 1024;
+
+    private static readonly byte[] _fingerprintSeparator = [0];
+
+    // Set once the endpoint's work is done: from then on its [DeduplicatedWithResponse] claim is kept.
+    private static readonly object _deduplicatedWorkDone = new();
+
+    /// <summary>
+    /// GH-4742. Folds the <see cref="DeduplicationScope" /> parts into a <c>[DeduplicatedWithResponse]</c> key.
+    /// Each part is length-prefixed so none can shift another; a missing key passes through so it is still
+    /// refused as missing.
+    /// </summary>
+    public static string? ScopeDeduplicationId(HttpContext context, string? key, DeduplicationScope scope,
+        string? tenantId)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return key;
+
+        var tenant = scope.HasFlag(DeduplicationScope.Tenant) ? tenantId ?? string.Empty : string.Empty;
+        var user = scope.HasFlag(DeduplicationScope.User) ? userOf(context) : string.Empty;
+        var endpoint = scope.HasFlag(DeduplicationScope.Endpoint) ? endpointOf(context.Request) : string.Empty;
+
+        return $"{tenant.Length}:{tenant}|{user.Length}:{user}|{endpoint.Length}:{endpoint}|{key}";
+    }
+
+    // The first non-blank of the name, the name identifier and "sub": JWT bearer often maps no name. Anonymous
+    // callers share "".
+    private static string userOf(HttpContext context)
+    {
+        var principal = context.User;
+        if (principal?.Identity is not { IsAuthenticated: true } identity) return string.Empty;
+
+        return new[]
+               {
+                   identity.Name,
+                   principal.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                   principal.FindFirst("sub")?.Value
+               }.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
+               ?? throw new InvalidOperationException(
+                   $"[DeduplicatedWithResponse] scopes {context.Request.Method} {context.Request.Path} by user, but the authenticated caller has no name, name identifier or 'sub' claim to scope by, so every such caller would share one scope. See GH-4742");
+    }
+
+    /// <summary>
+    /// GH-4742. SHA-256 of the method and path, the query string and the body bytes: what was sent, not the
+    /// bound object. The endpoint is always included, so a key reused on another endpoint is a different request
+    /// even when the scope leaves the endpoint out. Requires a buffered body; null when there is no key.
+    /// </summary>
+    public static async Task<string?> ComputeDeduplicationFingerprintAsync(HttpContext context,
+        string? deduplicationId)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
+
+        var request = context.Request;
+        if (!request.Body.CanSeek)
+        {
+            throw new InvalidOperationException(
+                $"The request body for {request.Method} {request.Path} cannot be rewound, so its deduplication fingerprint cannot be computed. Something replaced HttpRequest.Body with a forward-only stream. See GH-4742");
+        }
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(Encoding.UTF8.GetBytes(endpointOf(request)));
+        hash.AppendData(_fingerprintSeparator);
+        hash.AppendData(Encoding.UTF8.GetBytes(request.QueryString.Value ?? string.Empty));
+        hash.AppendData(_fingerprintSeparator);
+
+        var buffer = ArrayPool<byte>.Shared.Rent(FingerprintBufferSize);
+        try
+        {
+            request.Body.Position = 0;
+            int read;
+            while ((read = await request.Body.ReadAsync(buffer, context.RequestAborted).ConfigureAwait(false)) > 0)
+            {
+                hash.AppendData(buffer, 0, read);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            request.Body.Position = 0;
+        }
+
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private static string endpointOf(HttpRequest request)
+        => $"{request.Method.ToUpperInvariant()} {request.PathBase}{request.Path}";
+
+    /// <summary>
+    /// GH-4742. Answers a request that lost its claim: the stored response when it is a repeat of the same
+    /// request, 422 when it is a different one, and 409 while the first is still running.
+    /// </summary>
+    public async Task AnswerDeduplicatedRepeatAsync(HttpContext context, DeduplicatedResponseClaim claim,
+        string? fingerprint, string keyName)
+    {
+        if (claim.Fingerprint != fingerprint)
+        {
+            await WriteProblems(StatusCodes.Status422UnprocessableEntity,
+                $"This '{keyName}' was already used for a different request; send a new key for a new request",
+                context, null).ConfigureAwait(false);
+            return;
+        }
+
+        if (claim.Response is not { } response)
+        {
+            await WriteProblems(StatusCodes.Status409Conflict,
+                $"A request with this '{keyName}' is still being processed; retry later", context, null)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        context.Response.StatusCode = response.StatusCode;
+
+        if (response.Location != null)
+        {
+            context.Response.Headers.Location = response.Location;
+        }
+
+        if (response.Body != null)
+        {
+            context.Response.ContentType = "application/json; charset=utf-8";
+            await context.Response.WriteAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// GH-4742. Called once the endpoint and any commit have run: the response about to be written, for the claim
+    /// to store, as <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set.
+    /// Unless that response is a failure (400 and up), the work is done and the claim is kept from here on. Null
+    /// records nothing.
+    /// </summary>
+    public DeduplicatedResponse? CompleteDeduplicatedRequest<T>(HttpContext context, string? deduplicationId,
+        T? resource, int missingResourceStatusCode)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
+
+        var status = resource is null ? missingResourceStatusCode : context.Response.StatusCode;
+        if (status >= 400) return null;
+
+        context.Items[_deduplicatedWorkDone] = true;
+
+        var location = context.Response.Headers.Location;
+
+        try
+        {
+            return new DeduplicatedResponse(status,
+                resource is null ? null : JsonSerializer.Serialize(resource, _jsonOptions),
+                location.Count == 0 ? null : location.ToString());
+        }
+        catch (Exception e)
+        {
+            // The work is done, so the claim stays: repeats get 409 until it expires rather than running it again.
+            context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(e,
+                "Failed to serialize the response for deduplicated id '{DeduplicationId}' to store it", deduplicationId);
+            return null;
+        }
+    }
+
+    /// <summary>GH-4742. Has the endpoint's work been done, so its claim must be kept?</summary>
+    public static bool IsDeduplicatedWorkDone(HttpContext context) => context.Items.ContainsKey(_deduplicatedWorkDone);
+
+    /// <summary>
+    /// GH-4742. As <see cref="ReleaseDeduplicationClaimBeforeFailureResponse" />, for a
+    /// <c>[DeduplicatedWithResponse]</c> claim: a response that starts before the work is done, whatever its
+    /// status, gives the claim back before it is flushed.
+    /// </summary>
+    public static void ReleaseDeduplicatedResponseBeforeFailureResponse(HttpContext context,
+        DeduplicatedResponses responses, string? deduplicationId, string claimToken, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return;
+
+        context.Response.OnStarting(async () =>
+        {
+            if (!IsDeduplicatedWorkDone(context))
+            {
+                await responses.ReleaseUnansweredAsync(deduplicationId, claimToken, ancillaryStoreMarker).ConfigureAwait(false);
+            }
+        });
+    }
+
     private static bool isRequestJson(HttpContext context)
     {
         var contentType = context.Request.ContentType;

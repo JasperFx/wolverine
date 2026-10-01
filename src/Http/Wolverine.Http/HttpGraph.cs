@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -11,6 +12,7 @@ using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Resources;
+using Wolverine.Http.Runtime;
 using Wolverine.Runtime;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
@@ -254,7 +256,90 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // sitting in the entry assembly instead. Assert here so the whole picture is reported at once.
         AssertPreBuiltTypesExist();
 
+        // GH-4742. A requirement a policy set is validated here, at startup, and its refusal codes described.
+        foreach (var chain in _chains) chain.FinalizeDeduplicatedWithResponse();
+
+        warnAboutDeduplicatedResponsesWithoutStorage(logger);
+
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
+
+        // After BuildEndpoint: the authorization metadata this reads only exists on the built endpoint.
+        warnAboutAnonymousUserScopedDeduplication(logger);
+    }
+
+    /// <summary>
+    /// GH-4742. <see cref="DeduplicationScope.None" /> is refused outright, because a stored response that is
+    /// scoped by nothing can be replayed to any caller who presents the same key and request bytes. An
+    /// UNAUTHENTICATED caller resolves the user component of the key to <c>string.Empty</c>, so
+    /// <see cref="DeduplicationScope.User" /> on an anonymous endpoint produces exactly the key
+    /// <c>None</c> would -- the same hole, reached by a route the refusal does not cover.
+    /// <para>A warning rather than a refusal: an endpoint fronted by a gateway that has already
+    /// authenticated the caller, or authorized by a convention applied outside this graph, is legitimate and
+    /// must still start.</para>
+    /// </summary>
+    private void warnAboutAnonymousUserScopedDeduplication(ILogger logger)
+    {
+        foreach (var chain in _chains)
+        {
+            if (chain.DeduplicatedWithResponse is not { } requirement) continue;
+            if (!requirement.Scope.HasFlag(DeduplicationScope.User)) continue;
+
+            var metadata = chain.Endpoint?.Metadata;
+            if (metadata == null) continue;
+
+            // [AllowAnonymous] wins over [Authorize] in ASP.NET Core, so an endpoint carrying both is
+            // anonymous and belongs in this warning.
+            var authorized = metadata.OfType<IAuthorizeData>().Any() && !metadata.OfType<IAllowAnonymous>().Any();
+            if (authorized) continue;
+
+            logger.LogWarning(
+                "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint carries no authorization metadata. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Require authorization on the endpoint, or ignore this if the caller is already authenticated upstream. See GH-4742",
+                chain.RoutePattern?.RawText ?? chain.Description);
+        }
+    }
+
+    /// <summary>
+    /// GH-4742. Warn rather than fail, as [Deduplicated] does: the endpoint may live in an assembly shared with
+    /// a host that never serves it. The endpoint itself throws at its first claim.
+    /// </summary>
+    private void warnAboutDeduplicatedResponsesWithoutStorage(ILogger logger)
+    {
+        // By the store each chain claims in: the main one, or its ancillary store.
+        var byStore = _chains.Where(x => x.DeduplicatedWithResponse != null)
+            .GroupBy(x => x.AncillaryStoreType)
+            .ToArray();
+
+        if (byStore.Length == 0) return;
+
+        IWolverineRuntime runtime;
+        try
+        {
+            runtime = Container.GetInstance<IWolverineRuntime>();
+        }
+        catch (Exception)
+        {
+            // A diagnostic must never be what takes startup down.
+            return;
+        }
+
+        foreach (var chains in byStore)
+        {
+            string? reason;
+            try
+            {
+                reason = DeduplicatedResponses.WhyUnsupported(runtime, chains.Key);
+            }
+            catch (Exception)
+            {
+                continue;
+            }
+
+            if (reason == null) continue;
+
+            logger.LogWarning(
+                "[DeduplicatedWithResponse] is used by {Routes}, but {Reason}, so those endpoints will fail at their first request. See GH-4742",
+                chains.Select(x => x.RoutePattern?.RawText ?? x.Description).Join(", "), reason);
+        }
     }
 
     internal static void ResolveDuplicateTypeNames(IReadOnlyList<HttpChain> chains)

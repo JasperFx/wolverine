@@ -121,11 +121,16 @@ internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
 }
 
 /// <summary>
-/// Commits the Ef Core envelope transaction (committing the EF Core database transaction and then
-/// flushing the MessageContext's outgoing messages). Emitted as a postprocessor so it runs before
-/// the HTTP response writer, ensuring the outbox is flushed before the response is sent (GH-2917).
-/// Pairs with <see cref="EnrollDbContextInTransaction" />, which begins the transaction and provides
-/// the try/catch (and the <see cref="EfCoreEnvelopeTransaction" /> variable this frame commits).
+/// Commits the Ef Core envelope transaction (committing the EF Core database transaction). Emitted as a
+/// postprocessor so it runs before the HTTP response writer, ensuring the commit and the outbox flush
+/// both complete before the response is sent (GH-2917). Pairs with
+/// <see cref="EnrollDbContextInTransaction" />, which begins the transaction and provides the try/catch
+/// (and the <see cref="EfCoreEnvelopeTransaction" /> variable this frame commits), and with
+/// <see cref="FlushOutboxAfterCommit" />, which is emitted immediately after it.
+/// <para>GH-4742: the flush used to be the tail of <c>CommitAsync</c> and therefore part of THIS frame.
+/// It is now its own frame so a postprocessor can sit strictly between the commit and the flush — see
+/// <see cref="EfCoreEnvelopeTransaction.CommitAsync(System.Threading.CancellationToken, bool)" /> for
+/// why that position matters. The emitted sequence is unchanged: commit, then flush.</para>
 /// </summary>
 internal class CommitEfCoreEnvelopeTransaction : AsyncFrame
 {
@@ -135,16 +140,17 @@ internal class CommitEfCoreEnvelopeTransaction : AsyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment(
-            "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
-        writer.Write($"await {_envelopeTransaction.Usage}.CommitAsync({_cancellation.Usage}).ConfigureAwait(false);");
+            "Commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)");
+        writer.Write(
+            $"await {_envelopeTransaction.Usage}.CommitAsync({_cancellation.Usage}, flushOutgoingMessages: false).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment(
-            "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
-        writer.Write($"do! {_envelopeTransaction.FSharpUsage}.CommitAsync({_cancellation.FSharpUsage})");
+            "Commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)");
+        writer.Write($"do! {_envelopeTransaction.FSharpUsage}.CommitAsync({_cancellation.FSharpUsage}, false)");
         Next?.GenerateFSharpCode(method, writer);
     }
 
@@ -155,5 +161,41 @@ internal class CommitEfCoreEnvelopeTransaction : AsyncFrame
 
         _cancellation = chain.FindVariable(typeof(CancellationToken));
         yield return _cancellation;
+    }
+}
+
+/// <summary>
+/// GH-4742. The outbox flush that follows an EF Core commit, as a frame of its own rather than the tail
+/// of the frame that commits. Nothing about the generated sequence changes — commit, then flush — but a
+/// postprocessor inserted between the two now actually lands between them, which is what
+/// <c>[DeduplicatedWithResponse]</c> needs in order to record its response after the business
+/// transaction commits and before the cascaded messages go out.
+/// <para>Implements <see cref="IFlushesMessages" /> because it IS the chain's flush: this is what
+/// <c>HttpChain.requiresFlush()</c> and <c>HttpChain.applyDeduplicatedWithResponse()</c> look for. The
+/// frames that merely commit no longer carry the marker.</para>
+/// </summary>
+internal class FlushOutboxAfterCommit : AsyncFrame, IFlushesMessages
+{
+    private Variable _context = null!;
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-2917/GH-4742: flush the outbox after the commit and before the response is written");
+        writer.Write(
+            $"await {_context.Usage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}().ConfigureAwait(false);");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-2917/GH-4742: flush the outbox after the commit and before the response is written");
+        writer.Write($"do! {_context.FSharpUsage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}()");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _context = chain.FindVariable(typeof(MessageContext));
+        yield return _context;
     }
 }

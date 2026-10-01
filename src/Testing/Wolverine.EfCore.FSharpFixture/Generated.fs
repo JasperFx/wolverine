@@ -49,8 +49,10 @@ type CreateItemCommandHandler670389475(serviceScopeFactory: Microsoft.Extensions
                 // Added by EF Core Transaction Middleware
                 let! result_of_SaveChangesAsync = itemsDbContext.SaveChangesAsync(cancellation)
 
-                // Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)
-                do! efCoreEnvelopeTransaction.CommitAsync(cancellation)
+                // Commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)
+                do! efCoreEnvelopeTransaction.CommitAsync(cancellation, false)
+                // GH-2917/GH-4742: flush the outbox after the commit and before the response is written
+                do! context.FlushOutgoingMessagesAsync()
             with ex ->
                 do! efCoreEnvelopeTransaction.RollbackAsync()
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
