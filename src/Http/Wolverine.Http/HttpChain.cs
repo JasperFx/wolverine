@@ -988,6 +988,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 $"The form value parameter '{key}' cannot be used for multiple target types");
         }
 
+        // GH-4742. Every one of the branches above keeps the variable and NOT its creating frame, so the
+        // arranger hoists the form read ahead of the middleware list. See BindsFormValues.
+        if (variable != null) BindsFormValues = true;
+
         return variable;
     }
  
@@ -1271,6 +1275,24 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 
     public bool IsFormData { get; internal set; }
+
+    /// <summary>
+    ///     GH-4742. True when this chain binds a form <em>value</em> — <c>[FromForm]</c> on a parameter, on a
+    ///     bound form type, or on a member of an <c>[AsParameters]</c> type. Deliberately narrower than
+    ///     <see cref="IsFormData" />, which is also true for a file upload and for an
+    ///     <see cref="IFormCollection" /> parameter.
+    ///     <para>
+    ///     The distinction is about <em>where the read is emitted</em>. A file binding
+    ///     (<c>FromFileStrategy</c>) and the multipart reader put their frames in
+    ///     <see cref="IChain.Middleware" />, so anything already at <c>Middleware[0]</c> is emitted ahead of
+    ///     them; an <see cref="IFormCollection" /> parameter is a bare <c>httpContext.Request.Form</c> usage
+    ///     evaluated at the call site. Form <em>values</em>, by contrast, are kept only as variables
+    ///     (<see cref="TryFindOrCreateFormValue(Type,string,string)" />, <c>FormBindingFrame</c>,
+    ///     <c>AsParametersBindingFrame</c>) and their creator frames are therefore hoisted to the very front
+    ///     of the method by JasperFx's <c>MethodFrameArranger</c> — ahead of anything a policy inserted.
+    ///     </para>
+    /// </summary>
+    internal bool BindsFormValues { get; set; }
 
     /// <summary>
     ///     True when the endpoint takes a <see cref="MultipartReader" /> and

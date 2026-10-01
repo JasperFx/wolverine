@@ -53,6 +53,7 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
             DescribeAsParametersBinding(parameter.ParameterType, out var hasForm, out var hasBody);
             chain.IsFormData = hasForm;
             chain.ReadsRequestBody = hasForm || hasBody;
+            if (hasForm) chain.BindsFormValues = true; // GH-4742
 
             var bindingFrame = new AsParametersBindingFrame(parameter.ParameterType, chain, container);
             chain.AsParametersVariable = bindingFrame.Variable;
@@ -229,6 +230,7 @@ internal class AsParametersBindingFrame : SyncFrame
         // 404'd. See GH-3630.
         chain.IsFormData = _hasForms;
         chain.ReadsRequestBody = _hasForms || _hasJsonBody;
+        if (_hasForms) chain.BindsFormValues = true; // GH-4742
     }
     
     /// <summary>

@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Alba;
 using IntegrationTests;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -123,13 +125,13 @@ public class deduplicated_with_response : IAsyncLifetime
     {
         var key = Guid.NewGuid().ToString();
 
-        await Should.ThrowAsync<InvalidOperationException>(() => theHost.Scenario(x =>
-        {
-            x.Post.Json(new DeduplicatedOrder(DeduplicatedResponseEndpoints.Throw))
-                .ToUrl("/deduplicated-response/orders");
-            x.WithRequestHeader("Idempotency-Key", key);
-        }));
+        // How the endpoint's throw reaches the caller is not this test's subject, and it is not even stable
+        // across hosts: WebApplication installs the developer exception page when the environment is
+        // Development (which CI sets), turning the throw into a 500; with no exception-handling middleware it
+        // propagates out of the test server instead. Accept either, then assert the thing that matters.
+        await failingPostAsync(new DeduplicatedOrder(DeduplicatedResponseEndpoints.Throw), key);
 
+        // The claim was released, so the retry is allowed to do the work rather than being refused with 409.
         await postAsync(new DeduplicatedOrder("after the throw"), key, 201);
     }
 
@@ -236,9 +238,11 @@ public class deduplicated_with_response : IAsyncLifetime
     [Fact]
     public async Task a_tenant_scope_needs_tenant_detection()
     {
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
-            postAsync(new DeduplicatedOrder("tenant"), Guid.NewGuid().ToString(), 201,
-                url: "/deduplicated-response/tenant"));
+        // The refusal is raised while the endpoint's handler is GENERATED (ScopeDeduplicationIdFrame cannot
+        // find a tenant id variable), so assert it at the codegen surface. Driving it through a request
+        // instead makes the test depend on whether the hosting environment installs an exception page: CI
+        // runs Development, where this answers 500 and Alba's own assertion fires first.
+        var ex = Should.Throw<InvalidOperationException>(() => compile("/deduplicated-response/tenant"));
 
         ex.Message.ShouldContain("tenant id detection");
     }
@@ -319,11 +323,11 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Fact]
-    public async Task a_response_that_is_not_system_text_json_is_refused()
+    public void a_response_that_is_not_system_text_json_is_refused()
     {
-        var ex = await Should.ThrowAsync<NotSupportedException>(() =>
-            postAsync(new DeduplicatedOrder("text"), Guid.NewGuid().ToString(), 200,
-                url: "/deduplicated-response/text"));
+        // Same as a_tenant_scope_needs_tenant_detection: a codegen-time refusal, asserted where it is
+        // raised rather than through a request whose surfacing depends on the hosting environment.
+        var ex = Should.Throw<NotSupportedException>(() => compile("/deduplicated-response/text"));
 
         ex.Message.ShouldContain("System.Text.Json");
     }
@@ -358,6 +362,43 @@ public class deduplicated_with_response : IAsyncLifetime
 
         // Nothing from [Deduplicated].
         source.ShouldNotContain("IMessageDeduplicator");
+    }
+
+    /// <summary>
+    /// Generates the endpoint's handler, which is where the declaration-time refusals above are raised.
+    /// </summary>
+    private void compile(string route)
+    {
+        var graph = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
+        var chain = graph.Chains.Single(x => x.RoutePattern!.RawText == route);
+
+        chain.As<ICodeFile>().InitializeSynchronously(graph.Rules, graph, theHost.Services);
+    }
+
+    /// <summary>
+    /// Posts a request the endpoint is expected to FAIL, tolerating either way that failure can reach a
+    /// caller: propagated out of the test server, or turned into a 5xx by an exception-handling middleware
+    /// (WebApplication installs the developer exception page when the environment is Development, which CI
+    /// sets). Asserts only that it did not succeed.
+    /// </summary>
+    private async Task failingPostAsync(DeduplicatedOrder body, string key,
+        string url = "/deduplicated-response/orders")
+    {
+        try
+        {
+            var result = await theHost.Scenario(x =>
+            {
+                x.Post.Json(body).ToUrl(url);
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.IgnoreStatusCode();
+            });
+
+            result.Context.Response.StatusCode.ShouldBeGreaterThanOrEqualTo(500);
+        }
+        catch (InvalidOperationException)
+        {
+            // Propagated straight through the test server: no exception page is installed.
+        }
     }
 
     private Task<IScenarioResult> postAsync(DeduplicatedOrder body, string key, int status,

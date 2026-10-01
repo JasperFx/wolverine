@@ -58,6 +58,7 @@ internal class FromFormAttributeUsage : IParameterStrategy
        if(IsClassOrNullableClassNotCollection(parameter.ParameterType)){
             chain.RequestType = parameter.ParameterType;
             chain.IsFormData = true;
+            chain.BindsFormValues = true; // GH-4742
             variable = new FormBindingFrame(parameter.ParameterType, chain).Variable;
             return true;
        }

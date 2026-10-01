@@ -1,15 +1,18 @@
 using Alba;
 using IntegrationTests;
 using JasperFx.Resources;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Attributes;
+using Wolverine.Http.Runtime;
 using Wolverine.Postgresql;
 using Xunit;
 
@@ -66,7 +69,7 @@ public class deduplicated_with_response_declaration
     }
 
     [Fact]
-    public async Task without_the_opt_in_the_host_warns_and_the_first_request_throws()
+    public async Task without_the_opt_in_the_host_warns_and_the_first_request_fails()
     {
         var logs = new CapturingLoggerProvider();
         await using var host = await startAsync(logs, persist: true);
@@ -74,21 +77,43 @@ public class deduplicated_with_response_declaration
         logs.Warnings.ShouldContain(x =>
             x.Contains("/declaration/storeless") && x.Contains("EnableDeduplicatedResponses is off"));
 
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.Scenario(x =>
+        // The endpoint fails on its first claim. Whether that reaches the caller as an exception or as a 500
+        // depends on the hosting environment -- WebApplication installs the developer exception page when the
+        // environment is Development, which CI sets -- so assert that the request did not succeed...
+        try
         {
-            x.Post.Json(new DeduplicatedOrder("storeless")).ToUrl("/declaration/storeless");
-            x.WithRequestHeader("Idempotency-Key", Guid.NewGuid().ToString());
-        }));
+            var result = await host.Scenario(x =>
+            {
+                x.Post.Json(new DeduplicatedOrder("storeless")).ToUrl("/declaration/storeless");
+                x.WithRequestHeader("Idempotency-Key", Guid.NewGuid().ToString());
+                x.IgnoreStatusCode();
+            });
+
+            result.Context.Response.StatusCode.ShouldBeGreaterThanOrEqualTo(500);
+        }
+        catch (InvalidOperationException)
+        {
+            // Propagated straight through the test server: no exception page is installed.
+        }
+
+        // ...and assert the message naming the way out where it is actually raised.
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await host.Services.GetRequiredService<DeduplicatedResponses>()
+                .TryClaimAsync("declaration-storeless", "fingerprint", Guid.NewGuid().ToString(), null, null));
+
         ex.Message.ShouldContain("EnableDeduplicatedResponses = true");
     }
 
     [Fact]
-    public async Task a_correctly_configured_host_does_not_warn()
+    public async Task a_correctly_configured_host_does_not_warn_about_storage()
     {
         var logs = new CapturingLoggerProvider();
         await using var host = await startAsync(logs, persist: true, enable: true);
 
-        logs.Warnings.ShouldNotContain(x => x.Contains("[DeduplicatedWithResponse]"));
+        // Scoped to the storage diagnostic deliberately: this endpoint is anonymous, so the separate
+        // anonymous-User-scope warning (a_user_scope_on_an_anonymous_endpoint_warns) does fire for it.
+        logs.Warnings.ShouldNotContain(x => x.Contains("EnableDeduplicatedResponses is off"));
+        logs.Warnings.ShouldNotContain(x => x.Contains("does not implement IReplayableDeduplicationStore"));
     }
 
     [Fact]
@@ -99,6 +124,64 @@ public class deduplicated_with_response_declaration
 
         logs.Warnings.ShouldContain(x =>
             x.Contains("/declaration/storeless") && x.Contains("does not implement IReplayableDeduplicationStore"));
+    }
+
+    [Fact]
+    public void a_form_bound_endpoint_is_refused_at_startup()
+    {
+        // GH-4742. Form values are kept as variables whose creator frames are never in Middleware, so the
+        // arranger hoists the form read ahead of EnableRequestBufferingFrame; the fingerprint then throws on
+        // an unseekable body for EVERY request. Refused while the chain is built, not at the first request.
+        Should.Throw<NotSupportedException>(() => HttpChain.ChainFor(typeof(FormBoundDeduplicatedResponse), "Post"))
+            .Message.ShouldContain("form-encoded requests are not supported");
+    }
+
+    [Fact]
+    public void a_bound_form_type_is_refused_at_startup_too()
+    {
+        // The other form shape: [FromForm] on a whole type rather than on a simple value.
+        Should.Throw<NotSupportedException>(() =>
+                HttpChain.ChainFor(typeof(BoundFormTypeDeduplicatedResponse), "Post"))
+            .Message.ShouldContain("form-encoded requests are not supported");
+    }
+
+    [Fact]
+    public void a_file_upload_endpoint_is_not_refused()
+    {
+        // Multipart/file bindings put their frames IN Middleware, so the buffering still comes first. They
+        // must keep working -- the refusal above is deliberately narrower than HttpChain.IsFormData.
+        var chain = HttpChain.ChainFor(typeof(FileUploadDeduplicatedResponse), "Post");
+
+        chain.IsFormData.ShouldBeTrue();
+        chain.DeduplicatedWithResponse.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task a_user_scope_on_an_anonymous_endpoint_warns()
+    {
+        // GH-4742. Scope.None is refused outright; an unauthenticated caller makes Scope.User produce the
+        // same key, so the same hole is reachable through a route the refusal does not cover. A warning
+        // rather than a refusal: an endpoint authenticated by an upstream gateway is legitimate.
+        var logs = new CapturingLoggerProvider();
+        await using var host = await startAsync(logs, persist: true, enable: true);
+
+        logs.Warnings.ShouldContain(x =>
+            x.Contains("/declaration/storeless") && x.Contains("no authorization metadata"));
+    }
+
+    [Fact]
+    public async Task a_user_scope_on_an_authorized_endpoint_does_not_warn()
+    {
+        var logs = new CapturingLoggerProvider();
+        await using var host = await startAsync(logs, persist: true, enable: true,
+            endpoint: typeof(AuthorizedDeduplicatedResponse));
+
+        // Not vacuous: the endpoint really is in the graph, and it really is User-scoped.
+        var chain = host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!
+            .Chains.Single(x => x.RoutePattern!.RawText == "/declaration/authorized");
+        chain.DeduplicatedWithResponse!.Scope.ShouldBe(DeduplicationScope.User);
+
+        logs.Warnings.ShouldNotContain(x => x.Contains("no authorization metadata"));
     }
 
     [Fact]
@@ -264,5 +347,44 @@ public static class UnknownScopeDeduplicatedResponse
 public static class PolicyDeduplicatedResponse
 {
     [WolverinePost("/declaration/policy")]
+    public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+[WolverineIgnore]
+public static class FormBoundDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/form-value")]
+    public static DeduplicatedOrderCreated Post([FromForm] string name) => new(Guid.NewGuid());
+}
+
+[WolverineIgnore]
+public static class BoundFormTypeDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/form-type")]
+    public static DeduplicatedOrderCreated Post([FromForm] DeduplicatedFormBody body) => new(Guid.NewGuid());
+}
+
+public class DeduplicatedFormBody
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+// Files bind through Middleware frames, so the request buffering still comes first: NOT refused.
+[WolverineIgnore]
+public static class FileUploadDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/file")]
+    public static DeduplicatedOrderCreated Post(IFormFile file) => new(Guid.NewGuid());
+}
+
+// Authorized, so the anonymous-User-scope warning must NOT fire for it.
+public static class AuthorizedDeduplicatedResponse
+{
+    [Authorize]
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/authorized")]
     public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
 }

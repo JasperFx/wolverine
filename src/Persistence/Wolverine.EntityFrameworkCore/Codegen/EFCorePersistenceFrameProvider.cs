@@ -529,19 +529,27 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     // commit - so it does NOT reintroduce the flush-before-commit stranding bug (see
     // Wolverine.Http.Tests/Bug_efcore_outbox_flush_before_commit.cs).
     //
-    //  - Single DbContext (EnrollDbContextInTransaction): commit via the enlisted EfCoreEnvelopeTransaction.
+    //  - Single DbContext (EnrollDbContextInTransaction): commit via the enlisted EfCoreEnvelopeTransaction,
+    //    then flush.
     //  - Multi-tenant (StartDatabaseTransactionForDbContext): commit the DbContext transaction directly,
-    //    then flush the MessageContext. The postprocessor is IFlushesMessages so the chain does not also
-    //    add a standalone FlushOutgoingMessages (which would flush after the response and before commit).
+    //    then flush the MessageContext.
     //  - Multi-tenant in Lightweight mode (CreateTenantedDbContext with no BeginTransactionAsync,
     //    GH-4611): nothing to commit, but BuildAndEnrollAsync did enlist the outbox, so the buffered
-    //    cascades need an IFlushesMessages postprocessor of their own after SaveChanges.
+    //    cascades need a flush of their own after SaveChanges.
     //  - Lightweight message handler with an enlisted DbContext (GH-4630): the pipeline does the flush,
     //    so this only owes the scrape + the save that persists what the scrape produced.
     //  - Lightweight mode (no try-block wrap, no commit frame): a standalone FlushOutgoingMessages
     //    postprocessor is the only flush trigger and must stay.
     //
     // Exactly one of these runs, and at most one of them flushes.
+    //
+    // GH-4742: in the three flushing shapes above, the flush is emitted as its own FlushOutboxAfterCommit
+    // frame right after the frame that commits, rather than as that frame's last statement. The generated
+    // sequence is byte-for-byte the same work in the same order; what changes is that a postprocessor
+    // inserted between the two now actually lands between them, which is what [DeduplicatedWithResponse]
+    // needs. FlushOutboxAfterCommit carries the IFlushesMessages marker those frames used to carry, so
+    // HttpChain.requiresFlush() still sees a flush and still does not append a standalone (pre-commit)
+    // FlushOutgoingMessages.
     private static void applyEagerCommitOrLightweightFlush(IChain chain, TransactionMiddlewareMode mode,
         bool enrolledInTransaction, bool multiTenantTransaction, Type dbContextType,
         bool tenantedLightweight, bool lightweightEnlisted)
@@ -549,10 +557,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         if (enrolledInTransaction)
         {
             chain.Postprocessors.Add(new CommitEfCoreEnvelopeTransaction());
+            chain.Postprocessors.Add(new FlushOutboxAfterCommit());
         }
         else if (multiTenantTransaction)
         {
             chain.Postprocessors.Add(new CommitTenantedDbContextTransaction(dbContextType));
+            chain.Postprocessors.Add(new FlushOutboxAfterCommit());
         }
         else if (tenantedLightweight)
         {
@@ -560,20 +570,22 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // buffered rather than sent immediately. There is no explicit transaction to commit in
             // Lightweight mode, but the buffer still has to be flushed AFTER the SaveChangesAsync
             // postprocessor -- and, for an HTTP endpoint, before the response writer, which is why the
-            // frame is IFlushesMessages rather than a plain FlushOutgoingMessages.
+            // flush frame is IFlushesMessages rather than a plain FlushOutgoingMessages.
             //
             // GH-4630: a message handler's pipeline does its own flush, so that chain gets the scrape
             // and the save without one. Neither shape ran the domain event scrapers before.
-            chain.Postprocessors.Add(chain.ShouldFlushOutgoingMessages()
-                ? new FlushTenantedDbContextOutbox(dbContextType)
-                : new ScrapeDomainEventsAndSaveChanges(dbContextType, false));
+            chain.Postprocessors.Add(new ScrapeDomainEventsAndSaveChanges(dbContextType));
+            if (chain.ShouldFlushOutgoingMessages())
+            {
+                chain.Postprocessors.Add(new FlushOutboxAfterCommit());
+            }
         }
         else if (lightweightEnlisted)
         {
             // GH-4630. No flush here: Executor/TracingExecutor call FlushOutgoingMessagesAsync() once
             // the handler returns, and adding a second trigger would either double-send or trip the
             // MultiFlushMode.OnlyOnce warning.
-            chain.Postprocessors.Add(new ScrapeDomainEventsAndSaveChanges(dbContextType, false));
+            chain.Postprocessors.Add(new ScrapeDomainEventsAndSaveChanges(dbContextType));
         }
         else if (mode != TransactionMiddlewareMode.Eager
                  && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())

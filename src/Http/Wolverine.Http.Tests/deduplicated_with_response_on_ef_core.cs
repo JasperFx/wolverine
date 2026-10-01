@@ -75,7 +75,7 @@ public class deduplicated_with_response_on_ef_core : IAsyncLifetime
     }
 
     [Fact]
-    public async Task the_response_is_recorded_after_the_commit()
+    public async Task the_response_is_recorded_between_the_commit_and_the_flush()
     {
         // Warm the route with a real request, then read the source it was built from.
         await postAsync("ef-warm-" + Guid.NewGuid(), Guid.NewGuid().ToString(), 201);
@@ -84,12 +84,34 @@ public class deduplicated_with_response_on_ef_core : IAsyncLifetime
         var source = graph.Chains.Single(x => x.RoutePattern!.RawText == "/ef-deduplicated-response/items").SourceCode.ShouldNotBeNull();
 
         var claim = source.IndexOf(".TryClaimAsync(", StringComparison.Ordinal);
-        var commit = source.IndexOf(".SaveChangesAsync(", StringComparison.Ordinal);
+        var handler = source.IndexOf(
+            $"{nameof(EfCoreDeduplicatedResponseEndpoint)}.{nameof(EfCoreDeduplicatedResponseEndpoint.Post)}(",
+            StringComparison.Ordinal);
+        var save = source.IndexOf(".SaveChangesAsync(", StringComparison.Ordinal);
+
+        // GH-4742: the whole point of splitting EfCoreEnvelopeTransaction's commit from its outbox flush.
+        // The record has to land AFTER the commit (a failed commit must not leave a stored "success") and
+        // BEFORE the flush (a flush that throws must leave the work recorded -- the envelope rows are already
+        // durable and the durability agent will send them -- rather than releasing the claim and letting the
+        // client's retry re-run a handler whose work is committed).
+        var commit = source.IndexOf("flushOutgoingMessages: false", StringComparison.Ordinal);
         var record = source.IndexOf(".RecordResponseAsync(", StringComparison.Ordinal);
+        var flush = source.IndexOf(".FlushOutgoingMessagesAsync(", StringComparison.Ordinal);
+        var write = source.IndexOf("WriteJsonAsync", StringComparison.Ordinal);
 
         claim.ShouldBeGreaterThan(-1, source);
-        claim.ShouldBeLessThan(commit, source);
+        handler.ShouldBeGreaterThan(-1, source);
+        commit.ShouldBeGreaterThan(-1, source);
+        record.ShouldBeGreaterThan(-1, source);
+        flush.ShouldBeGreaterThan(-1, source);
+        write.ShouldBeGreaterThan(-1, source);
+
+        claim.ShouldBeLessThan(handler, source);
+        handler.ShouldBeLessThan(save, source);
+        save.ShouldBeLessThan(commit, source);
         commit.ShouldBeLessThan(record, source);
+        record.ShouldBeLessThan(flush, source);
+        flush.ShouldBeLessThan(write, source);
     }
 
     private Task<IScenarioResult> postAsync(string name, string key, int status)

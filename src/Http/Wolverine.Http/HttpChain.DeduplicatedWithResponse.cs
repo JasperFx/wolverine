@@ -87,6 +87,17 @@ public partial class HttpChain
             throw new NotSupportedException(
                 $"[DeduplicatedWithResponse] on {Description} returns no resource, so a repeat has no response to replay. Use [Deduplicated] instead. See GH-4742");
         }
+
+        if (BindsFormValues)
+        {
+            // The fingerprint reads the body after binding, which needs a rewindable stream --
+            // EnableRequestBufferingFrame, at Middleware[0]. A form value's creator frame is never IN
+            // Middleware (HttpChain.BindsFormValues says why), so the arranger hoists the form read ahead of
+            // the buffering and ComputeDeduplicationFingerprintAsync then fails its !Body.CanSeek guard on
+            // EVERY request. Refuse while the chain is being built rather than 500 at runtime.
+            throw new NotSupportedException(
+                $"[DeduplicatedWithResponse] on {Description} binds a form value, and form-encoded requests are not supported by this attribute: the request fingerprint needs to re-read the body after binding, and the form read consumes it first. Take a JSON body instead, or use [Deduplicated], which does not fingerprint the request. See GH-4742");
+        }
     }
 
     /// <summary>
@@ -130,9 +141,16 @@ public partial class HttpChain
         Middleware.InsertRange(0, frames);
 
         // After IHttpAware and any commit, before the flush. The response writer is appended later, in
-        // DetermineFrames, so this lands before it too. Where the commit and the flush are one frame (EF Core's
-        // outbox) this lands after both.
-        var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages);
+        // DetermineFrames, so this lands before it too.
+        //
+        // Both shapes of flush have to be matched. A persistence provider's own flush frame implements
+        // IFlushesMessages (EF Core's FlushOutboxAfterCommit); the plain FlushOutgoingMessages that a chain
+        // with no provider gets does NOT implement it, which is the whole point of the interface -- it marks
+        // "something else already flushes, do not add one of these". GH-4742 shipped with only the
+        // FlushOutgoingMessages half, so on EF Core the FindIndex returned -1, the record frame was appended
+        // LAST, and a flush that threw left committed work with an unanswered claim: the finally released it
+        // and the client's retry re-ran the handler over work that was already done.
+        var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages or IFlushesMessages);
         Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
             new RecordDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, ResourceVariable ?? Method.Creates.First(),
                 MissingResponseBodyStatusCode, AncillaryStoreType));

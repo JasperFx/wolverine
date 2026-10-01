@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -261,6 +262,40 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         warnAboutDeduplicatedResponsesWithoutStorage(logger);
 
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
+
+        // After BuildEndpoint: the authorization metadata this reads only exists on the built endpoint.
+        warnAboutAnonymousUserScopedDeduplication(logger);
+    }
+
+    /// <summary>
+    /// GH-4742. <see cref="DeduplicationScope.None" /> is refused outright, because a stored response that is
+    /// scoped by nothing can be replayed to any caller who presents the same key and request bytes. An
+    /// UNAUTHENTICATED caller resolves the user component of the key to <c>string.Empty</c>, so
+    /// <see cref="DeduplicationScope.User" /> on an anonymous endpoint produces exactly the key
+    /// <c>None</c> would -- the same hole, reached by a route the refusal does not cover.
+    /// <para>A warning rather than a refusal: an endpoint fronted by a gateway that has already
+    /// authenticated the caller, or authorized by a convention applied outside this graph, is legitimate and
+    /// must still start.</para>
+    /// </summary>
+    private void warnAboutAnonymousUserScopedDeduplication(ILogger logger)
+    {
+        foreach (var chain in _chains)
+        {
+            if (chain.DeduplicatedWithResponse is not { } requirement) continue;
+            if (!requirement.Scope.HasFlag(DeduplicationScope.User)) continue;
+
+            var metadata = chain.Endpoint?.Metadata;
+            if (metadata == null) continue;
+
+            // [AllowAnonymous] wins over [Authorize] in ASP.NET Core, so an endpoint carrying both is
+            // anonymous and belongs in this warning.
+            var authorized = metadata.OfType<IAuthorizeData>().Any() && !metadata.OfType<IAllowAnonymous>().Any();
+            if (authorized) continue;
+
+            logger.LogWarning(
+                "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint carries no authorization metadata. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Require authorization on the endpoint, or ignore this if the caller is already authenticated upstream. See GH-4742",
+                chain.RoutePattern?.RawText ?? chain.Description);
+        }
     }
 
     /// <summary>

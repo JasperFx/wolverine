@@ -101,17 +101,24 @@ public class Bug_3291_lightweight_http_cascade_flushes_before_commit
         source.ShouldNotBeNull();
         source.ShouldContain("EnlistInOutboxAsync");
 
-        // (3) Ordering: enroll in the outbox -> [endpoint body] -> SaveChangesAsync commits -> the
-        // envelope transaction's CommitAsync flushes the buffered messages. The flush must come AFTER
-        // the commit; that is the whole point of the fix.
+        // (3) Ordering: enroll in the outbox -> [endpoint body] -> SaveChangesAsync commits -> the envelope
+        // transaction commits -> the buffered messages flush. The flush must come AFTER the commit; that is
+        // the whole point of the fix.
         // Match the actual call sites (".Method(") rather than bare names, which also appear in comments.
+        //
+        // GH-4742: the commit and the flush used to be one call (EfCoreEnvelopeTransaction.CommitAsync did
+        // both). They are now two frames, so that [DeduplicatedWithResponse] can record its response
+        // strictly between them. Assert both halves and their order.
         var enlistAt = source.IndexOf(".EnlistInOutboxAsync(", StringComparison.Ordinal);
         var saveAt = source.IndexOf(".SaveChangesAsync(", StringComparison.Ordinal);
         var commitAt = source.IndexOf(".CommitAsync(", StringComparison.Ordinal);
+        var flushAt = source.IndexOf(".FlushOutgoingMessagesAsync(", StringComparison.Ordinal);
 
         saveAt.ShouldBeGreaterThan(enlistAt, "SaveChangesAsync must run after the outbox enrollment");
         commitAt.ShouldBeGreaterThan(saveAt,
-            "The outbox flush (EfCoreEnvelopeTransaction.CommitAsync) must run after SaveChangesAsync commits");
+            "The envelope transaction's commit must run after SaveChangesAsync commits");
+        flushAt.ShouldBeGreaterThan(commitAt,
+            "The outbox flush must run after the commit, not before it");
     }
 }
 
