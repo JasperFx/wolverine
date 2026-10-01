@@ -112,6 +112,14 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         }
     }
 
+    /// <summary>GH-4742. A bounded reap: response bodies make one unbounded delete a long lock.</summary>
+    public override string? BatchedDeleteExpiredDeduplicatedResponsesSql(int batchSize)
+    {
+        return
+            $"delete from {SchemaName}.{DatabaseConstants.DeduplicatedResponsesTableName} " +
+            $"where {DatabaseConstants.Expires} <= @now limit {batchSize};";
+    }
+
     public override ITable AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
@@ -540,6 +548,12 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         if (Durability.EnableMessageDeduplication)
         {
             yield return new DeduplicationTable(SchemaName);
+        }
+
+        // GH-4742. Every store role, behind its own opt-in.
+        if (Durability.EnableDeduplicatedResponses)
+        {
+            yield return new DeduplicatedResponsesTable(SchemaName);
         }
 
         // Recurring-message tracking — Main store only, behind the opt-in. See the PostgreSQL twin.
