@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
@@ -29,6 +30,17 @@ public record LoadOnHandlerMessage3870(Guid Id);
 public record LoadInBeforeMessage3870(Guid Id);
 
 public record LoadInBeforeTransactionalMessage3870(Guid Id);
+
+public record LoadInBeforeDesignatedMessage3870(Guid Id);
+
+// A second DbContext the handler reads through but does not commit through, so the transaction owner has to be
+// designated. Maps nothing; it only has to be a second candidate.
+public sealed class Lookup3870DbContext : DbContext
+{
+    public Lookup3870DbContext(DbContextOptions<Lookup3870DbContext> options) : base(options)
+    {
+    }
+}
 
 [WolverineIgnore]
 public static class LoadOnHandlerMessage3870Handler
@@ -63,6 +75,21 @@ public static class LoadInBeforeTransactionalMessage3870Handler
     }
 }
 
+// [Transactional(typeof(X))] is the designation here, and on a message handler it is only applied -- and its
+// chain tag only set -- at codegen, after inbox routing has run
+[WolverineIgnore]
+public static class LoadInBeforeDesignatedMessage3870Handler
+{
+    public static void Before([All] IReadOnlyList<ModelInModule3870> models)
+    {
+    }
+
+    [Transactional(typeof(Module3870DbContext))]
+    public static void Handle(LoadInBeforeDesignatedMessage3870 message, Lookup3870DbContext lookups)
+    {
+    }
+}
+
 public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLifetime
 {
     private IHost _host = null!;
@@ -80,12 +107,15 @@ public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLife
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(LoadOnHandlerMessage3870Handler))
                     .IncludeType(typeof(LoadInBeforeMessage3870Handler))
-                    .IncludeType(typeof(LoadInBeforeTransactionalMessage3870Handler));
+                    .IncludeType(typeof(LoadInBeforeTransactionalMessage3870Handler))
+                    .IncludeType(typeof(LoadInBeforeDesignatedMessage3870Handler));
 
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
                 opts.PublishAllMessages().ToRabbitQueue(_queueName).UseDurableOutbox();
                 opts.ListenToRabbitQueue(_queueName).UseDurableInbox();
+
+                opts.Services.AddDbContext<Lookup3870DbContext>(x => x.UseNpgsql(Servers.PostgresConnectionString));
 
                 opts.Policies.AutoApplyTransactions();
                 opts.UseEntityFrameworkCoreTransactions();
@@ -117,7 +147,8 @@ public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLife
     [
         new(typeof(LoadOnHandlerMessage3870)),
         new(typeof(LoadInBeforeMessage3870)),
-        new(typeof(LoadInBeforeTransactionalMessage3870))
+        new(typeof(LoadInBeforeTransactionalMessage3870)),
+        new(typeof(LoadInBeforeDesignatedMessage3870))
     ];
 
     [Theory]

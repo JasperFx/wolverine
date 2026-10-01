@@ -1065,10 +1065,17 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     private Type? resolveDesignatedDbContext(IChain chain, Type[] contextTypes)
     {
-        if (chain.Tags.TryGetValue(TransactionalAttribute.TransactionalDbContextTypeKey, out var tagged)
-            && tagged is Type taggedType)
+        // The tag is only there once the attribute has been applied, which on a message handler is codegen.
+        // The GH-3870 inbox routing asks at startup, before that, so read the attribute directly too -- the same
+        // reason [Storage] is read off the handler below.
+        var transactionalType = chain.Tags.TryGetValue(TransactionalAttribute.TransactionalDbContextTypeKey, out var tagged)
+            && tagged is Type taggedType
+                ? taggedType
+                : findTransactionalAttributeType(chain);
+
+        if (transactionalType != null)
         {
-            return validateDesignation(taggedType, chain, contextTypes, "[Transactional]");
+            return validateDesignation(transactionalType, chain, contextTypes, "[Transactional]");
         }
 
         // [Storage(typeof(X))] designation. We read the attribute directly off the handler rather than
@@ -1092,6 +1099,24 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         return null;
+    }
+
+    // Where a ModifyChainAttribute can be applied from: the handler method, the handler type, and on a message
+    // handler the message type
+    private static Type? findTransactionalAttributeType(IChain chain)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            var att = call.Method.GetCustomAttribute<TransactionalAttribute>(inherit: true)
+                      ?? call.HandlerType.GetCustomAttribute<TransactionalAttribute>(inherit: true);
+
+            if (att?.DbContextType != null)
+            {
+                return att.DbContextType;
+            }
+        }
+
+        return chain.InputType()?.GetCustomAttribute<TransactionalAttribute>(inherit: true)?.DbContextType;
     }
 
     private static Type? findStorageAttributeType(IChain chain)
