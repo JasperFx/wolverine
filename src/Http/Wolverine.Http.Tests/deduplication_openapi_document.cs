@@ -49,7 +49,7 @@ public class deduplication_openapi_document : IAsyncLifetime
             opts.Durability.Mode = DurabilityMode.Solo;
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "http_dedup_openapi");
 
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();

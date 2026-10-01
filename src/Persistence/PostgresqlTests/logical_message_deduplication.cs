@@ -37,7 +37,7 @@ public class logical_message_deduplication : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "dedup");
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 opts.Policies.AutoApplyTransactions();
@@ -72,12 +72,20 @@ public class logical_message_deduplication : IAsyncLifetime
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var table = await new Table(new DbObjectName("dedup", DatabaseConstants.DeduplicationTableName))
+        // GH-4757: this host runs CompareByHash, so it is the HASHED table that gets provisioned.
+        var table = await new Table(
+                new DbObjectName("dedup", DatabaseConstants.HashedDeduplicationTableName))
             .FetchExistingAsync(conn, TestContext.Current.CancellationToken);
 
         table.ShouldNotBeNull();
         table.HasColumn(DatabaseConstants.DeduplicationId).ShouldBeTrue();
         table.HasColumn(DatabaseConstants.Expires).ShouldBeTrue();
+
+        // The binary hash carries the key; the readable id rides along as a plain column, and has to be
+        // NON-unique or a case-insensitive collation would still refuse 'abc' after 'Abc'.
+        table.HasColumn(DatabaseConstants.DeduplicationHash).ShouldBeTrue();
+        table.PrimaryKeyColumns.ShouldBe([DatabaseConstants.DeduplicationHash]);
+
     }
 
     [Fact]

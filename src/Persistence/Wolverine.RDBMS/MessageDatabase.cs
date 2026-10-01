@@ -102,7 +102,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         IncomingFullName = this.TableNameFor(DatabaseConstants.IncomingTable);
         OutgoingFullName = this.TableNameFor(DatabaseConstants.OutgoingTable);
-        DeduplicationFullName = this.TableNameFor(DatabaseConstants.DeduplicationTableName);
+        DeduplicationFullName = this.TableNameFor(DeduplicationTableNameFor(settings));
 
         Durability = settings;
         _cancellation = settings.Cancellation;
@@ -159,7 +159,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         // claims its id in that store, so that the claim and the work it guards land in one
         // transaction; a claim that went to the Main store instead could commit while the ancillary
         // transaction rolled back.
-        if (settings.EnableMessageDeduplication)
+        if (settings.MessageDeduplicationMode != MessageDeduplicationMode.None)
         {
             // ReSharper disable once VirtualMemberCallInConstructor
             Deduplication = BuildDeduplicationStore();
@@ -178,8 +178,31 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     }
 
     /// <summary>
+    /// GH-4757. Which of the two deduplication tables <paramref name="settings" />' mode uses.
+    ///
+    /// <para>
+    /// The modes do not share a table, and that is deliberate: the hash mode's arbitrating key is a
+    /// BINARY column, and moving a primary key onto one is the migration Weasel cannot express under
+    /// <c>CreateOrUpdate</c>. Two tables means an application that switches modes leaves the other one
+    /// intact -- its claims expiring on their own schedule -- and can switch back without losing any.
+    /// </para>
+    ///
+    /// <para>
+    /// Returns the original table's name for <see cref="MessageDeduplicationMode.None" /> too. Nothing
+    /// reads it in that mode (no store is built and no table is provisioned), and answering with a name
+    /// rather than null keeps every caller free of a null check.
+    /// </para>
+    /// </summary>
+    protected static string DeduplicationTableNameFor(DurabilitySettings settings)
+    {
+        return settings.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash
+            ? DatabaseConstants.HashedDeduplicationTableName
+            : DatabaseConstants.DeduplicationTableName;
+    }
+
+    /// <summary>
     /// Factory hook for the per-database <see cref="IDeduplicationStore" /> when
-    /// <see cref="DurabilitySettings.EnableMessageDeduplication" /> is set. The default returns
+    /// <see cref="DurabilitySettings.MessageDeduplicationMode" /> is set. The default returns
     /// <see cref="RdbmsDeduplicationStore" />, which is portable across every provider that uses
     /// <c>@</c>-prefixed bind variables and <see cref="DbDataSource" />-driven command creation
     /// (Postgres, SqlServer, MySQL, SQLite).
@@ -195,8 +218,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     protected virtual IDeduplicationStore BuildDeduplicationStore()
     {
         return new RdbmsDeduplicationStore(_dataSource,
-            QuotedTableNameFor(DatabaseConstants.DeduplicationTableName), IsUniqueConstraintViolation,
-            BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize);
+            QuotedTableNameFor(DeduplicationTableNameFor(Durability)), IsUniqueConstraintViolation,
+            BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize,
+            Durability.MessageDeduplicationMode);
     }
 
     /// <inheritdoc />
@@ -317,7 +341,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
             IncomingFullName = QuotedTableNameFor(DatabaseConstants.IncomingTable);
             OutgoingFullName = QuotedTableNameFor(DatabaseConstants.OutgoingTable);
-            DeduplicationFullName = QuotedTableNameFor(DatabaseConstants.DeduplicationTableName);
+            DeduplicationFullName = QuotedTableNameFor(DeduplicationTableNameFor(Durability));
         }
     }
 

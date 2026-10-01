@@ -36,7 +36,7 @@ public interface IOrderService
 Putting it on the service type instead applies it to every RPC on that service; a method-level
 attribute always wins over the type-level one.
 
-With `Durability.EnableMessageDeduplication` turned on, `CreateOrder` now:
+With `Durability.MessageDeduplicationMode` turned on, `CreateOrder` now:
 
 - runs normally for the first call carrying a given `idempotency-key`
 - throws `RpcException` with **`StatusCode.AlreadyExists`** for any later call carrying the same key

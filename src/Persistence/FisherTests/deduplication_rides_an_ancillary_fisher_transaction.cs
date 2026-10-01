@@ -61,7 +61,7 @@ public class deduplication_rides_an_ancillary_fisher_transaction : IAsyncLifetim
                     .IncludeType(typeof(FailingAncillaryFisherDedupHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 // Discard rather than retry, so each Send is exactly one handler attempt and the
@@ -191,7 +191,9 @@ public class deduplication_rides_an_ancillary_fisher_transaction : IAsyncLifetim
         // rather than schema.table, and the prefix follows the store's schema name. Looked up rather than
         // spelled out, so this asserts against whatever the integration actually provisioned.
         cmd.CommandText =
-            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication'";
+            // GH-4757: the HASHED table -- these hosts run CompareByHash. The trailing anchor matters:
+            // '%wolverine_deduplication' would not match 'wolverine_deduplication_hashed' at all.
+            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication_hashed'";
 
         return (string?)await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken);
     }

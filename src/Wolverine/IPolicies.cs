@@ -128,7 +128,7 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     ///     <c>[Deduplicated]</c>.
     ///
     ///     <para>
-    ///     Requires <c>Durability.EnableMessageDeduplication</c>, which provisions the backing storage.
+    ///     Requires <c>Durability.MessageDeduplicationMode</c>, which provisions the backing storage.
     ///     Unlike the attribute, this reaches handlers you do not own — the usual case being a marker
     ///     interface on every create-style command in an application.
     ///     </para>

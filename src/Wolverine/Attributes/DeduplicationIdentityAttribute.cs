@@ -30,7 +30,7 @@ namespace Wolverine.Attributes;
 /// only used when nothing has already set an id — an explicit <c>DeliveryOptions.DeduplicationId</c>
 /// always wins. It never <i>enforces</i> anything on its own: enforcement is
 /// <c>[Deduplicated]</c> on the receiving handler plus
-/// <c>opts.Durability.EnableMessageDeduplication</c>.
+/// <c>opts.Durability.MessageDeduplicationMode</c>.
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Class |

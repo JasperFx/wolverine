@@ -518,7 +518,7 @@ public partial class Envelope : IHasTenantId
     /// Set it explicitly with <c>DeliveryOptions.DeduplicationId</c>, or let Wolverine derive it from
     /// the message with <c>[DeduplicationIdentity]</c> or <c>opts.MessageDeduplication</c>. It is
     /// enforced by <c>[Deduplicated]</c> handlers when
-    /// <c>opts.Durability.EnableMessageDeduplication</c> is on.
+    /// <c>opts.Durability.MessageDeduplicationMode</c> is on.
     /// </summary>
     public string? DeduplicationId { get; set; }
 

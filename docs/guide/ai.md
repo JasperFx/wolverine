@@ -192,7 +192,7 @@ goes out again. For callouts that can be republished this way, give them a logic
 enforcement:
 
 ```csharp
-opts.Durability.EnableMessageDeduplication();
+opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 opts.AddLlmCallouts(ai => ai.DeduplicateCallouts = true);
 ```
 

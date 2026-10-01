@@ -229,7 +229,8 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
 
     public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
     {
-        var table = $"{QuotedSchemaName}.{DatabaseConstants.DeduplicationTableName}";
+        // GH-4757: whichever table the configured mode provisioned.
+        var table = $"{QuotedSchemaName}.{DeduplicationTableNameFor(Durability)}";
 
         // Bounded via ctid, the same shape as BatchedDeleteExpiredHandledEnvelopesSql, so each
         // statement holds locks briefly instead of taking out a day's worth of claims at once.
@@ -979,9 +980,15 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
 
         // GH-4180. Every store role, not just Main: a handler chain with an AncillaryStoreType claims
         // its logical id in that store so the claim and the work land in one transaction.
-        if (Durability.EnableMessageDeduplication)
+        // GH-4757: exactly one of the two, never both. The hash mode's key is a binary column, which
+        // cannot be reached from the original table by any migration Weasel can express.
+        if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByString)
         {
             yield return new DeduplicationTable(SchemaName);
+        }
+        else if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash)
+        {
+            yield return new HashedDeduplicationTable(SchemaName);
         }
 
         // Recurring-message tracking — Main store only (the single cluster-wide agent publishes

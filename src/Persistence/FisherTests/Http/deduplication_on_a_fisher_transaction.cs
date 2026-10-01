@@ -49,7 +49,7 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();
@@ -182,7 +182,9 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication'";
+            // GH-4757: the HASHED table -- these hosts run CompareByHash. The trailing anchor matters:
+            // '%wolverine_deduplication' would not match 'wolverine_deduplication_hashed' at all.
+            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication_hashed'";
 
         var name = await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken);
         name.ShouldNotBeNull("the deduplication table was never provisioned");
@@ -228,7 +230,7 @@ public class fisher_deduplication_without_a_commit_keeps_the_release : IAsyncLif
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             // Deliberately NOT AutoApplyTransactions: this endpoint manages its own commit, so nothing

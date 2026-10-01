@@ -203,7 +203,7 @@ public class MessageTypePolicies<T>
     /// <para>
     /// Deriving an id does not deduplicate anything on its own. Enforcement is <c>[Deduplicated]</c>
     /// on the receiving handler or endpoint, plus
-    /// <see cref="DurabilitySettings.EnableMessageDeduplication"/>.
+    /// <see cref="DurabilitySettings.MessageDeduplicationMode"/>.
     /// </para>
     /// </remarks>
     /// <example>

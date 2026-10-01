@@ -19,7 +19,7 @@ namespace Wolverine.Runtime.Deduplication;
 ///
 /// <para>
 /// Deriving an id does not by itself deduplicate anything. Enforcement is <c>[Deduplicated]</c> on
-/// the receiving handler / endpoint plus <c>opts.Durability.EnableMessageDeduplication</c>.
+/// the receiving handler / endpoint plus <c>opts.Durability.MessageDeduplicationMode</c>.
 /// </para>
 /// </summary>
 public class MessageDeduplicationRules

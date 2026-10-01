@@ -29,13 +29,22 @@ public static class IncomingTableNaming
 
     /// <summary>
     /// GH-4571. Whether <paramref name="tableName"/> — possibly schema-qualified, possibly prefixed —
-    /// names the logical deduplication table. Same reasoning as <see cref="IsIncomingTable"/>: the
+    /// names a logical deduplication table. Same reasoning as <see cref="IsIncomingTable"/>: the
     /// commit-race classifier behind a transactional deduplication claim has to tell its own primary key
     /// violation apart from one raised by the application's own tables in the same transaction.
     /// </summary>
+    /// <remarks>
+    /// GH-4757. EITHER table — <c>wolverine_deduplication</c> under
+    /// <c>MessageDeduplicationMode.CompareByString</c> or <c>wolverine_deduplication_hashed</c> under
+    /// <c>CompareByHash</c>. One predicate rather than two because every caller wants the same answer
+    /// ("did the deduplication claim lose the race?") and none of them knows the mode; a classifier that
+    /// only recognised one name would report the other mode's genuine commit race to the application as
+    /// an unhandled failure.
+    /// </remarks>
     public static bool IsDeduplicationTable(string? tableName)
     {
-        return names(tableName, DatabaseConstants.DeduplicationTableName);
+        return names(tableName, DatabaseConstants.DeduplicationTableName)
+               || names(tableName, DatabaseConstants.HashedDeduplicationTableName);
     }
 
     private static bool names(string? tableName, string bareTableName)

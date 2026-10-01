@@ -65,18 +65,57 @@ public class DatabaseConstants
     /// </para>
     ///
     /// <para>
-    /// Provisioned only when <c>DurabilitySettings.EnableMessageDeduplication</c> is set.
+    /// Provisioned only when <c>DurabilitySettings.MessageDeduplicationMode</c> is
+    /// <c>CompareByString</c>. <c>CompareByHash</c> provisions
+    /// <see cref="HashedDeduplicationTableName"/> instead and never touches this one.
     /// </para>
     /// </summary>
     public const string DeduplicationTableName = "wolverine_deduplication";
 
     /// <summary>
+    /// GH-4757. Table backing logical message deduplication under
+    /// <c>MessageDeduplicationMode.CompareByHash</c>. Same job as
+    /// <see cref="DeduplicationTableName"/>, keyed on <see cref="DeduplicationHash"/> instead of on
+    /// the readable id.
+    ///
+    /// <para>
+    /// <b>A separate table rather than a reshaping of the original, and that is the whole design.</b>
+    /// Moving the primary key from <see cref="DeduplicationId"/> onto a binary column is a primary KEY
+    /// swap, which is the one thing Weasel's <c>TableDelta</c> cannot express under
+    /// <c>AutoCreate.CreateOrUpdate</c> — on SQLite it is the twelve-step table rebuild. Reshaping in
+    /// place therefore meant either a startup failure on upgrade or dropping live claims. A table Weasel
+    /// has never seen is simply created, so an application switching modes keeps the other table intact,
+    /// its claims expiring naturally on <see cref="Expires"/>, and can switch back losslessly.
+    /// </para>
+    /// </summary>
+    public const string HashedDeduplicationTableName = "wolverine_deduplication_hashed";
+
+    /// <summary>
     /// GH-4180. The application-defined logical id, and the primary key of
-    /// <see cref="DeduplicationTableName"/>. The uniqueness of this column IS the guarantee --
+    /// <see cref="DeduplicationTableName"/>. The uniqueness of this column IS the guarantee there --
     /// the claim is an INSERT that either succeeds or trips this constraint, never a SELECT
     /// followed by an INSERT.
+    ///
+    /// <para>
+    /// GH-4757. On <see cref="HashedDeduplicationTableName"/> the same column carries the same value but
+    /// is a plain, NON-unique column: the key is <see cref="DeduplicationHash"/> and this is kept purely
+    /// so a stuck claim can be identified by eye. It must NOT be unique there -- a case-insensitive
+    /// collation would still refuse <c>abc</c> after <c>Abc</c> and the whole fix would be inert.
+    /// </para>
     /// </summary>
     public const string DeduplicationId = "deduplication_id";
+
+    /// <summary>
+    /// GH-4757. The SHA-256 of <see cref="DeduplicationId"/>'s UTF-8 bytes, and the primary key of
+    /// <see cref="HashedDeduplicationTableName"/>.
+    ///
+    /// <para>
+    /// A BINARY column, not a hex string: binary is collation-proof by TYPE, where hex would be safe
+    /// only because its alphabet happens to contain no case variants and no accented characters. The
+    /// difference matters the first time someone changes the encoding.
+    /// </para>
+    /// </summary>
+    public const string DeduplicationHash = "deduplication_hash";
 
     public const string Expires = "expires";
 
