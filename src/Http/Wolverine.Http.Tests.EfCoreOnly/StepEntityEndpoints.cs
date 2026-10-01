@@ -185,3 +185,27 @@ public static class StepEntityTagsEndpoint
         return tag == null ? "missing" : $"{tag.Label} of {all.Count}";
     }
 }
+
+public record StepEntityReminder(Guid Id);
+
+[WolverineIgnore]
+public static class StepEntityReminderHandler
+{
+    public static void Handle(StepEntityReminder message)
+    {
+    }
+}
+
+// Never transactional, but takes the tenant's DbContext. Building it must not enlist the request's
+// MessageContext in an EF Core outbox transaction that nothing will ever commit -- the scheduled message would
+// be written into that transaction and silently dropped.
+[WolverineIgnore]
+public static class StepEntityScheduleEndpoint
+{
+    [NonTransactional]
+    [WolverinePost("/step-entity/{id}/schedule")]
+    public static Task Post(Guid id, StepEntityDbContext db, IMessageBus bus)
+    {
+        return bus.ScheduleAsync(new StepEntityReminder(id), TimeSpan.FromHours(1)).AsTask();
+    }
+}

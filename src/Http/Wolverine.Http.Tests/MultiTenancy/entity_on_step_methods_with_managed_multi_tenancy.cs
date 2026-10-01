@@ -9,6 +9,7 @@ using Shouldly;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Http.Tests.EfCoreOnly;
 using Wolverine.Postgresql;
+using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.Http.Tests.MultiTenancy;
@@ -43,6 +44,11 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 /// DbContext types detected". The first lookup of an entity's DbContext under managed tenancy answered the
 /// builder's service type, <c>IDbContextBuilder&lt;T&gt;</c>, and only later lookups answered <c>T</c>.
 /// </item>
+/// <item>
+/// A non-transactional chain that takes the tenant's DbContext enlisted its MessageContext in an EF Core outbox
+/// transaction through <c>BuildAndEnrollAsync</c>, which nothing ever commits, so a message it scheduled was
+/// silently dropped.
+/// </item>
 /// </list>
 ///
 /// Every row is seeded in the tenant database only, so reading through the main database's DbContext shows up
@@ -59,7 +65,8 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         typeof(StepEntityReadEndpoint),
         typeof(StepEntityQueryPlanEndpoint),
         typeof(StepEntityTwoPlansEndpoint),
-        typeof(StepEntityTagsEndpoint)
+        typeof(StepEntityTagsEndpoint),
+        typeof(StepEntityScheduleEndpoint)
     ];
 
     private IAlbaHost theHost = null!;
@@ -106,7 +113,8 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         {
             opts.ApplicationAssembly = typeof(StepEntityRenameEndpoint).Assembly;
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Discovery.DisableConventionalDiscovery();
+            opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(StepEntityReminderHandler));
+            opts.Policies.UseDurableLocalQueues();
 
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "step_entity_wolverine")
                 .RegisterStaticTenants(tenants => tenants.Register("red", theTenantConnectionString));
@@ -169,6 +177,22 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         await cmd.ExecuteNonQueryAsync();
 
         return id;
+    }
+
+    // Straight from the tenant database, which is where a message scheduled under the "red" tenant is stored
+    private async Task<long> scheduledRemindersInTenantDatabaseAsync(Guid id)
+    {
+        await using var conn = new NpgsqlConnection(theTenantConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("""
+            select count(*) from step_entity_wolverine.wolverine_incoming_envelopes
+            where message_type = $1 and status = 'Scheduled' and position(convert_to($2, 'UTF8') in body) > 0
+            """, conn);
+        cmd.Parameters.AddWithValue(typeof(StepEntityReminder).ToMessageTypeName());
+
+        // The body is Wolverine's binary envelope format with the serialized message inside it
+        cmd.Parameters.AddWithValue(id.ToString());
+        return (long)(await cmd.ExecuteScalarAsync())!;
     }
 
     private async Task<string?> nameInTenantDatabaseAsync(Guid id)
@@ -263,5 +287,19 @@ public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
         });
 
         (await result.ReadAsTextAsync()).ShouldBe("red tag of 1");
+    }
+
+    [Fact]
+    public async Task a_non_transactional_chain_taking_the_db_context_persists_a_scheduled_message()
+    {
+        var id = Guid.NewGuid();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Url($"/step-entity/{id}/schedule?tenant=red");
+            x.StatusCodeShouldBe(204);
+        });
+
+        (await scheduledRemindersInTenantDatabaseAsync(id)).ShouldBe(1);
     }
 }
