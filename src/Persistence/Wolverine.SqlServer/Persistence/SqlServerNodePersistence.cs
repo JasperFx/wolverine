@@ -95,7 +95,12 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        await CommandExtensions.CreateCommand(conn, $"delete from {_nodeTable} where id = @id;update {_settings.SchemaName}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {_settings.SchemaName}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
+        // GH-4739: the `owner_id <> 0` clauses are what let these two updates seek the FILTERED owner
+        // indexes (predicate `owner_id <> 0`) rather than scan the tables. A parameterized
+        // `owner_id = @number` alone cannot use a filtered index -- the cached plan must stay correct for
+        // @number = 0 -- so a departing node held update locks across the whole inbox while the fleet was
+        // mid-deploy, which is exactly the statement the GH-4739 reporter caught in Query Store.
+        await CommandExtensions.CreateCommand(conn, $"delete from {_nodeTable} where id = @id;update {_settings.SchemaName}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number and {OwnerId} <> 0;update {_settings.SchemaName}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number and {OwnerId} <> 0;")
             .With("id", nodeId)
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();

@@ -218,13 +218,14 @@ internal partial class OracleMessageStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
 
+        // GH-4739: `owner_id <> 0` for parity with MessageDatabase.ReleaseAllOwnershipAsync(int).
         await using var inCmd = conn.CreateCommand(
-            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE {DatabaseConstants.OwnerId} = :ownerId");
+            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE {DatabaseConstants.OwnerId} = :ownerId AND {DatabaseConstants.OwnerId} <> 0");
         inCmd.With("ownerId", ownerId);
         await inCmd.ExecuteNonQueryAsync(_cancellation);
 
         await using var outCmd = conn.CreateCommand(
-            $"UPDATE {SchemaName}.{DatabaseConstants.OutgoingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE {DatabaseConstants.OwnerId} = :ownerId");
+            $"UPDATE {SchemaName}.{DatabaseConstants.OutgoingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE {DatabaseConstants.OwnerId} = :ownerId AND {DatabaseConstants.OwnerId} <> 0");
         outCmd.With("ownerId", ownerId);
         await outCmd.ExecuteNonQueryAsync(_cancellation);
 
