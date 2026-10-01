@@ -63,9 +63,12 @@ public static class DeclarativeLoadDependencies
     /// writes are silently dropped.
     /// </summary>
     /// <remarks>
-    /// The handler types' step methods are read off the TYPE rather than off <c>Middleware</c> because
-    /// <c>[Transactional]</c> is applied before <c>ApplyImpliedMiddlewareFromHandlers</c> has added them, on
-    /// both message handlers and HTTP endpoints.
+    /// The handler types' step methods are read off the TYPE as well as off <c>Middleware</c> because not every
+    /// caller runs after <c>ApplyImpliedMiddlewareFromHandlers</c>. Transaction selection does --
+    /// <c>AutoApplyTransactions</c> and <c>[Transactional]</c> both call it first -- but the GH-3870 inbox
+    /// routing asks at startup, and on a message handler <c>[Transactional]</c> is not applied until codegen. Its
+    /// step methods are not on the chain yet, and reading only <c>Middleware</c> would route that handler's inbox
+    /// row to the main store while its transaction commits in the ancillary one.
     /// </remarks>
     [UnconditionalSuppressMessage("Trimming", "IL2075",
         Justification = "Handler-type method walk for Before/Validate/Load methods at codegen time; handler types statically rooted via HandlerDiscovery. Same pattern as Chain.ApplyImpliedMiddlewareFromHandlers.")]
