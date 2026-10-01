@@ -328,6 +328,45 @@ public partial class WolverineRuntime : IAgentRuntime
         await envelope.StoreAndForwardAsync();
     }
 
+    /// <summary>
+    /// GH-4734. Claim this node's durable identity -- its row in the node table, and with it the
+    /// <see cref="DurabilitySettings.AssignedNodeNumber" /> that every envelope it owns is stamped with --
+    /// BEFORE the messaging transports start.
+    ///
+    /// <para>
+    /// This used to happen in <see cref="startNodeAgentWorkflowAsync" />, after the listeners were already
+    /// consuming. Until it ran, Durability.AssignedNodeNumber still held the per-process default from
+    /// <see cref="WolverineOptions" /> -- a hash of a fresh Guid -- so a node starting on a queue backlog
+    /// claimed those rows under an owner id that was in no node table. The orphaned-message sweep then
+    /// released them as "previously owned by departed nodes" (the premise it states in
+    /// ReleaseOrphanedMessagesCommand.liveOwnersAsync -- that an owner_id can only appear in the envelope
+    /// table once that node's registration has committed -- was exactly what this order falsified), and the
+    /// ones not yet processed ran a second time, with the same envelope id. One node was enough; no node had
+    /// to fail. The durable inbox's no-more-than-once guarantee did not hold across any scale-up, restart or
+    /// deploy that found a backlog.
+    /// </para>
+    ///
+    /// <para>
+    /// Nothing here needs a transport: <c>WolverineNode.For</c> reads
+    /// <c>Options.Transports.NodeControlEndpoint</c>, which is established either at configuration time
+    /// (broker control queues) or in <c>IMessageStore.Initialize</c>, both already done by this point;
+    /// <c>PersistAsync</c> is a write against a schema <c>tryMigrateStorage()</c> has already migrated; and
+    /// the <see cref="IStaticAgentFamily" /> instances were constructed back in <c>startAgentsAsync</c>. Solo
+    /// mode has always done its registration here, in <c>startAgentsAsync</c> -- this brings Balanced into
+    /// line with it rather than inventing a new order. The dispatcher and the heartbeat / health-check loops
+    /// stay AFTER the transports, because those do talk over the control endpoint.
+    /// </para>
+    /// </summary>
+    private async Task registerLocalNodeAsync()
+    {
+        if (NodeController == null) return;
+
+        _startupAgentCommands = await NodeController.StartLocalAgentProcessingAsync(Options);
+        Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
+    }
+
+    private AgentCommands? _startupAgentCommands;
+
     private async Task startNodeAgentWorkflowAsync()
     {
         // GH-3698: commands execute on the dispatcher's per-destination lanes, independently of the loop
@@ -350,13 +389,14 @@ public partial class WolverineRuntime : IAgentRuntime
             // NodeAgentController.PendingDispatches.
             NodeController.PendingDispatches = _dispatcher.TryFindPendingDestination;
 
-            var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
-            Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
-            
-            foreach (var command in commands)
+            // GH-4734: registration itself moved ahead of the transports (see registerLocalNodeAsync), but
+            // anything it asks to be PUBLISHED has to wait until there is a transport to publish over.
+            foreach (var command in _startupAgentCommands ?? AgentCommands.Empty)
             {
                 await new MessageBus(this).PublishAsync(command);
             }
+
+            _startupAgentCommands = null;
         }
 
         // GH-3604 (D1): the heartbeat runs on its OWN loop, independent of executeHealthChecks. See
