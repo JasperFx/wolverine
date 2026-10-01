@@ -163,14 +163,12 @@ internal static class EventSourcingFrameProviderExtensions
     /// out of both integrations' <c>AggregateHandling</c>, where the two copies had come to differ only
     /// by the store's name once GH-3907's drift reconciliation landed.
     /// </summary>
-    // These fire only now that the code lives in Wolverine core, whose trim/AOT analysis is stricter
-    // than either integration ran - the behavior is identical to the two copies this replaces. Every
-    // reflective close here happens at codegen time over the aggregate type, which AOT consumers
-    // pre-generate via TypeLoadMode.Static, so none of it runs in a trimmed or AOT-published app.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "CloseAndBuildAs closes ApplyEventsFromAsyncEnumerableFrame<>/RegisterEventsFrame<> over the aggregate type at codegen time. AOT consumers pre-generate via TypeLoadMode.Static.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "CloseAndBuildAs uses MakeGenericType at codegen time only. AOT consumers pre-generate via TypeLoadMode.Static so the reflective close never fires at runtime.")]
+    // GH-4752: both frames are constructed DIRECTLY, with the aggregate type as a plain constructor
+    // argument, rather than closed over it through CloseAndBuildAs. "AOT consumers pre-generate via
+    // TypeLoadMode.Static so the reflective close never fires at runtime" — the justification that used
+    // to sit here — was simply false: the chain model is still built at startup under Static, so an
+    // AOT-published app ran straight into Activator.CreateInstance on a closed generic frame whose
+    // constructor ILC had trimmed, and died with MissingMethodException before it could serve anything.
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Closes() only tests whether a handler parameter type closes IEventStream<>; it reads interfaces off a type already rooted by handler discovery.")]
     public static void DetermineEventCaptureHandling(this IEventSourcingFrameProvider provider, IChain chain,
@@ -180,10 +178,7 @@ internal static class EventSourcingFrameProviderExtensions
         if (asyncEnumerable != null)
         {
             asyncEnumerable.UseReturnAction(_ =>
-            {
-                return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
-                    provider.StoreName, aggregateType);
-            });
+                new ApplyEventsFromAsyncEnumerableFrame(asyncEnumerable, provider.StoreName, aggregateType));
 
             return;
         }
@@ -200,8 +195,8 @@ internal static class EventSourcingFrameProviderExtensions
         if (eventsVariable != null)
         {
             eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType)
-                    .WrapIfNotNull(v), $"Append events to the {provider.StoreName} event stream");
+                v => new RegisterEventsFrame(eventsVariable, aggregateType).WrapIfNotNull(v),
+                $"Append events to the {provider.StoreName} event stream");
 
             return;
         }

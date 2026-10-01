@@ -19,21 +19,39 @@ namespace Wolverine.Persistence.EventSourcing;
 ///     GH-3911: this and its siblings below were byte-identical in <c>Wolverine.Marten</c> and
 ///     <c>Wolverine.Polecat</c>. Nothing in them names a store — <see cref="IEventBoundary{T}" /> is
 ///     JasperFx.Events vocabulary — so they moved down whole.
+///     <para>
+///     GH-4752: the model type is a constructor argument rather than a generic parameter, for the same
+///     reason as <see cref="RegisterEventsFrame" /> — closing this frame through <c>CloseAndBuildAs</c>
+///     put an <see cref="Activator" /> call on a startup path that runs even under
+///     <c>TypeLoadMode.Static</c>, and ILC trims the constructor of a generic frame nothing references
+///     statically. This is the DCB twin of the crash reported on the single-stream path.
+///     </para>
 /// </remarks>
-internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : class
+internal class RegisterBoundaryEventsFrame : MethodCall
 {
-    public RegisterBoundaryEventsFrame(Variable returnVariable) : base(typeof(IEventBoundary<T>),
-        FindMethod(returnVariable.VariableType))
+    public RegisterBoundaryEventsFrame(Variable returnVariable, Type modelType) : base(
+        BoundaryTypeFor(modelType),
+        FindMethod(modelType, returnVariable.VariableType))
     {
         Arguments[0] = returnVariable;
         CommentText = "Capturing events returned from handler and appending via DCB boundary";
     }
 
-    internal static MethodInfo FindMethod(Type responseType)
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes IEventBoundary<TModel> at codegen time, exactly as DcbModelAttribute already does on the same path.")]
+    internal static Type BoundaryTypeFor(Type modelType) => typeof(IEventBoundary<>).MakeGenericType(modelType);
+
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "The reflected members are IEventBoundary<TModel>.AppendMany/AppendOne, named via nameof and preserved by the model type's own registration. Same justification as BoundaryEventCaptureActionSource.")]
+    internal static MethodInfo FindMethod(Type modelType, Type responseType)
     {
+        var boundaryType = BoundaryTypeFor(modelType);
+
+        // AppendMany is overloaded - IEnumerable<object> and object[] - so the parameter types have to
+        // be spelled out rather than looked up by name alone.
         return responseType.CanBeCastTo<IEnumerable<object>>()
-            ? ReflectionHelper.GetMethod<IEventBoundary<T>>(x => x.AppendMany(new List<object>()))!
-            : ReflectionHelper.GetMethod<IEventBoundary<T>>(x => x.AppendOne(null!))!;
+            ? boundaryType.GetMethod(nameof(IEventBoundary<object>.AppendMany), [typeof(IEnumerable<object>)])!
+            : boundaryType.GetMethod(nameof(IEventBoundary<object>.AppendOne), [typeof(object)])!;
     }
 }
 
@@ -41,29 +59,35 @@ internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : class
 ///     Handles async enumerable return values by appending each event via
 ///     <see cref="IEventBoundary{T}.AppendOne" />.
 /// </summary>
-internal class ApplyBoundaryEventsFromAsyncEnumerableFrame<T> : AsyncFrame where T : class
+/// <remarks>
+///     GH-4752: the model type is a constructor argument rather than a generic parameter — see
+///     <see cref="RegisterBoundaryEventsFrame" />.
+/// </remarks>
+internal class ApplyBoundaryEventsFromAsyncEnumerableFrame : AsyncFrame
 {
+    private readonly Type _modelType;
     private readonly Variable _returnValue;
     private Variable? _boundary;
 
-    public ApplyBoundaryEventsFromAsyncEnumerableFrame(Variable returnValue)
+    public ApplyBoundaryEventsFromAsyncEnumerableFrame(Variable returnValue, Type modelType)
     {
         _returnValue = returnValue;
+        _modelType = modelType;
         uses.Add(returnValue);
     }
 
     public string Description => "Append events from async enumerable to DCB boundary for " +
-                                 typeof(T).FullNameInCode();
+                                 _modelType.FullNameInCode();
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _boundary = chain.FindVariable(typeof(IEventBoundary<T>));
+        _boundary = chain.FindVariable(RegisterBoundaryEventsFrame.BoundaryTypeFor(_modelType));
         yield return _boundary;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var variableName = (typeof(T).Name + "Event").ToCamelCase();
+        var variableName = (_modelType.Name + "Event").ToCamelCase();
 
         writer.WriteComment(Description);
         writer.Write(
