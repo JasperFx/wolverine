@@ -1,5 +1,4 @@
 using System.Reflection;
-using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
@@ -36,6 +35,17 @@ public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext
     
     ValueTask<T> BuildAsync(CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Builds the DbContext for the message's tenant WITHOUT enlisting the <see cref="MessageContext" /> in an EF
+    /// Core outbox transaction, unlike <see cref="BuildAndEnrollAsync" />. For a chain that takes the DbContext but
+    /// is not transactional: nothing would commit a transaction it was enlisted in, so every message it sent or
+    /// scheduled would be written into that transaction and silently dropped.
+    /// </summary>
+    ValueTask<T> BuildForTenantAsync(MessageContext messaging, CancellationToken cancellationToken)
+    {
+        return BuildAsync(messaging.TenantId!, cancellationToken);
+    }
+
     DbContextOptions<T> BuildOptionsForMain();
     
 }
@@ -48,42 +58,13 @@ internal class CreateTenantedDbContext<T> : MethodCall where T : DbContext
 }
 
 /// <summary>
-///     Builds the DbContext for the current message's tenant WITHOUT enlisting the <see cref="MessageContext" /> in
-///     an EF Core outbox transaction. <see cref="CreateTenantedDbContext{T}" /> enlists, which is right for the
-///     transactional middleware -- it inserts that frame itself and commits the transaction it enlisted in -- and
-///     wrong for any other chain: nothing commits the enlisted transaction, so every message the chain sends or
-///     schedules is written into it and silently dropped.
+///     The non-enlisting counterpart of <see cref="CreateTenantedDbContext{T}" />: the transactional middleware
+///     inserts that frame itself and commits the transaction it enlists in, and every other chain gets this one.
 /// </summary>
-internal class BuildTenantedDbContext<T> : AsyncFrame where T : DbContext
+internal class BuildTenantedDbContext<T> : MethodCall where T : DbContext
 {
-    private Variable _builder = null!;
-    private Variable _messaging = null!;
-    private Variable _cancellation = null!;
-
-    public BuildTenantedDbContext()
+    public BuildTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildForTenantAsync(null!, CancellationToken.None))!)
     {
-        DbContext = new Variable(typeof(T), this);
-    }
-
-    public Variable DbContext { get; }
-
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        _builder = chain.FindVariable(typeof(IDbContextBuilder<T>));
-        yield return _builder;
-
-        _messaging = chain.FindVariable(typeof(MessageContext));
-        yield return _messaging;
-
-        _cancellation = chain.FindVariable(typeof(CancellationToken));
-        yield return _cancellation;
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        writer.Write(
-            $"await using var {DbContext.Usage} = await {_builder.Usage}.{nameof(IDbContextBuilder<T>.BuildAsync)}({_messaging.Usage}.{nameof(MessageContext.TenantId)}, {_cancellation.Usage}).ConfigureAwait(false);");
-        Next?.GenerateCode(method, writer);
     }
 }
 
@@ -101,6 +82,6 @@ internal class TenantedDbContextSource<T> : IVariableSource where T : DbContext
 
     public Variable Create(Type type)
     {
-        return new BuildTenantedDbContext<T>().DbContext;
+        return new BuildTenantedDbContext<T>().ReturnVariable!;
     }
 }
