@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
@@ -122,5 +123,56 @@ public class mark_as_handled_command_shape : PostgresqlContext
         // partitioning in the first place.
         store.BuildMarkIncomingAsHandled(theEnvelope, DateTimeOffset.UtcNow, "@id", "@uri", "@keepUntil").Sql
             .ShouldStartWith("delete from");
+    }
+
+    [Theory]
+    [InlineData(MessageIdentity.IdOnly, false, 1)]
+    [InlineData(MessageIdentity.IdOnly, true, 2)]
+    [InlineData(MessageIdentity.IdAndDestination, false, 1)]
+    [InlineData(MessageIdentity.IdAndDestination, true, 2)]
+    public async Task the_command_is_broken_out_one_statement_at_a_time(MessageIdentity identity, bool partitioned,
+        int expected)
+    {
+        await using var store = storeFor(identity, partitioned);
+
+        var command = store.BuildMarkIncomingAsHandled(theEnvelope, DateTimeOffset.UtcNow, "?", "?", "?");
+
+        command.Statements.Count.ShouldBe(expected);
+
+        // THE GH-4736 defect. Marten's QueueSqlCommand throws on any SQL containing a ';', so handing it the
+        // joined string dead-lettered every durable-inbox message under partitioning. The partitioned shape
+        // stays two statements; what changed is that a caller can now queue them one at a time.
+        foreach (var statement in command.Statements)
+        {
+            statement.Sql.ShouldNotContain(";");
+        }
+    }
+
+    [Theory]
+    [InlineData(MessageIdentity.IdOnly, false)]
+    [InlineData(MessageIdentity.IdOnly, true)]
+    [InlineData(MessageIdentity.IdAndDestination, false)]
+    [InlineData(MessageIdentity.IdAndDestination, true)]
+    public async Task each_statement_carries_its_own_arguments_in_its_own_order(MessageIdentity identity,
+        bool partitioned)
+    {
+        await using var store = storeFor(identity, partitioned);
+        var envelope = theEnvelope;
+        var keepUntil = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        var command = store.BuildMarkIncomingAsHandled(envelope, keepUntil, "?", "?", "?");
+
+        // Splitting the command put each argument on one statement or the other. Counting the whole command
+        // would still pass with the keep_until bound into the DELETE and the ids into the UPDATE -- which is a
+        // bind error at commit time on a path only durable-inbox traffic reaches.
+        foreach (var statement in command.Statements)
+        {
+            statement.Arguments.Length.ShouldBe(statement.Sql.Count(c => c == '?'),
+                $"Wrong argument count for: {statement.Sql}");
+        }
+
+        // And the joined form the ADO callers still use is unchanged by the split
+        command.Sql.ShouldBe(command.Statements.Select(x => x.Sql).Join(";"));
+        command.Arguments.ShouldBe(command.Statements.SelectMany(x => x.Arguments).ToArray());
     }
 }

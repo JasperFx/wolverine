@@ -171,27 +171,19 @@ public abstract partial class MessageDatabase<T>
     {
         var table = MarkAsHandledTableName;
 
-        // Collected in placeholder order as the statement is composed. Null envelope means a name-binding
+        // Collected in placeholder order as each statement is composed. Null envelope means a name-binding
         // caller that only wants the SQL, so nothing is accumulated.
-        var arguments = new List<object>();
-        void id() => arguments.Add(envelope!.Id);
-        void uri() => arguments.Add(envelope!.Destination!.ToString());
-        void keep() => arguments.Add(keepUntil);
         var collecting = envelope != null;
+        object id() => envelope!.Id;
+        object uri() => envelope!.Destination!.ToString();
 
         var update =
             $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
 
         if (!Durability.EnableInboxPartitioning)
         {
-            if (collecting)
-            {
-                keep();
-                id();
-                uri();
-            }
-
-            return new MarkAsHandledCommand(update, arguments.ToArray());
+            return new MarkAsHandledCommand(update,
+                collecting ? [keepUntil, id(), uri()] : []);
         }
 
         // The existence check has to use whichever identity the TABLE was keyed with, not the row-matching
@@ -204,31 +196,32 @@ public abstract partial class MessageDatabase<T>
             ? $"select 1 from {table} h where h.id = {idExpression} and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'"
             : $"select 1 from {table} h where h.id = {idExpression} and h.{DatabaseConstants.ReceivedAt} = {uriExpression} and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'";
 
+        var delete =
+            $"delete from {table} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' " +
+            $"and exists ({handledExists})";
+
+        // GH-4736: two statements, kept apart. Joining them with ';' and handing the result to a caller as one
+        // string is what broke Marten: QueueSqlCommand refuses any SQL containing a ';', so every durable-inbox
+        // message committing through a Marten session was dead-lettered. MarkAsHandledCommand still exposes the
+        // joined form for the callers that put it straight on an ADO CommandText.
+        object[] deleteArguments = [];
+        object[] updateArguments = [];
+
         if (collecting)
         {
-            // delete ... where id = ? and received_at = ?
-            id();
-            uri();
-
-            // ... and exists (select 1 ... h.id = ? [and h.received_at = ?])
-            id();
-            if (!identityIsIdOnly)
-            {
-                uri();
-            }
+            // delete ... where id = ? and received_at = ? ... and exists (... h.id = ? [and h.received_at = ?])
+            deleteArguments = identityIsIdOnly
+                ? [id(), uri(), id()]
+                : [id(), uri(), id(), uri()];
 
             // update ... keep_until = ? where id = ? and received_at = ?
-            keep();
-            id();
-            uri();
+            updateArguments = [keepUntil, id(), uri()];
         }
 
-        var sql =
-            $"delete from {table} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' " +
-            $"and exists ({handledExists});" +
-            $"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'";
-
-        return new MarkAsHandledCommand(sql, arguments.ToArray());
+        return new MarkAsHandledCommand(
+            new MarkAsHandledStatement(delete, deleteArguments),
+            new MarkAsHandledStatement($"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'",
+                updateArguments));
     }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
