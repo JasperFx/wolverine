@@ -56,7 +56,7 @@ public class deduplicated_with_response : IAsyncLifetime
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
-                    type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedEndpoint)
+                    type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
                             && type != typeof(MissingResourceDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
@@ -303,7 +303,7 @@ public class deduplicated_with_response : IAsyncLifetime
         // Middleware answered 202 before the endpoint ran: nothing was done, so nothing may be held.
         var key = Guid.NewGuid().ToString();
 
-        await postAsync(new DeduplicatedOrder(EarlyExitDeduplicatedEndpoint.Early), key, 202,
+        await postAsync(new DeduplicatedOrder(EarlyExitDeduplicatedResponseEndpoint.Early), key, 202,
             url: "/deduplicated-response/early-exit");
         await postAsync(new DeduplicatedOrder("after the early exit"), key, 201,
             url: "/deduplicated-response/early-exit");
@@ -587,7 +587,7 @@ public static class MissingResourceDeduplicatedEndpoint
     }
 }
 
-public static class EarlyExitDeduplicatedEndpoint
+public static class EarlyExitDeduplicatedResponseEndpoint
 {
     public const string Early = "early";
 
