@@ -895,7 +895,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     public Type? TryDetermineTransactionOwnerType(IChain chain, IServiceContainer container)
     {
-        if (!CanApply(chain, container)) return null;
+        // A DbContext reached only through a load attribute owns the transaction just as surely as an injected
+        // one -- AutoApplyTransactions and [Transactional] already claim such a chain through the same set
+        if (!CanApply(chain, container) && !DbContextTypesFromLoadAttributes(chain, container).Any()) return null;
 
         try
         {
