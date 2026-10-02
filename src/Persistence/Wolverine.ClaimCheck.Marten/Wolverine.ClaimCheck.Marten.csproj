@@ -18,6 +18,12 @@
 
     <ItemGroup>
       <PackageReference Include="Marten" />
+      <!-- This project reaches Marten without going through Wolverine.RDBMS/.Postgresql, so it was
+           the one place the Weasel pins never reached and the whole Weasel set resolved at whatever
+           Marten asks for. Referencing these directly puts it on the pinned line like everything
+           else. See the Weasel.Storage note in Directory.Packages.props. -->
+      <PackageReference Include="Weasel.Storage" />
+      <PackageReference Include="Weasel.Postgresql" />
     </ItemGroup>
 
 </Project>
