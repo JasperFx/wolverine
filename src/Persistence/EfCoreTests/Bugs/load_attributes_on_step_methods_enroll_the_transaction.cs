@@ -28,7 +28,11 @@ public class load_attributes_on_step_methods_enroll_the_transaction : IAsyncLife
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(RenameInBeforeHandler))
                     .IncludeType(typeof(RenameInBeforeTransactionalHandler))
-                    .IncludeType(typeof(RenameAllInValidateHandler));
+                    .IncludeType(typeof(RenameAllInValidateHandler))
+                    .IncludeType(typeof(RenameFirstOrDefaultInBeforeHandler))
+                    .IncludeType(typeof(RenameQueryableInBeforeHandler))
+                    .IncludeType(typeof(RenameSpecificationInBeforeHandler))
+                    .IncludeType(typeof(RenameAllInLoadHandler));
 
                 opts.Services.AddDbContextWithWolverineIntegration<RenamerDbContext>(o =>
                 {
@@ -75,6 +79,10 @@ public class load_attributes_on_step_methods_enroll_the_transaction : IAsyncLife
     [InlineData(typeof(RenameInBefore))]
     [InlineData(typeof(RenameInBeforeTransactional))]
     [InlineData(typeof(RenameAllInValidate))]
+    [InlineData(typeof(RenameFirstOrDefaultInBefore))]
+    [InlineData(typeof(RenameQueryableInBefore))]
+    [InlineData(typeof(RenameSpecificationInBefore))]
+    [InlineData(typeof(RenameAllInLoad))]
     public void a_load_attribute_on_a_step_makes_the_chain_transactional(Type messageType)
     {
         _host.GetRuntime().Handlers.HandlerFor(messageType);
@@ -116,6 +124,20 @@ public class load_attributes_on_step_methods_enroll_the_transaction : IAsyncLife
 
         (await nameOfAsync(id)).ShouldBe("renamed");
     }
+
+    [Theory]
+    [InlineData(typeof(RenameFirstOrDefaultInBefore))]
+    [InlineData(typeof(RenameQueryableInBefore))]
+    [InlineData(typeof(RenameSpecificationInBefore))]
+    [InlineData(typeof(RenameAllInLoad))]
+    public async Task a_load_attribute_on_a_step_saves_the_mutation(Type messageType)
+    {
+        var id = await seedAsync();
+
+        await _host.InvokeMessageAndWaitAsync(Activator.CreateInstance(messageType)!);
+
+        (await nameOfAsync(id)).ShouldBe("renamed");
+    }
 }
 
 public record RenameInBefore(Guid Id);
@@ -123,6 +145,14 @@ public record RenameInBefore(Guid Id);
 public record RenameInBeforeTransactional(Guid Id);
 
 public record RenameAllInValidate;
+
+public record RenameFirstOrDefaultInBefore;
+
+public record RenameQueryableInBefore;
+
+public record RenameSpecificationInBefore;
+
+public record RenameAllInLoad;
 
 // [WolverineIgnore]: other hosts in this assembly use conventional discovery and don't map RenamerItem
 [WolverineIgnore]
@@ -155,6 +185,58 @@ public static class RenameAllInValidateHandler
     }
 
     public static void Handle(RenameAllInValidate cmd)
+    {
+    }
+}
+
+[WolverineIgnore]
+public static class RenameFirstOrDefaultInBeforeHandler
+{
+    public static void Before([FirstOrDefault] RenamerItem? item)
+    {
+        if (item != null) item.Name = "renamed";
+    }
+
+    public static void Handle(RenameFirstOrDefaultInBefore cmd)
+    {
+    }
+}
+
+[WolverineIgnore]
+public static class RenameQueryableInBeforeHandler
+{
+    public static async Task Before([Queryable] IQueryable<RenamerItem> items)
+    {
+        foreach (var item in await items.ToListAsync()) item.Name = "renamed";
+    }
+
+    public static void Handle(RenameQueryableInBefore cmd)
+    {
+    }
+}
+
+[WolverineIgnore]
+public static class RenameSpecificationInBeforeHandler
+{
+    public static void Before([FromQuerySpecification(typeof(AllRenamerItems))] IReadOnlyList<RenamerItem> items)
+    {
+        foreach (var item in items) item.Name = "renamed";
+    }
+
+    public static void Handle(RenameSpecificationInBefore cmd)
+    {
+    }
+}
+
+[WolverineIgnore]
+public static class RenameAllInLoadHandler
+{
+    public static void Load([All] IReadOnlyList<RenamerItem> items)
+    {
+        foreach (var item in items) item.Name = "renamed";
+    }
+
+    public static void Handle(RenameAllInLoad cmd)
     {
     }
 }
