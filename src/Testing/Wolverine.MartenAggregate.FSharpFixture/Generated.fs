@@ -9,18 +9,19 @@ open Wolverine.Marten.Publishing
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type IncrementCounterHandler805386214(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _outboxedSessionFactory = outboxedSessionFactory
 
     override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         task {
-            // Building the Marten session
-            use documentSession = _outboxedSessionFactory.OpenSession(context)
             // The actual message body
             let incrementCounter = context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.IncrementCounter
 
             let counter_Id = incrementCounter.CounterId
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
             // Application-specific Open Telemetry auditing
             if not (isNull System.Diagnostics.Activity.Current) then
                 System.Diagnostics.Activity.Current.SetTag("counter.id", incrementCounter.CounterId) |> ignore
@@ -35,7 +36,8 @@ type IncrementCounterHandler805386214(outboxedSessionFactory: Wolverine.Marten.P
             // The actual message execution
             let outgoing1 = WolverineMartenAggregateFSharpSample.IncrementHandler.Handle(incrementCounter, eventStreamOfCounter.Aggregate)
 
-            eventStreamOfCounter.AppendOne(outgoing1)
+            if not (isNull (box outgoing1)) then
+                eventStreamOfCounter.AppendOne(outgoing1)
             
             // Save all pending changes to this Marten session
             do! documentSession.SaveChangesAsync(cancellation)

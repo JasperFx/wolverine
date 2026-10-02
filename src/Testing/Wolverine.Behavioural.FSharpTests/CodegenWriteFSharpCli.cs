@@ -60,12 +60,20 @@ public class CodegenWriteFSharpCli
             generatedFiles.ShouldNotBeEmpty();
 
             // The handler adapter the CLI produced must match the committed Generated.fs that the
-            // behavioural run-step compiles + executes under TypeLoadMode.Static.
+            // behavioural run-step compiles + executes under TypeLoadMode.Static. Read the committed
+            // bytes out of git rather than off disk: the sibling regeneration test overwrites the
+            // working-tree copy, so a disk read would only check drift when it happened to run first
+            // (GH-4754). See BehaviouralCodegen.ReadCommittedGeneratedFileAsync.
             var adapterFile = generatedFiles.Single(f =>
                 Path.GetFileName(f).StartsWith("BehaviouralPingHandler", StringComparison.Ordinal));
             var generatedAdapter = Normalize(await File.ReadAllTextAsync(adapterFile, TestContext.Current.CancellationToken));
-            var committedAdapter = Normalize(await File.ReadAllTextAsync(BehaviouralCodegen.GeneratedFilePath(), TestContext.Current.CancellationToken));
-            generatedAdapter.ShouldBe(committedAdapter);
+            var committedAdapter = Normalize(
+                await BehaviouralCodegen.ReadCommittedGeneratedFileAsync(TestContext.Current.CancellationToken));
+
+            generatedAdapter.ShouldBe(committedAdapter,
+                "The committed src/Testing/Wolverine.Behavioural.FSharpApp/Generated.fs has drifted from what "
+                + "`codegen write --language fsharp` now emits. Run "
+                + "BehaviouralRunStep.generated_fsharp_regenerates_and_compiles and commit the regenerated file.");
 
             // The static HandlerRegistry was also emitted as valid F# (the Type[] accessors as F#
             // array literals) — this is what previously threw NotSupportedException.

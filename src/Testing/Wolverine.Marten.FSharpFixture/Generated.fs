@@ -9,6 +9,7 @@ open Wolverine.Marten.Publishing
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type CreateProductCommandHandler1629670092(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _outboxedSessionFactory = outboxedSessionFactory
