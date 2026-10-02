@@ -12,17 +12,10 @@ public partial class RavenDbDurabilityAgent
     {
         try
         {
-            using var session = _store.OpenAsyncSession();
-            var listeners = await session.Query<IncomingMessage>()
-                .Where(x => x.OwnerId == 0)
-                .Select(x => new { x.ReceivedAt })
-                .Distinct()
-                .ToListAsync();
+            var listeners = await findListenersWithRecoverableIncomingAsync();
 
-            foreach (var listener in listeners.Where(x => x.ReceivedAt != null))
+            foreach (var receivedAt in listeners)
             {
-                var receivedAt = listener.ReceivedAt!;
-
                 // GH-3590: exclusive and leader-pinned listeners run on exactly one node, which is not
                 // necessarily this one. Those endpoints recover their own inbox (ListenerInboxRecovery).
                 // Checked before the circuit lookup because FindListenerCircuit() falls back to the durable
@@ -47,6 +40,26 @@ public partial class RavenDbDurabilityAgent
         {
             _logger.LogError(e, "Error trying to recover messages from the durable inbox");
         }
+    }
+
+    /// <summary>
+    /// GH-4785. The listeners that actually have recoverable inbox documents. Both halves of the filter
+    /// matter: owner 0 on its own also matches every <c>Handled</c> document retained for idempotency --
+    /// and <see cref="RavenDbMessageStore.LoadPageOfGloballyOwnedIncomingAsync"/> filters those back out --
+    /// so each one would buy a spurious <c>WaitForNonStaleResults</c> page query every polling cycle for
+    /// the whole retention window. Mirrors the relational <c>CheckRecoverableIncomingMessagesOperation</c>,
+    /// which has always been <c>status = 'Incoming' and owner_id = 0</c>.
+    /// </summary>
+    private async Task<IReadOnlyList<Uri>> findListenersWithRecoverableIncomingAsync()
+    {
+        using var session = _store.OpenAsyncSession();
+        var listeners = await session.Query<IncomingMessage>()
+            .Where(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming)
+            .Select(x => new { x.ReceivedAt })
+            .Distinct()
+            .ToListAsync();
+
+        return listeners.Where(x => x.ReceivedAt != null).Select(x => x.ReceivedAt!).ToList();
     }
 
     private async Task recoverMessagesForListener(Uri listener, IListenerCircuit circuit)
