@@ -12,6 +12,24 @@
         <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618;VSTHRD200</NoWarn>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+        <!-- Audit the WHOLE package graph, not just direct references. Without this, NuGetAuditMode
+             defaults to "all" only for a project whose TargetFrameworkVersion is >= 10.0
+             (NuGet.targets), and this repo multi-targets, so the project-level restore spec is built
+             from the OUTER evaluation where TargetFrameworkVersion is empty - which lands on
+             "direct". Net effect: every transitive package in a 218-project graph went unaudited,
+             and that is how System.Formats.Asn1 7.0.0 (GHSA-447r-wph3-92pm, HIGH) sat in the net9.0
+             graph unreported. See GH-4773.
+
+             NU1901/NU1902 (low/moderate) are reported but do NOT fail the build. The build is
+             warnings-as-errors, and a transitive advisory lands when an upstream maintainer
+             publishes one - no commit here - so leaving low/moderate as hard errors would let a
+             third party turn all CI red on a graph this wide, for a finding that may have no
+             available fix. NU1903/NU1904 (high/critical) stay errors: those are worth stopping the
+             line for. Tighten by deleting the WarningsNotAsErrors line below; do not "fix" a
+             reported advisory by reverting NuGetAuditMode. -->
+        <NuGetAuditMode>all</NuGetAuditMode>
+        <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Version>6.45.0</Version>
