@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -52,11 +53,18 @@ internal class HandlerRegistryCodeFile : ICodeFile
     private readonly Type[] _messageTypes;
     private readonly string[] _generatedHandlerTypeNames;
     private readonly Type[] _routedMessageTypes;
+    private readonly Type[] _responseAwareTypes;
     private GeneratedType? _generatedType;
 
     public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes,
-        IEnumerable<string>? generatedHandlerTypeNames = null, IEnumerable<Type>? routedMessageTypes = null)
+        IEnumerable<string>? generatedHandlerTypeNames = null, IEnumerable<Type>? routedMessageTypes = null,
+        IEnumerable<Type>? responseAwareTypes = null)
     {
+        // GH-4778. Public-filtered and ordered for the same two reasons as the arrays below: a type the
+        // generated file cannot see cannot appear inside a typeof(), and the emitted rooting block is
+        // byte-compared by the codegen drift gate.
+        _responseAwareTypes = onlyPublic(responseAwareTypes ?? []);
+
         _handlerTypes = onlyPublic(handlerTypes);
         _messageTypes = onlyPublic(messageTypes);
 
@@ -89,7 +97,11 @@ internal class HandlerRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HandlerRegistry.GeneratedTypeName, typeof(HandlerRegistry));
 
-        foreach (var type in _handlerTypes.Concat(_messageTypes).Concat(_routedMessageTypes))
+        // GH-4778: _responseAwareTypes is in here too. It is routinely declared in a DIFFERENT assembly
+        // from the handler -- Marten's UpdatedAggregate is the reported case -- and the emitted rooting
+        // block names it inside a typeof(), which does not compile without the reference.
+        foreach (var type in _handlerTypes.Concat(_messageTypes).Concat(_routedMessageTypes)
+                     .Concat(_responseAwareTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -149,14 +161,27 @@ internal class HandlerRegistryCodeFile : ICodeFile
             // is exactly what threw MissingMethodException on startup in a native image for any message
             // type GH-4287 did not special-case. Neither router declares a generic constraint, so both
             // close over any message type at all.
-            yield return closedRouterRoot(typeof(Routing.MessageRouter<>), messageType);
-            yield return closedRouterRoot(typeof(Routing.EmptyMessageRouter<>), messageType);
+            yield return closedGenericRoot(typeof(Routing.MessageRouter<>), messageType);
+            yield return closedGenericRoot(typeof(Routing.EmptyMessageRouter<>), messageType);
+        }
+
+        // GH-4778. Chain.tryApplyResponseAware closes Applier<T> over the chain's IResponseAware return
+        // type at startup, TypeLoadMode.Static included, and nothing else names that instantiation --
+        // the response type itself being rooted does not create it. Applier<T> is the dispatch mechanism
+        // for a static abstract interface member, so it cannot be de-genericized the way #4764's frames
+        // were; rooting the closed type is the fix available, and it is the one GH-4287 already used for
+        // MessageRouter<T>.
+        foreach (var responseAwareType in _responseAwareTypes)
+        {
+            yield return AttributeArg.Type(responseAwareType);
+            yield return closedGenericRoot(typeof(Applier<>), responseAwareType);
         }
     }
 
     /// <summary>
-    ///     Closes one of the open router generics over a message type so it can be named inside a
-    ///     <c>[DynamicDependency]</c>.
+    ///     Closes one of the open generics the runtime closes reflectively — <c>MessageRouter&lt;&gt;</c>,
+    ///     <c>EmptyMessageRouter&lt;&gt;</c> or <c>Applier&lt;&gt;</c> — over a single type argument, so it
+    ///     can be named inside a <c>[DynamicDependency]</c>.
     /// </summary>
     /// <remarks>
     ///     Deliberately its own method rather than an attribute on <see cref="buildAotRoots" />: that one
@@ -168,10 +193,10 @@ internal class HandlerRegistryCodeFile : ICodeFile
             "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand and never in a native image. Emitting these roots is exactly what removes the need for a native image to close these generics at runtime.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055",
         Justification =
-            "The open generic is always MessageRouter<> or EmptyMessageRouter<>, neither of which declares a generic constraint, so there are no requirements for the trimmer to guarantee. The closed type is only ever named inside an emitted [DynamicDependency] -- it is never instantiated here.")]
-    private static AttributeArg closedRouterRoot(Type openRouterType, Type messageType)
+            "Neither router generic declares a constraint. Applier<T> constrains T to IResponseAware, and its argument comes from Chain.ReturnVariablesOfType(typeof(IResponseAware)) -- a CanBeCastTo filter against that very interface -- so the constraint holds by construction. The closed type is only ever named inside an emitted [DynamicDependency]; it is never instantiated here.")]
+    private static AttributeArg closedGenericRoot(Type openType, Type argument)
     {
-        return AttributeArg.Type(openRouterType.MakeGenericType(messageType));
+        return AttributeArg.Type(openType.MakeGenericType(argument));
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,

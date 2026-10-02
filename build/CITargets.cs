@@ -1273,6 +1273,29 @@ partial class Build
             var process = ProcessTasks.StartProcess(publishSmokeOutput / binaryName,
                 workingDirectory: RootDirectory);
             process.AssertZeroExitCode();
+
+            // GH-4778. The HTTP entry path, which every smoke above misses: all four reference
+            // Wolverine.csproj alone, so HttpGraph.DiscoverEndpoints -- the frame at the top of the stack
+            // traces in GH-4752 and GH-4778 both -- never executed in a native image here. That is why this
+            // class of bug kept arriving from users' production publishes instead of from CI.
+            //
+            // Boots Wolverine.Http in a native image through MapWolverineEndpoints with an endpoint whose
+            // return type implements IResponseAware, and serves one request. Without the rooting block
+            // HttpEndpointRegistryCodeFile now emits, this does NOT crash: the registry is trimmed, the
+            // fallback scan finds nothing in a native image, and the host boots clean having discovered ZERO
+            // endpoints. Hence the smoke's own vacuity guard -- it asserts ConfigureResponse actually ran,
+            // which is the only thing that distinguishes a working API from a silently empty one.
+            var httpSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http" /
+                            "Wolverine.AotSmoke.Http.csproj";
+            var httpSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http" /
+                                  "bin" / "aot-http";
+            DotNet(
+                $"publish {httpSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {httpSmokeOutput}");
+
+            var httpBinaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Http.exe" : "Wolverine.AotSmoke.Http";
+            var httpProcess = ProcessTasks.StartProcess(httpSmokeOutput / httpBinaryName,
+                workingDirectory: RootDirectory);
+            httpProcess.AssertZeroExitCode();
         });
 
     // ─── Codegen drift gate ────────────────────────────────────────────
@@ -1327,6 +1350,10 @@ partial class Build
                 RootDirectory / "src" / "Testing" / "ConsoleApp",
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Static",
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Publish",
+                // GH-4778. Its committed pre-gen is what CIAotSmoke's native HTTP lane runs, so it has to
+                // be held to the same freshness gate as the rest -- a stale tree here would make that lane
+                // assert against generated code nobody has regenerated since the emitters changed.
+                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http",
                 RootDirectory / "src" / "Http" / "CodeGenTarget",
                 RootDirectory / "src" / "Http" / "StaticCodeGenDemonstrator",
                 RootDirectory / "src" / "Http" / "DeepMiddlewareUsage"
