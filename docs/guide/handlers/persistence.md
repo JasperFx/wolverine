@@ -376,12 +376,6 @@ fails at bootstrapping time with an error naming the provider, rather than retur
 runtime. Load the value explicitly in a `Before` method instead.
 :::
 
-::: tip
-On Fisher, a document table is created lazily on first write, and querying a type that has never been
-written throws rather than returning nothing. That applies to any Fisher query, not just this attribute,
-but it is worth knowing if a brand new deployment hits a `[FirstOrDefault]` before anything is stored.
-:::
-
 ## Reading Every Document of a Type <Badge type="tip" text="6.28" />
 
 Where [`[FirstOrDefault]`](#reading-the-first-of-a-type) gives you one, `[All]` gives you all of them —
