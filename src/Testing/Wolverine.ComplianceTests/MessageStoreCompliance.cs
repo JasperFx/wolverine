@@ -400,6 +400,70 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-4739. A Handled row is kept only for idempotency and nothing recovers it, so it has no owner -- the same as
+    /// a row inserted already Handled (<c>Envelope.ForPersistedHandled</c>). Left owned by the node that handled it,
+    /// every later release of that node's ownership (listener drain, node departure, orphan sweep) rewrites the
+    /// retained rows, and they fill the owner index the release statements seek.
+    /// </summary>
+    [Fact]
+    public virtual async Task mark_envelope_as_handled_releases_its_owner()
+    {
+        if (thePersistence is not IMessageDatabase) return;
+
+        var envelope = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        await theOwnerShouldBeReleasedAsync(envelope);
+    }
+
+    /// <summary>
+    /// GH-4739. The batched mark-as-handled builds its own statement, so it has to release the owner as well.
+    /// </summary>
+    [Fact]
+    public virtual async Task mark_several_envelopes_as_handled_releases_their_owner()
+    {
+        if (thePersistence is not IMessageDatabase) return;
+
+        var envelope1 = ObjectMother.Envelope();
+        var envelope2 = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope1);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope2);
+
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync([envelope1, envelope2]);
+
+        await theOwnerShouldBeReleasedAsync(envelope1);
+        await theOwnerShouldBeReleasedAsync(envelope2);
+    }
+
+    /// <summary>
+    /// GH-4739. The in-transaction mark-as-handled (EF Core, and the statement Marten, Polecat and Fisher queue).
+    /// </summary>
+    [Fact]
+    public virtual async Task mark_envelope_as_handled_in_transaction_releases_its_owner()
+    {
+        if (thePersistence is not IMessageDatabase database) return;
+
+        var envelope = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        await markAsHandledInTransactionAsync(database, envelope);
+
+        await theOwnerShouldBeReleasedAsync(envelope);
+    }
+
+    private async Task theOwnerShouldBeReleasedAsync(Envelope envelope)
+    {
+        var stored = (await thePersistence.Admin.AllIncomingAsync())
+            .Single(x => x.Id == envelope.Id && x.Destination == envelope.Destination);
+
+        stored.Status.ShouldBe(EnvelopeStatus.Handled);
+        stored.OwnerId.ShouldBe(TransportConstants.AnyNode,
+            "A Handled row is never recovered, so leaving it owned only makes every release of that owner rewrite it.");
+    }
+
+    /// <summary>
     /// Mark the envelope handled the way <c>EfCoreEnvelopeTransaction.CommitAsync</c> does: on a caller-owned
     /// connection, inside a caller-owned transaction, then commit.
     /// </summary>

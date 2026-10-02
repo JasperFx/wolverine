@@ -262,7 +262,7 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
-            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
+            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
             $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
         cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
         cmd.With("id", envelope.Id);
@@ -287,7 +287,7 @@ internal partial class OracleMessageStore
     {
         await using var cmd = ((OracleConnection)conn).CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
-            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
+            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
             $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
         if (tx != null)
         {
@@ -311,7 +311,7 @@ internal partial class OracleMessageStore
         {
             await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
-                $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
+                $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
                 $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
             cmd.Transaction = tx;
             cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });

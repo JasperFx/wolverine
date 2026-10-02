@@ -114,7 +114,7 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         DateTimeOffset keepUntil, CancellationToken cancellation)
     {
         var cmd = conn.CreateCommand(
-                $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id and {DatabaseConstants.ReceivedAt} = @uri")
+                $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} where id = @id and {DatabaseConstants.ReceivedAt} = @uri")
             .With("id", envelope.Id)
             .With("keep", keepUntil)
             .With("uri", envelope.Destination!.ToString());
@@ -137,7 +137,7 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         string idExpression, string uriExpression, string keepUntilExpression)
     {
         var sql =
-            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
+            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression}, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
 
         return new MarkAsHandledCommand(sql, [keepUntil, envelope.Id, envelope.Destination!.ToString()]);
     }
