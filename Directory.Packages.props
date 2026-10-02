@@ -8,13 +8,15 @@
          this file is an explicit PackageReference in the project that needs it — see the SSH.NET,
          Microsoft.CodeAnalysis.CSharp.Workspaces and Weasel.Storage notes below.
 
-         Turning transitive pinning on is not currently possible. JasperFx.RuntimeCompiler 5.0.0
-         pulls Microsoft.CodeAnalysis.Workspaces.Common (= 5.0.0) while the pinned
-         Microsoft.CodeAnalysis.CSharp.Workspaces 4.14.0 pulls (= 4.14.0); two *exact* constraints on
-         one package cannot both be satisfied by a single pin, so restore fails NU1107 in 64
-         projects. A further nine packages hit NU1109 downgrades, four of them forced by
-         Fisher/Polecat into cross-major lifts on net9.0. Measured on GH-4768; re-measure there
-         before trying again. -->
+         Turning transitive pinning on is a deliberate NO, settled on GH-4768 by measurement. Two
+         costs decided it. First, pinning collapses every version *range* below to its floor, so
+         the compatibility ranges on core WolverineFx's Microsoft.Extensions.* dependencies would
+         have to be replaced by raised hard floors — including Microsoft.Extensions.Hosting.Abstractions
+         10.0.0 on net9.0, forced by Fisher/Polecat, plus Microsoft.Data.SqlClient 7.0.0 and Npgsql
+         10.x on net10.0. Second, pinning promotes every pinned transitive package into the
+         *published* nuspec as a direct dependency: WolverineFx.RabbitMQ measured 3 published
+         dependencies with pinning off and 19 with it on. Seeing transitive exposure is better
+         answered by NuGetAuditMode (GH-4773) at none of that cost. -->
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.2" />
@@ -78,14 +80,6 @@
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.8" />
     <PackageVersion Include="Microsoft.Azure.SignalR" Version="1.32.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <!-- Pinned so the EF Core projects unify on the 4.14.0 Roslyn line. Core WolverineFx no
-         longer references JasperFx.RuntimeCompiler (#2876), which previously pulled
-         CodeAnalysis.CSharp.Workspaces 4.14.0 and masked EF Core Design's transitive 4.8.0
-         (conflicting with Workspaces.MSBuild 4.14.0). WolverineFx.EntityFrameworkCore
-         references this directly so the unification flows to all EF sample/test projects. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
     <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="9.0.5" />
     <PackageVersion Include="Microsoft.FeatureManagement" Version="3.2.0" />
@@ -228,6 +222,14 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Roslyn is per-TFM, because JasperFx.RuntimeCompiler 5.0.0 asks for a different line in each
+         of its own dependency groups. On net10.0 it asks for Microsoft.CodeAnalysis exactly 5.0.0,
+         and EF Core Design 10.0.4 brings Workspaces.MSBuild 5.0.0, so 5.0.0 is the line here. See
+         the net9.0 group below for the 4.14.0 half and why these pins are TFM-scoped at all. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
   </ItemGroup>
   <!-- TFM-conditional EF Core ecosystem -->
   <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
@@ -237,6 +239,17 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.5" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+    <!-- On net9.0 the Roslyn line is 4.14.0: JasperFx.RuntimeCompiler 5.0.0 asks for
+         Microsoft.CodeAnalysis [4.14.0, 6.0.0) in its net9.0 group and NuGet takes the floor. These
+         pins unify EF Core Design 9.0.5's transitive CSharp.Workspaces 4.8.0 up to that line — it
+         used to be masked by core WolverineFx's own JasperFx.RuntimeCompiler reference, removed in
+         #2876. Wolverine.EntityFrameworkCore references CSharp.Workspaces and Workspaces.MSBuild
+         directly from its *net9.0-conditional* ItemGroup, so the unification flows to the EF
+         sample/test projects — and that conditional scope is the reason these four pins live in a
+         TFM group rather than the unconditional one. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
     <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="18.4.0" />
   </ItemGroup>
