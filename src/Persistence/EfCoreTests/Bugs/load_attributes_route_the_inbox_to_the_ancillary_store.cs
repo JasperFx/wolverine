@@ -28,6 +28,18 @@ public record LoadInBeforeTransactionalMessage3870(Guid Id);
 
 public record LoadInBeforeDesignatedMessage3870(Guid Id);
 
+public record LoadSpecificationInBeforeMessage3870(Guid Id);
+
+public record LoadQueryableInLoadMessage3870(Guid Id);
+
+[Transactional(typeof(Module3870DbContext))]
+public record LoadInBeforeDesignatedOnMessage3870(Guid Id);
+
+public class AllModels3870 : QueryListPlan<Module3870DbContext, ModelInModule3870>
+{
+    public override IQueryable<ModelInModule3870> Query(Module3870DbContext dbContext) => dbContext.SomeModels;
+}
+
 // A second DbContext candidate, so the transaction owner has to be designated
 public sealed class Lookup3870DbContext : DbContext
 {
@@ -82,6 +94,42 @@ public static class LoadInBeforeDesignatedMessage3870Handler
     }
 }
 
+[WolverineIgnore]
+public static class LoadSpecificationInBeforeMessage3870Handler
+{
+    public static void Before([FromQuerySpecification(typeof(AllModels3870))] IReadOnlyList<ModelInModule3870> models)
+    {
+    }
+
+    public static void Handle(LoadSpecificationInBeforeMessage3870 message)
+    {
+    }
+}
+
+[WolverineIgnore]
+public static class LoadQueryableInLoadMessage3870Handler
+{
+    public static void Load([Queryable] IQueryable<ModelInModule3870> models)
+    {
+    }
+
+    public static void Handle(LoadQueryableInLoadMessage3870 message)
+    {
+    }
+}
+
+[WolverineIgnore]
+public static class LoadInBeforeDesignatedOnMessage3870Handler
+{
+    public static void Before([All] IReadOnlyList<ModelInModule3870> models)
+    {
+    }
+
+    public static void Handle(LoadInBeforeDesignatedOnMessage3870 message, Lookup3870DbContext lookups)
+    {
+    }
+}
+
 public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLifetime
 {
     private IHost _host = null!;
@@ -100,7 +148,10 @@ public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLife
                     .IncludeType(typeof(LoadOnHandlerMessage3870Handler))
                     .IncludeType(typeof(LoadInBeforeMessage3870Handler))
                     .IncludeType(typeof(LoadInBeforeTransactionalMessage3870Handler))
-                    .IncludeType(typeof(LoadInBeforeDesignatedMessage3870Handler));
+                    .IncludeType(typeof(LoadInBeforeDesignatedMessage3870Handler))
+                    .IncludeType(typeof(LoadSpecificationInBeforeMessage3870Handler))
+                    .IncludeType(typeof(LoadQueryableInLoadMessage3870Handler))
+                    .IncludeType(typeof(LoadInBeforeDesignatedOnMessage3870Handler));
 
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
@@ -140,7 +191,10 @@ public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLife
         new(typeof(LoadOnHandlerMessage3870)),
         new(typeof(LoadInBeforeMessage3870)),
         new(typeof(LoadInBeforeTransactionalMessage3870)),
-        new(typeof(LoadInBeforeDesignatedMessage3870))
+        new(typeof(LoadInBeforeDesignatedMessage3870)),
+        new(typeof(LoadSpecificationInBeforeMessage3870)),
+        new(typeof(LoadQueryableInLoadMessage3870)),
+        new(typeof(LoadInBeforeDesignatedOnMessage3870))
     ];
 
     [Theory]
