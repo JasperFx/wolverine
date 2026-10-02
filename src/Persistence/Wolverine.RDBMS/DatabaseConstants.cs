@@ -120,6 +120,20 @@ public class DatabaseConstants
     public const string Expires = "expires";
 
     /// <summary>
+    /// GH-4742. Claims for <c>[DeduplicatedWithResponse]</c> HTTP endpoints: the id, expiry, request
+    /// fingerprint and, once answered, the response. Separate from <see cref="DeduplicationTableName"/> so
+    /// that table never migrates for this feature. Provisioned only when
+    /// <c>DurabilitySettings.EnableDeduplicatedResponses</c> is set.
+    /// </summary>
+    public const string DeduplicatedResponsesTableName = "wolverine_deduplicated_responses";
+
+    public const string Fingerprint = "fingerprint";
+    public const string ClaimToken = "claim_token";
+    public const string ResponseStatusCode = "status_code";
+    public const string ResponseBody = "body";
+    public const string ResponseLocation = "location";
+
+    /// <summary>
     /// Tracking table for recurring (cron) message schedules — one row per registered schedule,
     /// mapping the schedule name to the envelope id(s) of its pre-scheduled next occurrence plus
     /// pause state. Bookkeeping beside the inbox, never a delivery path: the scheduled inbox row

@@ -395,6 +395,15 @@ public class DurabilitySettings : IDescribeMyself
     public MessageDeduplicationMode MessageDeduplicationMode { get; set; } = MessageDeduplicationMode.None;
 
     /// <summary>
+    ///     GH-4742. Opt in to storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
+    ///     of a request with its first response. Provisions a separate <c>wolverine_deduplicated_responses</c>
+    ///     table, so it is independent of <see cref="EnableMessageDeduplication" />. Claims expire after
+    ///     <see cref="DeduplicationWindow" /> unless the endpoint sets its own, and are reaped on
+    ///     <see cref="DeduplicationCleanupPollingTime" />.
+    /// </summary>
+    public bool EnableDeduplicatedResponses { get; set; }
+
+    /// <summary>
     ///     GH-4180. How long a logical deduplication claim is honoured before the reaper removes it.
     ///     Default is 24 hours.
     ///
@@ -1012,12 +1021,13 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
         desc.AddValue(nameof(MessageDeduplicationMode), MessageDeduplicationMode);
-        if (MessageDeduplicationMode != MessageDeduplicationMode.None)
+        if (MessageDeduplicationMode != MessageDeduplicationMode.None || EnableDeduplicatedResponses)
         {
             desc.AddValue(nameof(DeduplicationWindow), DeduplicationWindow);
             desc.AddValue(nameof(DeduplicationCleanupPollingTime), DeduplicationCleanupPollingTime);
         }
 
+        desc.AddValue(nameof(EnableDeduplicatedResponses), EnableDeduplicatedResponses);
         desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);

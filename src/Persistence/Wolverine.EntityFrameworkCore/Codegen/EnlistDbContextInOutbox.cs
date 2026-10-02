@@ -132,20 +132,21 @@ internal class EnlistDbContextInOutbox : AsyncFrame, IFlushesMessages
 /// <c>EfCoreEnvelopeTransaction.PersistOutgoingAsync</c> open one itself for its raw ADO write -- and
 /// nothing else in a Lightweight chain would ever commit it.</item>
 /// </list>
+/// <para>GH-4742: this frame never flushes. A chain that needs the buffered cascades sent gets
+/// <see cref="FlushOutboxAfterCommit" /> emitted immediately after it, so that a postprocessor can sit
+/// strictly between the two.</para>
 /// </summary>
 internal class ScrapeDomainEventsAndSaveChanges : AsyncFrame
 {
     private readonly Type _dbContextType;
-    private readonly bool _flushOutgoing;
     private Variable _dbContext = null!;
     private Variable _context = null!;
     private Variable _cancellation = null!;
     private Variable _scrapers = null!;
 
-    public ScrapeDomainEventsAndSaveChanges(Type dbContextType, bool flushOutgoing)
+    public ScrapeDomainEventsAndSaveChanges(Type dbContextType)
     {
         _dbContextType = dbContextType;
-        _flushOutgoing = flushOutgoing;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -165,11 +166,6 @@ internal class ScrapeDomainEventsAndSaveChanges : AsyncFrame
         writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
 
-        if (_flushOutgoing)
-        {
-            writer.Write($"await {_context.Usage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}().ConfigureAwait(false);");
-        }
-
         Next?.GenerateCode(method, writer);
     }
 
@@ -186,21 +182,5 @@ internal class ScrapeDomainEventsAndSaveChanges : AsyncFrame
 
         _cancellation = chain.FindVariable(typeof(CancellationToken));
         yield return _cancellation;
-    }
-}
-
-/// <summary>
-/// GH-4611. Completes the outbox for a conjoined multi-tenanted DbContext in Lightweight mode.
-/// <see cref="IDbContextBuilder{T}.BuildAndEnrollAsync" /> already enlisted the MessageContext, so
-/// cascades are buffered; there is no explicit transaction to commit, but the buffer still has to be
-/// flushed after the SaveChangesAsync postprocessor. Implements <see cref="IFlushesMessages" /> so an
-/// HttpChain does not also append its own flush after the response writer.
-/// <para>GH-4630: it scrapes domain events first, for the same reason the base frame does -- the
-/// tenanted Lightweight path was a plain flush and ran no scrapers at all.</para>
-/// </summary>
-internal class FlushTenantedDbContextOutbox : ScrapeDomainEventsAndSaveChanges, IFlushesMessages
-{
-    public FlushTenantedDbContextOutbox(Type dbContextType) : base(dbContextType, true)
-    {
     }
 }

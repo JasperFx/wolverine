@@ -171,6 +171,16 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             $"where {DatabaseConstants.Expires} <= @now limit {batchSize});";
     }
 
+    /// <summary>GH-4742. As <see cref="BatchedDeleteExpiredDeduplicationClaimsSql" />.</summary>
+    public override string? BatchedDeleteExpiredDeduplicatedResponsesSql(int batchSize)
+    {
+        var table = this.TableNameFor(DatabaseConstants.DeduplicatedResponsesTableName);
+
+        return
+            $"delete from {table} where rowid in (select rowid from {table} " +
+            $"where {DatabaseConstants.Expires} <= @now limit {batchSize});";
+    }
+
     /// <summary>
     /// GH-4565. Whether <paramref name="ex"/> is a unique-constraint violation raised by the INBOX table
     /// specifically, as opposed to anywhere else in the transaction.
@@ -676,6 +686,12 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         else if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash)
         {
             yield return new HashedDeduplicationTable(SchemaName);
+        }
+
+        // GH-4742. Every store role, behind its own opt-in.
+        if (Durability.EnableDeduplicatedResponses)
+        {
+            yield return new DeduplicatedResponsesTable(SchemaName);
         }
 
         // Recurring-message tracking — Main store only, behind the opt-in. See the PostgreSQL twin.

@@ -43,8 +43,9 @@ namespace EfCoreTests.Bugs;
 /// mode) and for the round-trip cleanup invariant (the wolverine_outgoing row is
 /// removed after the durable destination consumes the cascaded message).
 ///
-/// (<see cref="Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction.CommitAsync"/>
-/// already flushes after commit in Eager mode; in Lightweight mode the message
+/// (the Eager-mode chain commits via
+/// <see cref="Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction.CommitAsync(System.Threading.CancellationToken, bool)"/>
+/// and flushes right after it — GH-4742 split those into two frames; in Lightweight mode the message
 /// pipeline's natural end-of-handler flush takes over after SaveChangesAsync commits.
 /// Either way, no separate FlushOutgoingMessages postprocessor is needed on handler
 /// chains.)

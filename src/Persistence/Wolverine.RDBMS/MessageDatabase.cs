@@ -165,6 +165,12 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             Deduplication = BuildDeduplicationStore();
         }
 
+        // GH-4742. Every store role, like the deduplication store above.
+        if (settings.EnableDeduplicatedResponses)
+        {
+            _deduplicatedResponses = buildDeduplicatedResponseStore();
+        }
+
         // Recurring-message tracking (see IRecurringMessageStore) — Main store only, like the
         // listener registry: the single cluster-wide recurring agent publishes through the main
         // store, so that is where the bookkeeping beside its inbox lives. Gated on the opt-in

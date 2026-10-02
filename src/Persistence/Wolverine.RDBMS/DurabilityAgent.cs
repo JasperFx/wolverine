@@ -34,6 +34,7 @@ internal class DurabilityAgent : IAgent
     private Timer? _nodeRecordPruningTimer;
     private Timer? _orphanSweepTimer;
     private Timer? _deduplicationCleanupTimer;
+    private Timer? _deduplicatedResponsesCleanupTimer;
 
     private readonly DurabilityHealthSignals _health;
     private DateTime _lastHealthCheck = DateTime.UtcNow;
@@ -155,6 +156,15 @@ internal class DurabilityAgent : IAgent
             }, _settings, _settings.DeduplicationCleanupPollingTime, _settings.DeduplicationCleanupPollingTime);
         }
 
+        // GH-4742. The same cadence for the [DeduplicatedWithResponse] claims, behind their own opt-in.
+        if (_settings.EnableDeduplicatedResponses)
+        {
+            _deduplicatedResponsesCleanupTimer = new Timer(_ =>
+            {
+                _runningBlock.Post(new DeleteExpiredDeduplicatedResponsesCommand(_database, _logger));
+            }, _settings, _settings.DeduplicationCleanupPollingTime, _settings.DeduplicationCleanupPollingTime);
+        }
+
         // GH-3701: node records only exist on the Main store, and their housekeeping is slow, unbounded-scan
         // work that has no business riding along on the recovery batch. See PruneNodeRecords.
         if (_database.Settings.Role == MessageStoreRole.Main)
@@ -216,6 +226,11 @@ internal class DurabilityAgent : IAgent
         if (_deduplicationCleanupTimer != null)
         {
             await _deduplicationCleanupTimer.DisposeAsync();
+        }
+
+        if (_deduplicatedResponsesCleanupTimer != null)
+        {
+            await _deduplicatedResponsesCleanupTimer.DisposeAsync();
         }
 
         Status = AgentStatus.Stopped;

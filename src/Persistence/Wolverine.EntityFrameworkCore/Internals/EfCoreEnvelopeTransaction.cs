@@ -184,9 +184,30 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         }
     }
 
-    public async ValueTask CommitAsync(CancellationToken cancellation)
+    public ValueTask CommitAsync(CancellationToken cancellation) => CommitAsync(cancellation, true);
+
+    /// <summary>
+    ///     GH-4742. The commit, with the outbox flush that normally follows it made optional so a generated
+    ///     chain can place a frame strictly BETWEEN the two.
+    ///     <para>
+    ///     <c>[DeduplicatedWithResponse]</c> has to record the response after the business transaction has
+    ///     committed (so a failed commit cannot leave a stored "success" behind) and before the outbox
+    ///     flushes (so a flush that throws leaves the work recorded — the envelope rows are durable by then
+    ///     and the durability agent will send them — rather than releasing the claim and letting the client's
+    ///     retry re-run a handler whose work is already committed). While the commit and the flush were one
+    ///     method, and therefore one frame, there was no position in <c>Postprocessors</c> that could express
+    ///     that.
+    ///     </para>
+    ///     <para>
+    ///     Passing <c>true</c> is exactly the old behaviour, which is what the parameterless
+    ///     <see cref="CommitAsync(CancellationToken)" /> — the <see cref="IEnvelopeTransaction" /> member, and
+    ///     what any already-generated code calls — still does. The split chain passes <c>false</c> here and
+    ///     emits the flush as its own frame (<c>FlushOutboxAfterCommit</c>).
+    ///     </para>
+    /// </summary>
+    public async ValueTask CommitAsync(CancellationToken cancellation, bool flushOutgoingMessages)
     {
-        // Scrape out domain events 
+        // Scrape out domain events
         foreach (var scraper in _scrapers)
         {
             await scraper.ScrapeEvents(DbContext, _messaging);
@@ -242,7 +263,10 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             await DbContext.Database.CurrentTransaction.CommitAsync(cancellation);
         }
 
-        await _messaging.FlushOutgoingMessagesAsync();
+        if (flushOutgoingMessages)
+        {
+            await _messaging.FlushOutgoingMessagesAsync();
+        }
     }
     
     public static bool IsDisposed(DbContext context)

@@ -403,6 +403,13 @@ public abstract partial class MessageDatabase<T>
                     .ExecuteNonQueryAsync(_cancellation);
             }
 
+            // GH-4742. The same, for [DeduplicatedWithResponse]: a surviving claim would replay a previous test's response.
+            if (Durability.EnableDeduplicatedResponses)
+            {
+                await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeduplicatedResponsesTableName)}")
+                    .ExecuteNonQueryAsync(_cancellation);
+            }
+
             if (_settings.Role == MessageStoreRole.Main)
             {
                 // Recurring-message tracking rows are Main-only bookkeeping (the table only

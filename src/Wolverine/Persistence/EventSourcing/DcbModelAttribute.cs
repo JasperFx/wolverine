@@ -213,10 +213,10 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "CloseAndBuildAs closes ApplyBoundaryEventsFromAsyncEnumerableFrame<>/RegisterBoundaryEventsFrame<> over the model type at codegen time. AOT consumers pre-generate via TypeLoadMode.Static.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "CloseAndBuildAs uses MakeGenericType at codegen time only. AOT consumers pre-generate via TypeLoadMode.Static so the reflective close never fires at runtime.")]
+    // GH-4752: both frames are constructed DIRECTLY with the model type as a plain constructor argument,
+    // rather than closed over it through CloseAndBuildAs. The chain model is built at startup even under
+    // TypeLoadMode.Static, so the Activator call that used to sit here ran in an AOT-published app
+    // against a closed generic frame whose constructor ILC had trimmed.
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Closes() only tests whether a handler parameter type closes IEventBoundary<>; it reads interfaces off a type already rooted by handler discovery.")]
     internal static void DetermineEventCaptureHandling(IChain chain, Type modelType,
@@ -229,10 +229,7 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
         if (asyncEnumerable != null)
         {
             asyncEnumerable.UseReturnAction(_ =>
-            {
-                return typeof(ApplyBoundaryEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(
-                    asyncEnumerable, modelType);
-            });
+                new ApplyBoundaryEventsFromAsyncEnumerableFrame(asyncEnumerable, modelType));
             return;
         }
 
@@ -248,9 +245,8 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
         if (eventsVariable != null)
         {
             eventsVariable.UseReturnAction(
-                v => typeof(RegisterBoundaryEventsFrame<>)
-                    .CloseAndBuildAs<MethodCall>(eventsVariable, modelType)
-                    .WrapIfNotNull(v), "Append events via DCB boundary");
+                v => new RegisterBoundaryEventsFrame(eventsVariable, modelType).WrapIfNotNull(v),
+                "Append events via DCB boundary");
             return;
         }
 
