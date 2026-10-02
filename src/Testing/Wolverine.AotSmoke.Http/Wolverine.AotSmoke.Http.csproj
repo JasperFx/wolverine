@@ -50,16 +50,7 @@
              Wolverine.AotSmoke.Publish. -->
         <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
 
-        <!-- IL2108 is NOT boilerplate, and is the one addition to the sibling lane's list. ILC rejects
-             Scope = "namespaceanddescendants" on UnconditionalSuppressMessageAttribute, which eight
-             GlobalSuppressions.cs files in this repo use (Wolverine.Http, Wolverine.Http.Marten,
-             Wolverine.Http.Newtonsoft, Wolverine.Grpc, Wolverine.AzureServiceBus and more). Roslyn accepts
-             that scope; the IL trimmer and ILC do not, so under ILC those suppressions suppress NOTHING,
-             and the repo's TreatWarningsAsErrors turns the resulting IL2108 into a failed publish. That is
-             a real defect worth its own issue, and it is why nobody had noticed: no AOT lane referenced
-             any of those packages until this project. Suppressed here so this lane reports on the GH-4778
-             rooting question rather than on that. -->
-        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2108;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
