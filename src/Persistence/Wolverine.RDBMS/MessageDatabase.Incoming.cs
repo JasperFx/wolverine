@@ -177,8 +177,11 @@ public abstract partial class MessageDatabase<T>
         object id() => envelope!.Id;
         object uri() => envelope!.Destination!.ToString();
 
+        // GH-4739: a Handled row is kept for idempotency only and nothing recovers it, so it gives up its owner --
+        // as a row inserted already Handled does (Envelope.ForPersistedHandled). Left owned, every later release
+        // of that node's ownership rewrote the retained rows, and they filled the owner index the releases seek.
         var update =
-            $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
+            $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression}, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
 
         if (!Durability.EnableInboxPartitioning)
         {
@@ -298,7 +301,7 @@ public abstract partial class MessageDatabase<T>
                 builder.Append($" and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}');");
             }
 
-            builder.Append($"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
+            builder.Append($"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} where id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append(" and ");
             builder.Append(DatabaseConstants.ReceivedAt);
