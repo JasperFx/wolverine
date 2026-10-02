@@ -87,6 +87,22 @@ public static class ValueSourceFromClaimEndpoint
     {
         return $"org:{orgId}";
     }
+
+    // .NET's standard claim types are URIs (e.g. http://schemas.xmlsoap.org/.../nameidentifier),
+    // so the generated variable name must not be built from the raw claim type
+    [WolverineGet("/test/from-claim/name-identifier")]
+    public static string GetNameIdentifierClaim(
+        [FromValueSource(FromClaim = ClaimTypes.NameIdentifier)] Guid userId)
+    {
+        return $"user:{userId}";
+    }
+
+    [WolverineGet("/test/from-claim/email")]
+    public static string GetEmailClaim(
+        [FromValueSource(FromClaim = ClaimTypes.Email)] string email)
+    {
+        return email ?? "no-email";
+    }
 }
 
 public static class ValueSourceFromMethodEndpoint
