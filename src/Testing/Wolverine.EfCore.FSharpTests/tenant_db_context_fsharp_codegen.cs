@@ -57,7 +57,8 @@ public class tenant_db_context_fsharp_codegen
 
             var code = generatedAssembly.GenerateFSharpCode(host.Services.GetService<IServiceVariableSource>());
 
-            code.ShouldContain("BuildForTenantAsync");
+            code.ShouldContain("(context: Wolverine.Runtime.MessageContext");
+            code.ShouldContain(".BuildAsync(context.TenantId, cancellation)");
             code.ShouldNotContain("BuildAndEnrollAsync");
         }
         finally

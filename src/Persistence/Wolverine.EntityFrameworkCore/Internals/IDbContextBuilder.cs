@@ -35,15 +35,6 @@ public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext
     
     ValueTask<T> BuildAsync(CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Builds the DbContext for the message's tenant without enlisting the <see cref="MessageContext" /> in an
-    /// outbox transaction, unlike <see cref="BuildAndEnrollAsync" />.
-    /// </summary>
-    ValueTask<T> BuildForTenantAsync(MessageContext messaging, CancellationToken cancellationToken)
-    {
-        return BuildAsync(messaging.TenantId!, cancellationToken);
-    }
-
     DbContextOptions<T> BuildOptionsForMain();
     
 }
@@ -55,10 +46,21 @@ internal class CreateTenantedDbContext<T> : MethodCall where T : DbContext
     }
 }
 
+// Builds the DbContext for the message's tenant without enlisting the MessageContext in an outbox transaction
 internal class BuildTenantedDbContext<T> : MethodCall where T : DbContext
 {
-    public BuildTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildForTenantAsync(null!, CancellationToken.None))!)
+    public BuildTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildAsync(string.Empty, CancellationToken.None))!)
     {
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        var context = chain.FindVariable(typeof(MessageContext));
+        Arguments[0] = new MemberAccessVariable(context, typeof(MessageContext).GetProperty(nameof(MessageContext.TenantId))!);
+
+        // The context itself has to be a dependency too, or F# discards the handler's context argument
+        yield return context;
+        foreach (var variable in base.FindVariables(chain)) yield return variable;
     }
 }
 
