@@ -404,12 +404,14 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     /// a row inserted already Handled (<c>Envelope.ForPersistedHandled</c>). Left owned by the node that handled it,
     /// every later release of that node's ownership (listener drain, node departure, orphan sweep) rewrites the
     /// retained rows, and they fill the owner index the release statements seek.
+    ///
+    /// GH-4784/GH-4785: this is a contract on every store, not only the relational ones -- the assertion reads
+    /// through <c>Admin.AllIncomingAsync()</c> and needs nothing of <c>IMessageDatabase</c>. Only the
+    /// in-transaction sibling below is genuinely relational.
     /// </summary>
     [Fact]
     public virtual async Task mark_envelope_as_handled_releases_its_owner()
     {
-        if (thePersistence is not IMessageDatabase) return;
-
         var envelope = ObjectMother.Envelope();
         await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
@@ -424,8 +426,6 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     [Fact]
     public virtual async Task mark_several_envelopes_as_handled_releases_their_owner()
     {
-        if (thePersistence is not IMessageDatabase) return;
-
         var envelope1 = ObjectMother.Envelope();
         var envelope2 = ObjectMother.Envelope();
         await thePersistence.Inbox.StoreIncomingAsync(envelope1);
@@ -439,6 +439,8 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
     /// <summary>
     /// GH-4739. The in-transaction mark-as-handled (EF Core, and the statement Marten, Polecat and Fisher queue).
+    /// This one keeps its <c>IMessageDatabase</c> guard: it takes a <c>DbConnection</c> and <c>DbTransaction</c>,
+    /// so there is nothing for a document store to run.
     /// </summary>
     [Fact]
     public virtual async Task mark_envelope_as_handled_in_transaction_releases_its_owner()
