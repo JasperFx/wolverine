@@ -193,9 +193,14 @@ The scope is required, and decides whose requests share a key:
 `DeduplicationScope.None` is refused at startup. Use `User`, or `Tenant | User`, unless every caller who
 could present a key is trusted to see the others' responses.
 
-Because anonymous callers all share one empty user, `User` on an endpoint with no authorization scopes by
-nothing — exactly what refusing `None` prevents. The host logs a warning naming the route at startup; it
-is only a warning because the caller may already be authenticated by an upstream gateway.
+Because anonymous callers all share one empty user, `User` on an endpoint with no authorization (no
+`[Authorize]`, and no fallback authorization policy) scopes by nothing — exactly what refusing `None`
+prevents. The host logs a warning naming the route at startup; it is only a warning because the caller
+may already be authenticated by an upstream gateway.
+
+`[AllowAnonymous]` opts an endpoint out of a fallback policy, so a `User`-scoped anonymous endpoint warns
+even when one is configured. That warning names the attribute as the reason, because the fix there is to
+reconsider the attribute or the scope rather than to add authorization.
 
 ### What counts as the same request
 

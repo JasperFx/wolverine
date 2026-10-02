@@ -185,6 +185,37 @@ public class deduplicated_with_response_declaration
     }
 
     [Fact]
+    public async Task a_user_scope_under_a_fallback_authorization_policy_does_not_warn()
+    {
+        // The policy authorizes every endpoint that declares nothing of its own, so there is nothing to declare.
+        var logs = new CapturingLoggerProvider();
+        await using var host = await startAsync(logs, persist: true, enable: true, services: requireAuthenticatedUsers);
+
+        logs.Warnings.ShouldNotContain(x => x.Contains("no authorization metadata"));
+    }
+
+    [Fact]
+    public async Task an_anonymous_endpoint_under_a_fallback_authorization_policy_still_warns()
+    {
+        // [AllowAnonymous] opts out of the fallback policy.
+        var logs = new CapturingLoggerProvider();
+        await using var host = await startAsync(logs, persist: true, enable: true,
+            endpoint: typeof(AnonymousDeduplicatedResponse), services: requireAuthenticatedUsers);
+
+        // Matched on the [AllowAnonymous] reason, not the shared prefix: this endpoint's host HAS a fallback
+        // policy, so the other message's "no fallback authorization policy is configured" would be false here.
+        // Asserting the prefix alone passed over that contradiction.
+        logs.Warnings.ShouldContain(x =>
+            x.Contains("/declaration/anonymous") && x.Contains("marked [AllowAnonymous]"));
+
+        logs.Warnings.ShouldNotContain(x => x.Contains("no fallback authorization policy is configured"));
+    }
+
+    private static void requireAuthenticatedUsers(IServiceCollection services)
+        => services.AddAuthorization(x =>
+            x.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+    [Fact]
     public void an_unknown_scope_is_refused_at_startup()
     {
         Should.Throw<InvalidOperationException>(() =>
@@ -221,7 +252,7 @@ public class deduplicated_with_response_declaration
     }
 
     private static async Task<IAlbaHost> startAsync(CapturingLoggerProvider logs, bool persist = false,
-        bool enable = false, Type? endpoint = null, Action<HttpChain>? configure = null)
+        bool enable = false, Type? endpoint = null, Action<HttpChain>? configure = null, Action<IServiceCollection>? services = null)
     {
         endpoint ??= typeof(StorelessDeduplicatedResponse);
 
@@ -242,6 +273,7 @@ public class deduplicated_with_response_declaration
         });
 
         builder.Services.AddWolverineHttp();
+        services?.Invoke(builder.Services);
 
         var host = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
         {
@@ -386,5 +418,14 @@ public static class AuthorizedDeduplicatedResponse
     [Authorize]
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/declaration/authorized")]
+    public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+// Opts out of any fallback authorization policy, so the anonymous-User-scope warning must still fire for it.
+public static class AnonymousDeduplicatedResponse
+{
+    [AllowAnonymous]
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/anonymous")]
     public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
 }

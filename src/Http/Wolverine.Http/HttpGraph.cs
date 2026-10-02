@@ -7,6 +7,7 @@ using JasperFx.Descriptors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
@@ -279,6 +280,8 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// </summary>
     private void warnAboutAnonymousUserScopedDeduplication(ILogger logger)
     {
+        var hasFallbackPolicy = hasFallbackAuthorizationPolicy();
+
         foreach (var chain in _chains)
         {
             if (chain.DeduplicatedWithResponse is not { } requirement) continue;
@@ -288,13 +291,45 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
             if (metadata == null) continue;
 
             // [AllowAnonymous] wins over [Authorize] in ASP.NET Core, so an endpoint carrying both is
-            // anonymous and belongs in this warning.
-            var authorized = metadata.OfType<IAuthorizeData>().Any() && !metadata.OfType<IAllowAnonymous>().Any();
+            // anonymous and belongs in this warning. It wins over a fallback policy too.
+            var allowsAnonymous = metadata.OfType<IAllowAnonymous>().Any();
+            var authorized = (metadata.OfType<IAuthorizeData>().Any() || hasFallbackPolicy) && !allowsAnonymous;
             if (authorized) continue;
 
-            logger.LogWarning(
-                "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint carries no authorization metadata. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Require authorization on the endpoint, or ignore this if the caller is already authenticated upstream. See GH-4742",
-                chain.RoutePattern?.RawText ?? chain.Description);
+            var route = chain.RoutePattern?.RawText ?? chain.Description;
+
+            // Two reasons reach this point and they want different advice, so they get their own messages:
+            // an endpoint nothing authorizes wants authorization added, while one that opted out of a
+            // fallback policy with [AllowAnonymous] is already configured the way its author intended and
+            // wants the attribute or the scope reconsidered instead. Saying "there is no fallback
+            // authorization policy" in both cases was false in the second one, where there is one.
+            if (allowsAnonymous)
+            {
+                logger.LogWarning(
+                    "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint is marked [AllowAnonymous], so no authorization applies to it -- a fallback policy included. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Remove [AllowAnonymous], change the scope, or ignore this if the caller is already authenticated upstream. See GH-4742",
+                    route);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint carries no authorization metadata and no fallback authorization policy is configured. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Require authorization on the endpoint, configure AuthorizationOptions.FallbackPolicy, or ignore this if the caller is already authenticated upstream. See GH-4742",
+                    route);
+            }
+        }
+    }
+
+    // ASP.NET Core authorizes every endpoint with no authorization metadata of its own by
+    // AuthorizationOptions.FallbackPolicy, so an application that authorizes that way declares nothing per endpoint.
+    private bool hasFallbackAuthorizationPolicy()
+    {
+        try
+        {
+            return Container.GetInstance<IOptions<AuthorizationOptions>>().Value.FallbackPolicy != null;
+        }
+        catch (Exception)
+        {
+            // A diagnostic must never be what takes startup down.
+            return false;
         }
     }
 
