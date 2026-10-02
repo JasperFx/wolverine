@@ -150,6 +150,33 @@ public class value_source_resolution : IntegrationContext
         text.ShouldBe("tenant:0");
     }
 
+    [Fact]
+    public async Task from_claim_resolves_uri_claim_type_as_guid()
+    {
+        var id = Guid.NewGuid();
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/test/from-claim/name-identifier");
+            x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim(ClaimTypes.NameIdentifier, id.ToString())));
+        });
+
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe($"user:{id}");
+    }
+
+    [Fact]
+    public async Task from_claim_resolves_uri_claim_type_as_string()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/test/from-claim/email");
+            x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim(ClaimTypes.Email, "jeremy@jasperfx.net")));
+        });
+
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("jeremy@jasperfx.net");
+    }
+
     #endregion
 
     #region Method tests
