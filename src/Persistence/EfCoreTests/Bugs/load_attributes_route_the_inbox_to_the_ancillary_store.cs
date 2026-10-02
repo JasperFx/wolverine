@@ -154,23 +154,36 @@ public class load_attributes_route_the_inbox_to_the_ancillary_store : IAsyncLife
             .IncludeExternalTransports()
             .SendMessageAndWaitAsync(message);
 
-        // The mark-as-handled write is asynchronous relative to the tracked session completing
-        await Task.Delay(500, TestContext.Current.CancellationToken);
-
         var runtime = _host.GetRuntime();
         var messageTypeName = messageType.ToMessageTypeName();
 
         var ancillaryStore = runtime.Stores.FindAncillaryStore(typeof(Module3870DbContext));
-        var inAncillary = await ancillaryStore.Admin.AllIncomingAsync();
+        await waitForHandledAsync(ancillaryStore, messageTypeName);
 
-        inAncillary.Where(x => x.MessageType == messageTypeName && x.Status == EnvelopeStatus.Handled)
-            .ShouldNotBeEmpty(
-                "The envelope should be marked Handled in the store enrolled to the DbContext the handler loads " +
-                "through, so that the inbox update and the EF Core transaction are one.");
-
+        // Without the routing, the envelope is marked Handled in the main store instead
         var inMain = await runtime.Storage.Admin.AllIncomingAsync();
+        inMain.ShouldNotContain(x => x.MessageType == messageTypeName,
+            "The envelope should never reach the main store.");
+    }
 
-        inMain.Where(x => x.MessageType == messageTypeName && x.Status == EnvelopeStatus.Incoming)
-            .ShouldBeEmpty("The envelope should not be left Incoming in the main store.");
+    // The mark-as-handled write is asynchronous relative to the tracked session completing
+    private static async Task waitForHandledAsync(IMessageStore store, string messageTypeName)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        while (true)
+        {
+            var incoming = await store.Admin.AllIncomingAsync();
+            if (incoming.Any(x => x.MessageType == messageTypeName && x.Status == EnvelopeStatus.Handled)) return;
+
+            if (timeout.IsCancellationRequested)
+            {
+                throw new ShouldAssertException(
+                    "The envelope should be marked Handled in the store enrolled to the DbContext the handler loads " +
+                    "through, so that the inbox update and the EF Core transaction are one.");
+            }
+
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
     }
 }
