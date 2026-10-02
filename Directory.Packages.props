@@ -153,6 +153,34 @@
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
+    <!-- System.Formats.Asn1 7.0.0 carries GHSA-447r-wph3-92pm / CVE-2024-38095 (HIGH, NU1903: DoS
+         parsing a malicious X.509 certificate; affects 7.0.0-preview through 8.0.0, patched in
+         8.0.1). It arrives purely transitively as
+            Wolverine.EntityFrameworkCore (net9.0 group)
+              -> Microsoft.CodeAnalysis.Workspaces.MSBuild 4.14.0
+              -> System.Security.Cryptography.Pkcs 7.0.2
+              -> System.Formats.Asn1 7.0.0
+         so no default restore ever reported it - NuGetAuditMode was "direct" (see the note in
+         Directory.Build.props, now "all").
+
+         It survives in exactly four project/TFM pairs, and the reason is package pruning: SDK 10
+         enables pruning for any project that targets net10.0, INCLUDING its net9.0 group when it
+         multi-targets, and pruning drops a framework-superseded package like this one. The 51
+         single-TFM net9.0 projects get no pruning, so the four of them that reach
+         Wolverine.EntityFrameworkCore keep the stale 7.0.0:
+           src/Http/WolverineWebApi
+           src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService
+           src/Samples/WolverineFSharpSample
+           src/Testing/Wolverine.EfCore.FSharpTests
+         Transitive pinning is off repo-wide, so each of those four references this DIRECTLY - a
+         PackageVersion on its own would be inert here.
+
+         9.0.0, not 8.0.1: it is the net9.0 servicing baseline and is already what the rest of the
+         solution resolves (Microsoft.EntityFrameworkCore.SqlServer 9.0.0 asks for it, and
+         Wolverine.Http.Tests has been running Pkcs 7.0.2 against Asn1 9.0.0 all along), so this
+         lifts four outliers onto the version everything else was already on instead of introducing
+         a new one. See GH-4773. -->
+    <PackageVersion Include="System.Formats.Asn1" Version="9.0.0" />
     <!-- 10.0.7 carries a known HIGH severity advisory (NU1903). -->
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
     <!-- Testcontainers pulls SSH.NET [2025.1.0, ); everything through 2025.1.0 carries
