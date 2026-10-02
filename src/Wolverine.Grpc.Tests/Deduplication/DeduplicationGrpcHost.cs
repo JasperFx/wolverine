@@ -44,7 +44,7 @@ public sealed class DeduplicationGrpcHost : IAsyncDisposable
         {
             opts.ApplicationAssembly = typeof(DeduplicationGrpcHost).Assembly;
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
             opts.Discovery.DisableConventionalDiscovery();
             opts.Discovery.IncludeType(typeof(DedupEchoHandler));

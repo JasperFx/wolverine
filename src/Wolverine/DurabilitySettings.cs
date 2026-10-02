@@ -355,7 +355,44 @@ public class DurabilitySettings : IDescribeMyself
     ///     <c>Policies.RequireDeduplicationId()</c>.
     ///     </para>
     /// </summary>
-    public bool EnableMessageDeduplication { get; set; }
+    /// <remarks>
+    ///     GH-4757. A boolean cannot say HOW the ids are compared, and the original string comparison
+    ///     behaves differently on SQL Server and MySQL than on PostgreSQL and SQLite — see
+    ///     <see cref="MessageDeduplicationMode" />. Kept as a pass-through so existing configuration code
+    ///     keeps compiling: <c>true</c> now means
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, the engine-independent
+    ///     comparison. An application that needs the old table and the old comparison sets
+    ///     <see cref="MessageDeduplicationMode" /> to
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> explicitly.
+    /// </remarks>
+    [Obsolete(
+        "Use DurabilitySettings.MessageDeduplicationMode instead. 'true' maps to MessageDeduplicationMode.CompareByHash and 'false' to MessageDeduplicationMode.None. GH-4757")]
+    public bool EnableMessageDeduplication
+    {
+        get => MessageDeduplicationMode != MessageDeduplicationMode.None;
+        set => MessageDeduplicationMode =
+            value ? MessageDeduplicationMode.CompareByHash : MessageDeduplicationMode.None;
+    }
+
+    /// <summary>
+    ///     GH-4757. Opt in to storage for <b>logical</b> message deduplication ids, and choose how those
+    ///     ids are compared for equality. <see cref="Wolverine.MessageDeduplicationMode.None" /> — the
+    ///     default — provisions nothing, so an upgrade migrates nothing.
+    ///
+    ///     <para>
+    ///     Prefer <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />: the comparison is a
+    ///     binary one and therefore identical on every engine.
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the original
+    ///     GH-4180 table and comparison exactly, for an application that cannot take the schema change.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Setting this provisions storage; it does not by itself deduplicate anything. Individual
+    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
+    ///     <c>Policies.RequireDeduplicationId()</c>.
+    ///     </para>
+    /// </summary>
+    public MessageDeduplicationMode MessageDeduplicationMode { get; set; } = MessageDeduplicationMode.None;
 
     /// <summary>
     ///     GH-4742. Opt in to storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
@@ -983,8 +1020,8 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
-        desc.AddValue(nameof(EnableMessageDeduplication), EnableMessageDeduplication);
-        if (EnableMessageDeduplication || EnableDeduplicatedResponses)
+        desc.AddValue(nameof(MessageDeduplicationMode), MessageDeduplicationMode);
+        if (MessageDeduplicationMode != MessageDeduplicationMode.None || EnableDeduplicatedResponses)
         {
             desc.AddValue(nameof(DeduplicationWindow), DeduplicationWindow);
             desc.AddValue(nameof(DeduplicationCleanupPollingTime), DeduplicationCleanupPollingTime);

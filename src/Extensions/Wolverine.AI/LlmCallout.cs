@@ -100,7 +100,7 @@ public sealed class LlmCallout
     /// published more than once — a projection's <c>RaiseSideEffects</c> replayed by a daemon retry,
     /// say, where stream id + version is the natural key. Carrying the id does not enforce anything on
     /// its own; turn on <c>LlmCalloutOptions.DeduplicateCallouts</c> plus
-    /// <c>opts.Durability.EnableMessageDeduplication</c> for that.
+    /// <c>opts.Durability.MessageDeduplicationMode</c> for that.
     /// </summary>
     [DeduplicationIdentity]
     public string? DeduplicationId { get; set; }

@@ -46,7 +46,7 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
             opts.Durability.Mode = DurabilityMode.Solo;
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "http_dedup");
 
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();
@@ -320,7 +320,7 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "select count(*) from http_dedup.wolverine_deduplication where deduplication_id = @id";
+            "select count(*) from http_dedup.wolverine_deduplication_hashed where deduplication_id = @id";
         cmd.Parameters.AddWithValue("id", key);
 
         return (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;

@@ -3,6 +3,8 @@ using Marten.Linq.QueryHandlers;
 using Weasel.Postgresql;
 using Weasel.Storage;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
+using NpgsqlTypes;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
@@ -38,6 +40,7 @@ internal class DeduplicationClaimExistsHandler : IQueryHandler<bool>
     private readonly string _table;
     private readonly string _deduplicationId;
     private readonly Action<string> _onDuplicate;
+    private readonly MessageDeduplicationMode _mode;
 
     /// <param name="onDuplicate">
     /// Invoked with the id when the claim already exists. The log line lives with the caller that owns
@@ -45,15 +48,26 @@ internal class DeduplicationClaimExistsHandler : IQueryHandler<bool>
     /// the generated code awaits this item the refusal is already on its way out, and a batched check
     /// has no other moment at which "this was a duplicate" is known.
     /// </param>
-    public DeduplicationClaimExistsHandler(string table, string deduplicationId, Action<string> onDuplicate)
+    public DeduplicationClaimExistsHandler(string table, string deduplicationId, Action<string> onDuplicate,
+        MessageDeduplicationMode mode)
     {
         _table = table;
         _deduplicationId = deduplicationId;
         _onDuplicate = onDuplicate;
+        _mode = mode;
     }
 
     public void ConfigureCommand(ICommandBuilder builder, IStorageSession session)
     {
+        // GH-4757. The existence check has to read the same column the claim's INSERT is arbitrated by,
+        // or the optimistic half of the check answers about a column with no unique constraint on it.
+        if (_mode == MessageDeduplicationMode.CompareByHash)
+        {
+            builder.Append($"select 1 from {_table} where {DatabaseConstants.DeduplicationHash} = ");
+            builder.AppendParameter(DeduplicationHash.For(_deduplicationId), NpgsqlDbType.Bytea);
+            return;
+        }
+
         builder.Append(
             $"select 1 from {_table} where {DatabaseConstants.DeduplicationId} = ");
         builder.AppendParameter(_deduplicationId);

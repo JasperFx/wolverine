@@ -107,7 +107,7 @@ public class LlmCalloutOptions
     /// <summary>
     /// Claim each callout's <see cref="LlmCallout.DeduplicationId" /> before executing it, so a callout
     /// published twice with the same logical identity only reaches the model once. Off by default, and
-    /// it additionally requires <c>opts.Durability.EnableMessageDeduplication</c> and a persistence
+    /// it additionally requires <c>opts.Durability.MessageDeduplicationMode</c> and a persistence
     /// provider that supports it.
     ///
     /// <para>

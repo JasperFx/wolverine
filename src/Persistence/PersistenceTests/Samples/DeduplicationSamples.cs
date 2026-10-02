@@ -43,8 +43,10 @@ public static class DeduplicationSamples
 
                 // Opt in to logical message deduplication. This provisions a new
                 // "wolverine_deduplication" table -- nothing else about your message
-                // storage changes, and leaving this off means no schema migration at all
-                opts.Durability.EnableMessageDeduplication = true;
+                // storage changes, and leaving this at None means no schema migration at all.
+                // CompareByHash compares ids by a binary SHA-256, so they mean the same thing
+                // on every database engine
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
                 // How long a logical id is honoured before the reaper removes it.
                 // The default is 24 hours. This IS the guarantee, so size it against
@@ -108,7 +110,7 @@ public static class DeduplicationSamples
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithPostgresql("connection string");
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
                 // Compose the logical id from more than one member, or from anything
                 // else you can reach from the message
@@ -136,7 +138,7 @@ public static class DeduplicationSamples
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithPostgresql("connection string");
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
                 // Apply logical deduplication to every handler matching a filter, instead
                 // of decorating each one. Useful when the rule is "every create-style

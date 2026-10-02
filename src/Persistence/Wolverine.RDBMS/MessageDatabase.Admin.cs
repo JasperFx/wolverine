@@ -394,9 +394,12 @@ public abstract partial class MessageDatabase<T>
             // provisioned for every store role, and ClearAllAsync means "no residue from the previous
             // test". A surviving claim would silently refuse the next test's first message as a
             // duplicate -- a green suite over a system that did nothing.
-            if (Durability.EnableMessageDeduplication)
+            // GH-4757: whichever of the two tables this mode provisioned, and only that one -- a
+            // delete against the other would fail because it does not exist.
+            if (Durability.MessageDeduplicationMode != MessageDeduplicationMode.None)
             {
-                await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeduplicationTableName)}")
+                await tx.CreateCommand(
+                        $"delete from {QuotedTableNameFor(DeduplicationTableNameFor(Durability))}")
                     .ExecuteNonQueryAsync(_cancellation);
             }
 

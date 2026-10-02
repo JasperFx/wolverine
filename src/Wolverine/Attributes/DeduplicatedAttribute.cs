@@ -19,7 +19,7 @@ namespace Wolverine.Attributes;
 /// </para>
 ///
 /// <para>
-/// Requires <c>opts.Durability.EnableMessageDeduplication = true</c>, which provisions the backing
+/// Requires <c>opts.Durability.MessageDeduplicationMode</c>, which provisions the backing
 /// storage. Without it the chain throws at its first message or request, rather than silently letting
 /// every duplicate through, and a message handler also logs a warning at startup.
 /// </para>

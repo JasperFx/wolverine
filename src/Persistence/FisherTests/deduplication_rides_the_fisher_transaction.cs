@@ -58,7 +58,7 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
                     .IncludeType(typeof(FisherRacingHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 // Discard rather than retry, so each Send is exactly one handler attempt and the
@@ -262,7 +262,9 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication'";
+            // GH-4757: the HASHED table -- these hosts run CompareByHash. The trailing anchor matters:
+            // '%wolverine_deduplication' would not match 'wolverine_deduplication_hashed' at all.
+            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication_hashed'";
 
         var name = await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken);
         name.ShouldNotBeNull("the deduplication table was never provisioned");
@@ -336,7 +338,9 @@ public static class ObservingFisherHandler
 
         await using var table = conn.CreateCommand();
         table.CommandText =
-            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication'";
+            // GH-4757: the HASHED table -- these hosts run CompareByHash. The trailing anchor matters:
+            // '%wolverine_deduplication' would not match 'wolverine_deduplication_hashed' at all.
+            "select name from sqlite_master where type = 'table' and name like '%wolverine_deduplication_hashed'";
         var tableName = (string)(await table.ExecuteScalarAsync())!;
 
         // WAL is on for the async daemon, so this reader does not contend with the session's write lock.
