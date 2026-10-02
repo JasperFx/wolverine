@@ -292,13 +292,29 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
             // [AllowAnonymous] wins over [Authorize] in ASP.NET Core, so an endpoint carrying both is
             // anonymous and belongs in this warning. It wins over a fallback policy too.
-            var authorized = (metadata.OfType<IAuthorizeData>().Any() || hasFallbackPolicy)
-                             && !metadata.OfType<IAllowAnonymous>().Any();
+            var allowsAnonymous = metadata.OfType<IAllowAnonymous>().Any();
+            var authorized = (metadata.OfType<IAuthorizeData>().Any() || hasFallbackPolicy) && !allowsAnonymous;
             if (authorized) continue;
 
-            logger.LogWarning(
-                "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint carries no authorization metadata and there is no fallback authorization policy. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Require authorization on the endpoint, or ignore this if the caller is already authenticated upstream. See GH-4742",
-                chain.RoutePattern?.RawText ?? chain.Description);
+            var route = chain.RoutePattern?.RawText ?? chain.Description;
+
+            // Two reasons reach this point and they want different advice, so they get their own messages:
+            // an endpoint nothing authorizes wants authorization added, while one that opted out of a
+            // fallback policy with [AllowAnonymous] is already configured the way its author intended and
+            // wants the attribute or the scope reconsidered instead. Saying "there is no fallback
+            // authorization policy" in both cases was false in the second one, where there is one.
+            if (allowsAnonymous)
+            {
+                logger.LogWarning(
+                    "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint is marked [AllowAnonymous], so no authorization applies to it -- a fallback policy included. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Remove [AllowAnonymous], change the scope, or ignore this if the caller is already authenticated upstream. See GH-4742",
+                    route);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "[DeduplicatedWithResponse] on {Route} scopes by DeduplicationScope.User, but the endpoint carries no authorization metadata and no fallback authorization policy is configured. An unauthenticated caller scopes by nothing, so the stored response could be replayed to any caller presenting the same idempotency key and request bytes. Require authorization on the endpoint, configure AuthorizationOptions.FallbackPolicy, or ignore this if the caller is already authenticated upstream. See GH-4742",
+                    route);
+            }
         }
     }
 

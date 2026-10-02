@@ -202,8 +202,13 @@ public class deduplicated_with_response_declaration
         await using var host = await startAsync(logs, persist: true, enable: true,
             endpoint: typeof(AnonymousDeduplicatedResponse), services: requireAuthenticatedUsers);
 
+        // Matched on the [AllowAnonymous] reason, not the shared prefix: this endpoint's host HAS a fallback
+        // policy, so the other message's "no fallback authorization policy is configured" would be false here.
+        // Asserting the prefix alone passed over that contradiction.
         logs.Warnings.ShouldContain(x =>
-            x.Contains("/declaration/anonymous") && x.Contains("no authorization metadata"));
+            x.Contains("/declaration/anonymous") && x.Contains("marked [AllowAnonymous]"));
+
+        logs.Warnings.ShouldNotContain(x => x.Contains("no fallback authorization policy is configured"));
     }
 
     private static void requireAuthenticatedUsers(IServiceCollection services)

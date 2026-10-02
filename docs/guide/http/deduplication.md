@@ -198,6 +198,10 @@ Because anonymous callers all share one empty user, `User` on an endpoint with n
 prevents. The host logs a warning naming the route at startup; it is only a warning because the caller
 may already be authenticated by an upstream gateway.
 
+`[AllowAnonymous]` opts an endpoint out of a fallback policy, so a `User`-scoped anonymous endpoint warns
+even when one is configured. That warning names the attribute as the reason, because the fix there is to
+reconsider the attribute or the scope rather than to add authorization.
+
 ### What counts as the same request
 
 The request is compared by a SHA-256 of the bytes sent — the method and path, the query string and the
