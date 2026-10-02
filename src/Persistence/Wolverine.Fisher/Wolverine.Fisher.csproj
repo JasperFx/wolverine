@@ -16,5 +16,8 @@
     </ItemGroup>
     <ItemGroup>
       <PackageReference Include="Fisher" />
+      <!-- See the Weasel.Storage note in Directory.Packages.props: referenced directly so the
+           pinned Weasel.Storage beats the older one Fisher asks for. -->
+      <PackageReference Include="Weasel.Storage" />
     </ItemGroup>
 </Project>

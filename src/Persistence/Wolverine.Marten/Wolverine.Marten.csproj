@@ -27,5 +27,9 @@
     </ItemGroup>
     <ItemGroup>
       <PackageReference Include="Marten" />
+      <!-- Referenced directly so the pinned Weasel.Storage beats the older one Marten asks for,
+           keeping it on the same Weasel line as the Weasel.Core this already runs against. See the
+           Weasel.Storage note in Directory.Packages.props. -->
+      <PackageReference Include="Weasel.Storage" />
     </ItemGroup>
 </Project>

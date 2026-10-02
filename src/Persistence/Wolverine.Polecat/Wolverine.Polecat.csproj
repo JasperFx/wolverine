@@ -16,5 +16,8 @@
     </ItemGroup>
     <ItemGroup>
       <PackageReference Include="Polecat" />
+      <!-- See the Weasel.Storage note in Directory.Packages.props: referenced directly so the
+           pinned Weasel.Storage beats the older one Polecat asks for. -->
+      <PackageReference Include="Weasel.Storage" />
     </ItemGroup>
 </Project>
