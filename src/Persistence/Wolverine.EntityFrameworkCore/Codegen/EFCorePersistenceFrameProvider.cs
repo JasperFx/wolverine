@@ -18,6 +18,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
@@ -1106,7 +1107,10 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             }
         }
 
-        return chain.InputType()?.GetCustomAttribute<TransactionalAttribute>(inherit: true)?.DbContextType;
+        // Only message handlers apply attributes from their input type
+        return chain is HandlerChain
+            ? chain.InputType()?.GetCustomAttribute<TransactionalAttribute>(inherit: true)?.DbContextType
+            : null;
     }
 
     private static Type? findStorageAttributeType(IChain chain)
