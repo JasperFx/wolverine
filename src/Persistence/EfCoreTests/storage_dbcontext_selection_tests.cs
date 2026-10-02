@@ -148,6 +148,40 @@ public class storage_dbcontext_selection_tests
         ex.Message.ShouldContain("[Transactional(typeof(YourDbContext))]");
         ex.Message.ShouldContain("[Storage(typeof(YourDbContext))]");
     }
+
+    [Fact]
+    public async Task loading_in_a_step_through_a_second_dbcontext_without_designation_throws_helpful_error()
+    {
+        async Task startBadHost()
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Durability.Mode = DurabilityMode.Solo;
+
+                    opts.Services.AddDbContextWithWolverineIntegration<InvoiceDbContext>(x =>
+                        x.UseNpgsql(Servers.PostgresConnectionString));
+                    opts.Services.AddDbContextWithWolverineIntegration<AuditingDbContext>(x =>
+                        x.UseNpgsql(Servers.PostgresConnectionString));
+
+                    opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine_ambiguous");
+
+                    opts.UseEntityFrameworkCoreTransactions();
+                    opts.Policies.AutoApplyTransactions();
+
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<AmbiguousStepLoadHandler>();
+                }).StartAsync();
+
+            host.GetRuntime().Handlers.HandlerFor<AmbiguousStepLoadCommand>();
+        }
+
+        // The step's load through InvoiceDbContext is as much a candidate as the handler's AuditingDbContext
+        var ex = await Should.ThrowAsync<InvalidOperationException>(startBadHost);
+        ex.Message.ShouldContain("multiple DbContext types detected");
+        ex.Message.ShouldContain(typeof(InvoiceDbContext).Name);
+        ex.Message.ShouldContain(typeof(AuditingDbContext).Name);
+    }
 }
 
 public class Invoice
@@ -214,5 +248,19 @@ public class AmbiguousHandler
     public static void Handle(AmbiguousCommand cmd, InvoiceDbContext invoices, AuditingDbContext audit)
     {
         invoices.Invoices.Add(new Invoice { Id = cmd.Id, Memo = "ambiguous" });
+    }
+}
+
+public record AmbiguousStepLoadCommand;
+
+[WolverineIgnore]
+public class AmbiguousStepLoadHandler
+{
+    public static void Before([All] IReadOnlyList<Invoice> invoices)
+    {
+    }
+
+    public static void Handle(AmbiguousStepLoadCommand cmd, AuditingDbContext audit)
+    {
     }
 }
