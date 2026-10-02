@@ -45,7 +45,7 @@ internal class DeduplicationHandlerPolicy : IHandlerPolicy
             .ToArray();
 
         if (opted.Length == 0) return;
-        if (_options.Durability.EnableMessageDeduplication) return;
+        if (_options.Durability.MessageDeduplicationMode != MessageDeduplicationMode.None) return;
 
         WarnDeduplicationIsNotEnabled(container, opted.Select(x => x.Description));
     }
@@ -77,8 +77,8 @@ internal class DeduplicationHandlerPolicy : IHandlerPolicy
         var logger = container.GetInstance<ILoggerFactory>().CreateLogger<DeduplicationHandlerPolicy>();
 
         logger.LogWarning(
-            "Logical message deduplication was requested by {Chains}, but {Setting} is false, so there is no storage to enforce it. These handlers will throw on their first message. Set opts.Durability.{Setting} = true (this provisions a new table) or remove the [Deduplicated] usage. See GH-4180",
-            descriptions.Join(", "), nameof(DurabilitySettings.EnableMessageDeduplication),
-            nameof(DurabilitySettings.EnableMessageDeduplication));
+            "Logical message deduplication was requested by {Chains}, but {Setting} is None, so there is no storage to enforce it. These handlers will throw on their first message. Set opts.Durability.{Setting} to CompareByHash (this provisions a new table) or remove the [Deduplicated] usage. See GH-4180",
+            descriptions.Join(", "), nameof(DurabilitySettings.MessageDeduplicationMode),
+            nameof(DurabilitySettings.MessageDeduplicationMode));
     }
 }

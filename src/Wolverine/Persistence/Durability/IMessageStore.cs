@@ -146,7 +146,7 @@ public interface IMessageStore : IAsyncDisposable
 
     /// <summary>
     /// GH-4180. Storage for logical message deduplication ids. Opt-in via
-    /// <see cref="DurabilitySettings.EnableMessageDeduplication" />; providers must return
+    /// <see cref="DurabilitySettings.MessageDeduplicationMode" />; providers must return
     /// <see cref="NullDeduplicationStore.Instance" /> (and skip provisioning the deduplication
     /// table) when the flag is <c>false</c>, so an upgrade is a no-op for anyone who has not asked
     /// for the feature.

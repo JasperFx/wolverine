@@ -37,7 +37,7 @@ public class bounded_reaping_4567 : IAsyncLifetime
                 opts.PersistMessagesWithSqlite(_database.ConnectionString);
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
             }).StartAsync();
 
@@ -78,7 +78,10 @@ public class bounded_reaping_4567 : IAsyncLifetime
 
         sql.ShouldNotBeNull();
         sql.ShouldContain("limit 2");
-        sql.ShouldContain(DatabaseConstants.DeduplicationTableName);
+        // GH-4757: this host runs CompareByHash, so the reaper must target the hashed table. Asserting
+        // the exact name matters here -- the original name is a PREFIX of it, so the looser check
+        // passes either way and would not catch the reaper aiming at a table that is not provisioned.
+        sql.ShouldContain(DatabaseConstants.HashedDeduplicationTableName);
     }
 
     [Fact]

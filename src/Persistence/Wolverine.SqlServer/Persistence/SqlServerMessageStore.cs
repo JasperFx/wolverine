@@ -220,7 +220,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
     public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
     {
         return
-            $"delete top ({batchSize}) from {SchemaName}.{DatabaseConstants.DeduplicationTableName} " +
+            // GH-4757: whichever table the configured mode provisioned.
+            $"delete top ({batchSize}) from {SchemaName}.{DeduplicationTableNameFor(Durability)} " +
             $"where {DatabaseConstants.Expires} <= @now;";
     }
 
@@ -793,9 +794,15 @@ group by o.name, ps.index_id, i.name";
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
 
         // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
-        if (Durability.EnableMessageDeduplication)
+        // GH-4757: exactly one of the two, never both. The hash mode's key is a binary column, which
+        // cannot be reached from the original table by any migration Weasel can express.
+        if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByString)
         {
             yield return new DeduplicationTable(SchemaName);
+        }
+        else if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash)
+        {
+            yield return new HashedDeduplicationTable(SchemaName);
         }
 
         // GH-4742. Every store role, behind its own opt-in.

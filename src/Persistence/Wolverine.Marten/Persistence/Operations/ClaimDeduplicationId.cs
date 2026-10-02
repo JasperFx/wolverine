@@ -1,11 +1,13 @@
 using System.Data.Common;
 using Marten.Internal;
+using NpgsqlTypes;
 using Marten.Internal.Operations;
 using Marten.Services;
 using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Storage;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
@@ -31,18 +33,34 @@ internal class ClaimDeduplicationId : global::Marten.Internal.Operations.IStorag
     private readonly string _table;
     private readonly string _deduplicationId;
     private readonly DateTimeOffset _expires;
+    private readonly MessageDeduplicationMode _mode;
 
-    public ClaimDeduplicationId(string table, string deduplicationId, DateTimeOffset expires)
+    public ClaimDeduplicationId(string table, string deduplicationId, DateTimeOffset expires,
+        MessageDeduplicationMode mode)
     {
         _table = table;
         _deduplicationId = deduplicationId;
         _expires = expires;
+        _mode = mode;
     }
 
     public void ConfigureCommand(Weasel.Postgresql.ICommandBuilder builder, IStorageSession session)
     {
-        builder.Append(
-            $"insert into {_table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (");
+        // GH-4757. Under CompareByHash the arbitrating key is the binary hash and the readable id rides
+        // along as a plain column; under CompareByString the table has no hash column at all.
+        if (_mode == MessageDeduplicationMode.CompareByHash)
+        {
+            builder.Append(
+                $"insert into {_table} ({DatabaseConstants.DeduplicationHash}, {DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (");
+            builder.AppendParameter(DeduplicationHash.For(_deduplicationId), NpgsqlDbType.Bytea);
+            builder.Append(',');
+        }
+        else
+        {
+            builder.Append(
+                $"insert into {_table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (");
+        }
+
         builder.AppendParameter(_deduplicationId);
         builder.Append(',');
         builder.AppendParameter(_expires);

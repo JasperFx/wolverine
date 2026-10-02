@@ -1,6 +1,7 @@
 using Fisher;
 using Microsoft.Data.Sqlite;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 
 namespace Wolverine.Fisher.Persistence.Operations;
 
@@ -22,12 +23,15 @@ internal class ClaimDeduplicationIdParticipant : ITransactionParticipant
     private readonly string _table;
     private readonly string _deduplicationId;
     private readonly DateTimeOffset _expires;
+    private readonly MessageDeduplicationMode _mode;
 
-    public ClaimDeduplicationIdParticipant(string table, string deduplicationId, DateTimeOffset expires)
+    public ClaimDeduplicationIdParticipant(string table, string deduplicationId, DateTimeOffset expires,
+        MessageDeduplicationMode mode)
     {
         _table = table;
         _deduplicationId = deduplicationId;
         _expires = expires;
+        _mode = mode;
     }
 
     public async Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction,
@@ -35,8 +39,21 @@ internal class ClaimDeduplicationIdParticipant : ITransactionParticipant
     {
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
-        cmd.CommandText =
-            $"insert into {_table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@id, @expires)";
+
+        // GH-4757. See the Polecat twin: under CompareByHash the binary hash carries the primary key, and
+        // under CompareByString the table has no hash column at all.
+        if (_mode == MessageDeduplicationMode.CompareByHash)
+        {
+            cmd.CommandText =
+                $"insert into {_table} ({DatabaseConstants.DeduplicationHash}, {DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@hash, @id, @expires)";
+
+            cmd.Parameters.Add("@hash", SqliteType.Blob).Value = DeduplicationHash.For(_deduplicationId);
+        }
+        else
+        {
+            cmd.CommandText =
+                $"insert into {_table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@id, @expires)";
+        }
 
         cmd.Parameters.AddWithValue("@id", _deduplicationId);
         cmd.Parameters.AddWithValue("@expires", _expires);

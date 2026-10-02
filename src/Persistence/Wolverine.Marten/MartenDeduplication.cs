@@ -79,7 +79,8 @@ internal class MartenDeduplicator : IMartenDeduplicator
 
     public IQueryHandler<bool> ClaimExistsQuery(string deduplicationId, Type? ancillaryStoreMarker)
     {
-        return new DeduplicationClaimExistsHandler(tableFor(ancillaryStoreMarker), deduplicationId, logDuplicate);
+        return new DeduplicationClaimExistsHandler(tableFor(ancillaryStoreMarker), deduplicationId, logDuplicate,
+            _runtime.Options.Durability.MessageDeduplicationMode);
     }
 
     public void QueueClaim(IDocumentSession session, string deduplicationId, Type? ancillaryStoreMarker)
@@ -89,7 +90,8 @@ internal class MartenDeduplicator : IMartenDeduplicator
         var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
 
         session.QueueOperation(
-            new ClaimDeduplicationId(tableFor(ancillaryStoreMarker), deduplicationId, expires));
+            new ClaimDeduplicationId(tableFor(ancillaryStoreMarker), deduplicationId, expires,
+                _runtime.Options.Durability.MessageDeduplicationMode));
     }
 
     private void logDuplicate(string deduplicationId)
@@ -144,13 +146,19 @@ public static class MartenDeduplicationFailures
     /// and report it to the caller as "already handled" — which is the precise failure this feature
     /// exists to remove, reintroduced one layer up.
     /// </para>
+    ///
+    /// <para>
+    /// GH-4757: through <see cref="IncomingTableNaming.IsDeduplicationTable" /> rather than against one
+    /// constant, because <c>CompareByHash</c> claims a differently named table and this classifier has
+    /// no idea which mode is configured.
+    /// </para>
     /// </summary>
     public static bool IsDuplicateDeduplicationClaim(Exception exception)
     {
         for (var e = exception; e != null; e = e.InnerException)
         {
             if (e is PostgresException pg && pg.SqlState == PostgresErrorCodes.UniqueViolation
-                                          && pg.TableName == DatabaseConstants.DeduplicationTableName)
+                                          && IncomingTableNaming.IsDeduplicationTable(pg.TableName))
             {
                 return true;
             }

@@ -34,7 +34,7 @@ namespace PolecatTests.Http;
 /// </para>
 /// <para>
 /// Its own host rather than a shared one: <c>[Deduplicated]</c> needs
-/// <c>Durability.EnableMessageDeduplication</c>, which provisions a table.
+/// <c>Durability.MessageDeduplicationMode</c>, which provisions a table.
 /// </para>
 /// </remarks>
 public class deduplication_on_a_polecat_transaction : IAsyncLifetime
@@ -50,7 +50,7 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             opts.Discovery.DisableConventionalDiscovery();
@@ -170,7 +170,7 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            $"select count(*) from {SchemaName}.wolverine_deduplication where deduplication_id = @id";
+            $"select count(*) from {SchemaName}.wolverine_deduplication_hashed where deduplication_id = @id";
         cmd.Parameters.AddWithValue("@id", key);
 
         return (int)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
@@ -206,7 +206,7 @@ public class polecat_deduplication_without_a_commit_keeps_the_release : IAsyncLi
         builder.Host.UseWolverine(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Durability.EnableMessageDeduplication = true;
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
             opts.Durability.DeduplicationWindow = 1.Hours();
 
             // Deliberately NOT AutoApplyTransactions: this endpoint manages its own commit, so nothing

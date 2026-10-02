@@ -163,7 +163,8 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     /// </summary>
     public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
     {
-        var table = this.TableNameFor(DatabaseConstants.DeduplicationTableName);
+        // GH-4757: whichever table the configured mode provisioned.
+        var table = this.TableNameFor(DeduplicationTableNameFor(Durability));
 
         return
             $"delete from {table} where rowid in (select rowid from {table} " +
@@ -676,9 +677,15 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         yield return new DeadLettersTable(Durability, SchemaName);
 
         // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
-        if (Durability.EnableMessageDeduplication)
+        // GH-4757: exactly one of the two, never both. The hash mode's key is a binary column, which
+        // cannot be reached from the original table by any migration Weasel can express.
+        if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByString)
         {
             yield return new DeduplicationTable(SchemaName);
+        }
+        else if (Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash)
+        {
+            yield return new HashedDeduplicationTable(SchemaName);
         }
 
         // GH-4742. Every store role, behind its own opt-in.

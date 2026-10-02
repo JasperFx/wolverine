@@ -86,7 +86,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
                     opts.Discovery.DisableConventionalDiscovery();
                     opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Durability.EnableRecurringMessages = true;
-                    opts.Durability.EnableMessageDeduplication = true;
+                    opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                     configurePersistence(opts);
                 }).StartAsync(TestContext.Current.CancellationToken);
 
@@ -529,6 +529,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
             .Select(x => x.Identifier.Name).ToArray();
         objects.Any(x => x.EndsWith(DatabaseConstants.RecurringMessagesTableName)).ShouldBeFalse();
         objects.Any(x => x.EndsWith(DatabaseConstants.DeduplicationTableName)).ShouldBeFalse();
+        objects.Any(x => x.EndsWith(DatabaseConstants.HashedDeduplicationTableName)).ShouldBeFalse();
 
         await without.StopAsync(TestContext.Current.CancellationToken);
 
@@ -546,7 +547,11 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         var optedInObjects = ((Weasel.Core.Migrations.IDatabase)optedIn).AllObjects()
             .Select(x => x.Identifier.Name).ToArray();
         optedInObjects.Any(x => x.EndsWith(DatabaseConstants.RecurringMessagesTableName)).ShouldBeTrue();
-        optedInObjects.Any(x => x.EndsWith(DatabaseConstants.DeduplicationTableName)).ShouldBeTrue();
+        // GH-4757: registering a schedule selects CompareByHash, so it is the HASHED table that gets
+        // provisioned -- and the original one that must NOT be, since the two are never both present.
+        optedInObjects.Any(x => x.EndsWith(DatabaseConstants.HashedDeduplicationTableName))
+            .ShouldBeTrue();
+        optedInObjects.Any(x => x.EndsWith(DatabaseConstants.DeduplicationTableName)).ShouldBeFalse();
     }
 }
 

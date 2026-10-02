@@ -1,6 +1,20 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- CentralPackageTransitivePinningEnabled is deliberately NOT set, so every PackageVersion
+         below reaches only the projects that reference the package *directly* (plus whatever they
+         flow it to over a ProjectReference). A pin on its own does NOT lift a package that arrives
+         purely transitively. Where a pin has to beat a transitive floor, the lever used throughout
+         this file is an explicit PackageReference in the project that needs it — see the SSH.NET,
+         Microsoft.CodeAnalysis.CSharp.Workspaces and Weasel.Storage notes below.
+
+         Turning transitive pinning on is not currently possible. JasperFx.RuntimeCompiler 5.0.0
+         pulls Microsoft.CodeAnalysis.Workspaces.Common (= 5.0.0) while the pinned
+         Microsoft.CodeAnalysis.CSharp.Workspaces 4.14.0 pulls (= 4.14.0); two *exact* constraints on
+         one package cannot both be satisfied by a single pin, so restore fails NU1107 in 64
+         projects. A further nine packages hit NU1109 downgrades, four of them forced by
+         Fisher/Polecat into cross-major lifts on net9.0. Measured on GH-4768; re-measure there
+         before trying again. -->
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.2" />
@@ -123,9 +137,16 @@
     <PackageVersion Include="Spectre.Console" Version="0.55.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17" />
     <PackageVersion Include="StronglyTypedId" Version="1.0.0-beta08" />
-    <!-- Transitively pinned (see CentralPackageTransitivePinningEnabled above): Swashbuckle 9.x
-         and Microsoft.AspNetCore.OpenApi 10.x pull Microsoft.OpenApi 2.0.0, which carries a high
-         severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). -->
+    <!-- Swashbuckle 9.x and Microsoft.AspNetCore.OpenApi 10.x pull Microsoft.OpenApi 2.0.0, which
+         carries a high severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). The projects that
+         need it reference Microsoft.AspNetCore.OpenApi directly, so this pin wins there without
+         transitive pinning (which is off — see the note at the top of the file).
+
+         On net9.0, Microsoft.AspNetCore.OpenApi 9.0.5 resolves Microsoft.OpenApi 1.6.17 and
+         Swashbuckle.AspNetCore.Swagger 6.5.0 resolves 1.2.3. That is fine and must stay: the
+         advisory explicitly does not cover the 1.x line, which could not resolve a reference
+         pointing at another reference. Lifting those to 2.x would be a major-version jump against
+         libraries compiled for the 1.x API, for no security benefit. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.1" />
@@ -157,6 +178,14 @@
     <PackageVersion Include="Weasel.Postgresql" Version="9.38.0" />
     <PackageVersion Include="Weasel.SqlServer" Version="9.38.0" />
     <PackageVersion Include="Weasel.Sqlite" Version="9.38.0" />
+    <!-- The eighth Weasel package, and the only one nothing referenced directly. Marten, Polecat and
+         Fisher each request the Weasel.Storage matching their own Weasel line, which is behind the
+         9.38.0 pinned for the seven siblings — so before this pin the solution ran Weasel.Storage
+         against a newer Weasel.Core than it was built against. Keep it on the same version as the
+         siblings whenever that line moves. Wolverine.Marten/.Polecat/.Fisher/.ClaimCheck.Marten
+         reference it directly so the pin actually wins; without transitive pinning a PackageVersion
+         on its own would be inert here, since nothing else references it. -->
+    <PackageVersion Include="Weasel.Storage" Version="9.38.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.

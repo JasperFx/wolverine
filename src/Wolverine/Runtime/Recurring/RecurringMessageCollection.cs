@@ -109,7 +109,12 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
         // part of the registration, never a documented prerequisite the user has to remember.
         // (Hosts whose store cannot back it get a startup warning, not a broken boot — the
         // failover double-fire window then matches the pre-deduplication status quo.)
-        _parent.Durability.EnableMessageDeduplication = true;
+        // GH-4757: promoted from None only. An application that explicitly chose CompareByString keeps
+        // it -- registering a schedule is not the moment to silently reshape its deduplication table.
+        if (_parent.Durability.MessageDeduplicationMode == MessageDeduplicationMode.None)
+        {
+            _parent.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
+        }
 
         // The other half of the opt-in: the main message store reads this flag to provision the
         // wolverine_recurring_messages tracking table and build a real IRecurringMessageStore,

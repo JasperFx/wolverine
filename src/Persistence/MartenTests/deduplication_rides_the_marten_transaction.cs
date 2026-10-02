@@ -59,7 +59,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
                     .IncludeType(typeof(NothingElseHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 // Discard rather than retry, so each Send is exactly one handler attempt and the
@@ -263,7 +263,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            $"select count(*) from {SchemaName}.wolverine_deduplication where deduplication_id = @id";
+            $"select count(*) from {SchemaName}.wolverine_deduplication_hashed where deduplication_id = @id";
         cmd.Parameters.AddWithValue("id", key);
 
         return (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;

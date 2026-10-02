@@ -6,6 +6,7 @@ using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Durability;
 using Wolverine.Fisher.Persistence.Operations;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 using Wolverine.Sqlite;
 
@@ -67,10 +68,17 @@ internal class FisherDeduplicator : IFisherDeduplicator
         // same file, and a read on it while this session holds the write lock is the deadlock Fisher's
         // own ITransactionParticipant docs warn about.
         // '?' is the placeholder Fisher parses, matching QueueSqlCommand.
+        // GH-4757. Under CompareByHash the table is wolverine_deduplication_hashed and the arbitrating
+        // key is its BINARY deduplication_hash column, so the existence check has to read that column --
+        // reading the readable id instead would consult a column with no unique constraint on it.
+        var compareByHash =
+            _runtime.Options.Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash;
+
+        var column = compareByHash ? DatabaseConstants.DeduplicationHash : DatabaseConstants.DeduplicationId;
+        object key = compareByHash ? DeduplicationHash.For(deduplicationId) : deduplicationId;
+
         var matches = await session.AdvancedSql
-            .QueryAsync<int>(
-                $"select 1 from {table} where {DatabaseConstants.DeduplicationId} = ?",
-                cancellation, deduplicationId)
+            .QueryAsync<int>($"select 1 from {table} where {column} = ?", cancellation, key)
             .ConfigureAwait(false);
 
         var claimed = matches.Any();
@@ -95,7 +103,8 @@ internal class FisherDeduplicator : IFisherDeduplicator
         var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
 
         session.AddTransactionParticipant(
-            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires));
+            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires,
+                _runtime.Options.Durability.MessageDeduplicationMode));
     }
 
     private string tableFor(Type? ancillaryStoreMarker)

@@ -7,6 +7,7 @@ using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Durability;
 using Wolverine.Polecat.Persistence.Operations;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
 
@@ -76,10 +77,17 @@ internal class PolecatDeduplicator : IPolecatDeduplicator
         // '?' is the placeholder Polecat parses, NOT '@p0' -- the XML docs describe what a placeholder is
         // rendered INTO, which reads as though the SQL should carry it. Writing '@p0' here throws
         // "Expected at least 1 placeholder(s) '?' but found 0" at the first deduplicated message.
+        // GH-4757. Under CompareByHash the table is wolverine_deduplication_hashed and the arbitrating
+        // key is its BINARY deduplication_hash column, so the existence check has to read that column --
+        // reading the readable id instead would consult a column with no unique constraint on it.
+        var compareByHash =
+            _runtime.Options.Durability.MessageDeduplicationMode == MessageDeduplicationMode.CompareByHash;
+
+        var column = compareByHash ? DatabaseConstants.DeduplicationHash : DatabaseConstants.DeduplicationId;
+        object key = compareByHash ? DeduplicationHash.For(deduplicationId) : deduplicationId;
+
         var matches = await session.AdvancedSql
-            .QueryAsync<int>(
-                $"select 1 from {table} where {DatabaseConstants.DeduplicationId} = ?",
-                cancellation, deduplicationId)
+            .QueryAsync<int>($"select 1 from {table} where {column} = ?", cancellation, key)
             .ConfigureAwait(false);
 
         var claimed = matches.Any();
@@ -104,7 +112,8 @@ internal class PolecatDeduplicator : IPolecatDeduplicator
         var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
 
         session.AddTransactionParticipant(
-            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires));
+            new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires,
+                _runtime.Options.Durability.MessageDeduplicationMode));
     }
 
     private string tableFor(Type? ancillaryStoreMarker)
@@ -156,9 +165,15 @@ public static class PolecatDeduplicationFailures
     {
         for (var e = exception; e != null; e = e.InnerException)
         {
+            // GH-4757: either table's name. 'wolverine_deduplication' is a prefix of
+            // 'wolverine_deduplication_hashed', so the original test happened to match both -- but only
+            // by accident of the naming, which is not something to leave a correctness check resting on.
             if (e is SqlException sql && (sql.Number == 2627 || sql.Number == 2601)
-                                      && sql.Message.Contains(DatabaseConstants.DeduplicationTableName,
-                                          StringComparison.OrdinalIgnoreCase))
+                                      && (sql.Message.Contains(DatabaseConstants.DeduplicationTableName,
+                                              StringComparison.OrdinalIgnoreCase)
+                                          || sql.Message.Contains(
+                                              DatabaseConstants.HashedDeduplicationTableName,
+                                              StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }

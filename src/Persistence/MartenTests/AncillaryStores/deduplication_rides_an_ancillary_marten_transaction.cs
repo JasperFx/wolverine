@@ -44,7 +44,7 @@ public class deduplication_rides_an_ancillary_marten_transaction : IAsyncLifetim
                     .IncludeType(typeof(FailingAncillaryDedupHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Durability.EnableMessageDeduplication = true;
+                opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
                 opts.Durability.DeduplicationWindow = 1.Hours();
 
                 opts.OnException<DivideByZeroException>().Discard();
@@ -117,7 +117,7 @@ public class deduplication_rides_an_ancillary_marten_transaction : IAsyncLifetim
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            $"select count(*) from {schema}.wolverine_deduplication where deduplication_id = @id";
+            $"select count(*) from {schema}.wolverine_deduplication_hashed where deduplication_id = @id";
         cmd.Parameters.AddWithValue("id", key);
 
         return (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;

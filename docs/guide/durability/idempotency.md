@@ -84,8 +84,10 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Opt in to logical message deduplication. This provisions a new
         // "wolverine_deduplication" table -- nothing else about your message
-        // storage changes, and leaving this off means no schema migration at all
-        opts.Durability.EnableMessageDeduplication = true;
+        // storage changes, and leaving this at None means no schema migration at all.
+        // CompareByHash compares ids by a binary SHA-256, so they mean the same thing
+        // on every database engine
+        opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
         // How long a logical id is honoured before the reaper removes it.
         // The default is 24 hours. This IS the guarantee, so size it against
@@ -97,7 +99,7 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ::: warning
-If a handler asks for deduplication and `EnableMessageDeduplication` is left off, Wolverine logs a
+If a handler asks for deduplication and `MessageDeduplicationMode` is left at `None`, Wolverine logs a
 warning at startup and that handler **throws on its first message**. It is deliberately a warning
 rather than a startup failure: `[Deduplicated]` lives on a handler type, and handler types are
 discovered by every host that scans their assembly. In a modular monolith where one module wants
@@ -107,6 +109,47 @@ through no fault of its own configuration.
 What is *not* softened is the guarantee itself. A store that cannot enforce deduplication throws
 rather than answering "yes, that's new" to every id, so a misconfigured host can never quietly
 process a duplicate.
+:::
+
+### How two ids are compared <Badge type="tip" text="6.45" />
+
+`MessageDeduplicationMode` has three values. Each one uses its own table, and no mode ever alters
+another mode's table:
+
+| Mode | Table | Comparison |
+|---|---|---|
+| `None` (default) | neither | no deduplication |
+| `CompareByHash` | `wolverine_deduplication_hashed` — a binary SHA-256 is the primary key, `deduplication_id` rides along as a plain column | identical on every engine |
+| `CompareByString` | `wolverine_deduplication`, exactly as it has always been — `deduplication_id` is the primary key | whatever the column's collation says |
+
+`CompareByString` is what Wolverine shipped in 6.31, and it compares the ids as strings — which in a
+relational database means the column's collation decides, not your application. On PostgreSQL and SQLite
+that is a byte comparison and the ids behave as written. On SQL Server and MySQL the default collations
+are case-insensitive, and MySQL's is accent-insensitive too, so `Abc` and `abc` are one claim and so are
+`José` and `Jose`; SQL Server's `varchar` additionally substitutes `?` for any character outside its code
+page. The consequence is work wrongly refused as a duplicate — never a duplicate let through — and the
+same ids behaving differently on different engines.
+
+`CompareByHash` stores the SHA-256 of the id's UTF-8 bytes in a binary column and makes that the primary
+key. Binary has no collation, so the comparison is the same everywhere. The readable `deduplication_id`
+is still stored next to it, so a stuck claim can be identified by eye, but it deliberately carries no
+unique constraint of its own — if it did, a case-insensitive collation would still refuse `abc` after
+`Abc` and nothing would have been fixed.
+
+The two tables are separate because moving a primary key from a text column onto a binary one is not a
+migration that can be applied in place — on SQLite it is a full table rebuild. A second table means the
+switch costs nothing: Wolverine creates the one the configured mode needs and leaves the other alone.
+
+::: warning Upgrading
+`Durability.EnableMessageDeduplication = true` is now obsolete and maps to `CompareByHash`, so the first
+deploy after upgrading provisions `wolverine_deduplication_hashed`. Nothing happens to the existing
+`wolverine_deduplication` table: it is not altered, not dropped, and the claims in it are not lost. They
+simply stop being consulted and are reaped on their own `expires`, so the table empties itself within
+`DeduplicationWindow` and can be dropped by hand at any point after that.
+
+Switching is lossless in both directions for the same reason. Setting
+`MessageDeduplicationMode = MessageDeduplicationMode.CompareByString` goes back to the original table
+with its claims intact, and switching forward again finds the hashed table still as it was.
 :::
 
 ### Deduplicating a message handler
@@ -223,7 +266,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.PersistMessagesWithPostgresql("connection string");
-        opts.Durability.EnableMessageDeduplication = true;
+        opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
         // Compose the logical id from more than one member, or from anything
         // else you can reach from the message
@@ -246,7 +289,7 @@ using var host = await Host.CreateDefaultBuilder()
 ::: warning
 Deriving an id does not deduplicate anything by itself. It only *stamps* `Envelope.DeduplicationId`.
 Enforcement is still `[Deduplicated]` on the receiving handler or endpoint, plus
-`Durability.EnableMessageDeduplication`. The two halves are deliberately separate: the publisher and
+`Durability.MessageDeduplicationMode`. The two halves are deliberately separate: the publisher and
 the consumer are frequently different applications, and the publisher should not have to know whether
 anyone downstream is deduplicating.
 :::
@@ -304,7 +347,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.PersistMessagesWithPostgresql("connection string");
-        opts.Durability.EnableMessageDeduplication = true;
+        opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 
         // Apply logical deduplication to every handler matching a filter, instead
         // of decorating each one. Useful when the rule is "every create-style

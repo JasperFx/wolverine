@@ -20,7 +20,7 @@ public class RecurringMessageCollectionTests
         var options = new WolverineOptions();
 
         options.Schedules.Any().ShouldBeFalse();
-        options.Durability.EnableMessageDeduplication.ShouldBeFalse();
+        options.Durability.MessageDeduplicationMode.ShouldBe(MessageDeduplicationMode.None);
         options.Services.Any(x => x.ImplementationType == typeof(RecurringMessageAgent)).ShouldBeFalse();
         options.RegisteredPolicies.OfType<RecurringDeduplicationPolicy>().Any().ShouldBeFalse();
     }
@@ -32,7 +32,7 @@ public class RecurringMessageCollectionTests
 
         options.Schedules.ScheduleRecurring<SampleRecurringMessage>("0 9 * * *");
 
-        options.Durability.EnableMessageDeduplication.ShouldBeTrue();
+        options.Durability.MessageDeduplicationMode.ShouldBe(MessageDeduplicationMode.CompareByHash);
         options.Services.Count(x =>
                 x.ServiceType == typeof(IAgentFamily) &&
                 x.ImplementationType == typeof(RecurringMessageAgent))
@@ -87,7 +87,7 @@ public class RecurringMessageCollectionTests
 
         // Nothing half-registered: the failed call opted into nothing.
         options.Schedules.Any().ShouldBeFalse();
-        options.Durability.EnableMessageDeduplication.ShouldBeFalse();
+        options.Durability.MessageDeduplicationMode.ShouldBe(MessageDeduplicationMode.None);
     }
 
     [Fact]

@@ -29,7 +29,7 @@ public static async Task<OrderCreated> Post(CreateOrder command, IDocumentSessio
 }
 ```
 
-With `Durability.EnableMessageDeduplication` turned on, that endpoint now:
+With `Durability.MessageDeduplicationMode` turned on, that endpoint now:
 
 - runs normally for the first request carrying a given `Idempotency-Key`
 - returns **409 Conflict** with a `ProblemDetails` body for any later request carrying the same key
