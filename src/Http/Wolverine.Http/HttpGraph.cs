@@ -144,9 +144,16 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // counterpart to the GH-2906 handler manifest): capture the discovered endpoint types so startup
         // can skip the HttpChainSource.FindActions ExportedTypes scan. The types come from the already-built
         // chains (chain.EndpointType), so no scan is needed to produce the manifest.
+        // GH-4778. The response-aware return types, for the rooting block: HttpChain's own
+        // tryApplyResponseAware closes Applier<T> over each of them at startup -- which is the reported
+        // crash, since an [WriteAggregate] endpoint returning Marten's UpdatedAggregate lands here.
+        var responseAwareTypes = _chains
+            .SelectMany(x => x.ReturnVariablesOfType(typeof(IResponseAware)))
+            .Select(x => x.VariableType);
+
         var files = new List<ICodeFile>(_chains)
         {
-            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType))
+            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes)
         };
 
         return files;

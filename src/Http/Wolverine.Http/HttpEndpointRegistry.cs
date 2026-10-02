@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 
 namespace Wolverine.Http;
 
@@ -68,11 +69,24 @@ public abstract class HttpEndpointRegistry
 /// </summary>
 internal class HttpEndpointRegistryCodeFile : ICodeFile
 {
+    // GH-4778: deliberately NOT "AotRoots". The handler registry emits a type by that name into the same
+    // Internal.Generated.WolverineHandlers namespace, and an application with both committed would not
+    // compile.
+    private const string AotRootsTypeName = "HttpAotRoots";
+
     private readonly Type[] _endpointTypes;
+    private readonly Type[] _responseAwareTypes;
     private GeneratedType? _generatedType;
 
-    public HttpEndpointRegistryCodeFile(IEnumerable<Type> endpointTypes)
+    public HttpEndpointRegistryCodeFile(IEnumerable<Type> endpointTypes,
+        IEnumerable<Type>? responseAwareTypes = null)
     {
+        _responseAwareTypes = (responseAwareTypes ?? [])
+            .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
+            .Distinct()
+            .OrderBy(x => x.FullName, StringComparer.Ordinal)
+            .ToArray();
+
         _endpointTypes = endpointTypes
             .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
             .Distinct()
@@ -88,13 +102,67 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HttpEndpointRegistry.GeneratedTypeName, typeof(HttpEndpointRegistry));
 
-        foreach (var type in _endpointTypes)
+        foreach (var type in _endpointTypes.Concat(_responseAwareTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
 
         _generatedType.MethodFor(nameof(HttpEndpointRegistry.EndpointTypes))
             .Frames.Add(new WriteEndpointTypesFrame(_endpointTypes));
+
+        // GH-4778. Until now the HTTP side emitted NO rooting block at all -- the handler registry has had
+        // one since GH-4426, and this counterpart never got it. That is why the reported crash surfaced on
+        // HTTP endpoints: an endpoint returning Marten's UpdatedAggregate makes HttpChain close
+        // Applier<UpdatedAggregate> at startup, and nothing rooted the instantiation.
+        //
+        // Same WithinCodegenCommand guard as the handler registry: during Static *attach* the committed
+        // file already carries the companion.
+        if (DynamicCodeBuilder.WithinCodegenCommand)
+        {
+            assembly.AddAotRoots(AotRootsTypeName, buildAotRoots(assembly.Namespace));
+        }
+    }
+
+    /// <summary>
+    ///     One <c>[DynamicDependency]</c> argument per type the HTTP side reaches reflectively at startup
+    ///     and would otherwise lose to the trimmer.
+    /// </summary>
+    private IEnumerable<AttributeArg> buildAotRoots(string generatedNamespace)
+    {
+        // A sibling in the assembly being emitted: no runtime Type exists for it while codegen runs, so it
+        // can only be named in code.
+        yield return AttributeArg.TypeNamed($"{generatedNamespace}.{HttpEndpointRegistry.GeneratedTypeName}");
+
+        // TryLoad walks ExportedTypes to find the registry and then Activator.CreateInstance's it, and
+        // endpoint-method selection walks the endpoint types with GetMethods() -- metadata a direct call
+        // does not preserve.
+        foreach (var endpointType in _endpointTypes)
+        {
+            yield return AttributeArg.Type(endpointType);
+        }
+
+        foreach (var responseAwareType in _responseAwareTypes)
+        {
+            yield return AttributeArg.Type(responseAwareType);
+            yield return closedApplierRoot(responseAwareType);
+        }
+    }
+
+    /// <summary>
+    ///     Closes <c>Applier&lt;&gt;</c> over one <see cref="IResponseAware" /> type so it can be named
+    ///     inside a <c>[DynamicDependency]</c>. Its own method for the same reason as the handler registry's
+    ///     equivalent: <see cref="buildAotRoots" /> is an iterator, so a suppression on the declaring method
+    ///     would not reach the generated MoveNext.
+    /// </summary>
+    [UnconditionalSuppressMessage("AotAnalysis", "IL3050",
+        Justification =
+            "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand and never in a native image. Emitting this root is exactly what removes the need for a native image to close the generic at runtime.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055",
+        Justification =
+            "Applier<T> constrains T to IResponseAware, and the argument comes from HttpChain.ReturnVariablesOfType(typeof(IResponseAware)) -- a CanBeCastTo filter against that very interface -- so the constraint holds by construction. The closed type is only ever named inside an emitted [DynamicDependency]; it is never instantiated here.")]
+    private static AttributeArg closedApplierRoot(Type responseAwareType)
+    {
+        return AttributeArg.Type(typeof(Applier<>).MakeGenericType(responseAwareType));
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
