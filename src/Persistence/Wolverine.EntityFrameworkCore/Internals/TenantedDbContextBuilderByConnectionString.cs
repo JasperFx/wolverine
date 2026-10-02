@@ -70,9 +70,6 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
     public async ValueTask<T> BuildAndEnrollAsync(MessageContext messaging, CancellationToken cancellationToken)
     {
         var connectionString = await findConnectionString(messaging.TenantId);
-        if (connectionString.IsEmpty())
-            throw new InvalidOperationException(
-                $"Unable to find a database connection string for tenant '{messaging.TenantId}'");
 
         var builder = new DbContextOptionsBuilder<T>();
 
@@ -204,9 +201,15 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
             connectionString = databaseSettings.ConnectionString ?? databaseSettings.DataSource?.ConnectionString;
         }
 
-        _connectionStrings = _connectionStrings.AddOrUpdate(tenantId, connectionString!);
+        if (connectionString.IsEmpty())
+        {
+            throw new InvalidOperationException(
+                $"Unable to find a database connection string for tenant '{tenantId}'");
+        }
 
-        return connectionString!;
+        _connectionStrings = _connectionStrings.AddOrUpdate(tenantId, connectionString);
+
+        return connectionString;
     }
 
     public DbContext BuildForMain()

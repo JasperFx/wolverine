@@ -67,11 +67,6 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
     public async ValueTask<T> BuildAndEnrollAsync(MessageContext messaging, CancellationToken cancellationToken)
     {
         var dataSource = await findDataSource(messaging.TenantId);
-        if (dataSource == null)
-        {
-            throw new InvalidOperationException(
-                $"Unable to find a DbDataSource for tenant '{messaging.TenantId}'");
-        }
 
         var builder = new DbContextOptionsBuilder<T>();
 
@@ -273,8 +268,13 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
             dataSource = databaseSettings.DataSource;
         }
 
-        _dataSources = _dataSources.AddOrUpdate(tenantId, dataSource!);
+        if (dataSource == null)
+        {
+            throw new InvalidOperationException($"Unable to find a DbDataSource for tenant '{tenantId}'");
+        }
 
-        return dataSource!;
+        _dataSources = _dataSources.AddOrUpdate(tenantId, dataSource);
+
+        return dataSource;
     }
 }

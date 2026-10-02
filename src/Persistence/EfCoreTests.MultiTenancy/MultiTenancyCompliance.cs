@@ -1,5 +1,6 @@
 using Alba;
 using IntegrationTests;
+using JasperFx;
 using Marten.Exceptions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ using SharedPersistenceModels.Orders;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -123,6 +125,16 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
     {
         theHost.Services.GetRequiredService<DbContextOptions<ItemsDbContext>>()
             .ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void resolves_a_tenanted_entity_to_its_db_context_on_a_cache_miss_and_a_hit()
+    {
+        var container = theHost.Services.GetRequiredService<IServiceContainer>();
+        var provider = new EFCorePersistenceFrameProvider();
+
+        provider.TryDetermineDbContextType(typeof(Item), container).ShouldBe(typeof(ItemsDbContext));
+        provider.TryDetermineDbContextType(typeof(Item), container).ShouldBe(typeof(ItemsDbContext));
     }
 
     [Fact]

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
@@ -858,13 +859,14 @@ public partial class WolverineRuntime
     {
         if (markerTypes.Length == 0) return null;
 
-        // Cheap pre-filter: no marker anywhere in the dependency graph means there is nothing to infer,
-        // and the provider (which may build DbContexts to answer) never has to be consulted.
-        var dependencies = chain.ServiceDependencies(_container, Type.EmptyTypes).ToArray();
-        if (!markerTypes.Any(dependencies.Contains)) return null;
-
         try
         {
+            // Cheap pre-filter: no marker anywhere in the dependency graph means there is nothing to infer,
+            // and the provider (which may build DbContexts to answer) never has to be consulted. A load
+            // attribute reaches its store without appearing in that graph.
+            var dependencies = chain.ServiceDependencies(_container, Type.EmptyTypes).ToArray();
+            if (!markerTypes.Any(dependencies.Contains) && !chain.DeclarativelyLoadedEntityTypes().Any()) return null;
+
             var owner = Options.CodeGeneration.GetPersistenceProviders(chain, _container)
                 .TryDetermineTransactionOwnerType(chain, _container);
 

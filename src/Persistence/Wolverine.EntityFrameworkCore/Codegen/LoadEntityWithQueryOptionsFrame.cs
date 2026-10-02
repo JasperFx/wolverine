@@ -64,6 +64,8 @@ internal class LoadEntityWithQueryOptionsFrame : AsyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        yield return _id;
+
         _context = chain.FindVariable(_dbContextType);
         yield return _context;
 

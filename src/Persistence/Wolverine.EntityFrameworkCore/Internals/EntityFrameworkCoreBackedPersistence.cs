@@ -18,12 +18,7 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
     {
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
 
-        // EFCoreQuerySpecificationPolicy detects IQueryPlan<TDbContext,TResult>-typed
-        // variables produced by Load/LoadAsync methods and injects FetchSpecificationFrames
-        // to execute them. Must run BEFORE EFCoreBatchingPolicy so those injected frames
-        // (IEFCoreBatchableFrame) are grouped into a single BatchedQuery round-trip.
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+        AddMethodPreCompilationPolicies(options);
 
         AddFactoryRefusalPolicy(options);
 
@@ -33,6 +28,19 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
         // it here would tear at the IServiceCollection after host-build because this
         // extension is itself registered into DI, which trips Wolverine's 3.0+ "no
         // IoC mods from container-registered extensions" policy. Closes wolverine#2735.
+    }
+
+    /// <summary>
+    /// Idempotent: every EF Core extension calls this, and a second copy of either policy generates every fetch
+    /// twice. The query plan policy must run before batching so its fetches can be batched.
+    /// </summary>
+    internal static void AddMethodPreCompilationPolicies(WolverineOptions options)
+    {
+        var policies = options.CodeGeneration.MethodPreCompilation;
+        if (policies.OfType<EFCoreQuerySpecificationPolicy>().Any()) return;
+
+        policies.Add(new EFCoreQuerySpecificationPolicy());
+        policies.Add(new EFCoreBatchingPolicy());
     }
 
     /// <summary>
@@ -61,7 +69,9 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
     {
         options.CodeGeneration.ReferenceAssembly(GetType().Assembly);
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
-        options.CodeGeneration.Sources.Add(new TenantedDbContextSource<T>());
+        // First, so it wins over the service-location source UseEntityFrameworkCoreTransactions() adds for the
+        // main-database T registered for EF Core migrations
+        options.CodeGeneration.Sources.Insert(0, new TenantedDbContextSource<T>());
 
         if (ConjoinedTenancy.IsConjoined(typeof(T)))
         {
@@ -70,8 +80,7 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
             options.Durability.TenantRegistryRequired = true;
         }
 
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
-        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+        EntityFrameworkCoreBackedPersistence.AddMethodPreCompilationPolicies(options);
 
         EntityFrameworkCoreBackedPersistence.AddFactoryRefusalPolicy(options);
 

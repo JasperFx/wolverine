@@ -46,6 +46,26 @@ internal class CreateTenantedDbContext<T> : MethodCall where T : DbContext
     }
 }
 
+// Builds the DbContext for the message's tenant without enlisting the MessageContext in an outbox transaction
+internal class BuildTenantedDbContext<T> : MethodCall where T : DbContext
+{
+    public BuildTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildAsync(string.Empty, CancellationToken.None))!)
+    {
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        var context = chain.FindVariable(typeof(MessageContext));
+        Arguments[0] = new MemberAccessVariable(context, typeof(MessageContext).GetProperty(nameof(MessageContext.TenantId))!);
+
+        // The context itself has to be a dependency too, or F# discards the handler's context argument
+        yield return context;
+        foreach (var variable in base.FindVariables(chain)) yield return variable;
+    }
+}
+
+// Only reached by non-transactional chains: the transactional middleware inserts its own enlisting
+// CreateTenantedDbContext<T>, and nothing would commit a transaction this enlisted in
 internal class TenantedDbContextSource<T> : IVariableSource where T : DbContext
 {
     public bool Matches(Type type)
@@ -55,6 +75,6 @@ internal class TenantedDbContextSource<T> : IVariableSource where T : DbContext
 
     public Variable Create(Type type)
     {
-        return new CreateTenantedDbContext<T>().ReturnVariable!;
+        return new BuildTenantedDbContext<T>().ReturnVariable!;
     }
 }

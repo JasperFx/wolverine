@@ -18,6 +18,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
@@ -859,65 +860,21 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// inject, so it works on both orderings -- HTTP matches parameters during chain construction, message
     /// handlers not until codegen, long after this is asked.
     ///
-    /// Shared by <see cref="CanApply" /> and <see cref="DetermineDbContextType(IChain,IServiceContainer)" />
-    /// on purpose: they answered from different sets once, and CanApply saying yes while
-    /// DetermineDbContextType could not name a context failed the whole bootstrap.
+    /// Must read the same set that <see cref="DeclarativeLoadDependencies.DeclarativelyLoadedEntityTypes" /> uses
+    /// to claim the chain, or a claimed chain cannot name its context.
     /// </summary>
     internal IEnumerable<Type> DbContextTypesFromLoadAttributes(IChain chain, IServiceContainer container)
     {
-        foreach (var call in chain.HandlerCalls())
+        foreach (var entityType in chain.DeclarativelyLoadedEntityTypes())
         {
-            foreach (var parameter in call.Method.GetParameters())
+            // Resolving the entity's own DbContext is what keeps this from claiming a Marten or Polecat
+            // [Entity] chain in an application that registers more than one kind of store.
+            var dbContextType = TryDetermineDbContextType(entityType, container);
+            if (dbContextType != null)
             {
-                if (!parameter.GetCustomAttributes().Any(isLoadAttribute))
-                {
-                    continue;
-                }
-
-                // Resolving the entity's own DbContext is what keeps this from claiming a Marten or Polecat
-                // [Entity] chain in an application that registers more than one kind of store.
-                var dbContextType = TryDetermineDbContextType(candidateEntityType(parameter), container);
-                if (dbContextType != null)
-                {
-                    yield return dbContextType;
-                }
+                yield return dbContextType;
             }
         }
-    }
-
-    // FromEfCoreAttribute derives from ExplicitEntityAttribute, which derives from EntityAttribute, so the
-    // first test covers [Entity] and [FromEfCore] together.
-    private static bool isLoadAttribute(Attribute attribute)
-    {
-        return attribute is EntityAttribute
-            or AllAttribute
-            or FirstOrDefaultAttribute
-            or QueryableAttribute
-            or FromQuerySpecificationAttribute;
-    }
-
-    /// <summary>
-    /// The entity type a load attribute is asking for. The attributes' own DetermineElementType helpers
-    /// throw on a malformed parameter, which is right when they are building a frame and wrong here --
-    /// CanApply has to answer a question, not fail a bootstrap. A shape this does not recognise falls
-    /// through to the parameter type and simply fails to resolve a DbContext.
-    /// </summary>
-    private static Type candidateEntityType(ParameterInfo parameter)
-    {
-        var type = parameter.ParameterType;
-
-        // [All] and [FromQuerySpecification] take IReadOnlyList<T>; [Queryable] takes IQueryable<T>
-        if (type.IsGenericType)
-        {
-            var definition = type.GetGenericTypeDefinition();
-            if (definition == typeof(IReadOnlyList<>) || definition == typeof(IQueryable<>))
-            {
-                return type.GetGenericArguments()[0];
-            }
-        }
-
-        // [Entity], [FromEfCore] and [FirstOrDefault] take the entity itself
-        return type;
     }
 
     /// <summary>
@@ -938,7 +895,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     public Type? TryDetermineTransactionOwnerType(IChain chain, IServiceContainer container)
     {
-        if (!CanApply(chain, container)) return null;
+        if (!CanApply(chain, container) && !DbContextTypesFromLoadAttributes(chain, container).Any()) return null;
 
         try
         {
@@ -976,7 +933,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 if (dbContext.Model.FindEntityType(entityType) != null)
                 {
                     _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, builder.DbContextType);
-                    return candidate;
+                    return builder.DbContextType;
                 }
             }
             catch (InvalidOperationException e)
@@ -1103,10 +1060,15 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     /// </summary>
     private Type? resolveDesignatedDbContext(IChain chain, Type[] contextTypes)
     {
-        if (chain.Tags.TryGetValue(TransactionalAttribute.TransactionalDbContextTypeKey, out var tagged)
-            && tagged is Type taggedType)
+        // The tag is only set at codegen on a message handler, after inbox routing has asked
+        var transactionalType = chain.Tags.TryGetValue(TransactionalAttribute.TransactionalDbContextTypeKey, out var tagged)
+            && tagged is Type taggedType
+                ? taggedType
+                : findTransactionalAttributeType(chain);
+
+        if (transactionalType != null)
         {
-            return validateDesignation(taggedType, chain, contextTypes, "[Transactional]");
+            return validateDesignation(transactionalType, chain, contextTypes, "[Transactional]");
         }
 
         // [Storage(typeof(X))] designation. We read the attribute directly off the handler rather than
@@ -1130,6 +1092,25 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         return null;
+    }
+
+    private static Type? findTransactionalAttributeType(IChain chain)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            var att = call.Method.GetCustomAttribute<TransactionalAttribute>(inherit: true)
+                      ?? call.HandlerType.GetCustomAttribute<TransactionalAttribute>(inherit: true);
+
+            if (att?.DbContextType != null)
+            {
+                return att.DbContextType;
+            }
+        }
+
+        // Only message handlers apply attributes from their input type
+        return chain is HandlerChain
+            ? chain.InputType()?.GetCustomAttribute<TransactionalAttribute>(inherit: true)?.DbContextType
+            : null;
     }
 
     private static Type? findStorageAttributeType(IChain chain)
