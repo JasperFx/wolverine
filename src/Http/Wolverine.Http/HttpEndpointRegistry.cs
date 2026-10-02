@@ -76,11 +76,19 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
 
     private readonly Type[] _endpointTypes;
     private readonly Type[] _responseAwareTypes;
+    private readonly string[] _generatedEndpointTypeNames;
     private GeneratedType? _generatedType;
 
     public HttpEndpointRegistryCodeFile(IEnumerable<Type> endpointTypes,
-        IEnumerable<Type>? responseAwareTypes = null)
+        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<string>? generatedEndpointTypeNames = null)
     {
+        // Ordered for the same reason as everything else here: the emitted rooting block is part of the
+        // generated output, which the codegen drift gate byte-compares.
+        _generatedEndpointTypeNames = (generatedEndpointTypeNames ?? [])
+            .Distinct()
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
+
         _responseAwareTypes = (responseAwareTypes ?? [])
             .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
             .Distinct()
@@ -132,6 +140,14 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
         // A sibling in the assembly being emitted: no runtime Type exists for it while codegen runs, so it
         // can only be named in code.
         yield return AttributeArg.TypeNamed($"{generatedNamespace}.{HttpEndpointRegistry.GeneratedTypeName}");
+
+        // Likewise siblings: the generated endpoint types, which Static mode looks up BY NAME in
+        // AssertPreBuiltTypesExist and then executes. Without these the native image throws
+        // MissingPreBuiltTypesException before it ever gets as far as the Applier<T> close below.
+        foreach (var typeName in _generatedEndpointTypeNames)
+        {
+            yield return AttributeArg.TypeNamed($"{generatedNamespace}.{typeName}");
+        }
 
         // TryLoad walks ExportedTypes to find the registry and then Activator.CreateInstance's it, and
         // endpoint-method selection walks the endpoint types with GetMethods() -- metadata a direct call

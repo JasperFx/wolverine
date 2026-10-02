@@ -151,9 +151,17 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
             .SelectMany(x => x.ReturnVariablesOfType(typeof(IResponseAware)))
             .Select(x => x.VariableType);
 
+        // GH-4778. The GENERATED endpoint types, which are what AssertPreBuiltTypesExist looks up by name
+        // and what Static mode actually executes. They were unrooted too: the first native image built for
+        // this threw MissingPreBuiltTypesException naming POST_aot_response_aware, before it ever reached
+        // the Applier<T> close. The handler registry has always rooted its generated handler types; this
+        // is the counterpart it never had.
+        var generatedEndpointTypeNames = _chains.Select(x => ((ICodeFile)x).FileName);
+
         var files = new List<ICodeFile>(_chains)
         {
-            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes)
+            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes,
+                generatedEndpointTypeNames)
         };
 
         return files;
