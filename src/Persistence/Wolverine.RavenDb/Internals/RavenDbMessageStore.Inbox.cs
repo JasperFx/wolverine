@@ -157,13 +157,17 @@ public partial class RavenDbMessageStore : IMessageInbox
     {
         var expirationTime = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
         
+        // GH-4785: the owner goes with the status. A Handled document is kept only for idempotency and
+        // nothing recovers it, so it has no owner -- the same as a document inserted already Handled
+        // (Envelope.ForPersistedHandled). Safe because the agent's listener discovery now filters on
+        // Incoming as well; see RavenDbDurabilityAgent.findListenersWithRecoverableIncomingAsync.
         var query = $@"
             from IncomingMessages as m
             where id() = $id
             update {{
                 this[""@metadata""][""@expires""] = $expire;
                 this.Status = $status;
-                
+                this.OwnerId = $owner;
             }}";
 
 
@@ -175,7 +179,8 @@ public partial class RavenDbMessageStore : IMessageInbox
             {
                 {"id", _identity(envelope)},
                 {"expire", expirationTime},
-                {"status", EnvelopeStatus.Handled}
+                {"status", EnvelopeStatus.Handled},
+                {"owner", TransportConstants.AnyNode}
             }
         });
         
@@ -187,13 +192,14 @@ public partial class RavenDbMessageStore : IMessageInbox
     {
         var expirationTime = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
         
+        // GH-4785: see the single-envelope overload above -- the batched patch has to release the owner too.
         var query = $@"
             from IncomingMessages as m
             where id() in ($ids)
             update {{
                 this[""@metadata""][""@expires""] = $expire;
                 this.Status = $status;
-                
+                this.OwnerId = $owner;
             }}";
 
 
@@ -206,7 +212,8 @@ public partial class RavenDbMessageStore : IMessageInbox
             {
                 {"ids", identities},
                 {"expire", expirationTime},
-                {"status", EnvelopeStatus.Handled}
+                {"status", EnvelopeStatus.Handled},
+                {"owner", TransportConstants.AnyNode}
             }
         });
         
