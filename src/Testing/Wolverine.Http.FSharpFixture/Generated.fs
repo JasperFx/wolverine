@@ -378,5 +378,5 @@ type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
 type GeneratedHttpEndpointRegistry() =
     inherit Wolverine.Http.HttpEndpointRegistry()
     override this.EndpointTypes() : System.Type[] =
-        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.44.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.44.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
+        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.45.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.45.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
 
