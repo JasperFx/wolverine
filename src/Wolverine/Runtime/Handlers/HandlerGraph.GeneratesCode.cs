@@ -25,8 +25,22 @@ public partial class HandlerGraph
         var generatedHandlerTypeNames = new List<string>();
         var chainMessageTypes = new List<Type>();
 
+        // GH-4778. Chain.tryApplyResponseAware closes Applier<T> over each chain's IResponseAware return
+        // type at STARTUP, under TypeLoadMode.Static included, so ILC needs those instantiations rooted.
+        // Collected with the same ReturnVariablesOfType walk the close itself uses -- a CanBeCastTo test
+        // over the handler calls' created variables, no generic close of its own.
+        var responseAwareTypes = new List<Type>();
+
         foreach (var chain in Chains)
         {
+            responseAwareTypes.AddRange(chain.ReturnVariablesOfType(typeof(IResponseAware))
+                .Select(x => x.VariableType));
+            foreach (var handlerChain in chain.ByEndpoint)
+            {
+                responseAwareTypes.AddRange(handlerChain.ReturnVariablesOfType(typeof(IResponseAware))
+                    .Select(x => x.VariableType));
+            }
+
             if (chain.Handlers.Any())
             {
                 generatedHandlerTypeNames.Add(chain.TypeName);
@@ -62,6 +76,6 @@ public partial class HandlerGraph
             : [];
 
         yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, generatedHandlerTypeNames,
-            chainMessageTypes);
+            chainMessageTypes, responseAwareTypes);
     }
 }

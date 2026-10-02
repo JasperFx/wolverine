@@ -9,6 +9,7 @@ using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
+using Wolverine.Configuration;
 using Wolverine.Transports.Tcp;
 
 var isCli = args.Length > 0 && args[0] is "codegen" or "describe" or "help" or "?";
@@ -19,7 +20,9 @@ var builder = Host.CreateDefaultBuilder(args)
         opts.ServiceName = "aot-publish-smoke";
         opts.ApplicationAssembly = typeof(AotPublishPingHandler).Assembly;
         opts.Durability.Mode = DurabilityMode.Solo;
-        opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(AotPublishPingHandler));
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType(typeof(AotPublishPingHandler))
+            .IncludeType(typeof(AotPublishResponseAwareHandler));
 
         // GH-4232: an EXTERNAL sending endpoint, which is what makes the host build real
         // MessageRoutes at startup -- including routes for the framework's own ISerializable
@@ -68,6 +71,15 @@ try
         return 1;
     }
 
+    // GH-4778 Site 1: proves the Applier<T> close actually ran rather than being skipped, so the
+    // assertion cannot pass vacuously on a build where the chain was never response-aware.
+    if (!AotPublishResponseMarker.Applied)
+    {
+        await Console.Error.WriteLineAsync(
+            "FAIL: the host booted but IResponseAware.ConfigureResponse never ran, so Applier<T> was not exercised.");
+        return 1;
+    }
+
     Console.WriteLine("OK: Native AOT boot + dispatch smoke passed.");
     return 0;
 }
@@ -85,6 +97,29 @@ public static class AotPublishPingHandler
     public static int LastValue;
 
     public static void Handle(AotPublishPing message) => LastValue = message.Value;
+}
+
+// GH-4778 / GH-4765 Site 1. A handler returning an IResponseAware makes Chain.tryApplyResponseAware
+// close Applier<T> over this type with CloseAndBuildAs -- at STARTUP, while the chain MODEL is built,
+// which happens even under TypeLoadMode.Static with the generated code already compiled in. Nothing
+// statically references Applier<AotPublishResponseMarker>, so ILC never emits that instantiation and
+// Activator.CreateInstance throws MissingMethodException. Reported against HTTP endpoints returning
+// Marten's UpdatedAggregate, but tryApplyResponseAware lives on the shared Chain<,>, so a message
+// handler reaches the identical call with no store and no HTTP in the picture.
+public record AotPublishResponseAwarePing(int Value);
+
+public class AotPublishResponseMarker : IResponseAware
+{
+    public static bool Applied;
+
+    // Deliberately does not touch the chain: the crash is in closing and constructing Applier<T>,
+    // before Apply() is ever invoked, so an empty hook is enough to reproduce it.
+    public static void ConfigureResponse(IChain chain) => Applied = true;
+}
+
+public static class AotPublishResponseAwareHandler
+{
+    public static AotPublishResponseMarker Handle(AotPublishResponseAwarePing message) => new();
 }
 
 // GH-4426: the hand-written `AotRoots` class that used to live here is GONE, and its deletion is the
