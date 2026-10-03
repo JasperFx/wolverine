@@ -160,6 +160,12 @@ public partial class CosmosDbMessageStore : IMessageInbox
                 await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
             var message = response.Resource;
             message.Status = EnvelopeStatus.Handled;
+
+            // GH-4784: a Handled document is kept only for idempotency and nothing recovers it, so it has
+            // no owner -- the same as a document inserted already Handled (Envelope.ForPersistedHandled).
+            // Every CosmosDb query that reads ownerId or drives recovery/cleanup is status-filtered, so
+            // releasing the owner here cannot make a retained document look recoverable.
+            message.OwnerId = TransportConstants.AnyNode;
             message.KeepUntil = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
             await _container.ReplaceItemAsync(message, id, new PartitionKey(partitionKey));
         }
