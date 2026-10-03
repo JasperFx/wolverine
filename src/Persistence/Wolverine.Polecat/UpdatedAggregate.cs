@@ -22,8 +22,9 @@ public class UpdatedAggregate : IResponseAware
         if (AggregateHandling.TryLoad(chain, out var handling))
         {
             var idType = handling.AggregateId.VariableType;
-            var openType = ResolveToGuidType(idType) ? typeof(FetchLatestByGuid<>) : typeof(FetchLatestByString<>);
-            var frame = openType.CloseAndBuildAs<MethodCall>(handling.AggregateId, handling.AggregateType);
+            MethodCall frame = ResolveToGuidType(idType)
+                ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
+                : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
             chain.UseForResponse(frame);
         }
         else
@@ -61,8 +62,9 @@ public class UpdatedAggregate<T> : IResponseAware
         if (AggregateHandling.TryLoad<T>(chain, out var handling))
         {
             var idType = handling.AggregateId.VariableType;
-            var openType = UpdatedAggregate.ResolveToGuidType(idType) ? typeof(FetchLatestByGuid<>) : typeof(FetchLatestByString<>);
-            var frame = openType.CloseAndBuildAs<MethodCall>(handling.AggregateId, handling.AggregateType);
+            MethodCall frame = UpdatedAggregate.ResolveToGuidType(idType)
+                ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
+                : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
             chain.UseForResponse(frame);
         }
         else
@@ -72,17 +74,26 @@ public class UpdatedAggregate<T> : IResponseAware
     }
 }
 
-internal class FetchLatestByGuid<T> : MethodCall where T : class, new()
+// GH-4778 / GH-4765. Not generic any more: T was only used to resolve a MethodInfo for
+// IEventOperations.FetchLatest<T>, a type IDENTITY rather than a dispatch mechanism, so the aggregate type
+// is an ordinary constructor argument and there is no instantiation for ILC to trim. Safe here because the
+// declaring type is an INTERFACE -- measured in a native image, where the same shape on a concrete class is
+// not (which is why Fisher's copy is unconverted; see JasperFx/fisher#379).
+internal class FetchLatestByGuid : MethodCall
 {
-    public FetchLatestByGuid(Variable id) : base(typeof(global::Polecat.Events.IEventOperations), ReflectionHelper.GetMethod<global::Polecat.Events.IEventOperations>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None))!)
+    public FetchLatestByGuid(Variable id, Type aggregateType)
+        : base(typeof(global::Polecat.Events.IEventOperations),
+            UpdatedAggregateIdentity.FetchLatestMethod(typeof(Guid), aggregateType))
     {
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(Guid));
     }
 }
 
-internal class FetchLatestByString<T> : MethodCall where T : class, new()
+internal class FetchLatestByString : MethodCall
 {
-    public FetchLatestByString(Variable id) : base(typeof(global::Polecat.Events.IEventOperations), ReflectionHelper.GetMethod<global::Polecat.Events.IEventOperations>(x => x.FetchLatest<T>("", CancellationToken.None))!)
+    public FetchLatestByString(Variable id, Type aggregateType)
+        : base(typeof(global::Polecat.Events.IEventOperations),
+            UpdatedAggregateIdentity.FetchLatestMethod(typeof(string), aggregateType))
     {
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(string));
     }
@@ -90,6 +101,36 @@ internal class FetchLatestByString<T> : MethodCall where T : class, new()
 
 internal static class UpdatedAggregateIdentity
 {
+    /// <summary>
+    ///     The closed <c>IEventOperations.FetchLatest&lt;TAggregate&gt;</c> for one of the two primitive
+    ///     identity overloads.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4778. Base interfaces are searched as well as the leaf: <c>GetMethods()</c> on an interface
+    ///     does not return members inherited from its base interfaces. Polecat's
+    ///     <c>IEventOperations</c> happens to declare both overloads itself, but Marten's equivalent does
+    ///     not, and searching only the leaf there broke <c>UpdatedAggregate</c> outright with a
+    ///     "Sequence contains no matching element" raised during chain building. The arity guard matters for
+    ///     the same class of reason -- a future two-generic-parameter overload would make this ambiguous.
+    /// </remarks>
+    internal static MethodInfo FetchLatestMethod(Type identityType, Type aggregateType)
+    {
+        var open = new[] { typeof(global::Polecat.Events.IEventOperations) }
+            .Concat(typeof(global::Polecat.Events.IEventOperations).GetInterfaces())
+            .SelectMany(x => x.GetMethods())
+            .Where(x => x.Name == nameof(global::Polecat.Events.IEventOperations.FetchLatest)
+                        && x.IsGenericMethodDefinition
+                        && x.GetGenericArguments().Length == 1
+                        && x.GetParameters()[0].ParameterType == identityType)
+            // Deduplicated by signature, because the leaf interface and a base interface can BOTH declare
+            // the same overload -- Polecat's IEventOperations does, and without this the search that Marten
+            // needs threw "Sequence contains more than one matching element" there.
+            .DistinctBy(x => x.ToString())
+            .Single();
+
+        return open.MakeGenericMethod(aggregateType);
+    }
+
     /// <summary>
     /// The variable to pass to <c>FetchLatest</c>: the identity itself when it is already the primitive
     /// stream identity type, or the strong typed identifier's inner value when it wraps one.

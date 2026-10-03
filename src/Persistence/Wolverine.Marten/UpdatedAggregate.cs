@@ -25,8 +25,9 @@ public class UpdatedAggregate : IResponseAware
         {
             var idType = handling.AggregateId.VariableType;
 
-            var openType = ResolveToGuidType(idType) ? typeof(FetchLatestByGuid<>) : typeof(FetchLatestByString<>);
-            var frame = openType.CloseAndBuildAs<MethodCall>(handling.AggregateId, handling.AggregateType);
+            MethodCall frame = ResolveToGuidType(idType)
+                ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
+                : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
 
             chain.UseForResponse(frame);
         }
@@ -79,8 +80,9 @@ public class UpdatedAggregate<T> : IResponseAware
         {
             var idType = handling.AggregateId.VariableType;
 
-            var openType = UpdatedAggregate.ResolveToGuidType(idType) ? typeof(FetchLatestByGuid<>) : typeof(FetchLatestByString<>);
-            var frame = openType.CloseAndBuildAs<MethodCall>(handling.AggregateId, handling.AggregateType);
+            MethodCall frame = UpdatedAggregate.ResolveToGuidType(idType)
+                ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
+                : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
 
             chain.UseForResponse(frame);
         }
@@ -92,17 +94,23 @@ public class UpdatedAggregate<T> : IResponseAware
     }
 }
 
-internal class FetchLatestByGuid<T> : MethodCall where T : class
+// GH-4778 / GH-4765. Not generic any more, and the aggregate type is an ordinary constructor argument.
+// T was only ever used to resolve a MethodInfo for IEventStoreOperations.FetchLatest<T>, which is a type
+// IDENTITY rather than a dispatch mechanism -- so this is the shape GH-4764 converted, and converting it
+// removes the instantiation ILC had to be asked to keep instead of merely rooting it.
+internal class FetchLatestByGuid : MethodCall
 {
-    public FetchLatestByGuid(Variable id) : base(typeof(IEventStoreOperations), ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None))!)
+    public FetchLatestByGuid(Variable id, Type aggregateType)
+        : base(typeof(IEventStoreOperations), UpdatedAggregateIdentity.FetchLatestMethod(typeof(Guid), aggregateType))
     {
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(Guid));
     }
 }
 
-internal class FetchLatestByString<T> : MethodCall where T : class
+internal class FetchLatestByString : MethodCall
 {
-    public FetchLatestByString(Variable id) : base(typeof(IEventStoreOperations), ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchLatest<T>("", CancellationToken.None))!)
+    public FetchLatestByString(Variable id, Type aggregateType)
+        : base(typeof(IEventStoreOperations), UpdatedAggregateIdentity.FetchLatestMethod(typeof(string), aggregateType))
     {
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(string));
     }
@@ -110,6 +118,47 @@ internal class FetchLatestByString<T> : MethodCall where T : class
 
 internal static class UpdatedAggregateIdentity
 {
+    /// <summary>
+    ///     The closed <c>IEventStoreOperations.FetchLatest&lt;TAggregate&gt;</c> for one of the two
+    ///     primitive identity overloads.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4778. Closing the generic METHOD off a non-generic interface is AOT-safe where closing a
+    ///     generic TYPE with <c>CloseAndBuildAs</c> was not. Verified in a native image: the
+    ///     <c>MakeGenericMethod</c> result carries <c>ReturnType</c>, <c>GetParameters()</c> and
+    ///     <c>DeclaringType</c> -- everything <see cref="MethodCall" /> reads -- whether or not any direct
+    ///     call to that instantiation exists in the application. Note the contrast, measured in the same
+    ///     probe: <c>typeof(Task&lt;&gt;).MakeGenericType(aggregateType)</c> throws
+    ///     "missing native code or metadata" unless something statically references the closed type, so do
+    ///     not "simplify" this by constructing closed types here.
+    ///     <para>The generic-arity guard matters: <c>FetchLatest</c> has a two-parameter overload
+    ///     (<c>FetchLatest&lt;T1, T2&gt;(T2, CancellationToken)</c>) for strong typed identifiers, and
+    ///     without it this lookup would be ambiguous the moment that overload's first parameter matched.</para>
+    /// </remarks>
+    internal static MethodInfo FetchLatestMethod(Type identityType, Type aggregateType)
+    {
+        // GetMethods() on an INTERFACE does not return members inherited from its base interfaces, and
+        // Marten.Events.IEventStoreOperations declares no FetchLatest of its own -- it inherits all three
+        // overloads from JasperFx.Events.IEventStoreOperations. Searching only the leaf interface found
+        // nothing, Single() threw "Sequence contains no matching element" while the chain was being built,
+        // and the handler then surfaced as NoHandlerExecutor rethrowing it with its original stack gone.
+        // Hence the base interfaces are searched too.
+        var open = new[] { typeof(IEventStoreOperations) }
+            .Concat(typeof(IEventStoreOperations).GetInterfaces())
+            .SelectMany(x => x.GetMethods())
+            .Where(x => x.Name == nameof(IEventStoreOperations.FetchLatest)
+                        && x.IsGenericMethodDefinition
+                        && x.GetGenericArguments().Length == 1
+                        && x.GetParameters()[0].ParameterType == identityType)
+            // Deduplicated by signature, because the leaf interface and a base interface can BOTH declare
+            // the same overload -- Polecat's IEventOperations does, and without this the search that Marten
+            // needs threw "Sequence contains more than one matching element" there.
+            .DistinctBy(x => x.ToString())
+            .Single();
+
+        return open.MakeGenericMethod(aggregateType);
+    }
+
     /// <summary>
     /// The variable to pass to <c>FetchLatest</c>: the identity itself when it is already the primitive
     /// stream identity type, or the strong typed identifier's inner value when it wraps one.
