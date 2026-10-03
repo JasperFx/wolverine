@@ -4,6 +4,7 @@ using NSubstitute;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -21,10 +22,11 @@ namespace CoreTests.Runtime.WorkerQueues;
 /// (GH-4777), that is exactly the intra-group concurrency the partitioned modes forbid.
 ///
 /// <para>
-/// <c>Task.WhenAny</c> discards which task won, so this used to happen with nothing logged at any level and
-/// a stop that reported success. The underlying trade -- release only what was abandoned, or release nothing
-/// and strand it -- is left to GH-4797; what is pinned here is that the degradation is no longer silent,
-/// because an operator cannot act on something that leaves no trace.
+/// The fix is to HOLD the release until that work actually finishes, rather than release underneath it. The
+/// drain itself still returns promptly -- blocking it would turn a correctness problem into a slot served
+/// nowhere, since <c>ReassignAgent</c> gates the gaining node's start on the stop returning -- so the wait
+/// happens on a continuation. These tests pin both halves: nothing is released while a handler is running,
+/// and the release does happen once it finishes.
 /// </para>
 /// </summary>
 public class drain_timeout_is_logged_4797
@@ -86,7 +88,57 @@ public class drain_timeout_is_logged_4797
         warning.Message.ShouldContain("GH-4797");
         warning.Message.ShouldContain("stub://4797");
 
+        // The point of the fix: the rows are NOT handed to AnyNode underneath the running handler.
+        await theRuntime.Storage.Inbox.DidNotReceive()
+            .ReleaseIncomingAsync(Arg.Any<int>(), Arg.Any<Uri>());
+
         _releaseHandler.TrySetResult();
+    }
+
+    /// <summary>
+    /// The other half. Holding the rows is only correct if the hold is eventually let go -- otherwise this
+    /// trades double execution for rows nothing can ever claim, which is the GH-3856 direction and worse.
+    /// </summary>
+    [Fact]
+    public async Task releases_the_held_rows_once_the_in_flight_handler_finishes()
+    {
+        thePipeline.InvokeAsync(Arg.Any<Envelope>(), Arg.Any<IChannelCallback>())
+            .Returns(_ =>
+            {
+                _handlerEntered.TrySetResult();
+                return _releaseHandler.Task;
+            });
+
+        theReceiver = buildReceiver();
+
+        var envelope = ObjectMother.Envelope();
+        envelope.WasPersistedInInbox = true;
+        await theReceiver.EnqueueAsync(envelope);
+        await _handlerEntered.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        theReceiver.Latch();
+        await theReceiver.DrainAsync();
+
+        // Let the handler finish. The deferred release runs on a continuation, so poll rather than assume
+        // it has happened by the time this line returns.
+        _releaseHandler.TrySetResult();
+
+        await waitForAsync(
+            () => theRuntime.Storage.Inbox.ReceivedCalls()
+                .Any(x => x.GetMethodInfo().Name == nameof(IMessageInbox.ReleaseIncomingAsync)),
+            "The held inbox rows were never released after the in-flight handler finished");
+    }
+
+    private static async Task waitForAsync(Func<bool> condition, string message)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(10.Seconds());
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (condition()) return;
+            await Task.Delay(50.Milliseconds());
+        }
+
+        throw new TimeoutException(message);
     }
 
     /// <summary>
@@ -104,6 +156,11 @@ public class drain_timeout_is_logged_4797
         await theReceiver.DrainAsync();
 
         theLogs.Records.ShouldNotContain(x => x.Level == LogLevel.Warning);
+
+        // And a clean drain still releases inline, exactly as before -- the fix must not make the ordinary
+        // shutdown path defer anything.
+        await theRuntime.Storage.Inbox.Received()
+            .ReleaseIncomingAsync(Arg.Any<int>(), Arg.Any<Uri>());
     }
 }
 
