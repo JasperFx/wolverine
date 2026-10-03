@@ -167,7 +167,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 
     private Uri? mapResponseUri(string? responseAddress)
     {
-        if (responseAddress == null)
+        if (responseAddress.IsEmpty())
         {
             return null;
         }
