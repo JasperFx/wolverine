@@ -67,6 +67,23 @@ public interface IEndpointCollection : IAsyncDisposable
     {
         return EndpointFor(address) is { IsSingleNodeListener: true };
     }
+
+    /// <summary>
+    /// Does the node hosting this address's listener own its inbox recovery, rather than the per-database
+    /// durability agent? Every durability agent has to ask this before it recovers dormant inbox rows, because
+    /// the agent is assigned per *database* and routinely runs on a node that may not execute this address.
+    ///
+    /// <para>Two kinds of address answer yes. A single node listener (GH-3590) is the obvious one. The other is
+    /// a global partition's companion local queue: that address is live on every node -- <c>LocalQueue</c> is
+    /// deliberately never a single node listener (GH-3856) -- but only the node owning the slot may execute from
+    /// it, so the agent recovering it means the message runs beside the owner under the same group id, which is
+    /// the one thing global partitioning exists to prevent. See GH-4776; the slot's own
+    /// <see cref="ListenerScope.Exclusive"/> listener drives recovery for the companion queue instead.</para>
+    /// </summary>
+    bool ListenerOwnsItsInboxRecovery(Uri address)
+    {
+        return IsSingleNodeListener(address) || GlobalPartitionSlotFor(address) != null;
+    }
 }
 
 public class EndpointCollection : IEndpointCollection

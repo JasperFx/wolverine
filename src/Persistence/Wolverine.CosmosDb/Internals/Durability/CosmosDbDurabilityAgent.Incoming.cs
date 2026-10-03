@@ -16,10 +16,12 @@ public partial class CosmosDbDurabilityAgent
             foreach (var receivedAt in listeners)
             {
                 // GH-3590: exclusive and leader-pinned listeners run on exactly one node, which is not
-                // necessarily this one. Those endpoints recover their own inbox (ListenerInboxRecovery).
-                // Checked before the circuit lookup because FindListenerCircuit() falls back to the durable
-                // local queue and would otherwise mis-route another node's messages here.
-                if (_runtime.Endpoints.IsSingleNodeListener(receivedAt))
+                // necessarily this one. GH-4776: so does a global partition's companion local queue, even
+                // though its local:// address is live everywhere. Those endpoints recover their own inbox
+                // (ListenerInboxRecovery). Checked before the circuit lookup because FindListenerCircuit()
+                // falls back to the durable local queue and would otherwise mis-route another node's
+                // messages here.
+                if (_runtime.Endpoints.ListenerOwnsItsInboxRecovery(receivedAt))
                 {
                     continue;
                 }

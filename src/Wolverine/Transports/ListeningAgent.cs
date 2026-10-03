@@ -86,6 +86,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private IReceiver? _receiver;
     private IDisposable? _restarter;
     private ListenerInboxRecoveryLoop? _inboxRecovery;
+
+    // GH-4776. The companion local queue's recovery, owned by this listener because the slot's ownership is what
+    // decides who may execute from that queue. Starts and dies with the slot, exactly like _inboxRecovery does.
+    private ListenerInboxRecoveryLoop? _companionInboxRecovery;
     private int _lastObservedQueueCount;
     private DateTimeOffset _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
     private bool _disposed;
@@ -594,22 +598,61 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// not rely on the per-database durability agent to recover its dormant inbox messages, because that agent
     /// is assigned per database and routinely lands on a different node. Such a listener owns its own inbox
     /// recovery for as long as it is the active listener.
+    ///
+    /// <para>GH-4776 adds a second, independent loop: a global partition slot also owns recovery for its
+    /// companion local queue. The two are deliberately separate loops rather than one sweeping both addresses,
+    /// because <see cref="ListenerInboxRecovery.DeterminePageSize"/> sizes each page against the status and
+    /// queue depth of the specific circuit it is feeding.</para>
     /// </summary>
     private void startInboxRecoveryIfNecessary()
     {
-        if (Endpoint.Mode != EndpointMode.Durable) return;
-        if (!Endpoint.IsSingleNodeListener) return;
         if (!_runtime.Options.Durability.DurabilityAgentEnabled) return;
         if (_runtime.Storage is NullMessageStore) return;
 
-        _inboxRecovery?.SafeDispose();
-        _inboxRecovery = new ListenerInboxRecoveryLoop(_runtime, this, _logger);
+        if (Endpoint is { Mode: EndpointMode.Durable, IsSingleNodeListener: true })
+        {
+            _inboxRecovery?.SafeDispose();
+            _inboxRecovery = new ListenerInboxRecoveryLoop(_runtime, this, _logger);
+        }
+
+        startCompanionQueueInboxRecoveryIfNecessary();
+    }
+
+    /// <summary>
+    /// GH-4776. A global partition's companion local queue cannot rely on the per-database durability agent
+    /// either, and for a sharper reason than GH-3590: the agent would succeed. That <c>local://</c> address is
+    /// live on every node -- <c>LocalQueue.IsSingleNodeListener</c> is deliberately false (GH-3856) and
+    /// <c>FindListenerCircuit</c> builds a circuit for any local scheme -- so a replayed dead letter or a
+    /// released backlog parked at that address was recovered straight into the agent node's own companion queue
+    /// and executed there, beside the slot's real owner and under the same group id.
+    ///
+    /// <para>So the companion queue's recovery is pinned to the SLOT, whose exclusive listener this agent is.
+    /// It starts when the slot is acquired and <see cref="stopInboxRecovery"/> kills it when the slot moves on,
+    /// which is exactly the lifetime during which this node is the one allowed to execute those messages.
+    /// Nothing recovers the rows while no node owns the slot, and that is the same bargain every exclusive
+    /// listener already makes: they wait at <c>owner_id = 0</c> rather than running in the wrong place.</para>
+    /// </summary>
+    private void startCompanionQueueInboxRecoveryIfNecessary()
+    {
+        // Null on a native-ack topology, which has no companion queue at all, and on every endpoint outside a
+        // global partitioned topology.
+        if (Endpoint.GlobalPartitionLocalQueueUri == null) return;
+
+        // A buffered companion queue writes no inbox rows, so there is nothing for a sweep to find.
+        if (_runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) is not IListenerCircuit
+            { Endpoint.Mode: EndpointMode.Durable } companion) return;
+
+        _companionInboxRecovery?.SafeDispose();
+        _companionInboxRecovery = new ListenerInboxRecoveryLoop(_runtime, companion, _logger);
     }
 
     private void stopInboxRecovery()
     {
         _inboxRecovery?.SafeDispose();
         _inboxRecovery = null;
+
+        _companionInboxRecovery?.SafeDispose();
+        _companionInboxRecovery = null;
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
