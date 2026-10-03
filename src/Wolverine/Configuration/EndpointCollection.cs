@@ -67,6 +67,35 @@ public interface IEndpointCollection : IAsyncDisposable
     {
         return EndpointFor(address) is { IsSingleNodeListener: true };
     }
+
+}
+
+public static class EndpointCollectionRecoveryExtensions
+{
+    /// <summary>
+    /// Does the node hosting this address's listener own its inbox recovery, rather than the per-database
+    /// durability agent? Every durability agent has to ask this before it recovers dormant inbox rows, because
+    /// the agent is assigned per *database* and routinely runs on a node that may not execute this address.
+    ///
+    /// <para>Two kinds of address answer yes. A single node listener (GH-3590) is the obvious one. The other is
+    /// a global partition's companion local queue: that address is live on every node --
+    /// <c>LocalQueue.IsSingleNodeListener</c> is deliberately false (GH-3856) -- but only the node owning the
+    /// slot may execute from it, so the agent recovering it means the message runs beside the owner under the
+    /// same group id, which is the one thing global partitioning exists to prevent. See GH-4776; the slot's own
+    /// <see cref="ListenerScope.Exclusive"/> listener drives recovery for the companion queue instead.</para>
+    /// </summary>
+    /// <remarks>
+    /// Deliberately an extension method rather than a default interface member, and that is load-bearing rather
+    /// than stylistic. A default member is intercepted by a mocking proxy like any other interface call, so a
+    /// <c>Substitute.For&lt;IEndpointCollection&gt;()</c> would answer <c>false</c> without ever running this body
+    /// -- silently un-skipping every single node listener in any test that stubs <c>IsSingleNodeListener</c>, which
+    /// is exactly how the GH-3590 suite is written. A static method cannot be intercepted, so a substitute runs
+    /// this logic for real and the stubbed members underneath it still answer.
+    /// </remarks>
+    public static bool ListenerOwnsItsInboxRecovery(this IEndpointCollection endpoints, Uri address)
+    {
+        return endpoints.IsSingleNodeListener(address) || endpoints.GlobalPartitionSlotFor(address) != null;
+    }
 }
 
 public class EndpointCollection : IEndpointCollection
