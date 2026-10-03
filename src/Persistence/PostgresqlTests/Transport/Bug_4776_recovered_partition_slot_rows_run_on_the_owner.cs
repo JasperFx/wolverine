@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;

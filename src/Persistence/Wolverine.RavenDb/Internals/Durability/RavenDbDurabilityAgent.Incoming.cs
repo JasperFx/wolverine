@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Transports;
 

@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
