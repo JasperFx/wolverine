@@ -520,7 +520,26 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             try
             {
                 var completion = _receiver.WaitForCompletionAsync();
-                await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout)).ConfigureAwait(false);
+                var timeout = Task.Delay(_settings.DrainTimeout);
+
+                // GH-4797. Which task won is load-bearing information that Task.WhenAny discards. Past the
+                // timeout this method still runs the blanket ReleaseIncomingAsync below, which hands every row
+                // at this address back to AnyNode *while handlers are still running* -- so another node can
+                // claim and re-execute a message this node has not finished. For an exclusive listener, and
+                // especially for a global partition slot handing over (GH-4777), that is the intra-group
+                // concurrency the partitioned modes exist to prevent, and it used to happen with nothing
+                // logged at any level and a stop that reported success.
+                //
+                // Not fixed here -- releasing only what was abandoned needs granularity this method does not
+                // have, and "release none" trades double execution for stranded rows (the GH-3856 class).
+                // That is a deliberate choice about which side to fail on, so it stays in GH-4797. What this
+                // does is make the degradation visible instead of silent.
+                if (await Task.WhenAny(completion, timeout).ConfigureAwait(false) == timeout)
+                {
+                    _logger.LogWarning(
+                        "Drain at {Uri} timed out after {DrainTimeout} with {QueueCount} message(s) still queued or in flight. Their inbox rows are about to be released to any node, so a message still executing here may be re-executed elsewhere. See GH-4797",
+                        Uri, _settings.DrainTimeout, QueueCount);
+                }
             }
             catch (Exception e)
             {
