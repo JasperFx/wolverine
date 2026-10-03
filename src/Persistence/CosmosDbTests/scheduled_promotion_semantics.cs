@@ -8,6 +8,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.CosmosDb;
 using Wolverine.CosmosDb.Internals;
 using Wolverine.Persistence.Durability;
+using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 
@@ -171,5 +172,123 @@ public class scheduled_promotion_semantics : IAsyncLifetime
         promoted.Store.ShouldBe(expected,
             "Promoted envelopes must be stamped with the store they came from so downstream " +
             "mark-as-handled / inbox writes route back to the correct store. See GH-2576.");
+    }
+
+    /// <summary>
+    /// GH-4711, and the premise the issue could not settle from source. <c>CosmosDbDurabilityAgent</c>
+    /// enqueues EVERY promoted envelope onto this node's own local queue rather than routing by
+    /// <c>Destination</c> the way every relational store's poller does, which looks like it should mis-route a
+    /// scheduled message addressed to an external endpoint.
+    ///
+    /// <para>It does not, because no such row ever reaches the poller. A delayed message bound for an external
+    /// endpoint parks as a <c>ScheduledEnvelope</c> WRAPPER addressed to this node's own
+    /// <c>local://durable/</c> -- so enqueuing it locally is precisely what has to happen, and
+    /// <c>ScheduledSendEnvelopeHandler</c> then unwraps it and sends it on. Asserted here rather than reasoned
+    /// about, and asserted on the SHAPE so that a future change which parked a genuinely remote address here
+    /// would make this fail instead of passing silently.</para>
+    ///
+    /// <para>Scheduled an hour out on purpose: this is about where the row lands, not about dueness, and a due
+    /// row would race the durability agent.</para>
+    /// </summary>
+    [Fact]
+    public async Task a_delayed_external_send_parks_as_a_wrapper_rather_than_under_its_destination()
+    {
+        var port = PortFinder.GetAvailablePort();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
+                opts.Services.AddSingleton(_fixture.Client);
+
+                // Deliberately NOT UseDurableOutbox(): a durable destination schedules in the OUTBOX and never
+                // reaches the scheduled inbox poller this test is about.
+                opts.PublishMessage<ExternallyBoundMessage>().ToPort(port);
+
+                opts.Policies.DisableConventionalLocalRouting();
+                opts.Discovery.DisableConventionalDiscovery();
+
+                opts.Transports.NodeControlEndpoint =
+                    opts.Transports.GetOrCreateEndpoint(new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        await host.Services.GetRequiredService<IMessageContext>()
+            .ScheduleAsync(new ExternallyBoundMessage(1), 1.Hours());
+
+        var rows = await thePersistence.Admin.AllIncomingAsync();
+        var row = rows.ShouldHaveSingleItem();
+
+        row.MessageType.ShouldBe(TransportConstants.ScheduledEnvelope);
+        row.Destination.ShouldBe(new Uri("local://durable/"));
+
+        // The crux of GH-4711: nothing is parked under the external address, so a poller that enqueues
+        // everything locally is not mis-routing anything.
+        row.Destination.ShouldNotBe(new Uri($"tcp://localhost:{port}"));
+    }
+
+    /// <summary>
+    /// GH-4711, the consequence. The promoted wrapper is unwrapped and delivered to the destination NODE, not
+    /// executed on the promoting one. The second host is what makes the claim falsifiable: "it did not run
+    /// here" is equally true of an envelope that was silently dropped, so something has to prove it arrived.
+    /// </summary>
+    [Fact]
+    public async Task the_promoted_wrapper_is_unwrapped_and_delivered_to_its_destination()
+    {
+        var port = PortFinder.GetAvailablePort();
+        var catcher = new PromotedMessageCatcher();
+
+        // ONLY this host can handle the message, so "handled" and "handled here" cannot be confused.
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Services.AddSingleton(catcher);
+                opts.ListenAtPort(port);
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<ExternallyBoundMessageHandler>();
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        using var promoter = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
+                opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+
+                opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
+                opts.Services.AddSingleton(_fixture.Client);
+
+                opts.PublishMessage<ExternallyBoundMessage>().ToPort(port);
+
+                opts.Policies.DisableConventionalLocalRouting();
+                opts.Discovery.DisableConventionalDiscovery();
+
+                opts.Transports.NodeControlEndpoint =
+                    opts.Transports.GetOrCreateEndpoint(new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        await promoter.Services.GetRequiredService<IMessageContext>()
+            .ScheduleAsync(new ExternallyBoundMessage(2), 1.Seconds());
+
+        var completed = await Task.WhenAny(catcher.Source.Task,
+            Task.Delay(60.Seconds(), TestContext.Current.CancellationToken));
+
+        (completed == catcher.Source.Task).ShouldBeTrue(
+            "The promoted scheduled send never reached the listening node");
+    }
+}
+
+public record ExternallyBoundMessage(int Id);
+
+/// <summary>
+/// Registered ONLY on the receiving host in the GH-4711 test, so a caught message proves the envelope crossed
+/// the wire rather than being executed by the node that promoted it.
+/// </summary>
+public class ExternallyBoundMessageHandler
+{
+    public static void Handle(ExternallyBoundMessage message, Envelope envelope, PromotedMessageCatcher catcher)
+    {
+        catcher.Source.TrySetResult(envelope);
     }
 }
