@@ -109,6 +109,9 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
         var dataSource = new WolverineSqliteDataSource(connectionString);
         var settings = new DatabaseSettings
         {
+            // GH-4805. Tenant databases need the saga serializer options too -- a multi-tenanted
+            // app's sagas live in these, not in the main database.
+            SagaSerializerOptions = _persistence.SagaSerializerOptions,
             CommandQueuesEnabled = false,
             DataSource = dataSource,
             ConnectionString = connectionString,

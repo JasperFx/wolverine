@@ -1296,6 +1296,30 @@ partial class Build
             var httpProcess = ProcessTasks.StartProcess(httpSmokeOutput / httpBinaryName,
                 workingDirectory: RootDirectory);
             httpProcess.AssertZeroExitCode();
+
+            // ─── AOT smoke #5 (GH-4805): the STORE-BACKED lane ───
+            //
+            // The gap GH-4765 was filed over. Every lane above references Wolverine.csproj or
+            // Wolverine.Http alone, so until this one no native image in CI had ever executed a chain
+            // that a PERSISTENCE package composed -- which is why this whole class of bug reached us from
+            // users' production publishes instead of from here (GH-4752, GH-4778, the EF Core frames in
+            // #4803, and the three separate saga blockers in GH-4805).
+            //
+            // Sqlite-backed, so it costs a runner nothing: a file, no server, no container. It drives a
+            // Guid-keyed saga through start and advance and asserts the saga actually handled the second
+            // message -- the vacuity guard matters, because an earlier revision of this smoke booted
+            // perfectly while the saga never ran at all.
+            var sagaSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga" /
+                            "Wolverine.AotSmoke.Saga.csproj";
+            var sagaSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga" /
+                                  "bin" / "aot-saga";
+            DotNet(
+                $"publish {sagaSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {sagaSmokeOutput}");
+
+            var sagaBinaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Saga.exe" : "Wolverine.AotSmoke.Saga";
+            var sagaProcess = ProcessTasks.StartProcess(sagaSmokeOutput / sagaBinaryName,
+                workingDirectory: RootDirectory);
+            sagaProcess.AssertZeroExitCode();
         });
 
     // ─── Codegen drift gate ────────────────────────────────────────────
@@ -1354,6 +1378,11 @@ partial class Build
                 // be held to the same freshness gate as the rest -- a stale tree here would make that lane
                 // assert against generated code nobody has regenerated since the emitters changed.
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http",
+                // GH-4805. Same reasoning, and this one finally gives the drift gate a SAGA: it is the
+                // first project here whose committed output contains a saga chain, so the saga emission
+                // is byte-compared from now on. Before it, GH-4765's and GH-4803's rooting changes both
+                // came out identical across every project in this list because none of them had one.
+                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga",
                 RootDirectory / "src" / "Http" / "CodeGenTarget",
                 RootDirectory / "src" / "Http" / "StaticCodeGenDemonstrator",
                 RootDirectory / "src" / "Http" / "DeepMiddlewareUsage"

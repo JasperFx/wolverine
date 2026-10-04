@@ -1,3 +1,4 @@
+using Wolverine.Persistence.Sagas;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using ImTools;
@@ -11,7 +12,7 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.MySql;
 using Wolverine.Logging;
-using Wolverine.MySql.Sagas;
+using Wolverine.MySql.Internals;
 using Wolverine.MySql.Schema;
 using Wolverine.MySql.Util;
 using Wolverine.Persistence.Durability;
@@ -27,8 +28,27 @@ using Table = Weasel.MySql.Tables.Table;
 
 namespace Wolverine.MySql;
 
-internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
+internal class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISagaStorageCodeSource
 {
+    /// <summary>
+    ///     GH-4805. Lets generated saga code construct <c>DatabaseSagaSchema<TSaga, TId></c> itself, which is the only way the
+    ///     saga path runs in a native image — <c>SagaSchemaFor</c> is an abstract generic method, and ILC
+    ///     cannot dispatch one.
+    /// </summary>
+    /// <remarks>
+    ///     <c>MakeGenericType</c> is safe here and nowhere near the runtime path: called once per saga
+    ///     chain while the chain model is built, under the JIT, and the <see cref="Type" /> it returns is
+    ///     only rendered as source text. <b>Note the argument order</b> — this store's schema is
+    ///     <c>DatabaseSagaSchema<TSaga, TId></c>, and the five relational stores do not agree on it, which is exactly why each
+    ///     answers this for itself rather than a shared helper guessing.
+    /// </remarks>
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "GH-4805. The closed type is RENDERED AS SOURCE TEXT by EnrollAndFetchSagaStorageFrame and never instantiated from this Type. Called at codegen time under the JIT, so it does not execute in a native image at all -- the generated code that replaces it is what runs there.")]
+    public SagaSchemaCodegen? SagaSchemaCodegenFor(Type sagaType, Type idType)
+    {
+        return new SagaSchemaCodegen(typeof(DatabaseSagaSchema<,>).MakeGenericType(sagaType, idType), typeof(RelationalSagaStorage));
+    }
+
     /// <summary>
     /// GH-4375. MySQL's placeholder count is a uint16 on the wire, so 65,535. A multi-row insert of
     /// 65,536 parameters was accepted against the docker-compose MySQL, which means the practical limit

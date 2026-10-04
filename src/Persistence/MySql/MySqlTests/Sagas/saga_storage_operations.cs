@@ -3,7 +3,7 @@ using MySqlConnector;
 using Shouldly;
 using Weasel.MySql;
 using Wolverine;
-using Wolverine.MySql.Sagas;
+using Wolverine.MySql.Internals;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 

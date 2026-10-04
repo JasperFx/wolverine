@@ -1,3 +1,4 @@
+using System.Text.Json;
 ﻿using System.Data.Common;
 using JasperFx;
 using JasperFx.Core;
@@ -53,6 +54,20 @@ public interface IPostgresqlBackedPersistence
     /// <param name="autoCreate"></param>
     /// <returns></returns>
     IPostgresqlBackedPersistence OverrideAutoCreateResources(AutoCreate autoCreate);
+
+    /// <summary>
+    ///     Supply <see cref="JsonSerializerOptions" /> for lightweight saga state. Required under Native
+    ///     AOT, where reflection-based <c>System.Text.Json</c> is disabled: pass options whose
+    ///     <c>TypeInfoResolver</c> is a source-generated <c>JsonSerializerContext</c> covering every saga
+    ///     type this application persists.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4805. Before this, saga state went through <c>JsonSerializerOptions.Default</c>, which an
+    ///     application cannot configure — so a published native image threw
+    ///     <c>Reflection-based serialization has been disabled for this application</c> on the first saga
+    ///     insert with no way to intervene.
+    /// </remarks>
+    IPostgresqlBackedPersistence UseSagaSerializerOptions(JsonSerializerOptions options);
 
     /// <summary>
     /// Override the database schema name for the envelope storage tables (the transactional inbox/outbox).
@@ -303,7 +318,9 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             // own field but never made it into DatabaseSettings, which is
             // what MessageDatabase.Admin / MessageDatabase.Tenants /
             // Migrator.ApplyAllAsync actually read.
-            AutoCreate = AutoCreate
+            AutoCreate = AutoCreate,
+            // GH-4805. The saga schemas read their serializer options from here and nowhere else.
+            SagaSerializerOptions = SagaSerializerOptions
         };
         return settings;
     }
@@ -346,6 +363,18 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         AutoCreate = autoCreate;
         return this;
     }
+
+    IPostgresqlBackedPersistence IPostgresqlBackedPersistence.UseSagaSerializerOptions(JsonSerializerOptions options)
+    {
+        SagaSerializerOptions = options ?? throw new ArgumentNullException(nameof(options));
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-4805. Stamped onto <see cref="DatabaseSettings.SagaSerializerOptions" /> for the main
+    ///     database and every tenant database, which is the only place the saga schemas read it from.
+    /// </summary>
+    internal JsonSerializerOptions? SagaSerializerOptions { get; private set; }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.SchemaName(string schemaName)
     {

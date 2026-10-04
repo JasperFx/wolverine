@@ -3,7 +3,7 @@ using Oracle.ManagedDataAccess.Client;
 using Shouldly;
 using Weasel.Oracle;
 using Wolverine;
-using Wolverine.Oracle.Sagas;
+using Wolverine.Oracle.Internals;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 

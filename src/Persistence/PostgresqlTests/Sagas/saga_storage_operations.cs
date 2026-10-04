@@ -5,6 +5,7 @@ using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
+using Wolverine.Postgresql.Internals;
 
 namespace PostgresqlTests.Sagas;
 

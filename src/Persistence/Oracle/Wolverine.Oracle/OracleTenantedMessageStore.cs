@@ -55,6 +55,9 @@ internal class OracleTenantedMessageStore : ITenantedMessageSource
         var dataSource = new OracleDataSource(connectionString);
         var settings = new DatabaseSettings
         {
+            // GH-4805. Tenant databases need the saga serializer options too -- a multi-tenanted
+            // app's sagas live in these, not in the main database.
+            SagaSerializerOptions = _persistence.SagaSerializerOptions,
             CommandQueuesEnabled = false,
             ConnectionString = connectionString,
             Role = MessageStoreRole.Tenant,

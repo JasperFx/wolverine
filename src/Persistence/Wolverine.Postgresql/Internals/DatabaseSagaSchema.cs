@@ -13,6 +13,18 @@ using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 
+namespace Wolverine.Postgresql.Internals;
+// GH-4805. "Publinternal": technically public, not part of the supported surface. It is public only
+// because generated saga code has to name the closed type to construct it -- a typeof() in generated
+// code cannot see an internal type -- and it lives under Internals/ to say so. Do not build an
+// application against it.
+//
+// It used to sit in the GLOBAL namespace (no declaration at all). The Postgresql twin had NO namespace declaration at all, which put a public
+// type called DatabaseSagaSchema in the GLOBAL namespace of a shipped package: visible unqualified in
+// every file of every consuming project, and colliding by name with the four sibling stores' versions
+// of it. All five moved together so the shape is uniform rather than only the broken one fixed.
+
+
 // AOT note (#2746): Reflection-based STJ over runtime saga state type T.
 // Same chunk D / chunk Z (RavenDb) pattern: AOT consumers using lightweight
 // Postgres saga storage supply a JsonSerializerContext for their saga state
@@ -86,7 +98,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         await EnsureStorageExistsAsync(cancellationToken);
         await transaction.CreateCommand(_insertSql).As<NpgsqlCommand>()
             .With("id", id!)
-            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
+            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions), NpgsqlDbType.Jsonb)
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -98,7 +110,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
         var id = IdSource(saga);
         var count = await transaction.CreateCommand(_updateSql).As<NpgsqlCommand>()
-            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
+            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions), NpgsqlDbType.Jsonb)
             .With("id", id!)
             .With("version", saga.Version)
             .ExecuteNonQueryAsync(cancellationToken);
@@ -132,7 +144,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         }
 
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
-        var saga = JsonSerializer.Deserialize<T>(body);
+        var saga = JsonSerializer.Deserialize<T>(body, _settings.SagaSerializerOptions);
         saga!.Version = await reader.GetFieldValueAsync<int>(1, cancellationToken);
 
         await reader.CloseAsync();
