@@ -723,6 +723,10 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     // above: the master is authoritative, per-tenant rows would be duplicates.
     public IRecurringMessageStore RecurringMessages => Main.RecurringMessages;
 
+    // Logical deduplication claims live in the main store, as [DeduplicatedWithResponse] claims already do.
+    // Left at the interface default, every [Deduplicated] chain threw on its first keyed message.
+    public IDeduplicationStore Deduplication => Main.Deduplication;
+
     public IMessageStoreAdmin Admin => this;
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
