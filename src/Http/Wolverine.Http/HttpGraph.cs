@@ -160,8 +160,16 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         var generatedEndpointTypeNames = _chains.Select(x => ((ICodeFile)x).FileName);
 
         // GH-4765. The counterpart collection to the handler graph's: closed types named by the frames
-        // themselves, which is the only way a frame belonging to Wolverine.Http.Marten (its compiled-query
-        // postprocessors, closed over the user's document type) can be rooted at all.
+        // themselves, which is the only way a frame belonging to a persistence package can be rooted at
+        // all. EF Core's CreateTenantedDbContext<T> on an endpoint that takes a multi-tenanted DbContext is
+        // the live case.
+        //
+        // NOT the Wolverine.Http.Marten compiled-query postprocessors, despite the obvious resemblance --
+        // CompiledQueryWriterPolicy closes those from HttpChain.DetermineFrames, which only
+        // ICodeFile.AssembleTypes calls, and BuildFiles materializes this whole list (and with it the
+        // registry's captured roots) BEFORE any AssembleTypes runs. They are also unreachable in a native
+        // image for the same reason: StaticTypeLoader attaches the pre-generated type and never assembles.
+        // A frame has to be placed by a POLICY, at startup, to need rooting and to be collectable here.
         var contributedRootTypes = _chains
             .SelectMany(x => x.Middleware.Concat(x.Postprocessors).Concat(x.PostCommitPostprocessors))
             .OfType<IAotRootSource>()

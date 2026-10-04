@@ -97,11 +97,17 @@ public partial class HandlerGraph
     ///     the saga enrollment frame lands in <see cref="IChain.Middleware" /> while the Marten compiled-query
     ///     frames land in <see cref="IChain.Postprocessors" />.
     ///
-    ///     <para>Known gap: a frame that an <c>IVariableSource</c> builds while the method body is being
-    ///     generated is in none of these lists yet when this runs, so it cannot be collected here.
-    ///     <c>SagaStorageVariableSource</c> is the one such case, and it closes the same
-    ///     <c>EnrollAndFetchSagaStorageFrame&lt;,&gt;</c> that the middleware path already roots for any saga
-    ///     reaching it through <c>LightweightSagaPersistenceFrameProvider</c>.</para>
+    ///     <para>A frame that an <c>IVariableSource</c> builds while the method body is being generated is
+    ///     in none of these lists when this runs, and so cannot be collected here —
+    ///     <c>SagaStorageVariableSource</c> and <c>TenantedDbContextSource</c> are the two such cases. That
+    ///     is not a hole, because nothing on that path ever runs in a native image: <c>Create</c> is called
+    ///     only by JasperFx's <c>MethodFrameArranger</c>, reached only from <c>ICodeFile.AssembleTypes</c>,
+    ///     and <c>StaticTypeLoader</c> never calls <c>AssembleTypes</c> — it attaches the pre-generated type
+    ///     and stops. What DOES run at startup under <see cref="TypeLoadMode.Static" /> is policy
+    ///     application, which is why the frames closed there (the saga enrollment frame, EF Core's
+    ///     <c>CreateTenantedDbContext&lt;&gt;</c>) are the ones that need rooting and these do not. Collect
+    ///     from a second point only if some frame provider starts closing a generic from inside
+    ///     <c>Create</c> and that close becomes reachable without codegen.</para>
     /// </remarks>
     private static IEnumerable<Type> aotRootsOf(IChain chain)
     {
