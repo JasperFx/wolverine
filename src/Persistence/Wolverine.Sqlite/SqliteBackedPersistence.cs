@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Data.Common;
 using JasperFx;
 using JasperFx.Core;
@@ -49,6 +50,20 @@ public interface ISqliteBackedPersistence
     /// <param name="autoCreate"></param>
     /// <returns></returns>
     ISqliteBackedPersistence OverrideAutoCreateResources(AutoCreate autoCreate);
+
+    /// <summary>
+    ///     Supply <see cref="JsonSerializerOptions" /> for lightweight saga state. Required under Native
+    ///     AOT, where reflection-based <c>System.Text.Json</c> is disabled: pass options whose
+    ///     <c>TypeInfoResolver</c> is a source-generated <c>JsonSerializerContext</c> covering every saga
+    ///     type this application persists.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4805. Before this, saga state went through <c>JsonSerializerOptions.Default</c>, which an
+    ///     application cannot configure — so a published native image threw
+    ///     <c>Reflection-based serialization has been disabled for this application</c> on the first saga
+    ///     insert with no way to intervene.
+    /// </remarks>
+    ISqliteBackedPersistence UseSagaSerializerOptions(JsonSerializerOptions options);
 
     /// <summary>
     /// Names the envelope storage tables (the transactional inbox/outbox). SQLite has no schemas, so
@@ -241,7 +256,9 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
             AddTenantLookupTable = UseMasterTableTenancy,
             TenantConnections = TenantConnections,
             // Propagate the AutoCreate override (see #2780).
-            AutoCreate = AutoCreate
+            AutoCreate = AutoCreate,
+            // GH-4805. The saga schemas read their serializer options from here and nowhere else.
+            SagaSerializerOptions = SagaSerializerOptions
         };
         return settings;
     }
@@ -284,6 +301,18 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
         AutoCreate = autoCreate;
         return this;
     }
+
+    ISqliteBackedPersistence ISqliteBackedPersistence.UseSagaSerializerOptions(JsonSerializerOptions options)
+    {
+        SagaSerializerOptions = options ?? throw new ArgumentNullException(nameof(options));
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-4805. Stamped onto <see cref="DatabaseSettings.SagaSerializerOptions" /> when the store is
+    ///     built, which is the only object the saga schemas can read it from.
+    /// </summary>
+    internal JsonSerializerOptions? SagaSerializerOptions { get; private set; }
 
     ISqliteBackedPersistence ISqliteBackedPersistence.SchemaName(string schemaName)
     {

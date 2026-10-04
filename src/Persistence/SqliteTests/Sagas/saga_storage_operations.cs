@@ -5,7 +5,7 @@ using Weasel.Sqlite.Tables;
 using Wolverine;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
-using Wolverine.Sqlite.Sagas;
+using Wolverine.Sqlite.Internals;
 
 namespace SqliteTests.Sagas;
 

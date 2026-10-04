@@ -1,0 +1,83 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #5 (GH-4765) — the STORE-BACKED lane.
+
+        Every other AOT smoke references Wolverine.csproj or Wolverine.Http
+        alone, so no native image in CI has ever executed a chain that a
+        PERSISTENCE package composed. That is the coverage gap GH-4765 stays
+        open for, and the reason this whole class of bug has reached us from
+        users' production publishes rather than from CI: GH-4752, GH-4778, and
+        the EF Core frames fixed in #4803.
+
+        Wolverine.Sqlite is the store that can hold the lane: a file, no server,
+        so it costs a CI runner nothing to stand up. Fisher was the first
+        candidate and is NOT usable yet — a Fisher document write cannot complete
+        in a native image at all (fisher#384, two separate reflective-generics
+        failures on the write path). Fisher also would not have tested the right
+        thing: it composes saga chains through its own
+        FisherPersistenceFrameProvider, so it never closes
+        EnrollAndFetchSagaStorageFrame.
+
+        What it pins: SqliteBackedPersistence registers
+        LightweightSagaPersistenceFrameProvider as a PERSISTENCE STRATEGY, so
+        SagaPersistenceChainPolicy closes
+        EnrollAndFetchSagaStorageFrame<TId, TSaga> over the user's saga type
+        during POLICY application — at startup, under TypeLoadMode.Static, with
+        the generated code already compiled in. Nothing names that instantiation
+        statically, so it survives only because the frame contributes its own
+        root through IAotRootSource (GH-4765 / #4801). This project is the first
+        committed-codegen project in the repo to have a saga at all, which is why
+        #4801 and #4803 both came out byte-identical across the drift gate's
+        seven projects and why neither was ever actually exercised end to end.
+
+        Note that the same store ALSO registers SagaStorageVariableSource, which
+        closes the identical frame from inside code generation. That path needs no
+        root and cannot be given one — see the handoff note on
+        HandlerGraph.aotRootsOf. Only the policy-placed close matters here.
+
+        Carries NO hand-written roots, deliberately — same stance as
+        Wolverine.AotSmoke.Http and the opposite of Wolverine.AotSmoke.Publish.
+        A regression in the emitted rooting block has to fail this lane outright
+        rather than hide behind an AotRoots.Pin() call.
+
+        Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, because a
+        console host writes relative to the working directory, not the project
+        folder:
+
+          dotnet run -f net9.0 codegen write
+
+        then commit the result.
+        -->
+        <PublishAot>true</PublishAot>
+        <StripSymbols>false</StripSymbols>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!--
+        GH-4805. Deliberately NOT setting JsonSerializerIsReflectionEnabledByDefault. PublishAot turns
+        reflection-based System.Text.Json off, and this lane proves the saga path works with a
+        source-generated JsonSerializerContext handed in through DatabaseSettings.SagaSerializerOptions
+        instead - which is the seam that did not exist before GH-4805. Switching reflection back on would
+        make this smoke pass without testing the thing it exists to test.
+        -->
+
+        <!-- Runtime behaviour of a native image is what this asserts. The trim-analysis warning wall is
+             Wolverine.AotSmoke's job; here it would only bury the signal. Mirrors
+             Wolverine.AotSmoke.Publish and Wolverine.AotSmoke.Http. -->
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Sqlite\Wolverine.Sqlite.csproj" />
+    </ItemGroup>
+
+</Project>

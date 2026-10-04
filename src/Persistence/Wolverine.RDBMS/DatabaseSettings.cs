@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json;
 using JasperFx;
 using JasperFx.MultiTenancy;
 using Weasel.Core;
@@ -9,6 +10,28 @@ namespace Wolverine.RDBMS;
 public class DatabaseSettings
 {
     public DbDataSource? DataSource { get; set; }
+
+    /// <summary>
+    ///     Optional <see cref="JsonSerializerOptions" /> for lightweight relational saga state. Set this to
+    ///     a <c>JsonSerializerContext</c>-backed instance to make saga storage work under Native AOT.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4805. The saga schemas called <c>JsonSerializer.Serialize(document)</c> with no options at
+    ///     all, which binds <c>JsonSerializerOptions.Default</c> — an instance an application cannot
+    ///     configure. Every relational store carried a trim suppression promising that "AOT consumers
+    ///     supply a JsonSerializerContext", and there was no seam through which to supply one: a published
+    ///     native image threw <c>Reflection-based serialization has been disabled for this application</c>
+    ///     on the first saga insert, with nothing the application could do about it short of switching
+    ///     reflection back on for the whole process.
+    ///
+    ///     <para>Null keeps the previous behaviour exactly — <c>JsonSerializer</c> treats a null options
+    ///     argument as "use the default" — so nothing changes for an application that does not set it.</para>
+    ///
+    ///     <para>Set it to <c>new JsonSerializerOptions { TypeInfoResolver = MyContext.Default }</c>, where
+    ///     <c>MyContext</c> is a <c>JsonSerializerContext</c> declaring every saga type the application
+    ///     persists.</para>
+    /// </remarks>
+    public JsonSerializerOptions? SagaSerializerOptions { get; set; }
 
     private string? _schemaName;
 

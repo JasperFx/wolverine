@@ -5,7 +5,7 @@ using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
-using Wolverine.SqlServer.Sagas;
+using Wolverine.SqlServer.Internals;
 
 namespace SqlServerTests.Sagas;
 

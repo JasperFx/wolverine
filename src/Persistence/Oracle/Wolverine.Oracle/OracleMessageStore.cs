@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Core;
 using Weasel.Oracle;
-using Wolverine.Oracle.Sagas;
+using Wolverine.Oracle.Internals;
 using Wolverine.Oracle.Schema;
 using Wolverine.Oracle.Transport;
 using Wolverine.Persistence;
@@ -441,6 +441,15 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     }
 
     // ISagaSupport
+    //
+    // GH-4805. Deliberately NOT an ISagaStorageCodeSource, unlike the other four relational stores.
+    // They inherit SagaSchemaFor as an `abstract` generic method on the generic MessageDatabase<T>,
+    // which makes it a generic VIRTUAL method that NativeAOT cannot dispatch -- so they need generated
+    // code to build the schema for them. This store is not a MessageDatabase<T> at all: it implements
+    // the store interfaces directly, so its SagaSchemaFor is a plain non-virtual generic method on a
+    // non-generic class, and ILC compiles it per instantiation like any other call. There is nothing to
+    // work around here. (Not verified in a native image -- no Oracle AOT lane exists -- but the GVM
+    // hazard that forced the change elsewhere is structurally absent.)
     public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context)
         where TSaga : Saga
     {

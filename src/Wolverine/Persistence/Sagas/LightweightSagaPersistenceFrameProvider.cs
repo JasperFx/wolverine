@@ -43,16 +43,46 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
 
             var idType = member.GetRawMemberType();
 
-            var enrollFrame =
-                typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<Frame>(idType!, sagaChain.SagaType);
+            // GH-4805. Ask the store whether it wants generated code to build its saga schema directly.
+            // A store that says yes gets a frame that renders the construction as source text, which is
+            // the only shape NativeAOT can execute -- the runtime path goes through an abstract generic
+            // method whose generic-virtual dispatch ILC cannot resolve. A store with no opinion, or no
+            // store resolvable here at all, keeps the original path unchanged.
+            var codegen = tryFindSagaStorageCodeSource(container)
+                ?.SagaSchemaCodegenFor(sagaChain.SagaType, idType!);
 
-            sagaChain.Middleware.Add(enrollFrame);
+            // GH-4805. Constructed directly, not closed with CloseAndBuildAs: the frame is no longer
+            // generic, which is what stops ILC needing an instantiation it will not generate code for.
+            sagaChain.Middleware.Add(
+                new EnrollAndFetchSagaStorageFrame(idType!, sagaChain.SagaType, codegen));
         }
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
         ApplyTransactionSupport(chain, container);
+    }
+
+    /// <summary>
+    ///     GH-4805. The live message store, if it has an opinion about how its saga schema should be built
+    ///     in generated code.
+    /// </summary>
+    /// <remarks>
+    ///     Swallows a resolution failure on purpose. This runs during policy application, and a host whose
+    ///     runtime cannot hand over a store yet -- or at all -- must still get a working chain on the
+    ///     original path rather than a startup exception from an optimisation.
+    /// </remarks>
+    private static ISagaStorageCodeSource? tryFindSagaStorageCodeSource(IServiceContainer container)
+    {
+        try
+        {
+            return (container.Services.GetService(typeof(IWolverineRuntime)) as IWolverineRuntime)?.Storage
+                as ISagaStorageCodeSource;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>

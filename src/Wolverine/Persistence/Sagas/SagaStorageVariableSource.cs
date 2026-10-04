@@ -26,6 +26,9 @@ public class SagaStorageVariableSource : IVariableSource
         var sagaType = type.GetGenericArguments().Last();
         var idType = SagaChain.DetermineSagaIdMember(sagaType, sagaType)?.GetRawMemberType();
 
-        return typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<ISagaStorageFrame>(idType!, sagaType).SimpleVariable;
+        // GH-4805. Direct construction rather than CloseAndBuildAs, for the same reason as the frame
+        // provider: the frame is not generic any more. This path only runs during code generation, so it
+        // was never the one that failed under AOT -- it is changed to keep one way of building the frame.
+        return new EnrollAndFetchSagaStorageFrame(idType!, sagaType).SimpleVariable;
     }
 }

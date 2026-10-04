@@ -1,4 +1,5 @@
 using System.Data;
+using ImTools;
 using JasperFx.Events.Daemon;
 using System.Data.Common;
 using JasperFx.Core;
@@ -25,7 +26,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, IExternalDbTransportStore where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, ISagaSchemaSupplier, IExternalDbTransportStore where T : DbConnection, new()
 {
     /// <summary>
     /// GH-4375. The most parameters this provider accepts in one command. Batched durability commands
@@ -594,4 +595,65 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     }
 
     public abstract IDatabaseSagaSchema<TId, TSaga> SagaSchemaFor<TSaga, TId>() where TSaga : Saga;
+
+    /// <summary>
+    ///     GH-4805. Keyed by (saga type, identity type) rather than saga type alone: the per-store
+    ///     <c>_sagaStorage</c> caches key on the saga type and then re-check the cast, which silently
+    ///     rebuilds on a mismatch. Nothing stops a saga type being asked for under two identity types in
+    ///     the same process, and a tuple key makes that cheap instead of pathological.
+    /// </summary>
+    private ImHashMap<(Type, Type), IDatabaseSagaSchema> _factoryBuiltSagaSchemas =
+        ImHashMap<(Type, Type), IDatabaseSagaSchema>.Empty;
+
+    /// <summary>
+    ///     GH-4805. The Native AOT-safe twin of <see cref="EnrollAndFetchSagaStorage{TId,TSaga}(MessageContext)" />:
+    ///     identical connection, transaction and outbox handling, but the schema comes from a factory the
+    ///     caller supplies rather than from the <c>abstract</c> generic <see cref="SagaSchemaFor{TSaga,TId}" />,
+    ///     whose generic-virtual dispatch NativeAOT cannot resolve. See <see cref="ISagaSchemaSupplier" />
+    ///     for the measurement behind that.
+    /// </summary>
+    public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(
+        MessageContext context,
+        Func<SagaTableDefinition, DatabaseSettings, IDatabaseSagaSchema<TId, TSaga>> factory) where TSaga : Saga
+    {
+        var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            var tx = await conn.BeginTransactionAsync(_cancellation);
+
+            var schema = sagaSchemaFromFactory(factory);
+
+            var transaction = new DatabaseEnvelopeTransaction(this, tx);
+            await context.EnlistInOutboxAsync(transaction);
+            return new DatabaseSagaStorage<TId, TSaga>(conn, tx, schema);
+        }
+        catch (Exception)
+        {
+            await conn.CloseAsync();
+            throw;
+        }
+    }
+
+    private IDatabaseSagaSchema<TId, TSaga> sagaSchemaFromFactory<TId, TSaga>(
+        Func<SagaTableDefinition, DatabaseSettings, IDatabaseSagaSchema<TId, TSaga>> factory) where TSaga : Saga
+    {
+        var key = (typeof(TSaga), typeof(TId));
+
+        if (_factoryBuiltSagaSchemas.TryFind(key, out var cached))
+        {
+            return (IDatabaseSagaSchema<TId, TSaga>)cached;
+        }
+
+        // Same shape the per-store SagaSchemaFor overrides build, so a saga's table is identical whichever
+        // path reached it. The table NAME is part of SagaTableDefinition, so this must stay in sync with
+        // them -- it is deliberately the same two arguments.
+        var schema = factory(new SagaTableDefinition(typeof(TSaga), null), _settings);
+
+        // Plain assignment, not CompareExchange: a race here builds one extra schema object and the loser
+        // is discarded, which is exactly how the per-store caches already behave.
+        _factoryBuiltSagaSchemas = _factoryBuiltSagaSchemas.AddOrUpdate(key, schema);
+
+        return schema;
+    }
 }

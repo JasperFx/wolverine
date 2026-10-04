@@ -12,20 +12,21 @@ using Weasel.Core.Migrations;
 using Weasel.Sqlite;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Sqlite.Schema;
-using Wolverine.Sqlite.Sagas;
+using Wolverine.Sqlite.Internals;
 using Wolverine.Sqlite.Util;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.Sqlite;
 
-internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
+internal class SqliteMessageStore : MessageDatabase<SqliteConnection>, ISagaStorageCodeSource
 {
     /// <summary>
     /// GH-4375. SQLITE_MAX_VARIABLE_NUMBER, measured at 32,766 against the bundled SQLite 3.50.4 by
@@ -809,6 +810,26 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     public void AddTable(Weasel.Sqlite.Tables.Table table)
     {
         _otherTables.Add(table);
+    }
+
+    /// <summary>
+    ///     GH-4805. Lets generated saga code construct <see cref="DatabaseSagaSchema{T,TId}" /> itself,
+    ///     which is the only way the saga path runs in a native image — <see cref="SagaSchemaFor{T,TId}" />
+    ///     below is an abstract generic method, and ILC cannot dispatch one.
+    /// </summary>
+    /// <remarks>
+    ///     <c>MakeGenericType</c> is safe here and nowhere near the runtime path: this is called once per
+    ///     saga chain while the chain model is built, under the JIT, and the <see cref="Type" /> it returns
+    ///     is only rendered as source text. Note the argument order — this store's schema is
+    ///     <c>DatabaseSagaSchema&lt;TSaga, TId&gt;</c>, whereas the SQL Server one declares its parameters
+    ///     the other way round, which is exactly why each store answers this for itself.
+    /// </remarks>
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "GH-4805. The closed type is RENDERED AS SOURCE TEXT by EnrollAndFetchSagaStorageFrame and never instantiated from this Type. Called once per saga chain while the chain model is built -- codegen time, under the JIT -- so this line does not execute in a native image at all; the generated code that replaces it is what runs there. Removing this call is the entire point of the change: it is what lets the native image construct the schema without MakeGenericType.")]
+    public SagaSchemaCodegen? SagaSchemaCodegenFor(Type sagaType, Type idType)
+    {
+        return new SagaSchemaCodegen(typeof(DatabaseSagaSchema<,>).MakeGenericType(sagaType, idType),
+            typeof(RelationalSagaStorage));
     }
 
     public override DatabaseSagaSchema<T, TId> SagaSchemaFor<T, TId>()
