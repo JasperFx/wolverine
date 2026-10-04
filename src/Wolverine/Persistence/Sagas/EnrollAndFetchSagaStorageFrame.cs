@@ -127,6 +127,8 @@ public class EnrollAndFetchSagaStorageFrame : AsyncFrame, ISagaStorageFrame, IAo
 ///     closes it any more — see the remarks on <see cref="EnrollAndFetchSagaStorageFrame" /> for why that
 ///     mattered under Native AOT.
 /// </summary>
+[FSharpEmit(Skip = true,
+    Reason = "GH-4805 source-compatibility shim. Nothing constructs it -- the frame provider and the variable source both build the non-generic base directly -- so F# code generation can never reach it. It inherits the base's emitter regardless.")]
 public class EnrollAndFetchSagaStorageFrame<TId, TSaga> : EnrollAndFetchSagaStorageFrame
     where TSaga : Saga
 {

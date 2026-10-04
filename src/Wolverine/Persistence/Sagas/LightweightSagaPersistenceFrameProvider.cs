@@ -16,9 +16,10 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
     // AHEAD of Marten in OrderedPersistenceProviders and silently stealing sagas Marten should own.
     public bool IsCatchAll => true;
 
-    // ApplyTransactionSupport closes EnrollAndFetchSagaStorageFrame<,> over
-    // (idType, sagaType) at codegen time; CanPersist closes ISagaStorage<,>
-    // over the same. AOT-clean apps in TypeLoadMode.Static run pre-generated
+    // GH-4805: ApplyTransactionSupport no longer CLOSES a frame generic at all -- the frame is
+    // non-generic now, because ILC would not generate code for a <Guid, TSaga> instantiation however
+    // it was rooted. CanPersist still closes ISagaStorage<,>, which is safe and measured.
+    // AOT-clean apps in TypeLoadMode.Static run pre-generated
     // frames where these closures are baked in by source-generated registration;
     // the IPersistenceFrameProvider surface only fires under Dynamic codegen,
     // which is intentionally not AOT-clean (see AOT publishing guide). Same

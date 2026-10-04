@@ -13,8 +13,8 @@ public class SagaStorageVariableSource : IVariableSource
         return type.Closes(typeof(ISagaStorage<,>)) || type.Closes(typeof(ISagaStorage<>));
     }
 
-    // EnrollAndFetchSagaStorageFrame<,> closed over (idType, sagaType) at
-    // codegen time. Same Dynamic-mode rationale as the saga frame providers
+    // GH-4805: builds the NON-generic EnrollAndFetchSagaStorageFrame directly; nothing is closed
+    // here any more. Same Dynamic-mode rationale as the saga frame providers
     // and chunk M (LoggerVariableSource) — AOT-clean apps run pre-generated
     // frames in TypeLoadMode.Static where these closures are baked in.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
