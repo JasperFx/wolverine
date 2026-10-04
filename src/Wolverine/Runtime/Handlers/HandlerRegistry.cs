@@ -54,16 +54,22 @@ internal class HandlerRegistryCodeFile : ICodeFile
     private readonly string[] _generatedHandlerTypeNames;
     private readonly Type[] _routedMessageTypes;
     private readonly Type[] _responseAwareTypes;
+    private readonly Type[] _contributedRootTypes;
     private GeneratedType? _generatedType;
 
     public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes,
         IEnumerable<string>? generatedHandlerTypeNames = null, IEnumerable<Type>? routedMessageTypes = null,
-        IEnumerable<Type>? responseAwareTypes = null)
+        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<Type>? contributedRootTypes = null)
     {
         // GH-4778. Public-filtered and ordered for the same two reasons as the arrays below: a type the
         // generated file cannot see cannot appear inside a typeof(), and the emitted rooting block is
         // byte-compared by the codegen drift gate.
         _responseAwareTypes = onlyPublic(responseAwareTypes ?? []);
+
+        // GH-4765. Roots named by the frames themselves (IAotRootSource), which is the only way a type
+        // belonging to a persistence package can get rooted at all -- this file cannot name one. Filtered
+        // and ordered by exactly the same rules, and for the same reasons.
+        _contributedRootTypes = onlyPublic(contributedRootTypes ?? []);
 
         _handlerTypes = onlyPublic(handlerTypes);
         _messageTypes = onlyPublic(messageTypes);
@@ -100,8 +106,10 @@ internal class HandlerRegistryCodeFile : ICodeFile
         // GH-4778: _responseAwareTypes is in here too. It is routinely declared in a DIFFERENT assembly
         // from the handler -- Marten's UpdatedAggregate is the reported case -- and the emitted rooting
         // block names it inside a typeof(), which does not compile without the reference.
+        // GH-4765: _contributedRootTypes for the same reason, and more acutely -- these come from
+        // persistence packages by definition, so they are never in this assembly.
         foreach (var type in _handlerTypes.Concat(_messageTypes).Concat(_routedMessageTypes)
-                     .Concat(_responseAwareTypes))
+                     .Concat(_responseAwareTypes).Concat(_contributedRootTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -175,6 +183,15 @@ internal class HandlerRegistryCodeFile : ICodeFile
         {
             yield return AttributeArg.Type(responseAwareType);
             yield return closedGenericRoot(typeof(Applier<>), responseAwareType);
+        }
+
+        // GH-4765. Already-closed types, named by the frames that were built from them -- no
+        // MakeGenericType needed here, because the close has happened and these ARE the closed types.
+        // This is the only path by which a Wolverine.Marten / Wolverine.EntityFrameworkCore type can be
+        // rooted: this file cannot reference one, and the frames can.
+        foreach (var rootType in _contributedRootTypes)
+        {
+            yield return AttributeArg.Type(rootType);
         }
     }
 

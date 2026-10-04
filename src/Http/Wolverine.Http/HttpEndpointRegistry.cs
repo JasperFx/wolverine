@@ -77,11 +77,22 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     private readonly Type[] _endpointTypes;
     private readonly Type[] _responseAwareTypes;
     private readonly string[] _generatedEndpointTypeNames;
+    private readonly Type[] _contributedRootTypes;
     private GeneratedType? _generatedType;
 
     public HttpEndpointRegistryCodeFile(IEnumerable<Type> endpointTypes,
-        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<string>? generatedEndpointTypeNames = null)
+        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<string>? generatedEndpointTypeNames = null,
+        IEnumerable<Type>? contributedRootTypes = null)
     {
+        // GH-4765. Roots the frames named for themselves (IAotRootSource) -- the only way a
+        // Wolverine.Http.Marten frame closed over a user document type can be rooted, since this file
+        // cannot name one. Same public filter and ordering as everything else here, for the same reasons.
+        _contributedRootTypes = (contributedRootTypes ?? [])
+            .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
+            .Distinct()
+            .OrderBy(x => x.FullName, StringComparer.Ordinal)
+            .ToArray();
+
         // Ordered for the same reason as everything else here: the emitted rooting block is part of the
         // generated output, which the codegen drift gate byte-compares.
         _generatedEndpointTypeNames = (generatedEndpointTypeNames ?? [])
@@ -110,7 +121,7 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HttpEndpointRegistry.GeneratedTypeName, typeof(HttpEndpointRegistry));
 
-        foreach (var type in _endpointTypes.Concat(_responseAwareTypes))
+        foreach (var type in _endpointTypes.Concat(_responseAwareTypes).Concat(_contributedRootTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -161,6 +172,14 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
         {
             yield return AttributeArg.Type(responseAwareType);
             yield return closedApplierRoot(responseAwareType);
+        }
+
+        // GH-4765. Already closed by the time a frame names itself, so there is no MakeGenericType here --
+        // which is the point: constructing a closed type is the operation that is not safe in a native
+        // image, and these types never need it.
+        foreach (var rootType in _contributedRootTypes)
+        {
+            yield return AttributeArg.Type(rootType);
         }
     }
 
