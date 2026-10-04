@@ -159,10 +159,18 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // is the counterpart it never had.
         var generatedEndpointTypeNames = _chains.Select(x => ((ICodeFile)x).FileName);
 
+        // GH-4765. The counterpart collection to the handler graph's: closed types named by the frames
+        // themselves, which is the only way a frame belonging to Wolverine.Http.Marten (its compiled-query
+        // postprocessors, closed over the user's document type) can be rooted at all.
+        var contributedRootTypes = _chains
+            .SelectMany(x => x.Middleware.Concat(x.Postprocessors).Concat(x.PostCommitPostprocessors))
+            .OfType<IAotRootSource>()
+            .SelectMany(x => x.AotRoots());
+
         var files = new List<ICodeFile>(_chains)
         {
             new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes,
-                generatedEndpointTypeNames)
+                generatedEndpointTypeNames, contributedRootTypes)
         };
 
         return files;

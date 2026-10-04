@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -31,14 +32,23 @@ public partial class HandlerGraph
         // over the handler calls' created variables, no generic close of its own.
         var responseAwareTypes = new List<Type>();
 
+        // GH-4765. The roots no package could contribute for itself. A frame built by closing an open
+        // generic over the user's saga, aggregate or DbContext type is created while the chain MODEL is
+        // built -- which still happens at startup under TypeLoadMode.Static, generated code or not -- so
+        // ILC has to keep that instantiation even though nothing statically references it. The frames
+        // already exist by the time this runs, so each one can simply name its own closed type.
+        var aotRootTypes = new List<Type>();
+
         foreach (var chain in Chains)
         {
             responseAwareTypes.AddRange(chain.ReturnVariablesOfType(typeof(IResponseAware))
                 .Select(x => x.VariableType));
+            aotRootTypes.AddRange(aotRootsOf(chain));
             foreach (var handlerChain in chain.ByEndpoint)
             {
                 responseAwareTypes.AddRange(handlerChain.ReturnVariablesOfType(typeof(IResponseAware))
                     .Select(x => x.VariableType));
+                aotRootTypes.AddRange(aotRootsOf(handlerChain));
             }
 
             if (chain.Handlers.Any())
@@ -76,6 +86,29 @@ public partial class HandlerGraph
             : [];
 
         yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, generatedHandlerTypeNames,
-            chainMessageTypes, responseAwareTypes);
+            chainMessageTypes, responseAwareTypes, aotRootTypes);
+    }
+
+    /// <summary>
+    ///     GH-4765: the closed types a chain's own frames say they need rooted.
+    /// </summary>
+    /// <remarks>
+    ///     All three frame lists, because a reflectively-closed frame can be contributed to any of them —
+    ///     the saga enrollment frame lands in <see cref="IChain.Middleware" /> while the Marten compiled-query
+    ///     frames land in <see cref="IChain.Postprocessors" />.
+    ///
+    ///     <para>Known gap: a frame that an <c>IVariableSource</c> builds while the method body is being
+    ///     generated is in none of these lists yet when this runs, so it cannot be collected here.
+    ///     <c>SagaStorageVariableSource</c> is the one such case, and it closes the same
+    ///     <c>EnrollAndFetchSagaStorageFrame&lt;,&gt;</c> that the middleware path already roots for any saga
+    ///     reaching it through <c>LightweightSagaPersistenceFrameProvider</c>.</para>
+    /// </remarks>
+    private static IEnumerable<Type> aotRootsOf(IChain chain)
+    {
+        return chain.Middleware
+            .Concat(chain.Postprocessors)
+            .Concat(chain.PostCommitPostprocessors)
+            .OfType<IAotRootSource>()
+            .SelectMany(x => x.AotRoots());
     }
 }
