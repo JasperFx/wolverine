@@ -11,51 +11,121 @@ public sealed partial class WolverineRuntime
         var groups = envelopes.GroupBy(x => x.Destination ?? TransportConstants.LocalUri).ToArray();
         foreach (var group in groups)
         {
-            // GH-4700. Has to come before FindListenerCircuit, which answers yes for ANY local:// address.
-            // A global partition's companion local queue exists on every node by design (GH-3856), so
-            // "I can build a circuit here" is not the same question as "this slot is mine to run". The
-            // scheduled poller is deliberately unfiltered -- it takes every due row behind one per-database
-            // advisory lock, and GH-4645 depends on it promoting rows for destinations it does not serve --
-            // so this is where ownership has to be settled.
-            var slotUri = Endpoints.GlobalPartitionSlotFor(group.Key);
-            if (slotUri != null && !thisNodeOwnsPartitionSlot(slotUri))
+            // GH-4822. Every envelope here was promoted by a scheduled poller that has already committed its
+            // rows as Incoming and owned by this node, and inbox recovery only ever releases rows owned by a
+            // node it has proven dead. Letting one destination's failure escape would leave its rows -- and
+            // those of every destination after it in the batch -- owned by a live node forever, with nothing
+            // logged against them and nothing dead lettered. Same remedy as GH-3680 on the recovery side:
+            // hand them back to any node so recovery tries again.
+            //
+            // Only what was not handed over yet goes back: an envelope already forwarded has had its row retired,
+            // and releasing it too would let recovery run it a second time. The listener branch hands a group
+            // over as a whole and cannot say how far it got, so a failure there releases all of it -- the same
+            // trade GH-3680 makes, and the realistic failure (a listener with no receiver) throws before the
+            // first envelope.
+            var handedOver = new HashSet<Envelope>();
+            try
             {
-                await forwardToPartitionSlotAsync(group, slotUri);
-                continue;
+                await enqueueDirectlyAsync(group, handedOver);
+            }
+            catch (Exception e)
+            {
+                var stranded = group.Where(x => !handedOver.Contains(x)).ToArray();
+
+                Logger.LogError(e,
+                    "Error trying to enqueue {Count} promoted scheduled envelopes for {Destination}. Releasing them back to any node so that they are recovered later",
+                    stranded.Length, group.Key);
+
+                await releaseToAnyNodeAsync(stranded, group.Key);
+            }
+        }
+    }
+
+    private async Task enqueueDirectlyAsync(IGrouping<Uri, Envelope> group, ISet<Envelope> handedOver)
+    {
+        // GH-4700. Has to come before FindListenerCircuit, which answers yes for ANY local:// address.
+        // A global partition's companion local queue exists on every node by design (GH-3856), so
+        // "I can build a circuit here" is not the same question as "this slot is mine to run". The
+        // scheduled poller is deliberately unfiltered -- it takes every due row behind one per-database
+        // advisory lock, and GH-4645 depends on it promoting rows for destinations it does not serve --
+        // so this is where ownership has to be settled.
+        //
+        // GH-4822. A scheduled message to a global partition parks at the external slot's own address
+        // (GH-4673), which is not a companion queue, so it needs the same question asked of the slot
+        // itself. A node that never owned the slot would fall through to the sender branch below and
+        // forward correctly anyway, but one that USED to own it still has the stopped listening agent
+        // registered, and FindListenerCircuit hands the envelopes to a listener with no receiver.
+        var slotUri = Endpoints.GlobalPartitionSlotFor(group.Key)
+                      ?? (Endpoints.IsGlobalPartitionSlot(group.Key) ? group.Key : null);
+        if (slotUri != null && !thisNodeOwnsPartitionSlot(slotUri))
+        {
+            await forwardToPartitionSlotAsync(group, slotUri, handedOver);
+            return;
+        }
+
+        var listener = Endpoints.FindListenerCircuit(group.Key);
+        if (listener != null)
+        {
+            await listener.EnqueueDirectlyAsync(group);
+        }
+        else
+        {
+            // For send-only endpoints (e.g. Azure Service Bus topics),
+            // there is no listener circuit. Send through the sending agent instead.
+            ISendingAgent sender;
+            try
+            {
+                sender = Endpoints.GetOrBuildSendingAgent(group.Key);
+            }
+            catch (UnknownTransportException e)
+            {
+                // The envelopes here have already been read out of persistence and
+                // reassigned to this node, so throwing would both lose the rest of
+                // this batch and leave the offending rows stranded -- and the poller
+                // would rediscover them and throw again on every subsequent run. A
+                // destination whose transport this node cannot resolve is never going
+                // to become sendable here, so dead letter the envelopes instead.
+                // See https://github.com/JasperFx/wolverine/issues/3413.
+                await deadLetterUnknownDestinationAsync(group, e);
+                return;
             }
 
-            var listener = Endpoints.FindListenerCircuit(group.Key);
-            if (listener != null)
+            foreach (var envelope in group)
             {
-                await listener.EnqueueDirectlyAsync(group);
+                await sender.EnqueueOutgoingAsync(envelope);
+                handedOver.Add(envelope);
+                await retireForwardedInboxRowAsync(envelope);
             }
-            else
-            {
-                // For send-only endpoints (e.g. Azure Service Bus topics),
-                // there is no listener circuit. Send through the sending agent instead.
-                ISendingAgent sender;
-                try
-                {
-                    sender = Endpoints.GetOrBuildSendingAgent(group.Key);
-                }
-                catch (UnknownTransportException e)
-                {
-                    // The envelopes here have already been read out of persistence and
-                    // reassigned to this node, so throwing would both lose the rest of
-                    // this batch and leave the offending rows stranded -- and the poller
-                    // would rediscover them and throw again on every subsequent run. A
-                    // destination whose transport this node cannot resolve is never going
-                    // to become sendable here, so dead letter the envelopes instead.
-                    // See https://github.com/JasperFx/wolverine/issues/3413.
-                    await deadLetterUnknownDestinationAsync(group, e);
-                    continue;
-                }
+        }
+    }
 
-                foreach (var envelope in group)
-                {
-                    await sender.EnqueueOutgoingAsync(envelope);
-                    await retireForwardedInboxRowAsync(envelope);
-                }
+    /// <summary>
+    /// GH-4822. The release matches on id AND <c>received_at</c>, so it has to name the address the rows were
+    /// parked under. The slot forward has already re-addressed every envelope it touched to the slot, so
+    /// stand-ins carry the parked address rather than mutating the live envelopes back -- the same reasoning
+    /// as <see cref="retireForwardedInboxRowAsync"/>.
+    /// </summary>
+    private async Task releaseToAnyNodeAsync(IReadOnlyList<Envelope> envelopes, Uri parkedAt)
+    {
+        if (envelopes.Count == 0) return;
+
+        foreach (var byStore in envelopes.GroupBy(x => x.Store ?? Storage))
+        {
+            try
+            {
+                var released = byStore
+                    .Select(x => new Envelope { Id = x.Id, Destination = parkedAt, Store = x.Store })
+                    .ToArray();
+
+                await byStore.Key.ReassignIncomingAsync(TransportConstants.AnyNode, released);
+            }
+            catch (Exception e)
+            {
+                // Deliberately not rethrowing, for the same reason retireForwardedInboxRowAsync does not: the
+                // rest of the batch still deserves its turn, and a stranded row is recoverable by hand.
+                Logger.LogError(e,
+                    "Error trying to release {Count} un-enqueued promoted envelopes back to any node",
+                    byStore.Count());
             }
         }
     }
@@ -90,7 +160,8 @@ public sealed partial class WolverineRuntime
     /// strand the row, which is exactly the GH-4645 data loss. OutgoingMessageBatch also assigns
     /// <c>Destination</c> itself, so the live value cannot be trusted once the envelope is handed over.
     /// </summary>
-    private async Task forwardToPartitionSlotAsync(IEnumerable<Envelope> group, Uri slotUri)
+    private async Task forwardToPartitionSlotAsync(IEnumerable<Envelope> group, Uri slotUri,
+        ISet<Envelope> handedOver)
     {
         ISendingAgent sender;
         try
@@ -114,6 +185,7 @@ public sealed partial class WolverineRuntime
             envelope.Destination = slotUri;
 
             await sender.EnqueueOutgoingAsync(envelope);
+            handedOver.Add(envelope);
             await retireForwardedInboxRowAsync(envelope, parkedAt);
         }
     }
