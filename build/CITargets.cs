@@ -1320,6 +1320,28 @@ partial class Build
             var sagaProcess = ProcessTasks.StartProcess(sagaSmokeOutput / sagaBinaryName,
                 workingDirectory: RootDirectory);
             sagaProcess.AssertZeroExitCode();
+
+            // ─── AOT smoke #6: the MARTEN-backed HTTP lane ───
+            //
+            // No lane above references Wolverine.Marten, so a Marten-backed application was the one
+            // shape no native image in CI had booted. Three startup failures reached 6.46 that way, each
+            // masked by the one before it: SideEffectPolicy losing IStartStream's Execute method,
+            // HttpChain+Applier<T> closed over a Results<Ok<T>, ProblemHttpResult> return type, and
+            // Marten unable to find Envelope.Id. The lane asserts the stream really was started, so a
+            // host that boots while silently dropping the side effect still fails.
+            StartDockerServices("postgresql");
+
+            var martenSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten" /
+                              "Wolverine.AotSmoke.Marten.csproj";
+            var martenSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten" /
+                                    "bin" / "aot-marten";
+            DotNet(
+                $"publish {martenSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {martenSmokeOutput}");
+
+            var martenBinaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Marten.exe" : "Wolverine.AotSmoke.Marten";
+            var martenProcess = ProcessTasks.StartProcess(martenSmokeOutput / martenBinaryName,
+                workingDirectory: RootDirectory);
+            martenProcess.AssertZeroExitCode();
         });
 
     // ─── Codegen drift gate ────────────────────────────────────────────
@@ -1383,6 +1405,8 @@ partial class Build
                 // is byte-compared from now on. Before it, GH-4765's and GH-4803's rooting changes both
                 // came out identical across every project in this list because none of them had one.
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga",
+                // Its committed pre-gen is what the Marten-backed native lane in CIAotSmoke runs.
+                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten",
                 RootDirectory / "src" / "Http" / "CodeGenTarget",
                 RootDirectory / "src" / "Http" / "StaticCodeGenDemonstrator",
                 RootDirectory / "src" / "Http" / "DeepMiddlewareUsage"

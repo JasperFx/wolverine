@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #6: the MARTEN-backed HTTP lane.
+
+        Every other native lane references Wolverine, Wolverine.Http or Wolverine.Sqlite, so no native image
+        in CI has ever booted Wolverine.Marten. Three startup failures that only a Marten-backed HTTP app
+        reaches therefore shipped in 6.46 (each is masked by the one before it):
+
+          1. SideEffectPolicy cannot find Execute/ExecuteAsync on Wolverine.Marten.IStartStream, so an
+             endpoint returning MartenOps.StartStream throws InvalidSideEffectException.
+          2. HttpChain.tryApplyAsEndpointMetadataProvider closes HttpChain+Applier<T> over a
+             Results<Ok<T>, ProblemHttpResult> return type with CloseAndBuildAs. The closed type is trimmed
+             (MissingMethodException, or NotSupportedException "missing native code or metadata"). This is
+             not the Configuration.Applier<T> that the GH-4778 rooting block covers.
+          3. IntegrateWithWolverine registers Envelope with Schema.For<Envelope>(), and in a native image
+             Marten's DocumentMapping cannot find Envelope.Id.
+
+        The endpoint shapes are the ones the reporting application uses. Boots, serves both endpoints and
+        reads the started stream back. Needs the postgresql service from docker-compose.yml.
+
+        Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, with Postgres running:
+
+          dotnet run -f net9.0 codegen write
+
+        This project carries NO hand-written roots, so the lane fails until the library itself is fixed.
+        -->
+        <PublishAot>true</PublishAot>
+        <StripSymbols>false</StripSymbols>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- Runtime behaviour of a native image is what this asserts; mirrors Wolverine.AotSmoke.Http. -->
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
+    </ItemGroup>
+
+</Project>
