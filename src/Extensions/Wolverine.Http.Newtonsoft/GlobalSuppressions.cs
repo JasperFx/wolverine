@@ -11,7 +11,17 @@ using System.Diagnostics.CodeAnalysis;
 // via endpoint discovery, AOT consumers run pre-generated frames in
 // TypeLoadMode.Static.
 
+//
+// GH-4788: Scope = "module", not "namespaceanddescendants". ILC REJECTS the namespace scopes --
+// `namespaceanddescendants`, `namespace` and `resource` all produce IL2108 ("Invalid scope ... used in
+// UnconditionalSuppressMessageAttribute"), and a rejected suppression suppresses NOTHING, so under a
+// Native AOT publish every warning below was being reported to the consumer. Roslyn accepts those scopes,
+// which is why this went unnoticed; no AOT lane referenced any of these packages until GH-4778 added one.
+// Only "module", "type" and "member" are honoured by ILC -- measured, not inferred -- and "module" is the
+// one that preserves the intent stated above of covering the whole package without spreading attributes
+// across 20+ files. It is marginally wider than the namespace scope it replaces, since it also covers any
+// type in this assembly outside that namespace.
+
 [assembly: UnconditionalSuppressMessage("AOT", "IL3050",
-    Scope = "namespaceanddescendants",
-    Target = "~N:Wolverine.Http.Newtonsoft",
+    Scope = "module",
     Justification = "Wolverine.Http.Newtonsoft codegen — closed generics over runtime endpoint / parameter types at codegen time. See AOT guide.")]

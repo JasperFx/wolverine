@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #4 (GH-4778).
+
+        Wolverine.AotSmoke.Publish covers the MESSAGING entry path in a real
+        native image. This one covers the HTTP entry path, which was the gap that
+        let GH-4752 and GH-4778 both reach us from a user's production publish:
+        every existing AOT smoke references Wolverine.csproj alone, so
+        HttpGraph.DiscoverEndpoints (the frame at the top of both reported stack
+        traces) never executed in a native image in CI.
+
+        What it pins: an HTTP endpoint whose return type implements
+        IResponseAware makes HttpChain close Applier of that type while the chain
+        MODEL is built, which happens at startup even under TypeLoadMode.Static
+        with the generated code already compiled in. Nothing names that
+        instantiation statically, so without the rooting block
+        HttpEndpointRegistryCodeFile now emits, ILC trims it and
+        MapWolverineEndpoints throws. The reported case is an endpoint returning
+        Marten's UpdatedAggregate; a local IResponseAware reaches the identical
+        code with no store in the picture, which is what keeps this project cheap
+        enough to gate on.
+
+        Deliberately boots and serves one real request rather than only
+        constructing the host: the crash is in MapWolverineEndpoints, but a
+        request proves the response-aware rewrite produced a working endpoint
+        rather than merely a discoverable one.
+
+        Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, because a
+        host writes relative to the working directory, not the project folder:
+
+          dotnet run -f net9.0 codegen write
+
+        then commit the result. This project carries NO hand-written roots, so a
+        regression in the emitted rooting block fails the lane outright instead
+        of hiding behind a hand-written one.
+        -->
+        <PublishAot>true</PublishAot>
+        <StripSymbols>false</StripSymbols>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- Runtime behaviour of a native image is what this asserts. The trim-analysis warning wall is
+             Wolverine.AotSmoke's job; here it would only bury the signal. Mirrors
+             Wolverine.AotSmoke.Publish. -->
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+    </ItemGroup>
+
+</Project>

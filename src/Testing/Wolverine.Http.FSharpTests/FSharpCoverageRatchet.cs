@@ -79,7 +79,9 @@ public class FSharpCoverageRatchet
         "Wolverine.Persistence.LoadEntityFrameBlock",
         "Wolverine.Persistence.MultiTenancy.TenantIdResolutionFrame",
         "Wolverine.Persistence.Sagas.CreateMissingSagaFrame",
-        "Wolverine.Persistence.Sagas.EnrollAndFetchSagaStorageFrame`2",
+        // GH-4805: de-genericized (was `2). The leftover generic subclass is a source-compatibility
+        // shim nothing constructs, and carries [FSharpEmit(Skip)] rather than a second baseline entry.
+        "Wolverine.Persistence.Sagas.EnrollAndFetchSagaStorageFrame",
         "Wolverine.Persistence.Sagas.LoadSagaOperation",
         "Wolverine.Persistence.Sagas.SagaOperation",
         "Wolverine.Persistence.Sagas.ShouldProceedGuardFrame",

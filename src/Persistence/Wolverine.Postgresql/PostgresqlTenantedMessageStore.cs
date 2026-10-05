@@ -66,6 +66,9 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
         var npgsqlDataSource = NpgsqlDataSource.Create(connectionString);
         var settings = new DatabaseSettings
         {
+            // GH-4805. Tenant databases need the saga serializer options too -- a multi-tenanted
+            // app's sagas live in these, not in the main database.
+            SagaSerializerOptions = _persistence.SagaSerializerOptions,
             // Always disable command queues for tenant databases
             CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here
@@ -88,6 +91,9 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
         // TODO -- do some idempotency so that you don't build two or more stores for the same tenant id
         var settings = new DatabaseSettings
         {
+            // GH-4805. Tenant databases need the saga serializer options too -- a multi-tenanted
+            // app's sagas live in these, not in the main database.
+            SagaSerializerOptions = _persistence.SagaSerializerOptions,
             // You always want the command queues disabled for non-default databases
             CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here

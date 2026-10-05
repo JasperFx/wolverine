@@ -145,9 +145,40 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // counterpart to the GH-2906 handler manifest): capture the discovered endpoint types so startup
         // can skip the HttpChainSource.FindActions ExportedTypes scan. The types come from the already-built
         // chains (chain.EndpointType), so no scan is needed to produce the manifest.
+        // GH-4778. The response-aware return types, for the rooting block: HttpChain's own
+        // tryApplyResponseAware closes Applier<T> over each of them at startup -- which is the reported
+        // crash, since an [WriteAggregate] endpoint returning Marten's UpdatedAggregate lands here.
+        var responseAwareTypes = _chains
+            .SelectMany(x => x.ReturnVariablesOfType(typeof(IResponseAware)))
+            .Select(x => x.VariableType);
+
+        // GH-4778. The GENERATED endpoint types, which are what AssertPreBuiltTypesExist looks up by name
+        // and what Static mode actually executes. They were unrooted too: the first native image built for
+        // this threw MissingPreBuiltTypesException naming POST_aot_response_aware, before it ever reached
+        // the Applier<T> close. The handler registry has always rooted its generated handler types; this
+        // is the counterpart it never had.
+        var generatedEndpointTypeNames = _chains.Select(x => ((ICodeFile)x).FileName);
+
+        // GH-4765. The counterpart collection to the handler graph's: closed types named by the frames
+        // themselves, which is the only way a frame belonging to a persistence package can be rooted at
+        // all. EF Core's CreateTenantedDbContext<T> on an endpoint that takes a multi-tenanted DbContext is
+        // the live case.
+        //
+        // NOT the Wolverine.Http.Marten compiled-query postprocessors, despite the obvious resemblance --
+        // CompiledQueryWriterPolicy closes those from HttpChain.DetermineFrames, which only
+        // ICodeFile.AssembleTypes calls, and BuildFiles materializes this whole list (and with it the
+        // registry's captured roots) BEFORE any AssembleTypes runs. They are also unreachable in a native
+        // image for the same reason: StaticTypeLoader attaches the pre-generated type and never assembles.
+        // A frame has to be placed by a POLICY, at startup, to need rooting and to be collectable here.
+        var contributedRootTypes = _chains
+            .SelectMany(x => x.Middleware.Concat(x.Postprocessors).Concat(x.PostCommitPostprocessors))
+            .OfType<IAotRootSource>()
+            .SelectMany(x => x.AotRoots());
+
         var files = new List<ICodeFile>(_chains)
         {
-            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType))
+            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes,
+                generatedEndpointTypeNames, contributedRootTypes)
         };
 
         return files;

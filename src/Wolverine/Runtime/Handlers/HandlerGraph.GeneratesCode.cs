@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -25,8 +26,31 @@ public partial class HandlerGraph
         var generatedHandlerTypeNames = new List<string>();
         var chainMessageTypes = new List<Type>();
 
+        // GH-4778. Chain.tryApplyResponseAware closes Applier<T> over each chain's IResponseAware return
+        // type at STARTUP, under TypeLoadMode.Static included, so ILC needs those instantiations rooted.
+        // Collected with the same ReturnVariablesOfType walk the close itself uses -- a CanBeCastTo test
+        // over the handler calls' created variables, no generic close of its own.
+        var responseAwareTypes = new List<Type>();
+
+        // GH-4765. The roots no package could contribute for itself. A frame built by closing an open
+        // generic over the user's saga, aggregate or DbContext type is created while the chain MODEL is
+        // built -- which still happens at startup under TypeLoadMode.Static, generated code or not -- so
+        // ILC has to keep that instantiation even though nothing statically references it. The frames
+        // already exist by the time this runs, so each one can simply name its own closed type.
+        var aotRootTypes = new List<Type>();
+
         foreach (var chain in Chains)
         {
+            responseAwareTypes.AddRange(chain.ReturnVariablesOfType(typeof(IResponseAware))
+                .Select(x => x.VariableType));
+            aotRootTypes.AddRange(aotRootsOf(chain));
+            foreach (var handlerChain in chain.ByEndpoint)
+            {
+                responseAwareTypes.AddRange(handlerChain.ReturnVariablesOfType(typeof(IResponseAware))
+                    .Select(x => x.VariableType));
+                aotRootTypes.AddRange(aotRootsOf(handlerChain));
+            }
+
             if (chain.Handlers.Any())
             {
                 generatedHandlerTypeNames.Add(chain.TypeName);
@@ -62,6 +86,35 @@ public partial class HandlerGraph
             : [];
 
         yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, generatedHandlerTypeNames,
-            chainMessageTypes);
+            chainMessageTypes, responseAwareTypes, aotRootTypes);
+    }
+
+    /// <summary>
+    ///     GH-4765: the closed types a chain's own frames say they need rooted.
+    /// </summary>
+    /// <remarks>
+    ///     All three frame lists, because a reflectively-closed frame can be contributed to any of them —
+    ///     the saga enrollment frame lands in <see cref="IChain.Middleware" /> while the Marten compiled-query
+    ///     frames land in <see cref="IChain.Postprocessors" />.
+    ///
+    ///     <para>A frame that an <c>IVariableSource</c> builds while the method body is being generated is
+    ///     in none of these lists when this runs, and so cannot be collected here —
+    ///     <c>SagaStorageVariableSource</c> and <c>TenantedDbContextSource</c> are the two such cases. That
+    ///     is not a hole, because nothing on that path ever runs in a native image: <c>Create</c> is called
+    ///     only by JasperFx's <c>MethodFrameArranger</c>, reached only from <c>ICodeFile.AssembleTypes</c>,
+    ///     and <c>StaticTypeLoader</c> never calls <c>AssembleTypes</c> — it attaches the pre-generated type
+    ///     and stops. What DOES run at startup under <see cref="TypeLoadMode.Static" /> is policy
+    ///     application, which is why the frames closed there (the saga enrollment frame, EF Core's
+    ///     <c>CreateTenantedDbContext&lt;&gt;</c>) are the ones that need rooting and these do not. Collect
+    ///     from a second point only if some frame provider starts closing a generic from inside
+    ///     <c>Create</c> and that close becomes reachable without codegen.</para>
+    /// </remarks>
+    private static IEnumerable<Type> aotRootsOf(IChain chain)
+    {
+        return chain.Middleware
+            .Concat(chain.Postprocessors)
+            .Concat(chain.PostCommitPostprocessors)
+            .OfType<IAotRootSource>()
+            .SelectMany(x => x.AotRoots());
     }
 }

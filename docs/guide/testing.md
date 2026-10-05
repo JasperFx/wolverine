@@ -259,6 +259,35 @@ await host.TrackActivity().Timeout(30.Seconds())
     .InvokeMessageAndWaitAsync(command);
 ```
 
+### First-use handler compilation counts against the timeout
+
+With `TypeLoadMode.Dynamic`, the usual setting in development and tests, Wolverine generates and compiles
+a message handler the first time a message of that type is handled. Handlers compile one at a time, so a
+first message also waits for any other handler that is compiling at that moment. On a small CI runner a
+compile can take a second or more, which means a tracked session whose message and cascades are the
+first of their types can spend most of its 5 seconds compiling, and time out with nothing actually stuck.
+
+Rather than raising the timeout, compile every handler once while the test host starts:
+
+```csharp
+var handlers = host.GetRuntime().Handlers;
+foreach (var chain in handlers.Chains)
+{
+    try
+    {
+        handlers.HandlerFor(chain.MessageType);
+    }
+    catch (NoHandlerForEndpointException)
+    {
+        // A chain with only sticky handlers compiles per endpoint, on first use
+    }
+}
+```
+
+HTTP endpoints compile on their first request in the same way; `WarmUpRoutes = RouteWarmup.Eager` (see
+[the HTTP docs](/guide/http/#eager-warmup)) builds them at startup instead. Pre-generated code
+(`TypeLoadMode.Static`) does no compilation at runtime at all.
+
 ### Forcing projection catch-up outside a tracked session
 
 Under `UseWolverineManagedEventSubscriptionDistribution` the Marten store runs in

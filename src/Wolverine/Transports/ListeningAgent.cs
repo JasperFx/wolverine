@@ -7,6 +7,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.WorkerQueues;
+using Wolverine.Transports.Local;
 using Wolverine.Util;
 
 namespace Wolverine.Transports;
@@ -86,6 +87,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private IReceiver? _receiver;
     private IDisposable? _restarter;
     private ListenerInboxRecoveryLoop? _inboxRecovery;
+
+    // GH-4776. The companion local queue's recovery, owned by this listener because the slot's ownership is what
+    // decides who may execute from that queue. Starts and dies with the slot, exactly like _inboxRecovery does.
+    private ListenerInboxRecoveryLoop? _companionInboxRecovery;
     private int _lastObservedQueueCount;
     private DateTimeOffset _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
     private bool _disposed;
@@ -324,7 +329,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask StopAndDrainAsync()
     {
-        await StopAndDrainCoreAsync(latchBeforeDrain: true);
+        await StopAndDrainCoreAsync(latchBeforeDrain: true, drainCompanionQueue: true);
     }
 
     /// <summary>
@@ -336,7 +341,14 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// <c>_latched == false</c> and returns immediately — avoiding a deadlock caused by the
     /// current message's execute frame being on the call stack.
     /// </summary>
-    private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain)
+    /// <param name="drainCompanionQueue">
+    /// GH-4777. True only when this is a real stop -- an exclusive-listener agent handing its slot to
+    /// another node, <see cref="LatchPermanently"/>, or process shutdown. A rate-limit or circuit-breaker
+    /// pause passes false: this node still owns the slot, nothing else will touch those group ids while it
+    /// is paused, so there is no concurrency to prevent and no reason to dump the companion queue's backlog
+    /// back into the inbox.
+    /// </param>
+    private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain, bool drainCompanionQueue = false)
     {
         // GH-3590. Always tear the loop down first -- StartAsync() rebuilds it when this listener becomes
         // the active one again.
@@ -377,6 +389,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             if (receiver != null)
             {
                 await receiver.DrainAsync();
+            }
+
+            // GH-4777. Has to come after the listener is stopped, so nothing new arrives from the broker
+            // while the companion queue is finishing, and before Status flips to Stopped, so the agent's
+            // StopAsync does not return until the backlog is settled. ReassignAgent will not start this
+            // slot on the gaining node until that return is confirmed, which is what makes the handoff
+            // free of overlap rather than merely shorter.
+            if (drainCompanionQueue)
+            {
+                await drainCompanionQueueAsync();
             }
 
             try
@@ -487,6 +509,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             var localQueue = _runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) as ILocalQueue;
             if (localQueue != null)
             {
+                // GH-4777. A previous loss of this slot drained the companion queue's receiver, and
+                // DurableReceiver has no unlatch -- so without rebuilding it here, re-acquiring the slot would
+                // hand the bridge a dead queue that silently executes nothing. Conditional on the status so a
+                // first start keeps the receiver its constructor already built, and so this does not publish a
+                // spurious Accepting ListenerState on every restart.
+                if (localQueue is IListenerCircuit { Status: not ListeningStatus.Accepting } companionCircuit)
+                {
+                    await companionCircuit.StartAsync();
+                }
+
                 // GH-4288. A durable database-backed queue (sharded SQL Server / PostgreSQL slots) moves
                 // each envelope into the inbox as part of the dequeue itself, so the bridge has to mark
                 // the envelopes as already persisted or the companion local queue's DurableReceiver
@@ -594,22 +626,119 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// not rely on the per-database durability agent to recover its dormant inbox messages, because that agent
     /// is assigned per database and routinely lands on a different node. Such a listener owns its own inbox
     /// recovery for as long as it is the active listener.
+    ///
+    /// <para>GH-4776 adds a second, independent loop: a global partition slot also owns recovery for its
+    /// companion local queue. The two are deliberately separate loops rather than one sweeping both addresses,
+    /// because <see cref="ListenerInboxRecovery.DeterminePageSize"/> sizes each page against the status and
+    /// queue depth of the specific circuit it is feeding.</para>
     /// </summary>
     private void startInboxRecoveryIfNecessary()
     {
-        if (Endpoint.Mode != EndpointMode.Durable) return;
-        if (!Endpoint.IsSingleNodeListener) return;
         if (!_runtime.Options.Durability.DurabilityAgentEnabled) return;
         if (_runtime.Storage is NullMessageStore) return;
 
-        _inboxRecovery?.SafeDispose();
-        _inboxRecovery = new ListenerInboxRecoveryLoop(_runtime, this, _logger);
+        if (Endpoint is { Mode: EndpointMode.Durable, IsSingleNodeListener: true })
+        {
+            _inboxRecovery?.SafeDispose();
+            _inboxRecovery = new ListenerInboxRecoveryLoop(_runtime, this, _logger);
+        }
+
+        startCompanionQueueInboxRecoveryIfNecessary();
+    }
+
+    /// <summary>
+    /// GH-4776. A global partition's companion local queue cannot rely on the per-database durability agent
+    /// either, and for a sharper reason than GH-3590: the agent would succeed. That <c>local://</c> address is
+    /// live on every node -- <c>LocalQueue.IsSingleNodeListener</c> is deliberately false (GH-3856) and
+    /// <c>FindListenerCircuit</c> builds a circuit for any local scheme -- so a replayed dead letter or a
+    /// released backlog parked at that address was recovered straight into the agent node's own companion queue
+    /// and executed there, beside the slot's real owner and under the same group id.
+    ///
+    /// <para>So the companion queue's recovery is pinned to the SLOT, whose exclusive listener this agent is.
+    /// It starts when the slot is acquired and <see cref="stopInboxRecovery"/> kills it when the slot moves on,
+    /// which is exactly the lifetime during which this node is the one allowed to execute those messages.
+    /// Nothing recovers the rows while no node owns the slot, and that is the same bargain every exclusive
+    /// listener already makes: they wait at <c>owner_id = 0</c> rather than running in the wrong place.</para>
+    /// </summary>
+    private void startCompanionQueueInboxRecoveryIfNecessary()
+    {
+        // Null on a native-ack topology, which has no companion queue at all, and on every endpoint outside a
+        // global partitioned topology.
+        if (Endpoint.GlobalPartitionLocalQueueUri == null) return;
+
+        // A buffered companion queue writes no inbox rows, so there is nothing for a sweep to find.
+        if (_runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) is not IListenerCircuit
+            { Endpoint.Mode: EndpointMode.Durable } companion) return;
+
+        _companionInboxRecovery?.SafeDispose();
+        _companionInboxRecovery = new ListenerInboxRecoveryLoop(_runtime, companion, _logger);
     }
 
     private void stopInboxRecovery()
     {
         _inboxRecovery?.SafeDispose();
         _inboxRecovery = null;
+
+        _companionInboxRecovery?.SafeDispose();
+        _companionInboxRecovery = null;
+    }
+
+    /// <summary>
+    /// GH-4777. Losing a global partition slot has to stop this node executing from the slot's companion local
+    /// queue, and until now it did not. <see cref="StopAndDrainCoreAsync"/>'s two protective steps are
+    /// <see cref="LatchReceiver"/> and <c>receiver.DrainAsync()</c>, and for a slot both are no-ops: the
+    /// receiver is a <see cref="GlobalPartitionedReceiverBridge"/>, which is not an <c>IReceiverWrapper</c> (so
+    /// <c>Unwrap()</c> stops there and the latch finds no <c>ILatchedReceiver</c>) and whose <c>DrainAsync</c>
+    /// returns immediately. So the previous owner kept working through the backlog it already had while the
+    /// gaining node started on new messages of the same group ids -- the exact intra-group concurrency that
+    /// <see cref="LatchReceiver"/>'s own GH-3709 comment describes as already fixed for every other receiver.
+    ///
+    /// <para>The companion queue has a perfectly good latch-and-drain of its own; the handoff simply never
+    /// reached it. <c>DurableReceiver.DrainAsync</c> waits for in-flight handlers and then releases whatever is
+    /// still queued back to <c>AnyNode</c>, which is precisely "finish or release before the new owner starts".
+    /// The released rows reach the new owner through the companion inbox recovery loop that GH-4776 pinned to
+    /// the slot (<see cref="startCompanionQueueInboxRecoveryIfNecessary"/>) -- without that, releasing here
+    /// would strand them.</para>
+    ///
+    /// <para>Reversible on purpose. <c>DurableReceiver</c> has <c>Latch()</c> and no unlatch, so a drained
+    /// queue stays dead; <see cref="StartAsync"/> calls <c>StartAsync()</c> on the companion circuit when it
+    /// re-installs the bridge, which builds a fresh receiver. Between the two, <c>Latched</c> makes
+    /// <c>DurableLocalQueue</c> persist anything sent to it at <c>AnyNode</c> rather than execute it, so a
+    /// stray send during the gap is recovered rather than lost.</para>
+    /// </summary>
+    private async Task drainCompanionQueueAsync()
+    {
+        // Null outside a global partitioned topology, and on a native-ack topology, which has no companion
+        // queue to drain.
+        if (Endpoint.GlobalPartitionLocalQueueUri == null) return;
+
+        // Deliberately only the durable queue. A buffered companion queue holds nothing durably, so draining it
+        // would discard its backlog rather than hand it over -- see the note on this in the GH-4777 tests.
+        if (_runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) is not DurableLocalQueue
+            companion) return;
+
+        try
+        {
+            _logger.LogInformation(
+                "Draining the global partition companion queue {Companion} because this node is giving up slot {Slot}",
+                companion.Uri, Uri);
+
+            // Latch FIRST: DurableReceiver.DrainAsync only waits for in-flight handlers when it was already
+            // latched (it reads _latched before setting it), so without this the drain would release the queued
+            // remainder but still let the message currently executing overlap the new owner.
+            companion.LatchReceiver();
+
+            await ((IReceiver)companion).DrainAsync();
+        }
+        catch (Exception e)
+        {
+            // Not rethrown. A failed drain must not fail the agent's StopAsync -- an unconfirmed stop means
+            // ReassignAgent never hands the slot on and it stops being served at all, which is worse than the
+            // overlap this method exists to prevent.
+            _logger.LogError(e,
+                "Error draining the global partition companion queue {Companion} while giving up slot {Slot}",
+                companion.Uri, Uri);
+        }
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)

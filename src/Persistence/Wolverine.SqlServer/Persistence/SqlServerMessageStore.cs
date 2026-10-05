@@ -1,3 +1,4 @@
+using Wolverine.Persistence.Sagas;
 ﻿using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
@@ -21,7 +22,7 @@ using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
-using Wolverine.SqlServer.Sagas;
+using Wolverine.SqlServer.Internals;
 using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
@@ -31,8 +32,27 @@ using Table = Weasel.SqlServer.Tables.Table;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe
+public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe, ISagaStorageCodeSource
 {
+    /// <summary>
+    ///     GH-4805. Lets generated saga code construct <c>DatabaseSagaSchema<TId, TSaga></c> itself, which is the only way the
+    ///     saga path runs in a native image — <c>SagaSchemaFor</c> is an abstract generic method, and ILC
+    ///     cannot dispatch one.
+    /// </summary>
+    /// <remarks>
+    ///     <c>MakeGenericType</c> is safe here and nowhere near the runtime path: called once per saga
+    ///     chain while the chain model is built, under the JIT, and the <see cref="Type" /> it returns is
+    ///     only rendered as source text. <b>Note the argument order</b> — this store's schema is
+    ///     <c>DatabaseSagaSchema<TId, TSaga></c>, and the five relational stores do not agree on it, which is exactly why each
+    ///     answers this for itself rather than a shared helper guessing.
+    /// </remarks>
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "GH-4805. The closed type is RENDERED AS SOURCE TEXT by EnrollAndFetchSagaStorageFrame and never instantiated from this Type. Called at codegen time under the JIT, so it does not execute in a native image at all -- the generated code that replaces it is what runs there.")]
+    public SagaSchemaCodegen? SagaSchemaCodegenFor(Type sagaType, Type idType)
+    {
+        return new SagaSchemaCodegen(typeof(DatabaseSagaSchema<,>).MakeGenericType(idType, sagaType), typeof(RelationalSagaStorage));
+    }
+
     /// <summary>
     /// GH-4375. SQL Server's hard limit, and the tightest of any provider Wolverine ships. Measured:
     /// 349 outgoing envelopes in one transaction succeed (2,095 parameters) and 350 fail (2,101); 233

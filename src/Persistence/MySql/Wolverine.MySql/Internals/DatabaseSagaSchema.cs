@@ -10,7 +10,17 @@ using Weasel.MySql.Tables;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 
-namespace Wolverine.MySql.Sagas;
+namespace Wolverine.MySql.Internals;
+// GH-4805. "Publinternal": technically public, not part of the supported surface. It is public only
+// because generated saga code has to name the closed type to construct it -- a typeof() in generated
+// code cannot see an internal type -- and it lives under Internals/ to say so. Do not build an
+// application against it.
+//
+// It used to sit in Wolverine.MySql.Sagas. The Postgresql twin had NO namespace declaration at all, which put a public
+// type called DatabaseSagaSchema in the GLOBAL namespace of a shipped package: visible unqualified in
+// every file of every consuming project, and colliding by name with the four sibling stores' versions
+// of it. All five moved together so the shape is uniform rather than only the broken one fixed.
+
 
 // AOT note (#2746): Reflection-based STJ over runtime saga state type T.
 // Same chunk D / chunk AE / AF / AG pattern: AOT consumers using lightweight
@@ -93,7 +103,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         cmd.CommandText = _insertSql;
         cmd.Parameters.AddWithValue("@id", id);
         // MySQL JSON columns require string input, not binary
-        cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga));
+        cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions));
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -109,7 +119,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         cmd.Transaction = (MySqlTransaction)transaction;
         cmd.CommandText = _updateSql;
         // MySQL JSON columns require string input, not binary
-        cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga));
+        cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@version", saga.Version);
         var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -150,7 +160,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
         // MySQL JSON columns return string data
         var body = await reader.GetFieldValueAsync<string>(0, cancellationToken);
-        var saga = JsonSerializer.Deserialize<T>(body);
+        var saga = JsonSerializer.Deserialize<T>(body, _settings.SagaSerializerOptions);
         saga!.Version = await reader.GetFieldValueAsync<int>(1, cancellationToken);
 
         await reader.CloseAsync();

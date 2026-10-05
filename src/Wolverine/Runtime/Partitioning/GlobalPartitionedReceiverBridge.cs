@@ -47,7 +47,13 @@ internal class GlobalPartitionedReceiverBridge : IReceiver
 
     public ValueTask DrainAsync()
     {
-        // The local queue handles its own draining
+        // Deliberately still a no-op, and no longer for the reason this comment used to give. "The local queue
+        // handles its own draining" was true of the queue and false of the handoff: nothing called it, so a node
+        // losing its slot kept executing the companion queue's backlog beside the new owner (GH-4777).
+        //
+        // The drain now lives in ListeningAgent.drainCompanionQueueAsync, which runs only on a real stop rather
+        // than on every pause, and latches before draining so in-flight handlers are waited for. It stays out of
+        // here because the bridge is shared by every stop path and has no way to tell which one it is on.
         return ValueTask.CompletedTask;
     }
 

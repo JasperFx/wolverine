@@ -63,6 +63,27 @@ public partial class CosmosDbDurabilityAgent
         }
     }
 
+    /// <summary>
+    /// GH-4711, the twin of GH-4710. Deliberately enqueues every promoted envelope locally rather than routing
+    /// it by <c>Destination</c> through <c>runtime.EnqueueDirectlyAsync</c> the way every relational store's
+    /// poller does. The difference is real but costs nothing for the shapes that reach this method -- verified
+    /// by running rather than by reading, in <c>CosmosDbTests.scheduled_promotion_semantics</c>.
+    ///
+    /// <para>A delayed message bound for an external endpoint does not park here under that destination. It
+    /// parks as a <c>ScheduledEnvelope</c> WRAPPER addressed to this node's own <c>local://durable/</c>, so
+    /// enqueuing locally is exactly what has to happen: <c>ScheduledSendEnvelopeHandler</c> then unwraps it and
+    /// sends it on to the real destination. A DURABLE external destination takes a different path again -- it
+    /// schedules in the outbox and never reaches this poller at all.</para>
+    ///
+    /// <para>So the three behaviours <c>EnqueueDirectlyAsync</c> carries need no CosmosDb equivalent here:
+    /// GH-4645's forward-and-retire (nothing arrives addressed elsewhere), GH-4700's slot-ownership hand-off
+    /// (a sharded-queue global partition is not plausibly paired with CosmosDb persistence), and GH-3413's
+    /// dead-lettering of an unresolvable destination -- the one case left unverified, and reachable only by
+    /// hand-writing a document with a transport this node cannot resolve.</para>
+    ///
+    /// <para>GH-4711 also asked that this loop not get longer: the promotion above still issues one
+    /// <c>ReplaceItemAsync</c> per message and this change adds nothing to it.</para>
+    /// </summary>
     private async Task locallyPublishScheduledMessages(List<IncomingMessage> incoming)
     {
         var envelopes = incoming.Select(x => x.Read()).ToList();

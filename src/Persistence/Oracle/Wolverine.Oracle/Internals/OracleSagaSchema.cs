@@ -11,7 +11,17 @@ using Weasel.Oracle.Tables;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 
-namespace Wolverine.Oracle.Sagas;
+namespace Wolverine.Oracle.Internals;
+// GH-4805. "Publinternal": technically public, not part of the supported surface. It is public only
+// because generated saga code has to name the closed type to construct it -- a typeof() in generated
+// code cannot see an internal type -- and it lives under Internals/ to say so. Do not build an
+// application against it.
+//
+// It used to sit in Wolverine.Oracle.Sagas. The Postgresql twin had NO namespace declaration at all, which put a public
+// type called DatabaseSagaSchema in the GLOBAL namespace of a shipped package: visible unqualified in
+// every file of every consuming project, and colliding by name with the four sibling stores' versions
+// of it. All five moved together so the shape is uniform rather than only the broken one fixed.
+
 
 // AOT note (#2746): Reflection-based STJ over runtime saga state type T.
 // Same chunk D / chunk AE / AF / AG / AH pattern: AOT consumers using
@@ -121,7 +131,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
         await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_insertSql, (OracleTransaction)transaction);
         addIdParameter(cmd, "id", id);
-        cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga) });
+        cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions) });
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -134,7 +144,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         var id = IdSource(saga);
 
         await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_updateSql, (OracleTransaction)transaction);
-        cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga) });
+        cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions) });
         addIdParameter(cmd, "id", id);
         cmd.With("version", saga.Version);
         var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -170,7 +180,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         }
 
         var body = await reader.GetFieldValueAsync<string>(0, cancellationToken);
-        var saga = JsonSerializer.Deserialize<T>(body);
+        var saga = JsonSerializer.Deserialize<T>(body, _settings.SagaSerializerOptions);
         saga!.Version = Convert.ToInt32(reader.GetValue(1));
 
         await reader.CloseAsync();

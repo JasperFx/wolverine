@@ -447,9 +447,10 @@ The claims live in `wolverine_deduplication` rather than as a column on
 - **Storage:** the RDBMS message stores — PostgreSQL, SQL Server, MySQL and SQLite (and therefore
   Marten-backed applications). Other stores report themselves as unsupported and fail loudly rather
   than passing every duplicate through.
-- **Scope:** logical ids are unique per message store, not per tenant. In a database-per-tenant
-  setup each tenant database has its own table and is therefore naturally isolated; under conjoined
-  (single-database) tenancy the id is global.
+- **Scope:** logical ids are unique per message store, not per tenant. With a database per tenant the
+  claims are kept in the main database, as `[DeduplicatedWithResponse]` claims are, and under
+  conjoined (single-database) tenancy they share the one database. Either way an id is global across
+  tenants, so include the tenant in it if two tenants can legitimately use the same one.
 - **Fire-and-forget only.** Replaying the *original response* of a deduplicated `InvokeAsync<T>` is
   Stripe-style idempotency-key machinery — storing and returning the prior result — and is not part
   of this feature. HTTP endpoints get a useful answer regardless, because a status code is a

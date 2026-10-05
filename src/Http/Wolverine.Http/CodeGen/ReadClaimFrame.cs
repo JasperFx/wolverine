@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -23,8 +24,12 @@ internal class ReadClaimFrame : SyncFrame
         _valueType = valueType;
         _isNullable = valueType.IsNullable();
         _rawType = _isNullable ? valueType.GetInnerTypeFromNullable() : valueType;
-        Variable = new Variable(valueType, $"claim_{claimType.Replace("-", "_").Replace(":", "_").Replace("/", "_")}", this);
+        Variable = new Variable(valueType, $"claim_{toIdentifier(claimType)}", this);
     }
+
+    // Claim types can be URIs (e.g. ClaimTypes.NameIdentifier), so replace every non-identifier character.
+    // TODO: replace with JasperFx's Variable.SanitizeVariableName once it handles this
+    private static string toIdentifier(string claimType) => Regex.Replace(claimType, @"\W", "_");
 
     public Variable Variable { get; }
 

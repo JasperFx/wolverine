@@ -25,6 +25,8 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `ProblemDetailsContinuationPolicy.WriteProblems` diagnostic logger dump | `JsonConvert.SerializeObject` (Newtonsoft) | `JsonSerializer.Serialize` (STJ) | None — diagnostic-only log line; output shape unchanged |
 | `SnapshotLifecycle` namespace | `Marten.Events.Projections` | `JasperFx.Events.Projections` *(BREAKING)* | Add `using JasperFx.Events.Projections;` |
 | `OperationRole` namespace | `Marten.Internal.Operations` | `Weasel.Core` *(BREAKING)* | Add `using Weasel.Core;` |
+| `DatabaseSagaSchema<,>` / `OracleSagaSchema<,>` namespace | `Wolverine.<Store>.Sagas`, and **the global namespace** for PostgreSQL | `Wolverine.<Store>.Internals` *(BREAKING)* | Add `using Wolverine.<Store>.Internals;`. These are "publinternal" — public only so generated code can name them — and are not a supported API |
+| Lightweight relational saga serialization | `JsonSerializerOptions.Default`, not configurable | configurable via `UseSagaSerializerOptions(...)` | None unless publishing Native AOT, where it is now **required** — see [below](#sagas-work-under-native-aot) |
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
 | Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
 | `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
@@ -78,6 +80,59 @@ There is no Wolverine documentation page for `SnapshotLifecycle` itself — it's
 If you write custom `IStorageOperation` implementations (rare but supported), `OperationRole` now lives in `Weasel.Core` instead of `Marten.Internal.Operations`. Add `using Weasel.Core;`.
 
 No Wolverine documentation page covers this directly — `IStorageOperation` is Marten internals territory. The only Wolverine-visible change is the `using` directive.
+
+### Relational saga schema types moved to `Internals` (BREAKING)
+
+The lightweight relational saga schema types moved out of `Wolverine.<Store>.Sagas` and into
+`Wolverine.<Store>.Internals`:
+
+| Package | 5.x namespace | 6.0 namespace |
+|---|---|---|
+| `WolverineFx.Postgresql` | **none — the global namespace** | `Wolverine.Postgresql.Internals` |
+| `WolverineFx.SqlServer` | `Wolverine.SqlServer.Sagas` | `Wolverine.SqlServer.Internals` |
+| `WolverineFx.Sqlite` | `Wolverine.Sqlite.Sagas` | `Wolverine.Sqlite.Internals` |
+| `WolverineFx.MySql` | `Wolverine.MySql.Sagas` | `Wolverine.MySql.Internals` |
+| `WolverineFx.Oracle` | `Wolverine.Oracle.Sagas` | `Wolverine.Oracle.Internals` |
+
+The PostgreSQL one is the reason this is worth your attention: its file carried no `namespace`
+declaration at all, so a **public** type named `DatabaseSagaSchema<T, TId>` sat in the *global*
+namespace of a shipped package — visible unqualified in every file of every project that referenced
+`WolverineFx.Postgresql`, and colliding by name with the four sibling packages' versions of the same
+type.
+
+These types are *publinternal*: technically public, deliberately not part of the supported surface.
+They are public only because Wolverine's generated saga code has to name the closed type in order to
+construct it, and a `typeof()` in generated code cannot see an `internal` type. The `Internals`
+namespace says so. If you are referencing one directly, you are almost certainly reaching for
+something that should be solved another way — but the migration is just a `using`.
+
+### Sagas work under Native AOT
+
+Sagas could not run in a published Native AOT image at all before 6.0, for three separate reasons —
+a generic virtual method ILC cannot dispatch, a rooting attribute that preserves metadata without
+generating code, and saga JSON serialization with no configurable options. All three are fixed, and
+CI now publishes and runs a real native image that drives a saga end to end.
+
+One thing is **required of your application** if you publish Native AOT: `PublishAot` disables
+reflection-based `System.Text.Json`, so you have to hand Wolverine a source-generated
+`JsonSerializerContext` for your saga state types.
+
+```csharp
+[JsonSerializable(typeof(MySaga))]
+internal partial class MySagaJsonContext : JsonSerializerContext;
+
+// ...
+
+opts.PersistMessagesWithPostgresql(connectionString)
+    .UseSagaSerializerOptions(new JsonSerializerOptions
+    {
+        TypeInfoResolver = MySagaJsonContext.Default
+    });
+```
+
+`UseSagaSerializerOptions(...)` is available on all five relational persistence builders and applies
+to tenant databases as well as the main one. Leaving it unset preserves the previous behaviour
+exactly, so it costs nothing if you are not publishing AOT.
 
 ### `ServiceLocationPolicy.NotAllowed` is the default (BREAKING)
 

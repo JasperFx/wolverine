@@ -10,7 +10,17 @@ using Weasel.SqlServer.Tables;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 
-namespace Wolverine.SqlServer.Sagas;
+namespace Wolverine.SqlServer.Internals;
+// GH-4805. "Publinternal": technically public, not part of the supported surface. It is public only
+// because generated saga code has to name the closed type to construct it -- a typeof() in generated
+// code cannot see an internal type -- and it lives under Internals/ to say so. Do not build an
+// application against it.
+//
+// It used to sit in Wolverine.SqlServer.Sagas. The Postgresql twin had NO namespace declaration at all, which put a public
+// type called DatabaseSagaSchema in the GLOBAL namespace of a shipped package: visible unqualified in
+// every file of every consuming project, and colliding by name with the four sibling stores' versions
+// of it. All five moved together so the shape is uniform rather than only the broken one fixed.
+
 
 // AOT note (#2746): Reflection-based STJ over runtime saga state type TSaga.
 // Same chunk D / chunk AE (Postgresql) pattern: AOT consumers using lightweight
@@ -92,7 +102,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         await ensureStorageExistsAsync(cancellationToken);
         await transaction.CreateCommand(_insertSql)
             .With("id", id!)
-            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga))
+            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions))
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -105,7 +115,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         var id = IdSource(saga);
         var count = await transaction.CreateCommand(_updateSql)
             .With("id", id!)
-            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga))
+            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions))
             .With("version", saga.Version)
             .ExecuteNonQueryAsync(cancellationToken);
 
@@ -138,7 +148,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         }
 
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
-        var saga = JsonSerializer.Deserialize<TSaga>(body);
+        var saga = JsonSerializer.Deserialize<TSaga>(body, _settings.SagaSerializerOptions);
         saga!.Version = await reader.GetFieldValueAsync<int>(1, cancellationToken);
 
         await reader.CloseAsync();

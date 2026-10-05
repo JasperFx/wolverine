@@ -515,12 +515,31 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _latched = true;
         _receiver.Complete();
 
+        // GH-4797. Non-null only when the bounded wait below gave up with work still running, and it is then
+        // the thing the release has to wait for. See deferReleaseUntilIdleAsync.
+        Task? stillRunning = null;
+
         if (waitForCompletion)
         {
             try
             {
                 var completion = _receiver.WaitForCompletionAsync();
-                await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout)).ConfigureAwait(false);
+                var timeout = Task.Delay(_settings.DrainTimeout);
+
+                // GH-4797. Which task won is load-bearing, and Task.WhenAny discards it. The blanket
+                // ReleaseIncomingAsync at the end of this method hands every row at this address back to
+                // AnyNode, and running it while handlers are still executing lets another node claim and
+                // re-execute a message this node has not finished -- for an exclusive listener, and especially
+                // a global partition slot handing over (GH-4777), exactly the intra-group concurrency the
+                // partitioned modes exist to prevent.
+                if (await Task.WhenAny(completion, timeout).ConfigureAwait(false) == timeout)
+                {
+                    stillRunning = completion;
+
+                    _logger.LogWarning(
+                        "Drain at {Uri} timed out after {DrainTimeout} with {QueueCount} message(s) still queued or in flight. Their inbox rows will be held until the work finishes rather than released now, so nothing else can claim a message still executing here. See GH-4797",
+                        Uri, _settings.DrainTimeout, QueueCount);
+                }
             }
             catch (Exception e)
             {
@@ -538,7 +557,82 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         await _completeBlock.DrainAsync().ConfigureAwait(false);
         await _deferBlock.DrainAsync().ConfigureAwait(false);
 
-        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri)).ConfigureAwait(false);
+        if (stillRunning == null)
+        {
+            await releaseIncomingAsync().ConfigureAwait(false);
+            return;
+        }
+
+        deferReleaseUntilIdleAsync(stillRunning);
+    }
+
+    private Task releaseIncomingAsync()
+    {
+        return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
+    }
+
+    /// <summary>
+    /// GH-4797. Hold the release until the work this drain could not wait out has actually finished, instead of
+    /// handing rows to <c>AnyNode</c> underneath a running handler.
+    ///
+    /// <para>Deliberately not awaited. The drain is on the path an exclusive-listener agent's <c>StopAsync</c>
+    /// returns through, and <c>ReassignAgent</c> gates the gaining node's start on that return -- so blocking
+    /// here until a slow handler finished would convert a correctness problem into a slot that is served
+    /// nowhere while it waits, which is the worse failure (GH-3856's direction). The stop still completes
+    /// promptly; what changes is that nothing else can claim these rows in the meantime.</para>
+    ///
+    /// <para>The rows are not stranded in the normal case. A handler that finishes settles its own row, and
+    /// anything merely queued-and-abandoned is released by the continuation below. The residual case is a
+    /// handler that never returns at all: those rows stay owned by this node until it stops -- where
+    /// <c>ReleaseAllOwnershipAsync</c> covers them -- or until the orphan sweep reclaims them after it is
+    /// declared dead. That is the deliberate trade for this fix: a bounded delay in placing a message, rather
+    /// than two nodes running it at once.</para>
+    ///
+    /// <para>One caveat worth naming, since it bounds what this can promise: the retry blocks above have
+    /// already been drained by the time a late handler completes, so its mark-as-handled may not land. The
+    /// release below then legitimately offers that row to another node, and it runs a second time. That is
+    /// at-least-once behaving as documented -- and strictly better than the same duplicate happening
+    /// <em>concurrently</em>, which is what this method exists to stop.</para>
+    /// </summary>
+    private void deferReleaseUntilIdleAsync(Task stillRunning)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // The task was started by DrainAsync, not here -- which is the whole point: this is the
+                // handler work that drain could not wait out. Same suppression as AgentWorkConfirmation.
+#pragma warning disable VSTHRD003
+                await stillRunning.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+            }
+            catch (Exception e)
+            {
+                // The wait faulting tells us nothing about whether handlers are still running, so fall
+                // through to the release rather than holding the rows on an unknown.
+                _logger.LogDebug(e,
+                    "Error waiting for in-flight message processing to finish at {Uri} before releasing its inbox rows",
+                    Uri);
+            }
+
+            try
+            {
+                await releaseIncomingAsync().ConfigureAwait(false);
+
+                _logger.LogInformation(
+                    "Released the held inbox rows for {Uri} now that the work outstanding at drain time has finished. See GH-4797",
+                    Uri);
+            }
+            catch (Exception e)
+            {
+                // Nothing above this to catch it -- and a throw out of a fire-and-forget task is an
+                // unobserved exception, not a diagnostic. The rows stay owned by this node and are reclaimed
+                // when it stops or is declared dead.
+                _logger.LogError(e,
+                    "Error releasing the held inbox rows for {Uri} after its drain timed out; they will be reclaimed when this node stops",
+                    Uri);
+            }
+        });
     }
 
     public void Dispose()
