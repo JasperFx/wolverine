@@ -1235,125 +1235,100 @@ partial class Build
     // committed pre-gen under that project's Internal/Generated/ drifts
     // or the static-load path silently falls back to Roslyn, the smoke
     // binary exits non-zero with a clear diagnostic.
+    //
+    // GH-4810. Every lane runs, even after one has failed, and the target reports ALL of them at the end.
+    //
+    // This used to be one inline sequence of AssertZeroExitCode() calls, so it stopped at the first
+    // failure and the lanes after it never published. That is not a theoretical cost: it is the literal
+    // explanation in GH-4825's report -- "each one appears once the previous one is worked around" -- three
+    // distinct bugs discovered one per publish cycle, because nothing could report more than one per run.
+    //
+    // Cheapest-first, so a breakage in core fails fast before an ILC-expensive store lane spends minutes
+    // proving the same thing.
     Target CIAotSmoke => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            var smoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke" / "Wolverine.AotSmoke.csproj";
-            var staticSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Static" / "Wolverine.AotSmoke.Static.csproj";
-            var aiSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AI.AotSmoke" / "Wolverine.AI.AotSmoke.csproj";
+            var failures = new List<string>();
 
-            DotNet($"build {smoke} --configuration {Configuration} --framework net9.0");
-            DotNet($"run --project {smoke} --no-build --configuration {Configuration} --framework net9.0");
-
-            DotNet($"build {staticSmoke} --configuration {Configuration} --framework net9.0");
-            DotNet($"run --project {staticSmoke} --no-build --configuration {Configuration} --framework net9.0");
+            // The two CoreCLR smokes. They never leave the JIT, which is exactly how every Native AOT
+            // startup crash in GH-4287 shipped unseen -- GetReferencedAssemblies() throwing, the stack walk
+            // with no frame metadata, and Activator.CreateInstance over trimmed closed generics all behave
+            // fine here. Kept because they are seconds each and still catch ordinary bootstrap breaks.
+            lane(failures, "Wolverine.AotSmoke", () => runJitAotSmoke("Wolverine.AotSmoke"));
+            lane(failures, "Wolverine.AotSmoke.Static", () => runJitAotSmoke("Wolverine.AotSmoke.Static"));
 
             // GH-4230. Runs as well as builds: the schema generation this gates fails by returning an
             // empty schema rather than by throwing, so a build-only check would pass over exactly the
             // regression it exists to catch.
-            DotNet($"build {aiSmoke} --configuration {Configuration} --framework net9.0");
-            DotNet($"run --project {aiSmoke} --no-build --configuration {Configuration} --framework net9.0");
+            lane(failures, "Wolverine.AI.AotSmoke", () => runJitAotSmoke("Wolverine.AI.AotSmoke"));
 
-            // GH-4287. The two smokes above never leave CoreCLR, which is exactly how every Native
-            // AOT startup crash in that issue shipped unseen: GetReferencedAssemblies() throwing,
-            // the stack walk with no frame metadata, and Activator.CreateInstance over trimmed
-            // closed generics all behave fine under the JIT and only fail in a native image. This
-            // one does a REAL PublishAot and executes the produced native binary, asserting the
-            // full boot + one dispatched message. The pinned JasperFx (2.63.1+) carries the
-            // jasperfx#742 bootstrap guard, so any regression here fails the lane outright.
-            var publishSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Publish" /
-                               "Wolverine.AotSmoke.Publish.csproj";
-            var publishSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Publish" /
-                                     "bin" / "aot-publish";
-            DotNet(
-                $"publish {publishSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {publishSmokeOutput}");
-
-            var binaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Publish.exe" : "Wolverine.AotSmoke.Publish";
-            var process = ProcessTasks.StartProcess(publishSmokeOutput / binaryName,
-                workingDirectory: RootDirectory);
-            process.AssertZeroExitCode();
-
-            // GH-4778. The HTTP entry path, which every smoke above misses: all four reference
-            // Wolverine.csproj alone, so HttpGraph.DiscoverEndpoints -- the frame at the top of the stack
-            // traces in GH-4752 and GH-4778 both -- never executed in a native image here. That is why this
-            // class of bug kept arriving from users' production publishes instead of from CI.
+            // ─── AOT smoke #3 (GH-4287): the first REAL native image ───
             //
-            // Boots Wolverine.Http in a native image through MapWolverineEndpoints with an endpoint whose
-            // return type implements IResponseAware, and serves one request. Without the rooting block
-            // HttpEndpointRegistryCodeFile now emits, this does NOT crash: the registry is trimmed, the
-            // fallback scan finds nothing in a native image, and the host boots clean having discovered ZERO
-            // endpoints. Hence the smoke's own vacuity guard -- it asserts ConfigureResponse actually ran,
-            // which is the only thing that distinguishes a working API from a silently empty one.
-            var httpSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http" /
-                            "Wolverine.AotSmoke.Http.csproj";
-            var httpSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http" /
-                                  "bin" / "aot-http";
-            DotNet(
-                $"publish {httpSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {httpSmokeOutput}");
+            // Does a real PublishAot and executes the produced binary, asserting the full boot plus one
+            // dispatched message. The pinned JasperFx (2.63.1+) carries the jasperfx#742 bootstrap guard,
+            // so any regression here fails the lane outright.
+            lane(failures, "Wolverine.AotSmoke.Publish",
+                () => runNativeAotLane("Wolverine.AotSmoke.Publish", "aot-publish"));
 
-            var httpBinaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Http.exe" : "Wolverine.AotSmoke.Http";
-            var httpProcess = ProcessTasks.StartProcess(httpSmokeOutput / httpBinaryName,
-                workingDirectory: RootDirectory);
-            httpProcess.AssertZeroExitCode();
+            // ─── AOT smoke #4 (GH-4778): the HTTP entry path ───
+            //
+            // Every lane above references Wolverine.csproj alone, so HttpGraph.DiscoverEndpoints -- the
+            // frame at the top of the stack traces in GH-4752 and GH-4778 both -- never executed in a
+            // native image here. That is why this class of bug kept arriving from users' production
+            // publishes instead of from CI.
+            //
+            // Boots Wolverine.Http through MapWolverineEndpoints with an endpoint whose return type
+            // implements IResponseAware, and serves one request. Without the rooting block
+            // HttpEndpointRegistryCodeFile emits, this does NOT crash: the registry is trimmed, the
+            // fallback scan finds nothing in a native image, and the host boots clean having discovered
+            // ZERO endpoints. Hence the smoke's own vacuity guard -- it asserts ConfigureResponse actually
+            // ran, which is the only thing that distinguishes a working API from a silently empty one.
+            lane(failures, "Wolverine.AotSmoke.Http",
+                () => runNativeAotLane("Wolverine.AotSmoke.Http", "aot-http"));
 
             // ─── AOT smoke #5 (GH-4805): the STORE-BACKED lane ───
             //
             // The gap GH-4765 was filed over. Every lane above references Wolverine.csproj or
-            // Wolverine.Http alone, so until this one no native image in CI had ever executed a chain
-            // that a PERSISTENCE package composed -- which is why this whole class of bug reached us from
-            // users' production publishes instead of from here (GH-4752, GH-4778, the EF Core frames in
-            // #4803, and the three separate saga blockers in GH-4805).
+            // Wolverine.Http alone, so until this one no native image in CI had ever executed a chain that
+            // a PERSISTENCE package composed -- which is why this whole class of bug reached us from
+            // users' production publishes (GH-4752, GH-4778, the EF Core frames in #4803, and the three
+            // separate saga blockers in GH-4805).
             //
             // Sqlite-backed, so it costs a runner nothing: a file, no server, no container. It drives a
             // Guid-keyed saga through start and advance and asserts the saga actually handled the second
             // message -- the vacuity guard matters, because an earlier revision of this smoke booted
             // perfectly while the saga never ran at all.
-            var sagaSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga" /
-                            "Wolverine.AotSmoke.Saga.csproj";
-            var sagaSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga" /
-                                  "bin" / "aot-saga";
-            DotNet(
-                $"publish {sagaSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {sagaSmokeOutput}");
+            lane(failures, "Wolverine.AotSmoke.Saga",
+                () => runNativeAotLane("Wolverine.AotSmoke.Saga", "aot-saga"));
 
-            var sagaBinaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Saga.exe" : "Wolverine.AotSmoke.Saga";
-            var sagaProcess = ProcessTasks.StartProcess(sagaSmokeOutput / sagaBinaryName,
-                workingDirectory: RootDirectory);
-            sagaProcess.AssertZeroExitCode();
+            // ─── AOT smoke #7 (GH-4825): the FISHER-backed HTTP lane ───
+            //
+            // Two of GH-4825's failures are in Wolverine itself and reach any store that returns side
+            // effects from a handler or an endpoint -- SideEffectPolicy losing an op interface's Execute
+            // metadata, and HttpChain closing its own Applier<T> over a Results<Ok<T>, ProblemHttpResult>
+            // return type. IStartStream, IPolecatOp and IFisherOp are three unrelated interfaces in three
+            // packages and the rooting block is emitted per application, so proving a fix against one
+            // store says nothing about the others.
+            //
+            // Before the Marten lane below because it needs no container at all.
+            lane(failures, "Wolverine.AotSmoke.Fisher",
+                () => runNativeAotLane("Wolverine.AotSmoke.Fisher", "aot-fisher"));
 
             // ─── AOT smoke #6 (GH-4825): the MARTEN-backed HTTP lane ───
             //
-            // No lane above references Wolverine.Marten, so a Marten-backed application was the one
-            // shape no native image in CI had booted. Three startup failures reached 6.46 that way, each
-            // masked by the one before it: SideEffectPolicy losing IStartStream's Execute method,
-            // HttpChain+Applier<T> closed over a Results<Ok<T>, ProblemHttpResult> return type, and
-            // Marten unable to find Envelope.Id. The lane asserts the stream really was started, so a
-            // host that boots while silently dropping the side effect still fails.
-            StartDockerServices("postgresql");
-
-            var martenSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten" /
-                              "Wolverine.AotSmoke.Marten.csproj";
-            var martenSmokeOutput = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten" /
-                                    "bin" / "aot-marten";
-            DotNet(
-                $"publish {martenSmoke} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {martenSmokeOutput}");
-
-            var martenBinaryName = EnvironmentInfo.IsWin ? "Wolverine.AotSmoke.Marten.exe" : "Wolverine.AotSmoke.Marten";
-            var martenProcess = ProcessTasks.StartProcess(martenSmokeOutput / martenBinaryName,
-                workingDirectory: RootDirectory);
-            martenProcess.AssertZeroExitCode();
-
-            // ─── AOT smoke #7 (GH-4825): the FISHER twin ───
-            //
-            // Two of GH-4825's three failures are in Wolverine itself, not in Wolverine.Marten, and they
-            // reach any store that returns side effects from a handler or an endpoint -- SideEffectPolicy
-            // losing an op interface's Execute metadata, and HttpChain closing its own Applier<T> over a
-            // Results<Ok<T>, ProblemHttpResult> return type. Proving a fix against one store says nothing
-            // about the others: IStartStream, IPolecatOp and IFisherOp are three unrelated interfaces in
-            // three packages, and the rooting block is emitted per application.
-            //
-            // Cheapest store-backed lane in the repo: a SQLite file, no container at all.
-            runNativeAotLane("Wolverine.AotSmoke.Fisher", "aot-fisher");
+            // No lane above references Wolverine.Marten, so a Marten-backed application was the one shape
+            // no native image in CI had booted. Three startup failures reached 6.46 that way, each masked
+            // by the one before it -- see the note at the top of this target, which is why they could only
+            // be found one per run: SideEffectPolicy losing IStartStream's Execute method,
+            // HttpChain+Applier<T> closed over a Results<Ok<T>, ProblemHttpResult> return type, and Marten
+            // unable to find Envelope.Id. The lane asserts the stream really was started, so a host that
+            // boots while silently dropping the side effect still fails.
+            lane(failures, "Wolverine.AotSmoke.Marten", () =>
+            {
+                StartDockerServices("postgresql");
+                runNativeAotLane("Wolverine.AotSmoke.Marten", "aot-marten");
+            });
 
             // ─── AOT smoke #8 (GH-4825): the POLECAT twin, DELIBERATELY NOT RUN YET ───
             //
@@ -1366,22 +1341,62 @@ partial class Build
             // not something a [DynamicDependency] here can reach: today no Polecat application can be
             // published with PublishAot at all, with or without Wolverine. Tracked as JasperFx/polecat#733.
             //
-            // Enabling it is the single line below once Polecat ships that fix. Left out rather than left
-            // red on purpose -- a gate that is permanently red stops being read, and this one guards five
-            // other lanes.
+            // Now that the lanes aggregate instead of aborting, turning this on would no longer silence
+            // the seven above it -- so when polecat#733 is fixed, uncomment and delete this note.
             //
-            //   StartDockerServices("sqlserver");
-            //   runNativeAotLane("Wolverine.AotSmoke.Polecat", "aot-polecat");
+            //   lane(failures, "Wolverine.AotSmoke.Polecat", () =>
+            //   {
+            //       StartDockerServices("sqlserver");
+            //       runNativeAotLane("Wolverine.AotSmoke.Polecat", "aot-polecat");
+            //   });
+
+            if (failures.Count > 0)
+            {
+                throw new Exception(
+                    $"{failures.Count} of the Native AOT smoke lanes failed:{Environment.NewLine}" +
+                    string.Join(Environment.NewLine, failures.Select(x => "  " + x)) +
+                    $"{Environment.NewLine}{Environment.NewLine}Each lane's own output is above, in the order they ran.");
+            }
         });
 
     /// <summary>
-    ///     Publish one <c>src/Testing/&lt;name&gt;</c> project as a REAL native image and run it, failing the
-    ///     target on a non-zero exit code.
+    ///     Run one AOT smoke lane, recording a failure instead of aborting the target.
     /// </summary>
     /// <remarks>
-    ///     GH-4825. The lanes above this are spelled out one at a time because each carries the history of
-    ///     the bug it exists for. The store twins are mechanical copies of each other, so they share this.
+    ///     GH-4810. The first line of the exception message is what goes in the summary -- a publish
+    ///     failure's message is the whole MSBuild log otherwise, and the useful detail is already in the
+    ///     lane's own streamed output.
     /// </remarks>
+    static void lane(List<string> failures, string name, Action run)
+    {
+        try
+        {
+            run();
+        }
+        catch (Exception e)
+        {
+            var firstLine = e.Message.Trim().Split('\n', 2)[0].Trim();
+            failures.Add($"{name} -- {firstLine}");
+            Log.Error("Native AOT lane {Lane} FAILED: {Message}", name, firstLine);
+        }
+    }
+
+    /// <summary>
+    ///     Build and run one <c>src/Testing/&lt;name&gt;</c> smoke on CoreCLR. Not a native image — these
+    ///     catch ordinary bootstrap breaks, and cost seconds rather than ILC minutes.
+    /// </summary>
+    void runJitAotSmoke(string projectName)
+    {
+        var project = RootDirectory / "src" / "Testing" / projectName / $"{projectName}.csproj";
+
+        DotNet($"build {project} --configuration {Configuration} --framework net9.0");
+        DotNet($"run --project {project} --no-build --configuration {Configuration} --framework net9.0");
+    }
+
+    /// <summary>
+    ///     Publish one <c>src/Testing/&lt;name&gt;</c> project as a REAL native image and run it, throwing
+    ///     on a non-zero exit code.
+    /// </summary>
     void runNativeAotLane(string projectName, string outputFolder)
     {
         var project = RootDirectory / "src" / "Testing" / projectName / $"{projectName}.csproj";
