@@ -177,7 +177,59 @@ public class deriving_the_deduplication_id_from_a_message
     }
 }
 
+/// <summary>
+/// GH-4811. Under Native AOT the identity accessor cannot be a closed
+/// <c>MemberDeduplicationIdSource&lt;TMessage,TValue&gt;</c> — a Guid identity is the common case and no rooting
+/// mechanism reaches that instantiation — so <see cref="DeduplicationIdSources.For" /> hands back a
+/// <see cref="ReflectiveDeduplicationIdSource" /> instead. A disagreement between the two would not throw;
+/// it would hand the deduplication table a different logical identity for the same message once the
+/// application was published natively, which is how a duplicate gets executed. Only the JIT path can be
+/// exercised in this suite, so parity is asserted against it directly.
+/// </summary>
+public class ReflectiveDeduplicationIdSourceTests
+{
+    public static IEnumerable<object[]> Messages()
+    {
+        yield return [new MarkedMemberMessage("nightly|2026-08-30T03:00:00Z", "Orders")];
+        yield return [new GuidIdentityMessage(Guid.NewGuid())];
+
+        // Both sides have to answer null rather than "", because an empty id leaves DeduplicationId unset
+        yield return [new MarkedMemberMessage(null!, "Orders")];
+    }
+
+    [Theory]
+    [MemberData(nameof(Messages))]
+    public void agrees_with_the_compiled_source(object message)
+    {
+        var messageType = message.GetType();
+        var member = DeduplicationIdentity.DetermineIdentityMember(messageType)!;
+
+        var compiled = DeduplicationIdSources.For(messageType, member);
+        var reflective = new ReflectiveDeduplicationIdSource(member);
+
+        // Proof that the JIT path is the one being compared against, not a second reflective source
+        compiled.GetType().GetGenericTypeDefinition().ShouldBe(typeof(MemberDeduplicationIdSource<,>));
+
+        reflective.Resolve(message).ShouldBe(compiled.Resolve(message));
+    }
+
+    [Fact]
+    public void a_field_identity_resolves_the_same_way()
+    {
+        var member = typeof(FieldIdentityMessage).GetField(nameof(FieldIdentityMessage.CommandId))!;
+        var message = new FieldIdentityMessage { CommandId = Guid.NewGuid() };
+
+        new ReflectiveDeduplicationIdSource(member).Resolve(message)
+            .ShouldBe(message.CommandId.ToString());
+    }
+}
+
 public record PlainMessage(string Name);
+
+public class FieldIdentityMessage
+{
+    [DeduplicationIdentity] public Guid CommandId;
+}
 
 public record NoMatchingMemberMessage(string Description);
 

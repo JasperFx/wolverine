@@ -125,12 +125,11 @@ internal class MemberNameDeduplicationIdRule : IDeduplicationIdRule
         return source;
     }
 
+    // GH-4811: closing MemberDeduplicationIdSource<,> over the member's type used to happen here too, and
+    // that could not be made to work under Native AOT at all. DeduplicationIdSources.For owns the decision
+    // now and explains why.
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "Member-name deduplication is opt-in; consumers preserve the target member via DAM or a trim descriptor. See AOT guide.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closed MemberDeduplicationIdSource<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed MemberDeduplicationIdSource<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     private IDeduplicationIdSource? tryBuildSource(Type messageType)
     {
         foreach (var memberName in _memberNames)
@@ -140,8 +139,7 @@ internal class MemberNameDeduplicationIdRule : IDeduplicationIdRule
 
             if (member != null)
             {
-                return typeof(MemberDeduplicationIdSource<,>)
-                    .CloseAndBuildAs<IDeduplicationIdSource>(member, messageType, member.GetMemberType()!);
+                return DeduplicationIdSources.For(messageType, member);
             }
         }
 

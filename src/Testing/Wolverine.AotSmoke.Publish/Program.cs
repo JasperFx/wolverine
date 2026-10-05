@@ -9,6 +9,7 @@ using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Transports.Tcp;
 
@@ -60,7 +61,23 @@ try
     await host.StartAsync();
 
     var bus = host.Services.GetRequiredService<IMessageBus>();
-    await bus.InvokeAsync(new AotPublishPing(42));
+
+    // GH-4811. [DeduplicationIdentity] needs no configuration at all, and building a MessageRoute closes
+    // the identity accessor over the member's own type -- here a GUID, which is the common case and the
+    // one GH-4805 measured that no rooting mechanism can reach. Route construction is already what this
+    // lane exists to exercise; the assertion is here because a disagreement would not throw. It would
+    // hand the deduplication table a different logical identity for the same message, which is how a
+    // duplicate gets executed in a natively published application and nowhere else.
+    var deduplicationId = Guid.NewGuid();
+    var preview = bus.PreviewSubscriptions(new AotPublishPing(deduplicationId, 42)).Single();
+    if (preview.DeduplicationId != deduplicationId.ToString())
+    {
+        await Console.Error.WriteLineAsync(
+            $"FAIL: the deduplication identity resolved to '{preview.DeduplicationId}' instead of '{deduplicationId}'.");
+        return 1;
+    }
+
+    await bus.InvokeAsync(new AotPublishPing(deduplicationId, 42));
 
     await host.StopAsync();
 
@@ -90,7 +107,9 @@ catch (Exception e)
     return 1;
 }
 
-public record AotPublishPing(int Value);
+// GH-4811: the Guid member carries [DeduplicationIdentity] so that building this message's route closes
+// the deduplication identity accessor over a VALUE TYPE. See the assertion above.
+public record AotPublishPing([property: DeduplicationIdentity] Guid Id, int Value);
 
 public static class AotPublishPingHandler
 {

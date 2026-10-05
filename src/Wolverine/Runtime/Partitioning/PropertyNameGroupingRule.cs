@@ -39,21 +39,15 @@ internal class PropertyNameGroupingRule : IGroupingRule
         return false;
     }
 
-    // GetProperty(propertyName) (IL2070) requires PublicProperties on messageType;
-    // CloseAndBuildAs over typeof(Grouper<,>) closes the partitioner generic over
-    // (messageType, property.PropertyType) and trips IL2026 + IL3050. Both are
-    // best-effort opt-in partitioning. AOT-clean apps using property-name
-    // grouping must keep the targeted property (via [DynamicallyAccessedMembers]
-    // on the message type or a DynamicDependency) and the Grouper<,> closure
-    // (via TrimmerRootDescriptor). The PropertyNameGroupingRule is registered
-    // explicitly by the user (opts.MessagePartitioning.GroupBy(...)), not
-    // discovered reflectively, so the cascade stops here.
+    // GetProperty(propertyName) (IL2070) requires PublicProperties on messageType. Property-name grouping
+    // is registered explicitly by the user (opts.MessagePartitioning.ByPropertyNamed(...)), not discovered
+    // reflectively, so the cascade stops here: an AOT-clean app using it keeps the targeted property via
+    // [DynamicallyAccessedMembers] on the message type or a DynamicDependency.
+    //
+    // GH-4811: closing Grouper<,> over the property's type used to happen here too, and that could not be
+    // made to work under Native AOT at all. Groupers.For owns the decision now and explains why.
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "Property-name grouping is opt-in; consumers preserve the target property via DAM or trim descriptor. See AOT guide.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     private IGrouper? TryBuildGrouper(Type messageType)
     {
         foreach (var propertyName in _propertyNames)
@@ -61,7 +55,7 @@ internal class PropertyNameGroupingRule : IGroupingRule
             var property = messageType.GetProperty(propertyName);
             if (property != null)
             {
-                return typeof(Grouper<,>).CloseAndBuildAs<IGrouper>(property, messageType, property.PropertyType);
+                return Groupers.For(messageType, property);
             }
         }
 
