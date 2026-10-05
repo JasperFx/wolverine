@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #7 (GH-4825): the FISHER-backed HTTP lane, the SQLite twin of
+        Wolverine.AotSmoke.Marten.
+
+        The failures GH-4825 reported were found through Marten, but two of the three are in Wolverine
+        itself and reach any store that returns side effects from a handler or an endpoint:
+        SideEffectPolicy losing the Execute metadata of an op interface (IFisherOp here, IMartenOp there),
+        and HttpChain closing its own Applier<T> over a Results<Ok<T>, ProblemHttpResult> return type. A
+        lane per store is what keeps a fix proven on one from silently not covering the others.
+
+        Cheapest store-backed lane in the repo: a SQLite file, no server, nothing from docker-compose.
+
+        Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY:
+
+          dotnet run -f net9.0 codegen write
+        -->
+        <PublishAot>true</PublishAot>
+        <StripSymbols>false</StripSymbols>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- Runtime behaviour of a native image is what this asserts; mirrors the other native lanes. -->
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Http\Wolverine.Http.Fisher\Wolverine.Http.Fisher.csproj" />
+    </ItemGroup>
+
+</Project>

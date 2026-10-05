@@ -6,6 +6,7 @@
 // `dotnet run` from THIS directory, never from the native binary.
 using System.Net;
 using System.Text.Json.Serialization;
+using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Marten;
@@ -16,8 +17,10 @@ using Wolverine.Marten;
 
 var isCli = args.Length > 0 && args[0] is "codegen" or "describe" or "help" or "?";
 
-var connectionString = Environment.GetEnvironmentVariable("AOT_SMOKE_POSTGRES")
-                       ?? "Host=localhost;Port=5433;Database=postgres;Username=postgres;Password=postgres";
+// Servers, not a literal: it is the one place that knows this repo's docker-compose Postgres is on 5433
+// rather than Marten's 5432, and it honours the WOLVERINE_POSTGRES override each parallelized CI worker
+// lane sets. The file is dependency-free, so it links into a PublishAot project unchanged.
+var connectionString = Servers.PostgresConnectionString;
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
@@ -29,6 +32,14 @@ builder.Services.AddMarten(opts =>
         // A schema per run, so a database left behind by a previous run cannot satisfy the assertions.
         opts.DatabaseSchemaName = $"aot_marten_{Guid.NewGuid():n}";
         opts.UseSystemTextJsonForSerialization(configure: o => o.TypeInfoResolverChain.Insert(0, AotMartenJsonContext.Default));
+
+        // Marten, not Wolverine: StorageFeatures.Build closes DocumentMappingBuilder<T> with
+        // CloseAndBuildAs, so a document type whose mapping is first demanded at RUNTIME throws
+        // NotSupportedException ("missing native code or metadata") in a native image. Registering it
+        // here makes ILC generate the instantiation. Left explicit, with this note, because the handler
+        // below stores an AotPing and the failure it would otherwise hit has nothing to do with the
+        // rooting this lane is testing.
+        opts.Schema.For<AotPing>();
     })
     // Registers Envelope as a Marten document (failure 3).
     .IntegrateWithWolverine()
@@ -38,7 +49,12 @@ builder.Host.UseWolverine(opts =>
 {
     opts.ServiceName = "aot-marten-smoke";
     opts.Durability.Mode = DurabilityMode.Solo;
-    opts.Discovery.DisableConventionalDiscovery();
+    // GH-4825. The MESSAGE-handler half of the side-effect failure. SideEffectPolicy is applied to handler
+    // chains and HTTP chains by two different registries, each emitting its own rooting block, so a fix
+    // proven only through an endpoint leaves the handler path untested.
+    opts.Discovery.DisableConventionalDiscovery()
+        .IncludeType(typeof(AotMartenHandler));
+
     opts.Policies.AutoApplyTransactions();
 
     if (!isCli)
@@ -93,7 +109,13 @@ try
         return 1;
     }
 
-    // Vacuity guard: a 201 only proves the endpoint ran. The side effect must actually have started the stream.
+    // GH-4825. The message-handler side effect, through the HANDLER registry's rooting block rather than
+    // the HTTP one. IMartenOp declares Execute itself, where IStartStream inherits it from IMartenOp, so
+    // between them the two halves cover both arms of SideEffectPolicy.findMethod's lookup.
+    var recorded = Guid.NewGuid();
+    await app.Services.GetRequiredService<IMessageBus>().InvokeAsync(new RecordAotPing(recorded));
+
+    // Vacuity guard: a 201 only proves the endpoint ran. The side effects must actually have run.
     await using (var session = app.Services.GetRequiredService<IDocumentStore>().LightweightSession())
     {
         var events = await session.Events.FetchStreamAsync(id);
@@ -102,11 +124,17 @@ try
             await Console.Error.WriteLineAsync($"FAIL: expected the endpoint's IStartStream to append 1 event, found {events.Count}.");
             return 1;
         }
+
+        if (await session.LoadAsync<AotPing>(recorded) == null)
+        {
+            await Console.Error.WriteLineAsync("FAIL: the handler returned an IMartenOp but no AotPing document was stored.");
+            return 1;
+        }
     }
 
     await app.StopAsync();
 
-    Console.WriteLine("OK: Native AOT Marten HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> smoke passed.");
+    Console.WriteLine("OK: Native AOT Marten HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IMartenOp smoke passed.");
     return 0;
 }
 catch (Exception e)
@@ -124,6 +152,19 @@ public class AotOrder
 }
 
 public record AotPing(Guid Id);
+
+public record RecordAotPing(Guid Id);
+
+public static class AotMartenHandler
+{
+    // Returns the IMartenOp INTERFACE, not the concrete op: the variable type is what
+    // SideEffectPolicy.findMethod reflects over, and an interface is the shape whose Execute metadata the
+    // trimmer drops.
+    public static IMartenOp Handle(RecordAotPing command)
+    {
+        return MartenOps.Store(new AotPing(command.Id));
+    }
+}
 
 public static class AotMartenEndpoints
 {

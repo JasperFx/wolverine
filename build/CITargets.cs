@@ -1342,7 +1342,58 @@ partial class Build
             var martenProcess = ProcessTasks.StartProcess(martenSmokeOutput / martenBinaryName,
                 workingDirectory: RootDirectory);
             martenProcess.AssertZeroExitCode();
+
+            // ─── AOT smoke #7 (GH-4825): the FISHER twin ───
+            //
+            // Two of GH-4825's three failures are in Wolverine itself, not in Wolverine.Marten, and they
+            // reach any store that returns side effects from a handler or an endpoint -- SideEffectPolicy
+            // losing an op interface's Execute metadata, and HttpChain closing its own Applier<T> over a
+            // Results<Ok<T>, ProblemHttpResult> return type. Proving a fix against one store says nothing
+            // about the others: IStartStream, IPolecatOp and IFisherOp are three unrelated interfaces in
+            // three packages, and the rooting block is emitted per application.
+            //
+            // Cheapest store-backed lane in the repo: a SQLite file, no container at all.
+            runNativeAotLane("Wolverine.AotSmoke.Fisher", "aot-fisher");
+
+            // ─── AOT smoke #8 (GH-4825): the POLECAT twin, DELIBERATELY NOT RUN YET ───
+            //
+            // src/Testing/Wolverine.AotSmoke.Polecat exists, builds with the solution, and its pre-gen is
+            // held to the codegen drift gate below -- but it is not run here, because it cannot pass for a
+            // reason outside this repository. Polecat's own DocumentStore constructor builds a provider for
+            // JasperFx's DeadLetterEvent, and DocumentMapping.BuildRawIdAccessors closes
+            // RawIdAccessors<DeadLetterEvent, Guid> with MethodInfo.MakeGenericMethod. GH-4805 measured
+            // that NO rooting mechanism makes ILC generate code for a value-type instantiation, so this is
+            // not something a [DynamicDependency] here can reach: today no Polecat application can be
+            // published with PublishAot at all, with or without Wolverine. Tracked as JasperFx/polecat#733.
+            //
+            // Enabling it is the single line below once Polecat ships that fix. Left out rather than left
+            // red on purpose -- a gate that is permanently red stops being read, and this one guards five
+            // other lanes.
+            //
+            //   StartDockerServices("sqlserver");
+            //   runNativeAotLane("Wolverine.AotSmoke.Polecat", "aot-polecat");
         });
+
+    /// <summary>
+    ///     Publish one <c>src/Testing/&lt;name&gt;</c> project as a REAL native image and run it, failing the
+    ///     target on a non-zero exit code.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4825. The lanes above this are spelled out one at a time because each carries the history of
+    ///     the bug it exists for. The store twins are mechanical copies of each other, so they share this.
+    /// </remarks>
+    void runNativeAotLane(string projectName, string outputFolder)
+    {
+        var project = RootDirectory / "src" / "Testing" / projectName / $"{projectName}.csproj";
+        var output = RootDirectory / "src" / "Testing" / projectName / "bin" / outputFolder;
+
+        DotNet(
+            $"publish {project} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {output}");
+
+        var binaryName = EnvironmentInfo.IsWin ? $"{projectName}.exe" : projectName;
+        ProcessTasks.StartProcess(output / binaryName, workingDirectory: RootDirectory)
+            .AssertZeroExitCode();
+    }
 
     // ─── Codegen drift gate ────────────────────────────────────────────
     //
@@ -1388,8 +1439,9 @@ partial class Build
             // ConsoleApp configures RabbitMQ, and DeepMiddlewareUsage configures Marten against
             // Postgres. `codegen write` compiles the handler graph without ever starting the host, so
             // neither is strictly contacted -- but both containers are cheap, and their absence would
-            // make this gate flaky instead of red if that ever stops being true.
-            StartDockerServices("postgresql", "rabbitmq");
+            // make this gate flaky instead of red if that ever stops being true. GH-4825 adds sqlserver
+            // for the same reason, for Wolverine.AotSmoke.Polecat.
+            StartDockerServices("postgresql", "rabbitmq", "sqlserver");
 
             var projects = new[]
             {
@@ -1405,8 +1457,15 @@ partial class Build
                 // is byte-compared from now on. Before it, GH-4765's and GH-4803's rooting changes both
                 // came out identical across every project in this list because none of them had one.
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga",
-                // GH-4825. Its committed pre-gen is what the Marten-backed native lane in CIAotSmoke runs.
+                // GH-4825. Their committed pre-gen is what the store-backed native lanes run, and the
+                // rooting block is the part of that output this issue changed -- these three are the only
+                // projects here whose emitted roots cover a side effect or an IEndpointMetadataProvider
+                // resource type at all. Polecat is in this list even though CIAotSmoke does not run its
+                // lane yet (see the comment there): a project whose output nothing regenerates is exactly
+                // how the committed pre-gen went stale by six files before this gate existed.
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten",
+                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Polecat",
+                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Fisher",
                 RootDirectory / "src" / "Http" / "CodeGenTarget",
                 RootDirectory / "src" / "Http" / "StaticCodeGenDemonstrator",
                 RootDirectory / "src" / "Http" / "DeepMiddlewareUsage"
