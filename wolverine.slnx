@@ -281,6 +281,8 @@
     <Project Path="src/Testing/Wolverine.AotSmoke.Http/Wolverine.AotSmoke.Http.csproj" />
     <Project Path="src/Testing/Wolverine.AotSmoke.Saga/Wolverine.AotSmoke.Saga.csproj" />
     <Project Path="src/Testing/Wolverine.AotSmoke.Marten/Wolverine.AotSmoke.Marten.csproj" />
+    <Project Path="src/Testing/Wolverine.AotSmoke.Polecat/Wolverine.AotSmoke.Polecat.csproj" />
+    <Project Path="src/Testing/Wolverine.AotSmoke.Fisher/Wolverine.AotSmoke.Fisher.csproj" />
     <Project Path="src/Testing/MessageRoutingTests/MessageRoutingTests.csproj" />
     <Project Path="src/Testing/MetricsTests/MetricsTests.csproj" />
     <Project Path="src/Testing/Module1/Module1.csproj" />

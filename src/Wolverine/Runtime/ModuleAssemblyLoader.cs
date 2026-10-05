@@ -36,7 +36,7 @@ internal static class ModuleAssemblyLoader
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic))
         {
-            var name = assembly.GetName().Name;
+            var name = nameOf(assembly);
             if (name != null)
             {
                 seen.Add(name);
@@ -91,7 +91,7 @@ internal static class ModuleAssemblyLoader
 
         void enqueue(Assembly assembly)
         {
-            var name = assembly.GetName().Name;
+            var name = nameOf(assembly);
             if (name != null && seen.Add(name))
             {
                 queue.Enqueue(assembly);
@@ -143,6 +143,36 @@ internal static class ModuleAssemblyLoader
                     seen.Add(name);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    ///     The simple name of a loaded assembly, or null when the runtime cannot produce an
+    ///     <see cref="AssemblyName" /> for it at all.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4825. <c>AssemblyName.CultureName</c> constructs a <see cref="System.Globalization.CultureInfo" />,
+    ///     which throws <c>CultureNotFoundException</c> in globalization-invariant mode for any
+    ///     satellite/resource assembly carrying a real culture — and <c>InvariantGlobalization=true</c> is
+    ///     what a <c>PublishAot</c> application normally sets. This method is the FIRST thing
+    ///     <c>AddWolverine</c> reaches, so the unguarded call took the host down before configuration even
+    ///     began: a native image of a SQL Server-backed app died on
+    ///     <c>Microsoft.Data.SqlClient</c>'s localized resources with a stack trace naming globalization and
+    ///     nothing about Wolverine. Found by <c>Wolverine.AotSmoke.Polecat</c>, which is the first native
+    ///     lane in CI to load a localized dependency.
+    ///
+    ///     <para>Nothing is lost by skipping such an assembly: a localized resource assembly carries no
+    ///     types, so it can never be a Wolverine module.</para>
+    /// </remarks>
+    private static string? nameOf(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetName().Name;
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 

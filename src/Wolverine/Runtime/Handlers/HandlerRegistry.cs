@@ -55,12 +55,17 @@ internal class HandlerRegistryCodeFile : ICodeFile
     private readonly Type[] _routedMessageTypes;
     private readonly Type[] _responseAwareTypes;
     private readonly Type[] _contributedRootTypes;
+    private readonly Type[] _sideEffectTypes;
     private GeneratedType? _generatedType;
 
     public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes,
         IEnumerable<string>? generatedHandlerTypeNames = null, IEnumerable<Type>? routedMessageTypes = null,
-        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<Type>? contributedRootTypes = null)
+        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<Type>? contributedRootTypes = null,
+        IEnumerable<Type>? sideEffectTypes = null)
     {
+        // GH-4825. Public-filtered and ordered for the same reasons as every other array here.
+        _sideEffectTypes = onlyPublic(sideEffectTypes ?? []);
+
         // GH-4778. Public-filtered and ordered for the same two reasons as the arrays below: a type the
         // generated file cannot see cannot appear inside a typeof(), and the emitted rooting block is
         // byte-compared by the codegen drift gate.
@@ -109,7 +114,7 @@ internal class HandlerRegistryCodeFile : ICodeFile
         // GH-4765: _contributedRootTypes for the same reason, and more acutely -- these come from
         // persistence packages by definition, so they are never in this assembly.
         foreach (var type in _handlerTypes.Concat(_messageTypes).Concat(_routedMessageTypes)
-                     .Concat(_responseAwareTypes).Concat(_contributedRootTypes))
+                     .Concat(_responseAwareTypes).Concat(_contributedRootTypes).Concat(_sideEffectTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -183,6 +188,17 @@ internal class HandlerRegistryCodeFile : ICodeFile
         {
             yield return AttributeArg.Type(responseAwareType);
             yield return closedGenericRoot(typeof(Applier<>), responseAwareType);
+        }
+
+        // GH-4825. SideEffectPolicy.findMethod asks each of these for a public Execute/ExecuteAsync while
+        // the chains are being built, which happens at startup in a native image as well -- it is a
+        // POLICY, and TypeLoadMode.Static only spares the code GENERATION, not the chain model. The
+        // generated handler calls Execute directly, and that is not enough: the call preserves the
+        // method, not the metadata GetMethod needs. Without this the reported 6.46 failure is an
+        // InvalidSideEffectException naming Wolverine.Marten.IStartStream before the host ever starts.
+        foreach (var sideEffectType in _sideEffectTypes)
+        {
+            yield return AttributeArg.Type(sideEffectType);
         }
 
         // GH-4765. Already-closed types, named by the frames that were built from them -- no

@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #8 (GH-4825): the POLECAT-backed HTTP lane, the SQL Server twin of
+        Wolverine.AotSmoke.Marten.
+
+        The failures GH-4825 reported were found through Marten, but two of the three are in Wolverine
+        itself and reach any store that returns side effects from a handler or an endpoint:
+        SideEffectPolicy losing the Execute metadata of an op interface (IPolecatOp here, IMartenOp
+        there), and HttpChain closing its own Applier<T> over a Results<Ok<T>, ProblemHttpResult> return
+        type. A lane per store is what keeps a fix proven on one from silently not covering the others.
+
+        ⚠️ NOT RUN BY CIAotSmoke YET, and it would fail if it were. Polecat's DocumentStore constructor
+        builds a provider for JasperFx's DeadLetterEvent, and DocumentMapping.BuildRawIdAccessors closes
+        RawIdAccessors<DeadLetterEvent, Guid> with MethodInfo.MakeGenericMethod. GH-4805 measured that no
+        rooting mechanism makes ILC generate code for a VALUE-TYPE instantiation, so nothing in this
+        repository can reach it: today no Polecat application can be published with PublishAot at all,
+        with or without Wolverine. Tracked upstream as JasperFx/polecat#733, which this lane independently
+        confirmed. This project is committed, built with the solution and held to the
+        codegen drift gate so it cannot rot, and CIAotSmoke carries the one commented line that turns it
+        on once Polecat ships that fix.
+
+        Needs the sqlserver service from docker-compose.yml (SQL Server 2025, port 1434).
+
+        Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, with SQL Server running:
+
+          dotnet run -f net9.0 codegen write
+        -->
+        <PublishAot>true</PublishAot>
+        <StripSymbols>false</StripSymbols>
+        <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- Runtime behaviour of a native image is what this asserts; mirrors the other native lanes. -->
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+        <NoWarn>$(NoWarn);IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2104;IL2111;IL3000;IL3050;IL3051;IL3053</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Http\Wolverine.Http.Polecat\Wolverine.Http.Polecat.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The one place that knows this repo's SQL Server is on 1434, and the WOLVERINE_SQLSERVER
+             override each parallelized CI worker lane sets. Dependency-free, so it links in unchanged. -->
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
+</Project>

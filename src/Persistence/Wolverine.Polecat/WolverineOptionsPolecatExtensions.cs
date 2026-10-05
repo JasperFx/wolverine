@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -37,6 +38,18 @@ public static class WolverineOptionsPolecatExtensions
     ///     Integrate Polecat with Wolverine's persistent outbox and add Polecat-specific middleware
     ///     to Wolverine
     /// </summary>
+    // GH-4825. Polecat registers JasperFx's DeadLetterEvent as a document, and its DocumentMapping then
+    // finds the identity by walking GetProperties() for an "Id" member. Nothing statically reflects over
+    // DeadLetterEvent.Id, so ILC drops the property metadata and a native image fails while the first HTTP
+    // chain is built: "Document type 'JasperFx.Events.Daemon.DeadLetterEvent' must have a public property
+    // named 'Id'...". Found by Wolverine.AotSmoke.Polecat.
+    //
+    // Declared here because this is the assembly a Wolverine + Polecat application statically reaches.
+    // The registration itself is Polecat's, so a Polecat app published WITHOUT Wolverine hits the same
+    // gap and wants the annotation upstream; this does not take that fix's place.
+    // Fully qualified deliberately: a `using JasperFx.Events.Daemon` here makes IProjectionCoordinator
+    // ambiguous against Wolverine.Polecat.Distribution's own.
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(JasperFx.Events.Daemon.DeadLetterEvent))]
     public static PolecatConfigurationExpression IntegrateWithWolverine(
         this PolecatConfigurationExpression expression,
         Action<PolecatIntegration>? configure = null)

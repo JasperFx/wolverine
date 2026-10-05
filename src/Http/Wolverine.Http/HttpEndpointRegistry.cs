@@ -78,20 +78,23 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     private readonly Type[] _responseAwareTypes;
     private readonly string[] _generatedEndpointTypeNames;
     private readonly Type[] _contributedRootTypes;
+    private readonly Type[] _sideEffectTypes;
+    private readonly Type[] _metadataProviderTypes;
     private GeneratedType? _generatedType;
 
     public HttpEndpointRegistryCodeFile(IEnumerable<Type> endpointTypes,
         IEnumerable<Type>? responseAwareTypes = null, IEnumerable<string>? generatedEndpointTypeNames = null,
-        IEnumerable<Type>? contributedRootTypes = null)
+        IEnumerable<Type>? contributedRootTypes = null, IEnumerable<Type>? sideEffectTypes = null,
+        IEnumerable<Type>? metadataProviderTypes = null)
     {
+        // GH-4825. Same public filter and ordering as every other array here, for the same two reasons.
+        _sideEffectTypes = onlyPublic(sideEffectTypes);
+        _metadataProviderTypes = onlyPublic(metadataProviderTypes);
+
         // GH-4765. Roots the frames named for themselves (IAotRootSource) -- the only way a
         // Wolverine.Http.Marten frame closed over a user document type can be rooted, since this file
         // cannot name one. Same public filter and ordering as everything else here, for the same reasons.
-        _contributedRootTypes = (contributedRootTypes ?? [])
-            .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
-            .Distinct()
-            .OrderBy(x => x.FullName, StringComparer.Ordinal)
-            .ToArray();
+        _contributedRootTypes = onlyPublic(contributedRootTypes);
 
         // Ordered for the same reason as everything else here: the emitted rooting block is part of the
         // generated output, which the codegen drift gate byte-compares.
@@ -100,13 +103,18 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
             .OrderBy(x => x, StringComparer.Ordinal)
             .ToArray();
 
-        _responseAwareTypes = (responseAwareTypes ?? [])
-            .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
-            .Distinct()
-            .OrderBy(x => x.FullName, StringComparer.Ordinal)
-            .ToArray();
+        _responseAwareTypes = onlyPublic(responseAwareTypes);
 
-        _endpointTypes = endpointTypes
+        _endpointTypes = onlyPublic(endpointTypes);
+    }
+
+    /// <summary>
+    ///     A type the generated file cannot see cannot appear inside a <c>typeof()</c>, and the emitted
+    ///     rooting block is byte-compared by the codegen drift gate — hence both the filter and the order.
+    /// </summary>
+    private static Type[] onlyPublic(IEnumerable<Type>? types)
+    {
+        return (types ?? [])
             .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
             .Distinct()
             .OrderBy(x => x.FullName, StringComparer.Ordinal)
@@ -121,7 +129,8 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HttpEndpointRegistry.GeneratedTypeName, typeof(HttpEndpointRegistry));
 
-        foreach (var type in _endpointTypes.Concat(_responseAwareTypes).Concat(_contributedRootTypes))
+        foreach (var type in _endpointTypes.Concat(_responseAwareTypes).Concat(_contributedRootTypes)
+                     .Concat(_sideEffectTypes).Concat(_metadataProviderTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -174,6 +183,25 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
             yield return closedApplierRoot(responseAwareType);
         }
 
+        // GH-4825. SideEffectPolicy asks each of these for a public Execute/ExecuteAsync while the chains
+        // are being built -- a policy, so a native image reaches it too -- and a trimmed method's metadata
+        // makes that lookup answer null. The generated endpoint calls Execute directly, which preserves
+        // the method but not the metadata GetMethod needs.
+        foreach (var sideEffectType in _sideEffectTypes)
+        {
+            yield return AttributeArg.Type(sideEffectType);
+        }
+
+        // GH-4825. HttpChain.Applier<T> -- NOT the Wolverine.Configuration.Applier<T> above. It invokes
+        // IEndpointMetadataProvider.PopulateMetadata, a static abstract interface member, so a generic
+        // instantiation is the only way to call it and the closed type has to survive trimming. The live
+        // case is the plainest one imaginable: an endpoint returning Results<Ok<T>, ProblemHttpResult>.
+        foreach (var metadataProviderType in _metadataProviderTypes)
+        {
+            yield return AttributeArg.Type(metadataProviderType);
+            yield return closedMetadataApplierRoot(metadataProviderType);
+        }
+
         // GH-4765. Already closed by the time a frame names itself, so there is no MakeGenericType here --
         // which is the point: constructing a closed type is the operation that is not safe in a native
         // image, and these types never need it.
@@ -181,6 +209,22 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
         {
             yield return AttributeArg.Type(rootType);
         }
+    }
+
+    /// <summary>
+    ///     Closes <see cref="HttpChain.Applier{T}" /> over one <see cref="IEndpointMetadataProvider" />
+    ///     type so it can be named inside a <c>[DynamicDependency]</c>. Its own method for the same reason
+    ///     as <see cref="closedApplierRoot" />.
+    /// </summary>
+    [UnconditionalSuppressMessage("AotAnalysis", "IL3050",
+        Justification =
+            "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand and never in a native image. Emitting this root is exactly what removes the need for a native image to close the generic at runtime.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055",
+        Justification =
+            "HttpChain.Applier<T> constrains T to IEndpointMetadataProvider, and the arguments are the types HttpChain itself closed it over -- each one past a CanBeCastTo test against that very interface -- so the constraint holds by construction. The closed type is only ever named inside an emitted [DynamicDependency]; it is never instantiated here.")]
+    private static AttributeArg closedMetadataApplierRoot(Type metadataProviderType)
+    {
+        return AttributeArg.Type(typeof(HttpChain.Applier<>).MakeGenericType(metadataProviderType));
     }
 
     /// <summary>

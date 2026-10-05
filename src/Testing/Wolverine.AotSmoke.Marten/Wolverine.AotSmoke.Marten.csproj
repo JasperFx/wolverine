@@ -44,4 +44,12 @@
         <ProjectReference Include="..\..\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- The one place that knows this repo's Postgres is on 5433, and the WOLVERINE_POSTGRES override
+             each parallelized CI worker lane sets. Dependency-free, so it links in here unchanged. -->
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
 </Project>
