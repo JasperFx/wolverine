@@ -111,12 +111,33 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
 
         // Broker-per-tenant (GH-3307): route by Envelope.TenantId to a per-tenant sender bound to that tenant's
         // own connection, falling back to the shared/default connection for the untenanted path.
-        //
-        // Both the tenant senders AND the default sender they fall back to are simple fire-and-forget
-        // MqttTopicSenders: TenantedSender intentionally does NOT implement ISenderRequiresCallback (GH-2361) and
-        // does not forward RegisterCallback to the senders beneath it.
         if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-4820. Inline keeps the fire-and-forget MqttTopicSender, which is what inline means. Every
+            // other mode gets the same acknowledgement-aware sender the untenanted path below has had since
+            // the durable-send fix -- one BatchedSender per tenant connection, over a
+            // CallbackAwareTenantedSender so each of them actually receives the ISenderCallback it needs to
+            // settle the outbox. Before this, a tenanted endpoint with UseDurableOutbox() sent through
+            // EnqueueAsync, which only reaches the managed client's in-memory queue: the send never threw,
+            // the outbox deleted its row believing it had succeeded, and a restart lost the message.
+            if (!SendsInline)
+            {
+                var cancellation = runtime.DurabilitySettings.Cancellation;
+                var logger = runtime.LoggerFactory.CreateLogger<MqttSenderProtocol>();
+
+                var durableTenanted = new CallbackAwareTenantedSender(Uri, Parent.TenantedIdBehavior,
+                    new BatchedSender(this, new MqttSenderProtocol(this, Parent.Client), cancellation, logger));
+
+                foreach (var tenant in Parent.Tenants)
+                {
+                    durableTenanted.RegisterSender(tenant.TenantId,
+                        new BatchedSender(this, new MqttSenderProtocol(this, Parent.GetTenantClient(tenant)),
+                            cancellation, logger));
+                }
+
+                return durableTenanted;
+            }
+
             var defaultSender = new MqttTopicSender(this, Parent.Client);
             var tenantedSender = new TenantedSender(Uri, Parent.TenantedIdBehavior, defaultSender);
 
