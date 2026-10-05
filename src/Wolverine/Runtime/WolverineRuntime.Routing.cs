@@ -227,7 +227,19 @@ public partial class WolverineRuntime
             [typeof(Envelope)] = routerFactory<Envelope>(),
             [typeof(Acknowledgement)] = routerFactory<Acknowledgement>(),
             [typeof(FailureAcknowledgement)] = routerFactory<FailureAcknowledgement>(),
-            [typeof(IAgentCommand)] = routerFactory<IAgentCommand>()
+            [typeof(IAgentCommand)] = routerFactory<IAgentCommand>(),
+
+            // GH-4825. The concrete agent messages the framework itself handles. They are internal, so
+            // the `codegen write` rooting block cannot name them, and an application with a durable message
+            // store (Marten here) walks all of them in PrepopulateRoutingCache at startup.
+            [typeof(AgentPresenceReport)] = routerFactory<AgentPresenceReport>(),
+            [typeof(AgentsStarted)] = routerFactory<AgentsStarted>(),
+            [typeof(AgentsStopped)] = routerFactory<AgentsStopped>(),
+            [typeof(QueryAgentPresence)] = routerFactory<QueryAgentPresence>(),
+            [typeof(StartAgent)] = routerFactory<StartAgent>(),
+            [typeof(StartAgents)] = routerFactory<StartAgents>(),
+            [typeof(StopAgent)] = routerFactory<StopAgent>(),
+            [typeof(StopAgents)] = routerFactory<StopAgents>()
         };
 
     private static Func<WolverineRuntime, List<IMessageRoute>, IMessageRouter> routerFactory<T>()

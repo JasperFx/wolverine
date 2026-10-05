@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http.Metadata;
 using Wolverine.Configuration;
 
 namespace Wolverine.Http;
@@ -78,12 +79,25 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     private readonly Type[] _responseAwareTypes;
     private readonly string[] _generatedEndpointTypeNames;
     private readonly Type[] _contributedRootTypes;
+    private readonly Type[] _sideEffectTypes;
+    private readonly Type[] _endpointMetadataProviderTypes;
     private GeneratedType? _generatedType;
 
     public HttpEndpointRegistryCodeFile(IEnumerable<Type> endpointTypes,
         IEnumerable<Type>? responseAwareTypes = null, IEnumerable<string>? generatedEndpointTypeNames = null,
-        IEnumerable<Type>? contributedRootTypes = null)
+        IEnumerable<Type>? contributedRootTypes = null, IEnumerable<Type>? sideEffectTypes = null,
+        IEnumerable<Type>? endpointMetadataProviderTypes = null)
     {
+        // GH-4825. Side-effect types are public-filtered only after their interfaces are expanded in
+        // buildAotRoots, because a non-public side effect can still carry a public interface to root.
+        _sideEffectTypes = (sideEffectTypes ?? []).Distinct().ToArray();
+
+        _endpointMetadataProviderTypes = (endpointMetadataProviderTypes ?? [])
+            .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
+            .Distinct()
+            .OrderBy(x => x.FullName, StringComparer.Ordinal)
+            .ToArray();
+
         // GH-4765. Roots the frames named for themselves (IAotRootSource) -- the only way a
         // Wolverine.Http.Marten frame closed over a user document type can be rooted, since this file
         // cannot name one. Same public filter and ordering as everything else here, for the same reasons.
@@ -121,7 +135,8 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HttpEndpointRegistry.GeneratedTypeName, typeof(HttpEndpointRegistry));
 
-        foreach (var type in _endpointTypes.Concat(_responseAwareTypes).Concat(_contributedRootTypes))
+        foreach (var type in _endpointTypes.Concat(_responseAwareTypes).Concat(_contributedRootTypes)
+                     .Concat(_sideEffectTypes).Concat(_endpointMetadataProviderTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -181,6 +196,43 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
         {
             yield return AttributeArg.Type(rootType);
         }
+
+        // GH-4825. HttpChain.tryApplyAsEndpointMetadataProvider closes HttpChain.Applier<T> over these
+        // while building the endpoint at startup. Like Configuration.Applier<T> it dispatches a static
+        // abstract interface member, so it cannot be de-genericized; rooting the closed type is the fix.
+        foreach (var metadataProviderType in _endpointMetadataProviderTypes)
+        {
+            yield return AttributeArg.Type(metadataProviderType);
+            yield return closedMetadataApplierRoot(metadataProviderType);
+        }
+
+        // GH-4825. SideEffectPolicy reflects over each side-effect type and its interfaces for
+        // Execute/ExecuteAsync while the chain model is built at startup.
+        var sideEffectRoots = _sideEffectTypes
+            .SelectMany(SideEffectPolicy.ReflectedTypesFor)
+            .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
+            .Distinct()
+            .OrderBy(x => x.FullName, StringComparer.Ordinal);
+
+        foreach (var type in sideEffectRoots)
+        {
+            yield return AttributeArg.Type(type);
+        }
+    }
+
+    /// <summary>
+    ///     GH-4825. Closes <see cref="HttpChain.Applier{T}" /> over one <see cref="IEndpointMetadataProvider" />
+    ///     type. Its own method for the same reason as <see cref="closedApplierRoot" />.
+    /// </summary>
+    [UnconditionalSuppressMessage("AotAnalysis", "IL3050",
+        Justification =
+            "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand and never in a native image. Emitting this root is exactly what removes the need for a native image to close the generic at runtime.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055",
+        Justification =
+            "HttpChain.Applier<T> constrains T to IEndpointMetadataProvider, and the argument comes from HttpChain.EndpointMetadataProviderTypes() -- a CanBeCastTo filter against that very interface -- so the constraint holds by construction. The closed type is only ever named inside an emitted [DynamicDependency]; it is never instantiated here.")]
+    private static AttributeArg closedMetadataApplierRoot(Type metadataProviderType)
+    {
+        return AttributeArg.Type(typeof(HttpChain.Applier<>).MakeGenericType(metadataProviderType));
     }
 
     /// <summary>

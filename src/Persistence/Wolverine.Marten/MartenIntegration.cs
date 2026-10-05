@@ -224,6 +224,11 @@ internal class MartenOverrides : IConfigureMarten
     // message store (its configured SchemaName / database). See GH-2887.
     protected virtual Type? StoreType => null;
 
+    // GH-4825. Schema.For<Envelope>() below makes Envelope a Marten document, and Marten's DocumentMapping
+    // finds its id by reflecting over the type's members at startup. Nothing else tells ILC that Envelope's
+    // members are reflected on, so a native image drops that metadata and store startup throws "Could not
+    // determine an 'id/Id' field or property for requested document type Wolverine.Envelope".
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Envelope))]
     public void Configure(IServiceProvider services, StoreOptions options)
     {
         options.Events.MessageOutbox = new MartenToWolverineOutbox(services, StoreType);

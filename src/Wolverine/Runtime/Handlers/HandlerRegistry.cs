@@ -55,12 +55,18 @@ internal class HandlerRegistryCodeFile : ICodeFile
     private readonly Type[] _routedMessageTypes;
     private readonly Type[] _responseAwareTypes;
     private readonly Type[] _contributedRootTypes;
+    private readonly Type[] _sideEffectTypes;
     private GeneratedType? _generatedType;
 
     public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes,
         IEnumerable<string>? generatedHandlerTypeNames = null, IEnumerable<Type>? routedMessageTypes = null,
-        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<Type>? contributedRootTypes = null)
+        IEnumerable<Type>? responseAwareTypes = null, IEnumerable<Type>? contributedRootTypes = null,
+        IEnumerable<Type>? sideEffectTypes = null)
     {
+        // GH-4825. Not public-filtered here: the interfaces are expanded in buildAotRoots, and a non-public
+        // side-effect type can still carry a public interface that needs rooting.
+        _sideEffectTypes = (sideEffectTypes ?? []).Distinct().ToArray();
+
         // GH-4778. Public-filtered and ordered for the same two reasons as the arrays below: a type the
         // generated file cannot see cannot appear inside a typeof(), and the emitted rooting block is
         // byte-compared by the codegen drift gate.
@@ -109,7 +115,7 @@ internal class HandlerRegistryCodeFile : ICodeFile
         // GH-4765: _contributedRootTypes for the same reason, and more acutely -- these come from
         // persistence packages by definition, so they are never in this assembly.
         foreach (var type in _handlerTypes.Concat(_messageTypes).Concat(_routedMessageTypes)
-                     .Concat(_responseAwareTypes).Concat(_contributedRootTypes))
+                     .Concat(_responseAwareTypes).Concat(_contributedRootTypes).Concat(_sideEffectTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -192,6 +198,13 @@ internal class HandlerRegistryCodeFile : ICodeFile
         foreach (var rootType in _contributedRootTypes)
         {
             yield return AttributeArg.Type(rootType);
+        }
+
+        // GH-4825. SideEffectPolicy reflects over each side-effect type and its interfaces for
+        // Execute/ExecuteAsync while the chain model is built at startup.
+        foreach (var type in onlyPublic(_sideEffectTypes.SelectMany(SideEffectPolicy.ReflectedTypesFor)))
+        {
+            yield return AttributeArg.Type(type);
         }
     }
 

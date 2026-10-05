@@ -92,6 +92,37 @@ internal class SideEffectPolicy : IChainPolicy
         }
     }
 
+    /// <summary>
+    ///     GH-4825. The side-effect return types of a chain, for the <c>codegen write</c> rooting block.
+    /// </summary>
+    internal static IEnumerable<Type> SideEffectTypesOf(IChain chain)
+    {
+        return chain.ReturnVariablesOfType(typeof(ISideEffect)).Select(x => x.VariableType);
+    }
+
+    /// <summary>
+    ///     GH-4825. The types <see cref="findMethod" /> needs reflection metadata for, for one side-effect
+    ///     type: the type itself, and each interface that declares <c>Execute</c> or <c>ExecuteAsync</c>.
+    ///     <c>findMethod</c> walks the interfaces because a declared return type like <c>IStartStream</c>
+    ///     only inherits <c>Execute</c> from <c>IMartenOp</c>, and an interface's <c>GetMethod</c> does not
+    ///     see its base interfaces' members. The generated code calls <c>Execute</c> directly, but a direct
+    ///     call does not keep the reflection metadata <c>GetMethod</c> needs, so without a root a native
+    ///     image throws <see cref="InvalidSideEffectException" /> from <c>MapWolverineEndpoints</c>.
+    ///     Member-less marker interfaces (<c>ISideEffect</c> itself) are left out: ILC rejects a
+    ///     <c>[DynamicDependency]</c> that resolves no members (IL2037).
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification =
+            "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand. The types returned here are what that command emits as [DynamicDependency] roots, which is what keeps the metadata findMethod needs in a native image.")]
+    internal static Type[] ReflectedTypesFor(Type sideEffectType)
+    {
+        var declaresExecute = sideEffectType.GetInterfaces().Where(x =>
+            x.GetMethod(SyncMethod, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly) != null ||
+            x.GetMethod(AsyncMethod, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly) != null);
+
+        return [sideEffectType, ..declaresExecute];
+    }
+
     private static void applySideEffectExecution(Variable effect, IChain chain)
     {
         if (effect.VariableType == typeof(ISideEffect))

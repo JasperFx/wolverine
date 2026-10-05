@@ -175,10 +175,16 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
             .OfType<IAotRootSource>()
             .SelectMany(x => x.AotRoots());
 
+        // GH-4825. SideEffectPolicy reflects over these for Execute/ExecuteAsync, and HttpChain closes its
+        // own Applier<T> over each IEndpointMetadataProvider type (Results<Ok<T>, ProblemHttpResult> and the
+        // like), both while the chain model is built at startup.
+        var sideEffectTypes = _chains.SelectMany(SideEffectPolicy.SideEffectTypesOf);
+        var endpointMetadataProviderTypes = _chains.SelectMany(x => x.EndpointMetadataProviderTypes());
+
         var files = new List<ICodeFile>(_chains)
         {
             new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes,
-                generatedEndpointTypeNames, contributedRootTypes)
+                generatedEndpointTypeNames, contributedRootTypes, sideEffectTypes, endpointMetadataProviderTypes)
         };
 
         return files;

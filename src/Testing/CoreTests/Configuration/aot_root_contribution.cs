@@ -61,15 +61,38 @@ public class aot_root_contribution
         }
     }
 
-    private static string generateAllCode(IHandlerPolicy policy)
+    [Fact]
+    public void side_effect_types_and_their_execute_interfaces_are_rooted()
+    {
+        // GH-4825. SideEffectPolicy finds Execute with GetMethod at startup, walking the declared return
+        // type's interfaces, so those need roots. The member-less marker interfaces (ISideEffect,
+        // IWolverineReturnType, INotToBeRouted) must NOT be rooted: ILC fails the publish with IL2037 on a
+        // [DynamicDependency] that resolves no members.
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+        try
+        {
+            var code = generateAllCode(null, typeof(AotSideEffectSampleHandler));
+
+            code.ShouldContain("typeof(global::CoreTests.Configuration.IAotSampleStartStream)");
+            code.ShouldContain("typeof(global::CoreTests.Configuration.IAotSampleOp)");
+            code.ShouldNotContain("typeof(global::Wolverine.ISideEffect)");
+            code.ShouldNotContain("typeof(global::Wolverine.Configuration.IWolverineReturnType)");
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    private static string generateAllCode(IHandlerPolicy? policy, Type? handlerType = null)
     {
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType(typeof(AotRootSampleHandler));
+                    .IncludeType(handlerType ?? typeof(AotRootSampleHandler));
 
-                opts.Policies.Add(policy);
+                if (policy != null) opts.Policies.Add(policy);
             })
             .Build();
 
@@ -84,6 +107,38 @@ public class aot_root_contribution
 }
 
 public record AotRootSampleMessage;
+
+public record AotSideEffectSampleMessage;
+
+/// <summary>
+///     Stands in for Wolverine.Marten's <c>IMartenOp</c>: the interface that declares Execute.
+/// </summary>
+public interface IAotSampleOp : ISideEffect
+{
+    void Execute();
+}
+
+/// <summary>
+///     Stands in for <c>IStartStream</c>: a declared return type that only inherits Execute.
+/// </summary>
+public interface IAotSampleStartStream : IAotSampleOp
+{
+    string Name { get; }
+}
+
+public class AotSampleStartStream : IAotSampleStartStream
+{
+    public string Name => "sample";
+
+    public void Execute()
+    {
+    }
+}
+
+public static class AotSideEffectSampleHandler
+{
+    public static IAotSampleStartStream Handle(AotSideEffectSampleMessage message) => new AotSampleStartStream();
+}
 
 public static class AotRootSampleHandler
 {

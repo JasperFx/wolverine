@@ -43,6 +43,21 @@ public partial class HttpChain : IEndpointConventionBuilder
         _finallyBuilderConfigurations.Add(finallyConvention);
     }
 
+    /// <summary>
+    ///     GH-4825. Every type <see cref="tryApplyAsEndpointMetadataProvider" /> closes <see cref="Applier{T}" />
+    ///     over when the endpoint is built: the resource type, the method's parameters and the variables
+    ///     middleware creates. Collected for the <c>codegen write</c> rooting block, because that close runs
+    ///     at startup under <c>TypeLoadMode.Static</c> too, and the closed type is trimmed in a native image.
+    /// </summary>
+    internal IEnumerable<Type> EndpointMetadataProviderTypes()
+    {
+        return new[] { ResourceType }
+            .Concat(Method.Method.GetParameters().Select(x => x.ParameterType))
+            .Concat(Middleware.SelectMany(x => x.Creates).Select(x => x.VariableType))
+            .Where(x => x != null && x.CanBeCastTo(typeof(IEndpointMetadataProvider)))
+            .Select(x => x!);
+    }
+
     private bool tryApplyAsEndpointMetadataProvider(Type? type, RouteEndpointBuilder builder)
     {
         if (type != null && type.CanBeCastTo(typeof(IEndpointMetadataProvider)))
@@ -209,7 +224,15 @@ public partial class HttpChain : IEndpointConventionBuilder
         void Apply(EndpointBuilder builder, MethodInfo method);
     }
 
-    internal class Applier<T> : IApplier where T : IEndpointMetadataProvider
+    /// <summary>
+    ///     Invokes <see cref="IEndpointMetadataProvider.PopulateMetadata" />, a static abstract interface
+    ///     member, which can only be reached through a type parameter. GH-4825: public, not internal, solely
+    ///     so that <c>codegen write</c> can name a closed <c>Applier&lt;T&gt;</c> inside the
+    ///     <c>[DynamicDependency]</c> rooting block it emits; see
+    ///     <see cref="Wolverine.Configuration.Applier{T}" /> for the same reasoning. Not intended for use by
+    ///     application code.
+    /// </summary>
+    public class Applier<T> : IApplier where T : IEndpointMetadataProvider
     {
         public void Apply(EndpointBuilder builder, MethodInfo method)
         {
