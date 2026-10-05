@@ -36,7 +36,16 @@ public class logical_deduplication_with_a_database_per_tenant : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ChargeTenantHandler));
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(ChargeTenantHandler))
+                    .IncludeType(typeof(RecordTenantChargeHandler));
+
+                // GH-4813 follow up. The shape that actually bit the reporter: a chain that commits
+                // through a Marten session. Without it the suite only covered the non-transactional
+                // chain, which reaches the compensating path without ever consulting
+                // TryBuildTransactionalDeduplication -- so the guard that sends a database-per-tenant
+                // chain down that path could break and every test here would stay green.
+                opts.Policies.AutoApplyTransactions();
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -63,6 +72,7 @@ public class logical_deduplication_with_a_database_per_tenant : IAsyncLifetime
 
         await _host.ResetResourceState();
         ChargeTenantHandler.Received.Clear();
+        RecordTenantChargeHandler.Received.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -112,6 +122,26 @@ public class logical_deduplication_with_a_database_per_tenant : IAsyncLifetime
 
         ChargeTenantHandler.Received.ShouldHaveSingleItem().ShouldBe("tenant1");
     }
+
+    /// <summary>
+    /// GH-4813 follow up. A transactional chain cannot queue its claim onto the session's unit of work
+    /// here -- the claims live in the main database and the session commits to a tenant one, so
+    /// MartenPersistenceFrameProvider refuses the transactional path on anything but Single cardinality
+    /// and falls through to claim-and-release. That fallthrough is what makes this work, and nothing
+    /// pinned it: if the cardinality guard ever went away, this shape would reach
+    /// MartenDeduplicator.tableFor with a MultiTenantedMessageStore and throw the very exception #4813
+    /// removed, while every other test in this class stayed green.
+    /// </summary>
+    [Fact]
+    public async Task a_transactional_chain_deduplicates_too()
+    {
+        await _host.SendMessageAndWaitAsync(new RecordTenantCharge("first"),
+            new DeliveryOptions { TenantId = "tenant1", DeduplicationId = "invoice-19" });
+        await _host.SendMessageAndWaitAsync(new RecordTenantCharge("second"),
+            new DeliveryOptions { TenantId = "tenant1", DeduplicationId = "invoice-19" });
+
+        RecordTenantChargeHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
 }
 
 public record ChargeTenant(string Note);
@@ -128,4 +158,33 @@ public static class ChargeTenantHandler
             Received.Add(message.Note);
         }
     }
+}
+
+public record RecordTenantCharge(string Note);
+
+/// <summary>
+/// Takes an IDocumentSession, so with AutoApplyTransactions this chain commits through Marten -- the
+/// shape <see cref="logical_deduplication_with_a_database_per_tenant.a_transactional_chain_deduplicates_too" />
+/// exists to pin.
+/// </summary>
+public static class RecordTenantChargeHandler
+{
+    public static readonly List<string> Received = [];
+
+    [Deduplicated]
+    public static void Handle(RecordTenantCharge message, IDocumentSession session)
+    {
+        session.Store(new TenantCharge { Id = Guid.NewGuid(), Note = message.Note });
+
+        lock (Received)
+        {
+            Received.Add(message.Note);
+        }
+    }
+}
+
+public class TenantCharge
+{
+    public Guid Id { get; set; }
+    public string Note { get; set; } = string.Empty;
 }

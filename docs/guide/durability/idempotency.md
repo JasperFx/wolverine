@@ -397,6 +397,13 @@ answers a `ProblemDetails` 404 returns before the commit, so it never claimed ei
 to undo, which also means there is no window in which a prompt retry could see a claim for work that
 never happened.
 
+::: warning
+With a **database per tenant** this does not apply, however the chain commits. The claims live in the
+main database and the session commits to a tenant one, so queueing the claim onto that unit of work
+would be riding the wrong transaction. Wolverine refuses it and uses the compensating path below
+instead — which means a handler that throws *did* claim, and relies on the release to undo it.
+:::
+
 The one case this cannot decide up front is two genuinely concurrent callers under the same key.
 Neither one's claim is committed yet, so neither is visible to the other, and both proceed. The
 deduplication table's primary key settles it at commit time: one transaction wins, and the loser is
