@@ -17,22 +17,31 @@ public sealed partial class WolverineRuntime
             // those of every destination after it in the batch -- owned by a live node forever, with nothing
             // logged against them and nothing dead lettered. Same remedy as GH-3680 on the recovery side:
             // hand them back to any node so recovery tries again.
+            //
+            // Only what was not handed over yet goes back: an envelope already forwarded has had its row retired,
+            // and releasing it too would let recovery run it a second time. The listener branch hands a group
+            // over as a whole and cannot say how far it got, so a failure there releases all of it -- the same
+            // trade GH-3680 makes, and the realistic failure (a listener with no receiver) throws before the
+            // first envelope.
+            var handedOver = new HashSet<Envelope>();
             try
             {
-                await enqueueDirectlyAsync(group);
+                await enqueueDirectlyAsync(group, handedOver);
             }
             catch (Exception e)
             {
+                var stranded = group.Where(x => !handedOver.Contains(x)).ToArray();
+
                 Logger.LogError(e,
                     "Error trying to enqueue {Count} promoted scheduled envelopes for {Destination}. Releasing them back to any node so that they are recovered later",
-                    group.Count(), group.Key);
+                    stranded.Length, group.Key);
 
-                await releaseToAnyNodeAsync(group);
+                await releaseToAnyNodeAsync(stranded, group.Key);
             }
         }
     }
 
-    private async Task enqueueDirectlyAsync(IGrouping<Uri, Envelope> group)
+    private async Task enqueueDirectlyAsync(IGrouping<Uri, Envelope> group, ISet<Envelope> handedOver)
     {
         // GH-4700. Has to come before FindListenerCircuit, which answers yes for ANY local:// address.
         // A global partition's companion local queue exists on every node by design (GH-3856), so
@@ -50,7 +59,7 @@ public sealed partial class WolverineRuntime
                       ?? (Endpoints.IsGlobalPartitionSlot(group.Key) ? group.Key : null);
         if (slotUri != null && !thisNodeOwnsPartitionSlot(slotUri))
         {
-            await forwardToPartitionSlotAsync(group, slotUri);
+            await forwardToPartitionSlotAsync(group, slotUri, handedOver);
             return;
         }
 
@@ -84,18 +93,31 @@ public sealed partial class WolverineRuntime
             foreach (var envelope in group)
             {
                 await sender.EnqueueOutgoingAsync(envelope);
+                handedOver.Add(envelope);
                 await retireForwardedInboxRowAsync(envelope);
             }
         }
     }
 
-    private async Task releaseToAnyNodeAsync(IEnumerable<Envelope> envelopes)
+    /// <summary>
+    /// GH-4822. The release matches on id AND <c>received_at</c>, so it has to name the address the rows were
+    /// parked under. The slot forward has already re-addressed every envelope it touched to the slot, so
+    /// stand-ins carry the parked address rather than mutating the live envelopes back -- the same reasoning
+    /// as <see cref="retireForwardedInboxRowAsync"/>.
+    /// </summary>
+    private async Task releaseToAnyNodeAsync(IReadOnlyList<Envelope> envelopes, Uri parkedAt)
     {
+        if (envelopes.Count == 0) return;
+
         foreach (var byStore in envelopes.GroupBy(x => x.Store ?? Storage))
         {
             try
             {
-                await byStore.Key.ReassignIncomingAsync(TransportConstants.AnyNode, byStore.ToArray());
+                var released = byStore
+                    .Select(x => new Envelope { Id = x.Id, Destination = parkedAt, Store = x.Store })
+                    .ToArray();
+
+                await byStore.Key.ReassignIncomingAsync(TransportConstants.AnyNode, released);
             }
             catch (Exception e)
             {
@@ -138,7 +160,8 @@ public sealed partial class WolverineRuntime
     /// strand the row, which is exactly the GH-4645 data loss. OutgoingMessageBatch also assigns
     /// <c>Destination</c> itself, so the live value cannot be trusted once the envelope is handed over.
     /// </summary>
-    private async Task forwardToPartitionSlotAsync(IEnumerable<Envelope> group, Uri slotUri)
+    private async Task forwardToPartitionSlotAsync(IEnumerable<Envelope> group, Uri slotUri,
+        ISet<Envelope> handedOver)
     {
         ISendingAgent sender;
         try
@@ -162,6 +185,7 @@ public sealed partial class WolverineRuntime
             envelope.Destination = slotUri;
 
             await sender.EnqueueOutgoingAsync(envelope);
+            handedOver.Add(envelope);
             await retireForwardedInboxRowAsync(envelope, parkedAt);
         }
     }
