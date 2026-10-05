@@ -1,4 +1,4 @@
-// AOT smoke test #6 — see the csproj header for the full story. Boots a MARTEN-backed Wolverine.Http host
+// AOT smoke test #6 (GH-4825) — see the csproj header for the full story. Boots a MARTEN-backed Wolverine.Http host
 // inside a REAL Native AOT binary, then serves an endpoint that starts a Marten stream through IStartStream
 // and one that returns Results<Ok<T>, ProblemHttpResult>. Exit 0 only when both answer and the stream exists.
 //

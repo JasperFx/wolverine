@@ -1321,7 +1321,7 @@ partial class Build
                 workingDirectory: RootDirectory);
             sagaProcess.AssertZeroExitCode();
 
-            // ─── AOT smoke #6: the MARTEN-backed HTTP lane ───
+            // ─── AOT smoke #6 (GH-4825): the MARTEN-backed HTTP lane ───
             //
             // No lane above references Wolverine.Marten, so a Marten-backed application was the one
             // shape no native image in CI had booted. Three startup failures reached 6.46 that way, each
@@ -1405,7 +1405,7 @@ partial class Build
                 // is byte-compared from now on. Before it, GH-4765's and GH-4803's rooting changes both
                 // came out identical across every project in this list because none of them had one.
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga",
-                // Its committed pre-gen is what the Marten-backed native lane in CIAotSmoke runs.
+                // GH-4825. Its committed pre-gen is what the Marten-backed native lane in CIAotSmoke runs.
                 RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten",
                 RootDirectory / "src" / "Http" / "CodeGenTarget",
                 RootDirectory / "src" / "Http" / "StaticCodeGenDemonstrator",

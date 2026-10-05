@@ -7,7 +7,7 @@
         <IsPackable>false</IsPackable>
 
         <!--
-        AOT smoke test #6: the MARTEN-backed HTTP lane.
+        AOT smoke test #6 (GH-4825): the MARTEN-backed HTTP lane.
 
         Every other native lane references Wolverine, Wolverine.Http or Wolverine.Sqlite, so no native image
         in CI has ever booted Wolverine.Marten. Three startup failures that only a Marten-backed HTTP app
