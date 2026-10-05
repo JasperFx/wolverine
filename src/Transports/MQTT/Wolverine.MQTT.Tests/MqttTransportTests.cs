@@ -1,6 +1,10 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using MQTTnet.Extensions.ManagedClient;
+using NSubstitute;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.MQTT.Internals;
+using Wolverine.Transports;
 
 namespace Wolverine.MQTT.Tests;
 
@@ -39,5 +43,48 @@ public class MqttTransportTests
         var transport = new MqttTransport();
         new MqttTopic("one/two", transport, EndpointRole.Application)
             .Retain.ShouldBeFalse();
+    }
+
+    // GH-4802. A persistent session means the broker holds this client's subscriptions and starts
+    // flushing their backlog the moment the connection comes up -- which is before
+    // Endpoints.StartListenersAsync() has called SubscribeToTopicAsync for each topic. Resolving a
+    // listener in that window has to fail *transiently*. It used to memoize the failure, so one
+    // backlog message arriving early poisoned that topic for the life of the process: every later
+    // message resolved to the cached null and was discarded with nothing but an information log.
+    [Fact]
+    public async Task a_listener_resolution_miss_is_not_memoized_4802()
+    {
+        var transport = new MqttTransport();
+        var client = Substitute.For<IManagedMqttClient>();
+        var topic = new MqttTopic("one/two", transport, EndpointRole.Application);
+
+        // The startup window
+        transport.tryFindListener(client, "one/two", out _).ShouldBeFalse();
+
+        var listener = new MqttListener(transport, NullLogger.Instance, topic,
+            Substitute.For<IReceiver>(), client);
+        await transport.SubscribeToTopicAsync("one/two", listener, topic, client);
+
+        transport.tryFindListener(client, "one/two", out var found).ShouldBeTrue();
+        found.ShouldBeSameAs(listener);
+    }
+
+    // The hit is still memoized -- that is the whole point of the cache, and the receive path asks
+    // for it on every message.
+    [Fact]
+    public async Task a_listener_resolution_hit_is_still_memoized()
+    {
+        var transport = new MqttTransport();
+        var client = Substitute.For<IManagedMqttClient>();
+        var topic = new MqttTopic("one/two", transport, EndpointRole.Application);
+
+        var listener = new MqttListener(transport, NullLogger.Instance, topic,
+            Substitute.For<IReceiver>(), client);
+        await transport.SubscribeToTopicAsync("one/two", listener, topic, client);
+
+        transport.tryFindListener(client, "one/two", out var first).ShouldBeTrue();
+        transport.tryFindListener(client, "one/two", out var second).ShouldBeTrue();
+
+        second.ShouldBeSameAs(first);
     }
 }

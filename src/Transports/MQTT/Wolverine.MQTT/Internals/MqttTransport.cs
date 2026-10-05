@@ -1,6 +1,8 @@
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Client;
@@ -25,6 +27,12 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     private readonly Dictionary<IManagedMqttClient, ClientListenerGroup> _clientGroups = new();
     private ILogger<MqttTransport> _logger = null!;
     private CancellationTokenSource? _refreshCts;
+
+    // GH-4802: a persistent session (CleanSession = false) means the broker still holds this client's
+    // subscriptions, so it starts flushing their backlog the moment the connection comes up -- which is
+    // before Wolverine has registered any listener. Volatile because it is written from the host's
+    // ApplicationStarted callback and read on MQTTnet's receive thread.
+    private volatile bool _listenersAreUp;
 
     // Broker-per-tenant (GH-3307): CancellationTokenSources for each tenant client's JWT re-auth loop, so they
     // can be cancelled on shutdown.
@@ -136,6 +144,16 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
         Client.ConnectedAsync += onClientConnected;
         Client.DisconnectedAsync += onClientDisconnected;
+
+        // GH-4802: attach the receive handler BEFORE the connection is started. It used to be attached
+        // by the first SubscribeToTopicAsync call, which does not happen until
+        // Endpoints.StartListenersAsync() -- so a persistent session's backlog could arrive while
+        // ApplicationMessageReceivedAsync had no handler at all. MQTTnet's AutoAcknowledge defaults to
+        // true and only MqttListener.ReceiveAsync ever turns it off, so those messages were acknowledged
+        // to the broker and dropped with no exception, no dead letter, and not even a log line.
+        startSubscribing(Client);
+        trackListenerStartup(runtime);
+
         await Client.StartAsync(Options);
 
         // Broker-per-tenant (GH-3307): each tenant gets its own dedicated managed client, connected to the
@@ -173,6 +191,10 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
             await ApplyJwtAuthenticationAsync(options.ClientOptions, tenant.Jwt);
             client.ConnectedAsync += buildTenantJwtRefreshHandler(client, tenant.Jwt);
         }
+
+        // GH-4802: as for the default connection, the receive handler has to be attached before the
+        // tenant's own connection is started.
+        startSubscribing(client);
 
         await client.StartAsync(options);
 
@@ -247,6 +269,26 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         return new MqttHealthCheck(this);
     }
 
+    /// <summary>
+    /// GH-4802. ApplicationStarted fires only once every hosted service has started, and WolverineRuntime
+    /// is one of them -- so by the time it runs, Endpoints.StartListenersAsync() has completed and every
+    /// SubscribeToTopicAsync call this process is going to make has been made. That is the moment "no
+    /// listener for this topic" stops meaning "not yet" and starts meaning "not ever".
+    /// </summary>
+    private void trackListenerStartup(IWolverineRuntime runtime)
+    {
+        var lifetime = runtime.Services.GetService<IHostApplicationLifetime>();
+        if (lifetime == null)
+        {
+            // Nothing to hang the latch off, so never defer. Holding a message unacknowledged forever
+            // would be a worse failure than the drop it replaces -- see receiveAsync.
+            _listenersAreUp = true;
+            return;
+        }
+
+        lifetime.ApplicationStarted.Register(() => _listenersAreUp = true);
+    }
+
     private void startSubscribing(IManagedMqttClient client)
     {
         var group = groupFor(client);
@@ -263,11 +305,31 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         {
             return listener.ReceiveAsync(arg);
         }
-        else
+
+        if (!_listenersAreUp)
         {
-            _logger?.LogInformation("Received MQTT message for topic {TopicName} that has no listener attached", topicName);
+            // GH-4802: the host is still starting, so this is a persistent session's backlog racing
+            // listener registration rather than a topic nothing will ever listen to. Decline the
+            // acknowledgement and let the broker redeliver once the listener exists.
+            arg.AutoAcknowledge = false;
+
+            _logger?.LogInformation(
+                "Received an MQTT message for topic {TopicName} before its listener was registered. Leaving it unacknowledged so that the broker redelivers it once Wolverine has finished starting",
+                topicName);
+
             return Task.CompletedTask;
         }
+
+        // Deliberately bounded to startup. An unacknowledged message occupies a slot in the broker's
+        // in-flight window, so holding one indefinitely would eventually stall delivery for every topic
+        // on this connection -- a worse failure than the drop it would replace. After startup the only
+        // way to get here is a subscription the broker is holding from an earlier session for a topic
+        // this process does not listen to, and that will never resolve.
+        _logger?.LogWarning(
+            "Received an MQTT message for topic {TopicName} that has no listener attached, and Wolverine has finished starting, so the message is being discarded. The broker is most likely still holding a subscription from an earlier session for a topic this process does not listen to",
+            topicName);
+
+        return Task.CompletedTask;
     }
 
     private async Task onClientConnected(MqttClientConnectedEventArgs arg)
@@ -333,10 +395,15 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         listener = (group.Listeners.FirstOrDefault(x => x.TopicName == topicName) ?? group.Listeners.FirstOrDefault(x =>
             MqttTopicFilterComparer.Compare(topicName, x.TopicName) == MqttTopicFilterCompareResult.IsMatch))!;
 
-        group.TopicListeners = group.TopicListeners.AddOrUpdate(topicName, listener!);
+        // GH-4802: only a HIT is memoized. Caching the miss meant that one message arriving in the
+        // startup window -- before SubscribeToTopicAsync had registered that topic's listener -- poisoned
+        // the topic permanently: every later message for it resolved to the cached null and was discarded
+        // for the life of the process. That turned a timing race into total, silent loss on one topic.
+        if (listener is null) return false;
 
+        group.TopicListeners = group.TopicListeners.AddOrUpdate(topicName, listener);
 
-        return listener is not null;
+        return true;
     }
 
     internal IManagedMqttClient Client { get; set; } = null!;
