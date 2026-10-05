@@ -26,6 +26,13 @@ public interface IEndpointCollection : IAsyncDisposable
     /// </summary>
     Uri? GlobalPartitionSlotFor(Uri localQueueUri);
 
+    /// <summary>
+    /// True when this address is itself a global partition's external slot endpoint -- the address a
+    /// scheduled message to a global partition parks at (GH-4673). See the implementation for why that is
+    /// not the same question as <see cref="GlobalPartitionSlotFor"/>.
+    /// </summary>
+    bool IsGlobalPartitionSlot(Uri address);
+
     ISendingAgent AgentForLocalQueue(string queueName);
     Endpoint? EndpointByName(string endpointName);
     IListeningAgent? FindListeningAgent(Uri uri);
@@ -492,6 +499,32 @@ public class EndpointCollection : IEndpointCollection
         _globalPartitionSlots = _globalPartitionSlots.AddOrUpdate(localQueueUri, slotUri);
 
         return slotUri;
+    }
+
+    private ImHashMap<Uri, bool> _isGlobalPartitionSlot = ImHashMap<Uri, bool>.Empty;
+
+    /// <summary>
+    /// GH-4822. A scheduled message to a global partition parks in the inbox at the external slot's own
+    /// address (GH-4673), and <see cref="GlobalPartitionSlotFor"/> deliberately answers null for that address
+    /// -- it is not a companion queue. Ownership still has to be settled for it at promotion time, though: a
+    /// node that once owned the slot keeps its stopped listening agent registered, so
+    /// <see cref="FindListenerCircuit"/> hands the envelopes to a listener with no receiver. Cached the same way
+    /// as the other lookups here, because the scheduled poller asks once per distinct destination per pass.
+    /// </summary>
+    public bool IsGlobalPartitionSlot(Uri address)
+    {
+        if (_isGlobalPartitionSlot.TryFind(address, out var isSlot))
+        {
+            return isSlot;
+        }
+
+        isSlot = address.Scheme != TransportConstants.Local
+                 && _options.Transports.AllEndpoints()
+                     .Any(x => x.Uri == address && x.GlobalPartitionLocalQueueUri != null);
+
+        _isGlobalPartitionSlot = _isGlobalPartitionSlot.AddOrUpdate(address, isSlot);
+
+        return isSlot;
     }
 
     public IListenerCircuit? FindListenerCircuit(Uri address)
