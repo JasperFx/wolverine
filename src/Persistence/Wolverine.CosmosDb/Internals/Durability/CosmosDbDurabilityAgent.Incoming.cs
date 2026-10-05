@@ -28,7 +28,17 @@ public partial class CosmosDbDurabilityAgent
                 }
 
                 var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt);
-                if (circuit == null || circuit.Status != ListeningStatus.Accepting)
+                if (circuit == null)
+                {
+                    // GH-4807: nothing is registered under that address, so the documents are stranded.
+                    // This used to be silent, which is why it took a bug report to find out.
+                    _logger.LogWarning(
+                        "Found recoverable incoming messages in the inbox for destination {Destination}, but no listening endpoint could be resolved for that address. These messages cannot be recovered and will stay in the inbox until an endpoint listening at that address exists",
+                        receivedAt);
+                    continue;
+                }
+
+                if (circuit.Status != ListeningStatus.Accepting)
                 {
                     continue;
                 }

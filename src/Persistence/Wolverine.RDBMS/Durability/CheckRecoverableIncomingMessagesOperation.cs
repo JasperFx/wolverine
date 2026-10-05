@@ -69,7 +69,18 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
             }
 
             var listener = _endpoints.FindListenerCircuit(incoming.Destination);
-            if (listener == null) continue; // This *might* happen during shutdown
+            if (listener == null)
+            {
+                // This *might* happen during shutdown, but GH-4296 and GH-4807 were both the other case:
+                // an inbox row stamped with an address that nothing is registered under, skipped on every
+                // pass with no log line at all, so the messages sat at Incoming forever and the only
+                // evidence was in the database. Both sibling branches below log every pass; so does this
+                // one now.
+                _logger.LogWarning(
+                    "Found {Count} incoming messages in the inbox for destination {Destination}, but no listening endpoint could be resolved for that address. These messages cannot be recovered and will stay in the inbox until an endpoint listening at that address exists",
+                    incoming.Count, incoming.Destination);
+                continue;
+            }
 
             if (listener.Status == ListeningStatus.Accepting)
             {

@@ -30,7 +30,18 @@ public partial class RavenDbDurabilityAgent
 
                 // circuit can be null when the URI isn't serviced by this node
                 var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt);
-                if (circuit == null || circuit.Status != ListeningStatus.Accepting)
+                if (circuit == null)
+                {
+                    // GH-4807: or because nothing is registered under that address at all, in which case
+                    // the documents are stranded and the silence was the whole reason it took a bug report
+                    // to find out.
+                    _logger.LogWarning(
+                        "Found recoverable incoming messages in the inbox for destination {Destination}, but no listening endpoint could be resolved for that address. These messages cannot be recovered and will stay in the inbox until an endpoint listening at that address exists",
+                        receivedAt);
+                    continue;
+                }
+
+                if (circuit.Status != ListeningStatus.Accepting)
                 {
                     continue;
                 }
