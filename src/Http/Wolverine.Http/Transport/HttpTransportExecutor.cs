@@ -63,7 +63,15 @@ internal class HttpTransportExecutor
             var queueName = raw as string ?? TransportConstants.Default;
             var queue = (ILocalQueue)_runtime.Endpoints.AgentForLocalQueue(queueName);
 
-            var nulloListener = new NulloListener($"http://localhost{httpContext.Request.Path}".ToUri());
+            // GH-4807: stamp the local queue that is actually receiving this batch, not the synthesized
+            // "http://localhost{request path}" address this used to invent. MarkReceived() copies the
+            // listener's address onto Envelope.Destination, which is what the durable inbox persists as
+            // received_at -- and inbox recovery resolves an ownerless row by looking up a listener circuit
+            // by that address. Nothing is ever registered under the request path (the HTTP transport
+            // receives by push and registers no listener at all), so a replayed dead letter or the rows of
+            // a dead node were skipped on every durability pass, silently, forever. The local queue's own
+            // address is both resolvable and the truth about where the envelope is sitting.
+            var nulloListener = new NulloListener(queue.Uri);
             await queue.ReceivedAsync(nulloListener, envelopes.ToArray());
         }
         catch (Exception e)

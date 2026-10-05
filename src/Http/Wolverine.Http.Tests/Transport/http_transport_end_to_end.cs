@@ -47,8 +47,43 @@ public class http_transport_end_to_end : IntegrationContext
 
         foreach (var envelope in tracked.Received.Envelopes())
         {
-            envelope.Destination.ShouldBe("http://localhost/_wolverine/batch/one".ToUri());
+            // GH-4807: the local queue that actually received the batch, not the request path that
+            // delivered it. See received_batch_is_stamped_with_an_address_inbox_recovery_can_resolve.
+            envelope.Destination.ShouldBe("local://one/".ToUri());
         }
+    }
+
+    [Fact]
+    public async Task received_batch_is_stamped_with_an_address_inbox_recovery_can_resolve()
+    {
+        // GH-4807. Envelope.Destination is what the durable inbox persists as received_at, and inbox
+        // recovery resolves an ownerless row (a replayed dead letter, or the rows of a node that died
+        // mid-handler) by asking the endpoints for a listener circuit at that address. The batch endpoint
+        // used to stamp a synthesized "http://localhost/_wolverine/batch/one", which nothing is ever
+        // registered under -- the HTTP transport receives by push and registers no listener at all -- so
+        // every such row was skipped on every durability pass, silently, and stayed Incoming forever.
+        var serializer = new SystemTextJsonSerializer(new JsonSerializerOptions());
+        var data = EnvelopeSerializer.Serialize(new Envelope[]
+        {
+            new(new HttpMessage1("Egwene")) { Serializer = serializer }
+        });
+
+        var (tracked, _) = await TrackedHttpCall(s =>
+        {
+            s.Post.ByteArray(data).ToUrl("/_wolverine/batch/one").ContentType(HttpTransport.EnvelopeBatchContentType);
+        }, t => t.WaitForExecutionOf<HttpMessage1>());
+
+        var destination = tracked.Received.Envelopes().Select(x => x.Destination).Distinct().Single();
+        destination.ShouldBe("local://one/".ToUri());
+
+        var endpoints = Host.GetRuntime().Endpoints;
+
+        // The property that actually matters: recovery can find somewhere to send these messages back to
+        var circuit = endpoints.FindListenerCircuit(destination!);
+        circuit.ShouldNotBeNull();
+
+        // ...and the address this used to stamp instead could not be resolved to anything
+        endpoints.FindListeningAgent("http://localhost/_wolverine/batch/one".ToUri()).ShouldBeNull();
     }
 
     [Fact]
