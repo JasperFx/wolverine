@@ -237,20 +237,42 @@ internal class DurableSendingAgent : SendingAgent
     {
         using var activity = Endpoint.TelemetryEnabled ? WolverineTracing.StartSending(envelope) : null;
 
-        // GH-4662: the outbox row is this envelope's only durable home, so its write is retried inline
-        // and, on exhaustion, thrown to whoever called PublishAsync/SendAsync. A RetryBlock handed the
-        // caller a completed task after the first failed attempt and then discarded the envelope with an
-        // Information line -- the message was neither persisted nor sent, and the caller was told it was
-        // sent. SendingAgent.StoreAndForwardAsync only logs Sent after this returns, so a throw here now
-        // makes its "a store that throws still reports no send" comment true.
-        await DurableWriteRetry.ExecuteAsync(
-            () => _storeCoalescer != null
-                ? _storeCoalescer.StoreAsync(envelope)
-                : _outbox.StoreOutgoingAsync(envelope, _settings.AssignedNodeNumber),
-            envelope, _logger, _settings.Cancellation);
+        await storeOutgoingAsync(envelope);
 
         await _sending.PostAsync(envelope);
 
         activity?.Stop();
+    }
+
+    /// <summary>
+    ///     GH-4824. The store half of <see cref="storeAndForwardAsync" />, on its own, so a caller that
+    ///     has to settle other durable state between the store and the send can do that. The outbox row is
+    ///     what makes the envelope recoverable, and this hands it back the moment that row exists.
+    /// </summary>
+    public override async ValueTask<bool> TryStoreOutgoingAsync(Envelope envelope)
+    {
+        // The same defaults StoreAndForwardAsync applies before storing -- Status, OwnerId, ReplyUri --
+        // because they are part of the row that gets written. Idempotent, so the second application
+        // inside EnqueueOutgoingAsync changes nothing.
+        setDefaults(envelope);
+
+        await storeOutgoingAsync(envelope);
+
+        return true;
+    }
+
+    // GH-4662: the outbox row is this envelope's only durable home, so its write is retried inline
+    // and, on exhaustion, thrown to whoever called PublishAsync/SendAsync. A RetryBlock handed the
+    // caller a completed task after the first failed attempt and then discarded the envelope with an
+    // Information line -- the message was neither persisted nor sent, and the caller was told it was
+    // sent. SendingAgent.StoreAndForwardAsync only logs Sent after this returns, so a throw here
+    // makes its "a store that throws still reports no send" comment true.
+    private Task storeOutgoingAsync(Envelope envelope)
+    {
+        return DurableWriteRetry.ExecuteAsync(
+            () => _storeCoalescer != null
+                ? _storeCoalescer.StoreAsync(envelope)
+                : _outbox.StoreOutgoingAsync(envelope, _settings.AssignedNodeNumber),
+            envelope, _logger, _settings.Cancellation);
     }
 }

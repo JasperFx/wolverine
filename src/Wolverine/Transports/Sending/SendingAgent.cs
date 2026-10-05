@@ -181,6 +181,15 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         if (!pooled) _messageLogger.Sent(envelope);
     }
 
+    /// <summary>
+    ///     GH-4824. Only an agent with an outbox behind it can answer true; see
+    ///     <see cref="ISendingAgent.TryStoreOutgoingAsync" />. <c>DurableSendingAgent</c> overrides this.
+    /// </summary>
+    public virtual ValueTask<bool> TryStoreOutgoingAsync(Envelope envelope)
+    {
+        return new ValueTask<bool>(false);
+    }
+
     public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
 
     public DateTimeOffset LastMessageSentAt => _lastMessageSentAt;
@@ -204,7 +213,9 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         }
     }
 
-    private void setDefaults(Envelope envelope)
+    // GH-4824: protected rather than private so DurableSendingAgent.TryStoreOutgoingAsync can apply the
+    // same defaults before writing the outbox row. Pure assignments, so applying them twice is a no-op.
+    protected void setDefaults(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Outgoing;
         envelope.OwnerId = _settings.AssignedNodeNumber;
