@@ -222,6 +222,7 @@ When working on specific areas, consult these files:
 | Topic | File |
 |-------|------|
 | Architectural patterns & conventions | `.claude/docs/architectural_patterns.md` |
+| AOT suppression audit (GH-4810) | `.claude/docs/aot_suppression_audit.md` |
 
 ## Version
 
