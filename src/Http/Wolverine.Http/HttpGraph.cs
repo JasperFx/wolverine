@@ -175,10 +175,21 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
             .OfType<IAotRootSource>()
             .SelectMany(x => x.AotRoots());
 
+        // GH-4825. The two shapes a Marten-backed HTTP app reaches that nothing had rooted:
+        //
+        //   - The ISideEffect return types, whose public Execute/ExecuteAsync SideEffectPolicy looks up
+        //     reflectively while the chains are built. An endpoint returning MartenOps.StartStream threw
+        //     InvalidSideEffectException naming IStartStream before the host started.
+        //   - The IEndpointMetadataProvider types HttpChain closed its OWN Applier<T> over. That is a
+        //     different Applier<T> from the Wolverine.Configuration one GH-4778 roots, and
+        //     Results<Ok<T>, ProblemHttpResult> -- a plain minimal-API return type -- lands on it.
+        var sideEffectTypes = _chains.SelectMany(SideEffectAotRoots.Of);
+        var metadataProviderTypes = _chains.SelectMany(x => x.EndpointMetadataProviderTypes);
+
         var files = new List<ICodeFile>(_chains)
         {
             new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType), responseAwareTypes,
-                generatedEndpointTypeNames, contributedRootTypes)
+                generatedEndpointTypeNames, contributedRootTypes, sideEffectTypes, metadataProviderTypes)
         };
 
         return files;

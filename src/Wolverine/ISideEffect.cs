@@ -143,3 +143,64 @@ public class InvalidSideEffectException : Exception
     {
     }
 }
+
+/// <summary>
+///     GH-4825. The types <see cref="SideEffectPolicy" /> reflects over when it applies a side effect, so
+///     that <c>codegen write</c> can root their metadata for Native AOT.
+/// </summary>
+/// <remarks>
+///     <see cref="SideEffectPolicy" /> is a policy, so it runs at startup in a native image too —
+///     <see cref="TypeLoadMode.Static" /> and a committed pre-gen do not spare it. All it does there is
+///     reflect: <c>findMethod</c> asks the side-effect type for a public <c>Execute</c>/<c>ExecuteAsync</c>,
+///     and when ILC has trimmed that method's metadata the lookup answers null and the policy throws
+///     <see cref="InvalidSideEffectException" /> while the chains are being built. The generated code
+///     calling <c>Execute</c> directly is not enough: a call preserves the method, not the metadata a
+///     <c>GetMethod</c> needs.
+/// </remarks>
+internal static class SideEffectAotRoots
+{
+    /// <summary>
+    ///     Every type whose public methods <c>SideEffectPolicy.findMethod</c> walks for this chain.
+    /// </summary>
+    /// <remarks>
+    ///     Answers nothing outside <c>codegen write</c>. The registry code files only emit a rooting block
+    ///     when <see cref="DynamicCodeBuilder.WithinCodegenCommand" />, but <c>BuildFiles</c> is enumerated
+    ///     during <see cref="TypeLoadMode.Static" /> attach as well — so without this guard a native image
+    ///     would run the reflection below at startup to build a list it then throws away.
+    /// </remarks>
+    public static IEnumerable<Type> Of(IChain chain)
+    {
+        if (!DynamicCodeBuilder.WithinCodegenCommand) yield break;
+
+        foreach (var effect in chain.ReturnVariablesOfType(typeof(ISideEffect)))
+        {
+            yield return effect.VariableType;
+
+            foreach (var parent in declaringInterfacesOf(effect.VariableType))
+            {
+                yield return parent;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The interfaces <c>SideEffectPolicy.findMethod</c> recurses into when the side-effect type itself
+    ///     declares no <c>Execute</c>/<c>ExecuteAsync</c> — the normal case for a side effect declared AS an
+    ///     interface: Wolverine.Marten's <c>IStartStream</c> inherits <c>Execute</c> from <c>IMartenOp</c>,
+    ///     and that inherited declaration is the one the reported 6.46 failure could not find. Rooting the
+    ///     return type alone keeps its interface list but not the methods the walk then looks for.
+    /// </summary>
+    /// <remarks>
+    ///     Its own method rather than an attribute on <see cref="Of" />, which is an iterator: a suppression
+    ///     on the declaring method does not reach the compiler-generated MoveNext.
+    ///     <see cref="ISideEffect" /> itself declares nothing, so it would be pure noise in the emitted block.
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification =
+            "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand -- Of() returns empty otherwise. Emitting these roots is exactly what keeps a native image from needing this metadata at startup.")]
+    private static IEnumerable<Type> declaringInterfacesOf(Type sideEffectType)
+    {
+        return sideEffectType.GetInterfaces()
+            .Where(x => x != typeof(ISideEffect) && x.CanBeCastTo<ISideEffect>());
+    }
+}

@@ -43,10 +43,27 @@ public partial class HttpChain : IEndpointConventionBuilder
         _finallyBuilderConfigurations.Add(finallyConvention);
     }
 
+    private readonly List<Type> _endpointMetadataProviderTypes = [];
+
+    /// <summary>
+    ///     GH-4825. The types this chain actually closed <see cref="Applier{T}" /> over while its endpoint
+    ///     was built, for the Native AOT rooting block.
+    /// </summary>
+    /// <remarks>
+    ///     Recorded as the closes happen rather than recomputed later, so the rooting block cannot drift
+    ///     from the three places <see cref="BuildEndpoint" /> hands a type to
+    ///     <c>tryApplyAsEndpointMetadataProvider</c>. <see cref="HttpGraph.BuildFiles" /> reads this after
+    ///     <see cref="HttpGraph.DiscoverEndpoints" /> has built every endpoint, which is the only order
+    ///     <c>codegen write</c> runs them in.
+    /// </remarks>
+    internal IReadOnlyList<Type> EndpointMetadataProviderTypes => _endpointMetadataProviderTypes;
+
     private bool tryApplyAsEndpointMetadataProvider(Type? type, RouteEndpointBuilder builder)
     {
         if (type != null && type.CanBeCastTo(typeof(IEndpointMetadataProvider)))
         {
+            _endpointMetadataProviderTypes.Add(type);
+
             var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(type);
             applier.Apply(builder, Method.Method);
 
@@ -209,7 +226,15 @@ public partial class HttpChain : IEndpointConventionBuilder
         void Apply(EndpointBuilder builder, MethodInfo method);
     }
 
-    internal class Applier<T> : IApplier where T : IEndpointMetadataProvider
+    /// <summary>
+    ///     Invokes <see cref="IEndpointMetadataProvider.PopulateMetadata" /> — a static abstract interface
+    ///     member, so a generic instantiation is the only way to call it at all.
+    /// </summary>
+    /// <remarks>
+    ///     GH-4825. Public, not internal, because the emitted Native AOT rooting block names this closed
+    ///     type inside a <c>typeof()</c> in generated code, and generated code cannot see an internal type.
+    /// </remarks>
+    public class Applier<T> : IApplier where T : IEndpointMetadataProvider
     {
         public void Apply(EndpointBuilder builder, MethodInfo method)
         {

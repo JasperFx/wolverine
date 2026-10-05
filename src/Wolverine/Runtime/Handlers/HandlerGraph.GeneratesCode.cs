@@ -39,16 +39,23 @@ public partial class HandlerGraph
         // already exist by the time this runs, so each one can simply name its own closed type.
         var aotRootTypes = new List<Type>();
 
+        // GH-4825. SideEffectPolicy asks each ISideEffect return type for a public Execute/ExecuteAsync
+        // at startup -- a policy, so a native image running pre-generated code reaches it too -- and
+        // answers null when ILC has trimmed that method's metadata.
+        var sideEffectTypes = new List<Type>();
+
         foreach (var chain in Chains)
         {
             responseAwareTypes.AddRange(chain.ReturnVariablesOfType(typeof(IResponseAware))
                 .Select(x => x.VariableType));
             aotRootTypes.AddRange(aotRootsOf(chain));
+            sideEffectTypes.AddRange(SideEffectAotRoots.Of(chain));
             foreach (var handlerChain in chain.ByEndpoint)
             {
                 responseAwareTypes.AddRange(handlerChain.ReturnVariablesOfType(typeof(IResponseAware))
                     .Select(x => x.VariableType));
                 aotRootTypes.AddRange(aotRootsOf(handlerChain));
+                sideEffectTypes.AddRange(SideEffectAotRoots.Of(handlerChain));
             }
 
             if (chain.Handlers.Any())
@@ -86,7 +93,7 @@ public partial class HandlerGraph
             : [];
 
         yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, generatedHandlerTypeNames,
-            chainMessageTypes, responseAwareTypes, aotRootTypes);
+            chainMessageTypes, responseAwareTypes, aotRootTypes, sideEffectTypes);
     }
 
     /// <summary>
