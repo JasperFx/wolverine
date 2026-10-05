@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -351,18 +352,72 @@ internal class ExplicitGrouping : IGroupingRule
         return false;
     }
 
-    // CloseAndBuildAs closes Grouper<,> over (messageType, property.PropertyType).
-    // Same reflective pattern as PropertyNameGroupingRule.TryBuildGrouper; both
-    // sit on the user-opt-in MessagePartitioningRules surface. AOT-clean apps
-    // using partitioning preserve Grouper<,> closures via TrimmerRootDescriptor.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     public void AddMessageType(Type messageType, PropertyInfo property)
     {
-        _groupers = _groupers.AddOrUpdate(messageType,
-            typeof(Grouper<,>).CloseAndBuildAs<IGrouper>(property, messageType, property.PropertyType));
+        _groupers = _groupers.AddOrUpdate(messageType, Groupers.For(messageType, property));
+    }
+}
+
+internal static class Groupers
+{
+    /// <summary>
+    /// GH-4811. Builds the accessor for a grouping property.
+    ///
+    /// <para>
+    /// Closing <see cref="Grouper{TConcrete,TProperty}" /> reflectively is the fast path, and it stays the
+    /// only path under the JIT. It cannot be the path under Native AOT: the second type argument is the
+    /// property's own type, so a <c>Guid</c> tenant id or an <c>int</c> is the common case rather than an
+    /// exotic one, and <c>UseInferredMessageGrouping()</c> closes it over a saga's <c>Guid</c> identity
+    /// during <see cref="Wolverine.Runtime.Handlers.HandlerGraph.Compile" /> — at startup, in a native image
+    /// too. GH-4805 measured that <c>[DynamicDependency]</c> preserves metadata and not code, so a root over
+    /// a value-type instantiation is silently ineffective; the roots that do work elsewhere survive through
+    /// reference-type canonical sharing, which does not apply here. And neither grouping rule is a frame, so
+    /// <see cref="Wolverine.Configuration.IAotRootSource" /> cannot collect it either.
+    /// </para>
+    ///
+    /// <para>
+    /// So, as in GH-4805: rather than root the instantiation, do not create one. ILC substitutes
+    /// <see cref="RuntimeFeature.IsDynamicCodeSupported" /> with <c>false</c> and removes this branch
+    /// outright, so a native image never asks for a closed <c>Grouper&lt;,&gt;</c> at all. Nothing is given
+    /// up by the fallback: JasperFx's <c>LambdaBuilder.GetProperty</c> — the only thing the generic buys —
+    /// degrades to a reflective getter on exactly the same condition.
+    /// </para>
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "GH-4811. Closes Grouper<,> over (messageType, property.PropertyType), which only ever runs under the JIT -- the branch is removed from a native image by the IsDynamicCodeSupported substitution, which uses ReflectiveGrouper instead. The property itself is named by the application's own partitioning rule.")]
+    public static IGrouper For(Type messageType, PropertyInfo property)
+    {
+        if (RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return typeof(Grouper<,>).CloseAndBuildAs<IGrouper>(property, messageType, property.PropertyType);
+        }
+
+        return new ReflectiveGrouper(messageType, property);
+    }
+}
+
+/// <summary>
+/// GH-4811. The Native AOT twin of <see cref="Grouper{TConcrete,TProperty}" />, reading the grouping
+/// property through the <see cref="PropertyInfo" /> instead of a compiled accessor so that nothing has to
+/// close a generic over the property's type. See <see cref="Groupers.For" /> for why that matters.
+/// </summary>
+internal class ReflectiveGrouper : IGrouper
+{
+    private readonly PropertyInfo _property;
+
+    public ReflectiveGrouper(Type messageType, PropertyInfo property)
+    {
+        MessageType = messageType;
+        _property = property;
+    }
+
+    public Type MessageType { get; }
+
+    public string ToGroupId(object message)
+    {
+        // If it's empty, it will get randomly sorted
+        // into the partitioned slots
+        return _property.GetValue(message)?.ToString() ?? string.Empty;
     }
 }
 

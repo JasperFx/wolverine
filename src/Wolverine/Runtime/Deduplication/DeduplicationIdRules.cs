@@ -78,16 +78,12 @@ internal class MemberDeduplicationIdRule : IDeduplicationIdRule
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closes MemberDeduplicationIdSource<,> over the message type and its identity member's type, both statically rooted by message routing. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed MemberDeduplicationIdSource<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     public static MemberDeduplicationIdRule For(Type messageType, System.Reflection.MemberInfo member)
     {
-        var source = typeof(MemberDeduplicationIdSource<,>)
-            .CloseAndBuildAs<IDeduplicationIdSource>(member, messageType, member.GetMemberType()!);
-
-        return new MemberDeduplicationIdRule(messageType, member.Name, source);
+        // GH-4811: DeduplicationIdSources.For owns the choice between the compiled accessor and the
+        // reflective one, and explains why a native image cannot have the former.
+        return new MemberDeduplicationIdRule(messageType, member.Name,
+            DeduplicationIdSources.For(messageType, member));
     }
 
     public override string ToString()

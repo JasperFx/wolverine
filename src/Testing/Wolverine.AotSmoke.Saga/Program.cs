@@ -42,6 +42,15 @@ builder.UseWolverine(opts =>
     opts.Discovery.DisableConventionalDiscovery()
         .IncludeType(typeof(AotSaga));
 
+    // GH-4811. Inferred grouping asks every chain for a message identity property and builds a grouping
+    // accessor from it -- inside HandlerGraph.Compile(), which runs at startup under TypeLoadMode.Static
+    // with the generated code already compiled in. For a saga chain the property it finds is the saga's
+    // own identity, so this closes an accessor over a GUID, and GH-4805 measured that no rooting
+    // mechanism can make ILC generate code for a value-type instantiation. The local-queue subscription
+    // is what lets the assertion below build a route and read the group id back out; nothing is sent.
+    opts.MessagePartitioning.UseInferredMessageGrouping();
+    opts.PublishMessage<StartAotSaga>().ToLocalQueue("aot-partition");
+
     if (!isCli)
     {
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
@@ -66,6 +75,19 @@ try
 
     var bus = host.Services.GetRequiredService<IMessageBus>();
     var id = Guid.NewGuid();
+
+    // GH-4811. Building the route runs the grouping accessor that Compile() closed over the Guid saga
+    // identity, and Envelope.GroupId is the value it produced. Asserted rather than left implicit,
+    // because an accessor that was never built produces no group id and no error -- the lane would boot
+    // clean and prove nothing, the same vacuity the AotSaga.Advanced guard below exists to catch.
+    var partitionId = Guid.NewGuid();
+    var groupId = bus.PreviewSubscriptions(new StartAotSaga(partitionId)).Single().GroupId;
+    if (groupId != partitionId.ToString())
+    {
+        await Console.Error.WriteLineAsync(
+            $"FAIL: inferred message grouping produced a GroupId of '{groupId}' instead of '{partitionId}'. The grouping accessor was either never built from the saga identity property or is reading the wrong one.");
+        return 1;
+    }
 
     // Start the saga, then advance it. Two messages rather than one so the lane covers the LOAD path as
     // well as the start path: loading is where ISagaStorage<TId, TSaga> — the variable type that made

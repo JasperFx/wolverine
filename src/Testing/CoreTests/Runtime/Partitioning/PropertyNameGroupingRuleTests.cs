@@ -160,6 +160,46 @@ public class PropertyNameGroupingRuleTests
     }
 }
 
+/// <summary>
+/// GH-4811. Under Native AOT the grouping accessor cannot be a closed <c>Grouper&lt;TConcrete,TProperty&gt;</c>
+/// — the property type is routinely a value type, and no rooting mechanism reaches that instantiation — so
+/// <see cref="Groupers.For" /> hands back a <see cref="ReflectiveGrouper" /> instead. The two have to agree
+/// on every group id, or partitioning silently reshuffles when an application is published natively: the
+/// same message would land in a different slot, which is exactly the guarantee partitioning exists to make.
+/// Only the JIT path can be exercised in this suite, so parity is asserted against it directly.
+/// </summary>
+public class ReflectiveGrouperTests
+{
+    public static IEnumerable<object[]> Messages()
+    {
+        yield return [new StringIdMessage("abc-123")];
+        yield return [new GuidIdMessage(Guid.NewGuid())];
+        yield return [new IntIdMessage(42)];
+        yield return [new LongIdMessage(9876543210L)];
+
+        // The null case matters on its own: both sides have to answer "" rather than throw, because an
+        // empty group id is what gets a message randomly sorted into the partition slots
+        yield return [new StringIdMessage(null!)];
+    }
+
+    [Theory]
+    [MemberData(nameof(Messages))]
+    public void agrees_with_the_compiled_grouper(object message)
+    {
+        var messageType = message.GetType();
+        var property = messageType.GetProperty("Id")!;
+
+        var compiled = Groupers.For(messageType, property);
+        var reflective = new ReflectiveGrouper(messageType, property);
+
+        // Proof that the JIT path is the one being compared against, not a second reflective grouper
+        compiled.GetType().GetGenericTypeDefinition().ShouldBe(typeof(Grouper<,>));
+
+        reflective.ToGroupId(message).ShouldBe(compiled.ToGroupId(message));
+        reflective.MessageType.ShouldBe(compiled.MessageType);
+    }
+}
+
 public record StringIdMessage(string Id);
 public record GuidIdMessage(Guid Id);
 public record IntIdMessage(int Id);
