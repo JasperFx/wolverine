@@ -92,11 +92,64 @@ public sealed partial class WolverineRuntime
 
             foreach (var envelope in group)
             {
-                await sender.EnqueueOutgoingAsync(envelope);
-                handedOver.Add(envelope);
-                await retireForwardedInboxRowAsync(envelope);
+                await HandOverAsync(sender, envelope, handedOver);
             }
         }
+    }
+
+    /// <summary>
+    /// GH-4824. Hand one promoted envelope to a sending agent and retire its inbox row, in the only order
+    /// that can neither lose the message nor let the owning node delete it.
+    /// </summary>
+    /// <remarks>
+    /// <para>GH-4645 made this delete the inbox row at all, which fixed the orphan. It left the send
+    /// first, and that is still two losses:</para>
+    ///
+    /// <para><b>The probe window.</b> Before every durable pop, the owning node's listener deletes any
+    /// queue row whose id is already in the inbox at that queue's address (GH-4316), with no status
+    /// filter. A forwarded envelope parks in the inbox under its eventual destination, so between the
+    /// send's queue insert and this delete, that holds for the message we just forwarded: the owner
+    /// deletes the queue row on its next poll and nothing is handled, logged or dead lettered.</para>
+    ///
+    /// <para><b>The failed first send.</b> EnqueueOutgoingAsync posts to the agent's RetryBlock and
+    /// stores nothing. RetryBlock.PostAsync awaits the first attempt and, on an exception, queues the
+    /// item and returns — so the inbox row was deleted anyway and, until a retry succeeds, no table holds
+    /// the message at all. A process that stops in that interval loses it.</para>
+    ///
+    /// <para>So for a durable agent: store the outgoing row, delete the inbox row, then send. The probe
+    /// has nothing left to match, a failed send is the ordinary outbox case the agent already retries
+    /// from, and outbox recovery picks it up if this node stops. A stop between the store and the delete
+    /// leaves BOTH rows, which can deliver twice and cannot lose.</para>
+    ///
+    /// <para>An agent with no outbox behind it answers false and keeps the original order: there is no
+    /// durable home to move the message into, so reordering would only widen the window in which neither
+    /// table holds it.</para>
+    /// </remarks>
+    /// <param name="parkedAt">
+    /// The address the inbox row was written under, when that is not the envelope's current destination.
+    /// See <see cref="retireForwardedInboxRowAsync"/>.
+    /// </param>
+    // Internal rather than private so CoreTests can assert the ORDER of the three operations directly.
+    // Reaching this through EnqueueDirectlyAsync would need a real durable agent for an external
+    // destination, and the thing worth pinning down is three statements long.
+    internal async Task HandOverAsync(ISendingAgent sender, Envelope envelope, ISet<Envelope> handedOver,
+        Uri? parkedAt = null)
+    {
+        if (await sender.TryStoreOutgoingAsync(envelope))
+        {
+            // Marked handed over as soon as the outbox row exists, NOT once the send is away: from here on
+            // releasing the inbox row back to AnyNode would let recovery deliver the message a second time.
+            handedOver.Add(envelope);
+
+            await retireForwardedInboxRowAsync(envelope, parkedAt);
+            await sender.EnqueueOutgoingAsync(envelope);
+
+            return;
+        }
+
+        await sender.EnqueueOutgoingAsync(envelope);
+        handedOver.Add(envelope);
+        await retireForwardedInboxRowAsync(envelope, parkedAt);
     }
 
     /// <summary>
@@ -184,9 +237,10 @@ public sealed partial class WolverineRuntime
 
             envelope.Destination = slotUri;
 
-            await sender.EnqueueOutgoingAsync(envelope);
-            handedOver.Add(envelope);
-            await retireForwardedInboxRowAsync(envelope, parkedAt);
+            // GH-4824. Same ordering as the sender branch above, and for the same two reasons -- this call
+            // site ran the identical send-then-delete pair. The destination is already rewritten, so the
+            // outbox row is written against the slot, which is where a recovered envelope has to go.
+            await HandOverAsync(sender, envelope, handedOver, parkedAt);
         }
     }
 
