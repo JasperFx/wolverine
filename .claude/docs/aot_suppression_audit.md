@@ -161,7 +161,11 @@ Ordered by expected value per unit of effort:
 
 Prefer de-genericizing over rooting wherever the generic buys only a typed delegate. GH-4805 did it for
 the saga frame and GH-4811 for the partitioning and deduplication accessors; in both cases the hazard was
-deleted rather than worked around.
+deleted rather than worked around. GH-4848 did it for `MessageRouter<T>` / `EmptyMessageRouter<T>`,
+which had been the canonical "rooted per message type" example since GH-4287: the routers take the message
+`Type` as an argument now, the per-message router roots and the `_frameworkRouterFactories` table are gone,
+and the suppressions on `RoutingFor` / `PrepopulateRoutingCache` were deleted rather than reworded. The
+value-type case (a handler returning `Guid`) was the one no root could ever have reached.
 
 ## Reproducing the counts
 

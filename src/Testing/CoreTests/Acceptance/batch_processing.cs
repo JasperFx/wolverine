@@ -89,7 +89,7 @@ public class batch_processing : IAsyncLifetime
     {
         var runtime = theHost.GetRuntime();
         var messageRouter = runtime.RoutingFor(typeof(Item));
-        messageRouter.ShouldBeOfType<MessageRouter<Item>>()
+        messageRouter.ShouldBeOfType<MessageRouter>()
             .Routes.Single().ShouldBeOfType<MessageRoute>()
             .Sender.Destination.ShouldBe(new Uri("local://items"));
     }

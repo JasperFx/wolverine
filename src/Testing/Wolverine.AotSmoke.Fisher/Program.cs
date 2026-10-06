@@ -55,7 +55,8 @@ builder.Host.UseWolverine(opts =>
 
     opts.Discovery.DisableConventionalDiscovery()
         .IncludeType(typeof(AotFisherHandler))
-        .IncludeType(typeof(AotFisherMarkerHandler));
+        .IncludeType(typeof(AotFisherMarkerHandler))
+        .IncludeType(typeof(AotFisherLookupHandler));
 
     opts.Policies.AutoApplyTransactions();
 
@@ -120,6 +121,18 @@ try
     var marked = Guid.NewGuid();
     await app.Services.GetRequiredService<IMessageBus>().InvokeAsync(new RecordAotFisherMarker(marked));
 
+    // GH-4848. Request/reply returning a VALUE TYPE. The host has already proved the half that matters by
+    // starting at all -- PrepopulateRoutingCache walked System.Guid as a published type and built its
+    // router -- so this is the vacuity guard: the value really comes back through the handler.
+    var lookedUp = await app.Services.GetRequiredService<IMessageBus>()
+        .InvokeAsync<Guid>(new LookUpAotFisherPing(recorded));
+    if (lookedUp != recorded)
+    {
+        await Console.Error.WriteLineAsync(
+            $"FAIL: the Guid-returning handler answered {lookedUp}, expected {recorded}.");
+        return 1;
+    }
+
     // Vacuity guard: a 201 only proves the endpoint ran. The side effects must actually have run -- the
     // Http lane booted clean having discovered ZERO endpoints before its own guard was added.
     await using (var session = app.Services.GetRequiredService<IDocumentStore>().LightweightSession())
@@ -150,7 +163,7 @@ try
     await app.StopAsync();
 
     Console.WriteLine(
-        "OK: Native AOT Fisher HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IFisherOp + member-less marker side effect smoke passed.");
+        "OK: Native AOT Fisher HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IFisherOp + member-less marker side effect + Guid-returning handler smoke passed.");
     return 0;
 }
 catch (Exception e)
@@ -224,6 +237,22 @@ public static class AotFisherMarkerHandler
     public static IAotFisherMarkerOp Handle(RecordAotFisherMarker command)
     {
         return new AotFisherMarkerStore(new AotFisherPing(command.Id));
+    }
+}
+
+public record LookUpAotFisherPing(Guid Id);
+
+/// <summary>
+///     GH-4848. A handler returning a VALUE TYPE. PublishedTypes() lists the return type, so
+///     PrepopulateRoutingCache builds a router for System.Guid at startup; until the routers were
+///     de-genericized that was a reflective close of EmptyMessageRouter&lt;Guid&gt;, which no root can reach in
+///     a native image, and this host died before serving anything. Measured on this lane before the fix.
+/// </summary>
+public static class AotFisherLookupHandler
+{
+    public static Guid Handle(LookUpAotFisherPing query)
+    {
+        return query.Id;
     }
 }
 

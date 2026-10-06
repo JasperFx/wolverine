@@ -314,9 +314,9 @@ public partial class WolverineRuntime
                 Options.Durability.AssignedNodeNumber);
 
             // Pre-populate the per-message-type router cache so the per-message
-            // RoutingFor() hot path never pays the first-occurrence
-            // CloseAndBuildAs over MessageRouter<T> / EmptyMessageRouter<T>.
-            // Must happen AFTER the messaging transports start (so external-
+            // RoutingFor() hot path never pays the first-occurrence router
+            // construction (a reflective generic close until GH-4848; a plain
+            // constructor call since). Must happen AFTER the messaging transports start (so external-
             // transport route sources can resolve their endpoints), but
             // before RuntimeIsFullyStarted observers run. AOT pillar follow-up
             // #2769 (Option A).
@@ -329,7 +329,7 @@ public partial class WolverineRuntime
             //     effect of building a route), violating the mode's "no
             //     transports" contract.
             //   - Serverless: RemoveLocal() above stripped the local transport,
-            //     but MessageRouterBase<T>'s ctor unconditionally calls
+            //     but MessageRouterBase's ctor unconditionally calls
             //     GetOrBuildSendingAgent(TransportConstants.DurableLocalUri)
             //     for scheduled-envelope fallback, which now throws
             //     UnknownTransportException. Skipping the pre-population avoids
@@ -338,7 +338,7 @@ public partial class WolverineRuntime
             //     either target external endpoints directly or never invoke
             //     routing for local-only types.
             //
-            // TODO: a follow-up could make MessageRouterBase<T>'s LocalDurableQueue
+            // TODO: a follow-up could make MessageRouterBase's LocalDurableQueue
             // lazy / nullable so Serverless apps reclaim the AOT cold-start win.
             var mode = Options.Durability.Mode;
             if (mode != DurabilityMode.MediatorOnly && mode != DurabilityMode.Serverless)

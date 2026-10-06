@@ -57,7 +57,7 @@ public abstract class ConventionalRoutingFixture : IAsyncLifetime
     internal IMessageRouter RoutingFor<T>() => theRuntime().RoutingFor(typeof(T));
 
     internal IMessageRoute[] PublishingRoutesFor<T>()
-        => RoutingFor<T>().ShouldBeOfType<MessageRouter<T>>().Routes;
+        => RoutingFor<T>().ShouldBeOfType<MessageRouter>().Routes;
 }
 
 /// <summary>The convention with no overrides at all.</summary>

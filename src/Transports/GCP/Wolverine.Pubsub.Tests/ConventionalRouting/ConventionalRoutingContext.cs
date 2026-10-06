@@ -53,11 +53,11 @@ public abstract class ConventionalRoutingContext : IDisposable
 
     internal async Task AssertNoRoutes<T>()
     {
-        (await RoutingFor<T>()).ShouldBeOfType<EmptyMessageRouter<T>>();
+        (await RoutingFor<T>()).ShouldBeOfType<EmptyMessageRouter>();
     }
 
     internal async Task<IMessageRoute[]> PublishingRoutesFor<T>()
     {
-        return (await RoutingFor<T>()).ShouldBeOfType<MessageRouter<T>>().Routes;
+        return (await RoutingFor<T>()).ShouldBeOfType<MessageRouter>().Routes;
     }
 }

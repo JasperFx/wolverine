@@ -5,13 +5,17 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime.Routing;
 
-public class MessageRouter<T> : MessageRouterBase<T>
+/// <summary>
+///     The router for a message type with at least one route. Non-generic since GH-4848; see
+///     <see cref="MessageRouterBase" />.
+/// </summary>
+public class MessageRouter : MessageRouterBase
 {
-    public MessageRouter(WolverineRuntime runtime, IEnumerable<IMessageRoute> routes) : base(runtime)
+    public MessageRouter(WolverineRuntime runtime, Type messageType, IEnumerable<IMessageRoute> routes)
+        : base(runtime, messageType)
     {
         Routes = DeduplicateRoutes(routes.ToArray());
 
-        // ReSharper disable once VirtualMemberCallInConstructor
         foreach (var route in Routes)
         {
             if (route is MessageRoute { Sender.Endpoint: LocalQueue } messageRoute)
@@ -61,6 +65,64 @@ public class MessageRouter<T> : MessageRouterBase<T>
             return true;
         }).ToArray();
     }
+
+    public override Envelope[] RouteForSend(object message, DeliveryOptions? options)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        return RouteForPublish(message, options);
+    }
+
+    public override Envelope[] RouteForPublish(object message, DeliveryOptions? options)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var envelopes = new Envelope[Routes.Length];
+        for (var i = 0; i < envelopes.Length; i++)
+        {
+            envelopes[i] = Routes[i].CreateForSending(message, options, LocalDurableQueue, Runtime, null);
+        }
+
+        return envelopes;
+    }
+
+    public override IMessageRoute FindSingleRouteForSending()
+    {
+        if (Routes.Length == 1)
+        {
+            return Routes[0];
+        }
+
+        throw new MultipleSubscribersException(MessageType, Routes);
+    }
+}
+
+/// <summary>
+///     Retained for compatibility. The runtime builds the non-generic <see cref="MessageRouter" /> since
+///     GH-4848 and never constructs this one; see <see cref="MessageRouterBase" />.
+/// </summary>
+public class MessageRouter<T> : MessageRouterBase<T>
+{
+    public MessageRouter(WolverineRuntime runtime, IEnumerable<IMessageRoute> routes) : base(runtime)
+    {
+        Routes = MessageRouter.DeduplicateRoutes(routes.ToArray());
+
+        foreach (var route in Routes)
+        {
+            if (route is MessageRoute { Sender.Endpoint: LocalQueue } messageRoute)
+            {
+                messageRoute.Rules.Fill(HandlerRules);
+            }
+        }
+    }
+
+    public override IMessageRoute[] Routes { get; }
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -213,78 +212,17 @@ public partial class WolverineRuntime
 {
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
-    // GH-4287. Router factories for the framework's own message types, closed by DIRECT
-    // construction. Under Native AOT the reflective CloseAndBuildAs miss path below throws
-    // MissingMethodException -- the closed generic's constructor metadata is trimmed -- and
-    // PrepopulateRoutingCache walks every one of these types at startup, so an AOT publish died
-    // on EmptyMessageRouter<Acknowledgement> / MessageRouter<IAgentCommand> before it could
-    // accept a single message. Direct construction roots the instantiations for the AOT
-    // compiler; user message types remain the app's rooting / source-generation story (#2769).
-    // Only consulted on a routing-cache miss, so a plain dictionary is fine here.
-    private static readonly Dictionary<Type, Func<WolverineRuntime, List<IMessageRoute>, IMessageRouter>>
-        _frameworkRouterFactories = new()
-        {
-            [typeof(Envelope)] = routerFactory<Envelope>(),
-            [typeof(Acknowledgement)] = routerFactory<Acknowledgement>(),
-            [typeof(FailureAcknowledgement)] = routerFactory<FailureAcknowledgement>(),
-            [typeof(IAgentCommand)] = routerFactory<IAgentCommand>(),
-
-            // GH-4825. The concrete agent messages the framework itself handles. They are internal, so the
-            // `codegen write` rooting block cannot name them -- HandlerRegistryCodeFile.onlyPublic() drops
-            // every non-public type, because generated code cannot put one inside a typeof(). An application
-            // with a durable message store walks all of them through PrepopulateRoutingCache at startup, so
-            // in a native image the reflective close in RoutingFor fires against instantiations nothing
-            // could root. Direct construction is the only fix available, exactly as GH-4287 did for
-            // IAgentCommand above.
-            //
-            // Held to COVERAGE of the real set by framework_router_factories_cover_every_agent_message,
-            // not to this list: the eight types the reported failure named were the ones that application's
-            // lane happened to reach, and that test immediately found six more with the identical defect --
-            // the Balanced-mode leader's own assignment messages, built in
-            // NodeAgentController.EvaluateAssignments and AssignmentGrid. Add a new agent message and that
-            // test fails until it is covered here.
-            [typeof(AgentPresenceReport)] = routerFactory<AgentPresenceReport>(),
-            [typeof(AgentsStarted)] = routerFactory<AgentsStarted>(),
-            [typeof(AgentsStopped)] = routerFactory<AgentsStopped>(),
-            [typeof(AssignAgent)] = routerFactory<AssignAgent>(),
-            [typeof(AssignAgents)] = routerFactory<AssignAgents>(),
-            [typeof(QueryAgentPresence)] = routerFactory<QueryAgentPresence>(),
-            [typeof(ReassignAgent)] = routerFactory<ReassignAgent>(),
-            [typeof(ReassignAgents)] = routerFactory<ReassignAgents>(),
-            [typeof(StartAgent)] = routerFactory<StartAgent>(),
-            [typeof(StartAgents)] = routerFactory<StartAgents>(),
-            [typeof(StopAgent)] = routerFactory<StopAgent>(),
-            [typeof(StopAgents)] = routerFactory<StopAgents>(),
-            [typeof(StopRemoteAgent)] = routerFactory<StopRemoteAgent>(),
-            [typeof(StopRemoteAgents)] = routerFactory<StopRemoteAgents>()
-        };
-
-    private static Func<WolverineRuntime, List<IMessageRoute>, IMessageRouter> routerFactory<T>()
-    {
-        return (runtime, routes) => routes.Count != 0
-            ? new MessageRouter<T>(runtime, routes)
-            : new EmptyMessageRouter<T>(runtime);
-    }
-
-
-    // RoutingFor is the per-message-type router-resolution entry point. The cache-
-    // miss path closes MessageRouter<T> / EmptyMessageRouter<T> over the runtime-
-    // resolved messageType — same CloseAndBuildAs reflective pattern as chunk D
-    // and chunk I. AOT-clean apps in TypeLoadMode.Static pre-populate this cache
-    // at bootstrap (envelope-mapper / message-type discovery sources, see #2715
-    // and the AOT publishing guide) so the steady-state hot path is pure lookups
-    // and the miss path's reflective close never fires. Trim-only apps without
-    // source generation need MessageRouter<>/EmptyMessageRouter<> closed types
-    // preserved via TrimmerRootDescriptor on their message types.
+    // RoutingFor is the per-message-type router-resolution entry point. Pre-populated at startup by
+    // PrepopulateRoutingCache for every discovered message type, so the steady-state hot path is a pure
+    // lookup; the miss path below is for a type nothing discovered.
     //
-    // Leaf suppression rather than [RequiresDynamicCode] on RoutingFor because
-    // RoutingFor is on the per-message dispatch hot path through MessageContext.
-    // Cascading [Requires*] up there would force every user-facing send/publish
-    // API to declare it.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Closed generic resolved from runtime messageType; AOT consumers pre-populate _messageTypeRouting via source-generated discovery. See AOT guide.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Closed generic resolved from runtime messageType; AOT consumers pre-populate _messageTypeRouting via source-generated discovery. See AOT guide.")]
+    // GH-4848. The miss path used to close MessageRouter<T> / EmptyMessageRouter<T> over the message type
+    // reflectively. That is a generic close at runtime, and in a native image it had to be rooted per
+    // message type by `codegen write` (GH-4287), hand-constructed for the framework's own internal messages
+    // (GH-4287, GH-4825), could not be rooted at all for a VALUE TYPE -- a handler returning Guid died here
+    // at startup -- and needed a typeof token for an interface. The routers only ever used T for typeof(T),
+    // so they take the Type as an argument now and there is no close to root, no factory table to keep in
+    // step, and no suppression to justify.
     public IMessageRouter RoutingFor(Type messageType)
     {
         if (messageType == typeof(object))
@@ -300,14 +238,9 @@ public partial class WolverineRuntime
 
         var routes = findRoutes(messageType);
 
-        // See _frameworkRouterFactories above (GH-4287) -- the framework's own message types get
-        // directly-constructed routers so a Native AOT publish never pays (or crashes on) the
-        // reflective close for types the application author cannot root.
-        var router = _frameworkRouterFactories.TryGetValue(messageType, out var factory)
-            ? factory(this, routes)
-            : routes.Count != 0
-                ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
-                : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
+        IMessageRouter router = routes.Count != 0
+            ? new MessageRouter(this, messageType, routes)
+            : new EmptyMessageRouter(this, messageType);
 
         // Skip framework-internal types (IAgentCommand, INotToBeRouted, IInternalMessage,
         // and types from assemblies marked [ExcludeFromServiceCapabilities]) so they
@@ -410,9 +343,12 @@ public partial class WolverineRuntime
     /// types. Called from <see cref="WolverineRuntime.HostService.StartAsync"/>
     /// after the handler graph has compiled and the route sources are wired up,
     /// so the per-message <see cref="RoutingFor"/> hot path never pays the
-    /// first-occurrence reflection cost (CloseAndBuildAs over MessageRouter&lt;T&gt;
-    /// / EmptyMessageRouter&lt;T&gt;). Closes the AOT story for the per-message
-    /// router resolution from AOT pillar issue #2769.
+    /// first-occurrence router construction. Until GH-4848 that construction was a
+    /// reflective generic close, and this warm-up was also where a native image
+    /// found out about any message type nothing had rooted; the routers take the
+    /// <see cref="Type"/> directly now, so it is a plain constructor call for
+    /// every type. Closes the AOT story for the per-message router resolution
+    /// from AOT pillar issue #2769.
     /// </summary>
     /// <remarks>
     /// Tolerates duplicates and the typeof(object) sentinel; <see cref="RoutingFor"/>
@@ -421,10 +357,6 @@ public partial class WolverineRuntime
     /// cache lookup is the same dictionary either way.
     /// </remarks>
     /// <param name="messageTypes">Message types to resolve and cache.</param>
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Pre-populating the message-router cache at host startup; same suppression as RoutingFor. See AOT guide / #2769.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Pre-populating the message-router cache at host startup; same suppression as RoutingFor. See AOT guide / #2769.")]
     internal void PrepopulateRoutingCache(IEnumerable<Type>? messageTypes)
     {
         if (messageTypes == null) return;

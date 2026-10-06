@@ -44,7 +44,7 @@ public class Bug_2304_conventional_routing_ignores_durable_outbox_policy : IAsyn
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
         var routes = runtime.RoutingFor(typeof(Bug2304Message))
-            .ShouldBeOfType<MessageRouter<Bug2304Message>>()
+            .ShouldBeOfType<MessageRouter>()
             .Routes;
 
         routes.Length.ShouldBeGreaterThan(0);

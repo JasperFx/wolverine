@@ -583,7 +583,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     //
     // What makes it safe now is that `codegen write` emits a [DynamicDependency] for each closed
     // Applier<T> into the AotRoots block (see HandlerRegistryCodeFile.buildAotRoots), so ILC has the
-    // instantiation and this close resolves. The same technique GH-4287 used for MessageRouter<T>.
+    // instantiation and this close resolves. The same technique GH-4287 used for MessageRouter<T>, until
+    // GH-4848 de-genericized the routers and removed that close altogether.
     //
     // The suppressions stay because the call stays -- #4764 could delete its own only because it removed
     // the CloseAndBuildAs entirely, which a static abstract member does not allow. They are justified by
@@ -593,7 +594,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             "The only instantiation closed here is Applier<T> over a type from ReturnVariablesOfType(typeof(IResponseAware)), and `codegen write` emits a [DynamicDependency] root for exactly those closed types (HandlerRegistryCodeFile.buildAotRoots), so the trimmer keeps them. An AOT app with no pre-generated code has no roots -- and is already unsupported, because runtime Roslyn codegen cannot run in a native image at all.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification =
-            "MakeGenericType over the closed Applier<T> needs no runtime code generation once ILC has emitted that instantiation, which the [DynamicDependency] root from `codegen write` guarantees. Same arrangement as MessageRouter<T> since GH-4287.")]
+            "MakeGenericType over the closed Applier<T> needs no runtime code generation once ILC has emitted that instantiation, which the [DynamicDependency] root from `codegen write` guarantees. The arrangement MessageRouter<T> used from GH-4287 until GH-4848 removed its close.")]
     protected internal void tryApplyResponseAware()
     {
         var responseAwares = ReturnVariablesOfType(typeof(IResponseAware)).ToArray();
