@@ -566,9 +566,29 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         deferReleaseUntilIdleAsync(stillRunning);
     }
 
-    private Task releaseIncomingAsync()
+    /// <summary>
+    /// A second <c>received_at</c> address this receiver executes rows from, released alongside its own on
+    /// drain. Set on a global partition's companion local queue to the slot's external address: a durable
+    /// database-backed slot writes the inbox row at the SLOT's address when it pops (GH-4288), and the bridge
+    /// then hands the envelope to this receiver, so the companion queue's backlog is split across two
+    /// addresses. Releasing only <see cref="Uri"/> on drain left every row that had come through the shard
+    /// queue table Incoming and owned by the ex-owner -- a live node, so neither the orphan sweep nor the next
+    /// owner's recovery loop would ever look at it. Null everywhere else.
+    /// </summary>
+    internal Uri? AlsoReleaseIncomingAt { get; set; }
+
+    private async Task releaseIncomingAsync()
     {
-        return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
+        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri)).ConfigureAwait(false);
+
+        // Deliberately on the same path as the primary release, so the GH-4797 hold on in-flight work applies
+        // to both addresses: an envelope that came through the shard queue is just as much "still executing
+        // here" as one that took the local shortcut.
+        if (AlsoReleaseIncomingAt != null)
+        {
+            var alsoReleaseAt = AlsoReleaseIncomingAt;
+            await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, alsoReleaseAt)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
