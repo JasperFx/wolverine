@@ -145,5 +145,6 @@ public static class AotPublishResponseAwareHandler
 // point of this change. It rooted six types by hand -- the generated registry, the generated handler,
 // the handler class, the message type, and MessageRouter<T>/EmptyMessageRouter<T> closed over it -- and
 // every Native AOT application had to write the same block for every one of its own message types.
-// `codegen write` now emits exactly those six roots into Internal/Generated/, so this project asserts
-// the emitted version works by having none of its own.
+// `codegen write` now emits those roots into Internal/Generated/ (four since GH-4848 de-genericized the
+// routers and the two closed instantiations stopped existing), so this project asserts the emitted
+// version works by having none of its own.

@@ -22,6 +22,12 @@
         an interface that declares nothing is an IL2037. It is not: ILC resolves the interface's own
         base interfaces as members. This lane is what keeps that measured rather than assumed.
 
+        GH-4848 added a handler returning Guid, the ordinary request/reply shape, because a handler return
+        type is a published type and the routing warm-up builds a router for it at startup. Over a value
+        type that was a reflective generic close nothing could root, and this lane died in
+        PrepopulateRoutingCache the first time it had one. The routers are non-generic now; the handler
+        stays so the shape is published on every run.
+
         Cheapest store-backed lane in the repo: a SQLite file, no server, nothing from docker-compose.
 
         Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY:

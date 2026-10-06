@@ -166,16 +166,17 @@ internal class HandlerRegistryCodeFile : ICodeFile
             yield return AttributeArg.Type(handlerType);
         }
 
+        // The message types themselves: MessageRouterBase's constructor walks each one with
+        // GetAllAttributes<ModifyEnvelopeAttribute>() at startup, and the serializers reflect over them.
+        //
+        // GH-4848. No longer the closed MessageRouter<T> / EmptyMessageRouter<T> alongside each one. The
+        // runtime constructs the non-generic routers over the Type directly, so there is no instantiation
+        // to root -- and there never could have been one for a value-type message: a [DynamicDependency]
+        // over EmptyMessageRouter<Guid> is accepted and generates nothing (GH-4805), which is why a handler
+        // returning Guid died in PrepopulateRoutingCache no matter what this block said.
         foreach (var messageType in _routedMessageTypes)
         {
             yield return AttributeArg.Type(messageType);
-
-            // WolverineRuntime.PrepopulateRoutingCache closes these per message type reflectively, which
-            // is exactly what threw MissingMethodException on startup in a native image for any message
-            // type GH-4287 did not special-case. Neither router declares a generic constraint, so both
-            // close over any message type at all.
-            yield return closedGenericRoot(typeof(Routing.MessageRouter<>), messageType);
-            yield return closedGenericRoot(typeof(Routing.EmptyMessageRouter<>), messageType);
         }
 
         // GH-4778. Chain.tryApplyResponseAware closes Applier<T> over the chain's IResponseAware return
@@ -212,9 +213,9 @@ internal class HandlerRegistryCodeFile : ICodeFile
     }
 
     /// <summary>
-    ///     Closes one of the open generics the runtime closes reflectively — <c>MessageRouter&lt;&gt;</c>,
-    ///     <c>EmptyMessageRouter&lt;&gt;</c> or <c>Applier&lt;&gt;</c> — over a single type argument, so it
-    ///     can be named inside a <c>[DynamicDependency]</c>.
+    ///     Closes an open generic the runtime closes reflectively — <c>Applier&lt;&gt;</c> today; the two
+    ///     routers until GH-4848 de-genericized them — over a single type argument, so it can be named
+    ///     inside a <c>[DynamicDependency]</c>.
     /// </summary>
     /// <remarks>
     ///     Deliberately its own method rather than an attribute on <see cref="buildAotRoots" />: that one
@@ -226,7 +227,7 @@ internal class HandlerRegistryCodeFile : ICodeFile
             "Only reached from `codegen write`, which runs on CoreCLR behind DynamicCodeBuilder.WithinCodegenCommand and never in a native image. Emitting these roots is exactly what removes the need for a native image to close these generics at runtime.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055",
         Justification =
-            "Neither router generic declares a constraint. Applier<T> constrains T to IResponseAware, and its argument comes from Chain.ReturnVariablesOfType(typeof(IResponseAware)) -- a CanBeCastTo filter against that very interface -- so the constraint holds by construction. The closed type is only ever named inside an emitted [DynamicDependency]; it is never instantiated here.")]
+            "Applier<T> constrains T to IResponseAware, and its argument comes from Chain.ReturnVariablesOfType(typeof(IResponseAware)) -- a CanBeCastTo filter against that very interface -- so the constraint holds by construction. The closed type is only ever named inside an emitted [DynamicDependency]; it is never instantiated here.")]
     private static AttributeArg closedGenericRoot(Type openType, Type argument)
     {
         return AttributeArg.Type(openType.MakeGenericType(argument));

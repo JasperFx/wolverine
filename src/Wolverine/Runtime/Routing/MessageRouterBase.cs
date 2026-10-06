@@ -8,18 +8,34 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
 
-public abstract class MessageRouterBase<T> : IMessageRouter
+/// <summary>
+///     The non-generic router base. Carries the message type as a <see cref="Type" /> rather than as a type
+///     parameter, so the runtime can construct a router for any message type without closing a generic.
+/// </summary>
+/// <remarks>
+///     GH-4848. The generic <see cref="MessageRouterBase{T}" /> only ever used <c>T</c> for <c>typeof(T)</c>
+///     and for typed overloads that <see cref="IMessageRouter" /> exposes as <c>object</c> anyway, while the
+///     runtime closed it over every message type reflectively at startup. In a native image that close had
+///     to be rooted per message type, could not be rooted at all for a value type (a handler returning
+///     <c>Guid</c> died in <c>PrepopulateRoutingCache</c>), and needed a <c>typeof</c> token for an
+///     interface. None of that applies to a class that takes the <see cref="Type" /> as an argument, so the
+///     hazard is deleted rather than rooted. The generic classes remain for anything that referenced them,
+///     but the runtime no longer constructs them.
+/// </remarks>
+public abstract class MessageRouterBase : IMessageRouter
 {
     private readonly MessageRoute[] _topicRoutes;
 
     private ImHashMap<Uri, IMessageRoute> _specificRoutes = ImHashMap<Uri, IMessageRoute>.Empty;
 
-    protected MessageRouterBase(WolverineRuntime runtime)
+    protected MessageRouterBase(WolverineRuntime runtime, Type messageType)
     {
+        MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
+
         // We'll use this for executing scheduled envelopes that aren't native
         LocalDurableQueue = runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
 
-        var chain = runtime.Handlers.ChainFor(typeof(T));
+        var chain = runtime.Handlers.ChainFor(messageType);
         if (chain != null)
         {
             foreach (var handler in chain.Handlers)
@@ -42,7 +58,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             }
         }
 
-        foreach (var attribute in typeof(T).GetAllAttributes<ModifyEnvelopeAttribute>())
+        foreach (var attribute in messageType.GetAllAttributes<ModifyEnvelopeAttribute>())
         {
             if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
         }
@@ -52,7 +68,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         {
             if (endpoint.RoutingType == RoutingMode.ByTopic)
             {
-                topicRouteList.Add(MessageRoute.For(typeof(T), endpoint, runtime));
+                topicRouteList.Add(MessageRoute.For(messageType, endpoint, runtime));
             }
         }
 
@@ -61,6 +77,11 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         Runtime = runtime;
     }
 
+    /// <summary>
+    ///     The message type this router routes.
+    /// </summary>
+    public Type MessageType { get; }
+
     internal WolverineRuntime Runtime { get; }
 
     public ISendingAgent LocalDurableQueue { get; }
@@ -68,32 +89,12 @@ public abstract class MessageRouterBase<T> : IMessageRouter
     public List<IEnvelopeRule> HandlerRules { get; } = new();
     public abstract IMessageRoute[] Routes { get; }
 
-    public Envelope[] RouteForSend(object message, DeliveryOptions? options)
-    {
-        return RouteForSend((T)message, options);
-    }
-
-    public Envelope[] RouteForPublish(object message, DeliveryOptions? options)
-    {
-        return RouteForPublish((T)message, options);
-    }
-
-    public Envelope RouteToDestination(object message, Uri uri, DeliveryOptions? options)
-    {
-        return RouteToDestination((T)message, uri, options);
-    }
-
-    public Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options)
-    {
-        return RouteToTopic((T)message, topicName, options);
-    }
+    public abstract Envelope[] RouteForSend(object message, DeliveryOptions? options);
+    public abstract Envelope[] RouteForPublish(object message, DeliveryOptions? options);
 
     public abstract IMessageRoute FindSingleRouteForSending();
 
-    public abstract Envelope[] RouteForSend(T message, DeliveryOptions? options);
-    public abstract Envelope[] RouteForPublish(T message, DeliveryOptions? options);
-
-    public Envelope RouteToDestination(T message, Uri uri, DeliveryOptions? options)
+    public Envelope RouteToDestination(object message, Uri uri, DeliveryOptions? options)
     {
         if (message == null)
         {
@@ -112,13 +113,13 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         }
 
         var agent = Runtime.Endpoints.GetOrBuildSendingAgent(destination);
-        route = MessageRoute.For(typeof(T), agent.Endpoint, Runtime);
+        route = MessageRoute.For(MessageType, agent.Endpoint, Runtime);
         _specificRoutes = _specificRoutes.AddOrUpdate(destination, route);
 
         return route;
     }
 
-    public Envelope[] RouteToTopic(T message, string topicName, DeliveryOptions? options)
+    public Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options)
     {
         if (message == null)
         {
@@ -137,5 +138,39 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         }
 
         return envelopes;
+    }
+}
+
+/// <summary>
+///     Retained for compatibility. The runtime builds the non-generic <see cref="MessageRouterBase" />
+///     family since GH-4848 and never constructs this one; see the remarks there.
+/// </summary>
+public abstract class MessageRouterBase<T> : MessageRouterBase
+{
+    protected MessageRouterBase(WolverineRuntime runtime) : base(runtime, typeof(T))
+    {
+    }
+
+    public sealed override Envelope[] RouteForSend(object message, DeliveryOptions? options)
+    {
+        return RouteForSend((T)message, options);
+    }
+
+    public sealed override Envelope[] RouteForPublish(object message, DeliveryOptions? options)
+    {
+        return RouteForPublish((T)message, options);
+    }
+
+    public abstract Envelope[] RouteForSend(T message, DeliveryOptions? options);
+    public abstract Envelope[] RouteForPublish(T message, DeliveryOptions? options);
+
+    public Envelope RouteToDestination(T message, Uri uri, DeliveryOptions? options)
+    {
+        return RouteToDestination((object)message!, uri, options);
+    }
+
+    public Envelope[] RouteToTopic(T message, string topicName, DeliveryOptions? options)
+    {
+        return RouteToTopic((object)message!, topicName, options);
     }
 }

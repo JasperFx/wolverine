@@ -45,7 +45,7 @@ public class separated_batch_routing
 
         // Routing a LoadEvent now fans out to BOTH the direct handler queue and the batch queue.
         var destinations = runtime.RoutingFor(typeof(LoadEvent))
-            .ShouldBeOfType<MessageRouter<LoadEvent>>()
+            .ShouldBeOfType<MessageRouter>()
             .Routes.OfType<MessageRoute>().Select(x => x.Sender.Destination).ToArray();
         destinations.ShouldContain(batchUri);
         destinations.Length.ShouldBe(2);
