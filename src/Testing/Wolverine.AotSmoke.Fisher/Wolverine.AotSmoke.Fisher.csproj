@@ -16,6 +16,12 @@
         and HttpChain closing its own Applier<T> over a Results<Ok<T>, ProblemHttpResult> return type. A
         lane per store is what keeps a fix proven on one from silently not covering the others.
 
+        GH-4840 added a handler returning a MEMBER-LESS side-effect marker interface (IAotFisherMarkerOp),
+        so that the one shape CoreTests' fixture always had, and no native image had ever been published
+        with, goes through ILC on every run: the question was whether a [DynamicDependency(All, ...)] over
+        an interface that declares nothing is an IL2037. It is not: ILC resolves the interface's own
+        base interfaces as members. This lane is what keeps that measured rather than assumed.
+
         Cheapest store-backed lane in the repo: a SQLite file, no server, nothing from docker-compose.
 
         Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY:

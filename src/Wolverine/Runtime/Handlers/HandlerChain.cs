@@ -583,6 +583,17 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 continue;
             }
 
+            // GH-4840. A return type that is never routed is not a published type: ISideEffect and the
+            // other INotToBeRouted return types are consumed by their policies inside the chain and never
+            // cascade. Listing them here put every side-effect interface through PrepopulateRoutingCache
+            // at startup, which closes EmptyMessageRouter<T> over it reflectively -- and the Fisher native
+            // lane crashed on exactly that the first time it returned a side-effect interface declared in
+            // the application, since nothing roots a router for a type that can never be routed.
+            if (variable.VariableType.CanBeCastTo<INotToBeRouted>())
+            {
+                continue;
+            }
+
             yield return variable.VariableType;
         }
     }

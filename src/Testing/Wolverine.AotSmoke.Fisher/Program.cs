@@ -54,7 +54,8 @@ builder.Host.UseWolverine(opts =>
     opts.Durability.Mode = DurabilityMode.Solo;
 
     opts.Discovery.DisableConventionalDiscovery()
-        .IncludeType(typeof(AotFisherHandler));
+        .IncludeType(typeof(AotFisherHandler))
+        .IncludeType(typeof(AotFisherMarkerHandler));
 
     opts.Policies.AutoApplyTransactions();
 
@@ -115,6 +116,10 @@ try
     var recorded = Guid.NewGuid();
     await app.Services.GetRequiredService<IMessageBus>().InvokeAsync(new RecordAotFisherPing(recorded));
 
+    // GH-4840. The member-less marker interface, through ILC: see AotFisherMarkerHandler.
+    var marked = Guid.NewGuid();
+    await app.Services.GetRequiredService<IMessageBus>().InvokeAsync(new RecordAotFisherMarker(marked));
+
     // Vacuity guard: a 201 only proves the endpoint ran. The side effects must actually have run -- the
     // Http lane booted clean having discovered ZERO endpoints before its own guard was added.
     await using (var session = app.Services.GetRequiredService<IDocumentStore>().LightweightSession())
@@ -133,12 +138,19 @@ try
                 "FAIL: the handler returned an IFisherOp but no AotFisherPing document was stored.");
             return 1;
         }
+
+        if (await session.LoadAsync<AotFisherPing>(marked) == null)
+        {
+            await Console.Error.WriteLineAsync(
+                "FAIL: the handler returned a member-less IAotFisherMarkerOp but no AotFisherPing document was stored.");
+            return 1;
+        }
     }
 
     await app.StopAsync();
 
     Console.WriteLine(
-        "OK: Native AOT Fisher HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IFisherOp smoke passed.");
+        "OK: Native AOT Fisher HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IFisherOp + member-less marker side effect smoke passed.");
     return 0;
 }
 catch (Exception e)
@@ -183,6 +195,35 @@ public static class AotFisherHandler
     public static IFisherOp Handle(RecordAotFisherPing command)
     {
         return FisherOps.Store(new AotFisherPing(command.Id));
+    }
+}
+
+public record RecordAotFisherMarker(Guid Id);
+
+/// <summary>
+///     GH-4840. A side-effect interface that declares NOTHING of its own -- the shape CoreTests'
+///     aot_roots_for_side_effects fixture has always had, and which no native image had ever been published
+///     with. The rooting block names it with DynamicallyAccessedMemberTypes.All, and the open question was
+///     whether ILC rejects a root that resolves no members (IL2037). This lane is the measurement: the
+///     publish is held to TreatWarningsAsErrors, so an IL2037 here fails the lane rather than printing.
+/// </summary>
+public interface IAotFisherMarkerOp : IFisherOp;
+
+public class AotFisherMarkerStore(AotFisherPing ping) : IAotFisherMarkerOp
+{
+    public void Execute(IDocumentSession session)
+    {
+        session.Store(ping);
+    }
+}
+
+public static class AotFisherMarkerHandler
+{
+    // Returns the member-less marker. SideEffectPolicy.findMethod finds nothing declared on it and walks
+    // its interfaces to IFisherOp, which is where Execute lives.
+    public static IAotFisherMarkerOp Handle(RecordAotFisherMarker command)
+    {
+        return new AotFisherMarkerStore(new AotFisherPing(command.Id));
     }
 }
 

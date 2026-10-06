@@ -23,10 +23,16 @@
              Marten's DocumentMapping cannot find Envelope.Id.
           4. With a durable message store, PrepopulateRoutingCache closes MessageRouter<T> over the
              framework's internal agent messages (StopAgents and its siblings), which nothing rooted.
-             NOT reproduced by this lane, which runs Solo, where agent messaging is never used (GH-4843).
+             Fixed in #4842 by direct construction. It was never reproduced by this lane while the lane
+             ran Solo, where agent messaging is not used. That is GH-4843, and why this lane now runs
+             BALANCED: the only native image in CI that elects a leader, evaluates assignments and routes
+             the agent messages. Measured honestly, though: with the fourteen #4842 factories stripped
+             out, this single Balanced node STILL boots and passes, on net9.0 and on net10.0. The lane
+             covers the clustered path; it is not a reproduction of failure 4.
 
-        The endpoint shapes are the ones the reporting application uses. Boots, serves both endpoints and
-        reads the started stream back. Needs the postgresql service from docker-compose.yml.
+        The endpoint shapes are the ones the reporting application uses. Boots as a Balanced node, waits
+        until it is leader and has been assigned the durability agent, serves both endpoints and reads the
+        started stream back. Needs the postgresql service from docker-compose.yml.
 
         Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, with Postgres running:
 
