@@ -24,8 +24,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -40,7 +38,6 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-
             (var trainer, var problemDetails2) = await DeepMiddlewareUsage.TrainerMiddleware.LoadAsync(userId, documentSession, httpContext.RequestAborted, httpContext).ConfigureAwait(false);
             // Evaluate whether the processing should stop if there are any problems
             if (!(ReferenceEquals(problemDetails2, Wolverine.Http.WolverineContinue.NoProblems)))
@@ -49,7 +46,6 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-
             
             // The actual HTTP request handler execution
             var trainerResponse_response = DeepMiddlewareUsage.TrainerGet.Get(trainer);
@@ -57,11 +53,9 @@ namespace Internal.Generated.WolverineHandlers
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, trainerResponse_response, 404);
         }
-
     }
 
     // END: GET_api_trainer
     
     
 }
-

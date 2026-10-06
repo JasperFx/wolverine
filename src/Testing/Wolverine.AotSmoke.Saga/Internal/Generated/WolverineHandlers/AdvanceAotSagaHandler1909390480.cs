@@ -7,8 +7,6 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class AdvanceAotSagaHandler1909390480 : Wolverine.Runtime.Handlers.MessageHandler
     {
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -26,7 +24,6 @@ namespace Internal.Generated.WolverineHandlers
             {
                 throw new Wolverine.Persistence.Sagas.UnknownSagaException(typeof(AotSaga), sagaId);
             }
-
             else
             {
                 context.SetSagaId(sagaId);
@@ -41,7 +38,6 @@ namespace Internal.Generated.WolverineHandlers
                 {
                     await sagaStorageOfGuidAndAotSaga_Slim.DeleteAsync(aotSaga, cancellation);
                 }
-
                 else
                 {
                     await sagaStorageOfGuidAndAotSaga_Slim.UpdateAsync(aotSaga, cancellation);
@@ -52,11 +48,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await sagaStorageOfGuidAndAotSaga.SaveChangesAsync(cancellation);
         }
-
     }
 
     // END: AdvanceAotSagaHandler1909390480
     
     
 }
-

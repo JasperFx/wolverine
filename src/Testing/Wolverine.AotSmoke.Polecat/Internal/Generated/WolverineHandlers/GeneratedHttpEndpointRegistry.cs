@@ -7,13 +7,10 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class GeneratedHttpEndpointRegistry : Wolverine.Http.HttpEndpointRegistry
     {
-
-
         public override System.Type[] EndpointTypes()
         {
             return new System.Type[] { typeof(AotPolecatEndpoints) };
         }
-
     }
 
     // END: GeneratedHttpEndpointRegistry
@@ -24,8 +21,6 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class HttpAotRoots
     {
-
-
         [global::System.Runtime.CompilerServices.ModuleInitializer]
         [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(global::Internal.Generated.WolverineHandlers.GeneratedHttpEndpointRegistry))]
         [global::System.Diagnostics.CodeAnalysis.DynamicDependency(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All, typeof(global::Internal.Generated.WolverineHandlers.GET_aot_pings_id))]
@@ -39,11 +34,9 @@ namespace Internal.Generated.WolverineHandlers
         {
             // Intentionally empty. The [DynamicDependency] attributes above are the payload: they root the generated types for Native AOT, and [ModuleInitializer] guarantees this method is itself an ILC root.
         }
-
     }
 
     // END: HttpAotRoots
     
     
 }
-

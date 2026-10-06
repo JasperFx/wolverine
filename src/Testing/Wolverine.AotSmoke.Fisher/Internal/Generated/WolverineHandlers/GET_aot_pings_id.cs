@@ -18,8 +18,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotFisherEndpoints");
@@ -28,9 +26,7 @@ namespace Internal.Generated.WolverineHandlers
 
             if (id_rawValue != null && System.Guid.TryParse(id_rawValue, System.Globalization.CultureInfo.InvariantCulture, out id))
             {
-
             }
-
             else
             {
                 httpContext.Response.StatusCode = 404;
@@ -43,11 +39,9 @@ namespace Internal.Generated.WolverineHandlers
 
             return resultsOfOkOfAotFisherPingAndProblemHttpResult.ExecuteAsync(httpContext);
         }
-
     }
 
     // END: GET_aot_pings_id
     
     
 }
-

@@ -18,8 +18,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotHttpResponseAwareEndpoint");
@@ -32,11 +30,9 @@ namespace Internal.Generated.WolverineHandlers
             if (httpContext.Response is { HasStarted: false, StatusCode: 200 }) httpContext.Response.StatusCode = 204;
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: POST_aot_response_aware
     
     
 }
-

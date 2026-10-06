@@ -15,8 +15,6 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // Building the Marten session
@@ -35,7 +33,6 @@ namespace Internal.Generated.WolverineHandlers
                 
                 // Placed by Wolverine's ISideEffect policy
                 outgoing1.Execute(documentSession);
-
             }
 
             
@@ -45,13 +42,10 @@ namespace Internal.Generated.WolverineHandlers
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
-
         }
-
     }
 
     // END: RecordAotPingHandler1422057407
     
     
 }
-

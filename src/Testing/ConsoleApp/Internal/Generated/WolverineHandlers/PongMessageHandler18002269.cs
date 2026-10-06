@@ -7,8 +7,6 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class PongMessageHandler18002269 : Wolverine.Runtime.Handlers.MessageHandler
     {
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -20,13 +18,10 @@ namespace Internal.Generated.WolverineHandlers
             
             // The actual message execution
             await pongHandler.Handle(pongMessage).ConfigureAwait(false);
-
         }
-
     }
 
     // END: PongMessageHandler18002269
     
     
 }
-

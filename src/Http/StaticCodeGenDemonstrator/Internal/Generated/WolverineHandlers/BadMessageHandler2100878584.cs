@@ -7,8 +7,6 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class BadMessageHandler2100878584 : Wolverine.Runtime.Handlers.MessageHandler
     {
-
-
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -22,11 +20,9 @@ namespace Internal.Generated.WolverineHandlers
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: BadMessageHandler2100878584
     
     
 }
-

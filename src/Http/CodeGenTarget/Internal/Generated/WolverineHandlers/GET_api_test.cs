@@ -18,8 +18,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "ExampleHandler");
@@ -29,11 +27,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_Handle, 404);
         }
-
     }
 
     // END: GET_api_test
     
     
 }
-
