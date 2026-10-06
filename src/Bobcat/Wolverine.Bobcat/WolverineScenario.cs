@@ -422,7 +422,7 @@ public class WolverineScenario
 
         Verdicts.Check("sent", matching.Length > 0 ? "yes" : "no", "yes");
         Verdicts.Fact(matching.Length > 0, sent.Length == 0
-            ? $"Expected a {typeof(T).Name} to be sent, but none was. Sent: {describeSent()}"
+            ? $"Expected a {typeof(T).Name} to be sent, but none was{(scheduledOf(typeof(T)).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "")}. Sent: {describeSent()}"
             : $"Expected a {typeof(T).Name} to be sent to {destination}, but it went to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)"))}");
     }
 
@@ -465,6 +465,45 @@ public class WolverineScenario
         Verdicts.Fact(best.All(x => x.Matched),
             $"No {value.GetType().Name} sent matched the expectation: {Verdicts.Describe(best)}");
     }
+
+    /// <summary>
+    /// The act scheduled a <typeparamref name="T" /> for later — <c>DelayedFor</c>, <c>ScheduledAt</c>,
+    /// <c>OutgoingMessages.Delay</c>. A scheduled message is not sent within the act, so
+    /// <see cref="ThenMessageSent{T}" /> does not see it. With <paramref name="delay" />, the message
+    /// is due no sooner than that long after the act.
+    /// </summary>
+    public void ThenMessageScheduled<T>(TimeSpan? delay = null)
+    {
+        using var step = ScenarioRecorder.Step("Then",
+            delay is null ? $"{typeof(T).Name} is scheduled" : $"{typeof(T).Name} is scheduled for {delay}");
+        if (!actSucceeded()) return;
+
+        var scheduled = scheduledOf(typeof(T)).ToArray();
+        Verdicts.Check("scheduled", scheduled.Length > 0 ? "yes" : "no", "yes");
+        if (!Verdicts.Fact(scheduled.Length > 0,
+                $"Expected a {typeof(T).Name} to be scheduled, but none was. Sent: {describeSent()}")) return;
+
+        if (delay is { } minimum && scheduled[0].ScheduledTime is { } due)
+        {
+            // measured from now, after the act: the message was due at least `minimum` after it was scheduled
+            var remaining = due - DateTimeOffset.UtcNow;
+            Verdicts.Value("due", due);
+            Verdicts.Fact(remaining > minimum - TimeSpan.FromMinutes(1),
+                $"Expected {typeof(T).Name} to be due in about {minimum}, but it is due at {due:O}");
+        }
+    }
+
+    /// <summary>The act scheduled no <typeparamref name="T" />.</summary>
+    public void ThenNoMessageScheduled<T>()
+    {
+        using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is scheduled");
+        var scheduled = scheduledOf(typeof(T)).ToArray();
+        Verdicts.Fact(scheduled.Length == 0, $"Expected no {typeof(T).Name} to be scheduled but {scheduled.Length} were");
+    }
+
+    private IEnumerable<Envelope> scheduledOf(Type messageType)
+        => LastAct.Session?.Scheduled.Envelopes().Where(x => x.Message is not null && messageType.IsInstanceOfType(x.Message))
+           ?? Enumerable.Empty<Envelope>();
 
     /// <summary>The act sent no <typeparamref name="T" /> anywhere.</summary>
     public void ThenNoMessageSent<T>()

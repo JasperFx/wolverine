@@ -23,6 +23,10 @@ public class AppFixture : IAsyncLifetime
                 // Required when running Marten + Wolverine in a single test process.
                 services.MartenDaemonModeIsSolo();
                 services.RunWolverineInSoloMode();
+
+                // Under xUnit v3 the test project is the entry assembly, which Wolverine would
+                // otherwise adopt as the application assembly -- and find no handlers in
+                services.ConfigureWolverine(opts => opts.ApplicationAssembly = typeof(Program).Assembly);
             });
         });
     }

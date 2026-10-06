@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <PackageReference Include="Alba" />
+        <PackageReference Include="Bobcat.Xunit" />
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit.v3"/>
@@ -23,5 +24,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\IncidentService\IncidentService.csproj" />
+      <ProjectReference Include="..\..\..\Bobcat\Wolverine.Bobcat.Http\Wolverine.Bobcat.Http.csproj" />
     </ItemGroup>
 </Project>

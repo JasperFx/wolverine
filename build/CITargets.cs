@@ -976,10 +976,17 @@ partial class Build
             var tests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Tests" / "Wolverine.Bobcat.Tests.csproj";
             var httpTests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Http.Tests" / "Wolverine.Bobcat.Http.Tests.csproj";
 
-            BuildTestProjects(tests, httpTests);
+            // The samples dogfooding the library. Neither ran in any CI lane before, which is how both
+            // sat unable to start a host (no runtime compiler since GH-2876, and the test assembly
+            // adopted as the application assembly) with nobody noticing.
+            var incidents = RootDirectory / "src" / "Samples" / "IncidentService" / "IncidentService.Tests" / "IncidentService.Tests.csproj";
+            var processManager = RootDirectory / "src" / "Samples" / "ProcessManagerViaHandlers" /
+                                 "ProcessManagerViaHandlers.Tests" / "ProcessManagerViaHandlers.Tests.csproj";
+
+            BuildTestProjects(tests, httpTests, incidents, processManager);
             StartDockerServices("postgresql");
 
-            RunTestProjects([tests, httpTests]);
+            RunTestProjects([tests, httpTests, incidents, processManager]);
         });
 
     Target CIKafka => _ => _

@@ -155,6 +155,12 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenMessageSentExternally{T}" />
     public void ThenMessageSentExternally<T>() => Scenario.ThenMessageSentExternally<T>();
 
+    /// <inheritdoc cref="WolverineScenario.ThenMessageScheduled{T}" />
+    public void ThenMessageScheduled<T>(TimeSpan? delay = null) => Scenario.ThenMessageScheduled<T>(delay);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoMessageScheduled{T}" />
+    public void ThenNoMessageScheduled<T>() => Scenario.ThenNoMessageScheduled<T>();
+
     /// <inheritdoc cref="WolverineScenario.ThenNoMessageSent{T}" />
     public void ThenNoMessageSent<T>() => Scenario.ThenNoMessageSent<T>();
 
