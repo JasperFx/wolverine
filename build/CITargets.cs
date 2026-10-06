@@ -561,9 +561,9 @@ partial class Build
 
     void BuildTestProjectsWithFramework(string frameworkOverride, params AbsolutePath[] projects)
     {
-        var framework = frameworkOverride ?? Framework;
         foreach (var project in projects)
         {
+            var framework = frameworkFor(project, frameworkOverride);
             Log.Information("Building {Project} ({Framework})...", project.Name, framework ?? "all");
             DotNetBuild(c => c
                 .SetProjectFile(project)
@@ -874,13 +874,21 @@ partial class Build
     /// </param>
     void runEfCoreSuites(string framework)
     {
-        BuildTestProjectsWithFramework(framework, EfCoreTests, EfCoreMultiTenancyTests);
+        // EfCoreTests.MultiTenancy is net10.0-only: its MultiTenancyCompliance base hosts through Alba,
+        // and Alba 9 has no net9.0 target. It runs in the EF Core 10 lane only, rather than being
+        // silently promoted to net10.0 here and run twice.
+        var chosen = framework ?? Framework;
+        AbsolutePath[] suites = declaredFrameworks(EfCoreMultiTenancyTests).Contains(chosen)
+            ? [EfCoreTests, EfCoreMultiTenancyTests]
+            : [EfCoreTests];
+
+        BuildTestProjectsWithFramework(framework, suites);
         // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
         // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
         // See GH-2588.
         StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
-        RunTestProjects([EfCoreTests, EfCoreMultiTenancyTests], frameworkOverride: framework);
+        RunTestProjects(suites.Select(x => (string)x).ToArray(), frameworkOverride: framework);
     }
 
     Target CIEfCore => _ => _

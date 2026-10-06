@@ -146,6 +146,8 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
+            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            BuildTestProjects(Solution.Http.Wolverine_Http_Tests);
             RunTestProject(Solution.Http.Wolverine_Http_Tests);
         });
 
@@ -271,6 +273,8 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
+            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            BuildTestProjects(Solution.Samples.TodoWebService.TodoWebServiceTests);
             RunTestProject(Solution.Samples.TodoWebService.TodoWebServiceTests);
         });
    
@@ -279,6 +283,8 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
+            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            BuildTestProjects(Solution.Samples.TestHarness.BankingService_Tests);
             RunTestProject(Solution.Samples.TestHarness.BankingService_Tests);
         });
 
@@ -287,6 +293,8 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
+            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            BuildTestProjects(Solution.Samples.Middleware.AppWithMiddleware_Tests);
             RunTestProject(Solution.Samples.Middleware.AppWithMiddleware_Tests);
         });
 
@@ -295,6 +303,8 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
+            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            BuildTestProjects(Solution.Samples.EFCoreSample.ItemService_Tests);
             RunTestProject(Solution.Samples.EFCoreSample.ItemService_Tests);
         });
 
