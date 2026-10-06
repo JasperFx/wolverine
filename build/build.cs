@@ -356,7 +356,8 @@ partial class Build : NukeBuild
                 Solution.Grpc.Wolverine_Grpc,
                 Solution.Persistence.EFCore.Wolverine_EntityFrameworkCore,
                 Solution.Persistence.Polecat.Wolverine_Polecat,
-                Solution.Persistence.Fisher.Wolverine_Fisher
+                Solution.Persistence.Fisher.Wolverine_Fisher,
+                Solution.Persistence.InMemory.Wolverine_InMemory
             };
 
     // GH-3905: a project can declare a <PackageId> and still never ship, because the Pack list above

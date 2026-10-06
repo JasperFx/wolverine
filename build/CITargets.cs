@@ -687,9 +687,14 @@ partial class Build
         {
             var fisherTests = RootDirectory / "src" / "Persistence" / "FisherTests" / "FisherTests.csproj";
 
-            BuildTestProjects(fisherTests);
+            // GH-4838. The in-memory prototyping store needs no infrastructure either, and its suite runs
+            // in seconds, so it rides this job rather than paying for a runner of its own.
+            var inMemoryTests = RootDirectory / "src" / "Persistence" / "InMemoryTests" / "InMemoryTests.csproj";
+
+            BuildTestProjects(fisherTests, inMemoryTests);
 
             RunTestProject(fisherTests);
+            RunTestProject(inMemoryTests);
         });
 
     Target CISqlServer => _ => _

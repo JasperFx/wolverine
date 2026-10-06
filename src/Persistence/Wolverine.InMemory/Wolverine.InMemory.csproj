@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Description>Wolverine over the JasperFx.Events.InMemory prototyping store: run a stub-first application's handlers before choosing Marten, Polecat or Fisher. Not for production.</Description>
+        <PackageId>WolverineFx.InMemory</PackageId>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="JasperFx.Events.InMemory" />
+    </ItemGroup>
+</Project>
