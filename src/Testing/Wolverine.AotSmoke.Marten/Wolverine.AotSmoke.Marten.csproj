@@ -21,6 +21,9 @@
              not the Configuration.Applier<T> that the GH-4778 rooting block covers.
           3. IntegrateWithWolverine registers Envelope with Schema.For<Envelope>(), and in a native image
              Marten's DocumentMapping cannot find Envelope.Id.
+          4. With a durable message store, PrepopulateRoutingCache closes MessageRouter<T> over the
+             framework's internal agent messages (StopAgents and its siblings), which nothing rooted.
+             NOT reproduced by this lane, which runs Solo, where agent messaging is never used (GH-4843).
 
         The endpoint shapes are the ones the reporting application uses. Boots, serves both endpoints and
         reads the started stream back. Needs the postgresql service from docker-compose.yml.
@@ -29,7 +32,9 @@
 
           dotnet run -f net9.0 codegen write
 
-        This project carries NO hand-written roots, so the lane fails until the library itself is fixed.
+        This project carries NO hand-written roots, so a regression in the library's own rooting fails the
+        lane outright. (It said "the lane fails until the library itself is fixed" while that was true; the
+        library was fixed in #4828 and the lane passes.)
         -->
         <PublishAot>true</PublishAot>
         <StripSymbols>false</StripSymbols>

@@ -227,7 +227,36 @@ public partial class WolverineRuntime
             [typeof(Envelope)] = routerFactory<Envelope>(),
             [typeof(Acknowledgement)] = routerFactory<Acknowledgement>(),
             [typeof(FailureAcknowledgement)] = routerFactory<FailureAcknowledgement>(),
-            [typeof(IAgentCommand)] = routerFactory<IAgentCommand>()
+            [typeof(IAgentCommand)] = routerFactory<IAgentCommand>(),
+
+            // GH-4825. The concrete agent messages the framework itself handles. They are internal, so the
+            // `codegen write` rooting block cannot name them -- HandlerRegistryCodeFile.onlyPublic() drops
+            // every non-public type, because generated code cannot put one inside a typeof(). An application
+            // with a durable message store walks all of them through PrepopulateRoutingCache at startup, so
+            // in a native image the reflective close in RoutingFor fires against instantiations nothing
+            // could root. Direct construction is the only fix available, exactly as GH-4287 did for
+            // IAgentCommand above.
+            //
+            // Held to COVERAGE of the real set by framework_router_factories_cover_every_agent_message,
+            // not to this list: the eight types the reported failure named were the ones that application's
+            // lane happened to reach, and that test immediately found six more with the identical defect --
+            // the Balanced-mode leader's own assignment messages, built in
+            // NodeAgentController.EvaluateAssignments and AssignmentGrid. Add a new agent message and that
+            // test fails until it is covered here.
+            [typeof(AgentPresenceReport)] = routerFactory<AgentPresenceReport>(),
+            [typeof(AgentsStarted)] = routerFactory<AgentsStarted>(),
+            [typeof(AgentsStopped)] = routerFactory<AgentsStopped>(),
+            [typeof(AssignAgent)] = routerFactory<AssignAgent>(),
+            [typeof(AssignAgents)] = routerFactory<AssignAgents>(),
+            [typeof(QueryAgentPresence)] = routerFactory<QueryAgentPresence>(),
+            [typeof(ReassignAgent)] = routerFactory<ReassignAgent>(),
+            [typeof(ReassignAgents)] = routerFactory<ReassignAgents>(),
+            [typeof(StartAgent)] = routerFactory<StartAgent>(),
+            [typeof(StartAgents)] = routerFactory<StartAgents>(),
+            [typeof(StopAgent)] = routerFactory<StopAgent>(),
+            [typeof(StopAgents)] = routerFactory<StopAgents>(),
+            [typeof(StopRemoteAgent)] = routerFactory<StopRemoteAgent>(),
+            [typeof(StopRemoteAgents)] = routerFactory<StopRemoteAgents>()
         };
 
     private static Func<WolverineRuntime, List<IMessageRoute>, IMessageRouter> routerFactory<T>()
