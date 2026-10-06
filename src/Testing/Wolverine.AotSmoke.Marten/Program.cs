@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 
 var isCli = args.Length > 0 && args[0] is "codegen" or "describe" or "help" or "?";
 
@@ -48,7 +49,18 @@ builder.Services.AddMarten(opts =>
 builder.Host.UseWolverine(opts =>
 {
     opts.ServiceName = "aot-marten-smoke";
-    opts.Durability.Mode = DurabilityMode.Solo;
+
+    // GH-4843. BALANCED, deliberately, and the only native lane that is. Every store-backed lane ran Solo,
+    // and in Solo the agent messaging path is never used: agents start locally and the leader's assignment
+    // messages never route. That is why the fourteen unrooted MessageRouter<T> closes over the framework's
+    // own agent messages (GH-4825 item 4, fixed in #4842) were found by a user and not by this repository.
+    // A single Balanced node still runs NodeAgentController, still elects itself leader, still evaluates
+    // assignments and still routes the assignment messages -- it just has nothing to hand off to. The
+    // leadership and assignment waits after StartAsync are what make that path load-bearing rather than
+    // incidental. One measured limit, so nobody over-reads this lane: with those fourteen factories
+    // stripped out it still boots and passes, on net9.0 and net10.0 alike. It covers the clustered path
+    // in a native image; it does not reproduce that particular failure.
+    opts.Durability.Mode = DurabilityMode.Balanced;
     // GH-4825. The MESSAGE-handler half of the side-effect failure. SideEffectPolicy is applied to handler
     // chains and HTTP chains by two different registries, each emitting its own rooting block, so a fix
     // proven only through an endpoint leaves the handler path untested.
@@ -92,6 +104,24 @@ try
         return 1;
     }
 
+    // GH-4843. The clustered half of this lane. A Balanced node that boots is not evidence that the
+    // leader's assignment pass works in a native image; one that has assumed leadership AND been assigned
+    // the durability agent has run NodeAgentController's election, EvaluateAssignments and the AssignAgent
+    // round trip through the message router. Both are polled, because both happen after StartAsync
+    // returns.
+    if (!await app.WaitUntilAssumesLeadershipAsync(TimeSpan.FromSeconds(30)))
+    {
+        await Console.Error.WriteLineAsync("FAIL: the Balanced node never assumed leadership.");
+        return 1;
+    }
+
+    if (!await waitForAgentAsync(app, PersistenceConstants.AgentScheme, TimeSpan.FromSeconds(30)))
+    {
+        await Console.Error.WriteLineAsync(
+            $"FAIL: the leader never assigned itself a '{PersistenceConstants.AgentScheme}' agent. Running agents: {string.Join(", ", app.RunningAgents())}");
+        return 1;
+    }
+
     using var client = new HttpClient();
 
     var id = Guid.NewGuid();
@@ -132,9 +162,11 @@ try
         }
     }
 
+    // Also part of the clustered path: a Balanced node stops its agents and releases leadership on the way
+    // out, which is StopAgents and its siblings through the same routers.
     await app.StopAsync();
 
-    Console.WriteLine("OK: Native AOT Marten HTTP boot + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IMartenOp smoke passed.");
+    Console.WriteLine("OK: Native AOT Marten HTTP boot (Balanced, leader, durability agent assigned) + IStartStream + Results<Ok<T>, ProblemHttpResult> + handler IMartenOp smoke passed.");
     return 0;
 }
 catch (Exception e)
@@ -142,6 +174,18 @@ catch (Exception e)
     await Console.Error.WriteLineAsync("FAIL: Native AOT Marten HTTP smoke crashed:");
     await Console.Error.WriteLineAsync(e.ToString());
     return 1;
+}
+
+static async Task<bool> waitForAgentAsync(IHost host, string scheme, TimeSpan timeout)
+{
+    var deadline = DateTimeOffset.UtcNow + timeout;
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        if (host.RunningAgents().Any(x => x.Scheme == scheme)) return true;
+        await Task.Delay(100);
+    }
+
+    return host.RunningAgents().Any(x => x.Scheme == scheme);
 }
 
 public record AotOrderPlaced(Guid Id);

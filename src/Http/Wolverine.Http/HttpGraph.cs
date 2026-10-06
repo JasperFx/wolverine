@@ -141,6 +141,17 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     public IReadOnlyList<ICodeFile> BuildFiles()
     {
+        // GH-4841. The rooting block below is only emitted under `codegen write`, and one of its inputs --
+        // the IEndpointMetadataProvider types -- is RECORDED by HttpChain.BuildEndpoint rather than
+        // recomputed here. That is deliberate (see HttpChain.EndpointMetadataProviderTypes), and it rests
+        // on DiscoverEndpoints having built every endpoint before this runs. Nothing else enforces that
+        // order, and the failure if it were ever broken is a rooting block that is silently short, which
+        // a native image reports as a startup crash and nothing reports sooner. So: refuse, by name.
+        if (DynamicCodeBuilder.WithinCodegenCommand)
+        {
+            assertEveryEndpointWasBuiltBeforeCodegen();
+        }
+
         // Pre-generated endpoint registry for TypeLoadMode.Static cold-start (GH-2925, the Wolverine.Http
         // counterpart to the GH-2906 handler manifest): capture the discovered endpoint types so startup
         // can skip the HttpChainSource.FindActions ExportedTypes scan. The types come from the already-built
@@ -183,6 +194,8 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         //   - The IEndpointMetadataProvider types HttpChain closed its OWN Applier<T> over. That is a
         //     different Applier<T> from the Wolverine.Configuration one GH-4778 roots, and
         //     Results<Ok<T>, ProblemHttpResult> -- a plain minimal-API return type -- lands on it.
+        //     Recorded by BuildEndpoint as the closes happen, which is what the guard at the top of this
+        //     method protects.
         var sideEffectTypes = _chains.SelectMany(SideEffectAotRoots.Of);
         var metadataProviderTypes = _chains.SelectMany(x => x.EndpointMetadataProviderTypes);
 
@@ -193,6 +206,27 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         };
 
         return files;
+    }
+
+    /// <summary>
+    ///     GH-4841. <c>codegen write</c> must not emit the HTTP rooting block for a chain whose endpoint was
+    ///     never built, because the <see cref="IEndpointMetadataProvider" /> roots in that block are
+    ///     recorded by <see cref="HttpChain.BuildEndpoint" /> and would be missing without a trace.
+    /// </summary>
+    /// <remarks>
+    ///     Only under <see cref="DynamicCodeBuilder.WithinCodegenCommand" />: <see cref="BuildFiles" /> is
+    ///     also enumerated by <c>AssertPreBuiltTypesExist</c> during <see cref="TypeLoadMode.Static" />
+    ///     attach, which runs BEFORE the endpoints are built and emits nothing.
+    /// </remarks>
+    private void assertEveryEndpointWasBuiltBeforeCodegen()
+    {
+        var unbuilt = _chains.Where(x => x.Endpoint == null).ToArray();
+        if (unbuilt.Length == 0) return;
+
+        throw new InvalidOperationException(
+            $"Code generation reached {nameof(HttpGraph)}.{nameof(BuildFiles)} before {nameof(DiscoverEndpoints)} had built the endpoint for {unbuilt.Length} of {_chains.Count} HTTP chain(s): {string.Join(", ", unbuilt.Select(x => x.ToString()))}. " +
+            "The IEndpointMetadataProvider roots in the generated HttpAotRoots block are recorded while each endpoint is built, so generating now would emit a rooting block that is silently missing them and a Native AOT image that fails at startup. " +
+            "Call MapWolverineEndpoints() on the application before handing it to RunJasperFxCommands().");
     }
 
     public string ChildNamespace => "WolverineHandlers";

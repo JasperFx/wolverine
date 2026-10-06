@@ -1,6 +1,7 @@
 using Alba;
 using JasperFx;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -82,6 +83,50 @@ public class aot_roots_for_http_metadata_and_side_effects
         // failure: IStartStream inherits Execute from IMartenOp, so rooting only the return type keeps the
         // interface list and loses the method findMethod then looks for.
         code.ShouldContain("typeof(global::Wolverine.Http.Tests.IGh4825SideEffect)");
+    }
+
+    [Fact]
+    public void codegen_refuses_to_run_while_a_chain_has_no_built_endpoint()
+    {
+        // GH-4841. EndpointMetadataProviderTypes is recorded by BuildEndpoint, so a rooting block generated
+        // before DiscoverEndpoints built the endpoints would be silently short of every
+        // IEndpointMetadataProvider root -- a native image that fails at startup, with nothing reporting it
+        // sooner. HttpGraph.Add is the one way to get a chain into the graph without building it.
+        var graph = new HttpGraph(new WolverineOptions(), ServiceContainer.Empty());
+        var chain = graph.Add(new MethodCall(typeof(Gh4825Endpoints), nameof(Gh4825Endpoints.Typed)),
+            HttpMethod.Get, "/gh4825/typed");
+
+        // The precondition the guard is about, stated so that the throw below is not for some other reason.
+        chain.Endpoint.ShouldBeNull();
+
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+        try
+        {
+            var exception = Should.Throw<InvalidOperationException>(() => ((ICodeFileCollection)graph).BuildFiles());
+
+            // Named, because the operator fixing this needs to know which chain, not that one exists.
+            exception.Message.ShouldContain(chain.ToString());
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    [Fact]
+    public void static_attach_still_enumerates_the_files_before_the_endpoints_are_built()
+    {
+        // The negative control for the guard above. AssertPreBuiltTypesExist walks BuildFiles during
+        // TypeLoadMode.Static attach, which DiscoverEndpoints runs BEFORE BuildEndpoint -- and that path
+        // emits no rooting block, so it has nothing to be short of. A guard that fired there would turn
+        // every Static-mode HTTP application into a startup failure.
+        var graph = new HttpGraph(new WolverineOptions(), ServiceContainer.Empty());
+        graph.Add(new MethodCall(typeof(Gh4825Endpoints), nameof(Gh4825Endpoints.Typed)), HttpMethod.Get,
+            "/gh4825/typed");
+
+        DynamicCodeBuilder.WithinCodegenCommand.ShouldBeFalse();
+
+        ((ICodeFileCollection)graph).BuildFiles().OfType<HttpChain>().ShouldNotBeEmpty();
     }
 
     private static async Task<IAlbaHost> startHostAsync()

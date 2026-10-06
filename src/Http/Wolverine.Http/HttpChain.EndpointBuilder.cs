@@ -55,6 +55,14 @@ public partial class HttpChain : IEndpointConventionBuilder
     ///     <c>tryApplyAsEndpointMetadataProvider</c>. <see cref="HttpGraph.BuildFiles" /> reads this after
     ///     <see cref="HttpGraph.DiscoverEndpoints" /> has built every endpoint, which is the only order
     ///     <c>codegen write</c> runs them in.
+    ///     <para>
+    ///     GH-4841. That ordering is the one assumption this shape makes, and the alternative -- recomputing
+    ///     the candidate set from the resource type, the parameters and the middleware's created variables
+    ///     -- makes none, but drifts silently the day a fourth call site is added. The recorded form was kept
+    ///     because its failure mode is the one that can be checked: <see cref="HttpGraph.BuildFiles" />
+    ///     refuses to generate while any chain's <see cref="Endpoint" /> is still null, so "nothing was
+    ///     recorded" can never read as "nothing needed rooting".
+    ///     </para>
     /// </remarks>
     internal IReadOnlyList<Type> EndpointMetadataProviderTypes => _endpointMetadataProviderTypes;
 
