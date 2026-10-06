@@ -130,6 +130,10 @@
     <Project Path="src/Persistence/Oracle/OracleTests/OracleTests.csproj" />
     <Project Path="src/Persistence/Oracle/Wolverine.Oracle/Wolverine.Oracle.csproj" />
   </Folder>
+  <Folder Name="/Persistence/InMemory/">
+    <Project Path="src/Persistence/InMemoryTests/InMemoryTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.InMemory/Wolverine.InMemory.csproj" />
+  </Folder>
   <Folder Name="/Persistence/Fisher/">
     <Project Path="src/Http/Wolverine.Http.Fisher/Wolverine.Http.Fisher.csproj" />
     <Project Path="src/Persistence/FisherTests/FisherTests.csproj" />

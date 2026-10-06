@@ -7,8 +7,6 @@ namespace Internal.Generated.WolverineHandlers
     [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
     public sealed class StartAotSagaHandler2113021606 : Wolverine.Runtime.Handlers.MessageHandler
     {
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -33,11 +31,9 @@ namespace Internal.Generated.WolverineHandlers
             // No additional Unit of Work necessary
             await sagaStorageOfGuidAndAotSaga.SaveChangesAsync(cancellation);
         }
-
     }
 
     // END: StartAotSagaHandler2113021606
     
     
 }
-

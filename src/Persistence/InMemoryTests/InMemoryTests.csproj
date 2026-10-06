@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <NoWarn>$(NoWarn);NU1202;NETSDK1005</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.v3"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- No explicit JasperFx.Events.SourceGenerator reference: JasperFx.Events.InMemory bundles the
+         generator (analyzers/dotnet/cs) and it flows here through Wolverine.InMemory, which is exactly the
+         path an application takes. A second, explicit copy would load two analyzer instances and emit
+         every aggregate's dispatcher twice (CS0433). -->
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.InMemory\Wolverine.InMemory.csproj" />
+        <!-- Dynamic codegen needs the runtime compiler, which core no longer ships (GH-2876). An
+             application prototyping on the in-memory store adds the same package. -->
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+</Project>

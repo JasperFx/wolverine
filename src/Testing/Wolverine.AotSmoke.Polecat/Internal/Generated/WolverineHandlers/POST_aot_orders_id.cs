@@ -24,8 +24,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -37,9 +35,7 @@ namespace Internal.Generated.WolverineHandlers
 
             if (id_rawValue != null && System.Guid.TryParse(id_rawValue, System.Globalization.CultureInfo.InvariantCulture, out id))
             {
-
             }
-
             else
             {
                 httpContext.Response.StatusCode = 404;
@@ -55,7 +51,6 @@ namespace Internal.Generated.WolverineHandlers
                 
                 // Placed by Wolverine's ISideEffect policy
                 startStream.Execute(documentSession);
-
             }
 
             
@@ -68,11 +63,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await result.ExecuteAsync(httpContext).ConfigureAwait(false);
         }
-
     }
 
     // END: POST_aot_orders_id
     
     
 }
-
