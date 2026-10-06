@@ -165,7 +165,14 @@ public class Bug_4710_scheduled_promotion_routes_by_destination : IAsyncLifetime
     private async Task<List<IncomingMessage>> scheduledMessagesAsync()
     {
         using var session = _store.OpenAsyncSession();
+
+        // GH-4848 found this while chasing a red CIRavenDb: a RavenDB query is served from an index, and an
+        // index is updated asynchronously after the write, so a query issued straight after InvokeAsync
+        // returns can legitimately answer with zero rows for a document that is already stored. The store's
+        // own admin query (RavenDbMessageStore.Admin.cs) waits; this one did not, and lost that race on
+        // every run on one machine and once in CI, where it read as a routing regression.
         return await session.Query<IncomingMessage>()
+            .Customize(x => x.WaitForNonStaleResults())
             .Where(x => x.Status == EnvelopeStatus.Scheduled)
             .ToListAsync(TestContext.Current.CancellationToken);
     }
@@ -173,7 +180,9 @@ public class Bug_4710_scheduled_promotion_routes_by_destination : IAsyncLifetime
     private async Task<List<IncomingMessage>> incomingMessagesAsync()
     {
         using var session = _store.OpenAsyncSession();
-        return await session.Query<IncomingMessage>().ToListAsync(TestContext.Current.CancellationToken);
+        return await session.Query<IncomingMessage>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .ToListAsync(TestContext.Current.CancellationToken);
     }
 
     private static async Task waitForAsync(Func<bool> condition, Func<string> diagnostic)
