@@ -964,6 +964,24 @@ partial class Build
         .ProceedAfterFailure()
         .DependsOn(CIAWSSqs, CIAWSSqsCompliance, CIAWSSns);
 
+    /// <summary>
+    /// GH-4833. WolverineFx.Bobcat and WolverineFx.Bobcat.Http. Their tests run on Marten until the
+    /// in-memory prototyping store implements IEventStore (JasperFx/jasperfx#985). The HTTP suite is
+    /// net10.0-only (Alba 9); frameworkFor picks that up from the project.
+    /// </summary>
+    Target CIBobcat => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Tests" / "Wolverine.Bobcat.Tests.csproj";
+            var httpTests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Http.Tests" / "Wolverine.Bobcat.Http.Tests.csproj";
+
+            BuildTestProjects(tests, httpTests);
+            StartDockerServices("postgresql");
+
+            RunTestProjects([tests, httpTests]);
+        });
+
     Target CIKafka => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

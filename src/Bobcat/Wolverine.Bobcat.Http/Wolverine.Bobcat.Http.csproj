@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Description>Wolverine.HTTP acts for WolverineFx.Bobcat specifications through Alba: WhenPosted with the route resolved from the request type, any 2xx accepted, Scenario overrides, typed responses.</Description>
+        <PackageId>WolverineFx.Bobcat.Http</PackageId>
+        <!-- Alba 9 targets net10.0+ only -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <!-- Test-time library: exempt from the AOT compliance the shipping runtime packages carry -->
+        <IsAotCompatible>false</IsAotCompatible>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Bobcat\Wolverine.Bobcat.csproj" />
+        <ProjectReference Include="..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Alba" />
+    </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Wolverine.Bobcat.Http.Tests" />
+    </ItemGroup>
+</Project>
