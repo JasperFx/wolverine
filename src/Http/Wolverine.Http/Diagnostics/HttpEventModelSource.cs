@@ -40,19 +40,30 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
     /// </summary>
     public EventModelProvenance Provenance => EventModelProvenance.Derived;
 
-    public Task<EventModelDescriptor?> TryCreateAsync(IServiceProvider services, CancellationToken token)
+    public async Task<EventModelDescriptor?> TryCreateAsync(IServiceProvider services, CancellationToken token)
     {
         var graph = _options.Endpoints;
-        if (graph is null) return Task.FromResult<EventModelDescriptor?>(null);
+        if (graph is null) return null;
 
-        return Task.FromResult<EventModelDescriptor?>(Describe(_wolverineOptions, graph.Chains));
+        // GH-4829: the domain policies the declared models carry decide each slice's Domain
+        var domains = await EventModelSliceDomains.DeclaredAssignmentsAsync(services, token).ConfigureAwait(false);
+
+        return Describe(_wolverineOptions, graph.Chains, domains);
     }
 
     /// <summary>Describe every routed HTTP chain as an Event Model slice.</summary>
     public static EventModelDescriptor Describe(WolverineOptions options, IEnumerable<HttpChain> chains)
+        => Describe(options, chains, Array.Empty<DomainAssignmentDescriptor>());
+
+    /// <summary>
+    ///     Describe every routed HTTP chain as an Event Model slice, giving each the domain that
+    ///     <paramref name="domains" /> or a <see cref="DomainAttribute" /> declares for its endpoint (GH-4829).
+    /// </summary>
+    public static EventModelDescriptor Describe(WolverineOptions options, IEnumerable<HttpChain> chains,
+        IReadOnlyList<DomainAssignmentDescriptor> domains)
     {
         var chainList = chains.ToList();
-        var model = Describe(options.ServiceName, chainList);
+        var model = Describe(options.ServiceName, chainList, domains);
 
         var knownTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
         foreach (var chain in chainList)
@@ -71,6 +82,10 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
 
     /// <summary>Describe every routed HTTP chain as an Event Model slice, without endpoint-derived external systems.</summary>
     public static EventModelDescriptor Describe(string serviceName, IEnumerable<HttpChain> chains)
+        => Describe(serviceName, chains, Array.Empty<DomainAssignmentDescriptor>());
+
+    private static EventModelDescriptor Describe(string serviceName, IEnumerable<HttpChain> chains,
+        IReadOnlyList<DomainAssignmentDescriptor> domains)
     {
         var slices = new List<EventModelSliceDescriptor>();
         var aggregates = new List<AggregateDescriptor>();
@@ -80,7 +95,7 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
                      .OrderBy(x => x.RoutePattern!.RawText, StringComparer.Ordinal)
                      .ThenBy(x => x.HttpMethods.OrderBy(m => m).FirstOrDefault(), StringComparer.Ordinal))
         {
-            slices.Add(ForChain(chain));
+            slices.Add(EventModelSliceDomains.ApplyDomain(ForChain(chain), chain.EndpointType, chain.Method.Method, domains));
             foreach (var aggregate in EventModelRoles.AggregatesFor(chain))
             {
                 if (aggregateNames.Add(aggregate.Type.FullName)) aggregates.Add(aggregate);

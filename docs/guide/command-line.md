@@ -458,6 +458,40 @@ Nothing is aligned between two sources on the *same* rung (Wolverine core and Wo
 how they name things), a handler type carrying more than one slice inside a source identifies none of them, and
 a rename that would collide with a slice already in that source is dropped.
 
+A model declared *stub-first* has no handler type yet, so the export also joins on the other roles a stub pins
+down, in this order: the triggering message **and its domain** (see below), the triggering message on its own —
+the event an automation reacts to with `On<T>()`, else the command from `Command<T>()` or `Automation<TCommand>()`,
+which is also the request type a Wolverine.HTTP endpoint is named for — and the read model of a `View<T>()`. A
+stub *is* the real type, so these joins are exact, and a role declared by name matches the type of that name. The
+same guards apply to every one of them, and a slice joined on an earlier key is never joined again on a later one.
+
+### One message, several modules
+
+In a modular monolith running `MultipleHandlerBehavior.Separated`, every module's handler of the same message is
+its own chain, and each gets its own slice. A message with a single handler keeps its bare name; a message with
+several gets one slice per handler, named for its **domain** — `OrderPlaced (Billing)`, `OrderPlaced (Shipping)` —
+or, when no domain is declared, for its handler type: `OrderPlaced (MyApp.Billing.OrderPlacedHandler)`.
+
+A module is a domain, and membership is **declared, never inferred** — Wolverine never guesses a module from a
+namespace or an assembly on its own. Declare it on the handler or endpoint, or as a policy on a declared model:
+
+```cs
+[Domain("Billing")]
+public class OrderPlacedHandler
+{
+    public InvoiceRequested Handle(OrderPlaced e) => new(e.OrderId);
+}
+
+services.AddEventModel("Orders", model =>
+{
+    model.Domain("Shipping").IncludesNamespace("MyApp.Shipping");
+    model.Domain("Billing").Includes(typeof(BillingModule).Assembly);
+});
+```
+
+Every slice derived for such a handler carries that `Domain`, and a declaration that lost to a more specific one
+— a namespace policy overridden by an attribute, say — is called out as a hotspot on the slice rather than dropped.
+
 ### The slice next to the route
 
 The assembled model is one picture of the whole service. A monitoring console often wants the other view —
@@ -502,3 +536,48 @@ triggered `External`; a named listener bound to no slice still renders as a trig
 side, every slice whose published messages or emitted events the named endpoint subscribes to gets the system on
 its far end (a pure relay becomes a `Translation` slice; a command slice that also notifies Stripe stays a command
 slice).
+
+## Scaffolding Declared Slices
+
+Once a model is declared over stub types, the `scaffold` command writes an implementation skeleton for every slice
+that is declared but has **no code behind it yet** — something only the running application can tell, because it
+takes the declared model and the derived chains assembled together:
+
+```bash
+dotnet run -- scaffold                         # write into the current directory
+dotnet run -- scaffold --output ./src/Features # somewhere else
+dotnet run -- scaffold --dry-run               # report only
+```
+
+Each slice is written to its own file, in a folder per domain (`Scheduling/ConfirmAppointment.cs`), always in
+Wolverine's store-agnostic style so the same code runs on the in-memory prototyping store, Marten, Polecat or
+Fisher:
+
+| Declared slice | Skeleton |
+| --- | --- |
+| `Command` triggered by `TriggerKind.Http` | a Wolverine.HTTP endpoint with an empty `Validate` and a `[WolverinePost]` method |
+| `Command` triggered by `TriggerKind.MessageHandler` | a message handler |
+| `Automation` with `On<T>()` | a message handler for `T`, returning the command it issues as `OutgoingMessages` |
+| `.Against<T>()` | a non-nullable `[WriteModel] T` parameter |
+| `.StartsStream<T>()` | a `StartStream` return built with `Storage.StartStream<T>(...)` |
+| `.Emits<T>()` | an `EventsToAppend` return, with `[Emits(typeof(T))]` so the derived model sees the events |
+| `.Reads<T>()` / `.Produces<T>()` | an `[Entity] T` parameter / an `IStorageAction<T>` return |
+| an aggregate or view declared **by name** | a class with an `Apply` method per event it folds |
+| any other role declared **by name** | a `public record` stub to give fields |
+
+Method bodies describe the shape to fill in and throw `NotImplementedException`, so a slice nobody has filled in yet
+never stops the rest of the application compiling. Guard reasons live in your specifications and are not scaffolded.
+
+The command **never overwrites a file**. An implemented slice is not declared-only, so running it again is a no-op,
+and a file that already exists is reported and left alone. The report is one line per slice, written to be acted on
+by a person or an agent:
+
+```
+WROTE Scheduling/ConfirmAppointment.cs -- ConfirmAppointment: scaffolded.
+EDIT src/Domain/Appointment.cs -- MyApp.Appointment (aggregate): the aggregate already exists, so it was not rewritten. Add these methods to it by hand: public void Apply(AppointmentConfirmed e).
+UNKNOWN BookAppointment: trigger Unknown -- no HTTP endpoint, message handler or gRPC service handles BookAppointmentRequest yet, and the declaration does not say which it will be. Declare .TriggeredBy(TriggerKind.Http) or .TriggeredBy(TriggerKind.MessageHandler) and run the scaffold again.
+```
+
+A stub type that already exists — an aggregate or a view — is never rewritten: `EDIT` names the file it is declared in
+and the exact `Apply` methods it is missing. And a command slice whose trigger neither the declaration nor the code
+reveals is reported as `UNKNOWN` rather than guessed.

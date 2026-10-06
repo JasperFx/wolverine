@@ -52,16 +52,18 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// </summary>
     public EventModelProvenance Provenance => EventModelProvenance.Derived;
 
-    public Task<EventModelDescriptor?> TryCreateAsync(IServiceProvider services, CancellationToken token)
+    public async Task<EventModelDescriptor?> TryCreateAsync(IServiceProvider services, CancellationToken token)
     {
         // WolverineOptions rather than IWolverineRuntime on purpose: the export command (GH-3990)
         // describes a host that was never started, and the options + a compiled handler graph are
         // all this needs. A started host has the same options, so the two paths agree.
         var options = services.GetService<WolverineOptions>();
-        if (options is null) return Task.FromResult<EventModelDescriptor?>(null);
+        if (options is null) return null;
 
-        var descriptor = Describe(options, services.GetService<IGrpcEndpointManifest>());
-        return Task.FromResult<EventModelDescriptor?>(descriptor);
+        // GH-4829: the domain policies the declared models carry decide each slice's Domain
+        var domains = await EventModelSliceDomains.DeclaredAssignmentsAsync(services, token).ConfigureAwait(false);
+
+        return Describe(options, services.GetService<IGrpcEndpointManifest>(), domains);
     }
 
     /// <summary>
@@ -77,6 +79,18 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// <param name="options">The Wolverine options — the handler graph must have been compiled (a started host, or the code file collections resolved as the <c>event-model</c> command does).</param>
     /// <param name="grpc">The gRPC endpoint manifest, when <c>Wolverine.Grpc</c> is in play, so an RPC that forwards a message to the bus is reported as that slice's trigger.</param>
     public static EventModelDescriptor Describe(WolverineOptions options, IGrpcEndpointManifest? grpc = null)
+        => Describe(options, grpc, Array.Empty<DomainAssignmentDescriptor>());
+
+    /// <summary>
+    ///     Describe every message handler chain as an Event Model slice, giving each the
+    ///     <see cref="EventModelSliceDescriptor.Domain" /> that <paramref name="domains" /> or a
+    ///     <see cref="DomainAttribute" /> declares for its handler (GH-4829).
+    /// </summary>
+    /// <param name="options">The Wolverine options, with a compiled handler graph.</param>
+    /// <param name="grpc">The gRPC endpoint manifest, when <c>Wolverine.Grpc</c> is in play.</param>
+    /// <param name="domains">The domain policies of the application's declared Event Models; see <see cref="EventModelSliceDomains.DeclaredAssignmentsAsync" />.</param>
+    public static EventModelDescriptor Describe(WolverineOptions options, IGrpcEndpointManifest? grpc,
+        IReadOnlyList<DomainAssignmentDescriptor> domains)
     {
         var slices = new List<EventModelSliceDescriptor>();
         var aggregates = new List<AggregateDescriptor>();
@@ -84,9 +98,8 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         var stickyEndpoints = new Dictionary<string, HashSet<Uri>>(StringComparer.Ordinal);
         var knownTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
 
-        foreach (var chain in DescribedChains(options))
+        foreach (var (chain, slice) in DescribedSlices(options, domains))
         {
-            var slice = applyRecurringTrigger(EventModelRoles.ForHandlerChain(chain), chain.MessageType, options);
             slices.Add(slice);
 
             knownTypes.TryAdd(chain.MessageType.FullName!, chain.MessageType);
@@ -180,6 +193,34 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         => options.HandlerGraph.Chains
             .OrderBy(x => x.MessageType.FullName, StringComparer.Ordinal)
             .SelectMany(describedChains);
+
+    /// <summary>
+    ///     Every described chain with its slice, in model order. GH-4829: a message with more than one
+    ///     handler chain — the modules of a modular monolith under <c>MultipleHandlerBehavior.Separated</c>
+    ///     — gets one slice per chain, each named apart by <see cref="EventModelSliceDomains.QualifyNames" />,
+    ///     instead of one name every module's slice folded into.
+    /// </summary>
+    internal static IEnumerable<(HandlerChain Chain, EventModelSliceDescriptor Slice)> DescribedSlices(
+        WolverineOptions options, IReadOnlyList<DomainAssignmentDescriptor> domains)
+    {
+        foreach (var group in DescribedChains(options).GroupBy(x => x.MessageType))
+        {
+            var chains = group.ToList();
+            var members = chains.Select(chain =>
+            {
+                var call = chain.Handlers.FirstOrDefault();
+                var slice = applyRecurringTrigger(EventModelRoles.ForHandlerChain(chain), chain.MessageType, options);
+                slice = EventModelSliceDomains.ApplyDomain(slice, call?.HandlerType, call?.Method, domains);
+                return (slice, call?.HandlerType.FullName, chain.Endpoints.FirstOrDefault()?.Uri);
+            }).ToList();
+
+            var named = EventModelSliceDomains.QualifyNames(members);
+            for (var i = 0; i < chains.Count; i++)
+            {
+                yield return (chains[i], named[i]);
+            }
+        }
+    }
 
     private static IEnumerable<HandlerChain> describedChains(HandlerChain chain)
     {
@@ -374,13 +415,14 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
         // the same chain, chosen the same way, that Describe() would have turned into the slice
         // ApplyGrpcTriggers then stamps: first match in model order wins
-        var chain = options is null
+        var slice = options is null
             ? null
-            : DescribedChains(options).FirstOrDefault(x => x.MessageType.FullName == endpoint.RequestType.FullName);
+            : DescribedSlices(options, Array.Empty<DomainAssignmentDescriptor>())
+                .FirstOrDefault(x => x.Chain.MessageType.FullName == endpoint.RequestType.FullName).Slice;
 
-        return chain is null
+        return slice is null
             ? grpcTriggerOnlySlice(endpoint, origin)
-            : withGrpcTrigger(EventModelRoles.ForHandlerChain(chain), origin);
+            : withGrpcTrigger(slice, origin);
     }
 
     internal static PublisherOrigin GrpcOriginFor(GrpcEndpointDescriptor endpoint) => new()
