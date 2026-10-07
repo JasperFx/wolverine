@@ -45,6 +45,24 @@ public class NatsTransportConfiguration
     public string? JetStreamApiPrefix { get; set; }
 
     public bool AutoProvision { get; set; } = true;
+
+    /// <summary>
+    /// What startup does with declared streams and named listener consumers that already exist on the server.
+    /// When null (the default), existing streams are left alone (<see cref="NatsProvisioning.CreateOnly"/>) -- an
+    /// update can discard data -- while named consumers are brought in line with the configuration
+    /// (<see cref="NatsProvisioning.CreateOrUpdate"/>), so a changed <c>MaxDeliver</c> or <c>AckWait</c> just works.
+    /// </summary>
+    public NatsProvisioning? Provisioning { get; set; }
+
+    /// <summary>
+    /// <see cref="Provisioning"/> as it applies to declared streams
+    /// </summary>
+    internal NatsProvisioning StreamProvisioning => Provisioning ?? NatsProvisioning.CreateOnly;
+
+    /// <summary>
+    /// <see cref="Provisioning"/> as it applies to the named consumers of JetStream listeners
+    /// </summary>
+    internal NatsProvisioning ConsumerProvisioning => Provisioning ?? NatsProvisioning.CreateOrUpdate;
     public string? DefaultQueueGroup { get; set; }
     public bool NormalizeSubjects { get; set; } = true;
     public JetStreamDefaults JetStreamDefaults { get; set; } = new();
@@ -62,6 +80,19 @@ public class NatsTransportConfiguration
     /// </summary>
     [IgnoreDescription]
     public Func<Envelope, string>? MsgIdSource { get; set; }
+
+    /// <summary>
+    /// Optional last word over the NATS.Net <see cref="NatsOpts"/> of a connection the transport opens: it receives
+    /// the options Wolverine built from this configuration -- connection already named -- and the connection uses
+    /// whatever it returns. Reach for it for client settings this configuration does not surface, such as
+    /// <see cref="NatsOpts.SubPendingChannelCapacity"/>, <see cref="NatsOpts.SubPendingChannelFullMode"/>,
+    /// <see cref="NatsOpts.PingInterval"/> or the reconnect behavior. Applies to the shared connection and to every
+    /// tenant's dedicated connection; a tenant's own configuration may set one of its own, which then replaces the
+    /// transport's for that tenant. Null (the default) leaves the NATS.Net defaults alone.
+    /// </summary>
+    [IgnoreDescription]
+    public Func<NatsOpts, NatsOpts>? ConfigureNatsOpts { get; set; }
+
     public Dictionary<string, StreamConfiguration> Streams { get; set; } = new();
 
     internal NatsOpts ToNatsOpts()
@@ -97,21 +128,58 @@ public class NatsTransportConfiguration
 }
 
 /// <summary>
-/// Transport-wide defaults used as the template when Wolverine auto-provisions JetStream streams
-/// and consumers. Per-stream <see cref="StreamConfiguration"/> overrides these where it sets a value.
-/// (<c>AckPolicy</c> is always <c>Explicit</c> for Wolverine consumers.)
+/// Transport-wide defaults for the JetStream consumers and streams Wolverine creates itself.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="AckWait"/>, <see cref="MaxDeliver"/> and <see cref="DeliverPolicy"/> apply to the consumers of
+/// Wolverine's JetStream listeners, where per-endpoint settings win. (<c>AckPolicy</c> is always
+/// <c>Explicit</c> for Wolverine consumers.)
+/// </para>
+/// <para>
+/// The stream limits -- <see cref="MaxAge"/>, <see cref="MaxMessages"/>, <see cref="MaxBytes"/> and
+/// <see cref="Replicas"/> -- apply only to a stream that resource setup (<c>resources setup</c> /
+/// <c>AddResourceSetupOnStartup()</c>) creates because a JetStream endpoint's stream does not exist yet. A stream
+/// declared through <c>DefineStream()</c> and friends is created from its declaration when the transport
+/// connects and does not inherit them: a limit its
+/// <see cref="StreamConfiguration"/> leaves unset is unlimited, and its replica count is
+/// <see cref="StreamConfiguration.Replicas"/>. Of the stream settings here, only <see cref="DuplicateWindow"/>
+/// also applies to declared streams.
+/// </para>
+/// </remarks>
 public class JetStreamDefaults
 {
+    /// <summary>
+    /// Maximum age of a stream that resource setup creates for an endpoint. Not applied to declared
+    /// streams; see the remarks on <see cref="JetStreamDefaults"/>.
+    /// </summary>
     public TimeSpan? MaxAge { get; set; } = TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// Maximum message count of a stream that resource setup creates for an endpoint. Not applied to
+    /// declared streams; see the remarks on <see cref="JetStreamDefaults"/>.
+    /// </summary>
     public long? MaxMessages { get; set; } = 1_000_000;
+
+    /// <summary>
+    /// Maximum size of a stream that resource setup creates for an endpoint. Not applied to declared
+    /// streams; see the remarks on <see cref="JetStreamDefaults"/>.
+    /// </summary>
     public long? MaxBytes { get; set; } = 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// Replica count of a stream that resource setup creates for an endpoint. Not applied to declared
+    /// streams, which use <see cref="StreamConfiguration.Replicas"/>; see the remarks on <see cref="JetStreamDefaults"/>.
+    /// </summary>
     public int Replicas { get; set; } = 1;
+
     public TimeSpan AckWait { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Default maximum delivery attempts for auto-provisioned JetStream consumers, and the dead-letter
-    /// threshold. A per-endpoint <c>ConfigureDeadLetterQueue(maxDeliveryAttempts, ...)</c> overrides this.
+    /// Default maximum delivery attempts (<c>MaxDeliver</c>) for Wolverine's JetStream consumers: how often
+    /// JetStream delivers a message that is not acknowledged. When a failing message goes to the dead letter
+    /// subject is decided by Wolverine's error handling, not by this number. A per-endpoint
+    /// <c>ConfigureDeadLetterQueue(maxDeliveryAttempts, ...)</c> overrides this.
     /// </summary>
     public int MaxDeliver { get; set; } = 5;
 

@@ -85,7 +85,11 @@ public class StreamConfiguration
     }
 
     /// <summary>
-    /// Configure as work queue (retention by interest)
+    /// Sets <see cref="Retention"/> to <see cref="StreamConfigRetention.Interest"/> -- despite the name, not
+    /// JetStream's work-queue retention. An interest stream keeps a message only while a consumer is interested
+    /// in it, so a message published while no consumer is bound is discarded on arrival. For JetStream's
+    /// work-queue retention, which keeps every message until it is acknowledged, set
+    /// <c>Retention = StreamConfigRetention.Workqueue</c> instead.
     /// </summary>
     public StreamConfiguration AsWorkQueue()
     {
