@@ -361,8 +361,20 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         var listener = Listener;
         var receiver = _receiver;
-        if (listener == null)
+
+        // GH-4866. A listener paused by back pressure has no IListener -- MarkAsTooBusyAndStopReceivingAsync
+        // stopped and disposed it -- but it still has the receiver, deliberately, because the backlog that
+        // receiver holds is what has to drain before the listener may resume. This used to return right here
+        // on `listener == null`, which made a stop in the TooBusy state a no-op: no latch, no receiver drain,
+        // no companion-queue drain (GH-4777), and Status left at TooBusy. The exclusive-listener agent still
+        // reported a clean stop, so the leader started the slot on another node while this one kept
+        // executing its backlog beside it; and with Status still TooBusy, the next back pressure sweep that
+        // found the queue under BufferingLimits.Restart called StartAsync() and put this node back on a slot
+        // it no longer owned. A missing listener means there is nothing to stop, not nothing to do.
+        if (listener == null && receiver == null)
         {
+            Status = ListeningStatus.Stopped;
+            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
             return;
         }
 
@@ -371,7 +383,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
 
-            await listener.StopAsync();
+            if (listener != null)
+            {
+                await listener.StopAsync();
+            }
 
             // When called during normal shutdown, latch BEFORE drain so DrainAsync knows
             // it can safely wait for in-flight messages to complete.
@@ -401,13 +416,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 await drainCompanionQueueAsync();
             }
 
-            try
+            if (listener != null)
             {
-                await listener.DisposeAsync();
-            }
-            catch (ObjectDisposedException)
-            {
-                // Listener may already be disposed during rapid pause/stop cycles.
+                try
+                {
+                    await listener.DisposeAsync();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Listener may already be disposed during rapid pause/stop cycles.
+                }
             }
 
             receiver?.Dispose();
