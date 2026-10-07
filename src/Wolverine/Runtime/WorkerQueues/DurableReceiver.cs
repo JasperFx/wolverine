@@ -395,12 +395,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        // GH-826, the attempts are already incremented from the executor
-        if (!envelope.IsFromLocalDurableQueue())
-        {
-            envelope.Attempts++;
-        }
-
+        // GH-4851. Deliberately NOT incrementing Attempts here, for any envelope. Every execution goes through
+        // Executor.ExecuteAsync (or TracingExecutor), which increments Attempts as it starts, so the requeued
+        // execution counts itself. GH-826 removed the second increment for envelopes sent by a DurableLocalQueue
+        // only, which left every external durable listener -- a database queue, a broker -- reporting attempts
+        // 1 then 3 on a Requeue, and firing attempt-bounded policies one try early. The persisted value below
+        // is the attempt that just failed; a recovered row resumes at the next one, which is the same number
+        // an in-memory requeue would reach.
         await _incrementAttempts.PostAsync(envelope).ConfigureAwait(false);
 
         if (_latched)
