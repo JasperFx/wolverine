@@ -78,6 +78,13 @@ public class WolverineScenario
     /// </summary>
     public bool IncludeExternalTransports { get; set; } = true;
 
+    /// <summary>
+    /// What fills the members a partial object (<c>Specify&lt;T&gt;()</c> or a table row) leaves
+    /// unspecified when the scenario builds it for a Given or a When. Null takes Bobcat's default
+    /// (bobcat#421).
+    /// </summary>
+    public IUnspecifiedValues? UnspecifiedValues { get; set; }
+
     /// <summary>What the last act did.</summary>
     public ActOutcome LastAct { get; protected set; } = ActOutcome.None;
 
@@ -126,15 +133,14 @@ public class WolverineScenario
     public async Task GivenEvents(Type aggregate, object id, params object[] events)
     {
         var stream = streamName(aggregate, id);
+        events = flatten(events);
         var (described, inline) = describe(events);
-        using var step = ScenarioRecorder.Step("Given",
-            events.Length == 0
-                ? $"{stream} has no events yet"
-                : $"{stream} has already recorded {described}");
+        var text = events.Length == 0 ? $"{stream} has no events yet" : $"{stream} has already recorded {described}";
+        using var step = ScenarioRecorder.Step("Given", text);
 
         _stream = id;
-        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, events);
         if (!inline) recordValues("event", events);
+        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, build(events, text));
     }
 
     /// <summary>
@@ -160,10 +166,12 @@ public class WolverineScenario
     /// <inheritdoc cref="GivenEventsOn{TAggregate}(Guid, object[])" />
     public async Task GivenEventsOn(Type aggregate, object id, params object[] events)
     {
+        events = flatten(events);
         var (described, inline) = describe(events);
-        using var step = ScenarioRecorder.Step("Given", $"{streamName(aggregate, id)} has already recorded {described}");
-        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, events);
+        var text = $"{streamName(aggregate, id)} has already recorded {described}";
+        using var step = ScenarioRecorder.Step("Given", text);
         if (!inline) recordValues("event", events);
+        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, build(events, text));
     }
 
     /// <summary>
@@ -186,9 +194,31 @@ public class WolverineScenario
     /// </summary>
     private static (string Text, bool Inline) describe(IReadOnlyList<object> values)
     {
-        var full = ScenarioValues.DescribeAll(values);
+        // A partial object reads as only the members it specifies: ShipmentConfirmed(TrackingNumber: 1Z999)
+        var full = values.Any(x => x is IPartialObject)
+            ? string.Join(", ", values.Select(x => x is IPartialObject partial ? PartialObjects.Describe(partial) : ScenarioValues.Describe(x)))
+            : ScenarioValues.DescribeAll(values);
         return full.Length <= ScenarioValues.InlineLimit ? (full, true) : (names(values), false);
     }
+
+    /// <summary>
+    /// The values a step was given, with each <em>list</em> of partial objects — the rows of a table
+    /// through <c>PartialObjects.FromTable</c> — spread into its items, so a table and single values
+    /// mix in one call.
+    /// </summary>
+    private static object[] flatten(object[] values)
+        => values.Any(x => x is IEnumerable<IPartialObject>)
+            ? values.SelectMany(x => x is IEnumerable<IPartialObject> rows ? rows.Cast<object>() : [x]).ToArray()
+            : values;
+
+    /// <summary>A partial object built, its unspecified members filled by <see cref="UnspecifiedValues" />; anything else as it is.</summary>
+    protected internal object Build(object value, string? step = null)
+        => value is IPartialObject partial ? PartialObjects.Build(partial, UnspecifiedValues, step) : value;
+
+    private object[] build(object[] values, string step) => values.Select(x => Build(x, step)).ToArray();
+
+    /// <summary>A type alone as an expectation: any one of them, whatever its values.</summary>
+    private static object anyOf(Type type) => new TablePartialObject(type, []);
 
     /// <summary>Values too long for the step's text, as a table under it: one row each, unjudged.</summary>
     private static void recordValues(string noun, IReadOnlyList<object> values)
@@ -198,9 +228,9 @@ public class WolverineScenario
         var run = new TableRun([noun, ObjectSetVerification.ValuesColumn]);
         for (var i = 0; i < values.Count; i++)
         {
-            run.Cells.Add(new CellResult(noun, ResultStatus.ok, values[i].GetType().Name) { RowIndex = i });
+            run.Cells.Add(new CellResult(noun, ResultStatus.ok, PartialMatching.ExpectedType(values[i]).Name) { RowIndex = i });
             run.Cells.Add(new CellResult(ObjectSetVerification.ValuesColumn, ResultStatus.ok,
-                ScenarioValues.DescribeProperties(values[i])) { RowIndex = i });
+                PartialMatching.DescribeExpected(values[i])) { RowIndex = i });
         }
 
         run.Report(null);
@@ -213,16 +243,28 @@ public class WolverineScenario
     /// waits for everything it caused to settle. A handler that throws is captured, not rethrown, so a
     /// refusal can be asserted with <see cref="ThenValidationFails" />.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="message" /> may be a partial object — <c>Specify&lt;T&gt;()</c> or a table row —
+    /// built before the act, with its unspecified members filled by <see cref="UnspecifiedValues" />.
+    /// The step shows only the members it specifies.
+    /// </remarks>
     public Task WhenReceived(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => ActAsync("{0} is received", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(message));
+    {
+        // Built before the act, so a partial object the type cannot take fails the spec, not the act
+        var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is received");
+        return ActAsync("{0} is received", message,
+            tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(built));
+    }
 
     /// <summary><paramref name="message" /> is published through Wolverine to every subscriber, and the scenario waits for what it caused.</summary>
     public Task WhenPublished(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => ActAsync("{0} is published", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(message));
+    {
+        var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is published");
+        return ActAsync("{0} is published", message,
+            tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(built));
+    }
 
     /// <summary>
     /// Any act that reaches the application from outside — an HTTP call, a client SDK, a hosted
@@ -346,14 +388,64 @@ public class WolverineScenario
     /// Prefer a deterministic clock to <c>Ignoring(...)</c> for a timestamp: give the host a
     /// <see cref="TimeProvider" /> the test controls and the value becomes something to assert.
     /// </remarks>
+    /// <remarks>
+    /// An event may also be a partial object — <c>Specify&lt;T&gt;().With(x =&gt; x.Prop, value)</c>, or the
+    /// rows of <c>PartialObjects.FromTable</c> — judged and shown on only the members it names (wolverine#4870).
+    /// </remarks>
     public void ThenEvents(params object[] events)
+        => verifyEvents(flatten(events), SetMode.Ordered, "{0} {1} emitted");
+
+    /// <summary>
+    /// The act appended exactly these events, in <b>any</b> order — whole objects, <see cref="Expect.Value{T}" />s
+    /// or partial objects, as for <see cref="ThenEvents(object[])" />. For a handler whose events have no
+    /// order a reader should care about.
+    /// </summary>
+    public void ThenEventsInAnyOrder(params object[] events)
+        => verifyEvents(flatten(events), SetMode.AnyOrder, "{0} {1} emitted in any order");
+
+    /// <summary>The act appended exactly these event types, in any order.</summary>
+    public void ThenEventsInAnyOrder(params Type[] events)
+        => verifyEvents(events.Select(anyOf).ToArray(), SetMode.AnyOrder, "{0} {1} emitted in any order");
+
+    /// <summary>
+    /// The act appended these events among whatever else it appended — whole objects, <see cref="Expect.Value{T}" />s
+    /// or partial objects. Nothing else is judged, or shown.
+    /// </summary>
+    public void ThenEmitted(params object[] events)
+        => verifyEvents(flatten(events), SetMode.Contains, "{0} {1} emitted");
+
+    /// <summary>The act appended a <typeparamref name="T" />, whatever its values, among whatever else it appended.</summary>
+    public void ThenEmitted<T>() => verifyEvents([anyOf(typeof(T))], SetMode.Contains, "{0} {1} emitted");
+
+    /// <summary>The act appended no <typeparamref name="T" /> at all.</summary>
+    public void ThenNotEmitted<T>() => verifyAbsent([typeof(T)]);
+
+    /// <summary>
+    /// The act appended nothing matching any of these — a partial object forbids only the events that
+    /// agree on the members it names, and a whole object only an equal one.
+    /// </summary>
+    public void ThenNotEmitted(params object[] events) => verifyAbsent(flatten(events));
+
+    private void verifyEvents(object[] expected, SetMode mode, string format)
     {
-        using var step = ScenarioRecorder.Step("Then",
-            $"{names(events.Select(unwrap).ToArray())} {(events.Length == 1 ? "is" : "are")} emitted");
+        var text = string.Format(CultureInfo.InvariantCulture, format,
+            describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray()), expected.Length == 1 ? "is" : "are");
+        using var step = ScenarioRecorder.Step("Then", text);
         if (!actSucceeded()) return;
 
-        var actual = LastAct.NewEvents.Select(x => x.Data).ToArray();
-        verifySet("event", actual, events);
+        verifySet("event", LastAct.NewEvents.Select(x => x.Data).ToArray(), expected, mode);
+    }
+
+    private void verifyAbsent(object[] forbidden)
+    {
+        using var step = ScenarioRecorder.Step("Then",
+            $"{describeTypes(forbidden.Select(PartialMatching.ExpectedType).ToArray())} {(forbidden.Length == 1 ? "is" : "are")} not emitted");
+        if (!actSucceeded()) return;
+
+        var run = ObjectSetVerification.Absent(LastAct.NewEvents.Select(x => x.Data).ToArray(), forbidden, "event");
+        if (Verdicts.Recording) run.Report(null);
+
+        Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")));
     }
 
     /// <summary>The act appended nothing — the refusal half of a guard.</summary>
@@ -502,6 +594,12 @@ public class WolverineScenario
     /// </summary>
     public void ThenMessageSent(object expected)
     {
+        if (expected is IPartialObject partial)
+        {
+            thenPartialMessageSent(partial);
+            return;
+        }
+
         var value = unwrap(expected);
         using var step = ScenarioRecorder.Step("Then", $"{value.GetType().Name} is sent");
         if (!actSucceeded()) return;
@@ -520,6 +618,22 @@ public class WolverineScenario
         Verdicts.Row(best, 0);
         Verdicts.Fact(best.All(x => x.Matched),
             $"No {value.GetType().Name} sent matched the expectation: {Verdicts.Describe(best)}");
+    }
+
+    // A partial message: sent among whatever else was, judged and shown on only the members it names
+    private void thenPartialMessageSent(IPartialObject expected)
+    {
+        using var step = ScenarioRecorder.Step("Then", $"{expected.Type.Name} is sent");
+        if (!actSucceeded()) return;
+
+        var candidates = sentOf(expected.Type).Select(x => x.Message!).ToArray();
+        if (candidates.Length == 0)
+        {
+            Verdicts.Fail($"Expected a {expected.Type.Name} to be sent, but none was. Sent: {describeSent()}");
+            return;
+        }
+
+        verifySet("message", candidates, [expected], SetMode.Contains);
     }
 
     /// <summary>
@@ -616,6 +730,25 @@ public class WolverineScenario
     /// </summary>
     public void ThenMatches(object? subject, object expected)
     {
+        if (expected is IPartialObject partial)
+        {
+            using var partialStep = ScenarioRecorder.Step("Then", $"the {partial.Type.Name} matches");
+            if (subject is null)
+            {
+                Verdicts.Fail($"Expected a {partial.Type.Name} but there was nothing to verify");
+                return;
+            }
+
+            var run = PropertyCells.Verify(subject, partial);
+            if (!run.Succeeded && !Verdicts.Recording)
+            {
+                throw new SpecificationFailedException(
+                    $"{partial.Type.Name} did not match: {string.Join(", ", PropertyCells.Disagreeing(run))}");
+            }
+
+            return;
+        }
+
         var value = unwrap(expected);
         using var step = ScenarioRecorder.Step("Then", $"the {value.GetType().Name} matches");
         compareSequence(value.GetType().Name, subject is null ? Array.Empty<object>() : new[] { subject }, new[] { expected });
@@ -662,20 +795,14 @@ public class WolverineScenario
     private static object unwrap(object value) => value is IExpectedValue expected ? expected.Value : value;
 
     /// <summary>
-    /// <paramref name="actual" /> is exactly <paramref name="expected" />, in order, as a set
-    /// verification (GH-4835): one grid with a row per item — OK, a FAIL naming the values that
-    /// disagree, MISSING, EXTRA, or ORDER — rather than a positional comparison that reads one missing
+    /// <paramref name="actual" /> against <paramref name="expected" /> as a set verification (GH-4835):
+    /// one grid with a row per item — OK, a FAIL naming the values that disagree, MISSING, EXTRA, or
+    /// ORDER — rather than a positional comparison that reads one missing
     /// event as every later one wrong.
     /// </summary>
-    private void verifySet(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected)
+    private void verifySet(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected, SetMode mode)
     {
-        var values = expected.Select(unwrap).ToArray();
-        var run = ObjectSetVerification.Cells(actual, values,
-            (item, i) => ObjectComparison.Compare(item, values[i], (expected[i] as IExpectedValue)?.IgnoredPaths)
-                .Where(x => !x.Matched)
-                .Select(x => new ValueDifference(x.Path, x.Expected, x.Actual))
-                .ToList(),
-            noun);
+        var run = ObjectSetVerification.Verify(actual, expected, noun, mode);
 
         if (Verdicts.Recording) run.Report(null);
 
@@ -706,7 +833,7 @@ public class WolverineScenario
         => LastAct.Error is { } e ? $". The act failed: {e.GetType().Name}: {e.Message}"
             : LastAct.Refusal is { } r ? $". The act was refused: {r}" : "";
 
-    private static string names(IReadOnlyList<object> values) => describeTypes(values.Select(x => x.GetType()).ToArray());
+    private static string names(IReadOnlyList<object> values) => describeTypes(values.Select(PartialMatching.ExpectedType).ToArray());
 
     private static string names(Type[] types) => describeTypes(types);
 

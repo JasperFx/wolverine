@@ -53,6 +53,20 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.Store" />
     public IEventStore Store => Scenario.Store;
 
+    /// <inheritdoc cref="WolverineScenario.UnspecifiedValues" />
+    public IUnspecifiedValues? UnspecifiedValues
+    {
+        get => Scenario.UnspecifiedValues;
+        set => Scenario.UnspecifiedValues = value;
+    }
+
+    /// <summary>
+    /// A partial object: only the members a specification is about —
+    /// <c>Specify&lt;ShipmentConfirmed&gt;().With(x =&gt; x.TrackingNumber, "1Z999")</c>. Hand one to a
+    /// Given or a When to build it, or to a Then to judge only those members.
+    /// </summary>
+    public static Specified<T> Specify<T>() => Specifications.Specify<T>();
+
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public ActOutcome LastAct => Scenario.LastAct;
 
@@ -110,6 +124,24 @@ public abstract class WolverineSpec
 
     /// <inheritdoc cref="WolverineScenario.ThenEvents(object[])" />
     public void ThenEvents(params object[] events) => Scenario.ThenEvents(events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEventsInAnyOrder(object[])" />
+    public void ThenEventsInAnyOrder(params object[] events) => Scenario.ThenEventsInAnyOrder(events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEventsInAnyOrder(Type[])" />
+    public void ThenEventsInAnyOrder(params Type[] events) => Scenario.ThenEventsInAnyOrder(events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEmitted(object[])" />
+    public void ThenEmitted(params object[] events) => Scenario.ThenEmitted(events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEmitted{T}" />
+    public void ThenEmitted<T>() => Scenario.ThenEmitted<T>();
+
+    /// <inheritdoc cref="WolverineScenario.ThenNotEmitted{T}" />
+    public void ThenNotEmitted<T>() => Scenario.ThenNotEmitted<T>();
+
+    /// <inheritdoc cref="WolverineScenario.ThenNotEmitted(object[])" />
+    public void ThenNotEmitted(params object[] events) => Scenario.ThenNotEmitted(events);
 
     /// <inheritdoc cref="WolverineScenario.ThenNoEvents" />
     public void ThenNoEvents() => Scenario.ThenNoEvents();

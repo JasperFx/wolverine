@@ -19,8 +19,12 @@ public abstract class IncidentSpec(AppFixture fixture) : WolverineHttpSpec(fixtu
 {
     protected static readonly Guid Agent = Guid.NewGuid();
 
-    protected static IncidentLogged Logged(Guid customerId)
-        => new(customerId, new Contact(ContactChannel.Email, EmailAddress: "ann@example.com"), "It's broken", Agent);
+    /// <summary>
+    /// An incident was logged. Who logged it, about what and for whom does not matter to any rule
+    /// after it, so the spec says only that it happened (wolverine#4870): the partial object is built
+    /// with every member filled.
+    /// </summary>
+    protected static Specified<IncidentLogged> Logged => Specify<IncidentLogged>();
 
     public async ValueTask InitializeAsync() => await AlbaHost.ResetAllMartenDataAsync();
 
@@ -58,7 +62,7 @@ public class categorising_an_incident(AppFixture fixture) : IncidentSpec(fixture
     public async Task an_open_incident_is_categorised()
     {
         var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged(Guid.NewGuid()));
+        await GivenEvents<Incident>(id, Logged);
 
         await WhenPosted(new CategoriseIncident(IncidentCategory.Database, Agent, 1), $"/api/incidents/{id}/category");
 
@@ -70,7 +74,7 @@ public class categorising_an_incident(AppFixture fixture) : IncidentSpec(fixture
     public async Task a_closed_incident_is_refused()
     {
         var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged(Guid.NewGuid()), new IncidentClosed(Agent));
+        await GivenEvents<Incident>(id, Logged, new IncidentClosed(Agent));
 
         await WhenPosted(new CategoriseIncident(IncidentCategory.Database, Agent, 2), $"/api/incidents/{id}/category");
 
@@ -86,7 +90,7 @@ public class closing_an_incident(AppFixture fixture) : IncidentSpec(fixture)
     public async Task an_open_incident_is_closed_and_archived_later()
     {
         var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged(Guid.NewGuid()));
+        await GivenEvents<Incident>(id, Logged);
 
         await WhenPosted(new CloseIncident(Agent, 1), $"/api/incidents/close/{id}");
 
@@ -99,7 +103,7 @@ public class closing_an_incident(AppFixture fixture) : IncidentSpec(fixture)
     {
         // The conditional append: the endpoint returns no events when the incident is already closed
         var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged(Guid.NewGuid()), new IncidentClosed(Agent));
+        await GivenEvents<Incident>(id, Logged, new IncidentClosed(Agent));
 
         await WhenPosted(new CloseIncident(Agent, 2), $"/api/incidents/close/{id}");
 

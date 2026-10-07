@@ -1,3 +1,4 @@
+using Wolverine.Marten;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 
@@ -18,6 +19,12 @@ public record ConfirmAppointment(Guid AppointmentId);
 public record SendConfirmationEmail(Guid AppointmentId, string To);
 
 public record PatientArrived(Guid AppointmentId);
+
+public record CheckInPatient(Guid AppointmentId, string Desk, decimal Copay);
+
+public record PatientCheckedIn(Guid AppointmentId, string Desk, DateTimeOffset CheckedInAt);
+
+public record CopayCollected(Guid AppointmentId, decimal Amount);
 
 public class Appointment
 {
@@ -51,6 +58,14 @@ public static class ConfirmAppointmentHandler
         return (new AppointmentConfirmed(command.AppointmentId, DateTimeOffset.UtcNow),
             new OutgoingMessages { new SendConfirmationEmail(command.AppointmentId, appointment.Patient) });
     }
+}
+
+// Two events from one command, so the any-order and contains assertions have something to choose between
+public static class CheckInPatientHandler
+{
+    public static Events Handle(CheckInPatient command, [WriteModel] Appointment appointment)
+        => [new PatientCheckedIn(command.AppointmentId, command.Desk, DateTimeOffset.UtcNow),
+            new CopayCollected(command.AppointmentId, command.Copay)];
 }
 
 public static class SendConfirmationEmailHandler

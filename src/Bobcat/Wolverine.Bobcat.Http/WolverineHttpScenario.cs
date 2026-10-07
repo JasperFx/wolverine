@@ -37,11 +37,22 @@ public class WolverineHttpScenario : WolverineScenario
     public IScenarioResult? LastResponse { get; private set; }
 
     /// <summary>POST <paramref name="command" /> to the Wolverine.HTTP endpoint that accepts its type.</summary>
+    /// <remarks>
+    /// <paramref name="command" /> may be a partial object — <c>Specify&lt;T&gt;()</c> or a table row —
+    /// built before the act; the step shows only the members it specifies.
+    /// </remarks>
     public Task WhenPosted(object command, Action<Scenario>? configure = null)
-        => WhenPosted(command, HttpRoutes.For(Host, command), configure);
+    {
+        // Built once, so the route's parameters and the body come from the same object
+        var built = Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted");
+        return postAsync(command, built, HttpRoutes.For(Host, built), configure);
+    }
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" />.</summary>
-    public async Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
+    public Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
+        => postAsync(command, Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted to \"{route}\""), route, configure);
+
+    private async Task postAsync(object command, object built, string route, Action<Scenario>? configure)
     {
         LastResponse = null;
         string? responseBody = null;
@@ -52,7 +63,7 @@ public class WolverineHttpScenario : WolverineScenario
             {
                 LastResponse = await AlbaHost.Scenario(x =>
                 {
-                    x.Post.Json(command).ToUrl(route);
+                    x.Post.Json(built).ToUrl(route);
 
                     // The act judges the status itself: any 2xx, a 4xx as a refusal, a 5xx as a failure
                     x.IgnoreStatusCode();
@@ -70,7 +81,7 @@ public class WolverineHttpScenario : WolverineScenario
                 if (SpecReport.IsRecording)
                 {
                     SpecReport.For<HttpExchangeReport>().Add("POST", route, status,
-                        System.Text.Json.JsonSerializer.Serialize(command, command.GetType()), responseBody);
+                        System.Text.Json.JsonSerializer.Serialize(built, built.GetType()), responseBody);
                 }
 
                 return status switch
@@ -89,14 +100,21 @@ public class WolverineHttpScenario : WolverineScenario
     /// POST <paramref name="command" /> to the endpoint that accepts its type and hand back the 2xx
     /// response body, deserialized — or null when the endpoint refused or failed.
     /// </summary>
-    public Task<TResponse?> WhenPosted<TResponse>(object command, Action<Scenario>? configure = null)
-        => WhenPosted<TResponse>(command, HttpRoutes.For(Host, command), configure);
+    public async Task<TResponse?> WhenPosted<TResponse>(object command, Action<Scenario>? configure = null)
+    {
+        await WhenPosted(command, configure);
+        return await readResponseAsync<TResponse>();
+    }
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" /> and hand back the 2xx response body.</summary>
     public async Task<TResponse?> WhenPosted<TResponse>(object command, string route, Action<Scenario>? configure = null)
     {
         await WhenPosted(command, route, configure);
+        return await readResponseAsync<TResponse>();
+    }
 
+    private async Task<TResponse?> readResponseAsync<TResponse>()
+    {
         if (LastResponse is null || LastAct.Error is not null || LastAct.Refusal is not null) return default;
         return await LastResponse.ReadAsJsonAsync<TResponse>();
     }

@@ -29,6 +29,7 @@ public sealed class AppointmentsHost : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(ScheduleAppointmentHandler))
                     .IncludeType(typeof(ConfirmAppointmentHandler))
+                    .IncludeType(typeof(CheckInPatientHandler))
                     .IncludeType(typeof(SendConfirmationEmailHandler))
                     .IncludeType(typeof(PatientArrivedHandler));
             })

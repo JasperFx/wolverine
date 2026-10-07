@@ -33,6 +33,22 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
     }
 
     [Fact]
+    public async Task a_partial_command_is_built_once_so_the_route_and_the_body_agree()
+    {
+        var id = await scheduled();
+
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            // Reason is never mentioned: the build fills it, and the route still comes from AppointmentId
+            await WhenPosted(Specify<CancelAppointment>().With(x => x.AppointmentId, id));
+            ThenEvents(Specify<AppointmentCancelled>().With(x => x.AppointmentId, id));
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        recording.Steps[0].Text.ShouldBe($"CancelAppointment(AppointmentId: Appointment) is posted to \"/api/appointments/{id}/cancel\"");
+    }
+
+    [Fact]
     public async Task a_typed_response_is_handed_back()
     {
         var id = await scheduled();

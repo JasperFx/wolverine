@@ -20,6 +20,14 @@ public abstract class OrderFulfillmentSpec(AppFixture fixture) : WolverineSpec(f
 
     protected OrderFulfillmentStarted Started => new(Id, Customer, 100m);
 
+    // Which reservation, or why it was cancelled, is beside the point of every rule here: a partial
+    // object names only the order (wolverine#4870), and the build fills the rest
+    protected Specified<ItemsReserved> Reserved
+        => Specify<ItemsReserved>().With(x => x.OrderFulfillmentStateId, Id);
+
+    protected Specified<OrderFulfillmentCancelled> Cancelled
+        => Specify<OrderFulfillmentCancelled>().With(x => x.OrderFulfillmentStateId, Id);
+
     public async ValueTask InitializeAsync() => await Host.ResetAllMartenDataAsync();
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -57,9 +65,7 @@ public class continuing_order_fulfillment(AppFixture fixture) : OrderFulfillment
     [Fact]
     public async Task the_last_outstanding_step_completes_the_process()
     {
-        await GivenEvents<OrderFulfillmentState>(Id, Started,
-            new PaymentConfirmed(Id, 100m),
-            new ItemsReserved(Id, Guid.NewGuid()));
+        await GivenEvents<OrderFulfillmentState>(Id, Started, new PaymentConfirmed(Id, 100m), Reserved);
 
         await WhenReceived(new ShipmentConfirmed(Id, "1Z999"));
 
@@ -85,9 +91,9 @@ public class continuing_order_fulfillment(AppFixture fixture) : OrderFulfillment
     [Fact]
     public async Task a_late_step_after_cancellation_is_ignored()
     {
-        await GivenEvents<OrderFulfillmentState>(Id, Started, new OrderFulfillmentCancelled(Id, "Customer changed their mind"));
+        await GivenEvents<OrderFulfillmentState>(Id, Started, Cancelled);
 
-        await WhenReceived(new ItemsReserved(Id, Guid.NewGuid()));
+        await WhenReceived(Reserved);
 
         ThenNoEvents();
     }
@@ -104,7 +110,7 @@ public class payment_timeout(AppFixture fixture) : OrderFulfillmentSpec(fixture)
         ScenarioRecorder.Note("The scheduled message itself, delivered now: no waiting on the scheduler");
         await WhenReceived(new PaymentTimeout(Id));
 
-        ThenEvents(new OrderFulfillmentCancelled(Id, "Payment timed out"));
+        ThenEvents(Cancelled.With(x => x.Reason, "Payment timed out"));
     }
 
     [Fact]
