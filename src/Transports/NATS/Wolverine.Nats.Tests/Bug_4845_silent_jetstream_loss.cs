@@ -134,10 +134,11 @@ public class Bug_4845_silent_jetstream_loss
     }
 
     /// <summary>
-    /// GH-4845 #3. <c>UseShardedNatsSubjects()</c> declares its shard streams with <c>AsWorkQueue()</c>,
+    /// GH-4845 #3. <c>UseShardedNatsSubjects()</c> declared its shard streams with <c>AsWorkQueue()</c>,
     /// which sets <c>Retention = Interest</c>. Interest retention drops a message published while no
     /// consumer is bound -- exactly the startup/rebalance window the sharded topology has. Real work-queue
-    /// retention holds the message until a consumer acks it.
+    /// retention holds the message until a consumer acks it, so the shard streams now declare it directly
+    /// (see <c>NatsShardedStreamRetentionTests</c>). This test pins the server behavior behind that choice.
     /// </summary>
     [Fact]
     public async Task interest_retention_drops_a_message_published_with_no_bound_consumer()
@@ -160,7 +161,7 @@ public class Bug_4845_silent_jetstream_loss
             Retention = StreamConfigRetention.Interest
         }, Ct);
 
-        // What the comment in PartitionedMessageTopologyWithSubjects asks for.
+        // What PartitionedMessageTopologyWithSubjects declares for a shard stream.
         await js.CreateStreamAsync(new StreamConfig(workQueueStream, [workQueueSubject])
         {
             Retention = StreamConfigRetention.Workqueue

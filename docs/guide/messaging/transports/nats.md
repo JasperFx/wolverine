@@ -228,6 +228,23 @@ opts.UseNats("nats://localhost:4222")
     .DefineWorkQueueStream("ORDERS", "orders.>");
 ```
 
+::: warning Interest retention, not JetStream work-queue retention
+Despite their names, `DefineWorkQueueStream()` and `StreamConfiguration.AsWorkQueue()` set
+`StreamConfigRetention.Interest`. An interest stream keeps a message only while a consumer is interested in it,
+so a message published while no consumer is bound — before the first listener starts, or between two
+deployments — is discarded on arrival. For JetStream's work-queue retention, which keeps every message until a
+consumer acknowledges it, set the retention explicitly:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .DefineStream("ORDERS", s =>
+    {
+        s.WithSubjects("orders.>");
+        s.Retention = StreamConfigRetention.Workqueue;
+    });
+```
+:::
+
 #### Work Queue with Additional Configuration
 
 ```csharp
@@ -844,9 +861,19 @@ This creates NATS subjects named `orders1` through `orders4` with companion loca
 ::: info JetStream is implied
 Global partitioning forces every slot into durable mode, and a NATS endpoint can only be durable when it
 is JetStream-backed. `UseShardedNatsSubjects()` therefore turns JetStream on for its own endpoints and
-declares a work-queue stream per shard (named after the subject, upper-cased, dots replaced with
-underscores) so `AutoProvision` creates it. Declare a stream of the same name yourself if you need
-different retention or replication.
+declares a stream per shard (named after the subject, upper-cased, dots replaced with underscores) so
+`AutoProvision` creates it. Declare a stream of the same name yourself if you need different retention or
+replication.
+:::
+
+::: tip Shard streams use work-queue retention <Badge type="tip" text="6.47" />
+The shard streams `UseShardedNatsSubjects()` declares use JetStream's work-queue retention
+(`StreamConfigRetention.Workqueue`), so a message waits in its shard until it is acknowledged even while no
+node is consuming that shard — at startup, or while the shard moves to another node. Earlier versions declared
+them with interest retention, which discards a message that arrives while no consumer is bound. This applies to
+shard streams created from now on: Wolverine leaves an existing stream as it is, and the server refuses to change
+an existing stream to or from work-queue retention, so recreate an old shard stream (once it is drained) to switch
+it.
 :::
 
 ## URI reference

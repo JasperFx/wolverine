@@ -124,7 +124,9 @@ public class NatsTransportExpression
     }
 
     /// <summary>
-    /// Define a work queue stream (retention by interest)
+    /// Define a stream with interest retention (see <see cref="StreamConfiguration.AsWorkQueue"/>) -- despite
+    /// the name, not JetStream's work-queue retention: a message published while no consumer is bound is
+    /// discarded on arrival.
     /// </summary>
     public NatsTransportExpression DefineWorkQueueStream(
         string streamName,
@@ -135,7 +137,8 @@ public class NatsTransportExpression
     }
 
     /// <summary>
-    /// Define a work queue stream (retention by interest) with additional configuration
+    /// Define a stream with interest retention (see <see cref="StreamConfiguration.AsWorkQueue"/>) with
+    /// additional configuration -- despite the name, not JetStream's work-queue retention
     /// </summary>
     public NatsTransportExpression DefineWorkQueueStream(
         string streamName,
