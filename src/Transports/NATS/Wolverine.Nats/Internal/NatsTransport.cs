@@ -80,6 +80,17 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         return subject == ResponseSubject ? $"{subject}.{envelope.Id:N}" : subject;
     }
 
+    private static readonly TimeSpan DroppedMessageWarningInterval = TimeSpan.FromSeconds(5);
+    private readonly ConcurrentDictionary<string, DroppedMessageCounter> _droppedMessages = new();
+
+    private sealed class DroppedMessageCounter
+    {
+        // Far enough in the past that the first drop is always reported
+        public long LastWarnedAt = Environment.TickCount64 - 2 * (long)DroppedMessageWarningInterval.TotalMilliseconds;
+        public long SinceLastWarning;
+        public long Total;
+    }
+
     private static readonly TimeSpan WireReplySubjectLifetime = TimeSpan.FromMinutes(10);
     private readonly ConcurrentDictionary<Guid, WireReplySubject> _wireReplySubjects = new();
     private int _wireReplySubjectWrites;
@@ -133,11 +144,24 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             _wireReplySubjects.TryGetValue(envelope.ConversationId, out var remembered) &&
             remembered.BaseSubject == targetSubject)
         {
-            _wireReplySubjects.TryRemove(new KeyValuePair<Guid, WireReplySubject>(envelope.ConversationId, remembered));
             return remembered.Subject;
         }
 
         return targetSubject;
+    }
+
+    /// <summary>
+    /// The reply to the request <paramref name="envelope"/> answers has reached the wire, so its entry is no
+    /// longer needed. Kept separate from <see cref="ReplySubjectFor"/> on purpose: a reply whose publish failed
+    /// is retried by the sending agent, and that retry has to find the per-request subject again -- the plain
+    /// response subject is exactly what a responder limited to <c>allow_responses</c> may not publish to.
+    /// </summary>
+    internal void ForgetWireReplySubject(Envelope envelope)
+    {
+        if (envelope.ConversationId != Guid.Empty)
+        {
+            _wireReplySubjects.TryRemove(envelope.ConversationId, out _);
+        }
     }
 
     /// <summary>
@@ -264,7 +288,11 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             }
         }
 
-        var autoProvisionStreams = Configuration.AutoProvision && Configuration.Streams.Any();
+        // Verify creates nothing, so it has to run even with AutoProvision off -- the natural companion setting
+        // for streams managed outside the application, and the case Verify exists for
+        var autoProvisionStreams = Configuration.Streams.Any() &&
+                                   (Configuration.AutoProvision ||
+                                    Configuration.StreamProvisioning == NatsProvisioning.Verify);
 
         // Collected over the shared and every tenant connection, so Verify reports all of it at once
         var deviations = new List<string>();
@@ -318,12 +346,31 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     {
         connection.MessageDropped += (_, args) =>
         {
+            // One warning per subscription per interval, with the count: a slow consumer under a burst drops
+            // thousands of messages a second, and a warning for each of them would be its own load on the box
+            var counter = _droppedMessages.GetOrAdd($"{connection.Opts.Name}|{args.Subscription.Subject}",
+                _ => new DroppedMessageCounter());
+            var total = Interlocked.Increment(ref counter.Total);
+            Interlocked.Increment(ref counter.SinceLastWarning);
+
+            var now = Environment.TickCount64;
+            var lastWarnedAt = Volatile.Read(ref counter.LastWarnedAt);
+            if (now - lastWarnedAt < (long)DroppedMessageWarningInterval.TotalMilliseconds ||
+                Interlocked.CompareExchange(ref counter.LastWarnedAt, now, lastWarnedAt) != lastWarnedAt)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            var sinceLastWarning = Interlocked.Exchange(ref counter.SinceLastWarning, 0);
             _logger?.LogWarning(
-                "NATS connection {Connection} dropped a message on subject {Subject}: the pending channel of subscription {Subscription} is full ({Pending} pending), and core NATS does not redeliver it. Raise the pending channel capacity (NatsOpts.SubPendingChannelCapacity) or scale out the listener",
+                "NATS connection {Connection} dropped a message on subject {Subject}: the pending channel of subscription {Subscription} is full ({Pending} pending), and core NATS does not redeliver it. {Dropped} message(s) dropped on this subscription since the last warning, {Total} in all; further drops are reported at most every {Interval}. Raise the pending channel capacity (NatsOpts.SubPendingChannelCapacity) or scale out the listener",
                 connection.Opts.Name,
                 args.Subject,
                 args.Subscription.Subject,
-                args.Pending);
+                args.Pending,
+                sinceLastWarning,
+                total,
+                DroppedMessageWarningInterval);
             return ValueTask.CompletedTask;
         };
 
@@ -517,8 +564,11 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                     existing = (await js.GetStreamAsync(name)).Info.Config;
                     _logger?.LogDebug("Stream {StreamName} already exists", name);
                 }
-                catch (NatsJSException)
+                catch (NatsJSApiException e) when (e.Error.Code == 404)
                 {
+                    // Only "stream not found" means the stream is missing. Any other failure -- no JetStream
+                    // answering for the domain, missing permissions, a timeout -- propagates instead of being
+                    // reported as a missing stream under Verify or answered with a create
                 }
 
                 if (existing == null)

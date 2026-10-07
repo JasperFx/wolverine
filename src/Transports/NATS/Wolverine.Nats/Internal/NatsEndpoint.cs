@@ -94,6 +94,11 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal string ReplySubjectFor(Envelope envelope, string targetSubject) =>
         _transport.ReplySubjectFor(envelope, targetSubject);
 
+    /// <summary>
+    /// See <see cref="NatsTransport.ForgetWireReplySubject"/>.
+    /// </summary>
+    internal void ForgetWireReplySubject(Envelope envelope) => _transport.ForgetWireReplySubject(envelope);
+
     public string? QueueGroup { get; set; }
 
     /// <summary>
@@ -263,12 +268,28 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         DeliverPolicy ?? _transport.Configuration.JetStreamDefaults.DeliverPolicy;
 
     /// <summary>
-    /// The settings Wolverine owns on this endpoint's JetStream consumers: explicit acks, <c>AckWait</c>,
-    /// <c>MaxDeliver</c> and, where Wolverine sizes it, <c>MaxAckPending</c>. One place for the listener, which
-    /// creates consumers and reconciles or verifies a named one under <see cref="NatsProvisioning"/>, and for
-    /// resource setup, so the two cannot drift apart.
+    /// The subject pattern this endpoint's listener consumes: the plain <see cref="Subject"/>, or the tenant
+    /// wildcard pattern when the endpoint is tenant-aware under subject isolation. Resource setup and the
+    /// listener both derive the consumer filter from it.
     /// </summary>
-    internal ConsumerConfig ApplyManagedConsumerSettings(ConsumerConfig config)
+    [IgnoreDescription]
+    internal string ListenerSubscriptionPattern =>
+        _transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware
+            ? _transport.TenantSubjectMapper.GetSubscriptionPattern(Subject)
+            : Subject;
+
+    /// <summary>
+    /// The settings Wolverine owns on this endpoint's JetStream consumers: explicit acks, <c>AckWait</c>,
+    /// <c>MaxDeliver</c>, the subject filter and, where Wolverine sizes it, <c>MaxAckPending</c>. One place for
+    /// the listener, which creates consumers and reconciles or verifies a named one under
+    /// <see cref="NatsProvisioning"/>, and for resource setup, so the two cannot drift apart. The filter is part
+    /// of that set on purpose: when resource setup and the listener disagreed on it, every start rewrote the
+    /// consumer and a <see cref="NatsProvisioning.Verify"/> host could never come up after resource setup.
+    /// </summary>
+    /// <param name="subscriptionPattern">
+    /// The subject pattern the consumer filters on, normally <see cref="ListenerSubscriptionPattern"/>
+    /// </param>
+    internal ConsumerConfig ApplyManagedConsumerSettings(ConsumerConfig config, string subscriptionPattern)
     {
         config.AckPolicy = ConsumerConfigAckPolicy.Explicit;
         config.AckWait = EffectiveAckWait;
@@ -282,6 +303,27 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         if (EffectiveMaxAckPending is { } maxAckPending)
         {
             config.MaxAckPending = maxAckPending;
+        }
+
+        // Scope the consumer to this listener's subject. Without a filter every durable consumer sharing a
+        // stream received every message published to that stream (GH-3676).
+        if (!string.IsNullOrEmpty(subscriptionPattern))
+        {
+            // Native scheduling publishes its control message to {subject}{suffix} and no single
+            // NATS filter covers both that and {subject} -- '{subject}.>' excludes {subject}
+            // itself. On a work queue stream a control message no consumer covers is discarded
+            // outright, so the schedule is never registered and the send silently never arrives;
+            // a multi-filter consumer keeps the schedule subject owned by this endpoint
+            if (UsesNativeScheduledSend && !string.IsNullOrEmpty(ScheduleSubjectSuffix))
+            {
+                config.FilterSubject = null;
+                config.FilterSubjects = [subscriptionPattern, subscriptionPattern + ScheduleSubjectSuffix];
+            }
+            else
+            {
+                config.FilterSubject = subscriptionPattern;
+                config.FilterSubjects = null;
+            }
         }
 
         return config;
@@ -699,13 +741,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
         if (!string.IsNullOrEmpty(ConsumerName) && Role == EndpointRole.Application)
         {
+            // The same filter the listener puts on the consumer, so a start after resource setup finds nothing
+            // to reconcile or to fail Verify on
             var consumerConfig = ApplyManagedConsumerSettings(new ConsumerConfig
             {
                 Name = ConsumerName,
                 DurableName = ConsumerName,
-                FilterSubject = Subject,
                 ReplayPolicy = ConsumerConfigReplayPolicy.Instant
-            });
+            }, ListenerSubscriptionPattern);
 
             await js.CreateOrUpdateConsumerAsync(StreamName, consumerConfig);
             logger.LogInformation(

@@ -1,5 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -192,6 +194,56 @@ public class NatsProvisioningTests
 
         (await js.GetConsumerAsync(stream, consumer, TestContext.Current.CancellationToken)).Info.Config.MaxDeliver
             .ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task verify_runs_with_auto_provision_disabled()
+    {
+        var (stream, subject) = uniqueNames("VERIFYNOAUTO");
+
+        // AutoProvision off is the natural companion of Verify for streams managed outside the application,
+        // and Verify creates nothing, so it has to check the declared streams all the same
+        var exception = await Should.ThrowAsync<Exception>(() => startAsync(NatsProvisioning.Verify,
+            nats => nats.DefineStream(stream, s => s.WithSubjects(subject)),
+            opts => opts.Transports.GetOrCreate<NatsTransport>().Configuration.AutoProvision = false));
+
+        var message = flatten(exception);
+        _output.WriteLine(message);
+        message.ShouldContain($"stream '{stream}' does not exist");
+
+        await using var connection = await connectAsync();
+        await Should.ThrowAsync<NatsJSApiException>(() => connection.CreateJetStreamContext()
+            .GetStreamAsync(stream, cancellationToken: TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Fact]
+    public async Task resource_setup_leaves_nothing_for_verify_to_reconcile_on_a_named_consumer()
+    {
+        var (stream, subject) = uniqueNames("SETUPVERIFY");
+        var consumer = $"consumer-{Guid.NewGuid():N}";
+
+        // Native scheduled send puts a two-subject filter on the consumer. Resource setup and the listener have
+        // to agree on it, or every start rewrites the consumer and a Verify host can never come up after
+        // resource setup
+        Action<NatsTransportExpression> declare = nats => nats
+            .DefineStream(stream, s => s.WithSubjects(subject, subject + ".>").EnableScheduledDelivery());
+        Action<WolverineOptions> listen = opts =>
+            opts.ListenToNatsSubject(subject).UseJetStream(stream, consumer);
+
+        using (await startAsync(NatsProvisioning.CreateOnly, declare, opts =>
+               {
+                   listen(opts);
+                   opts.Services.AddResourceSetupOnStartup();
+               }))
+        {
+        }
+
+        await using var connection = await connectAsync();
+        var config = (await connection.CreateJetStreamContext()
+            .GetConsumerAsync(stream, consumer, TestContext.Current.CancellationToken)).Info.Config;
+        _output.WriteLine($"FilterSubject={config.FilterSubject}, FilterSubjects={string.Join(", ", config.FilterSubjects ?? [])}");
+
+        using var verified = await startAsync(NatsProvisioning.Verify, declare, listen);
     }
 
     private async Task<IHost> startAsync(NatsProvisioning? provisioning, Action<NatsTransportExpression> configure,
