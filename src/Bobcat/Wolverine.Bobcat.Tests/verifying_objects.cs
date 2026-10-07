@@ -1,3 +1,4 @@
+using Bobcat;
 using Bobcat.Engine;
 
 namespace Wolverine.Bobcat.Tests;
