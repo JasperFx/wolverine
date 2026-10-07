@@ -545,6 +545,32 @@ public class WolverineScenario
                    $"No {typeof(T).Name} document with id {id}. The projections caught up, so either nothing routed to this id or its identity rule differs.");
     }
 
+    /// <summary>
+    /// The read model with this identity, once the projections have caught up, judged against
+    /// <paramref name="expected" />: a partial object (<c>Specify&lt;T&gt;()</c>) on only the members it
+    /// names, or a whole object or <see cref="Expect.Value{T}" /> structurally. Hands the document back.
+    /// </summary>
+    public async Task<T> ThenReadModel<T>(object id, object expected) where T : class
+    {
+        var document = await ThenReadModel<T>(id);
+        ThenMatches(document, expected);
+        return document;
+    }
+
+    /// <summary>
+    /// No read model with this identity exists once the projections have caught up — a view the
+    /// events did not create, or one they deleted.
+    /// </summary>
+    public async Task ThenNoReadModel<T>(object id) where T : class
+    {
+        await ThenProjectionsAreCaughtUp(typeof(T));
+
+        using var step = ScenarioRecorder.Step("Then", $"there is no {typeof(T).Name} {ScenarioValues.Format(id)}");
+        var document = await EventStoreAuthoring.LoadDocumentAsync<T>(Store, id);
+        Verdicts.Fact(document is null,
+            $"Expected no {typeof(T).Name} document with id {id}, but there is one: {ScenarioValues.Describe(document)}");
+    }
+
     /// <summary>The async projections have caught up, so a read model reflects the act.</summary>
     public async Task ThenProjectionsAreCaughtUp(Type readModel)
     {

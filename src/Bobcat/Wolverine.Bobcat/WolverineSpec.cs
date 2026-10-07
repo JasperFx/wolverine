@@ -170,8 +170,14 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenValidationFails" />
     public void ThenValidationFails(string reason) => Scenario.ThenValidationFails(reason);
 
-    /// <inheritdoc cref="WolverineScenario.ThenReadModel{T}" />
+    /// <inheritdoc cref="WolverineScenario.ThenReadModel{T}(object)" />
     public Task<T> ThenReadModel<T>(object id) where T : class => Scenario.ThenReadModel<T>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenReadModel{T}(object, object)" />
+    public Task<T> ThenReadModel<T>(object id, object expected) where T : class => Scenario.ThenReadModel<T>(id, expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoReadModel{T}" />
+    public Task ThenNoReadModel<T>(object id) where T : class => Scenario.ThenNoReadModel<T>(id);
 
     /// <inheritdoc cref="WolverineScenario.ThenProjectionsAreCaughtUp" />
     public Task ThenProjectionsAreCaughtUp(Type readModel) => Scenario.ThenProjectionsAreCaughtUp(readModel);
