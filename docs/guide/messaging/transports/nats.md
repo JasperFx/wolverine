@@ -706,6 +706,12 @@ The response endpoint always uses Core NATS for low-latency replies, even when t
 
 ### JetStream
 
+- **Rejected publishes** <Badge type="tip" text="6.47" />: a JetStream publish the server refuses — the stream is
+  full under `DiscardPolicy.New`, a `Nats-Expected-Last-Sequence` (or other `Nats-Expected-*`) check fails, the
+  message is larger than the stream allows — fails the send with a `NatsJSApiException`. A durable outbox keeps the
+  message and retries it through the sending agent's circuit breaker instead of deleting it as sent. A publish the
+  stream discards as a duplicate `Nats-Msg-Id` is still a successful send, because the stream already holds that
+  message.
 - **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
 - **Dead Letter**: Once delivery attempts are exhausted, the poison message is first forwarded to the

@@ -13,8 +13,9 @@ using Xunit;
 namespace Wolverine.Nats.Tests;
 
 /// <summary>
-/// GH-4845 reproductions. Each test asserts the CURRENT (buggy) behavior so that the loss is on the
-/// record; the comment above each one says what it should assert once fixed.
+/// GH-4845 reproductions. A test whose loss is fixed asserts the fixed behavior. The others assert the
+/// CURRENT (buggy) behavior so that the loss is on the record; the comment above each one says what it
+/// should assert once fixed.
 /// </summary>
 [Collection("NATS Integration")]
 [Trait("Category", "Integration")]
@@ -28,20 +29,23 @@ public class Bug_4845_silent_jetstream_loss
 
     /// <summary>
     /// GH-4845 #1. A JetStream publish the server REFUSES comes back as a PubAck with <c>Error</c> set,
-    /// not as an exception. <c>JetStreamPublisher</c> only reads <c>ack.Seq</c>, so the send reports
-    /// success and the durable outbox deletes a message the stream never stored.
+    /// not as an exception. <c>JetStreamPublisher</c> only read <c>ack.Seq</c>, so the send reported
+    /// success and the durable outbox deleted a message the stream never stored.
     ///
-    /// Forced here with MaxMsgs=1 + DiscardPolicy.New: the second publish is refused.
-    /// AFTER THE FIX the second SendAsync should throw.
+    /// Forced here with MaxMsgs=1 + DiscardPolicy.New: the second publish is refused, and that failure
+    /// has to reach Wolverine's sending failure handling. SendAsync itself does not throw for an inline
+    /// endpoint: the inline sending agent hands a failed send to the endpoint's sending failure policies
+    /// and otherwise to its retry block, so the test watches the policy.
     /// </summary>
     [Fact]
-    public async Task rejected_jetstream_publish_is_reported_as_a_success()
+    public async Task rejected_jetstream_publish_reaches_the_sending_failure_policies()
     {
         var natsUrl = NatsTestHelpers.ResolveUrl();
         if (!await NatsTestHelpers.IsNatsAvailable(natsUrl)) return;
 
         var stream = $"REJECT_{Guid.NewGuid():N}";
         var subject = $"reject.full.{Guid.NewGuid():N}";
+        var sendFailure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var host = await Host.CreateDefaultBuilder()
             .ConfigureLogging(l => l.AddXunitLogging(_output))
@@ -60,7 +64,12 @@ public class Bug_4845_silent_jetstream_loss
                     });
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.PublishMessage<OrderPlaced>().ToNatsSubject(subject).UseJetStream(stream).SendInline();
+                opts.PublishMessage<OrderPlaced>().ToNatsSubject(subject).UseJetStream(stream).SendInline()
+                    .ConfigureSending(sending => sending.OnException<Exception>().CustomAction((_, _, e) =>
+                    {
+                        sendFailure.TrySetResult(e);
+                        return ValueTask.CompletedTask;
+                    }, "Record the failed send"));
             })
             .StartAsync(cancellationToken: Ct);
 
@@ -69,10 +78,12 @@ public class Bug_4845_silent_jetstream_loss
         // First send fills the stream to its one-message limit.
         await bus.SendAsync(new OrderPlaced(Guid.NewGuid().ToString("N")));
 
-        // The server refuses this one. The send still returns without throwing -- that IS the bug.
+        // The server refuses this one, and the send has to fail.
         await bus.SendAsync(new OrderPlaced(Guid.NewGuid().ToString("N")));
 
-        // Two sends reported success, one message actually stored.
+        var exception = (await sendFailure.Task.WaitAsync(10.Seconds(), Ct)).ShouldBeOfType<NatsJSApiException>();
+        _output.WriteLine($"refused: {exception.Error.Description} ({exception.Error.ErrCode})");
+
         (await CountStreamMessagesAsync(natsUrl, stream)).ShouldBe(1);
     }
 
