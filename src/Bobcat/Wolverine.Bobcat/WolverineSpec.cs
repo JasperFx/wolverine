@@ -11,11 +11,12 @@ namespace Wolverine.Bobcat;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Put Bobcat's <c>[BobcatScenario]</c> (or <c>[BobcatSpec]</c>) on the class and every step renders
-/// as a specification; without it the same test runs as an ordinary test and a wrong is thrown.
+/// Put Bobcat's <c>[BobcatFeature]</c> on the class (Bobcat.Xunit records every test in a feature class)
+/// and every step renders as a specification; without a recording the same test runs as an ordinary
+/// test and a wrong is thrown.
 /// </para>
 /// <code>
-/// [BobcatFeature("Appointments"), BobcatScenario]
+/// [BobcatFeature("Appointments")]
 /// public class confirming_an_appointment(AppFixture app) : WolverineSpec(app.Host)
 /// {
 ///     [Fact]

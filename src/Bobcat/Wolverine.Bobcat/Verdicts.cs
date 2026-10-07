@@ -13,7 +13,7 @@ public sealed class SpecificationFailedException(string message) : Exception(mes
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Inside a scenario</b> — a projected <c>[BobcatScenario]</c> / <c>[BobcatSpec]</c> test — a wrong
+/// <b>Inside a scenario</b> — a test in a <c>[BobcatFeature]</c> class, or one carrying <c>[BobcatSpec]</c> — a wrong
 /// is recorded on the step in progress through <see cref="SpecAssert" /> and the test carries on, so
 /// the specification shows every disagreement rather than only its first. The runner settles the
 /// verdict at the end.

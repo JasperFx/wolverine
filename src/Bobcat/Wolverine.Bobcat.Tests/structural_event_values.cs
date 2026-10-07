@@ -2,8 +2,9 @@ using Bobcat.Engine;
 
 namespace Wolverine.Bobcat.Tests;
 
-// GH-4835: ThenEvents(params object[]) compares structurally, renders a cell per leaf, and shows an
-// ignored member's value rather than dropping it.
+// GH-4835: ThenEvents(params object[]) compares structurally and reads as a set verification: one row
+// per event — OK, a FAIL naming the values that disagree, MISSING, EXTRA or ORDER — and shows an
+// ignored member's actual value rather than dropping it.
 [Collection(nameof(AppointmentsCollection))]
 public class structural_event_values(AppointmentsHost app) : WolverineSpec(app.Host)
 {
@@ -23,7 +24,7 @@ public class structural_event_values(AppointmentsHost app) : WolverineSpec(app.H
     }
 
     [Fact]
-    public async Task a_nested_mismatch_is_one_failed_cell_named_by_its_path()
+    public async Task a_nested_mismatch_is_one_failed_row_naming_the_path_that_disagreed()
     {
         var id = Guid.NewGuid();
 
@@ -36,12 +37,14 @@ public class structural_event_values(AppointmentsHost app) : WolverineSpec(app.H
         var then = recording.Steps.Last();
         then.Status.ShouldBe(ResultStatus.failed);
 
-        var city = then.Cells.Single(x => x.Name == "Patient.Address.City");
-        city.Status.ShouldBe(ResultStatus.failed);
-        city.Expected.ShouldBe("Boston");
-        city.Actual.ShouldBe("Austin");
+        // The right event with one wrong value: the event matched, and only the leaf that disagreed is named
+        then.Cells.Single(x => x.Name == "event").Status.ShouldBe(ResultStatus.success);
 
-        then.Cells.Single(x => x.Name == "Patient.Name").Status.ShouldBe(ResultStatus.success);
+        var values = then.Cells.Single(x => x.Name == "values");
+        values.Status.ShouldBe(ResultStatus.failed);
+        values.Expected.ShouldBe("Patient.Address.City: Boston");
+        values.Actual.ShouldBe("Patient.Address.City: Austin");
+
         then.Cells.ShouldAllBe(x => x.RowIndex == 0);
     }
 
@@ -59,10 +62,11 @@ public class structural_event_values(AppointmentsHost app) : WolverineSpec(app.H
 
         recording.GatheredFailures().ShouldBeNull();
 
-        var confirmedAt = recording.Steps.Last().Cells.Single(x => x.Name == "ConfirmedAt");
-        confirmedAt.Status.ShouldBe(ResultStatus.ok);
-        confirmedAt.Expected.ShouldBeNull();
-        confirmedAt.DisplayText.ShouldNotBe("NULL");
+        // The row shows what happened, so the ignored timestamp reads as its real value, not default
+        var values = recording.Steps.Last().Cells.Single(x => x.Name == "values");
+        values.Status.ShouldBe(ResultStatus.success);
+        values.DisplayText.ShouldContain("ConfirmedAt: ");
+        values.DisplayText.ShouldNotContain("0001-01-01");
     }
 
     [Fact]
@@ -77,14 +81,29 @@ public class structural_event_values(AppointmentsHost app) : WolverineSpec(app.H
     }
 
     [Fact]
-    public async Task a_missing_or_extra_event_is_reported_by_position()
+    public async Task a_missing_event_is_missing_and_the_events_around_it_still_match()
     {
         var id = Guid.NewGuid();
         await WhenReceived(new ScheduleAppointment(id, ann, []));
 
-        Should.Throw<SpecificationFailedException>(() => ThenEvents(
-                new AppointmentScheduled(id, ann, []),
-                new AppointmentConfirmed(id, default)))
-            .Message.ShouldContain("[1] AppointmentConfirmed is missing");
+        // Written FIRST, so a positional comparison would have called the AppointmentScheduled wrong too
+        var message = Should.Throw<SpecificationFailedException>(() => ThenEvents(
+                new AppointmentConfirmed(id, default),
+                new AppointmentScheduled(id, ann, [])))
+            .Message;
+
+        message.ShouldStartWith("MISSING AppointmentConfirmed(");
+        message.ShouldNotContain("AppointmentScheduled");
+    }
+
+    [Fact]
+    public async Task an_event_nobody_expected_is_extra()
+    {
+        var id = Guid.NewGuid();
+        await GivenEvents<Appointment>(id, new AppointmentScheduled(id, ann, []));
+        await WhenReceived(new ConfirmAppointment(id));
+
+        Should.Throw<SpecificationFailedException>(() => ThenEvents(Array.Empty<object>()))
+            .Message.ShouldStartWith("EXTRA AppointmentConfirmed(");
     }
 }

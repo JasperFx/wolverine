@@ -25,7 +25,7 @@ public abstract class OrderFulfillmentSpec(AppFixture fixture) : WolverineSpec(f
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
-[BobcatFeature("Starting order fulfillment"), BobcatScenario]
+[BobcatFeature("Starting order fulfillment")]
 public class starting_order_fulfillment(AppFixture fixture) : OrderFulfillmentSpec(fixture)
 {
     [Fact]
@@ -41,7 +41,7 @@ public class starting_order_fulfillment(AppFixture fixture) : OrderFulfillmentSp
     }
 }
 
-[BobcatFeature("Continuing order fulfillment"), BobcatScenario]
+[BobcatFeature("Continuing order fulfillment")]
 public class continuing_order_fulfillment(AppFixture fixture) : OrderFulfillmentSpec(fixture)
 {
     [Fact]
@@ -93,7 +93,7 @@ public class continuing_order_fulfillment(AppFixture fixture) : OrderFulfillment
     }
 }
 
-[BobcatFeature("Payment timeout"), BobcatScenario]
+[BobcatFeature("Payment timeout")]
 public class payment_timeout(AppFixture fixture) : OrderFulfillmentSpec(fixture)
 {
     [Fact]
@@ -101,7 +101,7 @@ public class payment_timeout(AppFixture fixture) : OrderFulfillmentSpec(fixture)
     {
         await GivenEvents<OrderFulfillmentState>(Id, Started);
 
-        // The scheduled message itself, delivered now: no waiting on the scheduler
+        ScenarioRecorder.Note("The scheduled message itself, delivered now: no waiting on the scheduler");
         await WhenReceived(new PaymentTimeout(Id));
 
         ThenEvents(new OrderFulfillmentCancelled(Id, "Payment timed out"));
@@ -118,7 +118,7 @@ public class payment_timeout(AppFixture fixture) : OrderFulfillmentSpec(fixture)
     }
 }
 
-[BobcatFeature("Cancelling order fulfillment"), BobcatScenario]
+[BobcatFeature("Cancelling order fulfillment")]
 public class cancelling_order_fulfillment(AppFixture fixture) : OrderFulfillmentSpec(fixture)
 {
     [Fact]

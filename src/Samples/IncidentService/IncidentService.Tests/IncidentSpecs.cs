@@ -27,7 +27,7 @@ public abstract class IncidentSpec(AppFixture fixture) : WolverineHttpSpec(fixtu
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
-[BobcatFeature("Logging an incident"), BobcatScenario]
+[BobcatFeature("Logging an incident")]
 public class logging_an_incident(AppFixture fixture) : IncidentSpec(fixture)
 {
     [Fact]
@@ -51,7 +51,7 @@ public class logging_an_incident(AppFixture fixture) : IncidentSpec(fixture)
     }
 }
 
-[BobcatFeature("Categorising an incident"), BobcatScenario]
+[BobcatFeature("Categorising an incident")]
 public class categorising_an_incident(AppFixture fixture) : IncidentSpec(fixture)
 {
     [Fact]
@@ -79,7 +79,7 @@ public class categorising_an_incident(AppFixture fixture) : IncidentSpec(fixture
     }
 }
 
-[BobcatFeature("Closing an incident"), BobcatScenario]
+[BobcatFeature("Closing an incident")]
 public class closing_an_incident(AppFixture fixture) : IncidentSpec(fixture)
 {
     [Fact]

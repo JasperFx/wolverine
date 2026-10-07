@@ -23,8 +23,10 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
 
         recording.Steps.Select(x => $"{x.Keyword} {x.Text}").ShouldBe(new[]
         {
-            $"Given Appointment \"{id}\" has already recorded AppointmentScheduled",
-            "When ConfirmAppointment is received",
+            // The stream's id is named after its aggregate, and a value that fits on the line is
+            // shown whole; AppointmentScheduled does not fit, so its values are a table under the step
+            "Given the Appointment stream has already recorded AppointmentScheduled",
+            "When ConfirmAppointment(AppointmentId: Appointment) is received",
             "Then AppointmentConfirmed is emitted"
         });
 
@@ -112,7 +114,7 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
             ThenEvents(typeof(AppointmentScheduled));
         });
 
-        recording.Steps[0].Text.ShouldBe($"Appointment \"{id}\" has no events yet");
+        recording.Steps[0].Text.ShouldBe("the Appointment stream has no events yet");
         recording.GatheredFailures().ShouldBeNull();
     }
 

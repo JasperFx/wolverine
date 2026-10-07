@@ -46,7 +46,8 @@ public class WolverineHttpScenario : WolverineScenario
         LastResponse = null;
         string? responseBody = null;
 
-        await ActAsync($"{command.GetType().Name} is posted to \"{route}\"",
+        // {0} is the command, described in full when it fits; the route is escaped out of the format
+        await ActAsync($"{{0}} is posted to \"{route.Replace("{", "{{").Replace("}", "}}")}\"", command,
             tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
                 LastResponse = await AlbaHost.Scenario(x =>

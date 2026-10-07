@@ -2,6 +2,7 @@ using Bobcat;
 using Bobcat.CritterStack;
 using Bobcat.Engine;
 using Bobcat.Runtime;
+using System.Globalization;
 using JasperFx.Events;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
@@ -124,14 +125,16 @@ public class WolverineScenario
     /// <inheritdoc cref="GivenEvents{TAggregate}(Guid, object[])" />
     public async Task GivenEvents(Type aggregate, object id, params object[] events)
     {
+        var stream = streamName(aggregate, id);
+        var (described, inline) = describe(events);
         using var step = ScenarioRecorder.Step("Given",
             events.Length == 0
-                ? $"{aggregate.Name} \"{id}\" has no events yet"
-                : $"{aggregate.Name} \"{id}\" has already recorded {names(events)}");
+                ? $"{stream} has no events yet"
+                : $"{stream} has already recorded {described}");
 
         _stream = id;
         if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, events);
-        recordArranged(events);
+        if (!inline) recordValues("event", events);
     }
 
     /// <summary>
@@ -157,21 +160,50 @@ public class WolverineScenario
     /// <inheritdoc cref="GivenEventsOn{TAggregate}(Guid, object[])" />
     public async Task GivenEventsOn(Type aggregate, object id, params object[] events)
     {
-        using var step = ScenarioRecorder.Step("Given", $"{aggregate.Name} \"{id}\" has already recorded {names(events)}");
+        var (described, inline) = describe(events);
+        using var step = ScenarioRecorder.Step("Given", $"{streamName(aggregate, id)} has already recorded {described}");
         if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, events);
-        recordArranged(events);
+        if (!inline) recordValues("event", events);
     }
 
-    private static void recordArranged(object[] events)
+    /// <summary>
+    /// How a stream reads in a step: its id is named after the aggregate (GH-4835), so a stream
+    /// arranged once reads "the Order stream" — and a second one of the same type "Order Order2".
+    /// </summary>
+    private static string streamName(Type aggregate, object id)
     {
-        for (var i = 0; i < events.Length; i++)
+        if (id is string key) return $"{aggregate.Name} \"{key}\"";
+
+        ScenarioValues.Learn(id, aggregate.Name);
+        var name = ScenarioValues.Format(id);
+        return name == aggregate.Name ? $"the {aggregate.Name} stream" : $"{aggregate.Name} {name}";
+    }
+
+    /// <summary>
+    /// Values as a step's text shows them: each one in full — <c>Type(Property: value, …)</c> — when
+    /// they fit on the line, otherwise only their type names, and the caller shows the values as a
+    /// table under the step instead.
+    /// </summary>
+    private static (string Text, bool Inline) describe(IReadOnlyList<object> values)
+    {
+        var full = ScenarioValues.DescribeAll(values);
+        return full.Length <= ScenarioValues.InlineLimit ? (full, true) : (names(values), false);
+    }
+
+    /// <summary>Values too long for the step's text, as a table under it: one row each, unjudged.</summary>
+    private static void recordValues(string noun, IReadOnlyList<object> values)
+    {
+        if (!Verdicts.Recording || values.Count == 0) return;
+
+        var run = new TableRun([noun, ObjectSetVerification.ValuesColumn]);
+        for (var i = 0; i < values.Count; i++)
         {
-            Verdicts.Value("event", events[i].GetType().Name, i);
-            foreach (var (path, value) in ObjectComparison.Leaves(events[i]).Where(x => x.Path != "value"))
-            {
-                Verdicts.Value(path, value, i);
-            }
+            run.Cells.Add(new CellResult(noun, ResultStatus.ok, values[i].GetType().Name) { RowIndex = i });
+            run.Cells.Add(new CellResult(ObjectSetVerification.ValuesColumn, ResultStatus.ok,
+                ScenarioValues.DescribeProperties(values[i])) { RowIndex = i });
         }
+
+        run.Report(null);
     }
 
     // ---- act -------------------------------------------------------------------------------
@@ -183,13 +215,13 @@ public class WolverineScenario
     /// </summary>
     public Task WhenReceived(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => ActAsync($"{message.GetType().Name} is received",
+        => ActAsync("{0} is received", message,
             tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(message));
 
     /// <summary><paramref name="message" /> is published through Wolverine to every subscriber, and the scenario waits for what it caused.</summary>
     public Task WhenPublished(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => ActAsync($"{message.GetType().Name} is published",
+        => ActAsync("{0} is published", message,
             tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(message));
 
     /// <summary>
@@ -210,11 +242,35 @@ public class WolverineScenario
     /// <param name="stepText">How the step reads.</param>
     /// <param name="dispatch">Runs the act inside the configured tracked session.</param>
     /// <param name="complete">Refines the outcome once the session has settled — the HTTP act reads its response here.</param>
-    protected internal async Task ActAsync(string stepText,
+    protected internal Task ActAsync(string stepText,
         Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
         Func<ActOutcome, Task<ActOutcome>>? complete = null)
+        => actAsync(stepText, null, dispatch, complete);
+
+    /// <summary>
+    /// <see cref="ActAsync(string, Func{TrackedSessionConfiguration, Task{ITrackedSession}}, Func{ActOutcome, Task{ActOutcome}}?)" />
+    /// for an act that carries a command or message: <paramref name="stepFormat" />'s <c>{0}</c> is
+    /// <paramref name="subject" /> in full when it fits on the line, or its type name with its values
+    /// in a table under the step when it does not.
+    /// </summary>
+    protected internal Task ActAsync(string stepFormat, object subject,
+        Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
+        Func<ActOutcome, Task<ActOutcome>>? complete = null)
+        => actAsync(stepFormat, subject, dispatch, complete);
+
+    private async Task actAsync(string stepText, object? subject,
+        Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
+        Func<ActOutcome, Task<ActOutcome>>? complete)
     {
+        var inline = true;
+        if (subject is not null)
+        {
+            (var described, inline) = describe([subject]);
+            stepText = string.Format(CultureInfo.InvariantCulture, stepText, described);
+        }
+
         using var step = ScenarioRecorder.Step("When", stepText);
+        if (!inline) recordValues("message", [subject!]);
 
         HandlerWarmUp.WarmBeforeTracking(Host);
 
@@ -297,7 +353,7 @@ public class WolverineScenario
         if (!actSucceeded()) return;
 
         var actual = LastAct.NewEvents.Select(x => x.Data).ToArray();
-        compareSequence("event", actual, events);
+        verifySet("event", actual, events);
     }
 
     /// <summary>The act appended nothing — the refusal half of a guard.</summary>
@@ -305,7 +361,7 @@ public class WolverineScenario
     {
         using var step = ScenarioRecorder.Step("Then", "no events are emitted");
         Verdicts.Fact(LastAct.NewEvents.Count == 0,
-            $"Expected no events but the act appended {describeTypes(LastAct.NewEvents.Select(x => x.Data.GetType()).ToArray())}");
+            $"Expected no events but the act appended {ScenarioValues.DescribeAll(LastAct.NewEvents.Select(x => x.Data))}");
     }
 
     /// <summary>
@@ -531,7 +587,7 @@ public class WolverineScenario
         var sent = LastAct.Session?.Sent.Envelopes().ToArray() ?? Array.Empty<Envelope>();
         return sent.Length == 0
             ? "nothing"
-            : string.Join(", ", sent.Select(x => $"{x.Message?.GetType().Name ?? x.MessageType} to {x.Destination}"));
+            : string.Join(", ", sent.Select(x => $"{(x.Message is null ? x.MessageType : ScenarioValues.Describe(x.Message))} to {x.Destination}"));
     }
 
     // ---- assert: any object (GH-4836) --------------------------------------------------------
@@ -604,6 +660,27 @@ public class WolverineScenario
     }
 
     private static object unwrap(object value) => value is IExpectedValue expected ? expected.Value : value;
+
+    /// <summary>
+    /// <paramref name="actual" /> is exactly <paramref name="expected" />, in order, as a set
+    /// verification (GH-4835): one grid with a row per item — OK, a FAIL naming the values that
+    /// disagree, MISSING, EXTRA, or ORDER — rather than a positional comparison that reads one missing
+    /// event as every later one wrong.
+    /// </summary>
+    private void verifySet(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected)
+    {
+        var values = expected.Select(unwrap).ToArray();
+        var run = ObjectSetVerification.Cells(actual, values,
+            (item, i) => ObjectComparison.Compare(item, values[i], (expected[i] as IExpectedValue)?.IgnoredPaths)
+                .Where(x => !x.Matched)
+                .Select(x => new ValueDifference(x.Path, x.Expected, x.Actual))
+                .ToList(),
+            noun);
+
+        if (Verdicts.Recording) run.Report(null);
+
+        Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, noun)));
+    }
 
     /// <summary>
     /// A failure the step did not ask about is reported as the act failing, rather than as "expected 1

@@ -4,9 +4,9 @@ using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Bobcat.Tests;
 
-// Under Bobcat.Xunit's [BobcatScenario] the same base class records into the scenario the adapter
-// opens, so the test publishes as a specification with no Recordings helper in sight.
-[BobcatFeature("Confirming appointments"), BobcatScenario]
+// In a [BobcatFeature] class Bobcat.Xunit records every test, so the same base class records into the
+// scenario the adapter opens and the test publishes as a specification with no Recordings helper in sight.
+[BobcatFeature("Confirming appointments")]
 [Collection(nameof(AppointmentsCollection))]
 public class projected_lane(AppointmentsHost app) : WolverineSpec(app.Host)
 {

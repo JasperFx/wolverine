@@ -66,13 +66,12 @@ public sealed class AppendedEventsReport : TableReport
     {
         foreach (var e in events)
         {
-            Row(("stream", (object?)(e.StreamKey ?? (e.StreamId == Guid.Empty ? "" : e.StreamId.ToString()))),
+            // In the scenario's own vocabulary: the stream and the values read by the names the steps
+            // above used, and "Named values" beside this report says what each name stands for
+            Row(("stream", (object?)(e.StreamKey ?? (e.StreamId == Guid.Empty ? "" : ScenarioValues.Format(e.StreamId)))),
                 ("version", e.Version),
                 ("event", e.Data.GetType().Name),
-                ("data", describe(e.Data)));
+                ("data", ScenarioValues.DescribeProperties(e.Data)));
         }
     }
-
-    private static string describe(object data)
-        => string.Join(", ", ObjectComparison.Leaves(data).Select(x => $"{x.Path}={ObjectComparison.Format(x.Value)}"));
 }
