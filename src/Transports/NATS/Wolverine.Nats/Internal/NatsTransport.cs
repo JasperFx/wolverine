@@ -170,6 +170,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         var natsOpts = Configuration.ToNatsOpts();
         natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}" };
         _connection = new NatsConnection(natsOpts);
+        logDroppedMessages(_connection);
         await _connection.ConnectAsync();
 
         _logger.LogInformation("Connected to NATS at {Url}", Configuration.ConnectionString);
@@ -206,6 +207,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
         {
             var tenantConnection = new NatsConnection(buildTenantNatsOpts(tenant));
+            logDroppedMessages(tenantConnection);
             tenant.Connection = tenantConnection;
             _logger.LogInformation("Created dedicated NATS connection for tenant {TenantId}", tenant.TenantId);
 
@@ -216,6 +218,37 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                 await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
             }
         }
+    }
+
+    /// <summary>
+    /// A core NATS subscription buffers incoming messages in a bounded channel
+    /// (<see cref="NatsOpts.SubPendingChannelCapacity"/>), and under the default
+    /// <see cref="NatsOpts.SubPendingChannelFullMode"/> of <c>DropNewest</c> a full channel drops messages. Core NATS
+    /// never redelivers them, and NATS.Net reports the loss only through these connection events and its own
+    /// logger, which Wolverine does not wire up -- so without this the loss is invisible.
+    /// </summary>
+    private void logDroppedMessages(NatsConnection connection)
+    {
+        connection.MessageDropped += (_, args) =>
+        {
+            _logger?.LogWarning(
+                "NATS connection {Connection} dropped a message on subject {Subject}: the pending channel of subscription {Subscription} is full ({Pending} pending), and core NATS does not redeliver it. Raise the pending channel capacity (NatsOpts.SubPendingChannelCapacity) or scale out the listener",
+                connection.Opts.Name,
+                args.Subject,
+                args.Subscription.Subject,
+                args.Pending);
+            return ValueTask.CompletedTask;
+        };
+
+        connection.SlowConsumerDetected += (_, args) =>
+        {
+            _logger?.LogWarning(
+                "NATS subscription {Subscription} on connection {Connection} is a slow consumer: messages arrive faster than they are processed, and messages that do not fit into its pending channel of {Capacity} are dropped",
+                args.Subscription.Subject,
+                connection.Opts.Name,
+                connection.Opts.SubPendingChannelCapacity);
+            return ValueTask.CompletedTask;
+        };
     }
 
     public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)

@@ -132,6 +132,14 @@ opts.UseNats("nats://localhost:4222")
     );
 ```
 
+### Dropped Core NATS Messages <Badge type="tip" text="6.47" />
+
+A core NATS subscription buffers incoming messages in a pending channel of 1,024 messages, and NATS.Net drops the
+newest message once that channel is full. Core NATS never redelivers it. Wolverine logs a warning from
+`NatsTransport` for every dropped message (subject, subscription, connection) and one for each slow-consumer
+episode of a subscription, on the shared and on the tenant connections. If you see them, scale out the listener or
+move the subject to JetStream.
+
 ## Authentication
 
 ### Username and Password
