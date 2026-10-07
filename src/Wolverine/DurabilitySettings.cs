@@ -692,6 +692,16 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan AgentProgressStallTimeout { get; set; } = 5.Minutes();
 
     /// <summary>
+    ///     GH-4871: how long <see cref="IAgentRuntime.ApplyRestrictionsAsync" /> waits for an agent that an
+    ///     operator's restart or pin should have put to work to show up in the persisted node assignments,
+    ///     before it reports the change as not confirmed. The kickstarted health check dispatches its
+    ///     assignment commands asynchronously, so the start may still be in flight when the inline drain
+    ///     returns; a healthy start lands within milliseconds, so this only runs its full length when an
+    ///     agent genuinely will not start. Default 10 seconds.
+    /// </summary>
+    public TimeSpan AgentRestrictionConfirmationTimeout { get; set; } = 10.Seconds();
+
+    /// <summary>
     ///     GH-3519: how many extra times this node immediately re-tries an agent that failed to start,
     ///     before giving up and leaving it to the next assignment reevaluation. A first-assignment start
     ///     races the subsystems the agent depends on — an event-subscription shard evaluated before its
@@ -1018,6 +1028,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(MaxAgentStartFailuresBeforeRelease), MaxAgentStartFailuresBeforeRelease);
         desc.AddValue(nameof(AgentReleaseCooldown), AgentReleaseCooldown);
         desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
+        desc.AddValue(nameof(AgentRestrictionConfirmationTimeout), AgentRestrictionConfirmationTimeout);
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
         desc.AddValue(nameof(MessageDeduplicationMode), MessageDeduplicationMode);
