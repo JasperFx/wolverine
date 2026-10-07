@@ -61,22 +61,22 @@ public class categorising_an_incident(AppFixture fixture) : IncidentSpec(fixture
     [Fact]
     public async Task an_open_incident_is_categorised()
     {
-        var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged);
+        var theIncident = Guid.NewGuid();
+        await GivenEvents<Incident>(theIncident, Logged);
 
-        await WhenPosted(new CategoriseIncident(IncidentCategory.Database, Agent, 1), $"/api/incidents/{id}/category");
+        await WhenPosted(new CategoriseIncident(IncidentCategory.Database, Agent, 1), $"/api/incidents/{theIncident}/category");
 
         ThenResponseIs(204);
-        ThenEvents(new IncidentCategorised(id, IncidentCategory.Database, Agent));
+        ThenEvents(new IncidentCategorised(theIncident, IncidentCategory.Database, Agent));
     }
 
     [Fact]
     public async Task a_closed_incident_is_refused()
     {
-        var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged, new IncidentClosed(Agent));
+        var theIncident = Guid.NewGuid();
+        await GivenEvents<Incident>(theIncident, Logged, new IncidentClosed(Agent));
 
-        await WhenPosted(new CategoriseIncident(IncidentCategory.Database, Agent, 2), $"/api/incidents/{id}/category");
+        await WhenPosted(new CategoriseIncident(IncidentCategory.Database, Agent, 2), $"/api/incidents/{theIncident}/category");
 
         ThenRefusedWith("Incident is already closed");
         ThenNoEvents();
@@ -89,10 +89,10 @@ public class closing_an_incident(AppFixture fixture) : IncidentSpec(fixture)
     [Fact]
     public async Task an_open_incident_is_closed_and_archived_later()
     {
-        var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged);
+        var theIncident = Guid.NewGuid();
+        await GivenEvents<Incident>(theIncident, Logged);
 
-        await WhenPosted(new CloseIncident(Agent, 1), $"/api/incidents/close/{id}");
+        await WhenPosted(new CloseIncident(Agent, 1), $"/api/incidents/close/{theIncident}");
 
         ThenEvents(new IncidentClosed(Agent));
         ThenMessageScheduled<ArchiveIncident>(TimeSpan.FromDays(3));
@@ -102,10 +102,10 @@ public class closing_an_incident(AppFixture fixture) : IncidentSpec(fixture)
     public async Task closing_a_closed_incident_appends_nothing_and_archives_nothing()
     {
         // The conditional append: the endpoint returns no events when the incident is already closed
-        var id = Guid.NewGuid();
-        await GivenEvents<Incident>(id, Logged, new IncidentClosed(Agent));
+        var theIncident = Guid.NewGuid();
+        await GivenEvents<Incident>(theIncident, Logged, new IncidentClosed(Agent));
 
-        await WhenPosted(new CloseIncident(Agent, 2), $"/api/incidents/close/{id}");
+        await WhenPosted(new CloseIncident(Agent, 2), $"/api/incidents/close/{theIncident}");
 
         ThenResponseIs(200);
         ThenNoEvents();

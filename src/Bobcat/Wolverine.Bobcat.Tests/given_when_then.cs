@@ -12,21 +12,21 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
     [Fact]
     public async Task an_arranged_stream_an_act_and_the_events_it_appended_render_as_steps()
     {
-        var id = Guid.NewGuid();
+        var theAppointment = Guid.NewGuid();
 
         var recording = await Recordings.RecordAsync(async () =>
         {
-            await GivenEvents<Appointment>(id, scheduled(id));
-            await WhenReceived(new ConfirmAppointment(id));
+            await GivenEvents<Appointment>(theAppointment, scheduled(theAppointment));
+            await WhenReceived(new ConfirmAppointment(theAppointment));
             ThenEvents(typeof(AppointmentConfirmed));
         });
 
         recording.Steps.Select(x => $"{x.Keyword} {x.Text}").ShouldBe(new[]
         {
-            // The stream's id is named after its aggregate, and a value that fits on the line is
+            // The id reads as the variable it was declared as, and a value that fits on the line is
             // shown whole; AppointmentScheduled does not fit, so its values are a table under the step
-            "Given the Appointment stream has already recorded AppointmentScheduled",
-            "When ConfirmAppointment(AppointmentId: Appointment) is received",
+            "Given Appointment theAppointment has already recorded AppointmentScheduled",
+            "When ConfirmAppointment(AppointmentId: theAppointment) is received",
             "Then AppointmentConfirmed is emitted"
         });
 
@@ -103,18 +103,31 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
     }
 
     [Fact]
-    public async Task no_events_yet_renders_and_names_the_stream()
+    public async Task an_id_with_no_variable_of_its_own_is_named_after_its_aggregate()
     {
-        var id = Guid.NewGuid();
+        var ids = new[] { Guid.NewGuid() };
 
         var recording = await Recordings.RecordAsync(async () =>
         {
-            await GivenNoEventsFor<Appointment>(id);
-            await WhenReceived(new ScheduleAppointment(id, ann, []));
-            ThenEvents(typeof(AppointmentScheduled));
+            await GivenNoEventsFor<Appointment>(ids[0]);
         });
 
         recording.Steps[0].Text.ShouldBe("the Appointment stream has no events yet");
+    }
+
+    [Fact]
+    public async Task no_events_yet_renders_and_names_the_stream()
+    {
+        var theAppointment = Guid.NewGuid();
+
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await GivenNoEventsFor<Appointment>(theAppointment);
+            await WhenReceived(new ScheduleAppointment(theAppointment, ann, []));
+            ThenEvents(typeof(AppointmentScheduled));
+        });
+
+        recording.Steps[0].Text.ShouldBe("Appointment theAppointment has no events yet");
         recording.GatheredFailures().ShouldBeNull();
     }
 

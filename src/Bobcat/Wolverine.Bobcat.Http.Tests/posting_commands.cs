@@ -8,9 +8,9 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
 {
     private async Task<Guid> scheduled()
     {
-        var id = Guid.NewGuid();
-        await GivenEvents<Appointment>(id, new AppointmentScheduled(id, "Ann"));
-        return id;
+        var theAppointment = Guid.NewGuid();
+        await GivenEvents<Appointment>(theAppointment, new AppointmentScheduled(theAppointment, "Ann"));
+        return theAppointment;
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
         recording.GatheredFailures().ShouldBeNull();
 
         var when = recording.Steps[0];
-        when.Text.ShouldBe("ConfirmAppointmentRequest(AppointmentId: Appointment) is posted to \"/api/appointments/confirm\"");
+        when.Text.ShouldBe("ConfirmAppointmentRequest(AppointmentId: theAppointment) is posted to \"/api/appointments/confirm\"");
         when.Cells.Single(x => x.Name == "status").DisplayText.ShouldBe("200");
     }
 
@@ -45,7 +45,7 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
         });
 
         recording.GatheredFailures().ShouldBeNull();
-        recording.Steps[0].Text.ShouldBe($"CancelAppointment(AppointmentId: Appointment) is posted to \"/api/appointments/{id}/cancel\"");
+        recording.Steps[0].Text.ShouldBe($"CancelAppointment(AppointmentId: theAppointment) is posted to \"/api/appointments/{id}/cancel\"");
     }
 
     [Fact]
