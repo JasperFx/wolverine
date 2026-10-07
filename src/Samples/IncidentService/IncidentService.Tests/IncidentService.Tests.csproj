@@ -9,6 +9,8 @@
     <ItemGroup>
         <PackageReference Include="Alba" />
         <PackageReference Include="Bobcat.Xunit" />
+        <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
+        <PackageReference Include="Bobcat.Generators" />
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit.v3"/>
