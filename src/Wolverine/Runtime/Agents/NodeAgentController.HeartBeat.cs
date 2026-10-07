@@ -499,6 +499,9 @@ public partial class NodeAgentController
             // grid upstream); wait for N consecutive observations before the irreversible delete.
             if (count < threshold)
             {
+                _logger.LogDebug(
+                    "Node {NodeId} (assigned node number {NodeNumber}) has missed its health check since {LastHealthCheck}; stale observation {Count} of {Threshold} before it is ejected",
+                    staleNode.NodeId, staleNode.AssignedNodeNumber, staleNode.LastHealthCheck, count, threshold);
                 continue;
             }
 
@@ -510,6 +513,14 @@ public partial class NodeAgentController
             await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
             _staleObservations.Remove(staleNode.NodeId);
             ejected.Add(staleNode);
+
+            // GH-4852. This is the whole crash-recovery story for everything the dead node was holding -- the
+            // delete above also releases every inbox and outbox envelope it owned -- and until now it was the
+            // one link in that chain with no log line. Agents starting, orphan releases and inbox recovery all
+            // log; the ejection that triggers them did not.
+            _logger.LogWarning(
+                "Ejected stale node {NodeId} (assigned node number {NodeNumber}) after {Count} consecutive missed health checks; its last health check was at {LastHealthCheck}. Its node record has been deleted and every inbox and outbox envelope it owned has been released for recovery",
+                staleNode.NodeId, staleNode.AssignedNodeNumber, count, staleNode.LastHealthCheck);
         }
 
         if (ejected.Count != 0)
