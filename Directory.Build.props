@@ -32,7 +32,7 @@
         <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>6.46.0</Version>
+        <Version>6.47.0</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
