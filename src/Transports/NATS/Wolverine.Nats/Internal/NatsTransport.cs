@@ -169,6 +169,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
         var natsOpts = Configuration.ToNatsOpts();
         natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}" };
+        natsOpts = Configuration.ConfigureNatsOpts?.Invoke(natsOpts) ?? natsOpts;
         _connection = new NatsConnection(natsOpts);
         logDroppedMessages(_connection);
         await _connection.ConnectAsync();
@@ -319,13 +320,19 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         return tenant.HasOwnConnection ? tenant.Connection ?? Connection : Connection;
     }
 
-    private static NatsOpts buildTenantNatsOpts(NatsTenant tenant)
+    private NatsOpts buildTenantNatsOpts(NatsTenant tenant)
     {
         // The tenant carries its own full connection configuration (URL + any of the NATS auth mechanisms +
         // TLS), so we reuse the same ToNatsOpts() the shared connection uses rather than privileging one
         // credential kind. Only the client name is decorated so tenant connections are distinguishable.
-        var opts = tenant.ConnectionConfiguration!.ToNatsOpts();
-        return opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
+        var configuration = tenant.ConnectionConfiguration!;
+        var opts = configuration.ToNatsOpts();
+        opts = opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
+
+        // The tenant's configuration is a copy of the transport's taken by AddTenant(), so a hook registered
+        // after that call only lives on the transport's configuration -- fall back to it
+        var configure = configuration.ConfigureNatsOpts ?? Configuration.ConfigureNatsOpts;
+        return configure?.Invoke(opts) ?? opts;
     }
 
     /// <summary>

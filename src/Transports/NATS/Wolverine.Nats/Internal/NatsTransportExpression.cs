@@ -1,3 +1,4 @@
+using NATS.Client.Core;
 using Wolverine.Nats.Configuration;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -36,6 +37,20 @@ public class NatsTransportExpression
     public NatsTransportExpression DeduplicateUsing(Func<Envelope, string> msgIdSource)
     {
         Transport.Configuration.MsgIdSource = msgIdSource;
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the NATS.Net client options of the transport's connections -- the shared connection and every
+    /// tenant's dedicated connection -- for settings Wolverine does not surface itself, e.g. the subscription
+    /// pending channel or the ping interval. The function receives the <see cref="NatsOpts"/> Wolverine built,
+    /// connection already named, and the connection uses whatever it returns:
+    /// <c>ConfigureNatsOpts(o =&gt; o with { SubPendingChannelFullMode = BoundedChannelFullMode.Wait })</c>.
+    /// </summary>
+    public NatsTransportExpression ConfigureNatsOpts(Func<NatsOpts, NatsOpts> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        Transport.Configuration.ConfigureNatsOpts = configure;
         return this;
     }
 

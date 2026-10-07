@@ -62,6 +62,19 @@ public class NatsTransportConfiguration
     /// </summary>
     [IgnoreDescription]
     public Func<Envelope, string>? MsgIdSource { get; set; }
+
+    /// <summary>
+    /// Optional last word over the NATS.Net <see cref="NatsOpts"/> of a connection the transport opens: it receives
+    /// the options Wolverine built from this configuration -- connection already named -- and the connection uses
+    /// whatever it returns. Reach for it for client settings this configuration does not surface, such as
+    /// <see cref="NatsOpts.SubPendingChannelCapacity"/>, <see cref="NatsOpts.SubPendingChannelFullMode"/>,
+    /// <see cref="NatsOpts.PingInterval"/> or the reconnect behavior. Applies to the shared connection and to every
+    /// tenant's dedicated connection; a tenant's own configuration may set one of its own, which then replaces the
+    /// transport's for that tenant. Null (the default) leaves the NATS.Net defaults alone.
+    /// </summary>
+    [IgnoreDescription]
+    public Func<NatsOpts, NatsOpts>? ConfigureNatsOpts { get; set; }
+
     public Dictionary<string, StreamConfiguration> Streams { get; set; } = new();
 
     internal NatsOpts ToNatsOpts()
