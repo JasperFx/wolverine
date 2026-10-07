@@ -68,8 +68,10 @@ internal class JetStreamSubscriber : INatsSubscriber
             _endpoint.Subject
         );
 
-        // Explicit acks, AckWait, MaxDeliver and -- GH-4053 -- the MaxAckPending NativeAck needs
-        var config = _endpoint.ApplyManagedConsumerSettings(new ConsumerConfig());
+        // Explicit acks, AckWait, MaxDeliver, the subject filter (GH-3676, and the schedule subject under
+        // native scheduled send) and -- GH-4053 -- the MaxAckPending NativeAck needs. The same set resource
+        // setup writes, so the two never disagree on an existing consumer
+        var config = _endpoint.ApplyManagedConsumerSettings(new ConsumerConfig(), _subscriptionPattern);
 
         // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
         // Leaving the property unset on the ConsumerConfig instance falls through to
@@ -79,31 +81,6 @@ internal class JetStreamSubscriber : INatsSubscriber
         if (_endpoint.EffectiveDeliverPolicy is { } deliverPolicy)
         {
             config.DeliverPolicy = deliverPolicy;
-        }
-
-        // Scope the consumer to this listener's subject. This used to be applied only to
-        // ephemeral consumers, so a durable consumer created through the fallback below
-        // was provisioned with no filter at all -- and every durable consumer sharing a
-        // stream then received every message published to that stream (GH-3676). The
-        // AutoProvision path in NatsEndpoint has always set it for named consumers; this
-        // is the runtime create-on-missing path catching up. Consumers that already exist
-        // are unaffected: GetConsumerAsync succeeding means this config is never sent
-        if (!string.IsNullOrEmpty(_subscriptionPattern))
-        {
-            // Native scheduling publishes its control message to {subject}{suffix} and no single
-            // NATS filter covers both that and {subject} -- '{subject}.>' excludes {subject}
-            // itself. On a work queue stream a control message no consumer covers is discarded
-            // outright, so the schedule is never registered and the send silently never arrives;
-            // a multi-filter consumer keeps the schedule subject owned by this endpoint
-            var scheduleSubject = _subscriptionPattern + _endpoint.ScheduleSubjectSuffix;
-            if (_endpoint.UsesNativeScheduledSend && !string.IsNullOrEmpty(_endpoint.ScheduleSubjectSuffix))
-            {
-                config.FilterSubjects = [_subscriptionPattern, scheduleSubject];
-            }
-            else
-            {
-                config.FilterSubject = _subscriptionPattern;
-            }
         }
 
         if (!string.IsNullOrEmpty(_endpoint.ConsumerName))
@@ -241,8 +218,12 @@ internal class JetStreamSubscriber : INatsSubscriber
         {
             existing = await _jetStreamContext.GetConsumerAsync(stream, name, cancellation);
         }
-        catch (NatsJSException)
+        catch (NatsJSApiException e) when (e.Error.Code == 404)
         {
+            // Only "consumer not found" means the consumer is missing. Any other failure -- no JetStream
+            // answering for the domain, missing permissions, a timeout -- propagates instead of being reported
+            // as a missing consumer under Verify, or answered with a create that would have to change the
+            // consumer's DeliverPolicy
             if (provisioning == NatsProvisioning.Verify)
             {
                 throw new InvalidOperationException(

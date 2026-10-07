@@ -166,7 +166,9 @@ public class NatsSender : ISender
 
             // A response or acknowledgement to a request that arrived with its own wire reply subject goes to
             // exactly that subject -- all a responder limited to allow_responses may publish to
-            targetSubject = _endpoint.ReplySubjectFor(envelope, targetSubject);
+            var replySubject = _endpoint.ReplySubjectFor(envelope, targetSubject);
+            var answersARequest = replySubject != targetSubject;
+            targetSubject = replySubject;
 
             await _publisher.PublishAsync(
                 targetSubject,
@@ -176,6 +178,13 @@ public class NatsSender : ISender
                 envelope,
                 _cancellation
             );
+
+            // Only once the reply is on the wire: a publish that throws is retried by the sending agent, and
+            // the retry has to find the per-request subject again
+            if (answersARequest)
+            {
+                _endpoint.ForgetWireReplySubject(envelope);
+            }
         }
         catch (Exception ex)
         {

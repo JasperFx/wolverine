@@ -878,7 +878,10 @@ consumer — a different storage type, a change to or from work-queue retention 
 `Verify` is meant for streams and consumers provisioned outside the application, for example by infrastructure as
 code. Stream deviations surface while the transport connects, so Wolverine's usual broker initialization retries
 apply until `WolverineOptions.BrokerInitializationTimeout` elapses; a consumer deviation fails the listener as it
-starts. `resources setup` / `AddResourceSetupOnStartup()` is not affected by this setting.
+starts. `Verify` checks the declared streams whether or not `AutoProvision()` is on, since it never creates
+anything itself. `resources setup` / `AddResourceSetupOnStartup()` is not affected by this setting; it writes the
+same consumer settings the listener does, so a start after resource setup finds nothing to reconcile or to fail
+`Verify` on.
 
 ## Subject Prefix
 
