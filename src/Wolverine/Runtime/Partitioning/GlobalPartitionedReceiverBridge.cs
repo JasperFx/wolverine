@@ -8,7 +8,7 @@ namespace Wolverine.Runtime.Partitioning;
 /// Messages received from the external transport are forwarded to the local durable queue
 /// for sequential processing by GroupId.
 /// </summary>
-internal class GlobalPartitionedReceiverBridge : IReceiver
+internal class GlobalPartitionedReceiverBridge : IReceiver, IHasQueueDepth
 {
     private readonly ILocalQueue _localQueue;
     private readonly bool _envelopesArePersistedInInbox;
@@ -20,6 +20,17 @@ internal class GlobalPartitionedReceiverBridge : IReceiver
     }
 
     public IHandlerPipeline Pipeline => _localQueue.Pipeline;
+
+    // The same reasoning as GH-4186 for the interceptor wrapper: a receiver that only hands envelopes on has to
+    // hand its depth on too. The slot's ListeningAgent reads QueueCount off its receiver, which is this bridge,
+    // and the slot's BackPressureAgent decides from that number whether to stop the listener popping the shard
+    // queue. Reporting 0 here meant back pressure could never engage for a global partition slot, however deep
+    // the companion queue got -- and the slot's inbox recovery loop sized its pages as if the queue were empty.
+    public int QueueCount => _localQueue.QueueCount;
+
+    public DateTimeOffset? LastReceivedAt => _localQueue.LastReceivedAt;
+
+    public PartitionedLaneDepth? LaneDepth => _localQueue.LaneDepth;
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {

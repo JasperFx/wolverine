@@ -509,6 +509,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             var localQueue = _runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) as ILocalQueue;
             if (localQueue != null)
             {
+                // The companion queue executes rows parked at TWO addresses: its own, for messages that took
+                // GlobalPartitionedRoute's local shortcut, and this slot's, for messages a durable database-backed
+                // slot popped out of its shard queue table (GH-4288 stamps those at the slot's address). The
+                // companion queue's drain on a handoff (GH-4777) can only release addresses it knows about, so
+                // tell it the slot's -- before the restart below, so a rebuilt receiver carries it too.
+                if (localQueue is DurableLocalQueue durableCompanion)
+                {
+                    durableCompanion.PartitionSlotUri = Endpoint.Uri;
+                }
+
                 // GH-4777. A previous loss of this slot drained the companion queue's receiver, and
                 // DurableReceiver has no unlatch -- so without rebuilding it here, re-acquiring the slot would
                 // hand the bridge a dead queue that silently executes nothing. Conditional on the status so a

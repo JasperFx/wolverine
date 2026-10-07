@@ -144,9 +144,34 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         await PauseAsync(pauseTime);
     }
 
+    private Uri? _partitionSlotUri;
+
+    /// <summary>
+    /// When this queue is a global partition's companion local queue, the slot's external address. The slot's
+    /// <c>ListeningAgent</c> stamps it when it installs the bridge, and every receiver this queue builds --
+    /// the one from the constructor and every rebuild in <see cref="StartAsync"/> after a slot handoff -- carries
+    /// it as <see cref="DurableReceiver.AlsoReleaseIncomingAt"/>, so losing the slot releases the rows that
+    /// arrived through the shard queue table and not only the ones that took the local shortcut.
+    /// </summary>
+    internal Uri? PartitionSlotUri
+    {
+        get => _partitionSlotUri;
+        set
+        {
+            _partitionSlotUri = value;
+            if (_receiver != null)
+            {
+                _receiver.AlsoReleaseIncomingAt = value;
+            }
+        }
+    }
+
     public ValueTask StartAsync()
     {
-        _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
+        _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline)
+        {
+            AlsoReleaseIncomingAt = _partitionSlotUri
+        };
         Latched = false;
         _paused = false;
         _runtime.Tracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName,
