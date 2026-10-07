@@ -1,6 +1,7 @@
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using Wolverine.Configuration;
@@ -631,15 +632,19 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             return;
         }
 
-        var js = _connection.CreateJetStreamContext();
+        // The transport's factory, like every other JetStream call here, so a configured JetStream domain or
+        // API prefix applies to the stream lookup and creation and to the consumer update below
+        var js = _transport.CreateJetStreamContext(_connection);
 
         try
         {
-            var stream = await js.GetStreamAsync(StreamName);
+            await js.GetStreamAsync(StreamName);
             logger.LogInformation("Using existing JetStream stream {Stream}", StreamName);
         }
-        catch
+        catch (NatsJSApiException e) when (e.Error.Code == 404)
         {
+            // Only a missing stream is created. Any other failure -- no JetStream answering for the domain,
+            // missing permissions, a timeout -- propagates instead of being taken for "not found"
             var subjects = new List<string> { Subject };
 
             if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)

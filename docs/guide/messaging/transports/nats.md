@@ -335,6 +335,11 @@ opts.UseNats("nats://localhost:4222")
     .UseJetStreamDomain("my-domain");
 ```
 
+The domain applies to every JetStream call the transport makes: publishing, listening, auto-provisioning, and
+the stream and consumer setup done by `resources setup` / `AddResourceSetupOnStartup()`
+<Badge type="tip" text="6.47" />. Resource setup only creates a stream when the lookup reports it as missing;
+any other failure, such as no JetStream answering for the domain, fails the setup instead.
+
 ## Listening to Messages
 
 ### Inline Processing
