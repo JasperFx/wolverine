@@ -75,6 +75,25 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
     /// </summary>
     internal string NormalizeSubject(string subject) => _transport.NormalizeSubjectIfEnabled(subject);
+
+    /// <summary>
+    /// The reply subject a request sent through this endpoint carries on the wire; see
+    /// <see cref="NatsTransport.WireReplySubjectFor"/>.
+    /// </summary>
+    internal string WireReplySubjectFor(Envelope envelope) => _transport.WireReplySubjectFor(envelope);
+
+    /// <summary>
+    /// See <see cref="NatsTransport.RememberWireReplySubject"/>.
+    /// </summary>
+    internal void RememberWireReplySubject(Envelope request, string? wireReplySubject) =>
+        _transport.RememberWireReplySubject(request, wireReplySubject);
+
+    /// <summary>
+    /// See <see cref="NatsTransport.ReplySubjectFor"/>.
+    /// </summary>
+    internal string ReplySubjectFor(Envelope envelope, string targetSubject) =>
+        _transport.ReplySubjectFor(envelope, targetSubject);
+
     public string? QueueGroup { get; set; }
 
     /// <summary>

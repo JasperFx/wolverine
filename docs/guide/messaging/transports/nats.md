@@ -777,6 +777,14 @@ var response = await bus.InvokeAsync<OrderConfirmation>(new CreateOrder(...));
 
 The response endpoint always uses Core NATS for low-latency replies, even when the main endpoints use JetStream.
 
+When a request goes to a core NATS subject that nothing subscribes to, the NATS server answers it with a
+"no responders" status, and `InvokeAsync()` fails at once with a `WolverineRequestReplyException` instead of
+waiting out its timeout <Badge type="tip" text="6.47" />. To tie that answer to the request, every request
+carries its own reply subject on the wire — the node's reply subject plus a per-request token,
+`wolverine.response.{service}.{node}.{token}` — and the reply listener also subscribes to
+`wolverine.response.{service}.{node}.>`. A Wolverine responder answers on exactly the reply subject the request
+carried, so it keeps working when its NATS user may only publish responses (`allow_responses`).
+
 ## Error Handling
 
 ### JetStream

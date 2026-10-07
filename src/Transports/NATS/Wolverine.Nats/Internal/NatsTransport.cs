@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -64,6 +65,80 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             : new Uri("nats://localhost:4222");
 
     public string ResponseSubject { get; private set; } = "wolverine.response";
+
+    /// <summary>
+    /// The reply subject a request carries on the wire. A request answered through this node's own
+    /// <see cref="ResponseSubject"/> gets its envelope id appended as one more token, which the reply listener's
+    /// <c>{ResponseSubject}.&gt;</c> subscription covers. NATS answers a request that reaches no subscriber with a
+    /// "no responders" status message on exactly that subject, and the token is what ties it back to the waiting
+    /// <c>InvokeAsync()</c>. Wolverine responders reply to the <c>reply-uri</c> header instead, which stays the
+    /// plain <see cref="ResponseSubject"/>.
+    /// </summary>
+    internal string WireReplySubjectFor(Envelope envelope)
+    {
+        var subject = ExtractSubjectFromUri(envelope.ReplyUri!);
+        return subject == ResponseSubject ? $"{subject}.{envelope.Id:N}" : subject;
+    }
+
+    private static readonly TimeSpan WireReplySubjectLifetime = TimeSpan.FromMinutes(10);
+    private readonly ConcurrentDictionary<Guid, WireReplySubject> _wireReplySubjects = new();
+    private int _wireReplySubjectWrites;
+
+    private readonly record struct WireReplySubject(string BaseSubject, string Subject, long RememberedAt);
+
+    /// <summary>
+    /// The other half of <see cref="WireReplySubjectFor"/>, on the responding side. A responder whose NATS user may
+    /// only publish responses (<c>allow_responses</c>) may answer on exactly the reply subject the request carried,
+    /// while the request's <c>reply-uri</c> header names the plain response subject. So remember the wire subject
+    /// of a request received with a per-request token, for <see cref="ReplySubjectFor"/>. Replies take their entry;
+    /// entries of requests that are never answered expire.
+    /// </summary>
+    internal void RememberWireReplySubject(Envelope request, string? wireReplySubject)
+    {
+        if (request.ReplyUri == null || string.IsNullOrEmpty(wireReplySubject))
+        {
+            return;
+        }
+
+        var baseSubject = ExtractSubjectFromUri(request.ReplyUri);
+        if (wireReplySubject != $"{baseSubject}.{request.Id:N}")
+        {
+            return;
+        }
+
+        _wireReplySubjects[request.Id] = new WireReplySubject(baseSubject, wireReplySubject, Environment.TickCount64);
+
+        if (Interlocked.Increment(ref _wireReplySubjectWrites) % 1024 == 0)
+        {
+            var expired = Environment.TickCount64 - (long)WireReplySubjectLifetime.TotalMilliseconds;
+            foreach (var pair in _wireReplySubjects)
+            {
+                if (pair.Value.RememberedAt < expired)
+                {
+                    _wireReplySubjects.TryRemove(pair);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Where to publish a message bound for <paramref name="targetSubject"/>: the remembered wire reply subject when
+    /// the message answers a request (a response or an acknowledgement shares the request's id as its
+    /// <see cref="Envelope.ConversationId"/>) whose replies go to <paramref name="targetSubject"/>, otherwise
+    /// <paramref name="targetSubject"/> itself. Other messages of the same conversation are left alone.
+    /// </summary>
+    internal string ReplySubjectFor(Envelope envelope, string targetSubject)
+    {
+        if (envelope.ConversationId != Guid.Empty &&
+            _wireReplySubjects.TryGetValue(envelope.ConversationId, out var remembered) &&
+            remembered.BaseSubject == targetSubject)
+        {
+            _wireReplySubjects.TryRemove(new KeyValuePair<Guid, WireReplySubject>(envelope.ConversationId, remembered));
+            return remembered.Subject;
+        }
+
+        return targetSubject;
+    }
 
     /// <summary>
     /// GH-4279. Make an arbitrary string safe to use as ONE token of a NATS subject. Deliberately not a
