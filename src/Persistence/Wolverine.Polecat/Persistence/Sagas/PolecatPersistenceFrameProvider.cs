@@ -89,7 +89,8 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         {
             Check = check,
             IsDuplicate = check.Variable,
-            Claim = new QueuePolecatDeduplicationClaimFrame(deduplicationId, check.Variable, marker),
+            Claim = new QueuePolecatDeduplicationClaimFrame(deduplicationId, check.Variable, marker,
+                requirement.Window),
             CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
                 PolecatDeduplicationFailures.Classifier,
                 lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))

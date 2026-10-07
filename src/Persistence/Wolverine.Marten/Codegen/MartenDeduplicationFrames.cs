@@ -137,6 +137,7 @@ internal class QueueMartenDeduplicationClaimFrame : SyncFrame, IDeduplicationCla
 {
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
+    private readonly TimeSpan? _window;
     private Variable? _session;
     private Variable? _deduplicator;
 
@@ -146,11 +147,15 @@ internal class QueueMartenDeduplicationClaimFrame : SyncFrame, IDeduplicationCla
     /// does not rest on it: a refusal returns before any commit, so a claim queued ahead of one would
     /// never be written either.
     /// </param>
+    /// <param name="window">
+    /// The chain's <see cref="Wolverine.Persistence.DeduplicationRequirement.Window" />, or null for the host-wide window.
+    /// </param>
     public QueueMartenDeduplicationClaimFrame(Variable deduplicationId, Variable isDuplicate,
-        Type? ancillaryStoreMarker)
+        Type? ancillaryStoreMarker, TimeSpan? window)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
+        _window = window;
         uses.Add(isDuplicate);
     }
 
@@ -159,7 +164,7 @@ internal class QueueMartenDeduplicationClaimFrame : SyncFrame, IDeduplicationCla
         writer.WriteComment("GH-4505: claim the logical deduplication id inside this Marten transaction");
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
-            $"{_deduplicator!.Usage}.{nameof(IMartenDeduplicator.QueueClaim)}({_session!.Usage}, {_deduplicationId.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
+            $"{_deduplicator!.Usage}.{nameof(IMartenDeduplicator.QueueClaim)}({_session!.Usage}, {_deduplicationId.Usage}, {DeduplicationWindowRendering.ArgumentFor(_window)}{MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);

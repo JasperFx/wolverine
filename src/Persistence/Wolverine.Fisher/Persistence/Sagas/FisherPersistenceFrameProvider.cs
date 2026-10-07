@@ -71,7 +71,8 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
         {
             Check = check,
             IsDuplicate = check.Variable,
-            Claim = new QueueFisherDeduplicationClaimFrame(deduplicationId, check.Variable, marker),
+            Claim = new QueueFisherDeduplicationClaimFrame(deduplicationId, check.Variable, marker,
+                requirement.Window),
             CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
                 FisherDeduplicationFailures.Classifier,
                 lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))

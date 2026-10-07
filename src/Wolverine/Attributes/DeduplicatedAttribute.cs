@@ -8,7 +8,8 @@ namespace Wolverine.Attributes;
 /// <summary>
 /// GH-4180. Opt this message handler, HTTP endpoint, or gRPC method into <b>logical</b> message
 /// deduplication: Wolverine resolves an application-supplied id and refuses to execute a second
-/// time for the same id inside <see cref="DurabilitySettings.DeduplicationWindow" />.
+/// time for the same id inside <see cref="DurabilitySettings.DeduplicationWindow" />, or inside
+/// <see cref="WindowInSeconds" /> when that is set.
 ///
 /// <para>
 /// This is a different question from Wolverine's built-in idempotency, which keys on
@@ -38,6 +39,10 @@ namespace Wolverine.Attributes;
 /// // Derive the id from the message or request body instead
 /// [Deduplicated(ValueSource.InputMember, nameof(ScheduleOccurrence.OccurrenceKey))]
 /// public static void Handle(ScheduleOccurrence command) { }
+///
+/// // Claim the id for ten minutes rather than the host-wide window
+/// [Deduplicated(WindowInSeconds = 600)]
+/// public static void Handle(DeviceStateChanged message) { }
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
@@ -97,6 +102,9 @@ public class DeduplicatedAttribute : ModifyChainAttribute
     // asked for 409 explicitly keeps it even when the application default is something else.
     private int? _duplicateStatusCode;
 
+    /// <summary>Claim lifetime in seconds; 0 uses <see cref="DurabilitySettings.DeduplicationWindow" />.</summary>
+    public int WindowInSeconds { get; set; }
+
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         // Records the intent only. The frames are woven later, from ApplyDeduplication(), because the
@@ -107,7 +115,23 @@ public class DeduplicatedAttribute : ModifyChainAttribute
             Source = Source,
             Key = Key,
             Required = Required,
-            ExplicitDuplicateStatusCode = _duplicateStatusCode
+            ExplicitDuplicateStatusCode = _duplicateStatusCode,
+            Window = WindowFor(chain.Description)
         };
+    }
+
+    /// <summary>
+    /// <see cref="WindowInSeconds" /> as the requirement carries it: null for the host-wide window. Shared with
+    /// Wolverine.Grpc, which reads this attribute per RPC method rather than through <see cref="Modify" />.
+    /// </summary>
+    internal TimeSpan? WindowFor(string chainDescription)
+    {
+        if (WindowInSeconds < 0)
+        {
+            throw new InvalidOperationException(
+                $"[Deduplicated(WindowInSeconds = {WindowInSeconds})] on {chainDescription} must be zero (the host-wide window) or positive");
+        }
+
+        return WindowInSeconds == 0 ? null : TimeSpan.FromSeconds(WindowInSeconds);
     }
 }

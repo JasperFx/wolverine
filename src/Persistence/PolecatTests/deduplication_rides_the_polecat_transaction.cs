@@ -54,7 +54,8 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
                     .IncludeType(typeof(RecordPolecatPaymentHandler))
                     .IncludeType(typeof(FailingPolecatPaymentHandler))
                     .IncludeType(typeof(OptionallyKeyedPolecatHandler))
-                    .IncludeType(typeof(PolecatRacingHandler));
+                    .IncludeType(typeof(PolecatRacingHandler))
+                    .IncludeType(typeof(ShortWindowPolecatPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -80,6 +81,7 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
 
         RecordPolecatPaymentHandler.Received.Clear();
         OptionallyKeyedPolecatHandler.Received.Clear();
+        ShortWindowPolecatPaymentHandler.Received.Clear();
         FailingPolecatPaymentHandler.Attempts = 0;
         PolecatRacingHandler.Arrived = 0;
     }
@@ -218,6 +220,62 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
         (await claimCountAsync(PolecatRacingHandler.DeduplicationId)).ShouldBe(1);
     }
 
+    [Fact]
+    public void a_handler_window_is_passed_to_the_enlisted_claim()
+    {
+        var code = sourceFor<ShortWindowPolecatPayment>();
+
+        code.ShouldContain(
+            $", System.TimeSpan.FromTicks({TimeSpan.FromSeconds(60).Ticks}), null);");
+        code.ShouldContain($"{nameof(IPolecatDeduplicator.QueueClaim)}(documentSession");
+
+        // A chain without a window keeps the original call
+        sourceFor<RecordPolecatPayment>().ShouldNotContain("System.TimeSpan.FromTicks(");
+    }
+
+    [Fact]
+    public async Task an_id_claimed_with_a_short_window_is_accepted_again_once_that_window_has_passed()
+    {
+        var before = DateTimeOffset.UtcNow;
+
+        await _host.SendMessageAndWaitAsync(new ShortWindowPolecatPayment("first"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await _host.SendMessageAndWaitAsync(new RecordPolecatPayment("first"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        (await expiresAsync("short-window"))
+            .ShouldBeInRange(before.AddSeconds(55), DateTimeOffset.UtcNow.AddSeconds(65));
+
+        // Reap as if two minutes had passed: past the handler's 60 seconds, inside the host's hour
+        var deleted = await _host.GetRuntime().Storage.Deduplication
+            .DeleteExpiredAsync(DateTimeOffset.UtcNow.AddMinutes(2), TestContext.Current.CancellationToken);
+        deleted.ShouldBe(1);
+
+        await _host.SendMessageAndWaitAsync(new ShortWindowPolecatPayment("second"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await _host.SendMessageAndWaitAsync(new RecordPolecatPayment("second"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        ShortWindowPolecatPaymentHandler.Received.ShouldBe(["first", "second"]);
+        RecordPolecatPaymentHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
+
+    private static async Task<DateTimeOffset> expiresAsync(string key)
+    {
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            $"select expires from {SchemaName}.wolverine_deduplication_hashed where deduplication_id = @id";
+        cmd.Parameters.AddWithValue("@id", key);
+
+        await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        (await reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBeTrue();
+
+        return await reader.GetFieldValueAsync<DateTimeOffset>(0, TestContext.Current.CancellationToken);
+    }
+
     private static async Task<int> claimCountAsync(string key)
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
@@ -238,10 +296,25 @@ public record FailingPolecatPayment;
 
 public record OptionallyKeyedPolecat(string Name);
 
+public record ShortWindowPolecatPayment(string Name);
+
 public class PolecatPaymentRecord
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+public static class ShortWindowPolecatPaymentHandler
+{
+    public static readonly List<string> Received = [];
+
+    [Deduplicated(WindowInSeconds = 60)]
+    [Transactional]
+    public static void Handle(ShortWindowPolecatPayment message, IDocumentSession session)
+    {
+        Received.Add(message.Name);
+        session.Store(new PolecatPaymentRecord { Id = Guid.NewGuid(), Name = message.Name });
+    }
 }
 
 public static class RecordPolecatPaymentHandler

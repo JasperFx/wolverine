@@ -71,7 +71,8 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
                             && type != typeof(RefusingDeduplicatedEndpoint)
                             && type != typeof(TransactionalDeduplicatedEndpoint)
                             && type != typeof(EarlyExitDeduplicatedEndpoint)
-                            && type != typeof(HangUpDeduplicatedEndpoint)))));
+                            && type != typeof(HangUpDeduplicatedEndpoint)
+                            && type != typeof(WindowedDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -81,6 +82,7 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         TransactionalDeduplicatedEndpoint.Calls.Clear();
         EarlyExitDeduplicatedEndpoint.Calls.Clear();
         HangUpDeduplicatedEndpoint.Calls.Clear();
+        WindowedDeduplicatedEndpoint.Calls.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -392,6 +394,26 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         metadata.Any(x => x.StatusCode == 409).ShouldBeTrue("the duplicate refusal must be discoverable");
         metadata.Any(x => x.StatusCode == 400).ShouldBeTrue("the missing-key refusal must be discoverable");
     }
+
+    [Fact]
+    public async Task an_endpoint_window_is_passed_to_the_claim()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest("windowed")).ToUrl("/dedup/windowed");
+            x.WithRequestHeader("Idempotency-Key", Guid.NewGuid().ToString());
+            x.StatusCodeShouldBeOk();
+        });
+
+        var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
+            .Single(x => x.Method.HandlerType == typeof(WindowedDeduplicatedEndpoint));
+
+        var source = chain.SourceCode.ShouldNotBeNull();
+
+        // The window sits between the id and the (absent) ancillary store marker
+        source.ShouldContain($", System.TimeSpan.FromTicks({TimeSpan.FromMinutes(10).Ticks}), null, ");
+        source.ShouldContain(".TryClaimAsync(");
+    }
 }
 
 public record DedupRequest(string Name);
@@ -509,6 +531,19 @@ public static class HangUpDeduplicatedEndpoint
             throw new InvalidOperationException("The endpoint failed after its caller hung up");
         }
 
+        Calls.Add(request.Name);
+        return "ok";
+    }
+}
+
+public static class WindowedDeduplicatedEndpoint
+{
+    public static readonly List<string> Calls = [];
+
+    [Deduplicated(WindowInSeconds = 600)]
+    [WolverinePost("/dedup/windowed")]
+    public static string Post(DedupRequest request)
+    {
         Calls.Add(request.Name);
         return "ok";
     }

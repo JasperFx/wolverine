@@ -82,7 +82,7 @@ public static class ChainDeduplicationExtensions
             return;
         }
 
-        var claim = new ClaimDeduplicationIdFrame(id, chain.AncillaryStoreType);
+        var claim = new ClaimDeduplicationIdFrame(id, chain.AncillaryStoreType, window: requirement.Window);
         frames.Add(claim);
         frames.AddRange(
             chain.BuildDeduplicationStopCondition(claim.Variable, DeduplicationOutcome.Duplicate, requirement));

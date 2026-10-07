@@ -165,4 +165,22 @@ public static class DeduplicationSamples
     }
 
     #endregion
+
+    #region sample_deduplicated_with_its_own_window
+
+    public record DeviceStateReported(string DeviceId, string State);
+
+    public static class DeviceStateHandler
+    {
+        // The vendor echoes a report within a minute or two, but legitimately
+        // reports the same state again hours later. Ten minutes refuses the
+        // echoes without refusing the genuine repeat
+        [Deduplicated(WindowInSeconds = 600)]
+        public static void Handle(DeviceStateReported message)
+        {
+            // ...
+        }
+    }
+
+    #endregion
 }
