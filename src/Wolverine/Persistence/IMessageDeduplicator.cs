@@ -39,6 +39,24 @@ public interface IMessageDeduplicator
         CancellationToken cancellation);
 
     /// <summary>
+    /// Claim <paramref name="deduplicationId" /> for <paramref name="window" />, or for
+    /// <see cref="DurabilitySettings.DeduplicationWindow" /> when that is null. Otherwise the same as the
+    /// overload without a window.
+    /// </summary>
+    /// <param name="window">
+    /// The chain's <see cref="DeduplicationRequirement.Window" />, set by
+    /// <see cref="Attributes.DeduplicatedAttribute.WindowInSeconds" />.
+    /// </param>
+    /// <remarks>
+    /// Optional, and defaulted to the overload without a window so that an existing implementation keeps
+    /// compiling and loading. That default <b>ignores</b> <paramref name="window" /> and claims for the
+    /// host-wide window, so an implementation must override this member to honour a chain's window.
+    /// </remarks>
+    ValueTask<bool> TryClaimAsync(string deduplicationId, TimeSpan? window, Type? ancillaryStoreMarker,
+        CancellationToken cancellation)
+        => TryClaimAsync(deduplicationId, ancillaryStoreMarker, cancellation);
+
+    /// <summary>
     /// Release a claim so the id may be claimed again. Called from the failure path of a
     /// non-transactional chain — see <see cref="IDeduplicationStore.ReleaseAsync" /> for why skipping it
     /// would permanently poison the id.
@@ -57,8 +75,12 @@ internal class MessageDeduplicator : IMessageDeduplicator
         _logger = logger;
     }
 
-    public async ValueTask<bool> TryClaimAsync(string deduplicationId, Type? ancillaryStoreMarker,
+    public ValueTask<bool> TryClaimAsync(string deduplicationId, Type? ancillaryStoreMarker,
         CancellationToken cancellation)
+        => TryClaimAsync(deduplicationId, null, ancillaryStoreMarker, cancellation);
+
+    public async ValueTask<bool> TryClaimAsync(string deduplicationId, TimeSpan? window,
+        Type? ancillaryStoreMarker, CancellationToken cancellation)
     {
         var store = storeFor(ancillaryStoreMarker);
 
@@ -74,7 +96,8 @@ internal class MessageDeduplicator : IMessageDeduplicator
 
         // Stored rather than computed at read time, so that shortening the window later cannot
         // retroactively un-claim ids that were recorded under the longer one.
-        var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
+        var lifetime = window ?? _runtime.Options.Durability.DeduplicationWindow;
+        var expires = DateTimeOffset.UtcNow.Add(lifetime);
 
         var claimed = await store.TryClaimAsync(deduplicationId, expires, cancellation).ConfigureAwait(false);
 
@@ -86,7 +109,7 @@ internal class MessageDeduplicator : IMessageDeduplicator
             // already done"), not pipeline noise, and it is rare by construction.
             _logger.LogInformation(
                 "Discarding duplicate work for logical deduplication id '{DeduplicationId}'; it was already claimed within the {Window} deduplication window",
-                deduplicationId, _runtime.Options.Durability.DeduplicationWindow);
+                deduplicationId, lifetime);
         }
 
         return claimed;

@@ -144,7 +144,8 @@ internal static class GrpcDeduplication
             Source = attribute.Source,
             Key = attribute.Key,
             Required = attribute.Required,
-            DuplicateStatusCode = attribute.DuplicateStatusCode
+            DuplicateStatusCode = attribute.DuplicateStatusCode,
+            Window = attribute.WindowFor($"{serviceType.FullNameInCode()}.{rpcMethod.Name}")
         };
     }
 
@@ -201,7 +202,7 @@ internal static class GrpcDeduplication
         }
 
         var claim = new ClaimDeduplicationIdFrame(read.Variable, chain.AncillaryStoreType,
-            deduplicatorField.Usage, cancellation);
+            deduplicatorField.Usage, cancellation, requirement.Window);
         yield return claim;
 
         foreach (var frame in chain.BuildDeduplicationStopCondition(claim.Variable,

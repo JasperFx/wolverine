@@ -6,6 +6,23 @@ using JasperFx.Core.Reflection;
 namespace Wolverine.Persistence.Codegen;
 
 /// <summary>
+/// Renders a <see cref="DeduplicationRequirement.Window" /> into a generated claim call. Every claim frame,
+/// core and provider alike, goes through here so the chains agree on the overload they call.
+/// </summary>
+internal static class DeduplicationWindowRendering
+{
+    /// <summary>
+    /// The window argument plus its trailing separator, or nothing at all when the chain uses the host-wide
+    /// window. Nothing, rather than <c>null</c>, so a chain without a window keeps calling the original
+    /// overload and its generated code is unchanged.
+    /// </summary>
+    public static string ArgumentFor(TimeSpan? window)
+        => window.HasValue
+            ? $"{typeof(TimeSpan).FullNameInCode()}.{nameof(TimeSpan.FromTicks)}({window.Value.Ticks}), "
+            : string.Empty;
+}
+
+/// <summary>
 /// GH-4180. Tests whether a required logical deduplication id is absent, producing the
 /// <c>bool</c> that the chain-specific stop condition branches on.
 ///
@@ -63,6 +80,7 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
     private readonly Type? _ancillaryStoreMarker;
     private readonly string? _deduplicatorUsage;
     private readonly string? _cancellationUsage;
+    private readonly TimeSpan? _window;
     private Variable? _deduplicator;
     private Variable? _cancellation;
 
@@ -76,13 +94,17 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
     /// Explicit expression for the cancellation token, or null to resolve it as a chain variable.
     /// gRPC supplies <c>context.CancellationToken</c> for the same reason.
     /// </param>
+    /// <param name="window">
+    /// The chain's <see cref="DeduplicationRequirement.Window" />, or null for the host-wide window.
+    /// </param>
     public ClaimDeduplicationIdFrame(Variable deduplicationId, Type? ancillaryStoreMarker,
-        string? deduplicatorUsage = null, string? cancellationUsage = null)
+        string? deduplicatorUsage = null, string? cancellationUsage = null, TimeSpan? window = null)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
         _deduplicatorUsage = deduplicatorUsage;
         _cancellationUsage = cancellationUsage;
+        _window = window;
         Variable = new Variable(typeof(bool), "isDuplicateMessage", this);
     }
 
@@ -105,7 +127,7 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
         writer.Write($"var {Variable.Usage} = false;");
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
-            $"{Variable.Usage} = !(await {deduplicatorUsage}.{nameof(IMessageDeduplicator.TryClaimAsync)}({_deduplicationId.Usage}, {marker}, {cancellationUsage}).ConfigureAwait(false));");
+            $"{Variable.Usage} = !(await {deduplicatorUsage}.{nameof(IMessageDeduplicator.TryClaimAsync)}({_deduplicationId.Usage}, {DeduplicationWindowRendering.ArgumentFor(_window)}{marker}, {cancellationUsage}).ConfigureAwait(false));");
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);
@@ -158,7 +180,7 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
     private Variable? _deduplicator;
     private Variable? _cancellation;
 
-    /// <inheritdoc cref="ClaimDeduplicationIdFrame(Variable, Type, string, string)" />
+    /// <inheritdoc cref="ClaimDeduplicationIdFrame(Variable, Type, string, string, TimeSpan?)" />
     public ReleaseDeduplicationIdOnFailureFrame(Variable deduplicationId, Type? ancillaryStoreMarker,
         string? deduplicatorUsage = null, string? cancellationUsage = null)
     {

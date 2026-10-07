@@ -56,7 +56,8 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
                     .IncludeType(typeof(OptionallyKeyedHandler))
                     .IncludeType(typeof(AdjustLedgerHandler))
                     .IncludeType(typeof(RacingHandler))
-                    .IncludeType(typeof(NothingElseHandler));
+                    .IncludeType(typeof(NothingElseHandler))
+                    .IncludeType(typeof(ShortWindowPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -82,6 +83,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
 
         RecordPaymentHandler.Received.Clear();
         OptionallyKeyedHandler.Received.Clear();
+        ShortWindowPaymentHandler.Received.Clear();
         FailingPaymentHandler.Attempts = 0;
         RacingHandler.Arrived = 0;
         NothingElseHandler.Calls = 0;
@@ -256,6 +258,62 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
         NothingElseHandler.Calls.ShouldBe(1);
     }
 
+    [Fact]
+    public void a_handler_window_is_passed_to_the_queued_claim()
+    {
+        var code = sourceFor<ShortWindowPayment>();
+
+        code.ShouldContain(
+            $", System.TimeSpan.FromTicks({TimeSpan.FromSeconds(60).Ticks}), null);");
+        code.ShouldContain($"{nameof(IMartenDeduplicator.QueueClaim)}(documentSession");
+
+        // A chain without a window keeps the original call
+        sourceFor<RecordPayment>().ShouldNotContain("System.TimeSpan.FromTicks(");
+    }
+
+    [Fact]
+    public async Task an_id_claimed_with_a_short_window_is_accepted_again_once_that_window_has_passed()
+    {
+        var before = DateTimeOffset.UtcNow;
+
+        await _host.SendMessageAndWaitAsync(new ShortWindowPayment("first"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await _host.SendMessageAndWaitAsync(new RecordPayment("first"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        (await expiresAsync("short-window"))
+            .ShouldBeInRange(before.AddSeconds(55), DateTimeOffset.UtcNow.AddSeconds(65));
+
+        // Reap as if two minutes had passed: past the handler's 60 seconds, inside the host's hour
+        var deleted = await _host.GetRuntime().Storage.Deduplication
+            .DeleteExpiredAsync(DateTimeOffset.UtcNow.AddMinutes(2), TestContext.Current.CancellationToken);
+        deleted.ShouldBe(1);
+
+        await _host.SendMessageAndWaitAsync(new ShortWindowPayment("second"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await _host.SendMessageAndWaitAsync(new RecordPayment("second"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        ShortWindowPaymentHandler.Received.ShouldBe(["first", "second"]);
+        RecordPaymentHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
+
+    private static async Task<DateTimeOffset> expiresAsync(string key)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            $"select expires from {SchemaName}.wolverine_deduplication_hashed where deduplication_id = @id";
+        cmd.Parameters.AddWithValue("id", key);
+
+        await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        (await reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBeTrue();
+
+        return await reader.GetFieldValueAsync<DateTimeOffset>(0, TestContext.Current.CancellationToken);
+    }
+
     private static async Task<long> claimCountAsync(string key)
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -275,6 +333,8 @@ public record RecordPayment(string Name);
 public record FailingPayment;
 
 public record OptionallyKeyed(string Name);
+
+public record ShortWindowPayment(string Name);
 
 public static class RecordPaymentHandler
 {
@@ -304,6 +364,19 @@ public static class FailingPaymentHandler
         session.Store(new PaymentRecord { Id = Guid.NewGuid(), Name = "doomed" });
 
         throw new DivideByZeroException("nope");
+    }
+}
+
+public static class ShortWindowPaymentHandler
+{
+    public static readonly List<string> Received = [];
+
+    [Deduplicated(WindowInSeconds = 60)]
+    [Transactional]
+    public static void Handle(ShortWindowPayment message, IDocumentSession session)
+    {
+        Received.Add(message.Name);
+        session.Store(new PaymentRecord { Id = Guid.NewGuid(), Name = message.Name });
     }
 }
 

@@ -51,6 +51,20 @@ public interface IPolecatDeduplicator
     /// work and rolls back with it. Nothing is written until <c>SaveChangesAsync</c>.
     /// </summary>
     void QueueClaim(IDocumentSession session, string deduplicationId, Type? ancillaryStoreMarker);
+
+    /// <summary>
+    /// Queue a claim that lasts <paramref name="window" />, or
+    /// <see cref="DurabilitySettings.DeduplicationWindow" /> when that is null. Otherwise the same as the
+    /// overload without a window.
+    /// </summary>
+    /// <remarks>
+    /// Optional, and defaulted to the overload without a window so that an existing implementation keeps
+    /// compiling and loading. That default <b>ignores</b> <paramref name="window" /> and claims for the
+    /// host-wide window, so an implementation must override this member to honour a chain's window.
+    /// </remarks>
+    void QueueClaim(IDocumentSession session, string deduplicationId, TimeSpan? window,
+        Type? ancillaryStoreMarker)
+        => QueueClaim(session, deduplicationId, ancillaryStoreMarker);
 }
 
 internal class PolecatDeduplicator : IPolecatDeduplicator
@@ -98,18 +112,22 @@ internal class PolecatDeduplicator : IPolecatDeduplicator
             // business event ("that work was already done"), it is rare by construction, and a duplicate
             // that vanishes silently is indistinguishable from a message that was lost.
             _logger.LogInformation(
-                "Discarding duplicate work for logical deduplication id '{DeduplicationId}'; it was already claimed within the {Window} deduplication window",
-                deduplicationId, _runtime.Options.Durability.DeduplicationWindow);
+                "Discarding duplicate work for logical deduplication id '{DeduplicationId}'; it was already claimed within its deduplication window",
+                deduplicationId);
         }
 
         return claimed;
     }
 
     public void QueueClaim(IDocumentSession session, string deduplicationId, Type? ancillaryStoreMarker)
+        => QueueClaim(session, deduplicationId, null, ancillaryStoreMarker);
+
+    public void QueueClaim(IDocumentSession session, string deduplicationId, TimeSpan? window,
+        Type? ancillaryStoreMarker)
     {
         // Stored rather than computed at read time, exactly as MessageDeduplicator does, so that
         // shortening the window later cannot retroactively un-claim ids recorded under the longer one.
-        var expires = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.DeduplicationWindow);
+        var expires = DateTimeOffset.UtcNow.Add(window ?? _runtime.Options.Durability.DeduplicationWindow);
 
         session.AddTransactionParticipant(
             new ClaimDeduplicationIdParticipant(tableFor(ancillaryStoreMarker), deduplicationId, expires,
