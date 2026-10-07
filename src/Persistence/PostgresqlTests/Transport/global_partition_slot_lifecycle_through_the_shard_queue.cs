@@ -426,18 +426,14 @@ public class global_partition_slot_lifecycle_through_the_shard_queue : IAsyncLif
         ShardPathHandler.Received.Where(x => x.GroupId == viaShortcut).ShouldAllBe(x => x.Destination == companion);
         ShardPathHandler.Received.Where(x => x.GroupId == viaShardQueue).ShouldAllBe(x => x.Destination == slot.Uri);
 
-        // Deliberately "two executions with increasing attempt numbers" rather than exactly [1, 2]. The shard
-        // queue path reports attempts 1 and 3: Executor increments Attempts on every execution AND
-        // DurableReceiver.DeferAsync increments it again for any envelope not sent by a DurableLocalQueue, so a
-        // requeue from an external durable listener double-counts (the shortcut path, sent by the companion
-        // DurableLocalQueue, does not). That is a general requeue defect, not a partitioning one, and is reported
-        // separately rather than pinned here.
+        // Exactly [1, 2] on BOTH paths. GH-4851: the shard queue path used to report 1 then 3, because
+        // DurableReceiver.DeferAsync incremented Attempts on top of the executor's own increment for any envelope
+        // not sent by a DurableLocalQueue -- so a requeue from an external durable listener double-counted while
+        // the shortcut path did not.
         foreach (var group in new[] { viaShortcut, viaShardQueue })
         {
-            var attempts = ShardPathHandler.Received.Where(x => x.GroupId == group).Select(x => x.Attempts).OrderBy(x => x).ToArray();
-            attempts.Length.ShouldBe(2);
-            attempts[0].ShouldBe(1);
-            attempts[1].ShouldBeGreaterThan(1);
+            ShardPathHandler.Received.Where(x => x.GroupId == group).Select(x => x.Attempts).OrderBy(x => x).ToArray()
+                .ShouldBe([1, 2], $"group {group}: received=[{ShardPathHandler.Describe()}]");
         }
 
         // Settled: nothing left Incoming at either address
