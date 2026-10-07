@@ -110,8 +110,10 @@ public class JetStreamDefaults
     public TimeSpan AckWait { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Default maximum delivery attempts for auto-provisioned JetStream consumers, and the dead-letter
-    /// threshold. A per-endpoint <c>ConfigureDeadLetterQueue(maxDeliveryAttempts, ...)</c> overrides this.
+    /// Default maximum delivery attempts (<c>MaxDeliver</c>) for Wolverine's JetStream consumers: how often
+    /// JetStream delivers a message that is not acknowledged. When a failing message goes to the dead letter
+    /// subject is decided by Wolverine's error handling, not by this number. A per-endpoint
+    /// <c>ConfigureDeadLetterQueue(maxDeliveryAttempts, ...)</c> overrides this.
     /// </summary>
     public int MaxDeliver { get; set; } = 5;
 

@@ -94,8 +94,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public string? DeadLetterSubject { get; set; }
 
     /// <summary>
-    /// Per-endpoint override for the maximum delivery attempts / dead-letter threshold. When null the
-    /// transport-wide <see cref="JetStreamDefaults.MaxDeliver"/> applies (see <see cref="EffectiveMaxDeliveryAttempts"/>).
+    /// Per-endpoint override for the JetStream consumer's maximum delivery attempts (<c>MaxDeliver</c>). When null
+    /// the transport-wide <see cref="JetStreamDefaults.MaxDeliver"/> applies (see <see cref="EffectiveMaxDeliveryAttempts"/>).
     /// </summary>
     public int? MaxDeliveryAttempts { get; set; }
 

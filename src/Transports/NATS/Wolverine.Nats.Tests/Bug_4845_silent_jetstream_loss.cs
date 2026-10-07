@@ -1,3 +1,4 @@
+using System.Text;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
@@ -13,9 +14,8 @@ using Xunit;
 namespace Wolverine.Nats.Tests;
 
 /// <summary>
-/// GH-4845 reproductions. A test whose loss is fixed asserts the fixed behavior. The others assert the
-/// CURRENT (buggy) behavior so that the loss is on the record; the comment above each one says what it
-/// should assert once fixed.
+/// GH-4845 reproductions. Each test asserts either the fixed behavior or the server behavior a fix
+/// relies on; the comment above each one says which loss it covers.
 /// </summary>
 [Collection("NATS Integration")]
 [Trait("Category", "Integration")]
@@ -179,19 +179,19 @@ public class Bug_4845_silent_jetstream_loss
     }
 
     /// <summary>
-    /// GH-4845 #4. <c>NatsListener.MoveToErrorsAsync</c> returns early while
+    /// GH-4845 #4. <c>NatsListener.MoveToErrorsAsync</c> returned early while
     /// <c>NumDelivered &lt; MaxDeliver</c>. A Buffered listener acks on receipt, so when Wolverine's own
-    /// error policy says MoveToErrorQueue the JetStream delivery count is still 1: the guard fires, the
-    /// message is neither forwarded to the dead-letter subject nor terminated, and because it was already
-    /// acked the server will never redeliver it. It is simply gone.
+    /// error policy says MoveToErrorQueue the JetStream delivery count is still 1: the guard fired, the
+    /// message was neither forwarded to the dead-letter subject nor terminated, and because it was already
+    /// acked the server never redelivered it. It was simply gone.
     ///
-    /// The existing <c>NatsDeadLetterSubjectTests</c> only passes because it sets maxDeliveryAttempts to 1,
-    /// which makes the guard vacuous.
+    /// The existing <c>NatsDeadLetterSubjectTests</c> only passed because it sets maxDeliveryAttempts to 1,
+    /// which made the guard vacuous.
     ///
-    /// AFTER THE FIX the dead-letter forward should happen on Wolverine's decision, not on NumDelivered.
+    /// The dead-letter forward now happens on Wolverine's decision, not on NumDelivered.
     /// </summary>
     [Fact]
-    public async Task move_to_error_queue_is_dropped_when_jetstream_has_not_hit_max_deliver()
+    public async Task move_to_error_queue_dead_letters_before_jetstream_hits_max_deliver()
     {
         var natsUrl = NatsTestHelpers.ResolveUrl();
         if (!await NatsTestHelpers.IsNatsAvailable(natsUrl)) return;
@@ -233,16 +233,17 @@ public class Bug_4845_silent_jetstream_loss
 
         await Bug4845PoisonHandler.WaitForAttemptAsync();
 
-        // Wolverine asked for the error queue. Nothing arrives there.
+        // Wolverine asked for the error queue, so the message has to arrive there.
         var deadLettered = await dlqSubscription.ReadAsync(10.Seconds());
-        deadLettered.ShouldBeNull("the message WAS forwarded to the dead-letter subject -- GH-4845 #4 is fixed or does not reproduce");
+        deadLettered.ShouldNotBeNull("Wolverine's MoveToErrorQueue decision did not reach the dead-letter subject");
+        Encoding.UTF8.GetString(deadLettered.Value.Data!).ShouldContain(id);
 
-        // ...and the server considers the delivery finished, so it will never come back either.
+        // ...and the server considers the delivery finished, so it does not come back either.
         var info = await ConsumerInfoAsync(natsUrl, stream, consumerName);
         _output.WriteLine($"consumer: NumPending={info.NumPending}, NumAckPending={info.NumAckPending}, NumRedelivered={info.NumRedelivered}, Delivered={info.Delivered.StreamSeq}/{info.AckFloor.StreamSeq}");
 
-        info.NumAckPending.ShouldBe(0, "delivery is still outstanding, so the message is not lost yet");
-        info.NumPending.ShouldBe(0ul, "the message is still waiting to be delivered, so it is not lost yet");
+        info.NumAckPending.ShouldBe(0);
+        info.NumPending.ShouldBe(0ul);
         Bug4845PoisonHandler.Attempts.ShouldBe(1);
     }
 
@@ -269,7 +270,13 @@ public class Bug_4845_silent_jetstream_loss
 
 public record Bug4845Poison(string Id);
 
-public class Bug4845PoisonException(string message) : Exception(message);
+public class Bug4845PoisonException(string message) : Exception(message)
+{
+    // Keeps the stack trace on one line. On Windows a real stack trace contains CRLF, which NATS refuses
+    // in the exception-stack header of the dead-letter copy -- a separate problem this test must not
+    // trip over.
+    public override string StackTrace => "at Bug4845PoisonHandler.Handle";
+}
 
 [WolverineHandler]
 public static class Bug4845PoisonHandler

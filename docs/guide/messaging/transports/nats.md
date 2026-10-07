@@ -739,9 +739,14 @@ The response endpoint always uses Core NATS for low-latency replies, even when t
   message.
 - **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
-- **Dead Letter**: Once delivery attempts are exhausted, the poison message is first forwarded to the
-  configured dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
-  `AckTerminateAsync(reason)` so the server stops redelivering and records why. If **no** dead-letter subject
+- **Dead Letter**: When Wolverine's error handling moves a message to the error queue — once its retries are
+  used up, or at once for `MoveToErrorQueue()` — the poison message is first forwarded to the configured
+  dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
+  `AckTerminateAsync(reason)` so the server stops redelivering and records why. <Badge type="tip" text="6.47" />
+  This no longer waits for the consumer's `MaxDeliver` to be used up: Buffered and Inline listeners have
+  acknowledged the delivery by then, so a message moved to the error queue earlier used to be dropped. The copy
+  carries its own `Nats-Msg-Id` (`{original}.dead-letter`), so a dead-letter subject inside the original's stream
+  does not have it discarded as a duplicate of the original. If **no** dead-letter subject
   is configured, Wolverine logs a warning and the message is terminated without being retained — configure a
   dead-letter subject to keep poison messages. Messages forwarded to the dead-letter subject carry the
   standard Wolverine diagnostic headers (`exception-type`, `exception-message`, `exception-stack`,
