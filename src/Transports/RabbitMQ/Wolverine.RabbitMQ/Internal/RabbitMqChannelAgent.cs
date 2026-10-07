@@ -235,15 +235,57 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Drops the current channel, if any, and marks the agent Disconnected. Best-effort and never
+    /// throws (GH-4864): the channel being torn down is frequently one the client has already closed
+    /// or disposed during its own recovery, and a throw from here used to escape ReconnectedAsync()
+    /// and abort the connection-level rebuild of every other agent.
+    /// </summary>
     protected async Task teardownChannel()
     {
-        if (Channel != null)
+        // Read once. A concurrent restart can null or swap Channel underneath this method, and the
+        // second read used to surface as a NullReferenceException inside the client's AbortAsync.
+        var channel = Channel;
+
+        if (channel != null)
         {
-            Channel.ChannelShutdownAsync -= HandleChannelShutdownAsync;
-            Channel.CallbackExceptionAsync -= HandleChannelExceptionAsync;
-            await Channel.CloseAsync();
-            await Channel.AbortAsync();
-            Channel.Dispose();
+            try
+            {
+                channel.ChannelShutdownAsync -= HandleChannelShutdownAsync;
+                channel.CallbackExceptionAsync -= HandleChannelExceptionAsync;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed by the client; nothing left to unsubscribe from.
+            }
+
+            try
+            {
+                await channel.CloseAsync();
+            }
+            catch (Exception e)
+            {
+                // A closed or disposed channel throws AlreadyClosedException / ObjectDisposedException
+                // here. Either way it is gone, which is the outcome this method is after.
+                Logger.LogDebug(e, "Error closing the Rabbit MQ channel for {Endpoint}; aborting it instead", this);
+
+                try
+                {
+                    await channel.AbortAsync();
+                }
+                catch (Exception abortException)
+                {
+                    Logger.LogDebug(abortException, "Error aborting the Rabbit MQ channel for {Endpoint}", this);
+                }
+            }
+
+            try
+            {
+                channel.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         Channel = null;

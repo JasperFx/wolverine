@@ -31,6 +31,26 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     private readonly List<RabbitMqChannelAgent> _agents = [];
     private IConnection? _connection;
 
+    // Bumped on every successful recovery. A rebuild retry still running from an earlier recovery
+    // compares against it so it can step aside once a later recovery has rebuilt everything anyway.
+    private int _recoveryGeneration;
+
+    /// <summary>
+    /// Delays between successive attempts to rebuild an agent whose rebuild failed during connection
+    /// recovery (GH-4864). The first retry comes quickly because the usual cause -- a quorum queue
+    /// without a majority, or a channel the client was still disposing -- clears within seconds; the
+    /// tail is there for a broker that takes a while to settle after a roll.
+    /// </summary>
+    internal static readonly TimeSpan[] RebuildRetryDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(10),
+        TimeSpan.FromSeconds(20),
+        TimeSpan.FromSeconds(30)
+    ];
+
     public ConnectionMonitor(RabbitMqTransport transport, ConnectionRole role)
     {
         _transport = transport;
@@ -137,14 +157,111 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         IsConnected = true;
         _transport.RecordReconnection();
 
+        var generation = Interlocked.Increment(ref _recoveryGeneration);
+
         RabbitMqChannelAgent[] agentsSnapshot;
         lock(_agentsLock)
             agentsSnapshot = [.. _agents];
 
+        // GH-4864: one agent's rebuild must not stop the rest. This handler used to await every
+        // ReconnectedAsync() in a bare foreach, so the first one that threw -- a BasicConsume that
+        // timed out while a quorum queue had no majority, or a teardown of a channel the client had
+        // already disposed -- ended the loop. Every agent behind it kept a channel with no consumer
+        // while the connection reported healthy, and the only trace was the client's
+        // CallbackExceptionAsync. Rebuild each agent on its own, and retry the ones that failed.
+        var failed = new List<RabbitMqChannelAgent>();
         foreach (var agent in agentsSnapshot)
-            await agent.ReconnectedAsync();
+        {
+            try
+            {
+                await agent.ReconnectedAsync();
+            }
+            catch (Exception e)
+            {
+                failed.Add(agent);
+                _logger.LogError(e,
+                    "Failed to rebuild Rabbit MQ {Role} agent {Agent} after connection recovery; it will be retried",
+                    Role, agent);
+            }
+        }
 
-        _logger.LogInformation("RabbitMQ connection is recovered successfully");
+        if (failed.Count == 0)
+        {
+            _logger.LogInformation("RabbitMQ connection is recovered successfully");
+            return;
+        }
+
+        _logger.LogWarning(
+            "RabbitMQ connection is recovered, but {Failed} of {Total} {Role} agent(s) could not be rebuilt yet and will be retried",
+            failed.Count, agentsSnapshot.Length, Role);
+
+        // Off the client's recovery callback: the retries sleep between attempts, and the callback
+        // must not hold up the client's own recovery of the other connection or of later events.
+        _ = Task.Run(() => retryFailedRebuildsAsync(failed, generation));
+    }
+
+    /// <summary>
+    /// Retries the agents whose rebuild failed in <see cref="connectionOnRecoverySucceededAsync"/>, on
+    /// the schedule in <see cref="RebuildRetryDelays"/>. Stops early when the connection has gone again
+    /// or a later recovery has superseded this one, because that later recovery rebuilds every tracked
+    /// agent anyway; and skips agents that have been disposed in the meantime.
+    /// </summary>
+    private async Task retryFailedRebuildsAsync(List<RabbitMqChannelAgent> agents, int generation)
+    {
+        var remaining = agents;
+
+        foreach (var delay in RebuildRetryDelays)
+        {
+            await Task.Delay(delay);
+
+            if (_connection is null || !IsConnected || Volatile.Read(ref _recoveryGeneration) != generation)
+            {
+                return;
+            }
+
+            var stillFailing = new List<RabbitMqChannelAgent>();
+            foreach (var agent in remaining)
+            {
+                if (agent.IsDisposed || !isTracked(agent))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await agent.ReconnectedAsync();
+                    _logger.LogInformation("Rebuilt Rabbit MQ {Role} agent {Agent} after a failed connection recovery",
+                        Role, agent);
+                }
+                catch (Exception e)
+                {
+                    stillFailing.Add(agent);
+                    _logger.LogWarning(e,
+                        "Rebuilding Rabbit MQ {Role} agent {Agent} failed again; retrying in {Delay}",
+                        Role, agent, delay);
+                }
+            }
+
+            if (stillFailing.Count == 0)
+            {
+                return;
+            }
+
+            remaining = stillFailing;
+        }
+
+        foreach (var agent in remaining)
+        {
+            _logger.LogError(
+                "Gave up rebuilding Rabbit MQ {Role} agent {Agent} after {Attempts} attempts; it will not receive or send until the next connection recovery",
+                Role, agent, RebuildRetryDelays.Length + 1);
+        }
+    }
+
+    private bool isTracked(RabbitMqChannelAgent agent)
+    {
+        lock (_agentsLock)
+            return _agents.Contains(agent);
     }
 
     private Task connectionOnCallbackExceptionAsync(object? sender, CallbackExceptionEventArgs e)
