@@ -223,6 +223,12 @@ opts.UseNats("nats://localhost:4222")
     });
 ```
 
+`MaxDeliver`, `AckWait` and `DeliverPolicy` apply to the consumers of Wolverine's JetStream listeners. The stream
+limits in `JetStreamDefaults` (`MaxAge`, `MaxMessages`, `MaxBytes`, `Replicas`) only apply to a stream that
+`resources setup` / `AddResourceSetupOnStartup()` creates because a JetStream endpoint's stream does not exist yet. A stream
+you declare with `DefineStream()` and friends does not inherit them — whatever its declaration leaves unset is
+unlimited — and only `DuplicateWindow` serves as its default.
+
 ### Consumer Deliver Policy
 
 When Wolverine auto-provisions a JetStream consumer for a listener it leaves the consumer config's `DeliverPolicy` unset, which falls through to NATS's own default of `DeliverPolicy.All` — every message currently in the stream is replayed when the consumer first connects. For new listeners attached to a long-running stream that's usually not what you want.
@@ -248,7 +254,7 @@ opts.ListenToNatsSubject("orders.received")
 
 The per-listener override always wins over the transport-wide default. When neither is set Wolverine writes nothing to the consumer config and the NATS server default (`All`) applies.
 
-The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine reuses that consumer's existing configuration regardless of `DeliverFrom(...)` — pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
+The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine keeps that consumer's existing `DeliverPolicy` regardless of `DeliverFrom(...)` — JetStream does not allow changing it on an existing consumer, so pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
 
 | `ConsumerConfigDeliverPolicy` | Effect |
 |---|---|
@@ -811,6 +817,55 @@ Or use resource setup on startup:
 ```csharp
 opts.Services.AddResourceSetupOnStartup();
 ```
+
+### Existing Streams and Consumers <Badge type="tip" text="6.47" />
+
+By default Wolverine creates a missing declared stream or JetStream listener consumer. A declared stream that
+already exists is left as it is, because updating it can discard messages. A listener's named consumer that
+already exists is brought in line with the configuration, so a changed `MaxDeliver` or `AckWait` just works.
+`Provisioning()` changes what startup does with existing streams and consumers:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    // CreateOnly, CreateOrUpdate or Verify
+    .Provisioning(NatsProvisioning.CreateOrUpdate)
+    .DefineStream("ORDERS", s => s
+        .WithSubjects("orders.>")
+        .WithLimits(maxBytes: 10L * 1024 * 1024 * 1024));
+
+opts.ListenToNatsSubject("orders.received")
+    .UseJetStream("ORDERS", "order-processor")
+    .ConfigureDeadLetterQueue(maxDeliveryAttempts: 10);
+```
+
+| `Provisioning(...)` | Missing stream or consumer | Existing stream that differs | Existing named consumer that differs |
+|---|---|---|---|
+| not set (default) | Created | Left alone | Updated |
+| `CreateOnly` | Created | Left alone | Left alone |
+| `CreateOrUpdate` | Created | Updated | Updated |
+| `Verify` | Startup fails | Startup fails, listing every deviation | Startup fails, listing every deviation |
+
+If a named consumer is maintained outside the application, for example with the NATS CLI, use
+`Provisioning(NatsProvisioning.CreateOnly)` so Wolverine does not overwrite its `AckWait`, `MaxDeliver` or filter
+with its own values.
+
+Only the settings Wolverine itself writes are compared and updated: for a declared stream everything its
+`StreamConfiguration` surfaces (subjects, retention, storage, limits, discard policy, replicas, duplicate window
+and the allow/deny flags), and for a named consumer the explicit ack policy, `AckWait`, `MaxDeliver`, the filter
+subject(s) and a `MaxAckPending` Wolverine sizes. An update is applied on top of the configuration the server
+already has, so a description, metadata or any other setting maintained outside the application survives, and
+so does a consumer's `DeliverPolicy`.
+
+::: warning
+`CreateOrUpdate` applies what the configuration says. Lowering `MaxBytes`, `MaxMessages` or `MaxAge` makes the
+server discard messages to fit, and the server refuses changes JetStream does not allow on an existing stream or
+consumer — a different storage type, a change to or from work-queue retention — which then fails the start.
+:::
+
+`Verify` is meant for streams and consumers provisioned outside the application, for example by infrastructure as
+code. Stream deviations surface while the transport connects, so Wolverine's usual broker initialization retries
+apply until `WolverineOptions.BrokerInitializationTimeout` elapses; a consumer deviation fails the listener as it
+starts. `resources setup` / `AddResourceSetupOnStartup()` is not affected by this setting.
 
 ## Subject Prefix
 

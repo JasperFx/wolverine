@@ -191,6 +191,9 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
         var autoProvisionStreams = Configuration.AutoProvision && Configuration.Streams.Any();
 
+        // Collected over the shared and every tenant connection, so Verify reports all of it at once
+        var deviations = new List<string>();
+
         if (Configuration.EnableJetStream)
         {
             _jetStreamContext = CreateJetStreamContext();
@@ -198,7 +201,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
             if (autoProvisionStreams)
             {
-                await ProvisionStreamsAsync(_jetStreamContext);
+                deviations.AddRange(await ProvisionStreamsAsync(_jetStreamContext));
             }
         }
 
@@ -216,8 +219,16 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             // (the streams the shared connection just provisioned don't exist on the tenant's server).
             if (Configuration.EnableJetStream && autoProvisionStreams)
             {
-                await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
+                var tenantDeviations = await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
+                deviations.AddRange(tenantDeviations.Select(x => $"{x} (tenant '{tenant.TenantId}')"));
             }
+        }
+
+        if (deviations.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"NATS provisioning is set to {nameof(NatsProvisioning.Verify)}, and the JetStream server does not match the declared streams:{Environment.NewLine}- " +
+                string.Join($"{Environment.NewLine}- ", deviations));
         }
     }
 
@@ -404,8 +415,16 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         }
     }
 
-    private async Task ProvisionStreamsAsync(INatsJSContext js)
+    /// <summary>
+    /// Create the declared streams that are missing, and handle the ones that exist as
+    /// <see cref="NatsTransportConfiguration.Provisioning"/> says.
+    /// </summary>
+    /// <returns>Every deviation <see cref="NatsProvisioning.Verify"/> found; empty in the other modes</returns>
+    private async Task<IReadOnlyList<string>> ProvisionStreamsAsync(INatsJSContext js)
     {
+        var provisioning = Configuration.StreamProvisioning;
+        var deviations = new List<string>();
+
         _logger?.LogInformation(
             "Provisioning {Count} configured streams",
             Configuration.Streams.Count
@@ -415,50 +434,61 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         {
             try
             {
-                var exists = false;
+                var desired = JetStreamProvisioning.BuildStreamConfig(name, config, Configuration.JetStreamDefaults);
+
+                StreamConfig? existing = null;
                 try
                 {
-                    await js.GetStreamAsync(name);
-                    exists = true;
+                    existing = (await js.GetStreamAsync(name)).Info.Config;
                     _logger?.LogDebug("Stream {StreamName} already exists", name);
                 }
                 catch (NatsJSException)
                 {
                 }
 
-                if (!exists)
+                if (existing == null)
                 {
-                    var streamConfig = new StreamConfig(name, config.Subjects)
+                    if (provisioning == NatsProvisioning.Verify)
                     {
-                        Retention = config.Retention,
-                        Storage = config.Storage,
-                        MaxMsgs = config.MaxMessages ?? -1,
-                        MaxBytes = config.MaxBytes ?? -1,
-                        MaxAge = config.MaxAge ?? TimeSpan.Zero,
-                        MaxMsgsPerSubject = config.MaxMessagesPerSubject ?? 0,
-                        Discard = config.DiscardPolicy,
-                        NumReplicas = config.Replicas,
-                        DuplicateWindow = config.DuplicateWindow ?? Configuration.JetStreamDefaults.DuplicateWindow,
-                        AllowRollupHdrs = config.AllowRollup,
-                        AllowDirect = config.AllowDirect,
-                        DenyDelete = config.DenyDelete,
-                        DenyPurge = config.DenyPurge,
-                        AllowMsgSchedules = config.AllowMsgSchedules
-                    };
+                        deviations.Add($"stream '{name}' does not exist");
+                        continue;
+                    }
 
-                    await js.CreateStreamAsync(streamConfig);
+                    await js.CreateStreamAsync(desired);
                     _logger?.LogInformation(
                         "Created stream {StreamName} with subjects: {Subjects}",
                         name,
                         string.Join(", ", config.Subjects)
                     );
+                    continue;
                 }
-                else
+
+                if (provisioning == NatsProvisioning.CreateOnly)
                 {
                     _logger?.LogDebug(
                         "Stream {StreamName} already exists, skipping creation",
                         name
                     );
+                    continue;
+                }
+
+                var differences = JetStreamProvisioning.CompareStream(desired, existing);
+                if (differences.Count == 0)
+                {
+                    _logger?.LogDebug("Stream {StreamName} already matches its configuration", name);
+                }
+                else if (provisioning == NatsProvisioning.CreateOrUpdate)
+                {
+                    await js.UpdateStreamAsync(JetStreamProvisioning.OverlayManagedSettings(existing, desired));
+                    _logger?.LogInformation(
+                        "Updated stream {StreamName}: {Differences}",
+                        name,
+                        string.Join("; ", differences)
+                    );
+                }
+                else
+                {
+                    deviations.AddRange(differences.Select(x => $"stream '{name}': {x}"));
                 }
             }
             catch (Exception ex)
@@ -467,5 +497,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                 throw new InvalidOperationException($"Failed to provision stream '{name}'", ex);
             }
         }
+
+        return deviations;
     }
 }

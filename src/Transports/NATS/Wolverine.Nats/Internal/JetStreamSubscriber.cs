@@ -5,6 +5,7 @@ using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using Wolverine.Configuration;
+using Wolverine.Nats.Configuration;
 using Wolverine.Transports;
 
 namespace Wolverine.Nats.Internal;
@@ -67,22 +68,8 @@ internal class JetStreamSubscriber : INatsSubscriber
             _endpoint.Subject
         );
 
-        var config = new ConsumerConfig
-        {
-            AckPolicy = ConsumerConfigAckPolicy.Explicit,
-            MaxDeliver = _endpoint.EffectiveMaxDeliveryAttempts,
-            AckWait = _endpoint.EffectiveAckWait
-        };
-
-        // GH-4053: MaxAckPending is JetStream's prefetch equivalent, and under NativeAck it is the whole of the
-        // back pressure -- nothing is acked until a handler succeeds, so the unacked window is what bounds the
-        // in-memory execution block. Sized under the number of lanes that can be busy at once, the consumer
-        // stalls itself; see NatsEndpoint.EffectiveMaxAckPending. Null for every other mode, which leaves the
-        // NATS server default of 1,000 exactly where it was.
-        if (_endpoint.EffectiveMaxAckPending is { } maxAckPending)
-        {
-            config.MaxAckPending = maxAckPending;
-        }
+        // Explicit acks, AckWait, MaxDeliver and -- GH-4053 -- the MaxAckPending NativeAck needs
+        var config = _endpoint.ApplyManagedConsumerSettings(new ConsumerConfig());
 
         // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
         // Leaving the property unset on the ConsumerConfig instance falls through to
@@ -129,27 +116,7 @@ internal class JetStreamSubscriber : INatsSubscriber
                 config.DeliverGroup = _endpoint.EffectiveQueueGroup;
             }
 
-            try
-            {
-                _consumer = await _jetStreamContext.GetConsumerAsync(
-                    _endpoint.StreamName!,
-                    _endpoint.ConsumerName,
-                    cancellation
-                );
-                _logger.LogInformation(
-                    "Using existing consumer {Consumer}",
-                    _endpoint.ConsumerName
-                );
-            }
-            catch (NatsJSException)
-            {
-                _consumer = await _jetStreamContext.CreateOrUpdateConsumerAsync(
-                    _endpoint.StreamName!,
-                    config,
-                    cancellation
-                );
-                _logger.LogInformation("Created consumer {Consumer}", _endpoint.ConsumerName);
-            }
+            _consumer = await connectToNamedConsumerAsync(config, cancellation);
         }
         else
         {
@@ -254,6 +221,61 @@ internal class JetStreamSubscriber : INatsSubscriber
             },
             cancellation
         );
+    }
+
+    /// <summary>
+    /// Create the named consumer if it is missing. An existing one is used as it is under
+    /// <see cref="NatsProvisioning.CreateOnly"/>; <see cref="NatsProvisioning.CreateOrUpdate"/> -- the default
+    /// for consumers -- brings the settings Wolverine manages in line first, and
+    /// <see cref="NatsProvisioning.Verify"/> refuses to start on any difference.
+    /// </summary>
+    private async Task<INatsJSConsumer> connectToNamedConsumerAsync(ConsumerConfig config,
+        CancellationToken cancellation)
+    {
+        var stream = _endpoint.StreamName!;
+        var name = _endpoint.ConsumerName!;
+        var provisioning = _endpoint.ConsumerProvisioning;
+
+        INatsJSConsumer existing;
+        try
+        {
+            existing = await _jetStreamContext.GetConsumerAsync(stream, name, cancellation);
+        }
+        catch (NatsJSException)
+        {
+            if (provisioning == NatsProvisioning.Verify)
+            {
+                throw new InvalidOperationException(
+                    $"NATS provisioning is set to {nameof(NatsProvisioning.Verify)}, but consumer '{name}' does not exist on stream '{stream}'");
+            }
+
+            var created = await _jetStreamContext.CreateOrUpdateConsumerAsync(stream, config, cancellation);
+            _logger.LogInformation("Created consumer {Consumer}", name);
+            return created;
+        }
+
+        var differences = provisioning == NatsProvisioning.CreateOnly
+            ? []
+            : JetStreamProvisioning.CompareConsumer(config, existing.Info.Config);
+
+        if (differences.Count == 0)
+        {
+            _logger.LogInformation("Using existing consumer {Consumer}", name);
+            return existing;
+        }
+
+        if (provisioning == NatsProvisioning.Verify)
+        {
+            throw new InvalidOperationException(
+                $"NATS provisioning is set to {nameof(NatsProvisioning.Verify)}, and consumer '{name}' on stream '{stream}' does not match the configuration:{Environment.NewLine}- " +
+                string.Join($"{Environment.NewLine}- ", differences));
+        }
+
+        var updated = await _jetStreamContext.CreateOrUpdateConsumerAsync(stream,
+            JetStreamProvisioning.OverlayManagedSettings(existing.Info.Config, config), cancellation);
+        _logger.LogInformation("Updated consumer {Consumer} on stream {Stream}: {Differences}", name, stream,
+            string.Join("; ", differences));
+        return updated;
     }
 
     /// <summary>

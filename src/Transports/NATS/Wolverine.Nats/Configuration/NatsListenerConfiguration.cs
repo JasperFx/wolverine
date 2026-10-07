@@ -182,9 +182,9 @@ public class NatsListenerConfiguration
     ///
     /// Only applies to consumers Wolverine itself auto-provisions; if you
     /// reference a pre-created consumer by name via
-    /// <c>UseJetStream(streamName, consumerName)</c>, Wolverine will reuse
-    /// that consumer's existing config and ignore this override (matches the
-    /// existing reuse-by-name behaviour in <c>JetStreamSubscriber</c>).
+    /// <c>UseJetStream(streamName, consumerName)</c>, Wolverine keeps that
+    /// consumer's existing <c>DeliverPolicy</c> and ignores this override, as
+    /// JetStream does not allow changing it on an existing consumer.
     /// </summary>
     public NatsListenerConfiguration DeliverFrom(ConsumerConfigDeliverPolicy deliverPolicy)
     {

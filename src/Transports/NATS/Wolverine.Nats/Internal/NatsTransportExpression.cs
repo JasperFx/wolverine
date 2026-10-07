@@ -208,6 +208,19 @@ public class NatsTransportExpression
     }
 
     /// <summary>
+    /// Choose what startup does with declared JetStream streams and the named consumers of JetStream listeners
+    /// that already exist on the server: leave them alone (<see cref="NatsProvisioning.CreateOnly"/>), bring them
+    /// in line with the configuration (<see cref="NatsProvisioning.CreateOrUpdate"/>), or fail the start on any
+    /// deviation (<see cref="NatsProvisioning.Verify"/>). Without this call existing streams are left alone and
+    /// named consumers are brought in line.
+    /// </summary>
+    public NatsTransportExpression Provisioning(NatsProvisioning provisioning)
+    {
+        Transport.Configuration.Provisioning = provisioning;
+        return this;
+    }
+
+    /// <summary>
     /// Configure multi-tenancy support
     /// </summary>
     public NatsTransportExpression ConfigureMultiTenancy(

@@ -63,6 +63,13 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal JetStreamDefaults JetStreamDefaults => _transport.Configuration.JetStreamDefaults;
 
     /// <summary>
+    /// What the listener does with its named JetStream consumer when that already exists.
+    /// Sourced from <see cref="NatsTransportConfiguration.Provisioning"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal NatsProvisioning ConsumerProvisioning => _transport.Configuration.ConsumerProvisioning;
+
+    /// <summary>
     /// Normalize a per-message subject honoring the transport's
     /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
     /// </summary>
@@ -234,6 +241,31 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// </summary>
     public ConsumerConfigDeliverPolicy? EffectiveDeliverPolicy =>
         DeliverPolicy ?? _transport.Configuration.JetStreamDefaults.DeliverPolicy;
+
+    /// <summary>
+    /// The settings Wolverine owns on this endpoint's JetStream consumers: explicit acks, <c>AckWait</c>,
+    /// <c>MaxDeliver</c> and, where Wolverine sizes it, <c>MaxAckPending</c>. One place for the listener, which
+    /// creates consumers and reconciles or verifies a named one under <see cref="NatsProvisioning"/>, and for
+    /// resource setup, so the two cannot drift apart.
+    /// </summary>
+    internal ConsumerConfig ApplyManagedConsumerSettings(ConsumerConfig config)
+    {
+        config.AckPolicy = ConsumerConfigAckPolicy.Explicit;
+        config.AckWait = EffectiveAckWait;
+        config.MaxDeliver = EffectiveMaxDeliveryAttempts;
+
+        // GH-4053: MaxAckPending is JetStream's prefetch equivalent, and under NativeAck it is the whole of the
+        // back pressure -- nothing is acked until a handler succeeds, so the unacked window is what bounds the
+        // in-memory execution block. Sized under the number of lanes that can be busy at once, the consumer
+        // stalls itself; see EffectiveMaxAckPending. Null for every other mode, which leaves the NATS server
+        // default of 1,000 exactly where it was.
+        if (EffectiveMaxAckPending is { } maxAckPending)
+        {
+            config.MaxAckPending = maxAckPending;
+        }
+
+        return config;
+    }
 
     protected override bool supportsMode(EndpointMode mode)
     {
@@ -643,23 +675,13 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
         if (!string.IsNullOrEmpty(ConsumerName) && Role == EndpointRole.Application)
         {
-            var consumerConfig = new ConsumerConfig
+            var consumerConfig = ApplyManagedConsumerSettings(new ConsumerConfig
             {
                 Name = ConsumerName,
                 DurableName = ConsumerName,
                 FilterSubject = Subject,
-                AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                AckWait = EffectiveAckWait,
-                MaxDeliver = EffectiveMaxDeliveryAttempts,
                 ReplayPolicy = ConsumerConfigReplayPolicy.Instant
-            };
-
-            // GH-4053: JetStream's prefetch equivalent, and under NativeAck the only thing bounding the
-            // unacked window. Left unset (server default 1,000) for every other mode.
-            if (EffectiveMaxAckPending is { } maxAckPending)
-            {
-                consumerConfig.MaxAckPending = maxAckPending;
-            }
+            });
 
             await js.CreateOrUpdateConsumerAsync(StreamName, consumerConfig);
             logger.LogInformation(
