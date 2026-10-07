@@ -58,9 +58,9 @@
          and honest retry reporting. Referenced ONLY by the build project. -->
     <PackageVersion Include="Bobcat.Supervisor" Version="0.8.0" />
     <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833). -->
-    <PackageVersion Include="Bobcat" Version="0.32.0-local.6" />
-    <PackageVersion Include="Bobcat.Xunit" Version="0.32.0-local.6" />
-    <PackageVersion Include="Bobcat.Generators" Version="0.32.0-local.6" />
+    <PackageVersion Include="Bobcat" Version="0.32.0-local.7" />
+    <PackageVersion Include="Bobcat.Xunit" Version="0.32.0-local.7" />
+    <PackageVersion Include="Bobcat.Generators" Version="0.32.0-local.7" />
     <PackageVersion Include="JasperFx" Version="2.81.0" />
     <PackageVersion Include="JasperFx.Events" Version="2.81.0" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.81.0" />
