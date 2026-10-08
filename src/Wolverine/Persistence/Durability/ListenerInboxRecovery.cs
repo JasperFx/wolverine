@@ -89,28 +89,62 @@ public class ListenerInboxRecovery
 
         while (!token.IsCancellationRequested)
         {
-            var pageSize = DeterminePageSize(_circuit, _runtime.DurabilitySettings);
-            if (pageSize <= 0)
+            // How much this sweep may hand the listener right now, within its buffering limits. NOT
+            // DeterminePageSize, which is also bounded by RecoveryBatchSize: that is the size of one page, and
+            // using it as the batch cap would hand each page over separately again.
+            var cap = DetermineSweepCapacity(_circuit);
+            if (cap <= 0)
             {
                 break;
             }
 
-            var envelopes = await store.LoadPageOfGloballyOwnedIncomingAsync(destination, pageSize);
-            if (envelopes.Count == 0)
+            // GH-4863. Load and claim every page the cap allows BEFORE enqueueing any of them, then enqueue
+            // the whole batch in sent order. The page query carries no ORDER BY, and none would be reliable:
+            // the id generator is user-replaceable and its default (NewId's sequential guid) sorts
+            // differently on every database. Enqueueing page by page in query order therefore ran a global
+            // partition slot's backlog on its new owner in an arbitrary order -- messages sharing a group id,
+            // which the previous owner had been running strictly in sequence, interleaved on the gaining
+            // node. SentAt is stamped when the envelope is created, travels inside the body, and is the one
+            // ordering key every store and every id generator share.
+            var batch = new List<Envelope>();
+            var exhausted = false;
+            while (batch.Count < cap)
+            {
+                var pageSize = Math.Min(_runtime.DurabilitySettings.RecoveryBatchSize, cap - batch.Count);
+                var page = await store.LoadPageOfGloballyOwnedIncomingAsync(destination, pageSize);
+                if (page.Count == 0)
+                {
+                    exhausted = true;
+                    break;
+                }
+
+                // Ensure each recovered envelope carries a reference to the store it was loaded from. This is
+                // critical for ancillary stores: without it the envelope's Store property is null and
+                // DelegatingMessageInbox falls back to the main store when marking the envelope as handled --
+                // leaving it stuck as "Incoming" in the ancillary store. See GH-2318.
+                foreach (var envelope in page)
+                {
+                    envelope.Store ??= store;
+                }
+
+                // Claimed as each page is read, so the next page query (owner 0 only) never returns a row
+                // twice and no other sweep can take it in the meantime
+                await store.ReassignIncomingAsync(_runtime.DurabilitySettings.AssignedNodeNumber, page);
+                batch.AddRange(page);
+
+                if (page.Count < pageSize)
+                {
+                    exhausted = true;
+                    break;
+                }
+            }
+
+            if (batch.Count == 0)
             {
                 break;
             }
 
-            // Ensure each recovered envelope carries a reference to the store it was loaded from. This is
-            // critical for ancillary stores: without it the envelope's Store property is null and
-            // DelegatingMessageInbox falls back to the main store when marking the envelope as handled --
-            // leaving it stuck as "Incoming" in the ancillary store. See GH-2318.
-            foreach (var envelope in envelopes)
-            {
-                envelope.Store ??= store;
-            }
-
-            await store.ReassignIncomingAsync(_runtime.DurabilitySettings.AssignedNodeNumber, envelopes);
+            var ordered = OrderForReplay(batch);
 
             // GH-3680. See the matching comment in RecoverIncomingMessagesCommand: once these rows are
             // owned by this live node, only this node can ever give them back. A failed hand-off into the
@@ -118,36 +152,36 @@ public class ListenerInboxRecovery
             // strand them permanently.
             try
             {
-                await _circuit.EnqueueDirectlyAsync(envelopes);
+                await _circuit.EnqueueDirectlyAsync(ordered);
             }
             catch (Exception e)
             {
                 _logger.LogError(e,
                     "Error trying to enqueue {Count} recovered messages into single node listener {Listener}. Releasing them back to any node so that they are recovered on a later sweep",
-                    envelopes.Count, destination);
+                    batch.Count, destination);
 
                 try
                 {
-                    await store.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes);
+                    await store.ReassignIncomingAsync(TransportConstants.AnyNode, batch);
                 }
                 catch (Exception releaseFailure)
                 {
                     _logger.LogError(releaseFailure,
                         "Error trying to release {Count} un-enqueued messages for {Listener} back to any node",
-                        envelopes.Count, destination);
+                        batch.Count, destination);
                 }
 
                 break;
             }
 
-            _logger.RecoveredIncoming(envelopes);
+            _logger.RecoveredIncoming(batch);
             _logger.LogInformation(
                 "Recovered {Count} messages from the inbox of {Store} for single node listener {Listener}",
-                envelopes.Count, store.Name, destination);
+                batch.Count, store.Name, destination);
 
-            total += envelopes.Count;
+            total += batch.Count;
 
-            if (envelopes.Count < pageSize)
+            if (exhausted)
             {
                 break;
             }
@@ -159,6 +193,33 @@ public class ListenerInboxRecovery
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// GH-4863. The order recovered envelopes are handed to the listener: by the time they were sent, with
+    /// the id as a deterministic tie-break. Within a group id that is the order the previous owner was
+    /// running them in, so a slot's backlog resumes on its new owner where it left off instead of in the
+    /// page query's arbitrary order.
+    /// </summary>
+    internal static IReadOnlyList<Envelope> OrderForReplay(IReadOnlyList<Envelope> envelopes)
+    {
+        return envelopes.OrderBy(x => x.SentAt).ThenBy(x => x.Id).ToList();
+    }
+
+    /// <summary>
+    /// GH-4863. How many recovered envelopes one sweep may hand the listener before it has to let the queue
+    /// drain: the room left under the endpoint's buffering limits. Pages are read within this, ordered as one
+    /// batch, and enqueued together.
+    /// </summary>
+    internal static int DetermineSweepCapacity(IListenerCircuit listener)
+    {
+        if (listener.Status != ListeningStatus.Accepting)
+        {
+            return 0;
+        }
+
+        var capacity = listener.Endpoint.BufferingLimits.Maximum - listener.QueueCount - 1;
+        return capacity < 0 ? 0 : capacity;
     }
 
     /// <summary>
