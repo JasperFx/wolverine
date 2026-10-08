@@ -178,6 +178,28 @@ public class WolverineScenario
     /// How a stream reads in a step: its id is named after the aggregate (GH-4835), so a stream
     /// arranged once reads "the Order stream" — and a second one of the same type "Order Order2".
     /// </summary>
+    /// <summary>
+    /// A read model already exists: <paramref name="document" /> is stored directly, as when an event
+    /// model arranges a view rather than the events that build it.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="document" /> may be a partial object, built with its unspecified members
+    /// filled by <see cref="UnspecifiedValues" />. Storing it bypasses the projection, so a spec that
+    /// is about how the view is built should arrange the events instead.
+    /// </remarks>
+    public async Task GivenReadModel<T>(object document) where T : class
+    {
+        var text = $"the {typeof(T).Name} read model is {describe([document]).Text}";
+        using var step = ScenarioRecorder.Step("Given", text);
+
+        var built = Build(document, text);
+        if (built is not T)
+            throw new SpecCriticalException(
+                $"'{text}': a {PartialMatching.ExpectedType(document).Name} cannot be stored as the {typeof(T).Name} read model.");
+
+        await DocumentStores.StoreAllAsync(Store, typeof(T), [built]);
+    }
+
     private static string streamName(Type aggregate, object id)
     {
         if (id is string key) return $"{aggregate.Name} \"{key}\"";
@@ -510,7 +532,48 @@ public class WolverineScenario
     /// </summary>
     public void ThenRefusedWith(string reason) => assertRefusal($"refused with \"{reason}\"", reason);
 
-    /// <summary>A bus-dispatched command failed validation with <paramref name="reason" />. The same check as <see cref="ThenRefusedWith" />, worded for a message.</summary>
+    /// <summary>
+    /// The act was refused with <paramref name="reason" />, and the refusal names each of
+    /// <paramref name="mentioning" />: the values an event model gives a refusal, as in
+    /// <c>EmailAlreadyInUse { email: joe@example.com }</c>.
+    /// </summary>
+    /// <remarks>
+    /// Checked against the refusal's text, an HTTP endpoint's ProblemDetails or the exception a
+    /// handler threw, so it holds for both and asks nothing of how the refusal is built.
+    /// </remarks>
+    public void ThenRefusedWith(string reason, params object[] mentioning)
+    {
+        if (mentioning.Length == 0)
+        {
+            ThenRefusedWith(reason);
+            return;
+        }
+
+        var named = string.Join(", ", mentioning.Select(ScenarioValues.Format));
+        using var step = ScenarioRecorder.Step("Then", $"refused with \"{reason}\", naming {named}");
+
+        var refusal = LastAct.Refusal ?? LastAct.Error?.Message;
+        if (refusal is null)
+        {
+            Verdicts.Fail($"Expected the act to be refused with \"{reason}\", but it succeeded.");
+            return;
+        }
+
+        Verdicts.Cell("reason", refusal.Contains(reason, StringComparison.Ordinal), reason, refusal);
+        var missing = new List<string>();
+        foreach (var value in mentioning)
+        {
+            var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+            var named_ = refusal.Contains(text, StringComparison.Ordinal);
+            Verdicts.Cell(ScenarioValues.Format(value), named_, "named", named_ ? "named" : "not named");
+            if (!named_) missing.Add(text);
+        }
+
+        Verdicts.Fact(refusal.Contains(reason, StringComparison.Ordinal) && missing.Count == 0,
+            $"Expected a refusal containing \"{reason}\" and naming {string.Join(", ", mentioning)}, but it was: {refusal}");
+    }
+
+    /// <summary>A bus-dispatched command failed validation with <paramref name="reason" />. The same check as <see cref="ThenRefusedWith(string)" />, worded for a message.</summary>
     public void ThenValidationFails(string reason) => assertRefusal($"validation fails with \"{reason}\"", reason);
 
     private void assertRefusal(string text, string reason)
@@ -572,6 +635,50 @@ public class WolverineScenario
     }
 
     /// <summary>The async projections have caught up, so a read model reflects the act.</summary>
+    /// <summary>
+    /// There is exactly one <typeparamref name="T" /> once the projections have caught up, and it
+    /// matches <paramref name="expected" /> when one is given: a singleton view, such as a
+    /// dashboard, which no identity in the spec names.
+    /// </summary>
+    public async Task<T> ThenSingleReadModel<T>(object? expected = null) where T : class
+    {
+        await ThenProjectionsAreCaughtUp(typeof(T));
+
+        var documents = await allDocuments<T>();
+        if (documents.Count != 1)
+            throw new SpecificationFailedException(
+                $"Expected exactly one {typeof(T).Name} document, but there {(documents.Count == 0 ? "are none" : $"are {documents.Count}")}.");
+
+        if (expected is not null) ThenMatches(documents[0], expected);
+        return documents[0];
+    }
+
+    /// <summary>There is no <typeparamref name="T" /> at all once the projections have caught up.</summary>
+    public async Task ThenNoReadModel<T>() where T : class
+    {
+        await ThenProjectionsAreCaughtUp(typeof(T));
+
+        using var step = ScenarioRecorder.Step("Then", $"there is no {typeof(T).Name}");
+        var documents = await allDocuments<T>();
+        Verdicts.Fact(documents.Count == 0,
+            $"Expected no {typeof(T).Name} document, but there {(documents.Count == 1 ? "is one" : $"are {documents.Count}")}: {ScenarioValues.DescribeAll(documents.Cast<object>().ToList())}");
+    }
+
+    private async Task<IReadOnlyList<T>> allDocuments<T>() where T : class
+    {
+        var session = DocumentStores.SessionFactoryFor(Store).QuerySession();
+        try
+        {
+            var queryable = ((JasperFx.Events.Documents.IDocumentReadOperations)session).Query<T>();
+            return await JasperFx.Events.Documents.DocumentQueryableExtensions.ToListAsync(queryable);
+        }
+        finally
+        {
+            if (session is IAsyncDisposable asyncDisposable) await asyncDisposable.DisposeAsync();
+            else if (session is IDisposable disposable) disposable.Dispose();
+        }
+    }
+
     public async Task ThenProjectionsAreCaughtUp(Type readModel)
     {
         using var step = ScenarioRecorder.Step("Then", $"the {readModel.Name} read model has caught up");

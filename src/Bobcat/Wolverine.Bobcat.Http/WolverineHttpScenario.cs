@@ -18,7 +18,7 @@ namespace Wolverine.Bobcat.Http;
 /// </para>
 /// <para>
 /// <b>Any 2xx is success.</b> A 4xx is a <em>refusal</em> — an answer, captured for
-/// <see cref="WolverineScenario.ThenRefusedWith" /> and <see cref="ThenResponseIs" /> — and a 5xx is the
+/// <see cref="WolverineScenario.ThenRefusedWith(string)" /> and <see cref="ThenResponseIs" /> — and a 5xx is the
 /// act failing. Neither is thrown by the act. An <c>Action&lt;Scenario&gt;</c> overload applies Alba
 /// overrides — headers, authentication, a status expectation of your own — on top.
 /// </para>
