@@ -86,6 +86,27 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void the_source_finder_stops_at_a_git_worktree_whose_dot_git_is_a_file()
+    {
+        // GH-4885: a worktree's .git is a file ("gitdir: ..."), not a directory
+        var outer = Path.Combine(Path.GetTempPath(), "scaffold-4885-" + Guid.NewGuid().ToString("N"));
+        var worktree = Path.Combine(outer, "worktree");
+        var project = Path.Combine(worktree, "src", "App");
+        Directory.CreateDirectory(Path.Combine(outer, ".git"));
+        Directory.CreateDirectory(project);
+        File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: ../.git/worktrees/worktree");
+
+        try
+        {
+            ScaffoldCommand.SourceFiles.SolutionRoot(project).ShouldBe(new DirectoryInfo(worktree).FullName);
+        }
+        finally
+        {
+            Directory.Delete(outer, true);
+        }
+    }
+
+    [Fact]
     public void a_command_whose_trigger_nothing_reveals_is_reported_unknown_rather_than_guessed()
     {
         var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>()));

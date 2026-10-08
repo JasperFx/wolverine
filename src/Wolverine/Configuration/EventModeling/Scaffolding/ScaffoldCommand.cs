@@ -210,7 +210,7 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
     {
         public static Func<Type, string?> Finder(string startingDirectory)
         {
-            var root = solutionRoot(startingDirectory);
+            var root = SolutionRoot(startingDirectory);
             string[]? files = null;
 
             return type =>
@@ -274,12 +274,15 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
             }
         }
 
-        private static string solutionRoot(string directory)
+        internal static string SolutionRoot(string directory)
         {
             for (var current = new DirectoryInfo(directory); current is not null; current = current.Parent)
             {
+                // GH-4885: in a git worktree (or a submodule) .git is a *file* pointing at the real
+                // repository, so look for either. Missing it walked on up into the parent tree and
+                // scanned -- and matched types in -- every checkout beside this one.
                 if (current.EnumerateFiles("*.sln").Any() || current.EnumerateFiles("*.slnx").Any() ||
-                    current.EnumerateDirectories(".git").Any())
+                    current.EnumerateFileSystemInfos(".git").Any())
                 {
                     return current.FullName;
                 }
