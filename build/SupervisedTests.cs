@@ -19,7 +19,7 @@ using Serilog;
 //     xUnit writes against static state, measured as 1-4 non-deterministic failures on
 //     PersistenceTests when it was tried per-test.
 //   - Per-lane environments. With `postgresDatabasePerLane`, each worker process is pointed at its
-//     own database via WOLVERINE_POSTGRES (see src/Servers.cs), because schema names are
+//     own database via ConnectionStrings__postgres (see src/Servers.cs), because schema names are
 //     hard-coded throughout the suites — isolation must be the database, not the connection alone.
 //   - Honest retries. A first failure is retried once in a FRESH process (parity with the old
 //     harness's fresh `dotnet test` invocation), but a pass-on-retry is never folded into a clean
@@ -85,12 +85,12 @@ partial class Build
     /// </param>
     /// <param name="postgresDatabasePerLane">
     /// Provisions one Postgres database per worker (wolverine_w0..N-1 on the docker-compose
-    /// server) and points each lane at its own via WOLVERINE_POSTGRES. Required before raising
+    /// server) and points each lane at its own via ConnectionStrings__postgres. Required before raising
     /// <paramref name="workers"/> on any Postgres-backed suite.
     /// </param>
     /// <param name="sqlServerDatabasePerLane">
     /// Same isolation story for SQL Server: one database per worker (wolverine_w0..N-1 on the
-    /// docker-compose server, port 1434), each lane pointed at its own via WOLVERINE_SQLSERVER.
+    /// docker-compose server, port 1434), each lane pointed at its own via ConnectionStrings__sqlserver.
     /// One server, many databases — a fleet of SQL Server CONTAINERS is far past what a 4-vCPU/16GB
     /// hosted runner can carry (see the worker-clamp note in runSupervised).
     /// </param>
@@ -137,7 +137,7 @@ partial class Build
 
         var factory = new MtpWorkerFactory(executable)
         {
-            EnvironmentFor = laneEnvironment(workers, postgresDatabasePerLane, sqlServerDatabasePerLane),
+            ConnectionStrings = laneConnectionStrings(workers, postgresDatabasePerLane, sqlServerDatabasePerLane),
             // A wedged worker's state stops existing the moment it is killed (GH-4100): this
             // hook gets the live pid first, and the dumpasync capture is the diagnosis. Only
             // ever invoked for a live process that refused to exit — a healthy worker never
@@ -378,64 +378,38 @@ partial class Build
     // ─── Per-lane environments ─────────────────────────────────────────
 
     /// <summary>
-    /// Composes the per-lane environment providers a target asked for. Null when none apply, so
-    /// the factory takes its default path.
+    /// Each lane's connection strings, handed to its worker process as
+    /// <c>ConnectionStrings__postgres</c> / <c>ConnectionStrings__sqlserver</c> (JasperFx/bobcat#414),
+    /// which src/Servers.cs reads ahead of WOLVERINE_POSTGRES / WOLVERINE_SQLSERVER. The same names
+    /// an Aspire AppHost would set, so a suite runs the same way under either. Null when no lane
+    /// needs its own database, so the factory takes its default path.
     /// </summary>
-    Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> laneEnvironment(
-        int workers, bool postgres, bool sqlServer)
+    /// <remarks>
+    /// One database per worker lane, wolverine_w0..N-1, provisioned on the docker-compose servers up
+    /// front. Schema names are hard-coded throughout the suites, so two processes sharing one
+    /// database collide however the tests are partitioned: isolation has to be the database.
+    /// Discovery and isolated/recycled workers all report lane 0, so the databases provisioned
+    /// equal the workers asked for, not the processes launched.
+    /// </remarks>
+    WorkerConnectionStrings laneConnectionStrings(int workers, bool postgres, bool sqlServer)
     {
         if (!postgres && !sqlServer) return null;
 
-        var providers = new List<Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>>>();
-        if (postgres) providers.Add(postgresPerLane(workers));
-        if (sqlServer) providers.Add(sqlServerPerLane(workers));
+        var connectionStrings = new WorkerConnectionStrings();
 
-        if (providers.Count == 1) return providers[0];
-
-        return context =>
+        if (postgres)
         {
-            var merged = new Dictionary<string, string>();
-            foreach (var provider in providers)
-            foreach (var pair in provider(context))
-            {
-                merged[pair.Key] = pair.Value;
-            }
+            ensurePostgresLaneDatabases(workers);
+            connectionStrings.Add("postgres", context => postgresLaneConnectionString(context.Lane));
+        }
 
-            return merged;
-        };
-    }
-
-    /// <summary>
-    /// One Postgres database per worker lane. Provisions wolverine_w0..N-1 on the docker-compose
-    /// server up front, then points each lane's process at its own via WOLVERINE_POSTGRES.
-    /// Discovery and isolated/recycled workers all report lane 0, so the databases provisioned
-    /// equal the workers asked for, not the processes launched.
-    /// </summary>
-    Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> postgresPerLane(int workers)
-    {
-        ensurePostgresLaneDatabases(workers);
-
-        return context => new Dictionary<string, string>
+        if (sqlServer)
         {
-            ["WOLVERINE_POSTGRES"] = postgresLaneConnectionString(context.Lane)
-        };
-    }
+            ensureSqlServerLaneDatabases(workers);
+            connectionStrings.Add("sqlserver", context => sqlServerLaneConnectionString(context.Lane));
+        }
 
-    /// <summary>
-    /// One SQL Server database per worker lane, same shape as <see cref="postgresPerLane"/>:
-    /// wolverine_w0..N-1 provisioned on the docker-compose server, each lane pointed at its own
-    /// catalog via WOLVERINE_SQLSERVER. Schema names are hard-coded throughout the suites, so two
-    /// processes sharing one catalog collide however the tests are partitioned — isolation has to
-    /// be the database.
-    /// </summary>
-    Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> sqlServerPerLane(int workers)
-    {
-        ensureSqlServerLaneDatabases(workers);
-
-        return context => new Dictionary<string, string>
-        {
-            ["WOLVERINE_SQLSERVER"] = sqlServerLaneConnectionString(context.Lane)
-        };
+        return connectionStrings;
     }
 
     static string sqlServerLaneConnectionString(int lane)
