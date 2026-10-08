@@ -450,50 +450,114 @@ public partial class NodeAgentController
         // WO-5's pending-assignment ledger, one chunk in flight per destination at a time is enough.
         var batchSize = Math.Max(1, _runtime.Options.Durability.AgentStartBatchSize);
 
-        foreach (var group in commands.OfType<AssignAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1).ToArray())
-        {
-            foreach (var message in group) commands.Remove(message);
-
-            foreach (var chunk in group.Select(x => x.AgentUri).Chunk(batchSize))
-            {
-                commands.Add(new AssignAgents(group.Key, chunk));
-            }
-        }
-
-        // GH-4718: stops were the last command type still built as one mega-batch -- AgentStartBatchSize
-        // bounded the starts above and the reassignments below, but never this. A node shedding every agent
-        // it holds (a scale-down, a rolling deploy, a rebalance away) emitted ONE StopRemoteAgents carrying
-        // its whole assignment: at field scale that is thousands of agent URIs and a serialized envelope of
-        // several MB, which the destination refuses to read at all past Options.MaxIncomingEnvelopeDataSize,
-        // and which AgentBatchTimeouts.ReplyWindowFor then makes the leader wait out for days. Chunked like
-        // the starts, so one knob bounds all three.
-        foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1)
-                     .ToArray())
-        {
-            foreach (var message in group) commands.Remove(message);
-
-            foreach (var chunk in group.Select(x => x.AgentUri).Chunk(batchSize))
-            {
-                commands.Add(new StopRemoteAgents(group.Key, chunk));
-            }
-        }
-
+        // GH-4718: stops are chunked too -- AgentStartBatchSize bounded the starts and the reassignments, but a
+        // node shedding every agent it holds (a scale-down, a rolling deploy, a rebalance away) emitted ONE
+        // StopRemoteAgents carrying its whole assignment: at field scale that is thousands of agent URIs and a
+        // serialized envelope of several MB, which the destination refuses to read at all past
+        // Options.MaxIncomingEnvelopeDataSize, and which AgentBatchTimeouts.ReplyWindowFor then makes the
+        // leader wait out for days. One knob bounds all three.
+        //
         // GH-3749: reassignment was the one command type never batched, so a rebalance moving thousands of
         // agents emitted thousands of individual ReassignAgent commands -- each a serial StopAgent round
-        // trip against the source inside one lane, with AgentStartBatchSize having no effect on any of them.
-        // Chunked like the starts: one chunk's stops per round trip, and the confirmed remainder cascades as
-        // a single AssignAgents into the destination's lane.
-        foreach (var group in commands.OfType<ReassignAgent>()
-                     .GroupBy(x => (x.OriginalNode, x.ActiveNode))
-                     .Where(x => x.Count() > 1)
-                     .ToArray())
-        {
-            foreach (var message in group) commands.Remove(message);
+        // trip against the source inside one lane. Chunked like the starts: one chunk's stops per round
+        // trip, and the confirmed remainder cascades as a single AssignAgents into the destination's lane.
+        //
+        // GH-4886 follow-up: this used to GroupBy each command type and then List.Remove every grouped
+        // command from the list one at a time -- a scan per command over a list the size of the whole
+        // evaluation, with a record-equality compare per element. A fresh leader's first evaluation of a
+        // cold cluster emits one AssignAgent per agent, so at the reported scale that was sixty thousand
+        // removals from a sixty-thousand-entry list: the same quadratic shape as the capability scan, on
+        // the same evaluation. One pass now sorts each command into its batch key and the list is rebuilt
+        // rather than edited in place. The result is unchanged: a group of one, or a command type that
+        // never batches, keeps its place; the batches follow in first-seen group order, starts first.
+        var starts = new BatchGroups<NodeDestination>();
+        var stops = new BatchGroups<NodeDestination>();
+        var reassignments = new BatchGroups<(NodeDestination, NodeDestination)>();
 
-            foreach (var chunk in group.Select(x => x.AgentUri).Chunk(batchSize))
+        foreach (var command in commands)
+        {
+            switch (command)
             {
-                commands.Add(new ReassignAgents(group.Key.OriginalNode, group.Key.ActiveNode, chunk));
+                case AssignAgent assign:
+                    starts.Add(assign.Destination, assign.AgentUri);
+                    break;
+                case StopRemoteAgent stop:
+                    stops.Add(stop.Destination, stop.AgentUri);
+                    break;
+                case ReassignAgent reassign:
+                    reassignments.Add((reassign.OriginalNode, reassign.ActiveNode), reassign.AgentUri);
+                    break;
             }
         }
+
+        if (!starts.AnyBatch && !stops.AnyBatch && !reassignments.AnyBatch)
+        {
+            return;
+        }
+
+        var rebuilt = new List<IAgentCommand>(commands.Count);
+        foreach (var command in commands)
+        {
+            var batched = command switch
+            {
+                AssignAgent assign => starts.IsBatched(assign.Destination),
+                StopRemoteAgent stop => stops.IsBatched(stop.Destination),
+                ReassignAgent reassign => reassignments.IsBatched((reassign.OriginalNode, reassign.ActiveNode)),
+                _ => false
+            };
+
+            if (!batched)
+            {
+                rebuilt.Add(command);
+            }
+        }
+
+        foreach (var (destination, uris) in starts.Batches)
+        {
+            foreach (var chunk in uris.Chunk(batchSize)) rebuilt.Add(new AssignAgents(destination, chunk));
+        }
+
+        foreach (var (destination, uris) in stops.Batches)
+        {
+            foreach (var chunk in uris.Chunk(batchSize)) rebuilt.Add(new StopRemoteAgents(destination, chunk));
+        }
+
+        foreach (var ((original, active), uris) in reassignments.Batches)
+        {
+            foreach (var chunk in uris.Chunk(batchSize)) rebuilt.Add(new ReassignAgents(original, active, chunk));
+        }
+
+        commands.Clear();
+        commands.AddRange(rebuilt);
+    }
+
+    /// <summary>
+    ///     The agent URIs of one command type keyed by batch destination, in first-seen key order. A key with a
+    ///     single URI is not a batch: that command stays as it was issued.
+    /// </summary>
+    private sealed class BatchGroups<TKey> where TKey : notnull
+    {
+        private readonly List<TKey> _keys = [];
+        private readonly Dictionary<TKey, List<Uri>> _uris = new();
+
+        public bool AnyBatch { get; private set; }
+
+        public void Add(TKey key, Uri agentUri)
+        {
+            if (!_uris.TryGetValue(key, out var uris))
+            {
+                uris = [];
+                _uris[key] = uris;
+                _keys.Add(key);
+            }
+
+            uris.Add(agentUri);
+            AnyBatch |= uris.Count > 1;
+        }
+
+        public bool IsBatched(TKey key) => _uris.TryGetValue(key, out var uris) && uris.Count > 1;
+
+        public IEnumerable<(TKey Key, List<Uri> Uris)> Batches
+            => _keys.Select(key => (key, _uris[key])).Where(x => x.Item2.Count > 1);
     }
 }

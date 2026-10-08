@@ -14,12 +14,12 @@ public class capability_matching_at_fleet_scale
 {
     private const string Scheme = "event-subscriptions";
 
-    private static Uri Agent(int shard, string projection, int tenant) =>
+    private static Uri agent(int shard, string projection, int tenant) =>
         new($"event-subscriptions://marten/main/database-productie-{shard}/{projection}/all/{tenant:D8}");
 
-    private static string DatabaseKey(Uri uri) => uri.Segments[2].Trim('/');
+    private static string databaseKey(Uri uri) => uri.Segments[2].Trim('/');
 
-    private static WolverineNode NodeDeclaring(int number, IEnumerable<Uri> capabilities) => new()
+    private static WolverineNode nodeDeclaring(int number, IEnumerable<Uri> capabilities) => new()
     {
         NodeId = Guid.NewGuid(),
         AssignedNodeNumber = number,
@@ -29,15 +29,15 @@ public class capability_matching_at_fleet_scale
     [Fact]
     public void candidate_nodes_are_exactly_the_nodes_declaring_the_agent()
     {
-        var shared = Agent(1, "orders/v1", 1);
-        var blueOnly = Agent(1, "invoices/v1", 1);
-        var greenOnly = Agent(1, "invoices/v2", 1);
-        var nobody = Agent(2, "orders/v1", 2);
+        var shared = agent(1, "orders/v1", 1);
+        var blueOnly = agent(1, "invoices/v1", 1);
+        var greenOnly = agent(1, "invoices/v2", 1);
+        var nobody = agent(2, "orders/v1", 2);
 
         var grid = new AssignmentGrid();
-        var blue = grid.WithNode(NodeDeclaring(1, [shared, blueOnly]));
-        var green1 = grid.WithNode(NodeDeclaring(2, [shared, greenOnly]));
-        var green2 = grid.WithNode(NodeDeclaring(3, [greenOnly, shared]));
+        var blue = grid.WithNode(nodeDeclaring(1, [shared, blueOnly]));
+        var green1 = grid.WithNode(nodeDeclaring(2, [shared, greenOnly]));
+        var green2 = grid.WithNode(nodeDeclaring(3, [greenOnly, shared]));
         grid.WithAgents(shared, blueOnly, greenOnly, nobody);
 
         grid.MatchAgentsToCapableNodesFor(Scheme);
@@ -51,23 +51,24 @@ public class capability_matching_at_fleet_scale
     [Fact]
     public async Task a_blue_green_distribution_of_sixty_thousand_agents_takes_seconds()
     {
-        // 64 shard databases, 2,600 tenants, 23 projections: 59,800 agents per version
+        // 64 shard databases, 2,600 tenants, 23 projections: 59,800 agents per version, of which only one
+        // projection differs between the versions -- 62,400 distinct agents in the grid
         var projections = Enumerable.Range(1, 23).Select(i => $"projection-{i}").ToArray();
         var tenants = Enumerable.Range(1, 2600).Select(i => (Shard: i % 64 + 1, Tenant: 1_050_000 + i)).ToArray();
 
         IEnumerable<Uri> declared(string version) => tenants.SelectMany(t =>
-            projections.Select(p => Agent(t.Shard, $"{p}/{(p == "projection-1" ? version : "v1")}", t.Tenant)));
+            projections.Select(p => agent(t.Shard, $"{p}/{(p == "projection-1" ? version : "v1")}", t.Tenant)));
 
         var blue = declared("v30").ToList();
         var green = declared("v31").ToList();
 
         var grid = new AssignmentGrid();
-        for (var i = 1; i <= 3; i++) grid.WithNode(NodeDeclaring(i, blue));
-        for (var i = 4; i <= 5; i++) grid.WithNode(NodeDeclaring(i, green));
+        for (var i = 1; i <= 3; i++) grid.WithNode(nodeDeclaring(i, blue));
+        for (var i = 4; i <= 5; i++) grid.WithNode(nodeDeclaring(i, green));
         grid.WithAgents(blue.Union(green).ToArray());
 
         // The old list scan needs tens of minutes here; WaitAsync turns that into a failure, not a hung run
-        await Task.Run(() => grid.DistributeByGroupAffinity(Scheme, DatabaseKey, _ => true), TestContext.Current.CancellationToken)
+        await Task.Run(() => grid.DistributeByGroupAffinity(Scheme, databaseKey, _ => true), TestContext.Current.CancellationToken)
             .WaitAsync(15.Seconds(), TestContext.Current.CancellationToken);
 
         grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null && a.AssignedNode.Declares(a.Uri));

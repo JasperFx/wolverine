@@ -53,9 +53,18 @@ public class WolverineNode
 
     public void AssignAgents(IReadOnlyList<Uri> agents)
     {
+        // GH-4886 follow-up: every heartbeat rebuilds this node's record with every agent it is running, and
+        // this used to Fill() them one at a time -- a List.Contains scan per agent over the ones already
+        // added, quadratic in the node's agent count. At thousands of per-tenant projection agents per node
+        // that was seconds of CPU on every heartbeat of every node in the fleet. Same result, one set
+        // lookup per agent.
+        var known = ActiveAgents.ToHashSet();
         foreach (var agent in agents)
         {
-            ActiveAgents.Fill(agent);
+            if (known.Add(agent))
+            {
+                ActiveAgents.Add(agent);
+            }
         }
     }
 }

@@ -141,6 +141,11 @@ public partial class AssignmentGrid
 
         var missing = new Queue<Agent>(agents.Where(x => x.AssignedNode == null));
 
+        // GH-4886 follow-up: this pass's per-node counts, taken once after the ceiling pass and kept current
+        // as agents are placed, instead of recounting a node's agents through the set on every placement --
+        // quadratic in the agent count at fleet scale.
+        var counts = ordered.ToDictionary(x => x, countOn);
+
         // 2nd pass
         foreach (var node in ordered)
         {
@@ -149,7 +154,7 @@ public partial class AssignmentGrid
                 break;
             }
 
-            var count = countOn(node);
+            var count = counts[node];
 
             for (var i = 0; i < minimum - count; i++)
             {
@@ -160,6 +165,7 @@ public partial class AssignmentGrid
 
                 var agent = missing.Dequeue();
                 node.Assign(agent);
+                counts[node]++;
             }
         }
 
@@ -168,8 +174,9 @@ public partial class AssignmentGrid
         {
             var agent = missing.Dequeue();
 
-            var node = ordered.FirstOrDefault(x => !x.IsLeader && countOn(x) < maximum) ?? ordered.FirstOrDefault(x => !x.IsLeader) ?? ordered.First();
+            var node = ordered.FirstOrDefault(x => !x.IsLeader && counts[x] < maximum) ?? ordered.FirstOrDefault(x => !x.IsLeader) ?? ordered.First();
             node.Assign(agent);
+            counts[node]++;
         }
     }
 
@@ -702,6 +709,12 @@ public partial class AssignmentGrid
             }
         }
 
+        // GH-4886 follow-up: this pass's per-node counts, taken once after the ceiling pass and kept current
+        // as agents are placed, instead of recounting a node's agents through the set on every placement --
+        // quadratic in the agent count at fleet scale.
+        var counts = nodes.ToDictionary(x => x, countOn);
+        int placed(Node node) => counts[node];
+
         // In the missing, we're going to put the agents up top that can be supported in fewer places
         var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count).ToList();
         foreach (var agent in missing)
@@ -715,11 +728,15 @@ public partial class AssignmentGrid
             //
             // With capacity-aware assignment off, every node is accepting and none advertises a load, so
             // this is the original "first under the minimum, else least loaded" behavior unchanged.
-            var candidate = InCapacityOrder(agent.CandidateNodes.Where(x => countOn(x) < minimum), countOn)
+            var candidate = InCapacityOrder(agent.CandidateNodes.Where(x => placed(x) < minimum), placed)
                     .FirstOrDefault()
-                ?? InCapacityOrder(agent.CandidateNodes, countOn).FirstOrDefault();
+                ?? InCapacityOrder(agent.CandidateNodes, placed).FirstOrDefault();
 
-            candidate?.Assign(agent);
+            if (candidate != null)
+            {
+                candidate.Assign(agent);
+                counts[candidate]++;
+            }
         }
     }
 

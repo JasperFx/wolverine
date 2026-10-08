@@ -7,6 +7,11 @@ public partial class AssignmentGrid
     public class Node
     {
         private readonly List<Agent> _agents = new();
+
+        // GH-4886 follow-up: membership for _agents. Assign() used to Fill() the list, a scan over every
+        // agent already on the node per placement -- quadratic in the node's share of a fleet-scale
+        // distribution. The list is kept because ExtrasAboveCeiling relies on placement order.
+        private readonly HashSet<Agent> _assigned = new();
         private readonly AssignmentGrid _parent;
         private readonly List<Uri> _capabilities;
 
@@ -43,13 +48,31 @@ public partial class AssignmentGrid
         {
             _capabilities.Fill(agentUris);
             _capabilityLookup = null;
+            _orderedByScheme.Clear();
             return this;
         }
 
-        public IReadOnlyList<Uri> OrderedCapabilitiesForScheme(string scheme) => _capabilities
-            .Where(x => x.Scheme.EqualsIgnoreCase(scheme))
-            .OrderBy(x => x.ToString())
-            .ToList();
+        private readonly Dictionary<string, IReadOnlyList<Uri>> _orderedByScheme = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        ///     This node's capabilities of one scheme in a stable order, for comparing nodes. Computed once per
+        ///     scheme per grid: AllNodesHaveSameCapabilities asks for it once per distribution pass, and a
+        ///     multi-database store runs one pass per database.
+        /// </summary>
+        public IReadOnlyList<Uri> OrderedCapabilitiesForScheme(string scheme)
+        {
+            if (!_orderedByScheme.TryGetValue(scheme, out var ordered))
+            {
+                ordered = _capabilities
+                    .Where(x => x.Scheme.EqualsIgnoreCase(scheme))
+                    .OrderBy(x => x.ToString())
+                    .ToList();
+
+                _orderedByScheme[scheme] = ordered;
+            }
+
+            return ordered;
+        }
 
         public int AssignedId { get; }
         public Guid NodeId { get; }
@@ -145,7 +168,7 @@ public partial class AssignmentGrid
                 var agent = new Agent(agentUri, this);
                 _parent._agents[agentUri] = agent;
 
-                _agents.Add(agent);
+                add(agent);
             }
 
             return this;
@@ -153,7 +176,18 @@ public partial class AssignmentGrid
 
         internal void Remove(Agent agent)
         {
-            _agents.Remove(agent);
+            if (_assigned.Remove(agent))
+            {
+                _agents.Remove(agent);
+            }
+        }
+
+        private void add(Agent agent)
+        {
+            if (_assigned.Add(agent))
+            {
+                _agents.Add(agent);
+            }
         }
 
         /// <summary>
@@ -195,7 +229,7 @@ public partial class AssignmentGrid
             }
 
             agent.AssignedNode = this;
-            _agents.Fill(agent);
+            add(agent);
         }
 
         /// <summary>
@@ -211,7 +245,7 @@ public partial class AssignmentGrid
             }
 
             agent.AssignedNode = this;
-            _agents.Fill(agent);
+            add(agent);
         }
 
         public override string ToString()
