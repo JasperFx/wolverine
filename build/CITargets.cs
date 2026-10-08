@@ -718,7 +718,7 @@ partial class Build
         });
 
     // MartenTests was the 18m long pole of the matrix (#3752). It was first attacked with worker lanes —
-    // four processes, each on its own database via WOLVERINE_POSTGRES — and that halved the wall clock but
+    // four processes, each on its own database via its own connection string — and that halved the wall clock but
     // did not hold up: the runner itself was killed outright ("The runner has received a shutdown signal")
     // twice in a row at ~15 minutes on an unrelated diff (#3771), which is the OOM signature, not a test
     // failure. Several Marten test hosts plus Postgres does not fit a 4-vCPU/16GB hosted runner, and a lane
