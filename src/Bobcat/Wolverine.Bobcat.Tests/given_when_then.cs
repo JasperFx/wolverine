@@ -86,7 +86,7 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
         await WhenReceived(new ConfirmAppointment(id));
 
         Should.Throw<SpecificationFailedException>(() => ThenEvents(typeof(AppointmentConfirmed)))
-            .Message.ShouldContain("The act failed: InvalidOperationException: The appointment is already confirmed");
+            .Message.ShouldContain("The act failed: AppointmentAlreadyConfirmed: The appointment is already confirmed");
     }
 
     [Fact]

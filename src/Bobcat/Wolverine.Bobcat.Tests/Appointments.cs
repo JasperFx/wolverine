@@ -48,12 +48,19 @@ public static class ScheduleAppointmentHandler
             new AppointmentScheduled(command.AppointmentId, command.Patient, command.Notes));
 }
 
+/// <summary>A typed refusal: what an event model's <c>x: Appointment already confirmed { appointment id }</c> becomes.</summary>
+public class AppointmentAlreadyConfirmed(Guid appointmentId)
+    : InvalidOperationException("The appointment is already confirmed")
+{
+    public Guid AppointmentId { get; } = appointmentId;
+}
+
 public static class ConfirmAppointmentHandler
 {
     public static (AppointmentConfirmed, OutgoingMessages) Handle(ConfirmAppointment command,
         [WriteModel] Appointment appointment)
     {
-        if (appointment.Confirmed) throw new InvalidOperationException("The appointment is already confirmed");
+        if (appointment.Confirmed) throw new AppointmentAlreadyConfirmed(command.AppointmentId);
 
         return (new AppointmentConfirmed(command.AppointmentId, DateTimeOffset.UtcNow),
             new OutgoingMessages { new SendConfirmationEmail(command.AppointmentId, appointment.Patient) });
