@@ -92,6 +92,9 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.GivenNoEventsFor{TAggregate}(string)" />
     public Task GivenNoEventsFor<TAggregate>(string key) where TAggregate : class => Scenario.GivenNoEventsFor<TAggregate>(key);
 
+    /// <inheritdoc cref="WolverineScenario.GivenReadModel{T}(object)" />
+    public Task GivenReadModel<T>(object document) where T : class => Scenario.GivenReadModel<T>(document);
+
     /// <inheritdoc cref="WolverineScenario.GivenEventsOn{TAggregate}(Guid, object[])" />
     public Task GivenEventsOn<TAggregate>(Guid id, params object[] events) where TAggregate : class
         => Scenario.GivenEventsOn<TAggregate>(id, events);
@@ -164,8 +167,11 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.TheAggregate{T}(string)" />
     public Task<T?> TheAggregate<T>(string key) where T : class => Scenario.TheAggregate<T>(key);
 
-    /// <inheritdoc cref="WolverineScenario.ThenRefusedWith" />
+    /// <inheritdoc cref="WolverineScenario.ThenRefusedWith(string)" />
     public void ThenRefusedWith(string reason) => Scenario.ThenRefusedWith(reason);
+
+    /// <inheritdoc cref="WolverineScenario.ThenRefusedWith(string, object[])" />
+    public void ThenRefusedWith(string reason, params object[] mentioning) => Scenario.ThenRefusedWith(reason, mentioning);
 
     /// <inheritdoc cref="WolverineScenario.ThenValidationFails" />
     public void ThenValidationFails(string reason) => Scenario.ThenValidationFails(reason);
@@ -176,8 +182,14 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenReadModel{T}(object, object)" />
     public Task<T> ThenReadModel<T>(object id, object expected) where T : class => Scenario.ThenReadModel<T>(id, expected);
 
-    /// <inheritdoc cref="WolverineScenario.ThenNoReadModel{T}" />
+    /// <inheritdoc cref="WolverineScenario.ThenNoReadModel{T}(object)" />
     public Task ThenNoReadModel<T>(object id) where T : class => Scenario.ThenNoReadModel<T>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoReadModel{T}()" />
+    public Task ThenNoReadModel<T>() where T : class => Scenario.ThenNoReadModel<T>();
+
+    /// <inheritdoc cref="WolverineScenario.ThenSingleReadModel{T}(object?)" />
+    public Task<T> ThenSingleReadModel<T>(object? expected = null) where T : class => Scenario.ThenSingleReadModel<T>(expected);
 
     /// <inheritdoc cref="WolverineScenario.ThenProjectionsAreCaughtUp" />
     public Task ThenProjectionsAreCaughtUp(Type readModel) => Scenario.ThenProjectionsAreCaughtUp(readModel);
