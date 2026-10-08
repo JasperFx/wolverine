@@ -68,9 +68,8 @@ internal class JetStreamSubscriber : INatsSubscriber
             _endpoint.Subject
         );
 
-        // Explicit acks, AckWait, MaxDeliver, the subject filter (GH-3676, and the schedule subject under
-        // native scheduled send) and -- GH-4053 -- the MaxAckPending NativeAck needs. The same set resource
-        // setup writes, so the two never disagree on an existing consumer
+        // Explicit acks, AckWait, MaxDeliver, the subject filter (GH-3676) and -- GH-4053 -- the MaxAckPending
+        // NativeAck needs. The same set resource setup writes, so the two never disagree on an existing consumer
         var config = _endpoint.ApplyManagedConsumerSettings(new ConsumerConfig(), _subscriptionPattern);
 
         // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
@@ -155,6 +154,19 @@ internal class JetStreamSubscriber : INatsSubscriber
                         {
                             _logger.LogDebug(
                                 "Skipping empty JetStream message from subject {Subject}",
+                                msg.Subject
+                            );
+                            await msg.AckAsync(cancellationToken: cancellation);
+                            continue;
+                        }
+
+                        // A native scheduling control message, seen by a consumer whose filter is a wildcard
+                        // that also covers the schedule subjects. The server delivers the message itself to the
+                        // target subject at its due time; handling the control message would run it early
+                        if (msg.Headers?.ContainsKey(JetStreamPublisher.NatsScheduleHeader) == true)
+                        {
+                            _logger.LogDebug(
+                                "Skipping the NATS schedule control message on subject {Subject}",
                                 msg.Subject
                             );
                             await msg.AckAsync(cancellationToken: cancellation);

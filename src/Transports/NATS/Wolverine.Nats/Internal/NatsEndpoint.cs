@@ -230,26 +230,35 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     }
 
     /// <summary>
-    /// Suffix appended to the destination subject to form the NATS JetStream scheduling subject for native
-    /// scheduled sends. Must keep the schedule subject covered by the stream (e.g. a <c>prefix.&gt;</c>
-    /// filter covers <c>{subject}.scheduled</c>). Defaults to <c>.scheduled</c>.
+    /// Suffix appended to the destination subject to form the NATS JetStream scheduling subjects for native
+    /// scheduled sends: each scheduled message gets its own <c>{subject}{suffix}.{envelope id}</c>. The stream
+    /// has to cover those subjects, e.g. with a <c>prefix.&gt;</c> subject, or <c>{subject}.scheduled.&gt;</c>
+    /// next to an exact subject. Defaults to <c>.scheduled</c>.
     /// </summary>
     public string ScheduleSubjectSuffix { get; set; } = ".scheduled";
 
     /// <summary>
-    /// True when native JetStream scheduling is actually in play for this endpoint's stream, which
-    /// means <c>{subject}{ScheduleSubjectSuffix}</c> carries the schedule control messages and must
-    /// stay covered by this endpoint's consumer. Mirrors the predicate CreateSender uses to decide
-    /// whether a sender supports native scheduled send
+    /// True when a send through this endpoint can hand a scheduled message to the server: JetStream, a server
+    /// with message schedules, and a declared stream that allows them and keeps them until they fire. Interest
+    /// and work-queue retention cannot promise that: an interest stream drops a control message no consumer is
+    /// interested in, and on both a consumer whose filter covers the schedule subject deletes the control message
+    /// by acknowledging it, so the schedule never fires. Such sends use Wolverine's own scheduling instead.
     /// </summary>
     [IgnoreDescription]
-    internal bool UsesNativeScheduledSend =>
+    internal bool SupportsNativeScheduledSend =>
         UseJetStream
         && _transport.Configuration.EnableJetStream
         && _transport.ServerSupportsScheduledSend
         && StreamName != null
         && _transport.Configuration.Streams.TryGetValue(StreamName, out var scheduleStreamConfig)
-        && scheduleStreamConfig.AllowMsgSchedules;
+        && scheduleStreamConfig.AllowMsgSchedules
+        && scheduleStreamConfig.Retention == StreamConfigRetention.Limits
+        && capturesScheduleSubjects(scheduleStreamConfig);
+
+    // Each schedule has a subject of its own under the suffix. A stream declared with the exact subjects of the single
+    // schedule subject used before captures none of them, and every native schedule would be published to nowhere
+    private bool capturesScheduleSubjects(StreamConfiguration stream) =>
+        stream.Subjects.Any(x => SubjectCovers(x, $"{Subject}{ScheduleSubjectSuffix}.{Guid.Empty:N}"));
 
     /// <summary>
     /// Per-endpoint override for the JetStream consumer's <c>DeliverPolicy</c>.
@@ -314,24 +323,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         }
 
         // Scope the consumer to this listener's subject. Without a filter every durable consumer sharing a
-        // stream received every message published to that stream (GH-3676).
+        // stream received every message published to that stream (GH-3676). Native scheduling's control
+        // messages stay outside the filter on purpose: the server materializes a scheduled message onto this
+        // subject at its due time, and a consumer that also took the control message handled it at once --
+        // and the materialized copy a second time.
         if (!string.IsNullOrEmpty(subscriptionPattern))
         {
-            // Native scheduling publishes its control message to {subject}{suffix} and no single
-            // NATS filter covers both that and {subject} -- '{subject}.>' excludes {subject}
-            // itself. On a work queue stream a control message no consumer covers is discarded
-            // outright, so the schedule is never registered and the send silently never arrives;
-            // a multi-filter consumer keeps the schedule subject owned by this endpoint
-            if (UsesNativeScheduledSend && !string.IsNullOrEmpty(ScheduleSubjectSuffix))
-            {
-                config.FilterSubject = null;
-                config.FilterSubjects = [subscriptionPattern, subscriptionPattern + ScheduleSubjectSuffix];
-            }
-            else
-            {
-                config.FilterSubject = subscriptionPattern;
-                config.FilterSubjects = null;
-            }
+            config.FilterSubject = subscriptionPattern;
+            config.FilterSubjects = null;
         }
 
         return config;
@@ -427,12 +426,27 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         }
 
         var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
-        var supportsScheduledSend = useJetStream && 
-                                    _transport.ServerSupportsScheduledSend &&
-                                    StreamName != null &&
-                                    _transport.Configuration.Streams.TryGetValue(StreamName, out var streamConfig) &&
-                                    streamConfig.AllowMsgSchedules;
-        
+        var supportsScheduledSend = SupportsNativeScheduledSend;
+
+        if (!supportsScheduledSend && useJetStream && _transport.ServerSupportsScheduledSend &&
+            StreamName != null &&
+            _transport.Configuration.Streams.TryGetValue(StreamName, out var streamConfig) &&
+            streamConfig.AllowMsgSchedules)
+        {
+            if (streamConfig.Retention != StreamConfigRetention.Limits)
+            {
+                _logger.LogInformation(
+                    "Stream {Stream} allows message schedules, but its {Retention} retention can delete a schedule before it fires, so messages scheduled for {Subject} use Wolverine's own scheduling",
+                    StreamName, streamConfig.Retention, Subject);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Stream {Stream} allows message schedules, but its subjects do not capture {ScheduleSubjects}, where each message scheduled for {Subject} gets a schedule subject of its own, so they use Wolverine's own scheduling. Add the subject to the stream to schedule them natively",
+                    StreamName, $"{Subject}{ScheduleSubjectSuffix}.>", Subject);
+            }
+        }
+
         var jetStreamContext = useJetStream ? _transport.CreateJetStreamContext() : null;
 
         var baseSender = NatsSender.Create(

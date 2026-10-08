@@ -126,6 +126,19 @@ internal class CoreNatsSubscriber : INatsSubscriber
                                     continue;
                                 }
 
+                                // A native scheduling control message published to a stream subject this
+                                // wildcard covers. The server stores the message it materializes at the due
+                                // time in the stream without publishing it to core subscriptions, so there is
+                                // nothing for a core listener to handle
+                                if (msg.Headers?.ContainsKey(JetStreamPublisher.NatsScheduleHeader) == true)
+                                {
+                                    _logger.LogDebug(
+                                        "Skipping the NATS schedule control message on subject {Subject}",
+                                        msg.Subject
+                                    );
+                                    continue;
+                                }
+
                                 // Skip messages without headers or without message-type header.
                                 // These are typically NATS protocol messages (JetStream acks, etc.)
                                 // that should not be processed by Wolverine.

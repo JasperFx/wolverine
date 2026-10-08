@@ -295,7 +295,7 @@ opts.UseNats("nats://localhost:4222")
 ```csharp
 opts.UseNats("nats://localhost:4222")
     .DefineWorkQueueStream("ORDERS", 
-        stream => stream.EnableScheduledDelivery(), 
+        stream => stream.WithLimits(maxAge: TimeSpan.FromDays(1)), 
         "orders.>");
 ```
 
@@ -677,45 +677,54 @@ described under [JetStream](#jetstream).
 
 ## Scheduled Message Delivery
 
-NATS Server 2.12+ supports native scheduled message delivery. When enabled, Wolverine uses NATS headers for scheduling instead of database persistence.
+NATS Server 2.12+ can hold a message and deliver it at a given time. When the publishing endpoint qualifies,
+Wolverine hands `ScheduleAsync()` and other scheduled sends to the server instead of scheduling them itself.
 
 ### Requirements
 
 1. NATS Server version >= 2.12
-2. Stream configured with `EnableScheduledDelivery()`
+2. The publishing endpoint uses JetStream (`ToNatsSubject(...).UseJetStream("ORDERS")`)
+3. The stream is declared in the application with `EnableScheduledDelivery()` and keeps the default limits
+   retention
 
 ### Configuration
 
 ```csharp
 opts.UseNats("nats://localhost:4222")
-    .UseJetStream(js => { })
-    .DefineWorkQueueStream("ORDERS", 
-        s => s.EnableScheduledDelivery(), 
-        "orders.>");
+    .DefineStream("ORDERS", s => s
+        .WithSubjects("orders.>")
+        .EnableScheduledDelivery());
+
+opts.PublishMessage<OrderCreated>()
+    .ToNatsSubject("orders.created")
+    .UseJetStream("ORDERS");
+
+opts.ListenToNatsSubject("orders.created")
+    .UseJetStream("ORDERS", "order-processor");
 ```
 
 ### How It Works
 
-When conditions are met, scheduled messages use NATS headers:
+A scheduled send publishes a control message carrying:
 - `Nats-Schedule: @at <RFC3339 timestamp>`
 - `Nats-Schedule-Target: <destination subject>`
 
 The transport automatically detects server version at startup.
 
-NATS requires the scheduling (control) message to be published to a subject that is **different** from
-`Nats-Schedule-Target` — publishing both to the same subject is rejected with
-`message schedules target is invalid` (err 10190). Wolverine therefore publishes the control message to a
-derived **schedule subject** — the destination subject plus a suffix (default `.scheduled`, e.g.
-`orders.created.scheduled`) — while `Nats-Schedule-Target` stays the real destination
-(`orders.created`). At the scheduled time the server materializes a new message onto the target subject,
-where your listener's consumer receives it; the control message itself is never delivered to consumers.
+NATS keeps one schedule per subject: a control message replaces the pending schedule on its subject. It also
+rejects a control message published to its own target subject (`message schedules target is invalid`,
+err 10190). Wolverine therefore publishes every control message to a **schedule subject** of its own — the
+destination subject, a suffix (default `.scheduled`) and the envelope id, e.g.
+`orders.created.scheduled.4f0c…` — while `Nats-Schedule-Target` stays the real destination (`orders.created`).
+At the due time the server stores the message on the target subject, where the listener's consumer receives it,
+and removes the control message. Until then the schedule lives in the stream, so it survives a restart or crash
+of the sending and the receiving application.
 
-Both the target and the derived schedule subject must be covered by the **same stream**. The schedule
-subject is the target plus an extra suffix token (`orders.created` → `orders.created.scheduled`), so it
-always has one more token than the target. Any filter that only matches the target's token count — an
-exact-subject filter, or a `*` pattern such as `orders.*` — therefore covers the target but **not**
-`<subject>.scheduled`. Cover both with a `>`-style prefix wildcard such as `orders.>`, or list the target
-and schedule subjects as explicit filters. Override the suffix per publishing endpoint when needed:
+The schedule subjects must be covered by the **same stream** as the target. They have two more tokens than the
+target, so cover them with a `>` wildcard: `orders.>`, or `orders.created.scheduled.>` next to an exact
+`orders.created`. An endpoint whose declared stream does not capture them — such as one declared with the exact
+`orders.created.scheduled` earlier versions needed — logs a warning and uses Wolverine's own scheduling. Override
+the suffix per publishing endpoint when needed:
 
 ```csharp
 opts.PublishMessage<OrderCreated>()
@@ -724,9 +733,34 @@ opts.PublishMessage<OrderCreated>()
     .UseScheduleSubjectSuffix(".deferred");
 ```
 
+A JetStream listener's consumer filters on the listener's own subject, so it never receives control messages.
+A listener on a wildcard that also covers the schedule subjects, such as `orders.>`, acknowledges and skips
+them; Wolverine recognizes them by the `Nats-Schedule` header. Core NATS listeners do not receive natively
+scheduled messages at all: the server stores the message it materializes in the stream without publishing it
+to core subscriptions, and a core listener on a wildcard skips the control messages it sees.
+
+::: warning Limits retention only
+Native scheduling needs a stream that keeps the control message until it fires. An interest stream
+(`DefineWorkQueueStream()`, `AsWorkQueue()`) drops a control message no consumer is interested in, and on
+interest and work-queue streams a consumer that covers the schedule subject deletes the control message by
+acknowledging it. Wolverine therefore does not schedule natively on streams with interest or work-queue
+retention, even with `EnableScheduledDelivery()`; scheduled sends to them use Wolverine's own scheduling, and
+Wolverine logs that once per publishing endpoint.
+:::
+
+::: tip NATS Server 2.14.7 or later
+Every schedule purges a subject, when it is published and again when it fires. Before 2.14.7 such a purge could
+move a consumer with several filter subjects past messages on its other filters
+([nats-server#8571](https://github.com/nats-io/nats-server/issues/8571)). Wolverine's own consumers filter on a
+single subject, but consumers maintained outside the application may not.
+:::
+
 ### Fallback Behavior
 
-When native scheduled send is not available (server < 2.12 or stream not configured), Wolverine falls back to its database-backed scheduled message persistence.
+When native scheduled send is not available — a server older than 2.12, a publishing endpoint without JetStream,
+a stream that is not declared in the application, lacks `EnableScheduledDelivery()` or uses interest or
+work-queue retention — Wolverine schedules the message itself, persisted in its message store when one is
+configured.
 
 ## Connecting to Multiple NATS Brokers
 
@@ -998,9 +1032,9 @@ using var host = await Host.CreateDefaultBuilder()
                 js.MaxDeliver = 5;
                 js.AckWait = TimeSpan.FromSeconds(30);
             })
-            .DefineWorkQueueStream("ORDERS", 
-                s => s.EnableScheduledDelivery(), 
-                "orders.>");
+            .DefineStream("ORDERS", s => s
+                .WithSubjects("orders.>")
+                .EnableScheduledDelivery());
 
         // Listen to orders with JetStream durability
         opts.ListenToNatsSubject("orders.received")
@@ -1026,8 +1060,8 @@ To run tests locally:
 # Start NATS with JetStream
 docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:latest --jetstream -m 8222
 
-# For scheduled delivery tests, use NATS 2.12+
-docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.12-alpine --jetstream -m 8222
+# For scheduled delivery tests, use NATS 2.14.7+
+docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.14.7 --jetstream -m 8222
 ```
 
 ## Global Partitioning

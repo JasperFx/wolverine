@@ -13,7 +13,8 @@ namespace Wolverine.Nats.Tests;
 /// Reproduces the NATS JetStream native scheduled-delivery failure (err 10190). Unlike the compliance
 /// <c>schedule_send</c> test, the publishing endpoint here uses <c>.UseJetStream(stream)</c> — that is what
 /// engages the native scheduled-send path; without it Wolverine falls back to durable scheduling and the
-/// bug is never exercised.
+/// bug is never exercised. The stream keeps limits retention: Wolverine does not schedule natively on an
+/// interest or work-queue stream, which can delete a schedule before it fires.
 /// </summary>
 [Collection("NATS Integration Tests")]
 [Trait("Category", "Integration")]
@@ -42,7 +43,7 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
                 opts.UseNats(natsUrl)
                     .AutoProvision()
                     .UseJetStream(js => js.MaxDeliver = 5)
-                    .DefineWorkQueueStream(_streamName, s => s.EnableScheduledDelivery(), streamSubjects);
+                    .DefineStream(_streamName, s => s.WithSubjects(streamSubjects).EnableScheduledDelivery());
 
                 // .UseJetStream on the PUBLISHING endpoint is what forces the native scheduled-send path.
                 opts.PublishMessage<ScheduledPing>()
@@ -58,7 +59,7 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
                 opts.UseNats(natsUrl)
                     .AutoProvision()
                     .UseJetStream(js => js.MaxDeliver = 5)
-                    .DefineWorkQueueStream(_streamName, s => s.EnableScheduledDelivery(), streamSubjects);
+                    .DefineStream(_streamName, s => s.WithSubjects(streamSubjects).EnableScheduledDelivery());
 
                 opts.ListenToNatsSubject(_receiverSubject)
                     .Named("receiver")

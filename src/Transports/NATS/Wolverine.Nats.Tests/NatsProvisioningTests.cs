@@ -222,9 +222,9 @@ public class NatsProvisioningTests
         var (stream, subject) = uniqueNames("SETUPVERIFY");
         var consumer = $"consumer-{Guid.NewGuid():N}";
 
-        // Native scheduled send puts a two-subject filter on the consumer. Resource setup and the listener have
-        // to agree on it, or every start rewrites the consumer and a Verify host can never come up after
-        // resource setup
+        // Resource setup and the listener have to agree on the consumer's filter, also on a stream with native
+        // scheduling, or every start rewrites the consumer and a Verify host can never come up after resource
+        // setup
         Action<NatsTransportExpression> declare = nats => nats
             .DefineStream(stream, s => s.WithSubjects(subject, subject + ".>").EnableScheduledDelivery());
         Action<WolverineOptions> listen = opts =>

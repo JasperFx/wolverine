@@ -70,7 +70,7 @@ public class NatsJetStreamConsumerFilterTests
     }
 
     [Fact]
-    public async Task a_scheduling_enabled_consumer_also_owns_its_schedule_subject()
+    public async Task a_scheduling_enabled_consumer_filters_on_its_own_subject_only()
     {
         var natsUrl = NatsTestHelpers.ResolveUrl();
         if (!await NatsTestHelpers.IsNatsAvailable(natsUrl)) return;
@@ -86,7 +86,7 @@ public class NatsJetStreamConsumerFilterTests
             {
                 opts.UseNats(natsUrl)
                     .AutoProvision()
-                    .DefineWorkQueueStream(stream, s => s.EnableScheduledDelivery(), $"{root}.>");
+                    .DefineStream(stream, s => s.WithSubjects($"{root}.>").EnableScheduledDelivery());
 
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ListenToNatsSubject(subject).UseJetStream(stream, $"sched-consumer-{id}");
@@ -101,12 +101,12 @@ public class NatsJetStreamConsumerFilterTests
         await connection.ConnectAsync();
         var js = connection.CreateJetStreamContext();
 
-        // Native scheduling publishes its control message to "{subject}.scheduled". No single NATS
-        // filter covers both that and "{subject}", and on a work queue stream a control message no
-        // consumer covers is discarded, so the scheduled send silently never arrives. The consumer
-        // therefore has to carry both subjects
+        // Native scheduling publishes its control messages to "{subject}.scheduled.{id}" and materializes the
+        // message onto "{subject}" at its due time. A consumer that also covered the schedule subjects handled
+        // the control message at once and the materialized copy a second time
         var consumer = await js.GetConsumerAsync(stream, $"sched-consumer-{id}", TestContext.Current.CancellationToken);
-        consumer.Info.Config.FilterSubjects.ShouldBe([subject, $"{subject}.scheduled"]);
+        consumer.Info.Config.FilterSubject.ShouldBe(subject);
+        (consumer.Info.Config.FilterSubjects ?? []).ShouldBeEmpty();
     }
 
     [Fact]

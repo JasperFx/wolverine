@@ -139,7 +139,9 @@ public class StreamConfiguration
 
     /// <summary>
     /// Enable scheduled message delivery (requires NATS Server 2.12+).
-    /// Once enabled on a stream, this cannot be disabled.
+    /// Once enabled on a stream, this cannot be disabled. Wolverine only hands scheduled sends to the server on a
+    /// stream with limits retention (the default): interest and work-queue retention can delete a schedule before
+    /// it fires, so sends to those streams use Wolverine's own scheduling.
     /// </summary>
     public StreamConfiguration EnableScheduledDelivery()
     {
