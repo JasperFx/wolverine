@@ -2,8 +2,8 @@
     <PropertyGroup>
         <Description>Wolverine.HTTP acts for WolverineFx.Bobcat specifications through Alba: WhenPosted with the route resolved from the request type, any 2xx accepted, Scenario overrides, typed responses.</Description>
         <PackageId>WolverineFx.Bobcat.Http</PackageId>
-        <!-- Ships as a prerelease while the API settles: Wolverine's version, then -alpha.1 -->
-        <Version>$(Version)-alpha.1</Version>
+        <!-- Ships as a prerelease while the API settles: Wolverine's version, then -alpha.N -->
+        <Version>$(Version)-alpha.2</Version>
         <!-- Alba 9 targets net10.0+ only -->
         <TargetFrameworks>net10.0</TargetFrameworks>
         <!-- Test-time library: exempt from the AOT compliance the shipping runtime packages carry -->
