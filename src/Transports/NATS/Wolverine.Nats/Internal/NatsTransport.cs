@@ -317,6 +317,8 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         // without their own connection reuse the shared connection above (subject-prefix isolation only).
         foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
         {
+            configureTenant(tenant);
+
             // Same rule as the shared connection: a tenant connection a previous run opened is kept
             if (tenant.Connection is { ConnectionState: not NatsConnectionState.Closed })
             {
@@ -338,6 +340,30 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     private Task? _declaredStreams;
 
     /// <summary>
+    /// Run a tenant's configuration action against a copy of the transport's configuration as it is now, not as
+    /// it was when <c>AddTenant()</c> was called, so transport settings made afterwards reach the tenant too
+    /// </summary>
+    private void configureTenant(NatsTenant tenant)
+    {
+        if (tenant.ConfigureConnection == null)
+        {
+            return;
+        }
+
+        var configuration = Configuration.CopyForTenant();
+        tenant.ConfigureConnection(configuration);
+        tenant.ConnectionConfiguration = configuration;
+
+        var ignored = Configuration.TransportWideSettingsChangedBy(configuration);
+        if (ignored.Count > 0)
+        {
+            _logger?.LogWarning(
+                "The configuration of NATS tenant '{TenantId}' changes {Settings}, which only apply transport-wide; the tenant uses the transport's values. A tenant's connection, authentication, TLS and client options, its JetStream domain or API prefix, and its declared streams with their provisioning settings apply to its own connection",
+                tenant.TenantId, string.Join(", ", ignored));
+        }
+    }
+
+    /// <summary>
     /// Create the declared streams that are missing, and handle the ones that exist as
     /// <see cref="NatsTransportConfiguration.Provisioning"/> says, on the shared connection and on every tenant's
     /// dedicated connection. Runs once per <see cref="ConnectAsync"/>, whichever endpoint asks first: at startup
@@ -355,24 +381,32 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
     private async Task provisionDeclaredStreamsAsync(bool explicitSetup)
     {
-        // Verify creates nothing, so it has to run even with AutoProvision off -- the natural companion setting
-        // for streams managed outside the application, and the case Verify exists for
-        if (!Configuration.EnableJetStream || !Configuration.Streams.Any() ||
-            !(explicitSetup || Configuration.AutoProvision ||
-              Configuration.StreamProvisioning == NatsProvisioning.Verify))
+        if (!Configuration.EnableJetStream)
         {
             return;
         }
 
         // Collected over the shared and every tenant connection, so Verify reports all of it at once
         var deviations = new List<string>();
-        deviations.AddRange(await ProvisionStreamsAsync(JetStreamContext, addEndpointSubjects: explicitSetup));
 
-        // Each tenant server is its own JetStream instance, so mirror the configured streams onto it (the streams
-        // the shared connection just provisioned don't exist on the tenant's server).
+        if (provisionsStreams(Configuration, explicitSetup))
+        {
+            deviations.AddRange(await ProvisionStreamsAsync(JetStreamContext, Configuration,
+                addEndpointSubjects: explicitSetup));
+        }
+
+        // Each tenant server is its own JetStream instance, so provision the streams the tenant's configuration
+        // declares -- the transport's, unless its action changed them -- as its own settings say
         foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
         {
-            var tenantDeviations = await ProvisionStreamsAsync(CreateJetStreamContext(GetTenantConnection(tenant)));
+            var configuration = tenant.ConnectionConfiguration ?? Configuration;
+            if (!provisionsStreams(configuration, explicitSetup))
+            {
+                continue;
+            }
+
+            var tenantDeviations =
+                await ProvisionStreamsAsync(CreateJetStreamContext(GetTenantConnection(tenant)), configuration);
             deviations.AddRange(tenantDeviations.Select(x => $"{x} (tenant '{tenant.TenantId}')"));
         }
 
@@ -418,8 +452,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         // Startup leaves existing streams alone under CreateOnly, and provisions nothing with AutoProvision off
         // (unless it only verifies)
         var provisioning = Configuration.StreamProvisioning;
-        if (provisioning == NatsProvisioning.CreateOnly ||
-            !(Configuration.AutoProvision || provisioning == NatsProvisioning.Verify) ||
+        if (provisioning == NatsProvisioning.CreateOnly || !provisionsStreams(Configuration, explicitSetup: false) ||
             !Configuration.Streams.TryGetValue(name, out var config))
         {
             return [];
@@ -427,6 +460,15 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
         var desired = JetStreamProvisioning.BuildStreamConfig(name, config, Configuration.JetStreamDefaults);
         return JetStreamProvisioning.CompareStream(desired, existing);
+    }
+
+    // Verify creates nothing, so it has to run even with AutoProvision off -- the natural companion setting for
+    // streams managed outside the application, and the case Verify exists for
+    private static bool provisionsStreams(NatsTransportConfiguration configuration, bool explicitSetup)
+    {
+        return configuration.Streams.Any() &&
+               (explicitSetup || configuration.AutoProvision ||
+                configuration.StreamProvisioning == NatsProvisioning.Verify);
     }
 
     /// <summary>
@@ -514,15 +556,19 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     internal INatsJSContext CreateJetStreamContext() => CreateJetStreamContext(Connection);
 
     /// <summary>
-    /// Create a JetStream context on the given connection honoring the configured JetStream domain / API prefix.
-    /// All JetStream context creation flows through this factory so domain / leaf-node setups work uniformly
-    /// (including per-tenant connections). When neither is configured the result is identical to the client
-    /// default (<c>connection.CreateJetStreamContext()</c>).
+    /// Create a JetStream context on the given connection honoring the configured JetStream domain / API prefix:
+    /// a tenant's own for its dedicated connection, the transport's otherwise. All JetStream context creation
+    /// flows through this factory so domain / leaf-node setups work uniformly (including per-tenant connections).
+    /// When neither is configured the result is identical to the client default
+    /// (<c>connection.CreateJetStreamContext()</c>).
     /// </summary>
     internal INatsJSContext CreateJetStreamContext(NatsConnection connection)
     {
-        var domain = Configuration.JetStreamDomain;
-        var apiPrefix = Configuration.JetStreamApiPrefix;
+        var configuration =
+            Tenants.FirstOrDefault(x => ReferenceEquals(x.Connection, connection))?.ConnectionConfiguration ??
+            Configuration;
+        var domain = configuration.JetStreamDomain;
+        var apiPrefix = configuration.JetStreamApiPrefix;
 
         if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(apiPrefix))
         {
@@ -556,10 +602,9 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         var opts = configuration.ToNatsOpts();
         opts = opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
 
-        // The tenant's configuration is a copy of the transport's taken by AddTenant(), so a hook registered
-        // after that call only lives on the transport's configuration -- fall back to it
-        var configure = configuration.ConfigureNatsOpts ?? Configuration.ConfigureNatsOpts;
-        return configure?.Invoke(opts) ?? opts;
+        // A copy of the transport's configuration as it was when the transport connected, so this is the
+        // transport's hook unless the tenant's action replaced it
+        return configuration.ConfigureNatsOpts?.Invoke(opts) ?? opts;
     }
 
     /// <summary>
@@ -651,23 +696,25 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     /// Create the declared streams that are missing, and handle the ones that exist as
     /// <see cref="NatsTransportConfiguration.Provisioning"/> says.
     /// </summary>
+    /// <param name="js">The JetStream context of the connection to provision on</param>
+    /// <param name="configuration">The transport's configuration, or a tenant's for its dedicated connection</param>
     /// <returns>Every deviation <see cref="NatsProvisioning.Verify"/> found; empty in the other modes</returns>
     private async Task<IReadOnlyList<string>> ProvisionStreamsAsync(INatsJSContext js,
-        bool addEndpointSubjects = false)
+        NatsTransportConfiguration configuration, bool addEndpointSubjects = false)
     {
-        var provisioning = Configuration.StreamProvisioning;
+        var provisioning = configuration.StreamProvisioning;
         var deviations = new List<string>();
 
         _logger?.LogInformation(
             "Provisioning {Count} configured streams",
-            Configuration.Streams.Count
+            configuration.Streams.Count
         );
 
-        foreach (var (name, config) in Configuration.Streams)
+        foreach (var (name, config) in configuration.Streams)
         {
             try
             {
-                var desired = JetStreamProvisioning.BuildStreamConfig(name, config, Configuration.JetStreamDefaults);
+                var desired = JetStreamProvisioning.BuildStreamConfig(name, config, configuration.JetStreamDefaults);
 
                 StreamConfig? existing = null;
                 try

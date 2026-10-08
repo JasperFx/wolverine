@@ -279,9 +279,12 @@ public class NatsTransportExpression
 
     /// <summary>
     /// Add a tenant that uses its own dedicated NATS connection, configured with the full connection / auth /
-    /// TLS surface. The action receives a configuration seeded from the transport's own settings, so you only
-    /// override what differs for this tenant — e.g. a different server or account, a token, JWT / NKey creds,
-    /// a credentials file, or a client certificate.
+    /// TLS surface. The action runs when the transport connects, against a copy of the transport's configuration
+    /// as it is then, so you only override what differs for this tenant — e.g. a different server or account, a
+    /// token, JWT / NKey creds, a credentials file, or a client certificate. The connection settings, the client
+    /// options hook, the JetStream domain or API prefix, and the declared streams with their provisioning settings
+    /// apply to the tenant's connection; everything else stays transport-wide, and startup warns when the action
+    /// changes it.
     /// </summary>
     public NatsTransportExpression AddTenant(
         string tenantId,
@@ -303,78 +306,12 @@ public class NatsTransportExpression
     {
         ArgumentNullException.ThrowIfNull(configureConnection);
 
-        var configuration = cloneConnectionConfiguration();
-        configureConnection(configuration);
-
         Transport.Tenants[tenantId] = new NatsTenant(tenantId)
         {
             SubjectMapper = mapper,
-            ConnectionConfiguration = configuration
+            ConfigureConnection = configureConnection
         };
         return this;
-    }
-
-    // Seed a tenant connection configuration from the transport's own settings so a tenant only needs to
-    // override what differs (mirrors RabbitMqTenant.Compile copying the parent's connection settings).
-    private NatsTransportConfiguration cloneConnectionConfiguration()
-    {
-        var source = Transport.Configuration;
-
-        var clone = new NatsTransportConfiguration();
-        foreach (var property in typeof(NatsTransportConfiguration).GetProperties())
-        {
-            if (property is { CanRead: true, CanWrite: true })
-            {
-                property.SetValue(clone, property.GetValue(source));
-            }
-        }
-
-        // The reflective copy above aliases the two mutable reference members by reference, so a tenant action
-        // that mutates them in place (e.g. cfg.JetStreamDefaults.DuplicateWindow = ... or cfg.Streams[...] = ...)
-        // would leak into the shared transport config and every other tenant. Give each tenant its own copy.
-        clone.JetStreamDefaults = cloneJetStreamDefaults(source.JetStreamDefaults);
-        clone.Streams = source.Streams.ToDictionary(pair => pair.Key, pair => cloneStream(pair.Value));
-
-        return clone;
-    }
-
-    private static JetStreamDefaults cloneJetStreamDefaults(JetStreamDefaults source)
-    {
-        return new JetStreamDefaults
-        {
-            MaxAge = source.MaxAge,
-            MaxMessages = source.MaxMessages,
-            MaxBytes = source.MaxBytes,
-            Replicas = source.Replicas,
-            AckWait = source.AckWait,
-            MaxDeliver = source.MaxDeliver,
-            DuplicateWindow = source.DuplicateWindow,
-            DeliverPolicy = source.DeliverPolicy
-        };
-    }
-
-    private static StreamConfiguration cloneStream(StreamConfiguration source)
-    {
-        return new StreamConfiguration
-        {
-            Name = source.Name,
-            Subjects = new List<string>(source.Subjects),
-            Retention = source.Retention,
-            Storage = source.Storage,
-            MaxMessages = source.MaxMessages,
-            MaxBytes = source.MaxBytes,
-            MaxAge = source.MaxAge,
-            MaxMessagesPerSubject = source.MaxMessagesPerSubject,
-            DiscardPolicy = source.DiscardPolicy,
-            Replicas = source.Replicas,
-            AllowRollup = source.AllowRollup,
-            AllowDirect = source.AllowDirect,
-            DenyDelete = source.DenyDelete,
-            DenyPurge = source.DenyPurge,
-            DuplicateWindow = source.DuplicateWindow,
-            AllowMsgSchedules = source.AllowMsgSchedules,
-            DeclaredByShardTopology = source.DeclaredByShardTopology
-        };
     }
 
     protected override NatsListenerConfiguration createListenerExpression(

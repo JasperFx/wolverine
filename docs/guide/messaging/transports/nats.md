@@ -843,9 +843,10 @@ opts.UseNats("nats://localhost:4222")
 
 ### Per-Tenant Connections
 
-To route a tenant to its own NATS server or account, add it with a configuration action. The action receives
-a copy of the transport's own connection settings, so you only override what differs for this tenant — a
-different URL, or any of the NATS auth mechanisms (token, JWT/NKey, credentials file, client certificate):
+To route a tenant to its own NATS server or account, add it with a configuration action. The action runs when
+the transport connects, against a copy of the transport's configuration as it is then — including settings made
+after `AddTenant()` — so you only override what differs for this tenant: a different URL, or any of the NATS auth
+mechanisms (token, JWT/NKey, credentials file, client certificate):
 
 ```csharp
 opts.UseNats("nats://shared:4222")
@@ -862,11 +863,43 @@ Each tenant with its own configuration gets a dedicated connection, owned by the
 Tenants added without a configuration action keep sharing the transport connection (subject-prefix isolation
 only).
 
+On the tenant's connection, these settings of the tenant's configuration apply:
+
+- the connection itself: `ConnectionString`, `ClientName`, timeouts, authentication and TLS, and
+  `ConfigureNatsOpts`
+- `JetStreamDomain` / `JetStreamApiPrefix`, for every JetStream call over the tenant's connection
+- the declared `Streams` and how they are provisioned: `AutoProvision`, `Provisioning` and
+  `JetStreamDefaults.DuplicateWindow`
+
+Everything else applies transport-wide, also to the tenant's connection: `EnableJetStream`, `DefaultQueueGroup`,
+`NormalizeSubjects`, `MsgIdSource`, `ConfigureJetStreamPublish`, the tenant and subject resolvers,
+`TenantSubjectPrefix`, the consumer defaults in `JetStreamDefaults` (`AckWait`, `MaxDeliver`, `DeliverPolicy`) and
+the stream limits resource setup uses. The named consumers of listeners on the tenant's connection follow the
+transport's `Provisioning()` as well. Startup logs a warning when a tenant's action changes any of these. Whether a
+JetStream endpoint schedules messages natively follows the transport's stream declaration and the shared server
+too, also when it sends to a tenant.
+
+```csharp
+opts.UseNats("nats://shared:4222")
+    .DefineStream("ORDERS", s => s.WithSubjects("orders.>"))
+    .AddTenant("tenant-c", cfg =>
+    {
+        cfg.ConnectionString = "nats://tenant-c-host:4222";
+        cfg.JetStreamDomain = "tenant-c";
+
+        // Streams on tenant-c's server: ORDERS from the transport, plus one of its own,
+        // and only checked there rather than created
+        cfg.Streams["AUDIT"] = new StreamConfiguration { Name = "AUDIT", Subjects = ["audit.>"] };
+        cfg.Provisioning = NatsProvisioning.Verify;
+    });
+```
+
 Both **sending and listening** are tenant-aware. A listener consumes on the shared connection *and* on each
 tenant's dedicated connection: when a message arrives on a tenant connection it is stamped with that tenant's
 id, and its ack/nak/dead-letter is routed back over the same connection. Sending a message tagged with a
-`TenantId` publishes it over that tenant's connection. If any tenant streams need JetStream, the configured
-streams are auto-provisioned on each tenant server as well (when `AutoProvision()` is on).
+`TenantId` publishes it over that tenant's connection. The streams the tenant's configuration declares — the
+transport's, unless its action changed them — are provisioned on each tenant server as well, as the tenant's own
+`AutoProvision` and `Provisioning` say.
 
 ### Custom Subject Mapper
 

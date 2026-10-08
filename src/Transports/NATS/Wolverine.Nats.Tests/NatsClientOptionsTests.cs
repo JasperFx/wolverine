@@ -36,7 +36,8 @@ public class NatsClientOptionsTests
                 opts.ServiceName = "NatsOptsHook";
                 opts.UseNats(_fixture.ConnectionString)
                     .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
-                    // Added before the hook, so its connection configuration was copied without it
+                    // Added before the hook: the tenant's configuration is copied when the transport connects,
+                    // so it gets the hook all the same
                     .AddTenant("tenant-a", cfg => cfg.ConnectionString = _fixture.ConnectionString)
                     .ConfigureNatsOpts(o =>
                     {

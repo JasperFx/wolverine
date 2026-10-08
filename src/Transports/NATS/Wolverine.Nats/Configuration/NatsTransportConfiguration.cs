@@ -107,6 +107,130 @@ public class NatsTransportConfiguration
 
     public Dictionary<string, StreamConfiguration> Streams { get; set; } = new();
 
+    /// <summary>
+    /// A copy to seed a tenant's connection configuration with, so a tenant action only overrides what differs
+    /// (mirrors RabbitMqTenant copying the parent's connection factory when it connects)
+    /// </summary>
+    internal NatsTransportConfiguration CopyForTenant()
+    {
+        var clone = new NatsTransportConfiguration();
+        foreach (var property in typeof(NatsTransportConfiguration).GetProperties())
+        {
+            if (property is { CanRead: true, CanWrite: true })
+            {
+                property.SetValue(clone, property.GetValue(this));
+            }
+        }
+
+        // The reflective copy above aliases the two mutable reference members by reference, so a tenant action
+        // that mutates them in place (e.g. cfg.JetStreamDefaults.DuplicateWindow = ... or cfg.Streams[...] = ...)
+        // would leak into the shared transport config and every other tenant. Give each tenant its own copy.
+        clone.JetStreamDefaults = copy(JetStreamDefaults);
+        clone.Streams = Streams.ToDictionary(pair => pair.Key, pair => copy(pair.Value));
+
+        return clone;
+    }
+
+    /// <summary>
+    /// The settings a tenant's configuration offers that only ever apply transport-wide, where
+    /// <paramref name="tenant"/> differs from this configuration
+    /// </summary>
+    internal IReadOnlyList<string> TransportWideSettingsChangedBy(NatsTransportConfiguration tenant)
+    {
+        var changed = new List<string>();
+
+        void check(string name, object? transportValue, object? tenantValue)
+        {
+            if (!Equals(transportValue, tenantValue))
+            {
+                changed.Add(name);
+            }
+        }
+
+        check(nameof(EnableJetStream), EnableJetStream, tenant.EnableJetStream);
+        check(nameof(DefaultQueueGroup), DefaultQueueGroup, tenant.DefaultQueueGroup);
+        check(nameof(NormalizeSubjects), NormalizeSubjects, tenant.NormalizeSubjects);
+        check(nameof(MsgIdSource), MsgIdSource, tenant.MsgIdSource);
+        check(nameof(TenantIdResolver), TenantIdResolver, tenant.TenantIdResolver);
+        check(nameof(SubjectResolver), SubjectResolver, tenant.SubjectResolver);
+        check(nameof(TenantSubjectPrefix), TenantSubjectPrefix, tenant.TenantSubjectPrefix);
+        check(nameof(ConfigureJetStreamPublish), ConfigureJetStreamPublish, tenant.ConfigureJetStreamPublish);
+
+        // The consumers of listeners on the tenant's connection and the streams resource setup creates for an
+        // endpoint follow the transport
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.AckWait)}", JetStreamDefaults.AckWait,
+            tenant.JetStreamDefaults.AckWait);
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.MaxDeliver)}", JetStreamDefaults.MaxDeliver,
+            tenant.JetStreamDefaults.MaxDeliver);
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.DeliverPolicy)}",
+            JetStreamDefaults.DeliverPolicy, tenant.JetStreamDefaults.DeliverPolicy);
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.MaxAge)}", JetStreamDefaults.MaxAge,
+            tenant.JetStreamDefaults.MaxAge);
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.MaxMessages)}",
+            JetStreamDefaults.MaxMessages, tenant.JetStreamDefaults.MaxMessages);
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.MaxBytes)}", JetStreamDefaults.MaxBytes,
+            tenant.JetStreamDefaults.MaxBytes);
+        check($"{nameof(JetStreamDefaults)}.{nameof(JetStreamDefaults.Replicas)}", JetStreamDefaults.Replicas,
+            tenant.JetStreamDefaults.Replicas);
+
+        return changed;
+    }
+
+    private static JetStreamDefaults copy(JetStreamDefaults source)
+    {
+        return new JetStreamDefaults
+        {
+            MaxAge = source.MaxAge,
+            MaxMessages = source.MaxMessages,
+            MaxBytes = source.MaxBytes,
+            Replicas = source.Replicas,
+            AckWait = source.AckWait,
+            MaxDeliver = source.MaxDeliver,
+            DuplicateWindow = source.DuplicateWindow,
+            DeliverPolicy = source.DeliverPolicy
+        };
+    }
+
+    private static StreamConfiguration copy(StreamConfiguration source)
+    {
+        return new StreamConfiguration
+        {
+            Name = source.Name,
+            Subjects = new List<string>(source.Subjects),
+            Retention = source.Retention,
+            Storage = source.Storage,
+            MaxMessages = source.MaxMessages,
+            MaxBytes = source.MaxBytes,
+            MaxAge = source.MaxAge,
+            MaxMessagesPerSubject = source.MaxMessagesPerSubject,
+            DiscardPolicy = source.DiscardPolicy,
+            Replicas = source.Replicas,
+            AllowRollup = source.AllowRollup,
+            AllowDirect = source.AllowDirect,
+            DenyDelete = source.DenyDelete,
+            DenyPurge = source.DenyPurge,
+            DuplicateWindow = source.DuplicateWindow,
+            AllowMsgSchedules = source.AllowMsgSchedules,
+            DeclaredByShardTopology = source.DeclaredByShardTopology,
+            Mirror = source.Mirror == null ? null : copy(source.Mirror),
+            Sources = source.Sources.Select(copy).ToList(),
+            Placement = source.Placement == null
+                ? null
+                : source.Placement with { Tags = source.Placement.Tags?.ToList() }
+        };
+    }
+
+    // The NATS.Net models are records, but with nested objects a tenant action could still change in place
+    private static StreamSource copy(StreamSource source)
+    {
+        return source with
+        {
+            External = source.External == null ? null : source.External with { },
+            Consumer = source.Consumer == null ? null : source.Consumer with { },
+            SubjectTransforms = source.SubjectTransforms?.Select(x => x with { }).ToList()
+        };
+    }
+
     internal NatsOpts ToNatsOpts()
     {
         return NatsOpts.Default with
