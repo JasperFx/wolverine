@@ -886,10 +886,13 @@ public partial class NodeAgentController
             .Where(x => x.NodeId != selfId && x.LastHealthCheck >= staleTime)
             .ToArray();
 
+        // One set over every peer's capabilities rather than a list scan per exhausted agent
+        var peerCapabilities = peers.SelectMany(p => p.Capabilities).ToHashSet();
+
         var releasable = new List<ReleaseCandidate>();
         foreach (var pair in exhausted)
         {
-            if (peers.Any(p => p.Capabilities.Contains(pair.Uri)))
+            if (peerCapabilities.Contains(pair.Uri))
             {
                 releasable.Add(pair);
             }

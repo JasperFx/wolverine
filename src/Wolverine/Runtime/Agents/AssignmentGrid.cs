@@ -198,7 +198,7 @@ public partial class AssignmentGrid
         foreach (var agent in agents)
         {
             agent.CandidateNodes.Clear();
-            agent.CandidateNodes.AddRange(_nodes.Where(x => x.Capabilities.Contains(agent.Uri)).OrderBy(x => x.AssignedId));
+            agent.CandidateNodes.AddRange(_nodes.Where(x => x.Declares(agent.Uri)).OrderBy(x => x.AssignedId));
         }
 
         return agents;
