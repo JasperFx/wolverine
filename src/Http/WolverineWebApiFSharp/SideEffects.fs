@@ -5,7 +5,9 @@ open Wolverine
 open Wolverine.Http
 open Wolverine.Marten
 
-type Command = { Name: string }
+// Not just "Command": TupleSupport has one too, and two endpoints whose request types share a name
+// collide as Swashbuckle schema ids and fold into one Event Model slice.
+type StartStreamCommand = { Name: string }
 
 (* I cannot define a custom side effect here because code generation does not recognize the Execute method
 Unhandled exception. Wolverine.InvalidSideEffectException: Invalid Wolverine side effect exception for Wolverine.ISideEffect, no public Execute/ExecuteAsync method found
@@ -28,16 +30,15 @@ type SomeSideEffect() =
 type Event = { Id: Guid; Name: string }
 type SomeType = { Id: Guid }
 
-// this one is a bit more tricky, generally using ISideEffect works,
-// but for MartenOps.StartStream one has to provide the generic type parameter, otherwise
-// codegen will not generate a handler at all.
+// MartenOps.StartStream without a generic type parameter used to bind nothing usable from F#, so
+// codegen generated no handler at all. GH-4892 added the untyped MartenOps.StartStream(id, events), a
+// stream with no aggregate type, so both spellings work now.
 
 [<WolverinePost("start-stream")>]
 [<EmptyResponse>]
-let post (command: Command) =
+let post (command: StartStreamCommand) =
     let event: Event = { Id = Guid.NewGuid(); Name = command.Name }
-    //this doesn't work
     MartenOps.StartStream(event.Id, box event)
     
-    // but this does
+    // or, for a stream of a known aggregate type
     //MartenOps.StartStream<SomeType>(event.Id, box event)
