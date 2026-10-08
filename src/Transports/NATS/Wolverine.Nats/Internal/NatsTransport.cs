@@ -71,8 +71,10 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     /// <see cref="ResponseSubject"/> gets its envelope id appended as one more token, which the reply listener's
     /// <c>{ResponseSubject}.&gt;</c> subscription covers. NATS answers a request that reaches no subscriber with a
     /// "no responders" status message on exactly that subject, and the token is what ties it back to the waiting
-    /// <c>InvokeAsync()</c>. Wolverine responders reply to the <c>reply-uri</c> header instead, which stays the
-    /// plain <see cref="ResponseSubject"/>.
+    /// <c>InvokeAsync()</c>. A Wolverine responder that receives the request over core NATS answers on exactly
+    /// this subject (see <see cref="RememberWireReplySubject"/>), all a NATS user limited to <c>allow_responses</c>
+    /// may publish to; one that receives it through JetStream answers to the <c>reply-uri</c> header, which stays
+    /// the plain <see cref="ResponseSubject"/>. The reply listener covers both.
     /// </summary>
     internal string WireReplySubjectFor(Envelope envelope)
     {
