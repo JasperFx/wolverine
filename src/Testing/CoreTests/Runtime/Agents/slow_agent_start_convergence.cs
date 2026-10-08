@@ -1,11 +1,6 @@
-using CoreTests.Transports;
 using JasperFx.Core;
-using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
 using Shouldly;
 using Wolverine.ComplianceTests;
-using Wolverine.Configuration;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Xunit;
 
@@ -58,7 +53,7 @@ public class slow_agent_start_convergence
     [Fact]
     public async Task every_agent_converges_despite_a_long_tailed_start_distribution()
     {
-        var cluster = new SlowStartCluster(nodeCount: 5, agentCount: 603, seed: 3753);
+        var cluster = new SimulatedCluster(nodeCount: 5, agentCount: 603, seed: 3753);
         cluster.StartCost = fieldStartCost(3753, cluster.AllAgents);
 
         // The slowest single start is 43 rounds; anything much past that is the leader failing to converge
@@ -78,7 +73,7 @@ public class slow_agent_start_convergence
     [Fact]
     public async Task an_agent_is_never_started_on_two_nodes_at_once()
     {
-        var cluster = new SlowStartCluster(nodeCount: 5, agentCount: 603, seed: 3753);
+        var cluster = new SimulatedCluster(nodeCount: 5, agentCount: 603, seed: 3753);
         cluster.StartCost = fieldStartCost(3753, cluster.AllAgents);
 
         await cluster.RunUntilConvergedAsync(maxRounds: 60);
@@ -95,7 +90,7 @@ public class slow_agent_start_convergence
     [Fact]
     public async Task no_node_is_starved_while_another_holds_everything()
     {
-        var cluster = new SlowStartCluster(nodeCount: 5, agentCount: 603, seed: 3753);
+        var cluster = new SimulatedCluster(nodeCount: 5, agentCount: 603, seed: 3753);
         cluster.StartCost = fieldStartCost(3753, cluster.AllAgents);
 
         await cluster.RunUntilConvergedAsync(maxRounds: 60);
@@ -114,7 +109,7 @@ public class slow_agent_start_convergence
     [Fact]
     public async Task a_first_placement_wave_emits_no_stops_and_no_reassignments()
     {
-        var cluster = new SlowStartCluster(nodeCount: 5, agentCount: 603, seed: 3753);
+        var cluster = new SimulatedCluster(nodeCount: 5, agentCount: 603, seed: 3753);
         cluster.StartCost = fieldStartCost(3753, cluster.AllAgents);
 
         await cluster.RunUntilConvergedAsync(maxRounds: 60);
@@ -143,7 +138,7 @@ public class slow_agent_start_convergence
     [Fact]
     public async Task a_start_slower_than_the_ledger_ttl_is_still_held_by_the_outstanding_dispatch()
     {
-        var cluster = new SlowStartCluster(nodeCount: 3, agentCount: 12, seed: 3698);
+        var cluster = new SimulatedCluster(nodeCount: 3, agentCount: 12, seed: 3698);
 
         // 1ms period => a 2ms TTL. Every round below sleeps far past it, so nothing is held by the clock.
         cluster.Options.Durability.CheckAssignmentPeriod = 1.Milliseconds();
@@ -177,7 +172,7 @@ public class slow_agent_start_convergence
     [Fact]
     public async Task the_unconfirmed_remainder_of_a_partially_started_chunk_still_converges()
     {
-        var cluster = new SlowStartCluster(nodeCount: 2, agentCount: 100, seed: 3750);
+        var cluster = new SimulatedCluster(nodeCount: 2, agentCount: 100, seed: 3750);
 
         // Half the chunk lands almost immediately, half of it long after any reply window — the straddle
         // that produces a partial AgentsStarted reply.
@@ -231,7 +226,7 @@ public class slow_agent_start_convergence
         var greenCapabilities = Uris(bumped.Concat(unchanged));
 
         // Nodes 0-1 blue (node 0 is the leader), nodes 2-3 green.
-        var cluster = new SlowStartCluster(nodeCount: 4, family, seed: 3753,
+        var cluster = new SimulatedCluster(nodeCount: 4, family, seed: 3753,
             capabilitiesFor: i => i < 2 ? blueCapabilities : greenCapabilities);
         cluster.StartCost = fieldStartCost(3753, cluster.AllAgents);
 
@@ -273,270 +268,6 @@ public class slow_agent_start_convergence
 
             hosts.Count.ShouldBeLessThanOrEqualTo(2,
                 $"{db} is hosted by {hosts.Count} nodes — a version bump must cost one owner per version, not a pool set per partition");
-        }
-    }
-
-    /// <summary>
-    /// A simulated multi-node cluster driving the leader's real assignment evaluation. One <see cref="RunRoundAsync" />
-    /// is one health-check tick: in-flight starts advance, the leader evaluates, and the commands it emits are
-    /// applied to the cluster's state the way the corresponding agent commands would apply them for real.
-    /// </summary>
-    private sealed class SlowStartCluster
-    {
-        private readonly IWolverineRuntime _runtime;
-        private readonly FakeAgentFamily _family;
-        private readonly NodeAgentController _controller;
-        private readonly List<WolverineNode> _nodes = [];
-        private readonly Dictionary<Uri, InFlightStart> _inFlight = new();
-
-        // Ground truth: where each agent is actually running. Deliberately NOT the same thing as the leader's
-        // view of it — a node persists its assignment row only after the agent is up, and the leader reads
-        // that row on a later snapshot, so there is a window in which an agent is genuinely running and looks
-        // completely unplaced. That window is what GH-3750 is about, and a simulation that closes it
-        // instantly cannot reproduce the field's falling assigned-agent count.
-        private readonly Dictionary<Uri, Guid> _running = new();
-        private readonly Dictionary<Uri, Guid> _awaitingVisibility = new();
-
-        private readonly List<int> _runningCountByRound = [];
-        private readonly List<string> _doubleStartReports = [];
-        private readonly Dictionary<Uri, int> _dispatchCounts = new();
-
-        private record struct InFlightStart(Guid NodeId, int RoundsRemaining);
-
-        public SlowStartCluster(int nodeCount, int agentCount, int seed)
-            : this(nodeCount, new FakeAgentFamily("fake", agentCount), seed)
-        {
-        }
-
-        /// <summary>
-        ///     The seams a blue/green scenario needs: the leader's own <paramref name="family" /> (which, as in
-        ///     production, may enumerate only its OWN fleet's agents), and per-node capability sets via
-        ///     <paramref name="capabilitiesFor" /> (node index -> declared agents). The other fleet's agents
-        ///     reach the leader's grid exactly the way they do for real — through the capability union
-        ///     (NodeAgentController.EvaluateAssignmentsAsync seeds the grid from every node's capabilities).
-        /// </summary>
-        public SlowStartCluster(int nodeCount, FakeAgentFamily family, int seed,
-            Func<int, Uri[]>? capabilitiesFor = null)
-        {
-            Options = new WolverineOptions { ApplicationAssembly = GetType().Assembly };
-            Options.Transports.NodeControlEndpoint = new FakeEndpoint("fake://self".ToUri(), EndpointRole.System);
-            Options.Durability.DurabilityAgentEnabled = false;
-
-            _runtime = Substitute.For<IWolverineRuntime>();
-            _runtime.Options.Returns(Options);
-            _runtime.DurabilitySettings.Returns(Options.Durability);
-            _runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
-
-            _family = family;
-            AllAgents = capabilitiesFor is null
-                ? _family.AllAgentUris()
-                : Enumerable.Range(0, nodeCount).SelectMany(capabilitiesFor).Distinct().ToArray();
-
-            _controller = new NodeAgentController(_runtime, Substitute.For<INodeAgentPersistence>(), [_family],
-                NullLogger<NodeAgentController>.Instance, CancellationToken.None);
-
-            // The dispatcher holds a command from the moment it is queued until its lane is done with it,
-            // whatever the outcome. An in-flight start here is exactly that hold.
-            _controller.PendingDispatches = (Uri agentUri, out Guid nodeId) =>
-            {
-                if (_inFlight.TryGetValue(agentUri, out var pending))
-                {
-                    nodeId = pending.NodeId;
-                    return true;
-                }
-
-                nodeId = Guid.Empty;
-                return false;
-            };
-
-            // Node 0 is this process — the controller injects self into any node list that omits it, so the
-            // leader has to BE one of the simulated nodes rather than a sixth observer.
-            for (var i = 0; i < nodeCount; i++)
-            {
-                var node = new WolverineNode
-                {
-                    NodeId = i == 0 ? Options.UniqueNodeId : Guid.NewGuid(),
-                    AssignedNodeNumber = i + 1,
-                    ControlUri = new Uri($"fake://node{i}")
-                };
-
-                node.Capabilities.AddRange(capabilitiesFor?.Invoke(i) ?? AllAgents);
-                _nodes.Add(node);
-            }
-
-            StartCost = _ => 1;
-            Seed = seed;
-        }
-
-        public WolverineOptions Options { get; }
-        public int Seed { get; }
-        public Uri[] AllAgents { get; }
-
-        /// <summary>How many rounds each agent's start takes to complete on its destination node.</summary>
-        public Func<Uri, int> StartCost { get; set; }
-
-        public IReadOnlyList<int> RunningCountByRound => _runningCountByRound;
-        public IReadOnlyList<string> DoubleStartReports => _doubleStartReports;
-        public IReadOnlyDictionary<Uri, int> DispatchCounts => _dispatchCounts;
-        public int StopsEmitted { get; private set; }
-        public int ReassignmentsEmitted { get; private set; }
-
-        public IReadOnlyList<Uri> RunningAgents => _running.Keys.ToList();
-
-        /// <summary>Ground truth of where each agent is actually running, for placement assertions.</summary>
-        public IReadOnlyDictionary<Uri, Guid> RunningAssignments => _running;
-
-        public Guid NodeIdAt(int index) => _nodes[index].NodeId;
-
-        public int[] RunningCountsByNode
-            => _nodes.Select(node => _running.Count(x => x.Value == node.NodeId)).ToArray();
-
-        public IEnumerable<Uri> AssignedIn(AgentCommands commands)
-            => commands.OfType<AssignAgents>().SelectMany(x => x.AgentIds)
-                .Concat(commands.OfType<AssignAgent>().Select(x => x.AgentUri));
-
-        /// <summary>
-        /// One health-check tick: land any starts whose cost has run out, evaluate, and apply the result.
-        /// </summary>
-        public async Task<AgentCommands> RunRoundAsync()
-        {
-            landCompletedStarts();
-
-            var commands = await _controller.EvaluateAssignmentsAsync(_nodes, new AgentRestrictions());
-
-            foreach (var command in commands)
-            {
-                switch (command)
-                {
-                    case AssignAgent assign:
-                        dispatchStart(assign.AgentUri, assign.Destination.NodeId);
-                        break;
-
-                    case AssignAgents assigns:
-                        foreach (var uri in assigns.AgentIds) dispatchStart(uri, assigns.Destination.NodeId);
-                        break;
-
-                    case ReassignAgent reassign:
-                        ReassignmentsEmitted++;
-                        stop(reassign.AgentUri, reassign.OriginalNode.NodeId);
-                        dispatchStart(reassign.AgentUri, reassign.ActiveNode.NodeId);
-                        break;
-
-                    case ReassignAgents reassigns:
-                        ReassignmentsEmitted += reassigns.AgentUris.Length;
-                        foreach (var uri in reassigns.AgentUris)
-                        {
-                            stop(uri, reassigns.OriginalNode.NodeId);
-                            dispatchStart(uri, reassigns.ActiveNode.NodeId);
-                        }
-
-                        break;
-
-                    case StopRemoteAgent stopOne:
-                        StopsEmitted++;
-                        stop(stopOne.AgentUri, stopOne.Destination.NodeId);
-                        break;
-
-                    case StopRemoteAgents stopMany:
-                        StopsEmitted += stopMany.AgentIds.Length;
-                        foreach (var uri in stopMany.AgentIds) stop(uri, stopMany.Destination.NodeId);
-                        break;
-                }
-            }
-
-            _runningCountByRound.Add(_running.Count);
-
-            return commands;
-        }
-
-        /// <summary>Runs rounds until every agent is running and the leader has nothing left to say.</summary>
-        public async Task<int> RunUntilConvergedAsync(int maxRounds)
-        {
-            for (var round = 1; round <= maxRounds; round++)
-            {
-                var commands = await RunRoundAsync();
-
-                if (commands.Count == 0 && _inFlight.Count == 0 && _awaitingVisibility.Count == 0
-                    && _running.Count == AllAgents.Length)
-                {
-                    return round;
-                }
-            }
-
-            return maxRounds;
-        }
-
-        private void landCompletedStarts()
-        {
-            // Agents that came up last round: their assignment row is now visible to the leader's snapshot.
-            foreach (var (uri, nodeId) in _awaitingVisibility.ToArray())
-            {
-                _nodes.Single(x => x.NodeId == nodeId).ActiveAgents.Fill(uri);
-            }
-
-            _awaitingVisibility.Clear();
-
-            foreach (var uri in _inFlight.Keys.ToArray())
-            {
-                var pending = _inFlight[uri];
-                if (pending.RoundsRemaining > 1)
-                {
-                    _inFlight[uri] = pending with { RoundsRemaining = pending.RoundsRemaining - 1 };
-                    continue;
-                }
-
-                _inFlight.Remove(uri);
-
-                // Running now — but invisible to the leader until the promotion above runs next round.
-                _running[uri] = pending.NodeId;
-                _awaitingVisibility[uri] = pending.NodeId;
-
-                // What AssignAgent/AssignAgents do the moment a start confirms, and the reason the agent stays
-                // held for the one snapshot cycle it takes the persisted assignment row to become visible.
-                _controller.ConfirmDispatched([uri], pending.NodeId);
-            }
-        }
-
-        private void dispatchStart(Uri agentUri, Guid nodeId)
-        {
-            _dispatchCounts.TryGetValue(agentUri, out var count);
-            _dispatchCounts[agentUri] = count + 1;
-
-            // The single-copy invariant, asserted at the moment it would be violated rather than inferred from
-            // the end state — a second copy that is later stopped still ran twice.
-            if (_inFlight.TryGetValue(agentUri, out var already) && already.NodeId != nodeId)
-            {
-                _doubleStartReports.Add(
-                    $"{agentUri} dispatched to node {nodeId} while a start was still in flight to node {already.NodeId}");
-            }
-
-            if (_running.TryGetValue(agentUri, out var runningOn) && runningOn != nodeId)
-            {
-                _doubleStartReports.Add(
-                    $"{agentUri} dispatched to node {nodeId} while already running on node {runningOn}");
-            }
-
-            _inFlight[agentUri] = new InFlightStart(nodeId, Math.Max(1, StartCost(agentUri)));
-        }
-
-        private void stop(Uri agentUri, Guid nodeId)
-        {
-            _nodes.Single(x => x.NodeId == nodeId).ActiveAgents.Remove(agentUri);
-
-            if (_running.TryGetValue(agentUri, out var runningOn) && runningOn == nodeId)
-            {
-                _running.Remove(agentUri);
-            }
-
-            if (_awaitingVisibility.TryGetValue(agentUri, out var pendingVisible) && pendingVisible == nodeId)
-            {
-                _awaitingVisibility.Remove(agentUri);
-            }
-
-            if (_inFlight.TryGetValue(agentUri, out var pending) && pending.NodeId == nodeId)
-            {
-                _inFlight.Remove(agentUri);
-            }
         }
     }
 }

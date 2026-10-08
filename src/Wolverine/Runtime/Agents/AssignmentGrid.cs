@@ -195,10 +195,20 @@ public partial class AssignmentGrid
     public IReadOnlyList<Agent> MatchAgentsToCapableNodesFor(string scheme, Func<Uri, bool> filter)
     {
         var agents = AvailableAgentsForScheme(scheme, filter);
+
+        // Candidate nodes are ordered by AssignedId; sort the nodes once rather than once per agent
+        var byAssignedId = _nodes.OrderBy(x => x.AssignedId).ToList();
+
         foreach (var agent in agents)
         {
             agent.CandidateNodes.Clear();
-            agent.CandidateNodes.AddRange(_nodes.Where(x => x.Declares(agent.Uri)).OrderBy(x => x.AssignedId));
+            foreach (var node in byAssignedId)
+            {
+                if (node.Declares(agent.Uri))
+                {
+                    agent.CandidateNodes.Add(node);
+                }
+            }
         }
 
         return agents;
