@@ -19,6 +19,8 @@ namespace MartenTests.EventModeling.ScaffoldedShapes;
 //   GH-4889: TEvent? Handle(command, [WriteModel] Aggregate) -- one event, or null for none, with no
 //            [Emits], and the derived Event Model still knows what it emits.
 //   GH-4889: [WriteModel] Aggregate? -- the stream may not exist yet; the event starts it.
+//   GH-4895: [WriteModel(nameof(Command.XId))] IEventStream<X> per stream -- a command that decides
+//            against several streams, the same aggregate type twice included.
 //   GH-4892: MartenOps.StartStream(id, events) -- a stream with no aggregate type.
 public class scaffolded_handler_shapes : IAsyncLifetime
 {
@@ -33,7 +35,9 @@ public class scaffolded_handler_shapes : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(NoteLedgerHandler))
                     .IncludeType(typeof(OpenLedgerHandler))
-                    .IncludeType(typeof(StartUntypedLedgerHandler));
+                    .IncludeType(typeof(StartUntypedLedgerHandler))
+                    .IncludeType(typeof(NoteLedgerAndJournalHandler))
+                    .IncludeType(typeof(TransferNoteHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Policies.AutoApplyTransactions();
@@ -57,6 +61,15 @@ public class scaffolded_handler_shapes : IAsyncLifetime
         var id = Guid.CreateVersion7();
         await using var session = theHost.DocumentStore().LightweightSession();
         session.Events.StartStream<Ledger>(id, new LedgerOpened());
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return id;
+    }
+
+    private async Task<Guid> givenJournal()
+    {
+        var id = Guid.CreateVersion7();
+        await using var session = theHost.DocumentStore().LightweightSession();
+        session.Events.StartStream<Journal>(id, new JournalOpened());
         await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         return id;
     }
@@ -116,6 +129,35 @@ public class scaffolded_handler_shapes : IAsyncLifetime
     }
 
     [Fact]
+    public async Task each_event_stream_gets_its_own_appends()
+    {
+        var ledger = await givenLedger();
+        var journal = await givenJournal();
+
+        await theHost.InvokeMessageAndWaitAsync(new NoteLedgerAndJournal(ledger, journal, "both"));
+
+        var ledgerEvents = await streamOf(ledger);
+        ledgerEvents.Count.ShouldBe(2);
+        ledgerEvents[1].Data.ShouldBeOfType<LedgerNoted>().Note.ShouldBe("both");
+
+        var journalEvents = await streamOf(journal);
+        journalEvents.Count.ShouldBe(2);
+        journalEvents[1].Data.ShouldBeOfType<JournalNoted>().Note.ShouldBe("both");
+    }
+
+    [Fact]
+    public async Task two_streams_of_the_same_aggregate_type_each_get_their_own_appends()
+    {
+        var from = await givenLedger();
+        var to = await givenLedger();
+
+        await theHost.InvokeMessageAndWaitAsync(new TransferNote(from, to, "moved"));
+
+        (await streamOf(from))[1].Data.ShouldBeOfType<LedgerNoted>().Note.ShouldBe("moved out");
+        (await streamOf(to))[1].Data.ShouldBeOfType<LedgerNoted>().Note.ShouldBe("moved in");
+    }
+
+    [Fact]
     public void the_derived_event_model_reads_a_nullable_event_return_with_no_emits_attribute()
     {
         var model = WolverineEventModelSource.Describe(theHost.GetRuntime());
@@ -138,6 +180,27 @@ public record NoteLedger(Guid Id, string? Note);
 public record OpenLedger(Guid Id);
 
 public record StartUntypedLedger(Guid Id);
+
+public record JournalOpened;
+
+public record JournalNoted(string Note);
+
+public record NoteLedgerAndJournal(Guid LedgerId, Guid JournalId, string Note);
+
+public record TransferNote(Guid FromId, Guid ToId, string Note);
+
+public class Journal
+{
+    public Guid Id { get; set; }
+
+    public void Apply(JournalOpened e)
+    {
+    }
+
+    public void Apply(JournalNoted e)
+    {
+    }
+}
 
 public class Ledger
 {
@@ -168,4 +231,30 @@ public static class StartUntypedLedgerHandler
     [Emits(typeof(LedgerOpened))]
     public static StartStreamWithoutAggregate Handle(StartUntypedLedger command)
         => MartenOps.StartStream(command.Id, new LedgerOpened());
+}
+
+// GH-4895: exactly the shape the scaffold writes for a command against several aggregates
+public static class NoteLedgerAndJournalHandler
+{
+    [Emits(typeof(LedgerNoted), typeof(JournalNoted))]
+    public static void Handle(NoteLedgerAndJournal command,
+        [WriteModel(nameof(NoteLedgerAndJournal.LedgerId))] IEventStream<Ledger> ledgerStream,
+        [WriteModel(nameof(NoteLedgerAndJournal.JournalId))] IEventStream<Journal> journalStream)
+    {
+        ledgerStream.AppendOne(new LedgerNoted(command.Note));
+        journalStream.AppendOne(new JournalNoted(command.Note));
+    }
+}
+
+// The same aggregate type twice: each stream is told apart by the member that identifies it
+public static class TransferNoteHandler
+{
+    [Emits(typeof(LedgerNoted))]
+    public static void Handle(TransferNote command,
+        [WriteModel(nameof(TransferNote.FromId))] IEventStream<Ledger> from,
+        [WriteModel(nameof(TransferNote.ToId))] IEventStream<Ledger> to)
+    {
+        from.AppendOne(new LedgerNoted(command.Note + " out"));
+        to.AppendOne(new LedgerNoted(command.Note + " in"));
+    }
 }

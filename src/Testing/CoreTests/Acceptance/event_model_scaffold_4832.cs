@@ -193,17 +193,53 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void a_slice_with_no_aggregate_appends_to_a_stream_without_one()
+    public void a_command_with_no_aggregate_is_a_todo_and_a_warning_never_an_untyped_append()
     {
-        // GH-4892: an event stream does not need an aggregate type, so none is guessed
-        var code = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
-            .Command<ConfirmAppointmentRequest>().Emits<AppointmentConfirmed>())).Files.Single().Code;
+        // GH-4895: only a slice that purely starts a stream may do without an aggregate, and nothing
+        // says this one does -- so nothing is guessed
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
 
-        code.ShouldContain("public static AppendEvents Handle(ConfirmAppointmentRequest confirmAppointmentRequest)");
-        code.ShouldContain("return Storage.AppendEvents(confirmAppointmentRequest.Id, new AppointmentConfirmed(...));");
-        code.ShouldContain("Storage.StartStream(Guid.CreateVersion7(), new AppointmentConfirmed(...))");
-        code.ShouldContain("[Emits(typeof(AppointmentConfirmed))]");
-        code.ShouldNotContain("TODO: nothing declares the stream");
+        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest confirmAppointmentRequest)");
+        code.ShouldContain("TODO: the model names no aggregate this command decides against");
+        code.ShouldContain(".Against<T>(), once per stream, or .StartsStream<T>()");
+        code.ShouldNotContain("AppendEvents");
+
+        var warning = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning);
+        warning.Subject.ShouldBe("ConfirmAppointment");
+        warning.ToString().ShouldStartWith("⚠ WARN");
+    }
+
+    [Fact]
+    public void a_command_against_several_aggregates_takes_an_event_stream_per_aggregate()
+    {
+        // GH-4895: one IEventStream<T> per stream, each found by its own {Aggregate}Id member
+        var result = plan(declared(m => m.Slice("AcceptHomeCheckAssignment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<AcceptHomeCheckAssignment>().Against<HomeCheck>().Against<VolunteerApplication>()
+            .Emits<HomeCheckAssignmentAcceptedEvent>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("public static void Handle(AcceptHomeCheckAssignment acceptHomeCheckAssignment, " +
+                           "[WriteModel(nameof(AcceptHomeCheckAssignment.HomeCheckId))] IEventStream<HomeCheck> homeCheckStream, " +
+                           "[WriteModel(nameof(AcceptHomeCheckAssignment.VolunteerApplicationId))] IEventStream<VolunteerApplication> volunteerApplicationStream)");
+        code.ShouldContain("homeCheckStream.AppendOne(new HomeCheckAssignmentAcceptedEvent(...));   // or volunteerApplicationStream");
+
+        // IEventStream<T> erases the event types, so [Emits] earns its place here
+        code.ShouldContain("[Emits(typeof(HomeCheckAssignmentAcceptedEvent))]");
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+    }
+
+    [Fact]
+    public void a_stream_the_command_has_no_id_member_for_is_a_warning()
+    {
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Against<HomeCheck>()
+            .Emits<AppointmentConfirmed>()));
+
+        result.Files.Single().Code.ShouldContain("[WriteModel(\"HomeCheckId\")] IEventStream<HomeCheck> homeCheckStream");
+        result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning)
+            .Message.ShouldContain("ConfirmAppointmentRequest has no HomeCheckId member");
     }
 
     [Fact]
@@ -357,11 +393,17 @@ public class event_model_scaffold_4832
             m.Slice("CancelAppointment").TriggeredBy(TriggerKind.Human).Command("CancelAppointmentRequest")
                 .Against<Appointment>().Emits("AppointmentCancelled");
             m.Slice("LogCall").TriggeredBy(TriggerKind.MessageHandler).Command("LogCallRequest").Emits("CallLogged");
+
+            // GH-4895: one IEventStream<T> per aggregate
+            m.Slice("AcceptHomeCheckAssignment").TriggeredBy(TriggerKind.MessageHandler)
+                .Command<AcceptHomeCheckAssignment>().Against<HomeCheck>().Against<VolunteerApplication>()
+                .Emits<HomeCheckAssignmentAcceptedEvent>();
             m.View("AppointmentsQueue").From<AppointmentConfirmed>();
         }));
 
+        // LogCall names no aggregate: written, as a TODO, with a warning (GH-4895)
         result.Notices.Where(x => x.Kind != ScaffoldNoticeKind.Wrote && x.Kind != ScaffoldNoticeKind.Edit)
-            .ShouldBeEmpty();
+            .Select(x => x.Subject).ShouldBe(new[] { "LogCall" });
 
         ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
     }
@@ -399,6 +441,20 @@ public record HomeCheckAssignmentAccepted(Guid HomeCheckId);
 public record ProposeAppointment(Guid HomeCheckId);
 
 public class Appointment
+{
+    public Guid Id { get; set; }
+}
+
+public record AcceptHomeCheckAssignment(Guid HomeCheckId, Guid VolunteerApplicationId);
+
+public record HomeCheckAssignmentAcceptedEvent;
+
+public class HomeCheck
+{
+    public Guid Id { get; set; }
+}
+
+public class VolunteerApplication
 {
     public Guid Id { get; set; }
 }

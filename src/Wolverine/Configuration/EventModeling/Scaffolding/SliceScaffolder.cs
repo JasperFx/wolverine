@@ -27,7 +27,14 @@ public enum ScaffoldNoticeKind
     UnknownTrigger,
 
     /// <summary>The slice is a shape the scaffold does not write.</summary>
-    Skipped
+    Skipped,
+
+    /// <summary>
+    ///     The slice was written, but the model is missing something its code needs -- an aggregate the
+    ///     command decides against, or the member that identifies one of its streams (GH-4895). The
+    ///     handler says what to declare in a TODO, and the report says it here.
+    /// </summary>
+    Warning
 }
 
 /// <summary>One line of the scaffold report.</summary>
@@ -45,6 +52,7 @@ public sealed record ScaffoldNotice(ScaffoldNoticeKind Kind, string Subject, str
             ScaffoldNoticeKind.Exists => "EXISTS",
             ScaffoldNoticeKind.Edit => "EDIT",
             ScaffoldNoticeKind.UnknownTrigger => "UNKNOWN",
+            ScaffoldNoticeKind.Warning => "⚠ WARN",
             _ => "SKIPPED"
         };
 
@@ -120,8 +128,15 @@ public sealed class SliceScaffoldOptions
 ///         <b>The signature says what it emits wherever it can</b> (GH-4889): one event onto the stream the
 ///         slice loads is a <c>TEvent?</c> return, with no <c>[Emits]</c>. <c>[Emits]</c> is written only
 ///         where the return type erases the events — <c>StartStream</c>, <c>AppendEvents</c>,
-///         <c>EventsToAppend</c>. A new stream's id is a version 7 Guid (GH-4888); a slice whose model
-///         names no aggregate works on a stream without one (GH-4892).
+///         <c>EventsToAppend</c>, <c>IEventStream&lt;T&gt;</c>. A new stream's id is a version 7 Guid (GH-4888).
+///     </para>
+///     <para>
+///         <b>Every command decides against something</b> (GH-4895). One <c>.Against&lt;T&gt;()</c> is a
+///         <c>[WriteModel] T</c>; two or more are one <c>[WriteModel] IEventStream&lt;T&gt;</c> each, every
+///         stream identified by its own <c>{Aggregate}Id</c> member of the command. A stream with no
+///         aggregate type (GH-4892) is only for a slice that purely starts one; any other slice whose model
+///         names no aggregate gets a TODO and a <see cref="ScaffoldNoticeKind.Warning" />, never an append to
+///         an untyped stream.
 ///     </para>
 ///     <para>
 ///         <b>One file per slice</b> (GH-4891): a handler is appended to the file that declares its command
@@ -435,6 +450,13 @@ public static class SliceScaffolder
             return state;
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2075",
+            Justification = "CLI scaffold path; never dispatch. The command type is the application's own, loaded to write code against it.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path; never dispatch. The command type is the application's own, loaded to write code against it.")]
+        private static bool commandHasMember(Type? type, string name)
+            => type is not null && (type.GetProperty(name) is not null || type.GetField(name) is not null);
+
         private void writeSlice(EventModelSliceDescriptor slice, TypeDescriptor trigger, bool http, string? note = null)
         {
             var identifier = IdentifierFor(slice.Name);
@@ -470,7 +492,10 @@ public static class SliceScaffolder
             var aggregates = slice.AggregateTypes
                 .Where(x => slice.StartsStream is null || !EventModelSliceDescriptor.SameType(x, slice.StartsStream))
                 .ToList();
-            var aggregateType = aggregates.FirstOrDefault();
+            // GH-4895: two or more aggregates are one IEventStream<T> each, so there is no single
+            // aggregate for the typed shapes or for Validate
+            var multiStream = aggregates.Count > 1;
+            var aggregateType = multiStream ? null : aggregates.FirstOrDefault();
             var triggerName = file.Use(trigger);
             var triggerArgument = argumentFor(triggerName);
 
@@ -487,9 +512,32 @@ public static class SliceScaffolder
                 parameters.Add($"[WriteModel] {aggregateName} {aggregateArgument}");
             }
 
-            foreach (var extra in aggregates.Skip(1))
+            // GH-4895: a command that decides against several streams takes each as an IEventStream<T>,
+            // found by its own {Aggregate}Id member of the command -- the same [WriteModel(name)] lookup
+            // the multi-stream aggregate handler workflow already uses
+            var streams = new List<(string Argument, string Event)>();
+            if (multiStream)
             {
-                shape.Add($"// TODO: the slice also works against {file.Use(extra)}; load it with [ReadModel] or split the slice");
+                file.Namespaces.Add("JasperFx.Events");
+                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
+                foreach (var aggregate in aggregates)
+                {
+                    var name = file.Use(aggregate);
+                    var argument = argumentFor(name) + "Stream";
+                    var idMember = aggregate.Name + "Id";
+                    var hasMember = commandHasMember(commandType, idMember);
+                    var source = hasMember ? $"nameof({triggerName}.{idMember})" : $"\"{idMember}\"";
+                    if (!hasMember)
+                    {
+                        shape.Add($"// TODO: {triggerName} needs a {idMember} member identifying the {name} stream");
+                        Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                            $"the command decides against {aggregates.Count} streams, and {triggerName} has no {idMember} member to identify the {name} one. Add it to the command."));
+                    }
+
+                    parameters.Add($"[WriteModel({source})] IEventStream<{name}> {argument}");
+                    streams.Add((argument, name));
+                }
             }
 
             foreach (var read in slice.ReadsFrom)
@@ -511,7 +559,7 @@ public static class SliceScaffolder
             // GH-4889: a slice that appends at most one event to the stream it loads, and does nothing
             // else, says what it emits in its signature -- TEvent? -- so it needs no [Emits]. Returning
             // null appends nothing (GH-4309).
-            var typedEvent = aggregateType is not null && slice.StartsStream is null && emitted.Count == 1 &&
+            var typedEvent = aggregateType is not null && !multiStream && slice.StartsStream is null && emitted.Count == 1 &&
                              outgoing.Count == 0 && slice.ReadModelTypes.Count == 0;
 
             // What the handler returns, in the store-agnostic vocabulary
@@ -539,19 +587,27 @@ public static class SliceScaffolder
                 returns.Add("EventsToAppend");
                 shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
             }
+            else if (multiStream)
+            {
+                // Each event goes onto the stream it belongs to; the signature cannot say which, so [Emits]
+                shape.Add("// Append each event to the stream it belongs to:");
+                foreach (var e in emitted)
+                {
+                    shape.Add($"{streams[0].Argument}.AppendOne(new {e}(...));   // or {string.Join(" / ", streams.Skip(1).Select(x => x.Argument))}");
+                }
+            }
             else if (emitted.Count > 0)
             {
-                // GH-4892: nothing names an aggregate, and an event stream does not need one. Append to
-                // the stream by its id -- Id by convention -- or start one without an aggregate type.
-                file.Namespaces.Add("Wolverine.Persistence");
-                returns.Add("AppendEvents");
+                // GH-4895: the model names no aggregate. A stream with no aggregate type (GH-4892) is only
+                // right for a slice that purely starts one, which the model has not said this one does --
+                // so no append to an untyped stream is guessed. The handler says what to declare.
                 var events = string.Join(", ", emitted.Select(x => $"new {x}(...)"));
-                var streamId = slice.ConsumedEvents.Any(x => EventModelSliceDescriptor.SameType(x, trigger))
-                    ? "/* the stream's id */"
-                    : $"{triggerArgument}.Id";
-                shape.Add("// The model names no aggregate, so the stream has none:");
-                shape.Add($"return Storage.AppendEvents({streamId}, {events});");
-                shape.Add($"// or, when this slice starts the stream: return Storage.StartStream(Guid.CreateVersion7(), {events}); and return StartStream");
+                shape.Add("// TODO: the model names no aggregate this command decides against. Declare it on the");
+                shape.Add("// slice -- .Against<T>(), once per stream, or .StartsStream<T>() when the slice starts one --");
+                shape.Add("// and scaffold again. Only a slice that purely starts a stream may do without one:");
+                shape.Add($"//     return Storage.StartStream(Guid.CreateVersion7(), {events});   // and return StartStream");
+                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                    "the model names no aggregate this command decides against, so its handler is a TODO. Declare .Against<T>() (or .StartsStream<T>() if it only starts a stream) and scaffold again."));
             }
 
             if (outgoing.Count > 0)
