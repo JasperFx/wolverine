@@ -84,7 +84,13 @@ public abstract class WolverineSpec
         => Scenario.GivenEvents<TAggregate>(key, events);
 
     /// <inheritdoc cref="WolverineScenario.GivenEvents(Type, object, object[])" />
-    public Task GivenEvents(Type aggregate, object id, params object[] events) => Scenario.GivenEvents(aggregate, id, events);
+    public Task GivenEvents(Type? aggregate, object id, params object[] events) => Scenario.GivenEvents(aggregate, id, events);
+
+    /// <inheritdoc cref="WolverineScenario.GivenEvents(Guid, object[])" />
+    public Task GivenEvents(Guid id, params object[] events) => Scenario.GivenEvents(id, events);
+
+    /// <inheritdoc cref="WolverineScenario.GivenEvents(string, object[])" />
+    public Task GivenEvents(string key, params object[] events) => Scenario.GivenEvents(key, events);
 
     /// <inheritdoc cref="WolverineScenario.GivenNoEventsFor{TAggregate}(Guid)" />
     public Task GivenNoEventsFor<TAggregate>(Guid id) where TAggregate : class => Scenario.GivenNoEventsFor<TAggregate>(id);

@@ -129,8 +129,19 @@ public class WolverineScenario
     public Task GivenEvents<TAggregate>(string key, params object[] events) where TAggregate : class
         => GivenEvents(typeof(TAggregate), key, events);
 
+    /// <summary>
+    /// The stream the scenario acts against already holds exactly these events, and has no aggregate
+    /// type. Marten, Polecat and Fisher all allow a stream without one; this is the arrange for an event
+    /// model that names none (GH-4892). Starts the stream when it does not exist, appends when it does.
+    /// </summary>
+    public Task GivenEvents(Guid id, params object[] events) => GivenEvents((Type?)null, id, events);
+
+    /// <inheritdoc cref="GivenEvents(Guid, object[])" />
+    public Task GivenEvents(string key, params object[] events) => GivenEvents((Type?)null, key, events);
+
     /// <inheritdoc cref="GivenEvents{TAggregate}(Guid, object[])" />
-    public async Task GivenEvents(Type aggregate, object id, params object[] events)
+    /// <remarks>A null <paramref name="aggregate" /> arranges a stream with no aggregate type (GH-4892).</remarks>
+    public async Task GivenEvents(Type? aggregate, object id, params object[] events)
     {
         var stream = streamName(aggregate, id);
         events = flatten(events);
@@ -140,7 +151,8 @@ public class WolverineScenario
 
         _stream = id;
         if (!inline) recordValues("event", events);
-        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, build(events, text));
+        // Every store's StartStream(Type, ...) takes a null aggregate type as an untyped stream
+        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate!, id, build(events, text));
     }
 
     /// <summary>
@@ -200,13 +212,15 @@ public class WolverineScenario
         await DocumentStores.StoreAllAsync(Store, typeof(T), [built]);
     }
 
-    private static string streamName(Type aggregate, object id)
+    private static string streamName(Type? aggregate, object id)
     {
-        if (id is string key) return $"{aggregate.Name} \"{key}\"";
+        // A stream with no aggregate type (GH-4892) reads as "the stream", or "stream 2" for a second
+        var label = aggregate?.Name ?? "stream";
+        if (id is string key) return $"{(aggregate is null ? "stream" : aggregate.Name)} \"{key}\"";
 
-        ScenarioValues.Learn(id, aggregate.Name);
+        ScenarioValues.Learn(id, label);
         var name = ScenarioValues.Format(id);
-        return name == aggregate.Name ? $"the {aggregate.Name} stream" : $"{aggregate.Name} {name}";
+        return name == label ? $"the {label}{(aggregate is null ? "" : " stream")}" : $"{label} {name}";
     }
 
     /// <summary>

@@ -16,6 +16,18 @@ namespace Wolverine.Marten;
 public static partial class MartenOps
 {
     /// <summary>
+    /// Return a side effect of starting a new event stream with no aggregate type, by Guid identity.
+    /// An event stream does not need an aggregate type; this is the shape for a model that names none
+    /// (GH-4892). Mint the id with <c>Guid.CreateVersion7()</c> so the event store's indexes stay sequential.
+    /// </summary>
+    public static StartStreamWithoutAggregate StartStream(Guid streamId, params object[] events) => new(streamId, events);
+
+    /// <summary>
+    /// Return a side effect of starting a new event stream with no aggregate type, by string key (GH-4892).
+    /// </summary>
+    public static StartStreamWithoutAggregate StartStream(string streamKey, params object[] events) => new(streamKey, events);
+
+    /// <summary>
     /// Return a side effect of appending events to an existing event stream by Guid identity
     /// </summary>
     /// <param name="streamId"></param>
@@ -83,6 +95,66 @@ public static partial class MartenOps
     public static ArchiveStream ArchiveStream(string streamKey)
     {
         return new ArchiveStream(streamKey);
+    }
+}
+
+/// <summary>
+/// Starts a new event stream with no aggregate type (GH-4892): the untyped counterpart of
+/// <see cref="StartStream{T}" />, for a model that names no aggregate for the stream.
+/// </summary>
+public class StartStreamWithoutAggregate : ITenantedMartenOp
+{
+    public StartStreamWithoutAggregate(Guid streamId, params object[] events)
+    {
+        if (streamId == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(streamId), "The stream id cannot be Guid.Empty");
+        }
+
+        StreamId = streamId;
+        Events.AddRange(events);
+    }
+
+    public StartStreamWithoutAggregate(string streamKey, params object[] events)
+    {
+        if (streamKey.IsEmpty())
+        {
+            throw new ArgumentOutOfRangeException(nameof(streamKey), "The stream key cannot be null or empty");
+        }
+
+        StreamKey = streamKey;
+        Events.AddRange(events);
+    }
+
+    public string StreamKey { get; } = string.Empty;
+
+    public Guid StreamId { get; }
+
+    public List<object> Events { get; } = new();
+
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
+    public StartStreamWithoutAggregate With(object @event)
+    {
+        Events.Add(@event);
+        return this;
+    }
+
+    public void Execute(IDocumentSession session)
+    {
+        IDocumentOperations target = TenantId != null ? session.ForTenant(TenantId) : session;
+
+        if (StreamId == Guid.Empty)
+        {
+            target.Events.StartStream(StreamKey, Events.ToArray());
+        }
+        else
+        {
+            target.Events.StartStream(StreamId, Events.ToArray());
+        }
     }
 }
 

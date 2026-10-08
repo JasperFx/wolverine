@@ -28,6 +28,9 @@
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Bobcat\Wolverine.Bobcat.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <!-- GH-4892: the aggregate-less arrange runs against every store, not only Marten -->
+        <ProjectReference Include="..\..\Persistence\Wolverine.Polecat\Wolverine.Polecat.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Fisher\Wolverine.Fisher.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 
