@@ -49,12 +49,13 @@ public class NatsSender : ISender
         bool useJetStream,
         bool supportsNativeScheduledSend,
         ITenantSubjectMapper? tenantSubjectMapper = null,
-        string? tenantId = null
+        string? tenantId = null,
+        bool applyPublishHook = true
     )
     {
         INatsPublisher publisher = useJetStream
             ? new JetStreamPublisher(connection, jetStreamContext!, logger, endpoint.ScheduleSubjectSuffix, endpoint.MsgIdSource,
-                endpoint.ConfigureJetStreamPublish)
+                applyPublishHook ? endpoint.ConfigureJetStreamPublish : null)
             : new CoreNatsPublisher(connection, logger);
 
         return new NatsSender(endpoint, publisher, logger, mapper, cancellation, supportsNativeScheduledSend,

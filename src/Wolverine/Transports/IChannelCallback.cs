@@ -9,6 +9,12 @@ namespace Wolverine.Transports;
 public interface ISupportDeadLetterQueue
 {
     bool NativeDeadLetterQueueEnabled { get; }
+
+    /// <summary>
+    ///     Move the envelope to the transport's dead letter queue. A transport that could not, and left the
+    ///     delivery with its broker for redelivery instead, throws <see cref="DeadLetterMoveFailedException" />
+    ///     so the caller does not complete the envelope.
+    /// </summary>
     Task MoveToErrorsAsync(Envelope envelope, Exception exception);
 }
 

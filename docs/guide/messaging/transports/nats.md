@@ -680,7 +680,8 @@ opts.UseNats("nats://localhost:4222")
 ```
 
 A publish the server then refuses, for a failed expectation as for a full stream, fails the send the way
-described under [JetStream](#jetstream).
+described under [JetStream](#jetstream). The callback is not applied to the copy a listener forwards to its
+dead-letter subject.
 
 ## Scheduled Message Delivery
 
@@ -956,17 +957,37 @@ carried, so it keeps working when its NATS user may only publish responses (`all
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
 - **Dead Letter**: When Wolverine's error handling moves a message to the error queue — once its retries are
   used up, or at once for `MoveToErrorQueue()` — the poison message is first forwarded to the configured
-  dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
-  `AckTerminateAsync(reason)` so the server stops redelivering and records why. <Badge type="tip" text="6.47" />
+  dead-letter subject as a JetStream publish, and only once the stream has confirmed the copy is the original
+  terminated on the consumer via `AckTerminateAsync(reason)`, so the server stops redelivering and records why.
+  <Badge type="tip" text="6.47" />
   This no longer waits for the consumer's `MaxDeliver` to be used up: Buffered and Inline listeners have
   acknowledged the delivery by then, so a message moved to the error queue earlier used to be dropped. The copy
   carries its own `Nats-Msg-Id` (`{original}.dead-letter`), so a dead-letter subject inside the original's stream
-  does not have it discarded as a duplicate of the original. If **no** dead-letter subject
+  does not have it discarded as a duplicate of the original. It drops the original's other `Nats-*` headers —
+  `Nats-Expected-*`, `Nats-TTL`, `Nats-Rollup`, `Nats-Schedule*` — which the server would otherwise apply to the
+  dead-letter stream; the lowercase `nats-stream`, `nats-consumer`, `nats-delivered` and other diagnostics of the
+  delivery stay. If **no** dead-letter subject
   is configured, Wolverine logs a warning and the message is terminated without being retained — configure a
   dead-letter subject to keep poison messages. Messages forwarded to the dead-letter subject carry the
   standard Wolverine diagnostic headers (`exception-type`, `exception-message`, `exception-stack`,
   `failed-at`, `original-destination`), with the delivery attempt count on the standard `attempts` header —
   see [diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages).
+- **When the dead-letter copy fails**: no stream captures the dead-letter subject, or the stream refuses the
+  copy (full under `DiscardPolicy.New`, larger than it allows). What happens to the original depends on the
+  listener mode:
+
+  | Listener | Original |
+  |---|---|
+  | `ProcessInline()`, `ProcessInParallelWithNativeAcks()` | Handed back to JetStream with a five second delay and delivered again, which counts against `MaxDeliver`; nothing is completed or recorded as dead lettered |
+  | `BufferedInMemory()` (the default) | Acknowledged on receipt, so it is lost; Wolverine logs an error naming the message id |
+  | `UseDurableInbox()` | Not affected: a durable listener dead letters into its message store |
+
+::: warning The dead-letter subject needs a stream that keeps messages
+The dead-letter copy is a JetStream publish, so a stream has to capture the dead-letter subject, and that stream
+has to keep messages without a consumer: limits or work-queue retention, not interest retention
+(`DefineWorkQueueStream()`, `AsWorkQueue()`), which discards a copy no consumer is interested in as soon as it
+arrives.
+:::
 
 ### Core NATS
 
