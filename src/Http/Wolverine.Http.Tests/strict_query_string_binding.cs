@@ -54,7 +54,7 @@ public class StrictQueryBindingFixture : IAsyncLifetime
         return AlbaHost.For(builder, app =>
         {
             app.MapWolverineEndpoints(opts => opts.RejectUnparseableQueryValues = rejectUnparseable);
-        });
+        }).StartAsync();
     }
 }
 

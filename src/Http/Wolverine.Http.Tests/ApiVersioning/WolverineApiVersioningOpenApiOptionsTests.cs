@@ -19,7 +19,7 @@ public class WolverineApiVersioningOpenApiOptionsTests
     public void default_strategy_falls_back_for_date_versions()
     {
         var opts = new WolverineApiVersioningOpenApiOptions();
-        var dateVersion = new ApiVersion(new DateTime(2024, 11, 1));
+        var dateVersion = new ApiVersion(new DateOnly(2024, 11, 1));
 
         var result = opts.DocumentNameStrategy(dateVersion);
 

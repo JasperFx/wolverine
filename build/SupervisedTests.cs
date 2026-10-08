@@ -333,9 +333,42 @@ partial class Build
     /// otherwise every target framework the project has actually been built for — matching the
     /// old bare `dotnet test`, which ran all TFMs.
     /// </summary>
-    IReadOnlyList<string> frameworksBuiltFor(string projectPath, string frameworkOverride)
+    /// <summary>
+    /// The framework to build and run <paramref name="projectPath"/> for: the override, else the pinned
+    /// <c>Framework</c> -- unless the project does not target it. The Alba-based test projects are
+    /// net10.0-only (Alba 9 has no net9.0 target), and every workflow passes <c>--framework net9.0</c>,
+    /// so such a project builds and runs at the highest framework it declares instead of failing
+    /// NETSDK1005.
+    /// </summary>
+    string frameworkFor(string projectPath, string frameworkOverride)
     {
         var chosen = frameworkOverride ?? Framework;
+        if (string.IsNullOrEmpty(chosen)) return chosen;
+
+        var declared = declaredFrameworks(projectPath);
+        if (declared.Count == 0 || declared.Contains(chosen)) return chosen;
+
+        var fallback = declared.OrderBy(x => x, StringComparer.Ordinal).Last();
+        Log.Information("{Project} does not target {Chosen}; using {Fallback}",
+            Path.GetFileNameWithoutExtension(projectPath), chosen, fallback);
+        return fallback;
+    }
+
+    static IReadOnlyList<string> declaredFrameworks(string projectPath)
+    {
+        if (!File.Exists(projectPath)) return [];
+
+        var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(projectPath),
+            @"<TargetFrameworks?>([^<]+)</TargetFrameworks?>");
+
+        return match.Success
+            ? match.Groups[1].Value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : [];
+    }
+
+    IReadOnlyList<string> frameworksBuiltFor(string projectPath, string frameworkOverride)
+    {
+        var chosen = frameworkFor(projectPath, frameworkOverride);
         if (!string.IsNullOrEmpty(chosen)) return [chosen];
 
         var binDir = (AbsolutePath)Path.GetDirectoryName(projectPath) / "bin" / Configuration;

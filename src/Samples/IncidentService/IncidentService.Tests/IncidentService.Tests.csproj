@@ -3,11 +3,14 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Alba" />
+        <PackageReference Include="Bobcat.Xunit" />
+        <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
+        <PackageReference Include="Bobcat.Generators" />
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit.v3"/>
@@ -23,5 +26,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\IncidentService\IncidentService.csproj" />
+      <ProjectReference Include="..\..\..\Bobcat\Wolverine.Bobcat.Http\Wolverine.Bobcat.Http.csproj" />
     </ItemGroup>
 </Project>

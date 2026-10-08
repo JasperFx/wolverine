@@ -14,6 +14,8 @@
     <ItemGroup>
       <ProjectReference Include="..\..\..\Http\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj" />
       <ProjectReference Include="..\..\..\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
+      <!-- Dynamic codegen needs the runtime compiler, which core no longer ships (GH-2876) -->
+      <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 
 </Project>

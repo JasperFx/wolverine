@@ -561,9 +561,9 @@ partial class Build
 
     void BuildTestProjectsWithFramework(string frameworkOverride, params AbsolutePath[] projects)
     {
-        var framework = frameworkOverride ?? Framework;
         foreach (var project in projects)
         {
+            var framework = frameworkFor(project, frameworkOverride);
             Log.Information("Building {Project} ({Framework})...", project.Name, framework ?? "all");
             DotNetBuild(c => c
                 .SetProjectFile(project)
@@ -874,13 +874,21 @@ partial class Build
     /// </param>
     void runEfCoreSuites(string framework)
     {
-        BuildTestProjectsWithFramework(framework, EfCoreTests, EfCoreMultiTenancyTests);
+        // EfCoreTests.MultiTenancy is net10.0-only: its MultiTenancyCompliance base hosts through Alba,
+        // and Alba 9 has no net9.0 target. It runs in the EF Core 10 lane only, rather than being
+        // silently promoted to net10.0 here and run twice.
+        var chosen = framework ?? Framework;
+        AbsolutePath[] suites = declaredFrameworks(EfCoreMultiTenancyTests).Contains(chosen)
+            ? [EfCoreTests, EfCoreMultiTenancyTests]
+            : [EfCoreTests];
+
+        BuildTestProjectsWithFramework(framework, suites);
         // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
         // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
         // See GH-2588.
         StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
-        RunTestProjects([EfCoreTests, EfCoreMultiTenancyTests], frameworkOverride: framework);
+        RunTestProjects(suites.Select(x => (string)x).ToArray(), frameworkOverride: framework);
     }
 
     Target CIEfCore => _ => _
@@ -955,6 +963,31 @@ partial class Build
     Target CIAWS => _ => _
         .ProceedAfterFailure()
         .DependsOn(CIAWSSqs, CIAWSSqsCompliance, CIAWSSns);
+
+    /// <summary>
+    /// GH-4833. WolverineFx.Bobcat and WolverineFx.Bobcat.Http. Their tests run on Marten until the
+    /// in-memory prototyping store implements IEventStore (JasperFx/jasperfx#985). The HTTP suite is
+    /// net10.0-only (Alba 9); frameworkFor picks that up from the project.
+    /// </summary>
+    Target CIBobcat => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Tests" / "Wolverine.Bobcat.Tests.csproj";
+            var httpTests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Http.Tests" / "Wolverine.Bobcat.Http.Tests.csproj";
+
+            // The samples dogfooding the library. Neither ran in any CI lane before, which is how both
+            // sat unable to start a host (no runtime compiler since GH-2876, and the test assembly
+            // adopted as the application assembly) with nobody noticing.
+            var incidents = RootDirectory / "src" / "Samples" / "IncidentService" / "IncidentService.Tests" / "IncidentService.Tests.csproj";
+            var processManager = RootDirectory / "src" / "Samples" / "ProcessManagerViaHandlers" /
+                                 "ProcessManagerViaHandlers.Tests" / "ProcessManagerViaHandlers.Tests.csproj";
+
+            BuildTestProjects(tests, httpTests, incidents, processManager);
+            StartDockerServices("postgresql");
+
+            RunTestProjects([tests, httpTests, incidents, processManager]);
+        });
 
     Target CIKafka => _ => _
         .ProceedAfterFailure()

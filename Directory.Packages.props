@@ -19,7 +19,7 @@
          answered by NuGetAuditMode (GH-4773) at none of that cost. -->
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Alba" Version="8.5.2" />
+    <PackageVersion Include="Alba" Version="9.0.0-rc.2" />
     <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,11.0.0)" />
     <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,11.0.0)" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,11.0.0)" />
@@ -57,6 +57,10 @@
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
     <PackageVersion Include="Bobcat.Supervisor" Version="0.32.0" />
+    <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833). -->
+    <PackageVersion Include="Bobcat" Version="0.32.0" />
+    <PackageVersion Include="Bobcat.Xunit" Version="0.32.0" />
+    <PackageVersion Include="Bobcat.Generators" Version="0.32.0" />
     <PackageVersion Include="JasperFx" Version="2.81.0" />
     <PackageVersion Include="JasperFx.Events" Version="2.81.0" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.81.0" />
