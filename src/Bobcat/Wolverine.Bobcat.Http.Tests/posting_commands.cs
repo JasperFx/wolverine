@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Bobcat.Engine;
 
 namespace Wolverine.Bobcat.Http.Tests;
@@ -85,6 +86,31 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
         ThenRefusedWith("already confirmed");
         ThenNoEvents();
         LastAct.Error.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task a_problem_details_refusal_matches_the_members_a_partial_names()
+    {
+        var id = await scheduled();
+        await GivenEventsOn<Appointment>(id, new AppointmentConfirmed(id));
+
+        await WhenPosted(new ConfirmAppointmentRequest(id));
+
+        var problem = await ThenRefusedWithProblem(
+            Specify<ProblemDetails>().With(x => x.Detail, "The appointment is already confirmed").With(x => x.Status, 400));
+        problem!.Detail.ShouldBe("The appointment is already confirmed");
+    }
+
+    [Fact]
+    public async Task a_problem_details_that_disagrees_fails()
+    {
+        var id = await scheduled();
+        await GivenEventsOn<Appointment>(id, new AppointmentConfirmed(id));
+
+        await WhenPosted(new ConfirmAppointmentRequest(id));
+
+        await Should.ThrowAsync<SpecificationFailedException>(() =>
+            ThenRefusedWithProblem(Specify<ProblemDetails>().With(x => x.Detail, "Something else")));
     }
 
     [Fact]

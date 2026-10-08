@@ -1,6 +1,8 @@
 using Alba;
 using Bobcat;
 using Bobcat.Engine;
+using Bobcat.Runtime;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Tracking;
 
 namespace Wolverine.Bobcat.Http;
@@ -76,6 +78,7 @@ public class WolverineHttpScenario : WolverineScenario
 
                 var status = LastResponse.Context.Response.StatusCode;
                 responseBody = await LastResponse.ReadAsTextAsync();
+                _lastResponseBody = responseBody;
 
                 Verdicts.Value("status", status);
                 if (SpecReport.IsRecording)
@@ -117,6 +120,73 @@ public class WolverineHttpScenario : WolverineScenario
     {
         if (LastResponse is null || LastAct.Error is not null || LastAct.Refusal is not null) return default;
         return await LastResponse.ReadAsJsonAsync<TResponse>();
+    }
+
+    // The last act's response body, read once when the act completed
+    private string? _lastResponseBody;
+
+    /// <summary>
+    /// The last HTTP act was refused with a ProblemDetails body, and it matches <paramref name="expected" />
+    /// when one is given: a partial object naming the members a spec is about, as in
+    /// <c>Specify&lt;ProblemDetails&gt;().With(x =&gt; x.Detail, "Email already in use")</c>.
+    /// </summary>
+    /// <remarks>
+    /// The typed form of <c>ThenRefusedWith(reason)</c> for an endpoint, which refuses with a 4xx
+    /// response rather than an exception. Matched on <c>Title</c>, <c>Detail</c>, <c>Status</c>,
+    /// <c>Type</c> and <c>Instance</c>: whichever the partial names.
+    /// </remarks>
+    public async Task<ProblemDetails?> ThenRefusedWithProblem(object? expected = null)
+    {
+        if (expected is not null and not IPartialObject)
+            throw new ArgumentException(
+                "Describe the expected ProblemDetails as a partial object, Specify<ProblemDetails>().With(...).",
+                nameof(expected));
+
+        var partial = expected as IPartialObject;
+        using var step = ScenarioRecorder.Step("Then", partial is null || partial.Values.Count == 0
+            ? "refused with ProblemDetails"
+            : $"refused with {PartialObjects.Describe(partial)}");
+
+        if (LastResponse is null)
+        {
+            Verdicts.Fail("No HTTP response was captured: the last act was not an HTTP call. A bus-dispatched command refuses by throwing; use ThenRefusedWith<TException>.");
+            return null;
+        }
+
+        var status = LastResponse.Context.Response.StatusCode;
+        Verdicts.Check("status", status is >= 400 and < 500 ? "4xx" : status.ToString(), "4xx");
+        if (status is < 400 or >= 500)
+        {
+            Verdicts.Fact(false, $"Expected the endpoint to refuse with a 4xx ProblemDetails, but it answered {status}: {_lastResponseBody}");
+            return null;
+        }
+
+        ProblemDetails? problem;
+        try
+        {
+            problem = System.Text.Json.JsonSerializer.Deserialize<ProblemDetails>(_lastResponseBody ?? "",
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            problem = null;
+        }
+
+        if (problem is null)
+        {
+            Verdicts.Fact(false, $"Expected a ProblemDetails body with the {status}, but it was: {_lastResponseBody}");
+            return null;
+        }
+
+        if (partial is not null)
+        {
+            var run = PropertyCells.Verify(problem, partial);
+            if (!run.Succeeded && !Verdicts.Recording)
+                throw new SpecificationFailedException(
+                    $"ProblemDetails did not match: {string.Join(", ", PropertyCells.Disagreeing(run))}");
+        }
+
+        return problem;
     }
 
     /// <summary>The last HTTP act answered <paramref name="status" />.</summary>

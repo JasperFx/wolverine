@@ -145,3 +145,93 @@ public class refusals_naming_values(AppointmentsHost app) : WolverineSpec(app.Ho
         recording.Steps.Last().Text.ShouldBe("refused with \"already confirmed\"");
     }
 }
+
+// The typed refusal: the exception a handler throws, matched on the members a spec names
+[Collection(nameof(AppointmentsCollection))]
+public class typed_refusals(AppointmentsHost app) : WolverineSpec(app.Host)
+{
+    private static readonly Patient ann = new("Ann", new Address("Austin"));
+
+    private async Task<Guid> alreadyConfirmed()
+    {
+        var theAppointment = Guid.NewGuid();
+        await GivenEvents<Appointment>(theAppointment, new AppointmentScheduled(theAppointment, ann, []),
+            new AppointmentConfirmed(theAppointment, DateTimeOffset.UtcNow));
+        await WhenReceived(new ConfirmAppointment(theAppointment));
+        return theAppointment;
+    }
+
+    [Fact]
+    public async Task the_refusal_is_the_exception_type()
+    {
+        await alreadyConfirmed();
+
+        var thrown = ThenRefusedWith<AppointmentAlreadyConfirmed>();
+        thrown.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task the_refusal_matches_the_members_a_partial_names()
+    {
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            var theAppointment = await alreadyConfirmed();
+            ThenRefusedWith<AppointmentAlreadyConfirmed>(
+                Specify<AppointmentAlreadyConfirmed>().With(x => x.AppointmentId, theAppointment));
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        recording.Steps.Last().Text.ShouldBe("refused with AppointmentAlreadyConfirmed(AppointmentId: theAppointment)");
+    }
+
+    [Fact]
+    public async Task a_member_that_disagrees_is_a_failed_cell()
+    {
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await alreadyConfirmed();
+            ThenRefusedWith<AppointmentAlreadyConfirmed>(
+                Specify<AppointmentAlreadyConfirmed>().With(x => x.AppointmentId, Guid.NewGuid()));
+        });
+
+        var then = recording.Steps.Last();
+        then.Status.ShouldBe(ResultStatus.failed);
+        then.Cells.Single(x => x.Name == nameof(AppointmentAlreadyConfirmed.AppointmentId)).Status.ShouldBe(ResultStatus.failed);
+    }
+
+    [Fact]
+    public async Task the_wrong_exception_type_fails_naming_what_was_thrown()
+    {
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await alreadyConfirmed();
+            ThenRefusedWith<ArgumentException>();
+        });
+
+        recording.Steps.Last().Status.ShouldBe(ResultStatus.failed);
+        recording.GatheredFailures()!.ShouldContain("but the act threw AppointmentAlreadyConfirmed");
+    }
+
+    [Fact]
+    public async Task an_act_that_succeeded_was_not_refused()
+    {
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            var theAppointment = Guid.NewGuid();
+            await GivenEvents<Appointment>(theAppointment, new AppointmentScheduled(theAppointment, ann, []));
+            await WhenReceived(new ConfirmAppointment(theAppointment));
+            ThenRefusedWith<AppointmentAlreadyConfirmed>();
+        });
+
+        recording.GatheredFailures()!.ShouldContain("but the act succeeded");
+    }
+
+    [Fact]
+    public async Task the_text_refusal_still_reads_the_message()
+    {
+        await alreadyConfirmed();
+
+        ThenRefusedWith("already confirmed");
+    }
+}
+

@@ -173,6 +173,10 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenRefusedWith(string, object[])" />
     public void ThenRefusedWith(string reason, params object[] mentioning) => Scenario.ThenRefusedWith(reason, mentioning);
 
+    /// <inheritdoc cref="WolverineScenario.ThenRefusedWith{TException}(object?)" />
+    public TException? ThenRefusedWith<TException>(object? expected = null) where TException : Exception
+        => Scenario.ThenRefusedWith<TException>(expected);
+
     /// <inheritdoc cref="WolverineScenario.ThenValidationFails" />
     public void ThenValidationFails(string reason) => Scenario.ThenValidationFails(reason);
 

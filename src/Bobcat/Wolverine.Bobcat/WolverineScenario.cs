@@ -573,6 +573,72 @@ public class WolverineScenario
             $"Expected a refusal containing \"{reason}\" and naming {string.Join(", ", mentioning)}, but it was: {refusal}");
     }
 
+    /// <summary>
+    /// The act was refused by throwing a <typeparamref name="TException" />, found anywhere in the
+    /// exception the act raised (an inner exception, or one of an <see cref="AggregateException" />'s),
+    /// and it matches <paramref name="expected" /> when one is given: a partial object naming the
+    /// members a spec is about, as in <c>Specify&lt;EmailAlreadyInUse&gt;().With(x =&gt; x.Email, …)</c>.
+    /// </summary>
+    /// <remarks>
+    /// The typed form of <see cref="ThenRefusedWith(string)" /> for a bus-dispatched command. An HTTP
+    /// endpoint refuses with a response rather than an exception: assert its ProblemDetails instead.
+    /// </remarks>
+    public TException? ThenRefusedWith<TException>(object? expected = null) where TException : Exception
+    {
+        if (expected is not null and not IPartialObject)
+            throw new ArgumentException(
+                $"Describe the expected {typeof(TException).Name} as a partial object, Specify<{typeof(TException).Name}>().With(...): an exception is matched on the members a spec names, never built whole.",
+                nameof(expected));
+
+        var partial = expected as IPartialObject;
+        var text = partial is null || partial.Values.Count == 0
+            ? $"refused with {typeof(TException).Name}"
+            : $"refused with {PartialObjects.Describe(partial)}";
+        using var step = ScenarioRecorder.Step("Then", text);
+
+        if (LastAct.Error is null)
+        {
+            Verdicts.Fail(LastAct.Refusal is { } refusal
+                ? $"Expected a {typeof(TException).Name} to be thrown, but the act was refused with a response: {refusal}"
+                : $"Expected a {typeof(TException).Name} to be thrown, but the act succeeded.");
+            return null;
+        }
+
+        var thrown = exceptionsIn(LastAct.Error).OfType<TException>().FirstOrDefault();
+        Verdicts.Check("exception", thrown?.GetType().Name ?? LastAct.Error.GetType().Name, typeof(TException).Name);
+        if (thrown is null)
+        {
+            Verdicts.Fact(false,
+                $"Expected a {typeof(TException).Name}, but the act threw {LastAct.Error.GetType().Name}: {LastAct.Error.Message}");
+            return null;
+        }
+
+        if (partial is not null)
+        {
+            var run = PropertyCells.Verify(thrown, partial);
+            if (!run.Succeeded && !Verdicts.Recording)
+                throw new SpecificationFailedException(
+                    $"{typeof(TException).Name} did not match: {string.Join(", ", PropertyCells.Disagreeing(run))}");
+        }
+
+        return thrown;
+    }
+
+    private static IEnumerable<Exception> exceptionsIn(Exception exception)
+    {
+        yield return exception;
+
+        IEnumerable<Exception> inner = exception switch
+        {
+            AggregateException aggregate => aggregate.InnerExceptions,
+            { InnerException: { } one } => [one],
+            _ => []
+        };
+        foreach (var child in inner)
+        foreach (var nested in exceptionsIn(child))
+            yield return nested;
+    }
+
     /// <summary>A bus-dispatched command failed validation with <paramref name="reason" />. The same check as <see cref="ThenRefusedWith(string)" />, worded for a message.</summary>
     public void ThenValidationFails(string reason) => assertRefusal($"validation fails with \"{reason}\"", reason);
 

@@ -43,4 +43,8 @@ public abstract class WolverineHttpSpec : WolverineSpec
 
     /// <inheritdoc cref="WolverineHttpScenario.ThenResponseIs" />
     public void ThenResponseIs(int status) => HttpScenario.ThenResponseIs(status);
+
+    /// <inheritdoc cref="WolverineHttpScenario.ThenRefusedWithProblem" />
+    public Task<Microsoft.AspNetCore.Mvc.ProblemDetails?> ThenRefusedWithProblem(object? expected = null)
+        => HttpScenario.ThenRefusedWithProblem(expected);
 }
