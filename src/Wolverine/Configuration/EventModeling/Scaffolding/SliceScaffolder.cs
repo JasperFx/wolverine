@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Text.RegularExpressions;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
@@ -51,10 +52,30 @@ public sealed record ScaffoldNotice(ScaffoldNoticeKind Kind, string Subject, str
     }
 }
 
-/// <summary>A file the scaffold plans to write.</summary>
-/// <param name="RelativePath">Path relative to the output directory.</param>
-/// <param name="Code">The file's contents.</param>
-public sealed record ScaffoldFile(string RelativePath, string Code);
+/// <summary>A file the scaffold plans to write, or a class it plans to append to an existing file.</summary>
+/// <param name="RelativePath">
+///     Path relative to the output directory -- or, when <see cref="AppendClass" /> is set, the existing
+///     source file exactly as <see cref="SliceScaffoldOptions.FindSourceFile" /> reported it.
+/// </param>
+/// <param name="Code">The file's contents, or the class (and any stubs it needs) to append.</param>
+public sealed record ScaffoldFile(string RelativePath, string Code)
+{
+    /// <summary>
+    ///     GH-4891. Set when <see cref="Code" /> is a handler class to append to an existing file -- the
+    ///     one declaring the slice's command -- rather than a new file. Names the class, so a second run
+    ///     never appends it twice.
+    /// </summary>
+    public string? AppendClass { get; init; }
+
+    /// <summary>The namespaces the appended code needs; added to the file's usings when missing.</summary>
+    public IReadOnlyList<string> Usings { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    ///     The namespace the appended code belongs in, used only when the file has no file-scoped
+    ///     namespace for it to land in.
+    /// </summary>
+    public string? Namespace { get; init; }
+}
 
 /// <summary>The planned files and the report.</summary>
 public sealed record ScaffoldPlan(IReadOnlyList<ScaffoldFile> Files, IReadOnlyList<ScaffoldNotice> Notices);
@@ -62,7 +83,10 @@ public sealed record ScaffoldPlan(IReadOnlyList<ScaffoldFile> Files, IReadOnlyLi
 /// <summary>Everything <see cref="SliceScaffolder" /> needs to know about the world outside the model.</summary>
 public sealed class SliceScaffoldOptions
 {
-    /// <summary>Namespace of the scaffolded code; a slice with a domain goes in <c>{RootNamespace}.{Domain}</c>.</summary>
+    /// <summary>
+    ///     Namespace of the scaffolded code. A slice with a domain or a chapter goes in
+    ///     <c>{RootNamespace}.{Domain}.{Chapter}</c>, in the matching folders (GH-4891).
+    /// </summary>
     public string RootNamespace { get; set; } = "App";
 
     /// <summary>The CLR type behind a descriptor, when it exists. A null answer means "write a stub for it".</summary>
@@ -87,10 +111,21 @@ public sealed class SliceScaffoldOptions
 ///     </para>
 ///     <para>
 ///         <b>Always Wolverine's store-agnostic style</b> (decided 2026-10-05 on jasperfx#962):
-///         <c>[WriteModel]</c>, <c>Storage.StartStream</c>, <c>[Entity]</c>, <c>IStorageAction&lt;T&gt;</c> and
-///         <see cref="Persistence.EventSourcing.EventsToAppend" /> with <c>[Emits]</c> — never a store-specific
-///         attribute — so the scaffolded code runs unchanged on the in-memory prototyping store and on Marten,
-///         Polecat or Fisher.
+///         <c>[WriteModel]</c>, <c>Storage.StartStream</c>, <c>Storage.AppendEvents</c>, <c>[Entity]</c>,
+///         <c>IStorageAction&lt;T&gt;</c> and <see cref="Persistence.EventSourcing.EventsToAppend" /> — never a
+///         store-specific attribute or <c>MartenOps</c>/<c>PolecatOps</c>/<c>FisherOps</c> — so the scaffolded
+///         code runs unchanged on the in-memory prototyping store and on Marten, Polecat or Fisher.
+///     </para>
+///     <para>
+///         <b>The signature says what it emits wherever it can</b> (GH-4889): one event onto the stream the
+///         slice loads is a <c>TEvent?</c> return, with no <c>[Emits]</c>. <c>[Emits]</c> is written only
+///         where the return type erases the events — <c>StartStream</c>, <c>AppendEvents</c>,
+///         <c>EventsToAppend</c>. A new stream's id is a version 7 Guid (GH-4888); a slice whose model
+///         names no aggregate works on a stream without one (GH-4892).
+///     </para>
+///     <para>
+///         <b>One file per slice</b> (GH-4891): a handler is appended to the file that declares its command
+///         when that file exists, and otherwise written in a folder (and namespace) per domain and chapter.
 ///     </para>
 ///     <para>
 ///         <b>Never overwrites a file.</b> An implemented slice is not declared-only, so re-running is a
@@ -140,6 +175,61 @@ public static class SliceScaffolder
         context.ScaffoldStateTypes();
 
         return new ScaffoldPlan(context.Files, context.Notices);
+    }
+
+    /// <summary>
+    ///     GH-4891. Append a planned handler class to the existing source file that declares its command:
+    ///     the missing usings go after the file's own, and the class at the end of the file -- inside a
+    ///     namespace block of its own when the file does not use a file-scoped namespace. Returns null,
+    ///     changing nothing, when the file already declares the class.
+    /// </summary>
+    public static string? AppendTo(string existing, ScaffoldFile file)
+    {
+        if (file.AppendClass is null) throw new ArgumentException("The file is not a planned append.", nameof(file));
+
+        if (Regex.IsMatch(existing, $@"\bclass\s+{Regex.Escape(file.AppendClass)}\b")) return null;
+
+        var newline = existing.Contains("\r\n") ? "\r\n" : "\n";
+        var lines = existing.Replace("\r\n", "\n").Split('\n').ToList();
+
+        var fileScoped = lines.Select(x => Regex.Match(x, @"^\s*namespace\s+([\w.]+)\s*;")).FirstOrDefault(x => x.Success);
+        var blockScoped = !fileScoped?.Success ?? lines.Any(x => Regex.IsMatch(x, @"^\s*namespace\s+[\w.]+\s*(\{|$)"));
+        var ownNamespace = fileScoped?.Groups[1].Value ?? file.Namespace;
+
+        var missing = file.Usings
+            .Where(u => u != ownNamespace)
+            .Where(u => !lines.Any(x => Regex.IsMatch(x, $@"^\s*using\s+{Regex.Escape(u)}\s*;")))
+            .Select(u => $"using {u};")
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            var lastUsing = lines.FindLastIndex(x => Regex.IsMatch(x, @"^\s*using\s+[\w.]+\s*;"));
+            if (lastUsing < 0) missing.Add("");
+            var at = lastUsing >= 0
+                ? lastUsing + 1
+                : Math.Max(0, lines.FindIndex(x => x.Trim().Length > 0 && !x.TrimStart().StartsWith("//")));
+            lines.InsertRange(at, missing);
+        }
+
+        while (lines.Count > 0 && lines[^1].Trim().Length == 0) lines.RemoveAt(lines.Count - 1);
+        lines.Add("");
+
+        var body = file.Code.Replace("\r\n", "\n").TrimEnd().Split('\n');
+        if (blockScoped && file.Namespace is not null)
+        {
+            lines.Add($"namespace {file.Namespace}");
+            lines.Add("{");
+            lines.AddRange(body.Select(x => x.Length == 0 ? x : "    " + x));
+            lines.Add("}");
+        }
+        else
+        {
+            lines.AddRange(body);
+        }
+
+        lines.Add("");
+        return string.Join(newline, lines);
     }
 
     /// <summary>PascalCase identifier for a slice or domain name: <c>OrderPlaced (Billing)</c> → <c>OrderPlacedBilling</c>.</summary>
@@ -270,6 +360,14 @@ public static class SliceScaffolder
                     writeSlice(slice, slice.CommandType, http: false);
                     break;
 
+                case TriggerKind.Human:
+                    // GH-4884: a screen is not a transport. Every command an import of a board produces is
+                    // screen-triggered, and the specs generated beside it send the command through the
+                    // message bus, so a message handler is what they can drive. Said in the report.
+                    writeSlice(slice, slice.CommandType, http: false,
+                        note: " Triggered by a person (TriggerKind.Human), so it is scaffolded as a message handler the UI sends to; declare .TriggeredBy(TriggerKind.Http) instead for an HTTP endpoint.");
+                    break;
+
                 case TriggerKind.Grpc:
                     Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
                         $"gRPC services are not scaffolded. Write the RPC by hand; it forwards {slice.CommandType.Name} to the message bus."));
@@ -316,7 +414,7 @@ public static class SliceScaffolder
 
             foreach (var view in slice.ReadModelTypes)
             {
-                stateType(view, slice.Domain, isView: true).Events.AddRange(slice.ConsumedEvents);
+                stateType(view, slice, isView: true).Events.AddRange(slice.ConsumedEvents);
             }
 
             if (slice.ConsumedEvents.Count == 0)
@@ -326,23 +424,28 @@ public static class SliceScaffolder
             }
         }
 
-        private StateType stateType(TypeDescriptor type, string? domain, bool isView)
+        private StateType stateType(TypeDescriptor type, EventModelSliceDescriptor slice, bool isView)
         {
             var key = type.Name;
             if (!_stateTypes.TryGetValue(key, out var state))
             {
-                _stateTypes[key] = state = new StateType(type, domain, isView);
+                _stateTypes[key] = state = new StateType(type, groupsOf(slice), isView);
             }
 
             return state;
         }
 
-        private void writeSlice(EventModelSliceDescriptor slice, TypeDescriptor trigger, bool http)
+        private void writeSlice(EventModelSliceDescriptor slice, TypeDescriptor trigger, bool http, string? note = null)
         {
             var identifier = IdentifierFor(slice.Name);
-            var path = pathFor(slice.Domain, identifier);
+            var className = identifier + (http ? "Endpoint" : "Handler");
 
-            if (_options.FileExists(path))
+            // GH-4891: the handler lives in the same file as the command it handles, when that file
+            // exists -- one file per slice, the way `bobcat import-event-model` writes them
+            var appendTo = appendTargetFor(slice, trigger);
+            var path = appendTo ?? pathFor(slice, identifier);
+
+            if (appendTo is null && _options.FileExists(path))
             {
                 Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, slice.Name,
                     "the file already exists and was left exactly as it is.", path));
@@ -352,15 +455,15 @@ public static class SliceScaffolder
             // The events this slice appends belong to the aggregates it works against
             foreach (var aggregate in slice.AggregateTypes)
             {
-                stateType(aggregate, slice.Domain, isView: false).Events.AddRange(slice.EmittedEvents);
+                stateType(aggregate, slice, isView: false).Events.AddRange(slice.EmittedEvents);
             }
 
             if (slice.StartsStream is { } started)
             {
-                stateType(started, slice.Domain, isView: false).Events.AddRange(slice.EmittedEvents);
+                stateType(started, slice, isView: false).Events.AddRange(slice.EmittedEvents);
             }
 
-            var file = new SliceFile(this, namespaceFor(slice.Domain));
+            var file = new SliceFile(this, appendTo is null ? namespaceFor(slice) : null);
             var writer = file.Body;
 
             // A stream the slice starts has no aggregate to load yet, so it is never a [WriteModel]
@@ -374,13 +477,14 @@ public static class SliceScaffolder
             var parameters = new List<string> { $"{triggerName} {triggerArgument}" };
             var shape = new List<string>();
 
+            string? aggregateName = null;
             string? aggregateArgument = null;
             if (aggregateType is not null)
             {
                 file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                var name = file.Use(aggregateType);
-                aggregateArgument = argumentFor(name);
-                parameters.Add($"[WriteModel] {name} {aggregateArgument}");
+                aggregateName = file.Use(aggregateType);
+                aggregateArgument = argumentFor(aggregateName);
+                parameters.Add($"[WriteModel] {aggregateName} {aggregateArgument}");
             }
 
             foreach (var extra in aggregates.Skip(1))
@@ -395,35 +499,59 @@ public static class SliceScaffolder
                 parameters.Add($"[Entity] {name} {argumentFor(name)}");
             }
 
-            // What the handler returns, in the store-agnostic vocabulary
-            var returns = new List<string>();
             var emitted = slice.EmittedEvents.Select(x => file.Use(x)).ToList();
-            if (emitted.Count > 0) file.Namespaces.Add("Wolverine.Persistence.EventSourcing"); // [Emits]
-
-            if (slice.StartsStream is { } stream)
-            {
-                file.Namespaces.Add("Wolverine.Persistence");
-                returns.Add("StartStream");
-                var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
-                shape.Add($"return Storage.StartStream<{file.Use(stream)}>(/* the new stream's id */, {events});");
-            }
-            else if (emitted.Count > 0)
-            {
-                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                returns.Add("EventsToAppend");
-                if (aggregateType is null)
-                {
-                    shape.Add("// TODO: nothing declares the stream these events go to -- declare .Against<T>() or .StartsStream<T>()");
-                }
-
-                shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
-            }
 
             var outgoing = slice.PublishedMessages.ToList();
             if (slice.CommandType is { } command && !EventModelSliceDescriptor.SameType(command, trigger))
             {
                 // an automation issues its command
                 outgoing.Insert(0, command);
+            }
+
+            // GH-4889: a slice that appends at most one event to the stream it loads, and does nothing
+            // else, says what it emits in its signature -- TEvent? -- so it needs no [Emits]. Returning
+            // null appends nothing (GH-4309).
+            var typedEvent = aggregateType is not null && slice.StartsStream is null && emitted.Count == 1 &&
+                             outgoing.Count == 0 && slice.ReadModelTypes.Count == 0;
+
+            // What the handler returns, in the store-agnostic vocabulary
+            var returns = new List<string>();
+
+            if (slice.StartsStream is { } stream)
+            {
+                // GH-4888: a sequential (version 7) Guid, never Guid.NewGuid() -- a random stream id
+                // fragments the event store's indexes
+                file.Namespaces.Add("Wolverine.Persistence");
+                returns.Add("StartStream");
+                var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
+                shape.Add("var id = Guid.CreateVersion7();");
+                shape.Add($"return Storage.StartStream<{file.Use(stream)}>(id, {events});");
+            }
+            else if (typedEvent)
+            {
+                returns.Add($"{emitted[0]}?");
+                shape.Add($"return new {emitted[0]}(...);   // or null when there is nothing to record");
+                shape.Add($"// If the stream may not exist yet, make the parameter {aggregateName}? -- [WriteModel] then does not require it");
+            }
+            else if (emitted.Count > 0 && aggregateType is not null)
+            {
+                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                returns.Add("EventsToAppend");
+                shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
+            }
+            else if (emitted.Count > 0)
+            {
+                // GH-4892: nothing names an aggregate, and an event stream does not need one. Append to
+                // the stream by its id -- Id by convention -- or start one without an aggregate type.
+                file.Namespaces.Add("Wolverine.Persistence");
+                returns.Add("AppendEvents");
+                var events = string.Join(", ", emitted.Select(x => $"new {x}(...)"));
+                var streamId = slice.ConsumedEvents.Any(x => EventModelSliceDescriptor.SameType(x, trigger))
+                    ? "/* the stream's id */"
+                    : $"{triggerArgument}.Id";
+                shape.Add("// The model names no aggregate, so the stream has none:");
+                shape.Add($"return Storage.AppendEvents({streamId}, {events});");
+                shape.Add($"// or, when this slice starts the stream: return Storage.StartStream(Guid.CreateVersion7(), {events}); and return StartStream");
             }
 
             if (outgoing.Count > 0)
@@ -447,10 +575,8 @@ public static class SliceScaffolder
                 _ => $"({string.Join(", ", returns)})"
             };
 
-            var className = identifier + (http ? "Endpoint" : "Handler");
-
             writer.WriteLine($"// Scaffolded by `wolverine scaffold` from the declared Event Model slice '{slice.Name}'.");
-            writer.WriteLine("// It is yours now: the scaffold never writes to this file again.");
+            writer.WriteLine("// It is yours now: the scaffold never writes to this class again.");
             writer.Write($"BLOCK:public static class {className}");
 
             if (http)
@@ -460,7 +586,7 @@ public static class SliceScaffolder
 
                 var validateParameters = aggregateArgument is null
                     ? $"{triggerName} {triggerArgument}"
-                    : $"{triggerName} {triggerArgument}, {file.Use(aggregateType!)} {aggregateArgument}";
+                    : $"{triggerName} {triggerArgument}, {aggregateName} {aggregateArgument}";
 
                 writer.Write($"BLOCK:public static ProblemDetails Validate({validateParameters})");
                 writer.WriteLine("// TODO: the guards your specifications describe. Return a ProblemDetails to refuse the request.");
@@ -469,9 +595,14 @@ public static class SliceScaffolder
                 writer.BlankLine();
             }
 
-            foreach (var e in emitted)
+            // [Emits] only where the signature cannot say it (GH-4889): a typed return already does
+            if (!typedEvent)
             {
-                writer.WriteLine($"[Emits(typeof({e}))]");
+                if (emitted.Count > 0) file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                foreach (var e in emitted)
+                {
+                    writer.WriteLine($"[Emits(typeof({e}))]");
+                }
             }
 
             if (http)
@@ -491,8 +622,37 @@ public static class SliceScaffolder
             writer.FinishBlock();
             writer.FinishBlock();
 
-            add(slice.Name, path, file);
+            if (appendTo is not null)
+            {
+                Files.Add(new ScaffoldFile(appendTo, file.RenderBody())
+                {
+                    AppendClass = className,
+                    Usings = file.Namespaces.ToArray(),
+                    Namespace = namespaceOf(slice, trigger)
+                });
+                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, slice.Name,
+                    $"{className} appended to the file that declares {triggerTypeFor(slice, trigger).Name}.{note}", appendTo));
+                return;
+            }
+
+            add(slice.Name, path, file, note);
         }
+
+        /// <summary>
+        ///     The source file the slice's handler is appended to: the one declaring the slice's command
+        ///     (for an automation, the command it issues), when that type exists and its file is found.
+        /// </summary>
+        private string? appendTargetFor(EventModelSliceDescriptor slice, TypeDescriptor trigger)
+        {
+            if (_options.ResolveType(triggerTypeFor(slice, trigger)) is not { } type) return null;
+            return _options.FindSourceFile(type);
+        }
+
+        private static TypeDescriptor triggerTypeFor(EventModelSliceDescriptor slice, TypeDescriptor trigger)
+            => slice.CommandType ?? trigger;
+
+        private string? namespaceOf(EventModelSliceDescriptor slice, TypeDescriptor trigger)
+            => _options.ResolveType(triggerTypeFor(slice, trigger))?.Namespace;
 
         /// <summary>Apply methods for every aggregate and view the scaffolded slices need them on.</summary>
         public void ScaffoldStateTypes()
@@ -527,7 +687,7 @@ public static class SliceScaffolder
                 }
 
                 var identifier = IdentifierFor(state.Type.Name);
-                var filePath = pathFor(state.Domain, identifier);
+                var filePath = pathFor(state.Groups, identifier);
                 if (_options.FileExists(filePath))
                 {
                     Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, $"{state.Type.Name} ({kind})",
@@ -536,7 +696,7 @@ public static class SliceScaffolder
                 }
 
                 // A name-only aggregate or view: ours to write in full
-                var file = new SliceFile(this, namespaceFor(state.Domain));
+                var file = new SliceFile(this, namespaceFor(state.Groups));
                 var writer = file.Body;
 
                 writer.WriteLine($"// Scaffolded by `wolverine scaffold` for the declared {kind} '{state.Type.Name}'.");
@@ -557,17 +717,29 @@ public static class SliceScaffolder
             }
         }
 
-        private void add(string subject, string path, SliceFile file)
+        private void add(string subject, string path, SliceFile file, string? note = null)
         {
             Files.Add(new ScaffoldFile(path, file.Render()));
-            Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, subject, "scaffolded.", path));
+            Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, subject, "scaffolded." + note, path));
         }
 
-        private string namespaceFor(string? domain)
-            => domain is null ? _options.RootNamespace : $"{_options.RootNamespace}.{IdentifierFor(domain)}";
+        // GH-4891: a folder, and a namespace, per domain and per chapter of the model
+        private static string[] groupsOf(EventModelSliceDescriptor slice)
+            => new[] { slice.Domain, slice.Chapter }
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => IdentifierFor(x!))
+                .ToArray();
 
-        private static string pathFor(string? domain, string identifier)
-            => domain is null ? $"{identifier}.cs" : Path.Combine(IdentifierFor(domain), $"{identifier}.cs");
+        private string namespaceFor(EventModelSliceDescriptor slice) => namespaceFor(groupsOf(slice));
+
+        private string namespaceFor(string[] groups)
+            => string.Join(".", new[] { _options.RootNamespace }.Concat(groups));
+
+        private static string pathFor(EventModelSliceDescriptor slice, string identifier)
+            => pathFor(groupsOf(slice), identifier);
+
+        private static string pathFor(string[] groups, string identifier)
+            => Path.Combine(groups.Append($"{identifier}.cs").ToArray());
 
         private static string argumentFor(string typeName)
         {
@@ -580,10 +752,11 @@ public static class SliceScaffolder
         private sealed class SliceFile
         {
             private readonly ScaffoldContext _context;
-            private readonly string _namespace;
+            private readonly string? _namespace;
             private readonly List<string> _stubs = new();
 
-            public SliceFile(ScaffoldContext context, string @namespace)
+            // A null namespace: the code is appended into an existing file, which already has one
+            public SliceFile(ScaffoldContext context, string? @namespace)
             {
                 _context = context;
                 _namespace = @namespace;
@@ -616,6 +789,20 @@ public static class SliceScaffolder
                 writer.WriteLine($"namespace {_namespace};");
                 writer.BlankLine();
 
+                writeBody(writer);
+                return writer.Code();
+            }
+
+            /// <summary>The stubs and the body alone, with no usings or namespace: code to append to a file.</summary>
+            public string RenderBody()
+            {
+                var writer = new SourceWriter();
+                writeBody(writer);
+                return writer.Code();
+            }
+
+            private void writeBody(SourceWriter writer)
+            {
                 foreach (var stub in _stubs)
                 {
                     writer.WriteLine("// TODO: declared by name only -- give it its fields");
@@ -629,12 +816,10 @@ public static class SliceScaffolder
                     if (text.Length == 0) writer.BlankLine();
                     else writer.WriteLine(text);
                 }
-
-                return writer.Code();
             }
         }
 
-        private sealed record StateType(TypeDescriptor Type, string? Domain, bool IsView)
+        private sealed record StateType(TypeDescriptor Type, string[] Groups, bool IsView)
         {
             public List<TypeDescriptor> Events { get; } = new();
         }

@@ -106,6 +106,22 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
             {
                 foreach (var file in plan.Files)
                 {
+                    if (file.AppendClass is not null)
+                    {
+                        // GH-4891: the handler goes into the file that declares its command. The source
+                        // finder reports that file relative to the current directory.
+                        var target = Path.Combine(Directory.GetCurrentDirectory(), file.RelativePath);
+                        var appended = SliceScaffolder.AppendTo(await File.ReadAllTextAsync(target), file);
+                        if (appended is null)
+                        {
+                            Console.WriteLine($"EXISTS {file.RelativePath} -- {file.AppendClass} is already declared there; nothing appended.");
+                            continue;
+                        }
+
+                        await File.WriteAllTextAsync(target, appended);
+                        continue;
+                    }
+
                     var path = Path.Combine(output, file.RelativePath);
                     if (Path.GetDirectoryName(path) is { Length: > 0 } directory) Directory.CreateDirectory(directory);
 
