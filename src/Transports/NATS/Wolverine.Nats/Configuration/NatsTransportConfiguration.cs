@@ -152,8 +152,8 @@ public class NatsTransportConfiguration
 /// The stream limits -- <see cref="MaxAge"/>, <see cref="MaxMessages"/>, <see cref="MaxBytes"/> and
 /// <see cref="Replicas"/> -- apply only to a stream that resource setup (<c>resources setup</c> /
 /// <c>AddResourceSetupOnStartup()</c>) creates because a JetStream endpoint's stream does not exist yet. A stream
-/// declared through <c>DefineStream()</c> and friends is created from its declaration when the transport
-/// connects and does not inherit them: a limit its
+/// declared through <c>DefineStream()</c> and friends is created from its declaration at startup or by resource
+/// setup and does not inherit them: a limit its
 /// <see cref="StreamConfiguration"/> leaves unset is unlimited, and its replica count is
 /// <see cref="StreamConfiguration.Replicas"/>. Of the stream settings here, only <see cref="DuplicateWindow"/>
 /// also applies to declared streams.

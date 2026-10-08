@@ -643,6 +643,20 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         return listener;
     }
 
+    /// <summary>
+    /// Startup, right after the transport connected: the declared streams have to be in place before any listener
+    /// starts. Resource checks and the other resource operations never get here, so they provision nothing.
+    /// </summary>
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        await _transport.ProvisionDeclaredStreamsAsync(explicitSetup: false);
+    }
+
+    /// <summary>
+    /// <c>resources check</c>: whether this endpoint's stream exists, and -- read-only -- whether a declared one
+    /// matches its declaration where startup would act on a difference. A missing stream is reported as missing;
+    /// a differing one throws with the differences, which the resource reports with the endpoint.
+    /// </summary>
     public async ValueTask<bool> CheckAsync()
     {
         _connection ??= _transport.Connection;
@@ -657,19 +671,28 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             return true;
         }
 
+        StreamConfig existing;
         try
         {
             var js = _transport.CreateJetStreamContext();
-            var stream = await js.GetStreamAsync(
-                StreamName,
-                cancellationToken: CancellationToken.None
-            );
-            return stream != null;
+            existing = (await js.GetStreamAsync(StreamName, cancellationToken: CancellationToken.None)).Info.Config;
         }
-        catch
+        catch (NatsJSApiException e) when (e.Error.Code == 404)
         {
+            // Only "stream not found" means missing. Any other failure -- no JetStream answering for the domain,
+            // missing permissions, a timeout -- propagates, so the check reports it instead of a missing stream
             return false;
         }
+
+        var deviations = _transport.DeclaredStreamDeviations(StreamName, existing);
+        if (deviations.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"JetStream stream '{StreamName}' does not match its declaration ({_transport.Configuration.StreamProvisioning}): " +
+                string.Join("; ", deviations));
+        }
+
+        return true;
     }
 
     public async ValueTask TeardownAsync(ILogger logger)
@@ -719,6 +742,10 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             throw new InvalidOperationException("NATS connection is not available or not open");
         }
 
+        // The declared streams first, from their declarations and as Provisioning says -- also those no endpoint
+        // uses, and with Verify failing the setup. Once per resource setup, whichever endpoint gets here first
+        await _transport.ProvisionDeclaredStreamsAsync(explicitSetup: true);
+
         if (!UseJetStream || string.IsNullOrEmpty(StreamName))
         {
             logger.LogInformation("Using Core NATS for subject {Subject}", Subject);
@@ -738,16 +765,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         {
             // Only a missing stream is created. Any other failure -- no JetStream answering for the domain,
             // missing permissions, a timeout -- propagates instead of being taken for "not found"
-            var subjects = new List<string> { Subject };
-
-            if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
-            {
-                var wildcardPattern = _transport.TenantSubjectMapper.GetSubscriptionPattern(Subject);
-                if (wildcardPattern != Subject)
-                {
-                    subjects.Add(wildcardPattern);
-                }
-            }
+            var subjects = StreamSubjects();
 
             StreamConfig config;
             if (_transport.Configuration.Streams.TryGetValue(StreamName, out var declared))
@@ -823,6 +841,25 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// GH-4956. Whether a NATS subject pattern (with <c>*</c> for one token and <c>&gt;</c> for the rest) covers a
     /// concrete subject, the way the server matches a stream's subjects
     /// </summary>
+    /// <summary>
+    /// The subjects a stream this endpoint uses has to capture: its own, and with tenants the tenant pattern
+    /// </summary>
+    internal List<string> StreamSubjects()
+    {
+        var subjects = new List<string> { Subject };
+
+        if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var wildcardPattern = _transport.TenantSubjectMapper.GetSubscriptionPattern(Subject);
+            if (wildcardPattern != Subject)
+            {
+                subjects.Add(wildcardPattern);
+            }
+        }
+
+        return subjects;
+    }
+
     internal static bool SubjectCovers(string pattern, string subject)
     {
         if (pattern == subject)

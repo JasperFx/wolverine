@@ -1000,12 +1000,24 @@ consumer — a different storage type, a change to or from work-queue retention 
 :::
 
 `Verify` is meant for streams and consumers provisioned outside the application, for example by infrastructure as
-code. Stream deviations surface while the transport connects, so Wolverine's usual broker initialization retries
+code. Stream deviations surface while the transport starts, so Wolverine's usual broker initialization retries
 apply until `WolverineOptions.BrokerInitializationTimeout` elapses; a consumer deviation fails the listener as it
-starts. `Verify` checks the declared streams whether or not `AutoProvision()` is on, since it never creates
-anything itself. `resources setup` / `AddResourceSetupOnStartup()` is not affected by this setting; it writes the
-same consumer settings the listener does, so a start after resource setup finds nothing to reconcile or to fail
-`Verify` on.
+starts. `Verify` checks the declared streams whether or not `AutoProvision` is on, since it never creates
+anything itself.
+
+### Resource Commands
+
+Only startup and resource setup provision declared streams; the other `resources` commands never create or
+change one:
+
+| Command | Declared streams |
+|---|---|
+| `resources setup` / `AddResourceSetupOnStartup()` | Created when missing — also with `AutoProvision` off, since setup is the explicit way to create broker objects — and existing ones handled as `Provisioning()` says; under `Verify` a missing or differing stream fails the setup |
+| `resources check` | Read only. Fails for a missing stream of a JetStream endpoint and, under `CreateOrUpdate` or `Verify`, for one that differs from its declaration — whatever startup would create, change or fail on. It checks the streams the endpoints use on the shared connection, not the tenants' servers |
+| `resources statistics`, `resources clear`, `resources teardown` | Left alone; they work under any `Provisioning()` setting. `teardown` deletes the named consumers of JetStream listeners |
+
+Resource setup writes the same consumer settings the listener does, whatever the `Provisioning()` setting, so a
+start after resource setup finds nothing to reconcile or to fail `Verify` on.
 
 ## Subject Prefix
 

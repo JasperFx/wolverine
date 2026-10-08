@@ -306,24 +306,10 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             }
         }
 
-        // Verify creates nothing, so it has to run even with AutoProvision off -- the natural companion setting
-        // for streams managed outside the application, and the case Verify exists for
-        var autoProvisionStreams = Configuration.Streams.Any() &&
-                                   (Configuration.AutoProvision ||
-                                    Configuration.StreamProvisioning == NatsProvisioning.Verify);
-
-        // Collected over the shared and every tenant connection, so Verify reports all of it at once
-        var deviations = new List<string>();
-
         if (Configuration.EnableJetStream)
         {
             _jetStreamContext = CreateJetStreamContext();
             _logger.LogInformation("JetStream context initialized");
-
-            if (autoProvisionStreams)
-            {
-                deviations.AddRange(await ProvisionStreamsAsync(_jetStreamContext));
-            }
         }
 
         // Tenants that declare their own connection string / credentials get a dedicated connection they
@@ -341,14 +327,53 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             logDroppedMessages(tenantConnection);
             tenant.Connection = tenantConnection;
             _logger.LogInformation("Created dedicated NATS connection for tenant {TenantId}", tenant.TenantId);
+        }
 
-            // Each tenant server is its own JetStream instance, so mirror the configured streams onto it
-            // (the streams the shared connection just provisioned don't exist on the tenant's server).
-            if (Configuration.EnableJetStream && autoProvisionStreams)
-            {
-                var tenantDeviations = await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
-                deviations.AddRange(tenantDeviations.Select(x => $"{x} (tenant '{tenant.TenantId}')"));
-            }
+        // Connecting does not provision: every operation of the transport's resource reconnects first, and
+        // resources check, clear, teardown and statistics must neither create nor change a stream, nor fail on
+        // a Verify deviation. Startup and resource setup provision through the endpoints, once per connection.
+        _declaredStreams = null;
+    }
+
+    private Task? _declaredStreams;
+
+    /// <summary>
+    /// Create the declared streams that are missing, and handle the ones that exist as
+    /// <see cref="NatsTransportConfiguration.Provisioning"/> says, on the shared connection and on every tenant's
+    /// dedicated connection. Runs once per <see cref="ConnectAsync"/>, whichever endpoint asks first: at startup
+    /// <see cref="NatsEndpoint.InitializeAsync"/>, which keeps a <see cref="NatsProvisioning.Verify"/> deviation
+    /// inside the broker initialization retries, and for resource setup <see cref="NatsEndpoint.SetupAsync"/>.
+    /// </summary>
+    /// <param name="explicitSetup">
+    /// True for resource setup, the explicit way to create broker objects, which provisions the declared streams
+    /// even when <see cref="NatsTransportConfiguration.AutoProvision"/> is off
+    /// </param>
+    internal Task ProvisionDeclaredStreamsAsync(bool explicitSetup)
+    {
+        return _declaredStreams ??= provisionDeclaredStreamsAsync(explicitSetup);
+    }
+
+    private async Task provisionDeclaredStreamsAsync(bool explicitSetup)
+    {
+        // Verify creates nothing, so it has to run even with AutoProvision off -- the natural companion setting
+        // for streams managed outside the application, and the case Verify exists for
+        if (!Configuration.EnableJetStream || !Configuration.Streams.Any() ||
+            !(explicitSetup || Configuration.AutoProvision ||
+              Configuration.StreamProvisioning == NatsProvisioning.Verify))
+        {
+            return;
+        }
+
+        // Collected over the shared and every tenant connection, so Verify reports all of it at once
+        var deviations = new List<string>();
+        deviations.AddRange(await ProvisionStreamsAsync(JetStreamContext, addEndpointSubjects: explicitSetup));
+
+        // Each tenant server is its own JetStream instance, so mirror the configured streams onto it (the streams
+        // the shared connection just provisioned don't exist on the tenant's server).
+        foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
+        {
+            var tenantDeviations = await ProvisionStreamsAsync(CreateJetStreamContext(GetTenantConnection(tenant)));
+            deviations.AddRange(tenantDeviations.Select(x => $"{x} (tenant '{tenant.TenantId}')"));
         }
 
         if (deviations.Count > 0)
@@ -357,6 +382,51 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                 $"NATS provisioning is set to {nameof(NatsProvisioning.Verify)}, and the JetStream server does not match the declared streams:{Environment.NewLine}- " +
                 string.Join($"{Environment.NewLine}- ", deviations));
         }
+    }
+
+    // GH-4956: a declared stream resource setup creates also takes the subjects of the endpoints using it that the
+    // declaration does not cover, as NatsEndpoint.SetupAsync does for a declared stream it finds missing. A mirror
+    // has no subjects of its own
+    private void addUncoveredEndpointSubjects(string stream, StreamConfig desired)
+    {
+        if (desired.Mirror != null)
+        {
+            return;
+        }
+
+        var subjects = (desired.Subjects ?? []).ToList();
+        foreach (var subject in _endpoints.Where(x => x.UseJetStream && x.StreamName == stream)
+                     .SelectMany(x => x.StreamSubjects()))
+        {
+            if (!subjects.Any(declared => NatsEndpoint.SubjectCovers(declared, subject)))
+            {
+                subjects.Add(subject);
+            }
+        }
+
+        desired.Subjects = subjects;
+    }
+
+    /// <summary>
+    /// Read-only: where an existing stream differs from its declaration in a way startup would act on -- update it
+    /// under <see cref="NatsProvisioning.CreateOrUpdate"/>, fail under <see cref="NatsProvisioning.Verify"/>.
+    /// Empty for a stream that is not declared, and under <see cref="NatsProvisioning.CreateOnly"/>, which leaves an
+    /// existing stream as it is.
+    /// </summary>
+    internal IReadOnlyList<string> DeclaredStreamDeviations(string name, StreamConfig existing)
+    {
+        // Startup leaves existing streams alone under CreateOnly, and provisions nothing with AutoProvision off
+        // (unless it only verifies)
+        var provisioning = Configuration.StreamProvisioning;
+        if (provisioning == NatsProvisioning.CreateOnly ||
+            !(Configuration.AutoProvision || provisioning == NatsProvisioning.Verify) ||
+            !Configuration.Streams.TryGetValue(name, out var config))
+        {
+            return [];
+        }
+
+        var desired = JetStreamProvisioning.BuildStreamConfig(name, config, Configuration.JetStreamDefaults);
+        return JetStreamProvisioning.CompareStream(desired, existing);
     }
 
     /// <summary>
@@ -582,7 +652,8 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     /// <see cref="NatsTransportConfiguration.Provisioning"/> says.
     /// </summary>
     /// <returns>Every deviation <see cref="NatsProvisioning.Verify"/> found; empty in the other modes</returns>
-    private async Task<IReadOnlyList<string>> ProvisionStreamsAsync(INatsJSContext js)
+    private async Task<IReadOnlyList<string>> ProvisionStreamsAsync(INatsJSContext js,
+        bool addEndpointSubjects = false)
     {
         var provisioning = Configuration.StreamProvisioning;
         var deviations = new List<string>();
@@ -619,11 +690,16 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                         continue;
                     }
 
+                    if (addEndpointSubjects)
+                    {
+                        addUncoveredEndpointSubjects(name, desired);
+                    }
+
                     await js.CreateStreamAsync(desired);
                     _logger?.LogInformation(
                         "Created stream {StreamName} with subjects: {Subjects}",
                         name,
-                        string.Join(", ", config.Subjects)
+                        string.Join(", ", desired.Subjects ?? [])
                     );
                     continue;
                 }
