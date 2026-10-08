@@ -185,6 +185,9 @@ public class NatsListenerConfiguration
     /// <c>UseJetStream(streamName, consumerName)</c>, Wolverine keeps that
     /// consumer's existing <c>DeliverPolicy</c> and ignores this override, as
     /// JetStream does not allow changing it on an existing consumer.
+    ///
+    /// A stream with work-queue retention refuses any consumer that does not
+    /// deliver all, so on such a stream only <c>All</c> works.
     /// </summary>
     public NatsListenerConfiguration DeliverFrom(ConsumerConfigDeliverPolicy deliverPolicy)
     {

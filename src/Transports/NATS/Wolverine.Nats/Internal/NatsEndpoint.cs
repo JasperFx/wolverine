@@ -277,12 +277,22 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// <see cref="DeliverPolicy"/> wins over the transport-wide
     /// <see cref="Configuration.JetStreamDefaults.DeliverPolicy"/>, with
     /// <c>null</c> meaning "leave the consumer config alone and let the NATS
-    /// server default apply". Computed at access time so override mutations
-    /// performed during host bootstrap are picked up regardless of ordering
-    /// between transport / listener configuration calls.
+    /// server default apply". A shard listener on the work-queue stream
+    /// <c>UseShardedNatsSubjects()</c> declares delivers all instead of the
+    /// transport-wide default, the only policy a work-queue stream accepts.
+    /// Computed at access time so override mutations performed during host
+    /// bootstrap are picked up regardless of ordering between transport /
+    /// listener configuration calls.
     /// </summary>
     public ConsumerConfigDeliverPolicy? EffectiveDeliverPolicy =>
-        DeliverPolicy ?? _transport.Configuration.JetStreamDefaults.DeliverPolicy;
+        DeliverPolicy ?? (consumesShardStream
+            ? ConsumerConfigDeliverPolicy.All
+            : _transport.Configuration.JetStreamDefaults.DeliverPolicy);
+
+    private bool consumesShardStream =>
+        StreamName != null &&
+        _transport.Configuration.Streams.TryGetValue(StreamName, out var stream) &&
+        stream.DeclaredByShardTopology;
 
     /// <summary>
     /// The subject pattern this endpoint's listener consumes: the plain <see cref="Subject"/>, or the tenant

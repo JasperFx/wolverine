@@ -215,6 +215,11 @@ public class JetStreamDefaults
     /// to consumers Wolverine itself auto-provisions; pre-created consumers
     /// referenced by name keep whatever <c>DeliverPolicy</c> they were
     /// originally created with.
+    ///
+    /// A stream with work-queue retention only accepts consumers that deliver
+    /// all. Shard listeners on the streams <c>UseShardedNatsSubjects()</c>
+    /// declares therefore ignore this default; a listener on a work-queue stream
+    /// the application declares needs <c>DeliverFrom(All)</c> when it is set.
     /// </summary>
     public ConsumerConfigDeliverPolicy? DeliverPolicy { get; set; }
 }

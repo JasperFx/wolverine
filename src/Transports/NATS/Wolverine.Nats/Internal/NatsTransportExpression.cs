@@ -372,7 +372,8 @@ public class NatsTransportExpression
             DenyDelete = source.DenyDelete,
             DenyPurge = source.DenyPurge,
             DuplicateWindow = source.DuplicateWindow,
-            AllowMsgSchedules = source.AllowMsgSchedules
+            AllowMsgSchedules = source.AllowMsgSchedules,
+            DeclaredByShardTopology = source.DeclaredByShardTopology
         };
     }
 

@@ -254,6 +254,13 @@ opts.ListenToNatsSubject("orders.received")
 
 The per-listener override always wins over the transport-wide default. When neither is set Wolverine writes nothing to the consumer config and the NATS server default (`All`) applies.
 
+A stream with work-queue retention refuses any consumer that does not deliver all (`consumer must be deliver all
+on workqueue stream`, err 10101). The shard listeners of [`UseShardedNatsSubjects()`](#global-partitioning)
+therefore always deliver all on the work-queue streams Wolverine declares for them, whatever the transport-wide
+default says. On a work-queue stream you declare yourself, give the listeners
+`DeliverFrom(ConsumerConfigDeliverPolicy.All)` when you set a transport-wide default. The same goes for the stream
+resource setup creates for a JetStream endpoint whose stream is not declared, which gets work-queue retention.
+
 The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine keeps that consumer's existing `DeliverPolicy` regardless of `DeliverFrom(...)` — JetStream does not allow changing it on an existing consumer, so pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
 
 | `ConsumerConfigDeliverPolicy` | Effect |

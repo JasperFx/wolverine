@@ -1,5 +1,6 @@
 using NATS.Client.JetStream.Models;
 using Shouldly;
+using Wolverine.ComplianceTests.Partitioning;
 using Wolverine.Nats.Configuration;
 using Wolverine.Nats.Internal;
 using Xunit;
@@ -112,5 +113,37 @@ public class NatsDeliverPolicyTests
         ((Wolverine.Configuration.IDelayedEndpointConfiguration)configuration).Apply();
 
         endpoint.EffectiveDeliverPolicy.ShouldBe(policy);
+    }
+
+    [Fact]
+    public void shard_listeners_on_their_own_work_queue_streams_deliver_all()
+    {
+        // A work-queue stream only accepts DeliverPolicy.All, so a transport-wide New made the server refuse
+        // every shard consumer (10101) once 6.47 declared the shard streams with work-queue retention
+        var opts = new WolverineOptions();
+        opts.UseNats("nats://localhost:4222")
+            .UseJetStream(js => js.DeliverPolicy = ConsumerConfigDeliverPolicy.New);
+        opts.UseShardedLetters(topology => topology.UseShardedNatsSubjects("letters", 2));
+
+        // Declared after the topology, on purpose: a stream of the shard's name the application declares itself
+        // keeps the transport-wide policy, whatever the order of the two calls
+        opts.UseNats("nats://localhost:4222").DefineStream("LETTERS1", s => s.WithSubjects("letters1"));
+
+        var transport = opts.Transports.GetOrCreate<NatsTransport>();
+        transport.EndpointForSubject("letters1").EffectiveDeliverPolicy.ShouldBe(ConsumerConfigDeliverPolicy.New);
+        transport.EndpointForSubject("letters2").EffectiveDeliverPolicy.ShouldBe(ConsumerConfigDeliverPolicy.All);
+    }
+
+    [Fact]
+    public void an_explicit_deliver_from_on_a_shard_listener_still_wins()
+    {
+        var opts = new WolverineOptions();
+        opts.UseNats("nats://localhost:4222");
+        opts.UseShardedLetters(topology => topology.UseShardedNatsSubjects("letters", 2));
+
+        var endpoint = opts.Transports.GetOrCreate<NatsTransport>().EndpointForSubject("letters1");
+        endpoint.DeliverPolicy = ConsumerConfigDeliverPolicy.Last;
+
+        endpoint.EffectiveDeliverPolicy.ShouldBe(ConsumerConfigDeliverPolicy.Last);
     }
 }

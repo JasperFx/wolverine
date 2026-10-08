@@ -55,6 +55,12 @@ public class StreamConfiguration
     public Placement? Placement { get; set; }
 
     /// <summary>
+    /// True for the work-queue stream <c>UseShardedNatsSubjects()</c> declares for a shard because the application
+    /// declared no stream of that name itself
+    /// </summary>
+    internal bool DeclaredByShardTopology { get; set; }
+
+    /// <summary>
     /// Add a subject to this stream
     /// </summary>
     public StreamConfiguration WithSubject(string subject)
