@@ -96,6 +96,7 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
 {
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
+    private readonly TimeSpan? _window;
     private Variable? _session;
     private Variable? _deduplicator;
 
@@ -105,11 +106,15 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
     /// does not rest on it: a refusal returns before any commit, so a claim enlisted ahead of one would
     /// never be written either.
     /// </param>
+    /// <param name="window">
+    /// The chain's <see cref="Wolverine.Persistence.DeduplicationRequirement.Window" />, or null for the host-wide window.
+    /// </param>
     public QueuePolecatDeduplicationClaimFrame(Variable deduplicationId, Variable isDuplicate,
-        Type? ancillaryStoreMarker)
+        Type? ancillaryStoreMarker, TimeSpan? window)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
+        _window = window;
         uses.Add(isDuplicate);
     }
 
@@ -118,7 +123,7 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
         writer.WriteComment("GH-4570: claim the logical deduplication id inside this Polecat transaction");
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
-            $"{_deduplicator!.Usage}.{nameof(IPolecatDeduplicator.QueueClaim)}({_session!.Usage}, {_deduplicationId.Usage}, {PolecatDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
+            $"{_deduplicator!.Usage}.{nameof(IPolecatDeduplicator.QueueClaim)}({_session!.Usage}, {_deduplicationId.Usage}, {DeduplicationWindowRendering.ArgumentFor(_window)}{PolecatDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);

@@ -132,6 +132,53 @@ opts.UseNats("nats://localhost:4222")
     );
 ```
 
+### Customizing the NATS Client Options <Badge type="tip" text="6.47" />
+
+For NATS.Net client settings the transport does not surface itself, `ConfigureNatsOpts()` hands you the
+`NatsOpts` Wolverine built for a connection and opens the connection with whatever you return. It runs last,
+after Wolverine has applied its own configuration and named the connection, and it applies to the shared
+connection and to every tenant's [dedicated connection](#per-tenant-connections):
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .ConfigureNatsOpts(o => o with
+    {
+        // Core NATS subscriptions buffer up to SubPendingChannelCapacity messages per subscription
+        // and, by default, drop the newest ones once that buffer is full
+        SubPendingChannelCapacity = 4096,
+
+        // Notice a dead connection sooner than the client default of 2 minutes x 2 missed pings
+        PingInterval = TimeSpan.FromSeconds(10)
+    });
+```
+
+Without the hook the NATS.Net defaults apply unchanged: a pending channel of 1,024 messages per subscription
+that drops the newest message when full (`BoundedChannelFullMode.DropNewest`), and a ping every two minutes with
+two outstanding pings allowed. Think twice before switching `SubPendingChannelFullMode` to `Wait`: a full channel
+then stalls the connection's read loop instead of dropping, so one slow core NATS listener holds up every
+subscription on that connection, and the server eventually disconnects the client as a slow consumer.
+
+A tenant added with its own connection configuration can set `ConfigureNatsOpts` on that configuration, which
+replaces the transport's hook for that tenant's connection:
+
+```csharp
+opts.UseNats("nats://shared:4222")
+    .AddTenant("tenant-a", cfg =>
+    {
+        cfg.ConnectionString = "nats://tenant-a-host:4222";
+        cfg.ConfigureNatsOpts = o => o with { SubPendingChannelCapacity = 10_000 };
+    });
+```
+
+### Dropped Core NATS Messages <Badge type="tip" text="6.47" />
+
+A core NATS subscription buffers incoming messages in a pending channel of 1,024 messages, and NATS.Net drops the
+newest message once that channel is full. Core NATS never redelivers it. Wolverine logs a warning from
+`NatsTransport` for every dropped message (subject, subscription, connection) and one for each slow-consumer
+episode of a subscription, on the shared and on the tenant connections. If you see them, raise
+`SubPendingChannelCapacity` through `ConfigureNatsOpts()`, scale out the listener, or move the subject to
+JetStream.
+
 ## Authentication
 
 ### Username and Password
@@ -176,6 +223,12 @@ opts.UseNats("nats://localhost:4222")
     });
 ```
 
+`MaxDeliver`, `AckWait` and `DeliverPolicy` apply to the consumers of Wolverine's JetStream listeners. The stream
+limits in `JetStreamDefaults` (`MaxAge`, `MaxMessages`, `MaxBytes`, `Replicas`) only apply to a stream that
+`resources setup` / `AddResourceSetupOnStartup()` creates because a JetStream endpoint's stream does not exist yet. A stream
+you declare with `DefineStream()` and friends does not inherit them — whatever its declaration leaves unset is
+unlimited — and only `DuplicateWindow` serves as its default.
+
 ### Consumer Deliver Policy
 
 When Wolverine auto-provisions a JetStream consumer for a listener it leaves the consumer config's `DeliverPolicy` unset, which falls through to NATS's own default of `DeliverPolicy.All` — every message currently in the stream is replayed when the consumer first connects. For new listeners attached to a long-running stream that's usually not what you want.
@@ -201,7 +254,7 @@ opts.ListenToNatsSubject("orders.received")
 
 The per-listener override always wins over the transport-wide default. When neither is set Wolverine writes nothing to the consumer config and the NATS server default (`All`) applies.
 
-The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine reuses that consumer's existing configuration regardless of `DeliverFrom(...)` — pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
+The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine keeps that consumer's existing `DeliverPolicy` regardless of `DeliverFrom(...)` — JetStream does not allow changing it on an existing consumer, so pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
 
 | `ConsumerConfigDeliverPolicy` | Effect |
 |---|---|
@@ -219,6 +272,23 @@ The override only applies to consumers Wolverine itself auto-provisions. If you 
 opts.UseNats("nats://localhost:4222")
     .DefineWorkQueueStream("ORDERS", "orders.>");
 ```
+
+::: warning Interest retention, not JetStream work-queue retention
+Despite their names, `DefineWorkQueueStream()` and `StreamConfiguration.AsWorkQueue()` set
+`StreamConfigRetention.Interest`. An interest stream keeps a message only while a consumer is interested in it,
+so a message published while no consumer is bound — before the first listener starts, or between two
+deployments — is discarded on arrival. For JetStream's work-queue retention, which keeps every message until a
+consumer acknowledges it, set the retention explicitly:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .DefineStream("ORDERS", s =>
+    {
+        s.WithSubjects("orders.>");
+        s.Retention = StreamConfigRetention.Workqueue;
+    });
+```
+:::
 
 #### Work Queue with Additional Configuration
 
@@ -264,6 +334,11 @@ For multi-tenant or leaf node configurations:
 opts.UseNats("nats://localhost:4222")
     .UseJetStreamDomain("my-domain");
 ```
+
+The domain applies to every JetStream call the transport makes: publishing, listening, auto-provisioning, and
+the stream and consumer setup done by `resources setup` / `AddResourceSetupOnStartup()`
+<Badge type="tip" text="6.47" />. Resource setup only creates a stream when the lookup reports it as missing;
+any other failure, such as no JetStream answering for the domain, fails the setup instead.
 
 ## Listening to Messages
 
@@ -702,15 +777,34 @@ var response = await bus.InvokeAsync<OrderConfirmation>(new CreateOrder(...));
 
 The response endpoint always uses Core NATS for low-latency replies, even when the main endpoints use JetStream.
 
+When a request goes to a core NATS subject that nothing subscribes to, the NATS server answers it with a
+"no responders" status, and `InvokeAsync()` fails at once with a `WolverineRequestReplyException` instead of
+waiting out its timeout <Badge type="tip" text="6.47" />. To tie that answer to the request, every request
+carries its own reply subject on the wire — the node's reply subject plus a per-request token,
+`wolverine.response.{service}.{node}.{token}` — and the reply listener also subscribes to
+`wolverine.response.{service}.{node}.>`. A Wolverine responder answers on exactly the reply subject the request
+carried, so it keeps working when its NATS user may only publish responses (`allow_responses`).
+
 ## Error Handling
 
 ### JetStream
 
+- **Rejected publishes** <Badge type="tip" text="6.47" />: a JetStream publish the server refuses — the stream is
+  full under `DiscardPolicy.New`, a `Nats-Expected-Last-Sequence` (or other `Nats-Expected-*`) check fails, the
+  message is larger than the stream allows — fails the send with a `NatsJSApiException`. A durable outbox keeps the
+  message and retries it through the sending agent's circuit breaker instead of deleting it as sent. A publish the
+  stream discards as a duplicate `Nats-Msg-Id` is still a successful send, because the stream already holds that
+  message.
 - **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
-- **Dead Letter**: Once delivery attempts are exhausted, the poison message is first forwarded to the
-  configured dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
-  `AckTerminateAsync(reason)` so the server stops redelivering and records why. If **no** dead-letter subject
+- **Dead Letter**: When Wolverine's error handling moves a message to the error queue — once its retries are
+  used up, or at once for `MoveToErrorQueue()` — the poison message is first forwarded to the configured
+  dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
+  `AckTerminateAsync(reason)` so the server stops redelivering and records why. <Badge type="tip" text="6.47" />
+  This no longer waits for the consumer's `MaxDeliver` to be used up: Buffered and Inline listeners have
+  acknowledged the delivery by then, so a message moved to the error queue earlier used to be dropped. The copy
+  carries its own `Nats-Msg-Id` (`{original}.dead-letter`), so a dead-letter subject inside the original's stream
+  does not have it discarded as a duplicate of the original. If **no** dead-letter subject
   is configured, Wolverine logs a warning and the message is terminated without being retained — configure a
   dead-letter subject to keep poison messages. Messages forwarded to the dead-letter subject carry the
   standard Wolverine diagnostic headers (`exception-type`, `exception-message`, `exception-stack`,
@@ -736,6 +830,58 @@ Or use resource setup on startup:
 ```csharp
 opts.Services.AddResourceSetupOnStartup();
 ```
+
+### Existing Streams and Consumers <Badge type="tip" text="6.47" />
+
+By default Wolverine creates a missing declared stream or JetStream listener consumer. A declared stream that
+already exists is left as it is, because updating it can discard messages. A listener's named consumer that
+already exists is brought in line with the configuration, so a changed `MaxDeliver` or `AckWait` just works.
+`Provisioning()` changes what startup does with existing streams and consumers:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    // CreateOnly, CreateOrUpdate or Verify
+    .Provisioning(NatsProvisioning.CreateOrUpdate)
+    .DefineStream("ORDERS", s => s
+        .WithSubjects("orders.>")
+        .WithLimits(maxBytes: 10L * 1024 * 1024 * 1024));
+
+opts.ListenToNatsSubject("orders.received")
+    .UseJetStream("ORDERS", "order-processor")
+    .ConfigureDeadLetterQueue(maxDeliveryAttempts: 10);
+```
+
+| `Provisioning(...)` | Missing stream or consumer | Existing stream that differs | Existing named consumer that differs |
+|---|---|---|---|
+| not set (default) | Created | Left alone | Updated |
+| `CreateOnly` | Created | Left alone | Left alone |
+| `CreateOrUpdate` | Created | Updated | Updated |
+| `Verify` | Startup fails | Startup fails, listing every deviation | Startup fails, listing every deviation |
+
+If a named consumer is maintained outside the application, for example with the NATS CLI, use
+`Provisioning(NatsProvisioning.CreateOnly)` so Wolverine does not overwrite its `AckWait`, `MaxDeliver` or filter
+with its own values.
+
+Only the settings Wolverine itself writes are compared and updated: for a declared stream everything its
+`StreamConfiguration` surfaces (subjects, retention, storage, limits, discard policy, replicas, duplicate window
+and the allow/deny flags), and for a named consumer the explicit ack policy, `AckWait`, `MaxDeliver`, the filter
+subject(s) and a `MaxAckPending` Wolverine sizes. An update is applied on top of the configuration the server
+already has, so a description, metadata or any other setting maintained outside the application survives, and
+so does a consumer's `DeliverPolicy`.
+
+::: warning
+`CreateOrUpdate` applies what the configuration says. Lowering `MaxBytes`, `MaxMessages` or `MaxAge` makes the
+server discard messages to fit, and the server refuses changes JetStream does not allow on an existing stream or
+consumer — a different storage type, a change to or from work-queue retention — which then fails the start.
+:::
+
+`Verify` is meant for streams and consumers provisioned outside the application, for example by infrastructure as
+code. Stream deviations surface while the transport connects, so Wolverine's usual broker initialization retries
+apply until `WolverineOptions.BrokerInitializationTimeout` elapses; a consumer deviation fails the listener as it
+starts. `Verify` checks the declared streams whether or not `AutoProvision()` is on, since it never creates
+anything itself. `resources setup` / `AddResourceSetupOnStartup()` is not affected by this setting; it writes the
+same consumer settings the listener does, so a start after resource setup finds nothing to reconcile or to fail
+`Verify` on.
 
 ## Subject Prefix
 
@@ -830,9 +976,19 @@ This creates NATS subjects named `orders1` through `orders4` with companion loca
 ::: info JetStream is implied
 Global partitioning forces every slot into durable mode, and a NATS endpoint can only be durable when it
 is JetStream-backed. `UseShardedNatsSubjects()` therefore turns JetStream on for its own endpoints and
-declares a work-queue stream per shard (named after the subject, upper-cased, dots replaced with
-underscores) so `AutoProvision` creates it. Declare a stream of the same name yourself if you need
-different retention or replication.
+declares a stream per shard (named after the subject, upper-cased, dots replaced with underscores) so
+`AutoProvision` creates it. Declare a stream of the same name yourself if you need different retention or
+replication.
+:::
+
+::: tip Shard streams use work-queue retention <Badge type="tip" text="6.47" />
+The shard streams `UseShardedNatsSubjects()` declares use JetStream's work-queue retention
+(`StreamConfigRetention.Workqueue`), so a message waits in its shard until it is acknowledged even while no
+node is consuming that shard — at startup, or while the shard moves to another node. Earlier versions declared
+them with interest retention, which discards a message that arrives while no consumer is bound. This applies to
+shard streams created from now on: Wolverine leaves an existing stream as it is, and the server refuses to change
+an existing stream to or from work-queue retention, so recreate an old shard stream (once it is drained) to switch
+it.
 :::
 
 ## URI reference

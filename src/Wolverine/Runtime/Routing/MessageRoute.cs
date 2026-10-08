@@ -26,6 +26,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     private readonly IReplyTracker _replyTracker;
     private readonly MessagePartitioningRules _partitioning;
+    private readonly IWolverineRuntime _runtime;
     private protected readonly Endpoint _endpoint;
 
     /// <summary>
@@ -58,14 +59,13 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         _replyTracker = runtime.Replies;
         _partitioning = runtime.Options.MessagePartitioning;
 
-        if (WolverineSystemPart.WithinDescription)
+        _runtime = runtime;
+
+        if (!WolverineSystemPart.WithinDescription)
         {
-            Sender = endpoint.Agent!;
-        }
-        else
-        {
-            // Might need to force it to build out the sending agent if this is the first time it's been used
-            Sender = endpoint.Agent ?? runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri) ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
+            // Might need to force it to build out the sending agent if this is the first time it's been used.
+            // The agent is deliberately NOT captured here -- see the Sender property.
+            _ = endpoint.Agent ?? runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri) ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
         }
 
         IsLocal = endpoint is LocalQueue;
@@ -118,7 +118,36 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public bool IsLocal { get; }
 
     public IMessageSerializer Serializer { get; } = null!;
-    public ISendingAgent Sender { get; } = null!;
+    /// <summary>
+    ///     The sending agent for this route's endpoint, resolved on every read rather than captured once at
+    ///     construction. GH-4868: the idle sending agent reaper (GH-1908) disposes the agent of any non-durable
+    ///     endpoint that has been quiet for <see cref="DurabilitySettings.SendingAgentIdleTimeout" />, and
+    ///     <c>EndpointCollection.RemoveSendingAgentAsync</c> clears <see cref="Endpoint.Agent" /> so the next use
+    ///     rebuilds it (GH-3955). But this route is cached for the life of the process -- in
+    ///     <see cref="Endpoint.Routes" /> and in <c>MessageRouterBase</c> -- so a captured agent outlived its own
+    ///     disposal, and every later <c>InvokeAsync</c> through it (which is how every node agent command reaches
+    ///     a peer's control queue) was posted onto a completed block and silently dropped. One null check per
+    ///     read is the whole cost.
+    /// </summary>
+    public ISendingAgent Sender
+    {
+        get
+        {
+            var agent = _endpoint.Agent;
+            if (agent != null)
+            {
+                return agent;
+            }
+
+            // Description mode never builds agents, and CreateForSending tolerates the null
+            if (WolverineSystemPart.WithinDescription)
+            {
+                return null!;
+            }
+
+            return _runtime.Endpoints.GetOrBuildSendingAgent(_endpoint.Uri);
+        }
+    }
 
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -64,6 +65,104 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             : new Uri("nats://localhost:4222");
 
     public string ResponseSubject { get; private set; } = "wolverine.response";
+
+    /// <summary>
+    /// The reply subject a request carries on the wire. A request answered through this node's own
+    /// <see cref="ResponseSubject"/> gets its envelope id appended as one more token, which the reply listener's
+    /// <c>{ResponseSubject}.&gt;</c> subscription covers. NATS answers a request that reaches no subscriber with a
+    /// "no responders" status message on exactly that subject, and the token is what ties it back to the waiting
+    /// <c>InvokeAsync()</c>. Wolverine responders reply to the <c>reply-uri</c> header instead, which stays the
+    /// plain <see cref="ResponseSubject"/>.
+    /// </summary>
+    internal string WireReplySubjectFor(Envelope envelope)
+    {
+        var subject = ExtractSubjectFromUri(envelope.ReplyUri!);
+        return subject == ResponseSubject ? $"{subject}.{envelope.Id:N}" : subject;
+    }
+
+    private static readonly TimeSpan DroppedMessageWarningInterval = TimeSpan.FromSeconds(5);
+    private readonly ConcurrentDictionary<string, DroppedMessageCounter> _droppedMessages = new();
+
+    private sealed class DroppedMessageCounter
+    {
+        // Far enough in the past that the first drop is always reported
+        public long LastWarnedAt = Environment.TickCount64 - 2 * (long)DroppedMessageWarningInterval.TotalMilliseconds;
+        public long SinceLastWarning;
+        public long Total;
+    }
+
+    private static readonly TimeSpan WireReplySubjectLifetime = TimeSpan.FromMinutes(10);
+    private readonly ConcurrentDictionary<Guid, WireReplySubject> _wireReplySubjects = new();
+    private int _wireReplySubjectWrites;
+
+    private readonly record struct WireReplySubject(string BaseSubject, string Subject, long RememberedAt);
+
+    /// <summary>
+    /// The other half of <see cref="WireReplySubjectFor"/>, on the responding side. A responder whose NATS user may
+    /// only publish responses (<c>allow_responses</c>) may answer on exactly the reply subject the request carried,
+    /// while the request's <c>reply-uri</c> header names the plain response subject. So remember the wire subject
+    /// of a request received with a per-request token, for <see cref="ReplySubjectFor"/>. Replies take their entry;
+    /// entries of requests that are never answered expire.
+    /// </summary>
+    internal void RememberWireReplySubject(Envelope request, string? wireReplySubject)
+    {
+        if (request.ReplyUri == null || string.IsNullOrEmpty(wireReplySubject))
+        {
+            return;
+        }
+
+        var baseSubject = ExtractSubjectFromUri(request.ReplyUri);
+        if (wireReplySubject != $"{baseSubject}.{request.Id:N}")
+        {
+            return;
+        }
+
+        _wireReplySubjects[request.Id] = new WireReplySubject(baseSubject, wireReplySubject, Environment.TickCount64);
+
+        if (Interlocked.Increment(ref _wireReplySubjectWrites) % 1024 == 0)
+        {
+            var expired = Environment.TickCount64 - (long)WireReplySubjectLifetime.TotalMilliseconds;
+            foreach (var pair in _wireReplySubjects)
+            {
+                if (pair.Value.RememberedAt < expired)
+                {
+                    _wireReplySubjects.TryRemove(pair);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Where to publish a message bound for <paramref name="targetSubject"/>: the remembered wire reply subject when
+    /// the message answers a request (a response or an acknowledgement shares the request's id as its
+    /// <see cref="Envelope.ConversationId"/>) whose replies go to <paramref name="targetSubject"/>, otherwise
+    /// <paramref name="targetSubject"/> itself. Other messages of the same conversation are left alone.
+    /// </summary>
+    internal string ReplySubjectFor(Envelope envelope, string targetSubject)
+    {
+        if (envelope.ConversationId != Guid.Empty &&
+            _wireReplySubjects.TryGetValue(envelope.ConversationId, out var remembered) &&
+            remembered.BaseSubject == targetSubject)
+        {
+            return remembered.Subject;
+        }
+
+        return targetSubject;
+    }
+
+    /// <summary>
+    /// The reply to the request <paramref name="envelope"/> answers has reached the wire, so its entry is no
+    /// longer needed. Kept separate from <see cref="ReplySubjectFor"/> on purpose: a reply whose publish failed
+    /// is retried by the sending agent, and that retry has to find the per-request subject again -- the plain
+    /// response subject is exactly what a responder limited to <c>allow_responses</c> may not publish to.
+    /// </summary>
+    internal void ForgetWireReplySubject(Envelope envelope)
+    {
+        if (envelope.ConversationId != Guid.Empty)
+        {
+            _wireReplySubjects.TryRemove(envelope.ConversationId, out _);
+        }
+    }
 
     /// <summary>
     /// GH-4279. Make an arbitrary string safe to use as ONE token of a NATS subject. Deliberately not a
@@ -169,7 +268,9 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
         var natsOpts = Configuration.ToNatsOpts();
         natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}" };
+        natsOpts = Configuration.ConfigureNatsOpts?.Invoke(natsOpts) ?? natsOpts;
         _connection = new NatsConnection(natsOpts);
+        logDroppedMessages(_connection);
         await _connection.ConnectAsync();
 
         _logger.LogInformation("Connected to NATS at {Url}", Configuration.ConnectionString);
@@ -187,7 +288,14 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             }
         }
 
-        var autoProvisionStreams = Configuration.AutoProvision && Configuration.Streams.Any();
+        // Verify creates nothing, so it has to run even with AutoProvision off -- the natural companion setting
+        // for streams managed outside the application, and the case Verify exists for
+        var autoProvisionStreams = Configuration.Streams.Any() &&
+                                   (Configuration.AutoProvision ||
+                                    Configuration.StreamProvisioning == NatsProvisioning.Verify);
+
+        // Collected over the shared and every tenant connection, so Verify reports all of it at once
+        var deviations = new List<string>();
 
         if (Configuration.EnableJetStream)
         {
@@ -196,7 +304,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
             if (autoProvisionStreams)
             {
-                await ProvisionStreamsAsync(_jetStreamContext);
+                deviations.AddRange(await ProvisionStreamsAsync(_jetStreamContext));
             }
         }
 
@@ -206,6 +314,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
         {
             var tenantConnection = new NatsConnection(buildTenantNatsOpts(tenant));
+            logDroppedMessages(tenantConnection);
             tenant.Connection = tenantConnection;
             _logger.LogInformation("Created dedicated NATS connection for tenant {TenantId}", tenant.TenantId);
 
@@ -213,9 +322,67 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             // (the streams the shared connection just provisioned don't exist on the tenant's server).
             if (Configuration.EnableJetStream && autoProvisionStreams)
             {
-                await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
+                var tenantDeviations = await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
+                deviations.AddRange(tenantDeviations.Select(x => $"{x} (tenant '{tenant.TenantId}')"));
             }
         }
+
+        if (deviations.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"NATS provisioning is set to {nameof(NatsProvisioning.Verify)}, and the JetStream server does not match the declared streams:{Environment.NewLine}- " +
+                string.Join($"{Environment.NewLine}- ", deviations));
+        }
+    }
+
+    /// <summary>
+    /// A core NATS subscription buffers incoming messages in a bounded channel
+    /// (<see cref="NatsOpts.SubPendingChannelCapacity"/>), and under the default
+    /// <see cref="NatsOpts.SubPendingChannelFullMode"/> of <c>DropNewest</c> a full channel drops messages. Core NATS
+    /// never redelivers them, and NATS.Net reports the loss only through these connection events and its own
+    /// logger, which Wolverine does not wire up -- so without this the loss is invisible.
+    /// </summary>
+    private void logDroppedMessages(NatsConnection connection)
+    {
+        connection.MessageDropped += (_, args) =>
+        {
+            // One warning per subscription per interval, with the count: a slow consumer under a burst drops
+            // thousands of messages a second, and a warning for each of them would be its own load on the box
+            var counter = _droppedMessages.GetOrAdd($"{connection.Opts.Name}|{args.Subscription.Subject}",
+                _ => new DroppedMessageCounter());
+            var total = Interlocked.Increment(ref counter.Total);
+            Interlocked.Increment(ref counter.SinceLastWarning);
+
+            var now = Environment.TickCount64;
+            var lastWarnedAt = Volatile.Read(ref counter.LastWarnedAt);
+            if (now - lastWarnedAt < (long)DroppedMessageWarningInterval.TotalMilliseconds ||
+                Interlocked.CompareExchange(ref counter.LastWarnedAt, now, lastWarnedAt) != lastWarnedAt)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            var sinceLastWarning = Interlocked.Exchange(ref counter.SinceLastWarning, 0);
+            _logger?.LogWarning(
+                "NATS connection {Connection} dropped a message on subject {Subject}: the pending channel of subscription {Subscription} is full ({Pending} pending), and core NATS does not redeliver it. {Dropped} message(s) dropped on this subscription since the last warning, {Total} in all; further drops are reported at most every {Interval}. Raise the pending channel capacity (NatsOpts.SubPendingChannelCapacity) or scale out the listener",
+                connection.Opts.Name,
+                args.Subject,
+                args.Subscription.Subject,
+                args.Pending,
+                sinceLastWarning,
+                total,
+                DroppedMessageWarningInterval);
+            return ValueTask.CompletedTask;
+        };
+
+        connection.SlowConsumerDetected += (_, args) =>
+        {
+            _logger?.LogWarning(
+                "NATS subscription {Subscription} on connection {Connection} is a slow consumer: messages arrive faster than they are processed, and messages that do not fit into its pending channel of {Capacity} are dropped",
+                args.Subscription.Subject,
+                connection.Opts.Name,
+                connection.Opts.SubPendingChannelCapacity);
+            return ValueTask.CompletedTask;
+        };
     }
 
     public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
@@ -286,13 +453,19 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         return tenant.HasOwnConnection ? tenant.Connection ?? Connection : Connection;
     }
 
-    private static NatsOpts buildTenantNatsOpts(NatsTenant tenant)
+    private NatsOpts buildTenantNatsOpts(NatsTenant tenant)
     {
         // The tenant carries its own full connection configuration (URL + any of the NATS auth mechanisms +
         // TLS), so we reuse the same ToNatsOpts() the shared connection uses rather than privileging one
         // credential kind. Only the client name is decorated so tenant connections are distinguishable.
-        var opts = tenant.ConnectionConfiguration!.ToNatsOpts();
-        return opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
+        var configuration = tenant.ConnectionConfiguration!;
+        var opts = configuration.ToNatsOpts();
+        opts = opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
+
+        // The tenant's configuration is a copy of the transport's taken by AddTenant(), so a hook registered
+        // after that call only lives on the transport's configuration -- fall back to it
+        var configure = configuration.ConfigureNatsOpts ?? Configuration.ConfigureNatsOpts;
+        return configure?.Invoke(opts) ?? opts;
     }
 
     /// <summary>
@@ -364,8 +537,16 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         }
     }
 
-    private async Task ProvisionStreamsAsync(INatsJSContext js)
+    /// <summary>
+    /// Create the declared streams that are missing, and handle the ones that exist as
+    /// <see cref="NatsTransportConfiguration.Provisioning"/> says.
+    /// </summary>
+    /// <returns>Every deviation <see cref="NatsProvisioning.Verify"/> found; empty in the other modes</returns>
+    private async Task<IReadOnlyList<string>> ProvisionStreamsAsync(INatsJSContext js)
     {
+        var provisioning = Configuration.StreamProvisioning;
+        var deviations = new List<string>();
+
         _logger?.LogInformation(
             "Provisioning {Count} configured streams",
             Configuration.Streams.Count
@@ -375,50 +556,64 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         {
             try
             {
-                var exists = false;
+                var desired = JetStreamProvisioning.BuildStreamConfig(name, config, Configuration.JetStreamDefaults);
+
+                StreamConfig? existing = null;
                 try
                 {
-                    await js.GetStreamAsync(name);
-                    exists = true;
+                    existing = (await js.GetStreamAsync(name)).Info.Config;
                     _logger?.LogDebug("Stream {StreamName} already exists", name);
                 }
-                catch (NatsJSException)
+                catch (NatsJSApiException e) when (e.Error.Code == 404)
                 {
+                    // Only "stream not found" means the stream is missing. Any other failure -- no JetStream
+                    // answering for the domain, missing permissions, a timeout -- propagates instead of being
+                    // reported as a missing stream under Verify or answered with a create
                 }
 
-                if (!exists)
+                if (existing == null)
                 {
-                    var streamConfig = new StreamConfig(name, config.Subjects)
+                    if (provisioning == NatsProvisioning.Verify)
                     {
-                        Retention = config.Retention,
-                        Storage = config.Storage,
-                        MaxMsgs = config.MaxMessages ?? -1,
-                        MaxBytes = config.MaxBytes ?? -1,
-                        MaxAge = config.MaxAge ?? TimeSpan.Zero,
-                        MaxMsgsPerSubject = config.MaxMessagesPerSubject ?? 0,
-                        Discard = config.DiscardPolicy,
-                        NumReplicas = config.Replicas,
-                        DuplicateWindow = config.DuplicateWindow ?? Configuration.JetStreamDefaults.DuplicateWindow,
-                        AllowRollupHdrs = config.AllowRollup,
-                        AllowDirect = config.AllowDirect,
-                        DenyDelete = config.DenyDelete,
-                        DenyPurge = config.DenyPurge,
-                        AllowMsgSchedules = config.AllowMsgSchedules
-                    };
+                        deviations.Add($"stream '{name}' does not exist");
+                        continue;
+                    }
 
-                    await js.CreateStreamAsync(streamConfig);
+                    await js.CreateStreamAsync(desired);
                     _logger?.LogInformation(
                         "Created stream {StreamName} with subjects: {Subjects}",
                         name,
                         string.Join(", ", config.Subjects)
                     );
+                    continue;
                 }
-                else
+
+                if (provisioning == NatsProvisioning.CreateOnly)
                 {
                     _logger?.LogDebug(
                         "Stream {StreamName} already exists, skipping creation",
                         name
                     );
+                    continue;
+                }
+
+                var differences = JetStreamProvisioning.CompareStream(desired, existing);
+                if (differences.Count == 0)
+                {
+                    _logger?.LogDebug("Stream {StreamName} already matches its configuration", name);
+                }
+                else if (provisioning == NatsProvisioning.CreateOrUpdate)
+                {
+                    await js.UpdateStreamAsync(JetStreamProvisioning.OverlayManagedSettings(existing, desired));
+                    _logger?.LogInformation(
+                        "Updated stream {StreamName}: {Differences}",
+                        name,
+                        string.Join("; ", differences)
+                    );
+                }
+                else
+                {
+                    deviations.AddRange(differences.Select(x => $"stream '{name}': {x}"));
                 }
             }
             catch (Exception ex)
@@ -427,5 +622,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                 throw new InvalidOperationException($"Failed to provision stream '{name}'", ex);
             }
         }
+
+        return deviations;
     }
 }

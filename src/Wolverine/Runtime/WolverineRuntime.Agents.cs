@@ -155,7 +155,8 @@ public partial class WolverineRuntime : IAgentRuntime
         // the persist first, every evaluation that runs — the kickstart's included — sees the change.
         var (nodes, assignments) = await Storage.Nodes.LoadNodeAgentStateAsync(cancellationToken);
         assignments.MergeChanges(restrictions);
-        await Storage.Nodes.PersistAgentRestrictionsAsync(assignments.FindChanges(), cancellationToken);
+        var changes = assignments.FindChanges();
+        await Storage.Nodes.PersistAgentRestrictionsAsync(changes, cancellationToken);
 
         // Still worth doing before the explicit evaluation below: refreshes this node's heartbeat and,
         // on the leader, settles leadership/ejection state so the evaluation runs against a live grid.
@@ -185,6 +186,76 @@ public partial class WolverineRuntime : IAgentRuntime
             throw new AggregateException(
                 "One or more agent commands carrying this restriction change failed. The restriction itself was persisted.",
                 failures);
+        }
+
+        await assertReleasedAgentsAreRunningAsync(changes, cancellationToken);
+    }
+
+    /// <summary>
+    ///     GH-4871. An UNCONFIRMED start is not a failure to the drain above -- AssignAgents races the reply
+    ///     against presence polls, logs "confirmed 0 of 1 requested agents" and returns an empty command set,
+    ///     because for the leader's own periodic evaluation the right answer is to try again next time (GH-3748 /
+    ///     GH-3750). For an operator's restart or pin it is the whole answer: before this, a restart that
+    ///     started nothing returned exactly like one that worked, and CritterWatch acknowledged it as a success
+    ///     while the projection ran on no node (CritterWatch#1393, from the GH-4868 field case).
+    ///
+    ///     <para>
+    ///     The store already knows the truth, and reading it is independent of how the commands reported: a node
+    ///     writes the agent's assignment row before it replies to a start. It is a bounded WAIT rather than a
+    ///     single read because the kickstart above runs its own evaluation whose commands go out through the
+    ///     per-destination dispatcher asynchronously; whichever evaluation claims the agent first in the pending
+    ///     ledger is the one that moves it, and when that is the kickstart's the inline drain has nothing to
+    ///     await. A healthy change converges within milliseconds, so the wait only runs its full
+    ///     <see cref="DurabilitySettings.AgentRestrictionConfirmationTimeout" /> when an agent genuinely will not
+    ///     start.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Deliberately only the start direction. A pause's stop is awaited inline by the drain, and the stop's
+    ///     own assignment delete is owner-scoped and best-effort -- a row that outlives a stop whose delete was
+    ///     cancelled or failed would turn a pause that worked into a false failure here, whereas a missing row
+    ///     after a release is exactly the condition this exists to report. Balanced only: a Solo node has no
+    ///     leader and never persists assignments, so there is nothing to read there.
+    ///     </para>
+    /// </summary>
+    private async Task assertReleasedAgentsAreRunningAsync(IReadOnlyList<AgentRestriction> changes,
+        CancellationToken cancellationToken)
+    {
+        if (Options.Durability.Mode != DurabilityMode.Balanced)
+        {
+            return;
+        }
+
+        // None covers both a lifted pause and a removed pin; either way the agent should be running somewhere.
+        var shouldRun = changes
+            .Where(x => x.Type is AgentRestrictionType.None or AgentRestrictionType.Pinned)
+            .Select(x => x.AgentUri)
+            .Distinct()
+            .ToArray();
+
+        if (shouldRun.Length == 0)
+        {
+            return;
+        }
+
+        var deadline = DateTimeOffset.UtcNow.Add(Options.Durability.AgentRestrictionConfirmationTimeout);
+        while (true)
+        {
+            var (nodes, _) = await Storage.Nodes.LoadNodeAgentStateAsync(cancellationToken);
+            var assigned = nodes.SelectMany(x => x.ActiveAgents).ToHashSet();
+
+            var notRunning = shouldRun.Where(x => !assigned.Contains(x)).ToList();
+            if (notRunning.Count == 0)
+            {
+                return;
+            }
+
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                throw new AgentRestrictionsNotConfirmedException(notRunning);
+            }
+
+            await Task.Delay(250.Milliseconds(), cancellationToken);
         }
     }
 

@@ -119,7 +119,8 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         {
             Check = check,
             IsDuplicate = check.Variable,
-            Claim = new QueueMartenDeduplicationClaimFrame(deduplicationId, check.Variable, marker),
+            Claim = new QueueMartenDeduplicationClaimFrame(deduplicationId, check.Variable, marker,
+                requirement.Window),
             CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
                 MartenDeduplicationFailures.Classifier,
                 lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))

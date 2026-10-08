@@ -45,6 +45,12 @@ public sealed class DeduplicationRequirement
     public bool Required { get; init; } = true;
 
     /// <summary>
+    /// How long a claim lasts, or null for <see cref="DurabilitySettings.DeduplicationWindow" />. Set it when
+    /// one handler's duplicates arrive on a different timescale from the rest of the application's.
+    /// </summary>
+    public TimeSpan? Window { get; init; }
+
+    /// <summary>
     /// HTTP only: the status code returned when the logical id has already been claimed. Default is
     /// 409 Conflict with a <c>ProblemDetails</c> body.
     ///
@@ -96,7 +102,13 @@ public sealed class DeduplicationRequirement
     public const string DefaultHeaderName = "Idempotency-Key";
 
     public override string ToString()
-        => Source == ValueSource.Anything
-            ? $"Deduplicated (chain default, Required = {Required})"
-            : $"Deduplicated by {Source} '{Key}' (Required = {Required})";
+    {
+        var description = Source == ValueSource.Anything
+            ? $"Deduplicated (chain default, Required = {Required}"
+            : $"Deduplicated by {Source} '{Key}' (Required = {Required}";
+
+        if (Window.HasValue) description += $", Window = {Window.Value}";
+
+        return description + ")";
+    }
 }

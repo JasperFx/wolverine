@@ -134,9 +134,11 @@ public class NatsSender : ISender
                     targetSubject = _endpoint.NormalizeSubject(resolver.ResolveSubject(targetSubject, envelope));
                 }
 
-                if (envelope.ReplyRequested != null && envelope.ReplyUri != null)
+                // A request -- InvokeAsync<T>() expecting a response, or InvokeAsync() expecting an acknowledgement --
+                // carries a reply subject on the wire, so NATS can answer "no responders" when nobody listens
+                if ((envelope.ReplyRequested != null || envelope.AckRequested) && envelope.ReplyUri != null)
                 {
-                    replyTo = NatsTransport.ExtractSubjectFromUri(envelope.ReplyUri);
+                    replyTo = _endpoint.WireReplySubjectFor(envelope);
 
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
@@ -145,7 +147,7 @@ public class NatsSender : ISender
                             envelope.Id,
                             targetSubject,
                             replyTo,
-                            envelope.ReplyRequested
+                            envelope.ReplyRequested ?? "an acknowledgement"
                         );
                     }
                 }
@@ -162,6 +164,12 @@ public class NatsSender : ISender
                 }
             }
 
+            // A response or acknowledgement to a request that arrived with its own wire reply subject goes to
+            // exactly that subject -- all a responder limited to allow_responses may publish to
+            var replySubject = _endpoint.ReplySubjectFor(envelope, targetSubject);
+            var answersARequest = replySubject != targetSubject;
+            targetSubject = replySubject;
+
             await _publisher.PublishAsync(
                 targetSubject,
                 data,
@@ -170,6 +178,13 @@ public class NatsSender : ISender
                 envelope,
                 _cancellation
             );
+
+            // Only once the reply is on the wire: a publish that throws is retried by the sending agent, and
+            // the retry has to find the per-request subject again
+            if (answersARequest)
+            {
+                _endpoint.ForgetWireReplySubject(envelope);
+            }
         }
         catch (Exception ex)
         {

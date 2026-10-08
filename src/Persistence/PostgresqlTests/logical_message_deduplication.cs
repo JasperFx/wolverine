@@ -57,6 +57,7 @@ public class logical_message_deduplication : IAsyncLifetime
         DeduplicatedHandler.Received.Clear();
         UnkeyedHandler.Received.Clear();
         DerivedIdentityHandler.Received.Clear();
+        ShortWindowDeduplicatedHandler.Received.Clear();
         FailingDeduplicatedHandler.Attempts = 0;
     }
 
@@ -222,6 +223,57 @@ public class logical_message_deduplication : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_handler_window_sets_the_claim_expiry()
+    {
+        var before = DateTimeOffset.UtcNow;
+
+        await theHost.SendMessageAndWaitAsync(new ShortWindowMessage("first"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+
+        // 60 seconds from the attribute, not the host's hour
+        (await expiresAsync("short-window"))
+            .ShouldBeInRange(before.AddSeconds(55), DateTimeOffset.UtcNow.AddSeconds(65));
+    }
+
+    [Fact]
+    public async Task an_id_claimed_with_a_short_window_is_accepted_again_once_that_window_has_passed()
+    {
+        await theHost.SendMessageAndWaitAsync(new ShortWindowMessage("first"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await theHost.SendMessageAndWaitAsync(new DeduplicatedMessage("first"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        // Reap as if two minutes had passed: past the handler's 60 seconds, inside the host's hour
+        var deleted = await theHost.GetRuntime().Storage.Deduplication
+            .DeleteExpiredAsync(DateTimeOffset.UtcNow.AddMinutes(2), TestContext.Current.CancellationToken);
+        deleted.ShouldBe(1);
+
+        await theHost.SendMessageAndWaitAsync(new ShortWindowMessage("second"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await theHost.SendMessageAndWaitAsync(new DeduplicatedMessage("second"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        ShortWindowDeduplicatedHandler.Received.ShouldBe(["first", "second"]);
+        DeduplicatedHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
+
+    private static async Task<DateTimeOffset> expiresAsync(string deduplicationId)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            $"select {DatabaseConstants.Expires} from dedup.{DatabaseConstants.HashedDeduplicationTableName} where {DatabaseConstants.DeduplicationId} = @id";
+        cmd.Parameters.AddWithValue("id", deduplicationId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        (await reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBeTrue();
+
+        return await reader.GetFieldValueAsync<DateTimeOffset>(0, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task concurrent_claims_of_the_same_id_produce_exactly_one_winner()
     {
         // The race this feature exists for. A SELECT-then-INSERT implementation passes every other test
@@ -243,6 +295,8 @@ public record MarkedIdentityMessage([property: DeduplicationIdentity] string Inv
 public record ComposedIdentityMessage(string Tenant, int Sequence, string Name);
 
 public record UnkeyedMessage(string Name);
+
+public record ShortWindowMessage(string Name);
 
 public record FailingDeduplicatedMessage;
 
@@ -269,6 +323,18 @@ public static class DerivedIdentityHandler
 
     [Deduplicated]
     public static void Handle(ComposedIdentityMessage message)
+    {
+        Received.Add(message.Name);
+    }
+}
+
+public static class ShortWindowDeduplicatedHandler
+{
+    public static readonly List<string> Received = [];
+
+    // A vendor that legitimately repeats a state after a while, where only the quick echoes are duplicates
+    [Deduplicated(WindowInSeconds = 60)]
+    public static void Handle(ShortWindowMessage message)
     {
         Received.Add(message.Name);
     }

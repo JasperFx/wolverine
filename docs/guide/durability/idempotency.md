@@ -374,10 +374,41 @@ worse than no guarantee, because it holds in testing and fails in production. Si
 how long a duplicate could plausibly arrive: an operator double-click is seconds, a console republish
 is minutes, an agent pre-publishing tomorrow's occurrences is a day.
 
+When one handler's duplicates arrive on a different timescale from the rest, give it its own window
+with `WindowInSeconds` on the attribute, as `[DeduplicatedWithResponse]` does for HTTP endpoints. `0`,
+the default, uses `DeduplicationWindow`; a negative value fails when the chain is built.
+
+<!-- snippet: sample_deduplicated_with_its_own_window -->
+<a id='snippet-sample_deduplicated_with_its_own_window'></a>
+```cs
+public record DeviceStateReported(string DeviceId, string State);
+
+public static class DeviceStateHandler
+{
+    // The vendor echoes a report within a minute or two, but legitimately
+    // reports the same state again hours later. Ten minutes refuses the
+    // echoes without refusing the genuine repeat
+    [Deduplicated(WindowInSeconds = 600)]
+    public static void Handle(DeviceStateReported message)
+    {
+        // ...
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L169-L185' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_its_own_window' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Each claim stores its own expiry, so changing a window later leaves claims already recorded alone. The
+same property works on `[Deduplicated]` HTTP endpoints and gRPC methods.
+
 A background reaper deletes expired claims on its own timer
 (`Durability.DeduplicationCleanupPollingTime`, default 5 minutes), in bounded batches, in its own
 transaction. It logs how many claims it removed each cycle — a count that keeps climbing is the signal
 that the window is too long, the cadence too slow, or the volume higher than the settings assume.
+
+An expired claim is still honoured until the reaper removes it, so a repeat can be refused for up to one
+cleanup interval after its window. Keep a handler's `WindowInSeconds` well above that interval, or
+shorten `DeduplicationCleanupPollingTime`.
 
 ### Failed handlers do not poison the id
 

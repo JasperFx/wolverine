@@ -1,6 +1,7 @@
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using Wolverine.Configuration;
@@ -63,10 +64,41 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal JetStreamDefaults JetStreamDefaults => _transport.Configuration.JetStreamDefaults;
 
     /// <summary>
+    /// What the listener does with its named JetStream consumer when that already exists.
+    /// Sourced from <see cref="NatsTransportConfiguration.Provisioning"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal NatsProvisioning ConsumerProvisioning => _transport.Configuration.ConsumerProvisioning;
+
+    /// <summary>
     /// Normalize a per-message subject honoring the transport's
     /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
     /// </summary>
     internal string NormalizeSubject(string subject) => _transport.NormalizeSubjectIfEnabled(subject);
+
+    /// <summary>
+    /// The reply subject a request sent through this endpoint carries on the wire; see
+    /// <see cref="NatsTransport.WireReplySubjectFor"/>.
+    /// </summary>
+    internal string WireReplySubjectFor(Envelope envelope) => _transport.WireReplySubjectFor(envelope);
+
+    /// <summary>
+    /// See <see cref="NatsTransport.RememberWireReplySubject"/>.
+    /// </summary>
+    internal void RememberWireReplySubject(Envelope request, string? wireReplySubject) =>
+        _transport.RememberWireReplySubject(request, wireReplySubject);
+
+    /// <summary>
+    /// See <see cref="NatsTransport.ReplySubjectFor"/>.
+    /// </summary>
+    internal string ReplySubjectFor(Envelope envelope, string targetSubject) =>
+        _transport.ReplySubjectFor(envelope, targetSubject);
+
+    /// <summary>
+    /// See <see cref="NatsTransport.ForgetWireReplySubject"/>.
+    /// </summary>
+    internal void ForgetWireReplySubject(Envelope envelope) => _transport.ForgetWireReplySubject(envelope);
+
     public string? QueueGroup { get; set; }
 
     /// <summary>
@@ -94,8 +126,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public string? DeadLetterSubject { get; set; }
 
     /// <summary>
-    /// Per-endpoint override for the maximum delivery attempts / dead-letter threshold. When null the
-    /// transport-wide <see cref="JetStreamDefaults.MaxDeliver"/> applies (see <see cref="EffectiveMaxDeliveryAttempts"/>).
+    /// Per-endpoint override for the JetStream consumer's maximum delivery attempts (<c>MaxDeliver</c>). When null
+    /// the transport-wide <see cref="JetStreamDefaults.MaxDeliver"/> applies (see <see cref="EffectiveMaxDeliveryAttempts"/>).
     /// </summary>
     public int? MaxDeliveryAttempts { get; set; }
 
@@ -234,6 +266,68 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// </summary>
     public ConsumerConfigDeliverPolicy? EffectiveDeliverPolicy =>
         DeliverPolicy ?? _transport.Configuration.JetStreamDefaults.DeliverPolicy;
+
+    /// <summary>
+    /// The subject pattern this endpoint's listener consumes: the plain <see cref="Subject"/>, or the tenant
+    /// wildcard pattern when the endpoint is tenant-aware under subject isolation. Resource setup and the
+    /// listener both derive the consumer filter from it.
+    /// </summary>
+    [IgnoreDescription]
+    internal string ListenerSubscriptionPattern =>
+        _transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware
+            ? _transport.TenantSubjectMapper.GetSubscriptionPattern(Subject)
+            : Subject;
+
+    /// <summary>
+    /// The settings Wolverine owns on this endpoint's JetStream consumers: explicit acks, <c>AckWait</c>,
+    /// <c>MaxDeliver</c>, the subject filter and, where Wolverine sizes it, <c>MaxAckPending</c>. One place for
+    /// the listener, which creates consumers and reconciles or verifies a named one under
+    /// <see cref="NatsProvisioning"/>, and for resource setup, so the two cannot drift apart. The filter is part
+    /// of that set on purpose: when resource setup and the listener disagreed on it, every start rewrote the
+    /// consumer and a <see cref="NatsProvisioning.Verify"/> host could never come up after resource setup.
+    /// </summary>
+    /// <param name="subscriptionPattern">
+    /// The subject pattern the consumer filters on, normally <see cref="ListenerSubscriptionPattern"/>
+    /// </param>
+    internal ConsumerConfig ApplyManagedConsumerSettings(ConsumerConfig config, string subscriptionPattern)
+    {
+        config.AckPolicy = ConsumerConfigAckPolicy.Explicit;
+        config.AckWait = EffectiveAckWait;
+        config.MaxDeliver = EffectiveMaxDeliveryAttempts;
+
+        // GH-4053: MaxAckPending is JetStream's prefetch equivalent, and under NativeAck it is the whole of the
+        // back pressure -- nothing is acked until a handler succeeds, so the unacked window is what bounds the
+        // in-memory execution block. Sized under the number of lanes that can be busy at once, the consumer
+        // stalls itself; see EffectiveMaxAckPending. Null for every other mode, which leaves the NATS server
+        // default of 1,000 exactly where it was.
+        if (EffectiveMaxAckPending is { } maxAckPending)
+        {
+            config.MaxAckPending = maxAckPending;
+        }
+
+        // Scope the consumer to this listener's subject. Without a filter every durable consumer sharing a
+        // stream received every message published to that stream (GH-3676).
+        if (!string.IsNullOrEmpty(subscriptionPattern))
+        {
+            // Native scheduling publishes its control message to {subject}{suffix} and no single
+            // NATS filter covers both that and {subject} -- '{subject}.>' excludes {subject}
+            // itself. On a work queue stream a control message no consumer covers is discarded
+            // outright, so the schedule is never registered and the send silently never arrives;
+            // a multi-filter consumer keeps the schedule subject owned by this endpoint
+            if (UsesNativeScheduledSend && !string.IsNullOrEmpty(ScheduleSubjectSuffix))
+            {
+                config.FilterSubject = null;
+                config.FilterSubjects = [subscriptionPattern, subscriptionPattern + ScheduleSubjectSuffix];
+            }
+            else
+            {
+                config.FilterSubject = subscriptionPattern;
+                config.FilterSubjects = null;
+            }
+        }
+
+        return config;
+    }
 
     protected override bool supportsMode(EndpointMode mode)
     {
@@ -599,15 +693,19 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             return;
         }
 
-        var js = _connection.CreateJetStreamContext();
+        // The transport's factory, like every other JetStream call here, so a configured JetStream domain or
+        // API prefix applies to the stream lookup and creation and to the consumer update below
+        var js = _transport.CreateJetStreamContext(_connection);
 
         try
         {
-            var stream = await js.GetStreamAsync(StreamName);
+            await js.GetStreamAsync(StreamName);
             logger.LogInformation("Using existing JetStream stream {Stream}", StreamName);
         }
-        catch
+        catch (NatsJSApiException e) when (e.Error.Code == 404)
         {
+            // Only a missing stream is created. Any other failure -- no JetStream answering for the domain,
+            // missing permissions, a timeout -- propagates instead of being taken for "not found"
             var subjects = new List<string> { Subject };
 
             if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
@@ -643,23 +741,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
         if (!string.IsNullOrEmpty(ConsumerName) && Role == EndpointRole.Application)
         {
-            var consumerConfig = new ConsumerConfig
+            // The same filter the listener puts on the consumer, so a start after resource setup finds nothing
+            // to reconcile or to fail Verify on
+            var consumerConfig = ApplyManagedConsumerSettings(new ConsumerConfig
             {
                 Name = ConsumerName,
                 DurableName = ConsumerName,
-                FilterSubject = Subject,
-                AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                AckWait = EffectiveAckWait,
-                MaxDeliver = EffectiveMaxDeliveryAttempts,
                 ReplayPolicy = ConsumerConfigReplayPolicy.Instant
-            };
-
-            // GH-4053: JetStream's prefetch equivalent, and under NativeAck the only thing bounding the
-            // unacked window. Left unset (server default 1,000) for every other mode.
-            if (EffectiveMaxAckPending is { } maxAckPending)
-            {
-                consumerConfig.MaxAckPending = maxAckPending;
-            }
+            }, ListenerSubscriptionPattern);
 
             await js.CreateOrUpdateConsumerAsync(StreamName, consumerConfig);
             logger.LogInformation(

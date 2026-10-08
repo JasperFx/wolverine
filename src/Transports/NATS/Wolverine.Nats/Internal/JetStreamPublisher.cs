@@ -139,13 +139,36 @@ internal class JetStreamPublisher : INatsPublisher
                 cancellationToken: cancellation
             );
 
+            // NATS.Net hands a publish the server refused -- a full DiscardNew stream, a failed
+            // Nats-Expected-* check, an oversized message -- back as a PubAckResponse carrying Error
+            // instead of throwing. Unless that becomes an exception the sending agent reports the
+            // envelope as sent, and a durable outbox deletes a message the stream never stored.
+            // EnsureSuccess() is deliberately not used: it also throws for a duplicate Nats-Msg-Id,
+            // and a duplicate means the stream already holds the message, so it stays a success.
+            if (ack.Error is { } error)
+            {
+                throw new NatsJSApiException(error);
+            }
+
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug(
-                    "Message {MessageId} published to JetStream with sequence {Sequence}",
-                    envelope.Id,
-                    ack.Seq
-                );
+                if (ack.Duplicate)
+                {
+                    _logger.LogDebug(
+                        "Message {MessageId} was a JetStream duplicate of sequence {Sequence} in stream {Stream}",
+                        envelope.Id,
+                        ack.Seq,
+                        ack.Stream
+                    );
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "Message {MessageId} published to JetStream with sequence {Sequence}",
+                        envelope.Id,
+                        ack.Seq
+                    );
+                }
             }
         }
     }

@@ -1,3 +1,4 @@
+using NATS.Client.JetStream.Models;
 using Wolverine.Configuration;
 using Wolverine.Nats.Configuration;
 using Wolverine.Runtime.Partitioning;
@@ -29,12 +30,18 @@ public class PartitionedMessageTopologyWithSubjects : PartitionedMessageTopology
 
         // ...and declare the backing stream so AutoProvision actually creates it. Without a declared
         // stream the listener failed at startup with NatsJSApiException "stream not found". Work-queue
-        // retention matches the topology's competing-consumer, one-node-per-shard semantics. An
-        // explicitly declared stream of the same name wins.
+        // retention matches the topology's competing-consumer, one-node-per-shard semantics, and it keeps
+        // a message until it is acknowledged even while no consumer is bound -- at startup, or while the
+        // shard moves to another node. Set directly: AsWorkQueue() means interest retention, which drops
+        // a message nobody is interested in on arrival. An explicitly declared stream of the same name wins.
         if (!transport.Configuration.Streams.ContainsKey(endpoint.StreamName))
         {
-            var stream = new StreamConfiguration { Name = endpoint.StreamName };
-            stream.AsWorkQueue().WithSubjects(name);
+            var stream = new StreamConfiguration
+            {
+                Name = endpoint.StreamName,
+                Retention = StreamConfigRetention.Workqueue
+            };
+            stream.WithSubjects(name);
             transport.Configuration.Streams[endpoint.StreamName] = stream;
         }
 

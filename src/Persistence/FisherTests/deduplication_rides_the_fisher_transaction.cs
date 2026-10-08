@@ -55,7 +55,8 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
                     .IncludeType(typeof(FailingFisherPaymentHandler))
                     .IncludeType(typeof(OptionallyKeyedFisherHandler))
                     .IncludeType(typeof(ObservingFisherHandler))
-                    .IncludeType(typeof(FisherRacingHandler));
+                    .IncludeType(typeof(FisherRacingHandler))
+                    .IncludeType(typeof(ShortWindowFisherPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -74,6 +75,7 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
 
         RecordFisherPaymentHandler.Received.Clear();
         OptionallyKeyedFisherHandler.Received.Clear();
+        ShortWindowFisherPaymentHandler.Received.Clear();
         FailingFisherPaymentHandler.Attempts = 0;
         FisherRacingHandler.Arrived = 0;
     }
@@ -241,6 +243,41 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
         (await claimCountAsync(FisherRacingHandler.DeduplicationId)).ShouldBe(1);
     }
 
+    [Fact]
+    public void a_handler_window_is_passed_to_the_enlisted_claim()
+    {
+        var code = sourceFor<ShortWindowFisherPayment>();
+
+        code.ShouldContain(
+            $", System.TimeSpan.FromTicks({TimeSpan.FromSeconds(60).Ticks}), null);");
+        code.ShouldContain($"{nameof(IFisherDeduplicator.QueueClaim)}(documentSession");
+
+        // A chain without a window keeps the original call
+        sourceFor<RecordFisherPayment>().ShouldNotContain("System.TimeSpan.FromTicks(");
+    }
+
+    [Fact]
+    public async Task an_id_claimed_with_a_short_window_is_accepted_again_once_that_window_has_passed()
+    {
+        await _host.SendMessageAndWaitAsync(new ShortWindowFisherPayment("first"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await _host.SendMessageAndWaitAsync(new RecordFisherPayment("first"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        // Reap as if two minutes had passed: past the handler's 60 seconds, inside the host's hour
+        var deleted = await _host.GetRuntime().Storage.Deduplication
+            .DeleteExpiredAsync(DateTimeOffset.UtcNow.AddMinutes(2), TestContext.Current.CancellationToken);
+        deleted.ShouldBe(1);
+
+        await _host.SendMessageAndWaitAsync(new ShortWindowFisherPayment("second"),
+            new DeliveryOptions { DeduplicationId = "short-window" });
+        await _host.SendMessageAndWaitAsync(new RecordFisherPayment("second"),
+            new DeliveryOptions { DeduplicationId = "default-window" });
+
+        ShortWindowFisherPaymentHandler.Received.ShouldBe(["first", "second"]);
+        RecordFisherPaymentHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
+
     private async Task<int> claimCountAsync(string key)
     {
         await using var conn = new SqliteConnection(theDatabase.ConnectionString);
@@ -279,10 +316,25 @@ public record FailingFisherPayment;
 
 public record OptionallyKeyedFisher(string Name);
 
+public record ShortWindowFisherPayment(string Name);
+
 public class FisherPaymentRecord
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+public static class ShortWindowFisherPaymentHandler
+{
+    public static readonly List<string> Received = [];
+
+    [Deduplicated(WindowInSeconds = 60)]
+    [Transactional]
+    public static void Handle(ShortWindowFisherPayment message, IDocumentSession session)
+    {
+        Received.Add(message.Name);
+        session.Store(new FisherPaymentRecord { Id = Guid.NewGuid(), Name = message.Name });
+    }
 }
 
 public static class RecordFisherPaymentHandler

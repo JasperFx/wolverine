@@ -361,8 +361,20 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         var listener = Listener;
         var receiver = _receiver;
-        if (listener == null)
+
+        // GH-4866. A listener paused by back pressure has no IListener -- MarkAsTooBusyAndStopReceivingAsync
+        // stopped and disposed it -- but it still has the receiver, deliberately, because the backlog that
+        // receiver holds is what has to drain before the listener may resume. This used to return right here
+        // on `listener == null`, which made a stop in the TooBusy state a no-op: no latch, no receiver drain,
+        // no companion-queue drain (GH-4777), and Status left at TooBusy. The exclusive-listener agent still
+        // reported a clean stop, so the leader started the slot on another node while this one kept
+        // executing its backlog beside it; and with Status still TooBusy, the next back pressure sweep that
+        // found the queue under BufferingLimits.Restart called StartAsync() and put this node back on a slot
+        // it no longer owned. A missing listener means there is nothing to stop, not nothing to do.
+        if (listener == null && receiver == null)
         {
+            Status = ListeningStatus.Stopped;
+            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
             return;
         }
 
@@ -371,7 +383,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
 
-            await listener.StopAsync();
+            if (listener != null)
+            {
+                await listener.StopAsync();
+            }
 
             // When called during normal shutdown, latch BEFORE drain so DrainAsync knows
             // it can safely wait for in-flight messages to complete.
@@ -401,13 +416,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 await drainCompanionQueueAsync();
             }
 
-            try
+            if (listener != null)
             {
-                await listener.DisposeAsync();
-            }
-            catch (ObjectDisposedException)
-            {
-                // Listener may already be disposed during rapid pause/stop cycles.
+                try
+                {
+                    await listener.DisposeAsync();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Listener may already be disposed during rapid pause/stop cycles.
+                }
             }
 
             receiver?.Dispose();
@@ -509,6 +527,16 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             var localQueue = _runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) as ILocalQueue;
             if (localQueue != null)
             {
+                // The companion queue executes rows parked at TWO addresses: its own, for messages that took
+                // GlobalPartitionedRoute's local shortcut, and this slot's, for messages a durable database-backed
+                // slot popped out of its shard queue table (GH-4288 stamps those at the slot's address). The
+                // companion queue's drain on a handoff (GH-4777) can only release addresses it knows about, so
+                // tell it the slot's -- before the restart below, so a rebuilt receiver carries it too.
+                if (localQueue is DurableLocalQueue durableCompanion)
+                {
+                    durableCompanion.PartitionSlotUri = Endpoint.Uri;
+                }
+
                 // GH-4777. A previous loss of this slot drained the companion queue's receiver, and
                 // DurableReceiver has no unlatch -- so without rebuilding it here, re-acquiring the slot would
                 // hand the bridge a dead queue that silently executes nothing. Conditional on the status so a

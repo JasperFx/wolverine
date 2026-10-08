@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.Nats.Internal;
 
@@ -65,6 +67,13 @@ internal class CoreNatsSubscriber : INatsSubscriber
             );
         }
 
+        // The per-request reply subjects (see NatsTransport.WireReplySubjectFor), where NATS delivers its
+        // "no responders" answers
+        if (_endpoint.IsUsedForReplies)
+        {
+            patterns.Add($"{_endpoint.Subject}.>");
+        }
+
         foreach (var pattern in patterns)
         {
             IAsyncDisposable subscription;
@@ -99,9 +108,21 @@ internal class CoreNatsSubscriber : INatsSubscriber
                         {
                             try
                             {
+                                // NATS answers a request that reached no subscriber with an empty 503 status
+                                // message on the request's reply subject
+                                if (msg.HasNoResponders)
+                                {
+                                    if (_endpoint.IsUsedForReplies)
+                                    {
+                                        await failRequestWithoutRespondersAsync(listener, receiver, msg);
+                                    }
+
+                                    continue;
+                                }
+
                                 // Skip messages without data
                                 if (msg.Data == null || msg.Data.Length == 0)
-                                { 
+                                {
                                     continue;
                                 }
 
@@ -121,6 +142,10 @@ internal class CoreNatsSubscriber : INatsSubscriber
 
                                 var envelope = new NatsEnvelope(msg, null);
                                 _mapper.MapIncomingToEnvelope(envelope, msg);
+
+                                // A request's reply has to go to its exact wire reply subject, which is all a
+                                // responder limited to allow_responses may publish to
+                                _endpoint.RememberWireReplySubject(envelope, msg.ReplyTo);
 
                                 await receiver.ReceivedAsync(listener, envelope);
                             }
@@ -147,6 +172,39 @@ internal class CoreNatsSubscriber : INatsSubscriber
 
             _consumerTasks.Add(consumerTask);
         }
+    }
+
+    /// <summary>
+    /// A "no responders" answer on a per-request reply subject ends the waiting <c>InvokeAsync()</c> right away
+    /// with a <see cref="FailureAcknowledgement"/>, exactly as a failure reply from a responder would, instead of
+    /// leaving it to run into its timeout.
+    /// </summary>
+    private async Task failRequestWithoutRespondersAsync(IListener listener, IReceiver receiver, NatsMsg<byte[]> msg)
+    {
+        var prefix = _endpoint.Subject + ".";
+        if (!msg.Subject.StartsWith(prefix, StringComparison.Ordinal) ||
+            !Guid.TryParseExact(msg.Subject.AsSpan(prefix.Length), "N", out var requestId))
+        {
+            _logger.LogDebug("Ignoring a NATS 'no responders' status on {Subject}, which names no request", msg.Subject);
+            return;
+        }
+
+        _logger.LogDebug("NATS reported no responders for request {RequestId}, failing the waiting call", requestId);
+
+        var envelope = new NatsEnvelope(msg, null)
+        {
+            ConversationId = requestId,
+            IsResponse = true,
+            MessageType = typeof(FailureAcknowledgement).ToMessageTypeName(),
+            Message = new FailureAcknowledgement
+            {
+                RequestId = requestId,
+                Message =
+                    $"NATS reported no responders for request {requestId}: no subscriber is listening to the subject it was sent to"
+            }
+        };
+
+        await receiver.ReceivedAsync(listener, envelope);
     }
 
     public async Task RepublishAsync(NatsEnvelope envelope, CancellationToken cancellation)
