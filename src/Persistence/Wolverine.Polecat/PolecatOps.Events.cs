@@ -25,6 +25,18 @@ namespace Wolverine.Polecat;
 public static partial class PolecatOps
 {
     /// <summary>
+    /// Return a side effect of starting a new event stream with no aggregate type, by Guid identity.
+    /// An event stream does not need an aggregate type; this is the shape for a model that names none
+    /// (GH-4892). Mint the id with <c>Guid.CreateVersion7()</c> so the event store's indexes stay sequential.
+    /// </summary>
+    public static StartStreamWithoutAggregate StartStream(Guid streamId, params object[] events) => new(streamId, events);
+
+    /// <summary>
+    /// Return a side effect of starting a new event stream with no aggregate type, by string key (GH-4892).
+    /// </summary>
+    public static StartStreamWithoutAggregate StartStream(string streamKey, params object[] events) => new(streamKey, events);
+
+    /// <summary>
     /// Return a side effect of appending events to an existing event stream by Guid identity
     /// </summary>
     public static AppendToStream Append(Guid streamId, params object[] events) => new(streamId, events);
@@ -134,6 +146,45 @@ public abstract class StreamOp : ITenantedPolecatOp
         => TenantId != null ? session.ForTenant(TenantId).Events : session.Events;
 
     public abstract void Execute(IDocumentSession session);
+}
+
+/// <summary>
+/// Starts a new event stream with no aggregate type (GH-4892): the untyped counterpart of
+/// <see cref="StartStream{T}" />, for a model that names no aggregate for the stream.
+/// </summary>
+public class StartStreamWithoutAggregate : StreamOp, JasperFx.Events.ICarriesEvents
+{
+    public StartStreamWithoutAggregate(Guid streamId, params object[] events) : base(streamId)
+    {
+        Events.AddRange(events);
+    }
+
+    public StartStreamWithoutAggregate(string streamKey, params object[] events) : base(streamKey)
+    {
+        Events.AddRange(events);
+    }
+
+    public List<object> Events { get; } = new();
+
+    public StartStreamWithoutAggregate With(object @event)
+    {
+        Events.Add(@event);
+        return this;
+    }
+
+    public override void Execute(IDocumentSession session)
+    {
+        var target = ResolveEvents(session);
+
+        if (StreamId == Guid.Empty)
+        {
+            target.StartStream(StreamKey, Events.ToArray());
+        }
+        else
+        {
+            target.StartStream(StreamId, Events.ToArray());
+        }
+    }
 }
 
 public class AppendToStream : StreamOp

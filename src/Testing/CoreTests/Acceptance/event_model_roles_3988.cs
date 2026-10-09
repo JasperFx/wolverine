@@ -221,7 +221,10 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
     public void the_wolverine_source_claims_the_derived_rung()
     {
         var sources = _host.Services.GetServices<IEventModelDefinitionSource>().ToArray();
-        sources.Length.ShouldBe(2);
+
+        // Wolverine's derived source, the discovered-definitions source (GH-4916) and the overlay
+        sources.Length.ShouldBe(3);
+        sources.OfType<DiscoveredEventModelDefinitions>().Count().ShouldBe(1);
 
         // Through the interface on purpose: Provenance is a default interface member, so reading it off
         // the concrete type would only compile when the override exists and would assert nothing.
@@ -230,7 +233,7 @@ public class event_model_sources_and_capabilities_3988 : IAsyncLifetime
 
         // The overlay registered in InitializeAsync is unstamped, so it stays on the bottom rung -- which
         // is what lets it fill gaps without overwriting anything derived, whatever order it registered in.
-        var overlay = sources.Single(x => x is not WolverineEventModelSource);
+        var overlay = sources.Single(x => x is not WolverineEventModelSource and not DiscoveredEventModelDefinitions);
         overlay.Provenance.ShouldBe(EventModelProvenance.Declared);
     }
 

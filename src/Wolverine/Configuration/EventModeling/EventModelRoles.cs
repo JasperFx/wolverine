@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
@@ -355,6 +356,12 @@ public static class EventModelRoles
             }
         }
 
+        // GH-4914. What JasperFx.Events.SourceGenerator read from the handler's BODY (jasperfx#990): the
+        // events appended to an IEventStream<T>, passed to StartStream or put in an EventsToAppend --
+        // exactly the shapes whose types the signature erases. Additive like [Emits], which stays the
+        // override for an event the generator cannot see (built in a helper, or held as object).
+        foreach (var eventType in emittedFromSource(call)) roles.EmittedEvents.Add(eventType);
+
         // [DeciderFunction] / [AggregateHandler] on the method or the handler type: the aggregate
         // is the one the attribute names, else the one the workflow would infer from the signature
         var decider = call.Method.GetAttribute<DeciderFunctionAttribute>()
@@ -399,6 +406,23 @@ public static class EventModelRoles
                 roles.ReadsFrom.Add(parameterType);
             }
         }
+    }
+
+    // Per handler assembly, read once: diagnostic surface only, never per message
+    private static readonly ConcurrentDictionary<Assembly, ILookup<(Type HandlerType, string MethodName), Type>> _emittedFromSource = new();
+
+    /// <summary>
+    ///     The events the source generator's <see cref="EmittedEventsAttribute" /> manifest lists for this
+    ///     handler method (jasperfx#990). Empty for an assembly the generator never ran on.
+    /// </summary>
+    private static IEnumerable<Type> emittedFromSource(MethodCall call)
+    {
+        var manifest = _emittedFromSource.GetOrAdd(call.HandlerType.Assembly, static assembly => assembly
+            .GetCustomAttributes<EmittedEventsAttribute>()
+            .SelectMany(x => x.EventTypes.Select(e => (Key: (x.HandlerType, x.MethodName), Event: e)))
+            .ToLookup(x => x.Key, x => x.Event));
+
+        return manifest[(call.HandlerType, call.Method.Name)];
     }
 
     /// <summary>

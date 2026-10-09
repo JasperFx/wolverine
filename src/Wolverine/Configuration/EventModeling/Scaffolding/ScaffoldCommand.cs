@@ -106,6 +106,38 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
             {
                 foreach (var file in plan.Files)
                 {
+                    if (file.InsertInto is not null)
+                    {
+                        // GH-4898: the missing Apply methods go into the existing aggregate or view
+                        var target = Path.Combine(Directory.GetCurrentDirectory(), file.RelativePath);
+                        var inserted = SliceScaffolder.InsertInto(await File.ReadAllTextAsync(target), file);
+                        if (inserted is null)
+                        {
+                            Console.WriteLine($"EDIT {file.RelativePath} -- {file.InsertInto} has no class body the scaffold can add to; add these by hand:");
+                            Console.WriteLine(file.Code);
+                            continue;
+                        }
+
+                        await File.WriteAllTextAsync(target, inserted);
+                        continue;
+                    }
+
+                    if (file.AppendClass is not null)
+                    {
+                        // GH-4891: the handler goes into the file that declares its command. The source
+                        // finder reports that file relative to the current directory.
+                        var target = Path.Combine(Directory.GetCurrentDirectory(), file.RelativePath);
+                        var appended = SliceScaffolder.AppendTo(await File.ReadAllTextAsync(target), file);
+                        if (appended is null)
+                        {
+                            Console.WriteLine($"EXISTS {file.RelativePath} -- {file.AppendClass} is already declared there; nothing appended.");
+                            continue;
+                        }
+
+                        await File.WriteAllTextAsync(target, appended);
+                        continue;
+                    }
+
                     var path = Path.Combine(output, file.RelativePath);
                     if (Path.GetDirectoryName(path) is { Length: > 0 } directory) Directory.CreateDirectory(directory);
 
@@ -210,7 +242,7 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
     {
         public static Func<Type, string?> Finder(string startingDirectory)
         {
-            var root = solutionRoot(startingDirectory);
+            var root = SolutionRoot(startingDirectory);
             string[]? files = null;
 
             return type =>
@@ -274,12 +306,15 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
             }
         }
 
-        private static string solutionRoot(string directory)
+        internal static string SolutionRoot(string directory)
         {
             for (var current = new DirectoryInfo(directory); current is not null; current = current.Parent)
             {
+                // GH-4885: in a git worktree (or a submodule) .git is a *file* pointing at the real
+                // repository, so look for either. Missing it walked on up into the parent tree and
+                // scanned -- and matched types in -- every checkout beside this one.
                 if (current.EnumerateFiles("*.sln").Any() || current.EnumerateFiles("*.slnx").Any() ||
-                    current.EnumerateDirectories(".git").Any())
+                    current.EnumerateFileSystemInfos(".git").Any())
                 {
                     return current.FullName;
                 }

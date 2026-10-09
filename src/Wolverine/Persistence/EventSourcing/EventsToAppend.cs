@@ -50,7 +50,7 @@ namespace Wolverine.Persistence.EventSourcing;
 ///         streams is a separate gap and is deliberately not addressed here.
 ///     </para>
 /// </remarks>
-public class EventsToAppend : List<object>, IWolverineReturnType
+public class EventsToAppend : List<object>, IWolverineReturnType, JasperFx.Events.ICarriesEvents
 {
     public EventsToAppend()
     {

@@ -24,6 +24,13 @@ public sealed record ActOutcome(
 {
     /// <summary>Nothing has acted yet.</summary>
     public static readonly ActOutcome None = new(null, Array.Empty<IEvent>(), null);
+
+    /// <summary>
+    /// GH-4920. Every event the act appended, on any stream, in sequence order: everything the store issued
+    /// after the high-water sequence recorded just before the act. What a stream already held never counts,
+    /// whoever arranged it, so <c>ThenEventsOn</c> checks only what the act added to that stream.
+    /// </summary>
+    public IReadOnlyList<IEvent> AllNewEvents { get; init; } = Array.Empty<IEvent>();
 }
 
 /// <summary>
@@ -129,8 +136,19 @@ public class WolverineScenario
     public Task GivenEvents<TAggregate>(string key, params object[] events) where TAggregate : class
         => GivenEvents(typeof(TAggregate), key, events);
 
+    /// <summary>
+    /// The stream the scenario acts against already holds exactly these events, and has no aggregate
+    /// type. Marten, Polecat and Fisher all allow a stream without one; this is the arrange for an event
+    /// model that names none (GH-4892). Starts the stream when it does not exist, appends when it does.
+    /// </summary>
+    public Task GivenEvents(Guid id, params object[] events) => GivenEvents((Type?)null, id, events);
+
+    /// <inheritdoc cref="GivenEvents(Guid, object[])" />
+    public Task GivenEvents(string key, params object[] events) => GivenEvents((Type?)null, key, events);
+
     /// <inheritdoc cref="GivenEvents{TAggregate}(Guid, object[])" />
-    public async Task GivenEvents(Type aggregate, object id, params object[] events)
+    /// <remarks>A null <paramref name="aggregate" /> arranges a stream with no aggregate type (GH-4892).</remarks>
+    public async Task GivenEvents(Type? aggregate, object id, params object[] events)
     {
         var stream = streamName(aggregate, id);
         events = flatten(events);
@@ -140,7 +158,8 @@ public class WolverineScenario
 
         _stream = id;
         if (!inline) recordValues("event", events);
-        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate, id, build(events, text));
+        // Every store's StartStream(Type, ...) takes a null aggregate type as an untyped stream
+        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate!, id, build(events, text));
     }
 
     /// <summary>
@@ -200,13 +219,15 @@ public class WolverineScenario
         await DocumentStores.StoreAllAsync(Store, typeof(T), [built]);
     }
 
-    private static string streamName(Type aggregate, object id)
+    private static string streamName(Type? aggregate, object id)
     {
-        if (id is string key) return $"{aggregate.Name} \"{key}\"";
+        // A stream with no aggregate type (GH-4892) reads as "the stream", or "stream 2" for a second
+        var label = aggregate?.Name ?? "stream";
+        if (id is string key) return $"{(aggregate is null ? "stream" : aggregate.Name)} \"{key}\"";
 
-        ScenarioValues.Learn(id, aggregate.Name);
+        ScenarioValues.Learn(id, label);
         var name = ScenarioValues.Format(id);
-        return name == aggregate.Name ? $"the {aggregate.Name} stream" : $"{aggregate.Name} {name}";
+        return name == label ? $"the {label}{(aggregate is null ? "" : " stream")}" : $"{label} {name}";
     }
 
     /// <summary>
@@ -339,7 +360,8 @@ public class WolverineScenario
         HandlerWarmUp.WarmBeforeTracking(Host);
 
         var store = hasStore() ? Store : null;
-        long? floor = store is not null && _stream is null ? await EventStores.HighWaterSequenceAsync(store) : null;
+        // GH-4920: always the floor, so every stream's share of the act is known, not only the arranged one's
+        long? floor = store is not null ? await EventStores.HighWaterSequenceAsync(store) : null;
         var before = store is not null && _stream is not null ? await fetchAsync(store, _stream) : Array.Empty<IEvent>();
 
         var tracking = Host.TrackActivity().Timeout(Timeout).DoNotAssertOnExceptionsDetected();
@@ -358,14 +380,16 @@ public class WolverineScenario
         }
 
         IReadOnlyList<IEvent> appended = Array.Empty<IEvent>();
+        IReadOnlyList<IEvent> all = Array.Empty<IEvent>();
         if (store is not null)
         {
+            all = await EventStores.QueryEventsSinceAsync(store, floor!.Value + 1);
             appended = _stream is not null
                 ? (await fetchAsync(store, _stream)).Skip(before.Count).ToList()
-                : await EventStores.QueryEventsSinceAsync(store, floor!.Value + 1);
+                : all;
         }
 
-        var outcome = new ActOutcome(session, appended, error);
+        var outcome = new ActOutcome(session, appended, error) { AllNewEvents = all };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
 
@@ -469,6 +493,63 @@ public class WolverineScenario
 
         Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")));
     }
+
+    /// <summary>
+    /// GH-4920. The act appended exactly these events, in order, to <typeparamref name="TAggregate" />'s stream
+    /// with this identity — for a command that decides against several streams, where <c>ThenEvents</c> can
+    /// only speak for the one the act addresses. Only what the act added counts, never what was arranged.
+    /// </summary>
+    public void ThenEventsOn<TAggregate>(Guid id, params object[] events) where TAggregate : class
+        => verifyEventsOn(typeof(TAggregate), id, flatten(events));
+
+    /// <inheritdoc cref="ThenEventsOn{TAggregate}(Guid, object[])" />
+    public void ThenEventsOn<TAggregate>(string key, params object[] events) where TAggregate : class
+        => verifyEventsOn(typeof(TAggregate), key, flatten(events));
+
+    /// <summary>GH-4920. The act appended nothing to <typeparamref name="TAggregate" />'s stream with this identity.</summary>
+    public void ThenNoEventsOn<TAggregate>(Guid id) where TAggregate : class => verifyEventsOn(typeof(TAggregate), id, []);
+
+    /// <inheritdoc cref="ThenNoEventsOn{TAggregate}(Guid)" />
+    public void ThenNoEventsOn<TAggregate>(string key) where TAggregate : class => verifyEventsOn(typeof(TAggregate), key, []);
+
+    private void verifyEventsOn(Type aggregate, object id, object[] expected)
+    {
+        var text = expected.Length == 0
+            ? $"no events are emitted on the {aggregate.Name} stream {ScenarioValues.Format(id)}"
+            : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on the {aggregate.Name} stream {ScenarioValues.Format(id)}";
+        using var step = ScenarioRecorder.Step("Then", text);
+        if (!actSucceeded()) return;
+
+        var onStream = LastAct.AllNewEvents.Where(x => isOn(x, id)).Select(x => x.Data).ToArray();
+        if (expected.Length == 0)
+        {
+            Verdicts.Fact(onStream.Length == 0,
+                $"Expected no events on the {aggregate.Name} stream {id}, but the act appended {ScenarioValues.DescribeAll(onStream)}");
+            return;
+        }
+
+        if (onStream.Length == 0)
+        {
+            // Say where the act's events DID go, which is usually the whole answer
+            var elsewhere = LastAct.AllNewEvents
+                .GroupBy(x => (object?)x.StreamKey ?? x.StreamId)
+                .Select(x => $"{x.Key}: {ScenarioValues.DescribeAll(x.Select(e => e.Data))}")
+                .ToList();
+            Verdicts.Fact(false, elsewhere.Count == 0
+                ? $"Expected events on the {aggregate.Name} stream {id}, but the act appended no events anywhere"
+                : $"Expected events on the {aggregate.Name} stream {id}, but the act appended none there. It appended to: {string.Join("; ", elsewhere)}");
+            return;
+        }
+
+        verifySet("event", onStream, expected, SetMode.Ordered);
+    }
+
+    private static bool isOn(IEvent @event, object id) => id switch
+    {
+        Guid guid => @event.StreamId == guid,
+        string key => @event.StreamKey == key,
+        _ => false
+    };
 
     /// <summary>The act appended nothing — the refusal half of a guard.</summary>
     public void ThenNoEvents()
@@ -661,9 +742,57 @@ public class WolverineScenario
     // ---- assert: read models -----------------------------------------------------------------
 
     /// <summary>
+    /// GH-4921. The aggregate of <typeparamref name="T" />'s stream with this identity, as the store serves it
+    /// through <c>FetchLatest&lt;T&gt;</c>: a projected snapshot where there is one, else built from the stream,
+    /// whatever the projection lifecycle. For state built from events. A plain or async-projected document
+    /// is <see cref="ThenDocument{T}(object)" />. Throws when there is no such stream.
+    /// </summary>
+    public Task<T> ThenAggregate<T>(Guid id) where T : class => thenAggregate<T>(id, null);
+
+    /// <inheritdoc cref="ThenAggregate{T}(Guid)" />
+    public Task<T> ThenAggregate<T>(string key) where T : class => thenAggregate<T>(key, null);
+
+    /// <summary>
+    /// GH-4921. The aggregate, as <see cref="ThenAggregate{T}(Guid)" />, judged against
+    /// <paramref name="expected" />: a partial object (<c>Specify&lt;T&gt;().With(...)</c>, a table, or
+    /// assertions on its members), or a whole object or <see cref="Expect.Value{T}" /> structurally.
+    /// </summary>
+    public Task<T> ThenAggregate<T>(Guid id, object expected) where T : class => thenAggregate<T>(id, expected);
+
+    /// <inheritdoc cref="ThenAggregate{T}(Guid, object)" />
+    public Task<T> ThenAggregate<T>(string key, object expected) where T : class => thenAggregate<T>(key, expected);
+
+    private async Task<T> thenAggregate<T>(object id, object? expected) where T : class
+    {
+        var aggregate = id switch
+        {
+            Guid guid => await EventStores.FetchLatestAsync<T>(Store, guid),
+            string key => await EventStores.FetchLatestAsync<T>(Store, key),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), "A stream is identified by a Guid or a string")
+        } ?? throw new SpecificationFailedException(
+            $"No {typeof(T).Name} with id {id}: FetchLatest found no stream there. The act appended to another stream, or none.");
+
+        if (expected is not null) ThenMatches(aggregate, expected);
+        return aggregate;
+    }
+
+    /// <summary>
+    /// GH-4921. The document of type <typeparamref name="T" /> with this identity, loaded with
+    /// <c>LoadAsync</c> once the projections have caught up: a plain document, or a projection stored as
+    /// one. An aggregate built from events is <see cref="ThenAggregate{T}(Guid)" />. The same as
+    /// <see cref="ThenReadModel{T}(object)" />.
+    /// </summary>
+    public Task<T> ThenDocument<T>(object id) where T : class => ThenReadModel<T>(id);
+
+    /// <summary>GH-4921. The document, as <see cref="ThenDocument{T}(object)" />, judged against <paramref name="expected" />.</summary>
+    public Task<T> ThenDocument<T>(object id, object expected) where T : class => ThenReadModel<T>(id, expected);
+
+    /// <summary>
     /// The read model with this identity, once the projections have caught up — an async projection
     /// read straight after the act reads a stale document. Throws when there is no such document,
-    /// because there is nothing to hand back.
+    /// because there is nothing to hand back. Loaded with <c>LoadAsync</c>, so it is the same as
+    /// <see cref="ThenDocument{T}(object)" />; for an aggregate built from events, see
+    /// <see cref="ThenAggregate{T}(Guid)" /> (GH-4921).
     /// </summary>
     public async Task<T> ThenReadModel<T>(object id) where T : class
     {

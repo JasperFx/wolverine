@@ -3,11 +3,21 @@ using JasperFx.Events.EventModeling;
 namespace Wolverine.Persistence.EventSourcing;
 
 /// <summary>
-///     Declare the event types a handler appends when its signature cannot say so — the events are
-///     constructed in the method body and returned through <see cref="EventsToAppend" />, the store's
-///     <c>Events</c> collection, <see cref="StartStream" /> or an <c>IEventStream&lt;T&gt;</c> (GH-4386).
+///     <b>Purely diagnostic — this attribute changes no behavior.</b> Nothing about dispatch, code
+///     generation or persistence reads it; it only tells Wolverine's derived Event Model which events a
+///     handler appends when the signature cannot say so (GH-4386, GH-4890). Adding, removing or getting it
+///     wrong never changes what the handler does.
 /// </summary>
 /// <remarks>
+///     <para>
+///         Usually unnecessary. A handler that returns its event type directly —
+///         <c>public static OrderShipped? Handle(ShipOrder command, [WriteModel] Order order)</c> — needs none:
+///         the signature already says it. Events constructed in the method body and returned through
+///         <see cref="EventsToAppend" />, <see cref="StartStream" />, <see cref="AppendEvents" /> or appended to an
+///         <c>IEventStream&lt;T&gt;</c> need none either: the JasperFx.Events source generator reads them from
+///         the body into an assembly manifest the derived model reads (GH-4914, jasperfx#990). Use it for an
+///         event the generator cannot see — built in a helper method, or held as <c>object</c>.
+///     </para>
 ///     <para>
 ///         Wolverine's Event Model is <em>derived</em>: the roles of a slice are read off the handler
 ///         signature, so a typed event return is reported without anything being declared. The two shapes

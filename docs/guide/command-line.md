@@ -322,6 +322,23 @@ The `event-model` command writes that whole picture — Wolverine's derived slic
 [overlay](https://github.com/JasperFx/jasperfx/issues/687) the application registered with
 `services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
 
+To read the model rather than export it, `describe-event-model` (GH-4917) prints it by domain and chapter: each
+slice's trigger, command, aggregate (and whether it came from a `ForAggregate` default, `NoAggregate()` or a DCB
+decider), the events it emits, what it publishes, reads and produces, the code behind it, its specifications and
+its hotspots, with a summary per chapter. In a terminal it is a tree; redirected, it is plain text to paste into
+an issue or a pull request.
+
+```bash
+dotnet run -- describe-event-model
+dotnet run -- describe-event-model --chapter BookingAppointments
+dotnet run -- describe-event-model --hotspots-only > open-questions.txt
+```
+
+Every `EventModelDefinition` subclass in the application's assemblies is registered for you (GH-4916), from the
+manifest JasperFx's source generator writes at compile time, so one definition per chapter needs no
+`AddEventModel<T>()` each. Definitions with no `Name` join the application's model. A definition you register
+yourself is not registered twice, and `opts.AutoRegisterEventModelDefinitions = false` turns the discovery off.
+
 ```bash
 dotnet run -- event-model                       # writes event-model.json in the working directory
 dotnet run -- event-model --json ./docs/orders.json
@@ -378,8 +395,16 @@ public static StartStream Handle(HomeCheckAssignmentAccepted trigger)
 ```
 
 The slice is known to append events; the events themselves are built in the method body, so nothing on the
-signature says what they are. Put `[Emits]` on the handler method (or on the handler type, when every method
-of it emits the same events) to say it:
+signature says what they are. **The JasperFx.Events source generator reads them from the body instead**
+(GH-4914): it records the events a handler passes to `AppendOne`/`AppendMany` on an `IEventStream<T>`, to
+`Storage.StartStream` or `MartenOps`/`PolecatOps`/`FisherOps.StartStream`, or puts in an `EventsToAppend`, in an
+assembly-level manifest that the derived model reads. Marten, Polecat and Fisher bundle that generator, so this
+needs no setup once your store ships with JasperFx 2.82 or later. Until then, reference
+`JasperFx.Events.SourceGenerator` 2.82+ in the application project directly.
+
+The generator can't see an event built somewhere else, such as in a helper method or held as `object`. For
+that, put `[Emits]` on the handler method (or on the handler type, when every method of it emits the same
+events) to say it:
 
 ```cs
 [Emits(typeof(AppointmentConfirmed))]
@@ -391,9 +416,9 @@ public static (ConfirmAppointmentResponse, EventsToAppend) Post(
 }
 ```
 
-It is additive — everything the signature already says still holds — and purely diagnostic: nothing about
-dispatch, codegen or persistence reads it. Without it, `emittedEvents` on those slices is empty, which is
-indistinguishable from a slice that emits nothing at all.
+It is additive — everything the signature and the generator already say still holds — and purely
+diagnostic: nothing about dispatch, codegen or persistence reads it. Without it, or the generator, `emittedEvents`
+on those slices is empty, which is indistinguishable from a slice that emits nothing at all.
 
 ::: tip
 `[Emits]` is worth reaching for precisely when a declared model says a slice emits an event. An empty derived
@@ -560,9 +585,13 @@ Fisher:
 | `Automation` with `On<T>()` | a message handler for `T`, returning the command it issues as `OutgoingMessages` |
 | `.Against<T>()` | a non-nullable `[WriteModel] T` parameter |
 | `.StartsStream<T>()` | a `StartStream` return built with `Storage.StartStream<T>(...)` |
-| `.Emits<T>()` | an `EventsToAppend` return, with `[Emits(typeof(T))]` so the derived model sees the events |
+| `model.ForAggregate<T>()` default | the same as `.Against<T>()` on every command that declares no aggregate of its own |
+| `.NoAggregate()` | a `StartStream` return built with `Storage.StartStream(id, ...)`, a stream with no aggregate type, and no warning |
+| `.DeciderModel<T>()` | a TODO and a warning: the DCB handler shape is not designed yet |
+| `.Emits<T>()` | a `T?` return when it is the slice's only event, else an `EventsToAppend` return; no `[Emits]`, because the source generator reads the events from the body |
 | `.Reads<T>()` / `.Produces<T>()` | an `[Entity] T` parameter / an `IStorageAction<T>` return |
 | an aggregate or view declared **by name** | a class with an `Apply` method per event it folds |
+| an aggregate or view that **already exists** | the `Apply` methods it is missing, added to the end of its class |
 | any other role declared **by name** | a `public record` stub to give fields |
 
 Method bodies describe the shape to fill in and throw `NotImplementedException`, so a slice nobody has filled in yet

@@ -611,8 +611,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     // documents the requirement explicitly. Test-helper API surface — caller
     // sites pass concrete types so the cascade stops here.
     public static HandlerChain For<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] T>(string methodName, HandlerGraph parent)
+        => For(typeof(T), methodName, parent);
+
+    /// <summary>
+    ///     The chain for <paramref name="methodName" /> on <paramref name="handlerType" />, which may be a
+    ///     <c>static</c> class — the shape the scaffold writes, and one a generic type argument cannot name.
+    /// </summary>
+    public static HandlerChain For(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] Type handlerType,
+        string methodName, HandlerGraph parent)
     {
-        var handlerType = typeof(T);
         var method = handlerType.GetMethod(methodName,
             BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
 

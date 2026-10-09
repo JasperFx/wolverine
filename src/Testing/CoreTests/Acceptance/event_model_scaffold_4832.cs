@@ -47,11 +47,13 @@ public class event_model_scaffold_4832
 
         file.Code.ShouldContain("namespace Clinic.Scheduling;");
         file.Code.ShouldContain("public static class ConfirmAppointmentEndpoint");
-        file.Code.ShouldContain("public static ProblemDetails Validate(ConfirmAppointmentRequest confirmAppointmentRequest, Appointment appointment)");
-        file.Code.ShouldContain("[Emits(typeof(AppointmentConfirmed))]");
+        file.Code.ShouldContain("public static ProblemDetails Validate(ConfirmAppointmentRequest command, Appointment appointment)");
         file.Code.ShouldContain("[WolverinePost(\"/api/confirm-appointment\")]");
         file.Code.ShouldContain("[EmptyResponse]");
-        file.Code.ShouldContain("public static EventsToAppend Post(ConfirmAppointmentRequest confirmAppointmentRequest, [WriteModel] Appointment appointment)");
+
+        // GH-4889: one event onto the stream it loads -- the signature says so, so no [Emits]
+        file.Code.ShouldContain("public static AppointmentConfirmed? Post(ConfirmAppointmentRequest command, [WriteModel] Appointment appointment)");
+        file.Code.ShouldNotContain("[Emits(");
         file.Code.ShouldContain($"using {typeof(Appointment).Namespace};");
 
         // never a store-specific attribute
@@ -60,19 +62,161 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void an_existing_aggregate_stub_is_never_rewritten_but_the_report_says_what_to_add_and_where()
+    public void an_existing_aggregate_gets_its_missing_apply_methods_inserted_into_its_own_file()
     {
+        // GH-4898: the import writes aggregates as bare stubs; without these every spec fails to project
         var result = plan(
             declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Http)
                 .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()),
             findSource: type => $"Domain/{type.Name}.cs");
 
-        result.Files.ShouldNotContain(x => x.RelativePath.Contains("Appointment.cs") && !x.RelativePath.Contains("Confirm"));
+        var insert = result.Files.Single(x => x.InsertInto is not null);
+        insert.RelativePath.ShouldBe("Domain/Appointment.cs");
+        insert.InsertInto.ShouldBe(nameof(Appointment));
+        insert.Code.ShouldContain("public void Apply(AppointmentConfirmed e)");
+        insert.Code.ShouldContain("// TODO: fold AppointmentConfirmed into the aggregate");
 
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Edit);
+        result.Notices.ShouldContain(x => x.Kind == ScaffoldNoticeKind.Wrote && x.Path == "Domain/Appointment.cs");
+    }
+
+    [Fact]
+    public void an_existing_aggregate_whose_source_is_not_found_gets_a_report_of_what_to_add()
+    {
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Http)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()));
+
+        result.Files.ShouldNotContain(x => x.InsertInto != null);
         var edit = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Edit);
-        edit.Path.ShouldBe("Domain/Appointment.cs");
         edit.Subject.ShouldBe($"{typeof(Appointment).FullName} (aggregate)");
         edit.Message.ShouldContain("public void Apply(AppointmentConfirmed e)");
+    }
+
+    private static readonly ScaffoldFile ApplyConfirmed = new("Domain/Appointment.cs",
+        "public void Apply(AppointmentConfirmed e)\n{\n    // TODO: fold AppointmentConfirmed into the aggregate\n}\n")
+    {
+        InsertInto = "Appointment",
+        Usings = ["Clinic.Scheduling"]
+    };
+
+    [Fact]
+    public void apply_methods_are_inserted_at_the_end_of_the_class_body_with_their_usings()
+    {
+        const string existing = """
+            using System;
+
+            namespace Clinic.Domain;
+
+            // A bare stub, as the import writes it
+            public class Appointment
+            {
+                public Guid Id { get; set; }
+            }
+
+            public record Other(string Text);
+            """;
+
+        var updated = SliceScaffolder.InsertInto(existing, ApplyConfirmed)!.ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+            using System;
+            using Clinic.Scheduling;
+            """.ReplaceLineEndings("\n"));
+        updated.ShouldContain("""
+            public class Appointment
+            {
+                public Guid Id { get; set; }
+
+                public void Apply(AppointmentConfirmed e)
+                {
+                    // TODO: fold AppointmentConfirmed into the aggregate
+                }
+            }
+
+            public record Other(string Text);
+            """.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void braces_in_strings_and_comments_do_not_end_the_class_early()
+    {
+        const string existing = """
+            namespace Clinic.Domain
+            {
+                public class Appointment
+                {
+                    // a } in a comment
+                    public string Text { get; set; } = "a } in a string";
+                    /* and { here */
+                }
+            }
+            """;
+
+        var updated = SliceScaffolder.InsertInto(existing, ApplyConfirmed)!.ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+                    /* and { here */
+
+                    public void Apply(AppointmentConfirmed e)
+            """.ReplaceLineEndings("\n"));
+        updated.TrimEnd().ShouldEndWith("""
+                    }
+                }
+            }
+            """.ReplaceLineEndings("\n").TrimEnd());
+    }
+
+    [Fact]
+    public void a_missing_class_changes_nothing()
+    {
+        SliceScaffolder.InsertInto("namespace Clinic;\npublic class Visit { }\n", ApplyConfirmed).ShouldBeNull();
+    }
+
+    [Fact]
+    public void a_positional_record_with_no_body_gets_one()
+    {
+        var updated = SliceScaffolder.InsertInto("namespace Clinic;\n\npublic record Appointment(Guid Id, string Status);\n", ApplyConfirmed)!
+            .ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+            public record Appointment(Guid Id, string Status)
+            {
+                public void Apply(AppointmentConfirmed e)
+            """.ReplaceLineEndings("\n"));
+        updated.TrimEnd().ShouldEndWith("}");
+    }
+
+    [Fact]
+    public void a_body_written_on_one_line_is_opened_up_first()
+    {
+        // The import writes aggregate stubs this way
+        var updated = SliceScaffolder.InsertInto("namespace Clinic;\n\npublic class Appointment { public Guid Id { get; set; } }\n", ApplyConfirmed)!
+            .ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+            public class Appointment
+            {
+                public Guid Id { get; set; }
+
+                public void Apply(AppointmentConfirmed e)
+                {
+                    // TODO: fold AppointmentConfirmed into the aggregate
+                }
+            }
+            """.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void a_records_apply_methods_return_the_new_state()
+    {
+        // A record's members are init-only, so a mutating Apply could not be written
+        var result = plan(
+            declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>()),
+            findSource: type => $"Domain/{type.Name}.cs");
+
+        var insert = result.Files.Single(x => x.InsertInto == nameof(AppointmentBoard));
+        insert.Code.ShouldContain("public AppointmentBoard Apply(AppointmentConfirmed e)");
+        insert.Code.ShouldContain("return this;");
     }
 
     [Fact]
@@ -83,6 +227,27 @@ public class event_model_scaffold_4832
 
         path.ShouldNotBeNull();
         path.ShouldEndWith("event_model_scaffold_4832.cs");
+    }
+
+    [Fact]
+    public void the_source_finder_stops_at_a_git_worktree_whose_dot_git_is_a_file()
+    {
+        // GH-4885: a worktree's .git is a file ("gitdir: ..."), not a directory
+        var outer = Path.Combine(Path.GetTempPath(), "scaffold-4885-" + Guid.NewGuid().ToString("N"));
+        var worktree = Path.Combine(outer, "worktree");
+        var project = Path.Combine(worktree, "src", "App");
+        Directory.CreateDirectory(Path.Combine(outer, ".git"));
+        Directory.CreateDirectory(project);
+        File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: ../.git/worktrees/worktree");
+
+        try
+        {
+            ScaffoldCommand.SourceFiles.SolutionRoot(project).ShouldBe(new DirectoryInfo(worktree).FullName);
+        }
+        finally
+        {
+            Directory.Delete(outer, true);
+        }
     }
 
     [Fact]
@@ -106,7 +271,14 @@ public class event_model_scaffold_4832
         var handler = result.Files.Single(x => x.RelativePath == Path.Combine("Cases", "OpenCase.cs"));
         handler.Code.ShouldContain("public static class OpenCaseHandler");
         handler.Code.ShouldContain("public static StartStream Handle(PatientReferred patientReferred)");
-        handler.Code.ShouldContain("Storage.StartStream<ClinicCase>(");
+        handler.Code.ShouldContain("Storage.StartStream<ClinicCase>(id, new CaseOpened(...));");
+
+        // GH-4888: a sequential Guid for the new stream, never a random one
+        handler.Code.ShouldContain("var id = Guid.CreateVersion7();");
+        handler.Code.ShouldNotContain("NewGuid");
+
+        // StartStream erases the event types, and the source generator reads them from the body (GH-4914)
+        handler.Code.ShouldNotContain("[Emits(");
         handler.Code.ShouldContain("public record PatientReferred;");
         handler.Code.ShouldContain("public record CaseOpened;");
         handler.Code.ShouldNotContain("public record ClinicCase;");
@@ -135,6 +307,233 @@ public class event_model_scaffold_4832
         var view = result.Files.Single().Code;
         view.ShouldContain("public class AppointmentsQueue");
         view.ShouldContain("public void Apply(AppointmentConfirmed e)");
+    }
+
+    [Fact]
+    public void a_one_event_slice_returns_the_event_type_and_needs_no_emits_attribute()
+    {
+        // GH-4889
+        var code = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>())).Files.Single().Code;
+
+        code.ShouldContain("public static AppointmentConfirmed? Handle(ConfirmAppointmentRequest command, [WriteModel] Appointment appointment)");
+        code.ShouldContain("or null when there is nothing to record");
+        code.ShouldContain("If the stream may not exist yet, make the parameter Appointment?");
+        code.ShouldNotContain("[Emits(");
+        code.ShouldNotContain("EventsToAppend");
+    }
+
+    [Fact]
+    public void a_slice_that_also_sends_messages_keeps_events_to_append_with_no_emits()
+    {
+        var code = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()
+            .Publishes<AppointmentReminderScheduled>())).Files.Single().Code;
+
+        code.ShouldContain("public static (EventsToAppend, OutgoingMessages) Handle(");
+        code.ShouldNotContain("[Emits(");
+    }
+
+    [Fact]
+    public void a_command_with_no_aggregate_is_a_todo_and_a_warning_never_an_untyped_append()
+    {
+        // GH-4895: only a slice that purely starts a stream may do without an aggregate, and nothing
+        // says this one does -- so nothing is guessed
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest command)");
+        code.ShouldContain("TODO: the model names no aggregate this command decides against");
+        code.ShouldContain(".Against<T>(), once per stream, or .StartsStream<T>()");
+        code.ShouldNotContain("AppendEvents");
+
+        var warning = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning);
+        warning.Subject.ShouldBe("ConfirmAppointment");
+        warning.ToString().ShouldStartWith("⚠ WARN");
+    }
+
+    [Fact]
+    public void a_for_aggregate_default_scaffolds_like_an_explicit_against()
+    {
+        // GH-4919: model.ForAggregate<T>() (jasperfx#994) gives a command that declares no aggregate its own
+        var code = plan(declared(m =>
+        {
+            m.ForAggregate<Appointment>();
+            m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler).Emits<AppointmentConfirmed>();
+        })).Files.Single().Code;
+
+        code.ShouldContain("public static AppointmentConfirmed? Handle(ConfirmAppointmentRequest command, [WriteModel] Appointment appointment)");
+    }
+
+    [Fact]
+    public void no_aggregate_scaffolds_a_stream_with_no_aggregate_type_and_no_warning()
+    {
+        // GH-4919: .NoAggregate() is the declared, deliberate case GH-4895 otherwise warns about
+        var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
+            .NoAggregate().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("public static StartStream Handle(ConfirmAppointmentRequest command)");
+        code.ShouldContain("var id = Guid.CreateVersion7();");
+        code.ShouldContain("return Storage.StartStream(id, new AppointmentConfirmed(...));");
+        code.ShouldNotContain("TODO: the model names no aggregate");
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+    }
+
+    [Fact]
+    public void a_dcb_decider_model_is_a_todo_and_a_warning_until_the_dcb_shape_is_designed()
+    {
+        // GH-4919: DeciderModel<T>() (jasperfx#994); the DCB handler shape is GH-4865's to design
+        var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
+            .DeciderModel<Appointment>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("TODO: this slice decides through the DCB decider model Appointment");
+        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest command)");
+        code.ShouldNotContain("[WriteModel]");
+
+        var warning = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning);
+        warning.Message.ShouldContain("GH-4865");
+    }
+
+    [Fact]
+    public void a_command_against_several_aggregates_takes_an_event_stream_per_aggregate()
+    {
+        // GH-4895: one IEventStream<T> per stream, each found by its own {Aggregate}Id member
+        var result = plan(declared(m => m.Slice("AcceptHomeCheckAssignment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<AcceptHomeCheckAssignment>().Against<HomeCheck>().Against<VolunteerApplication>()
+            .Emits<HomeCheckAssignmentAcceptedEvent>()));
+        var code = result.Files.Single().Code;
+
+        // The command is just `command`, and a signature this long puts each parameter on its own line
+        code.ShouldContain("""
+                               public static void Handle(
+                                       AcceptHomeCheckAssignment command,
+                                       [WriteModel(nameof(AcceptHomeCheckAssignment.HomeCheckId))] IEventStream<HomeCheck> homeCheckStream,
+                                       [WriteModel(nameof(AcceptHomeCheckAssignment.VolunteerApplicationId))] IEventStream<VolunteerApplication> volunteerApplicationStream)
+                                   {
+                               """.ReplaceLineEndings("\n"));
+        code.ShouldContain("homeCheckStream.AppendOne(new HomeCheckAssignmentAcceptedEvent(...));   // or volunteerApplicationStream");
+
+        // IEventStream<T> erases the event types; the source generator reads AppendOne instead (GH-4914)
+        code.ShouldNotContain("[Emits(");
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+    }
+
+    [Fact]
+    public void a_stream_the_command_has_no_id_member_for_is_a_warning()
+    {
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Against<HomeCheck>()
+            .Emits<AppointmentConfirmed>()));
+
+        result.Files.Single().Code.ShouldContain("[WriteModel(\"HomeCheckId\")] IEventStream<HomeCheck> homeCheckStream");
+        result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning)
+            .Message.ShouldContain("ConfirmAppointmentRequest has no HomeCheckId member");
+    }
+
+    [Fact]
+    public void a_human_triggered_command_is_scaffolded_as_a_message_handler_and_the_report_says_so()
+    {
+        // GH-4884: every command an imported board produces is screen-triggered
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Human)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()));
+
+        result.Files.Single(x => x.RelativePath == "ConfirmAppointment.cs").Code
+            .ShouldContain("public static class ConfirmAppointmentHandler");
+
+        var notice = result.Notices.Single(x => x.Subject == "ConfirmAppointment");
+        notice.Kind.ShouldBe(ScaffoldNoticeKind.Wrote);
+        notice.Message.ShouldContain("TriggerKind.Human");
+        notice.Message.ShouldContain("message handler");
+    }
+
+    [Fact]
+    public void slices_and_their_aggregates_go_in_a_folder_and_namespace_per_chapter()
+    {
+        // GH-4891
+        var result = plan(declared(m => m.InChapter("Volunteering And Home Checks")
+            .Automation("OpenCase").On("PatientReferred").StartsStream("ClinicCase").Emits("CaseOpened")));
+
+        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("VolunteeringAndHomeChecks", "OpenCase.cs"));
+        handler.Code.ShouldContain("namespace Clinic.VolunteeringAndHomeChecks;");
+
+        result.Files.ShouldContain(x => x.RelativePath == Path.Combine("VolunteeringAndHomeChecks", "ClinicCase.cs"));
+    }
+
+    [Fact]
+    public void the_handler_is_appended_to_the_file_that_declares_its_command()
+    {
+        // GH-4891: one file per slice -- the command and its handler together
+        var result = plan(
+            declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+                .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()),
+            findSource: type => type == typeof(ConfirmAppointmentRequest) ? "Features/ConfirmAppointment.cs" : null);
+
+        var append = result.Files.Single(x => x.AppendClass is not null);
+        append.RelativePath.ShouldBe("Features/ConfirmAppointment.cs");
+        append.AppendClass.ShouldBe("ConfirmAppointmentHandler");
+        append.Namespace.ShouldBe(typeof(ConfirmAppointmentRequest).Namespace);
+        append.Code.ShouldNotContain("namespace ");
+        append.Code.ShouldNotContain("using ");
+        append.Usings.ShouldContain("Wolverine.Persistence.EventSourcing");
+
+        result.Notices.Single(x => x.Subject == "ConfirmAppointment").Message
+            .ShouldContain("appended to the file that declares ConfirmAppointmentRequest");
+    }
+
+    private static ScaffoldFile appendOf(string code) => new("Features/ApplyToVolunteer.cs", code)
+    {
+        AppendClass = "ApplyToVolunteerHandler",
+        Usings = new[] { "System", "Wolverine", "Wolverine.Persistence", "CritterCrush.Volunteering" },
+        Namespace = "CritterCrush.Volunteering"
+    };
+
+    private const string AppendedHandler = "public static class ApplyToVolunteerHandler\n{\n}";
+
+    [Fact]
+    public void appending_into_a_file_scoped_namespace_adds_the_missing_usings_after_the_files_own()
+    {
+        var existing = "using System;\n\nnamespace CritterCrush.Volunteering;\n\npublic record ApplyToVolunteer(Guid Id);\n";
+
+        var result = SliceScaffolder.AppendTo(existing, appendOf(AppendedHandler))!;
+
+        result.ShouldBe("using System;\nusing Wolverine;\nusing Wolverine.Persistence;\n\nnamespace CritterCrush.Volunteering;\n\npublic record ApplyToVolunteer(Guid Id);\n\npublic static class ApplyToVolunteerHandler\n{\n}\n");
+    }
+
+    [Fact]
+    public void appending_into_a_block_scoped_namespace_wraps_the_class_in_its_own_namespace_block()
+    {
+        var existing = "namespace CritterCrush.Volunteering\n{\n    public record ApplyToVolunteer(System.Guid Id);\n}\n";
+
+        var result = SliceScaffolder.AppendTo(existing, appendOf(AppendedHandler))!;
+
+        result.ShouldStartWith("using System;\nusing Wolverine;\nusing Wolverine.Persistence;\n\nnamespace CritterCrush.Volunteering\n{");
+        result.ShouldEndWith("}\n\nnamespace CritterCrush.Volunteering\n{\n    public static class ApplyToVolunteerHandler\n    {\n    }\n}\n");
+    }
+
+    [Fact]
+    public void a_class_already_in_the_file_is_never_appended_twice()
+    {
+        var existing = "namespace CritterCrush.Volunteering;\n\npublic static class ApplyToVolunteerHandler\n{\n}\n";
+
+        SliceScaffolder.AppendTo(existing, appendOf(AppendedHandler)).ShouldBeNull();
+    }
+
+    [Fact]
+    public void the_scaffold_mints_no_random_guids_anywhere()
+    {
+        // GH-4888
+        var result = plan(declared(m =>
+        {
+            m.Automation("OpenCase").On("PatientReferred").StartsStream("ClinicCase").Emits("CaseOpened");
+            m.Slice("BookAppointment").TriggeredBy(TriggerKind.MessageHandler).Command("BookAppointmentRequest").Emits("AppointmentBooked");
+            m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Http).Command<ConfirmAppointmentRequest>()
+                .Against<Appointment>().Emits<AppointmentConfirmed>();
+        }));
+
+        foreach (var file in result.Files) file.Code.ShouldNotContain("NewGuid");
     }
 
     [Fact]
@@ -180,11 +579,22 @@ public class event_model_scaffold_4832
                 .Against<Appointment>().Emits<AppointmentConfirmed>().Publishes<AppointmentReminderScheduled>();
             m.Slice("RecordVisit").TriggeredBy(TriggerKind.MessageHandler).Command("RecordVisitRequest")
                 .Reads<Appointment>().Produces("VisitRecord");
+
+            // GH-4884, GH-4889, GH-4892: the shapes this round added compile too
+            m.Slice("CancelAppointment").TriggeredBy(TriggerKind.Human).Command("CancelAppointmentRequest")
+                .Against<Appointment>().Emits("AppointmentCancelled");
+            m.Slice("LogCall").TriggeredBy(TriggerKind.MessageHandler).Command("LogCallRequest").Emits("CallLogged");
+
+            // GH-4895: one IEventStream<T> per aggregate
+            m.Slice("AcceptHomeCheckAssignment").TriggeredBy(TriggerKind.MessageHandler)
+                .Command<AcceptHomeCheckAssignment>().Against<HomeCheck>().Against<VolunteerApplication>()
+                .Emits<HomeCheckAssignmentAcceptedEvent>();
             m.View("AppointmentsQueue").From<AppointmentConfirmed>();
         }));
 
+        // LogCall names no aggregate: written, as a TODO, with a warning (GH-4895)
         result.Notices.Where(x => x.Kind != ScaffoldNoticeKind.Wrote && x.Kind != ScaffoldNoticeKind.Edit)
-            .ShouldBeEmpty();
+            .Select(x => x.Subject).ShouldBe(new[] { "LogCall" });
 
         ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
     }
@@ -222,6 +632,22 @@ public record HomeCheckAssignmentAccepted(Guid HomeCheckId);
 public record ProposeAppointment(Guid HomeCheckId);
 
 public class Appointment
+{
+    public Guid Id { get; set; }
+}
+
+public record AppointmentBoard(Guid Id, int Confirmed);
+
+public record AcceptHomeCheckAssignment(Guid HomeCheckId, Guid VolunteerApplicationId);
+
+public record HomeCheckAssignmentAcceptedEvent;
+
+public class HomeCheck
+{
+    public Guid Id { get; set; }
+}
+
+public class VolunteerApplication
 {
     public Guid Id { get; set; }
 }

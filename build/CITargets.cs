@@ -984,7 +984,11 @@ partial class Build
                                  "ProcessManagerViaHandlers.Tests" / "ProcessManagerViaHandlers.Tests.csproj";
 
             BuildTestProjects(tests, httpTests, incidents, processManager);
-            StartDockerServices("postgresql");
+
+            // The store-agnostic specs (GH-4892, GH-4920, GH-4921) run on Marten, Polecat AND Fisher, and
+            // Polecat needs SQL Server. Without it every Polecat fixture fails to start, which surfaced as a
+            // NullReferenceException in DisposeAsync rather than as the connection failure it was.
+            StartDockerServices("postgresql", "sqlserver");
 
             RunTestProjects([tests, httpTests, incidents, processManager]);
         });
