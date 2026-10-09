@@ -17,13 +17,23 @@ public class NatsSubscriberConfiguration
     /// </summary>
     public NatsSubscriberConfiguration UseJetStream(string? streamName = null)
     {
-        add(endpoint =>
+        // Right away as well, not only with the rest of the endpoint's configuration: endpoint policies such as
+        // UseDurableOutboxOnAllSendingEndpoints() run first and ask whether the endpoint supports durable mode,
+        // which a NATS endpoint only does with JetStream
+        if (_endpoint != null)
         {
-            endpoint.UseJetStream = true;
-            endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
-        });
+            applyJetStream(_endpoint, streamName);
+        }
+
+        add(endpoint => applyJetStream(endpoint, streamName));
 
         return this;
+    }
+
+    private static void applyJetStream(NatsEndpoint endpoint, string? streamName)
+    {
+        endpoint.UseJetStream = true;
+        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
     }
 
     /// <summary>

@@ -406,6 +406,12 @@ opts.ListenToNatsSubject("orders.received")
     .UseJetStream("ORDERS", "my-consumer");
 ```
 
+A durable inbox or outbox needs JetStream: `UseDurableInbox()` and `UseDurableOutbox()` are only allowed on a
+JetStream endpoint. The policies `UseDurableInboxOnAllListeners()` and `UseDurableOutboxOnAllSendingEndpoints()`
+make every JetStream listener and publishing endpoint durable and leave core NATS endpoints as they are. A durable
+JetStream listener settles failures through the durable inbox: a message moved to the error queue goes to the
+message store's dead letters, not to the listener's `DeadLetterTo(...)` subject.
+
 ### Native Acks with Parallel Processing <Badge type="tip" text="6.30" />
 
 JetStream listeners support `EndpointMode.NativeAck` (see [GH-3708](https://github.com/JasperFx/wolverine/issues/3708)),

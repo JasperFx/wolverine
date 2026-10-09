@@ -35,14 +35,24 @@ public class NatsListenerConfiguration
         string? consumerName = null
     )
     {
-        add(endpoint =>
+        // Right away as well, not only with the rest of the endpoint's configuration: endpoint policies such as
+        // UseDurableInboxOnAllListeners() run first and ask whether the endpoint supports durable mode, which a
+        // NATS endpoint only does with JetStream
+        if (_endpoint != null)
         {
-            endpoint.UseJetStream = true;
-            endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
-            endpoint.ConsumerName = consumerName;
-        });
+            applyJetStream(_endpoint, streamName, consumerName);
+        }
+
+        add(endpoint => applyJetStream(endpoint, streamName, consumerName));
 
         return this;
+    }
+
+    private static void applyJetStream(NatsEndpoint endpoint, string? streamName, string? consumerName)
+    {
+        endpoint.UseJetStream = true;
+        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
+        endpoint.ConsumerName = consumerName;
     }
 
     /// <summary>
