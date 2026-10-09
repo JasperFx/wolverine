@@ -167,10 +167,56 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void a_positional_record_with_no_body_or_a_missing_class_changes_nothing()
+    public void a_missing_class_changes_nothing()
     {
-        SliceScaffolder.InsertInto("namespace Clinic;\npublic record Appointment(Guid Id);\n", ApplyConfirmed).ShouldBeNull();
         SliceScaffolder.InsertInto("namespace Clinic;\npublic class Visit { }\n", ApplyConfirmed).ShouldBeNull();
+    }
+
+    [Fact]
+    public void a_positional_record_with_no_body_gets_one()
+    {
+        var updated = SliceScaffolder.InsertInto("namespace Clinic;\n\npublic record Appointment(Guid Id, string Status);\n", ApplyConfirmed)!
+            .ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+            public record Appointment(Guid Id, string Status)
+            {
+                public void Apply(AppointmentConfirmed e)
+            """.ReplaceLineEndings("\n"));
+        updated.TrimEnd().ShouldEndWith("}");
+    }
+
+    [Fact]
+    public void a_body_written_on_one_line_is_opened_up_first()
+    {
+        // The import writes aggregate stubs this way
+        var updated = SliceScaffolder.InsertInto("namespace Clinic;\n\npublic class Appointment { public Guid Id { get; set; } }\n", ApplyConfirmed)!
+            .ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+            public class Appointment
+            {
+                public Guid Id { get; set; }
+
+                public void Apply(AppointmentConfirmed e)
+                {
+                    // TODO: fold AppointmentConfirmed into the aggregate
+                }
+            }
+            """.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void a_records_apply_methods_return_the_new_state()
+    {
+        // A record's members are init-only, so a mutating Apply could not be written
+        var result = plan(
+            declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>()),
+            findSource: type => $"Domain/{type.Name}.cs");
+
+        var insert = result.Files.Single(x => x.InsertInto == nameof(AppointmentBoard));
+        insert.Code.ShouldContain("public AppointmentBoard Apply(AppointmentConfirmed e)");
+        insert.Code.ShouldContain("return this;");
     }
 
     [Fact]
@@ -589,6 +635,8 @@ public class Appointment
 {
     public Guid Id { get; set; }
 }
+
+public record AppointmentBoard(Guid Id, int Confirmed);
 
 public record AcceptHomeCheckAssignment(Guid HomeCheckId, Guid VolunteerApplicationId);
 

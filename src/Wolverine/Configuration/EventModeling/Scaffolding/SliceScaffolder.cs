@@ -222,11 +222,21 @@ public static class SliceScaffolder
         var declaration = Regex.Match(text, $@"\b(class|record|struct)\s+{Regex.Escape(file.InsertInto)}\b");
         if (!declaration.Success) return null;
 
-        // The body's opening brace; a positional record ends in ';' first and has no body to insert into
+        var lineStart = text.LastIndexOf('\n', declaration.Index) + 1;
+        var indent = new string(text.Skip(lineStart).TakeWhile(char.IsWhiteSpace).ToArray());
+        var members = string.Join("\n", file.Code.Replace("\r\n", "\n").TrimEnd().Split('\n')
+            .Select(x => x.Length == 0 ? x : indent + "    " + x));
+
+        // The body's opening brace. A positional record with no body ends in ';' first: it gets one
         var open = -1;
         for (var i = declaration.Index; i < text.Length; i++)
         {
-            if (text[i] == ';') return null;
+            if (text[i] == ';')
+            {
+                if (declaration.Groups[1].Value != "record") return null;
+                return withUsings(text[..i].TrimEnd() + "\n" + indent + "{\n" + members + "\n" + indent + "}" + text[(i + 1)..], file, newline);
+            }
+
             if (text[i] == '{')
             {
                 open = i;
@@ -236,15 +246,25 @@ public static class SliceScaffolder
 
         if (open < 0 || closingBrace(text, open) is not { } close) return null;
 
-        var lineStart = text.LastIndexOf('\n', declaration.Index) + 1;
-        var indent = new string(text.Skip(lineStart).TakeWhile(char.IsWhiteSpace).ToArray());
-
-        var members = file.Code.Replace("\r\n", "\n").TrimEnd().Split('\n')
-            .Select(x => x.Length == 0 ? x : indent + "    " + x);
+        // A body written on one line -- { public Guid Id { get; set; } } -- is opened up first
+        var body = text[(open + 1)..close];
+        if (!body.Contains('\n'))
+        {
+            var reflowed = text[..open].TrimEnd() + "\n" + indent + "{"
+                           + (body.Trim().Length > 0 ? "\n" + indent + "    " + body.Trim() : "")
+                           + "\n" + indent + "}";
+            text = reflowed + text[(close + 1)..];
+            open = text.IndexOf('{', declaration.Index);
+            close = closingBrace(text, open)!.Value;
+        }
 
         var before = text[..close].TrimEnd();
-        var inserted = before + "\n\n" + string.Join("\n", members) + "\n" + indent + text[close..];
+        var inserted = before + (before.EndsWith('{') ? "\n" : "\n\n") + members + "\n" + indent + text[close..];
+        return withUsings(inserted, file, newline);
+    }
 
+    private static string withUsings(string inserted, ScaffoldFile file, string newline)
+    {
         var lines = inserted.Split('\n').ToList();
         var fileScoped = lines.Select(x => Regex.Match(x, @"^\s*namespace\s+([\w.]+)\s*;")).FirstOrDefault(x => x.Success);
         var ownNamespace = fileScoped?.Groups[1].Value;
@@ -853,7 +873,9 @@ public static class SliceScaffolder
 
                     if (missing.Count == 0) continue;
 
-                    var signatures = string.Join("; ", missing.Select(e => $"public void Apply({e.Name} e)"));
+                    var signatures = string.Join("; ", missing.Select(e => isRecord(existing)
+                        ? $"public {existing.Name} Apply({e.Name} e)"
+                        : $"public void Apply({e.Name} e)"));
                     var path = _options.FindSourceFile(existing);
 
                     // GH-4898: the methods go INTO the existing class -- the import writes aggregates and
@@ -864,6 +886,10 @@ public static class SliceScaffolder
                         var members = new SourceWriter();
                         var usings = new SortedSet<string>(StringComparer.Ordinal);
                         var first = true;
+
+                        // A record's members are init-only, so its Apply returns the new state -- the
+                        // immutable shape the stores fold a view or aggregate with -- rather than mutating
+                        var immutable = isRecord(existing);
                         foreach (var e in missing)
                         {
                             if (!first) members.BlankLine();
@@ -873,8 +899,18 @@ public static class SliceScaffolder
                             if (resolved?.Namespace is { } ns && ns != existing.Namespace) usings.Add(ns);
                             var name = resolved?.ShortNameInCode() ?? e.Name;
 
-                            members.Write($"BLOCK:public void Apply({name} e)");
-                            members.WriteLine($"// TODO: fold {name} into the {kind}");
+                            if (immutable)
+                            {
+                                members.Write($"BLOCK:public {existing.ShortNameInCode()} Apply({name} e)");
+                                members.WriteLine($"// TODO: fold {name} into the {kind}, as a copy: this with {{ ... }}");
+                                members.WriteLine("return this;");
+                            }
+                            else
+                            {
+                                members.Write($"BLOCK:public void Apply({name} e)");
+                                members.WriteLine($"// TODO: fold {name} into the {kind}");
+                            }
+
                             members.FinishBlock();
                         }
 
@@ -926,6 +962,11 @@ public static class SliceScaffolder
                 add($"{state.Type.Name} ({kind})", filePath, file);
             }
         }
+
+        // The compiler gives every record a clone method; nothing else has one
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static bool isRecord(Type type) => type.GetMethod("<Clone>$") is not null;
 
         private void add(string subject, string path, SliceFile file, string? note = null)
         {
