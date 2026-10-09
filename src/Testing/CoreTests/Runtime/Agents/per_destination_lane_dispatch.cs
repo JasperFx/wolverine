@@ -398,4 +398,101 @@ public class per_destination_lane_dispatch
         await done.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         order.ToList().ShouldBe(["reassign", $"assign:{NodeB}"]);
     }
+
+    /// <summary>
+    /// GH-4901. A reassignment runs in its source node's lane, behind whatever that node still has queued. For
+    /// an agent whose start is itself still in that queue there is nothing to stop yet, so the move must not
+    /// wait: in the field the second and third green nodes of a warm-up got nothing for half an hour while the
+    /// first worked through every green-only start queued for it before they registered.
+    /// </summary>
+    [Fact]
+    public async Task a_move_of_a_start_still_queued_goes_straight_to_the_new_node()
+    {
+        var executed = new ConcurrentQueue<IAgentCommand>();
+        var busy = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retargeted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            executed.Enqueue(command);
+            switch (command)
+            {
+                case AssignAgent { AgentUri.Host: "busy" }:
+                    await busy.Task;
+                    break;
+                case AssignAgents batch when batch.Destination.NodeId == NodeB:
+                    retargeted.TrySetResult();
+                    await busy.Task;
+                    break;
+                case AssignAgent { AgentUri.Host: "last" }:
+                    drained.TrySetResult();
+                    break;
+            }
+
+            return AgentCommands.Empty;
+        });
+
+        // Node A is busy starting something, with a batch queued behind it.
+        dispatcher.Enqueue(new AssignAgent(agent("busy"), destination(NodeA)));
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("one"), agent("two")]));
+
+        dispatcher.Enqueue(new ReassignAgents(destination(NodeA), destination(NodeB), [agent("one"), agent("two")]));
+
+        // Node B gets the starts while node A is still busy, and the leader sees them pending on node B.
+        await retargeted.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        dispatcher.TryFindPendingDestination(agent("one"), out var pendingOn).ShouldBeTrue();
+        pendingOn.ShouldBe(NodeB);
+
+        // Once node A gets to its queue it skips what was taken off it, and there is nothing left to stop.
+        dispatcher.Enqueue(new AssignAgent(agent("last"), destination(NodeA)));
+        busy.SetResult();
+        await drained.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        executed.OfType<AssignAgents>().Where(x => x.Destination.NodeId == NodeA).ShouldBeEmpty();
+        executed.OfType<ReassignAgents>().ShouldBeEmpty();
+        executed.OfType<AssignAgents>().ShouldHaveSingleItem().AgentIds.ShouldBe([agent("one"), agent("two")]);
+    }
+
+    /// <summary>
+    /// GH-4901's boundary: once the source has begun starting an agent, a move is a stop-then-start again and
+    /// still queues behind that start (GH-3698), so the stop finds the agent it has to stop.
+    /// </summary>
+    [Fact]
+    public async Task a_move_of_a_start_already_under_way_still_waits_behind_it()
+    {
+        var executed = new ConcurrentQueue<IAgentCommand>();
+        var starting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var moved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            executed.Enqueue(command);
+            switch (command)
+            {
+                case AssignAgents batch when batch.Destination.NodeId == NodeA:
+                    starting.TrySetResult();
+                    await started.Task;
+                    break;
+                case ReassignAgent:
+                    moved.TrySetResult();
+                    break;
+            }
+
+            return AgentCommands.Empty;
+        });
+
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("one"), agent("two")]));
+        await starting.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        dispatcher.Enqueue(new ReassignAgent(agent("one"), destination(NodeA), destination(NodeB)));
+
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        executed.Count.ShouldBe(1, "the move waits for the start it has to stop");
+
+        started.SetResult();
+        await moved.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        executed.OfType<ReassignAgent>().ShouldHaveSingleItem().DestinationNodeId.ShouldBe(NodeA);
+    }
 }

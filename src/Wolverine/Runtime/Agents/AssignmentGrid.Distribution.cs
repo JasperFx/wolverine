@@ -416,10 +416,16 @@ public partial class AssignmentGrid
                     ? candidates
                     : candidates.Where(n => !ReferenceEquals(n, shedFrom)).ToList();
 
+                // GH-4901: the ceiling applies to the fallback too, not only to a sibling host. Without it the
+                // load band outranks this pass's count, so every partition with no sibling to follow -- each
+                // version-bumped partition during a blue/green warm-up -- went to whichever capable node sat in
+                // the lowest band, however many it had already taken in this pass.
                 var node = InCapacityOrder(
                         placeable.Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum),
                         n => load[n])
                     .FirstOrDefault()
+                    ?? InCapacityOrder(placeable.Where(n => load[n] + members.Count <= maximum), n => load[n])
+                        .FirstOrDefault()
                     ?? InCapacityOrder(placeable, n => load[n]).First();
 
                 foreach (var agent in members)
