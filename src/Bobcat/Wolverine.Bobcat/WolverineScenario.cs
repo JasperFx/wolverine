@@ -742,9 +742,57 @@ public class WolverineScenario
     // ---- assert: read models -----------------------------------------------------------------
 
     /// <summary>
+    /// GH-4921. The aggregate of <typeparamref name="T" />'s stream with this identity, as the store serves it
+    /// through <c>FetchLatest&lt;T&gt;</c>: a projected snapshot where there is one, else built from the stream,
+    /// whatever the projection lifecycle. For state built from events. A plain or async-projected document
+    /// is <see cref="ThenDocument{T}(object)" />. Throws when there is no such stream.
+    /// </summary>
+    public Task<T> ThenAggregate<T>(Guid id) where T : class => thenAggregate<T>(id, null);
+
+    /// <inheritdoc cref="ThenAggregate{T}(Guid)" />
+    public Task<T> ThenAggregate<T>(string key) where T : class => thenAggregate<T>(key, null);
+
+    /// <summary>
+    /// GH-4921. The aggregate, as <see cref="ThenAggregate{T}(Guid)" />, judged against
+    /// <paramref name="expected" />: a partial object (<c>Specify&lt;T&gt;().With(...)</c>, a table, or
+    /// assertions on its members), or a whole object or <see cref="Expect.Value{T}" /> structurally.
+    /// </summary>
+    public Task<T> ThenAggregate<T>(Guid id, object expected) where T : class => thenAggregate<T>(id, expected);
+
+    /// <inheritdoc cref="ThenAggregate{T}(Guid, object)" />
+    public Task<T> ThenAggregate<T>(string key, object expected) where T : class => thenAggregate<T>(key, expected);
+
+    private async Task<T> thenAggregate<T>(object id, object? expected) where T : class
+    {
+        var aggregate = id switch
+        {
+            Guid guid => await EventStores.FetchLatestAsync<T>(Store, guid),
+            string key => await EventStores.FetchLatestAsync<T>(Store, key),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), "A stream is identified by a Guid or a string")
+        } ?? throw new SpecificationFailedException(
+            $"No {typeof(T).Name} with id {id}: FetchLatest found no stream there. The act appended to another stream, or none.");
+
+        if (expected is not null) ThenMatches(aggregate, expected);
+        return aggregate;
+    }
+
+    /// <summary>
+    /// GH-4921. The document of type <typeparamref name="T" /> with this identity, loaded with
+    /// <c>LoadAsync</c> once the projections have caught up: a plain document, or a projection stored as
+    /// one. An aggregate built from events is <see cref="ThenAggregate{T}(Guid)" />. The same as
+    /// <see cref="ThenReadModel{T}(object)" />.
+    /// </summary>
+    public Task<T> ThenDocument<T>(object id) where T : class => ThenReadModel<T>(id);
+
+    /// <summary>GH-4921. The document, as <see cref="ThenDocument{T}(object)" />, judged against <paramref name="expected" />.</summary>
+    public Task<T> ThenDocument<T>(object id, object expected) where T : class => ThenReadModel<T>(id, expected);
+
+    /// <summary>
     /// The read model with this identity, once the projections have caught up — an async projection
     /// read straight after the act reads a stale document. Throws when there is no such document,
-    /// because there is nothing to hand back.
+    /// because there is nothing to hand back. Loaded with <c>LoadAsync</c>, so it is the same as
+    /// <see cref="ThenDocument{T}(object)" />; for an aggregate built from events, see
+    /// <see cref="ThenAggregate{T}(Guid)" /> (GH-4921).
     /// </summary>
     public async Task<T> ThenReadModel<T>(object id) where T : class
     {

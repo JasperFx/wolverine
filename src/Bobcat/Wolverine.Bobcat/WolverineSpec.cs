@@ -67,6 +67,19 @@ public abstract class WolverineSpec
     /// </summary>
     public static Specified<T> Specify<T>() => Specifications.Specify<T>();
 
+    /// <summary>
+    /// A partial <typeparamref name="T" /> written as a table (bobcat#450): <c>Property | Value</c> rows, or
+    /// the members as headers over a single row — what the import writes for more than three members.
+    /// </summary>
+    public static Specified<T> Specify<T>(StepTable table) => Specifications.Specify<T>(table);
+
+    /// <summary>
+    /// A partial <typeparamref name="T" /> to check against, written as assertions on its members (bobcat#450):
+    /// <c>Specify&lt;Dog&gt;(x =&gt; x.Age.ShouldBe(4), x =&gt; x.Name.ShouldStartWith("Re"))</c>.
+    /// </summary>
+    public static Specified<T> Specify<T>(params System.Linq.Expressions.Expression<Action<T>>[] checks)
+        => Specifications.Specify(checks);
+
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public ActOutcome LastAct => Scenario.LastAct;
 
@@ -199,6 +212,24 @@ public abstract class WolverineSpec
 
     /// <inheritdoc cref="WolverineScenario.ThenValidationFails" />
     public void ThenValidationFails(string reason) => Scenario.ThenValidationFails(reason);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAggregate{T}(Guid)" />
+    public Task<T> ThenAggregate<T>(Guid id) where T : class => Scenario.ThenAggregate<T>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAggregate{T}(string)" />
+    public Task<T> ThenAggregate<T>(string key) where T : class => Scenario.ThenAggregate<T>(key);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAggregate{T}(Guid, object)" />
+    public Task<T> ThenAggregate<T>(Guid id, object expected) where T : class => Scenario.ThenAggregate<T>(id, expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAggregate{T}(string, object)" />
+    public Task<T> ThenAggregate<T>(string key, object expected) where T : class => Scenario.ThenAggregate<T>(key, expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenDocument{T}(object)" />
+    public Task<T> ThenDocument<T>(object id) where T : class => Scenario.ThenDocument<T>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenDocument{T}(object, object)" />
+    public Task<T> ThenDocument<T>(object id, object expected) where T : class => Scenario.ThenDocument<T>(id, expected);
 
     /// <inheritdoc cref="WolverineScenario.ThenReadModel{T}(object)" />
     public Task<T> ThenReadModel<T>(object id) where T : class => Scenario.ThenReadModel<T>(id);
