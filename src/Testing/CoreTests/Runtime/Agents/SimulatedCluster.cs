@@ -43,6 +43,13 @@ internal sealed class SimulatedCluster
     private readonly Dictionary<Uri, Guid> _running = new();
     private readonly Dictionary<Uri, Guid> _awaitingVisibility = new();
 
+    // GH-4894: further copies of an agent that came up on a second node while _running already had it
+    // elsewhere. A leader that dies with starts in flight is replaced by one with an empty ledger, which
+    // re-decides those agents and can send one to a different node: two live copies until the next
+    // evaluation sees both rows and stops the older one (GH-2602). The soak asserts that healing happens,
+    // which needs the duplicate to be modelled rather than overwritten.
+    private readonly Dictionary<Uri, HashSet<Guid>> _extraCopies = new();
+
     // The persisted assignment rows per node, as a set. WolverineNode.ActiveAgents is the List<Uri> the
     // controller reads; it is rebuilt from this before every evaluation so that stops and lands cost O(1)
     // here instead of a List.Remove / Fill scan each — at sixty thousand agents the harness must not be
@@ -121,7 +128,20 @@ internal sealed class SimulatedCluster
     /// <summary>Wall-clock cost of each leader evaluation, in round order.</summary>
     public IReadOnlyList<TimeSpan> EvaluationTimes => _evaluationTimes;
 
+    /// <summary>Starts dispatched but not yet visible to the leader as persisted assignment rows.</summary>
+    public int InFlightStarts => _inFlight.Count + _awaitingVisibility.Count;
+
+    /// <summary>The leader of record: the node whose controller evaluates.</summary>
+    public Guid LeaderNodeId => Options.UniqueNodeId;
+
     public IReadOnlyList<Uri> RunningAgents => _running.Keys.ToList();
+
+    /// <summary>Agents currently running on more than one node: copies beyond the first, summed.</summary>
+    public int DuplicateCopies => _extraCopies.Values.Sum(x => x.Count);
+
+    /// <summary>Each live node's id and the agents it declares.</summary>
+    public IEnumerable<(Guid NodeId, IReadOnlyList<Uri> Capabilities)> Declarations
+        => _nodes.Select(x => (x.NodeId, (IReadOnlyList<Uri>)x.Capabilities));
 
     /// <summary>Ground truth of where each agent is actually running, for placement assertions.</summary>
     public IReadOnlyDictionary<Uri, Guid> RunningAssignments => _running;
@@ -166,9 +186,31 @@ internal sealed class SimulatedCluster
         _persistedByNode.Remove(nodeId);
         _dirtyNodes.Remove(nodeId);
 
-        foreach (var uri in _running.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) _running.Remove(uri);
+        foreach (var uri in _running.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) forgetCopy(uri, nodeId);
+        foreach (var (uri, copies) in _extraCopies.ToArray())
+        {
+            copies.Remove(nodeId);
+            if (copies.Count == 0) _extraCopies.Remove(uri);
+        }
+
         foreach (var uri in _awaitingVisibility.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) _awaitingVisibility.Remove(uri);
         foreach (var uri in _inFlight.Where(x => x.Value.NodeId == nodeId).Select(x => x.Key).ToArray()) _inFlight.Remove(uri);
+    }
+
+    // The primary copy on nodeId is gone; a surviving extra copy, if any, becomes the primary.
+    private void forgetCopy(Uri uri, Guid nodeId)
+    {
+        if (!_running.TryGetValue(uri, out var primary) || primary != nodeId) return;
+
+        _running.Remove(uri);
+
+        if (_extraCopies.TryGetValue(uri, out var copies) && copies.Count > 0)
+        {
+            var promoted = copies.First();
+            copies.Remove(promoted);
+            if (copies.Count == 0) _extraCopies.Remove(uri);
+            _running[uri] = promoted;
+        }
     }
 
     /// <summary>
@@ -197,6 +239,11 @@ internal sealed class SimulatedCluster
         if (_dirtyNodes.Remove(nodeId)) _dirtyNodes.Add(newId);
 
         foreach (var uri in _running.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) _running[uri] = newId;
+        foreach (var copies in _extraCopies.Values)
+        {
+            if (copies.Remove(nodeId)) copies.Add(newId);
+        }
+
         foreach (var uri in _awaitingVisibility.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) _awaitingVisibility[uri] = newId;
         foreach (var uri in _inFlight.Where(x => x.Value.NodeId == nodeId).Select(x => x.Key).ToArray())
         {
@@ -367,8 +414,18 @@ internal sealed class SimulatedCluster
 
             _inFlight.Remove(uri);
 
-            // Running now — but invisible to the leader until the promotion above runs next round.
-            _running[uri] = pending.NodeId;
+            // Running now — but invisible to the leader until the promotion above runs next round. A copy
+            // coming up while another node already runs the agent is a duplicate, kept as one.
+            if (_running.TryGetValue(uri, out var elsewhere) && elsewhere != pending.NodeId)
+            {
+                if (!_extraCopies.TryGetValue(uri, out var copies)) _extraCopies[uri] = copies = [];
+                copies.Add(pending.NodeId);
+            }
+            else
+            {
+                _running[uri] = pending.NodeId;
+            }
+
             _awaitingVisibility[uri] = pending.NodeId;
 
             // What AssignAgent/AssignAgents do the moment a start confirms, and the reason the agent stays
@@ -415,9 +472,11 @@ internal sealed class SimulatedCluster
             _dirtyNodes.Add(nodeId);
         }
 
-        if (_running.TryGetValue(agentUri, out var runningOn) && runningOn == nodeId)
+        forgetCopy(agentUri, nodeId);
+
+        if (_extraCopies.TryGetValue(agentUri, out var copies) && copies.Remove(nodeId) && copies.Count == 0)
         {
-            _running.Remove(agentUri);
+            _extraCopies.Remove(agentUri);
         }
 
         if (_awaitingVisibility.TryGetValue(agentUri, out var pendingVisible) && pendingVisible == nodeId)
