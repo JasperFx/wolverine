@@ -207,16 +207,69 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void a_records_apply_methods_return_the_new_state()
+    public void a_record_builds_itself_from_its_first_event_and_folds_the_rest_as_copies()
     {
-        // A record's members are init-only, so a mutating Apply could not be written
+        // A record has nothing to fold its first event into, so it needs a static Create for it; its
+        // members are init-only, so every later Apply returns the new state
         var result = plan(
-            declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>()),
+            declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>().From<AppointmentReminderScheduled>()),
             findSource: type => $"Domain/{type.Name}.cs");
 
         var insert = result.Files.Single(x => x.InsertInto == nameof(AppointmentBoard));
-        insert.Code.ShouldContain("public AppointmentBoard Apply(AppointmentConfirmed e)");
+        insert.Code.ShouldContain("""
+                                  public static AppointmentBoard Create(AppointmentConfirmed e)
+                                  {
+                                      // TODO: build the view from AppointmentConfirmed, the first event it sees
+                                      throw new NotImplementedException("TODO: AppointmentBoard from AppointmentConfirmed");
+                                  }
+                                  """.ReplaceLineEndings("\n"));
+        insert.Code.ShouldNotContain("Apply(AppointmentConfirmed e)");
+        insert.Code.ShouldContain("public AppointmentBoard Apply(AppointmentReminderScheduled e)");
         insert.Code.ShouldContain("return this;");
+        insert.Usings.ShouldContain("System");
+    }
+
+    [Fact]
+    public void a_record_view_gets_a_create_for_every_event_that_starts_a_stream_and_they_come_first()
+    {
+        // The view folds the reminder first in its declaration, but the confirmation starts the stream
+        var result = plan(
+            declared(m =>
+            {
+                m.Slice("ZStartAppointment").TriggeredBy(TriggerKind.MessageHandler)
+                    .Command<ProposeAppointment>().StartsStream<Appointment>().Emits<AppointmentConfirmed>();
+                m.View<AppointmentBoard>().From<AppointmentReminderScheduled>().From<AppointmentConfirmed>();
+            }),
+            findSource: type => $"Domain/{type.Name}.cs");
+
+        var code = result.Files.Single(x => x.InsertInto == nameof(AppointmentBoard)).Code;
+        var create = code.IndexOf("public static AppointmentBoard Create(AppointmentConfirmed e)", StringComparison.Ordinal);
+        var apply = code.IndexOf("public AppointmentBoard Apply(AppointmentReminderScheduled e)", StringComparison.Ordinal);
+
+        create.ShouldBeGreaterThanOrEqualTo(0);
+        apply.ShouldBeGreaterThan(create);
+    }
+
+    [Fact]
+    public void an_aggregates_apply_methods_put_the_events_that_start_its_stream_first()
+    {
+        // The slices are scaffolded in name order, so the reminder would otherwise come first
+        var result = plan(
+            declared(m =>
+            {
+                m.Slice("AddReminder").TriggeredBy(TriggerKind.MessageHandler)
+                    .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentReminderScheduled>();
+                m.Slice("StartAppointment").TriggeredBy(TriggerKind.MessageHandler)
+                    .Command<ProposeAppointment>().StartsStream<Appointment>().Emits<AppointmentConfirmed>();
+            }),
+            findSource: type => $"Domain/{type.Name}.cs");
+
+        var code = result.Files.Single(x => x.InsertInto == nameof(Appointment)).Code;
+
+        // A class folds its first event like any other, so it needs no Create
+        code.ShouldNotContain("Create(");
+        code.IndexOf("Apply(AppointmentConfirmed e)", StringComparison.Ordinal)
+            .ShouldBeLessThan(code.IndexOf("Apply(AppointmentReminderScheduled e)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -406,14 +459,19 @@ public class event_model_scaffold_4832
             .Emits<HomeCheckAssignmentAcceptedEvent>()));
         var code = result.Files.Single().Code;
 
-        // The command is just `command`, and a signature this long puts each parameter on its own line
+        // The command is just `command`, and a signature this long puts each parameter on its own line.
+        // A parameter still past 120 columns puts its attribute on the line above, and so then does every
+        // other attributed parameter
         code.ShouldContain("""
                                public static void Handle(
                                        AcceptHomeCheckAssignment command,
-                                       [WriteModel(nameof(AcceptHomeCheckAssignment.HomeCheckId))] IEventStream<HomeCheck> homeCheckStream,
-                                       [WriteModel(nameof(AcceptHomeCheckAssignment.VolunteerApplicationId))] IEventStream<VolunteerApplication> volunteerApplicationStream)
+                                       [WriteModel(nameof(AcceptHomeCheckAssignment.HomeCheckId))]
+                                       IEventStream<HomeCheck> homeCheckStream,
+                                       [WriteModel(nameof(AcceptHomeCheckAssignment.VolunteerApplicationId))]
+                                       IEventStream<VolunteerApplication> volunteerApplicationStream)
                                    {
                                """.ReplaceLineEndings("\n"));
+        code.Split('\n').ShouldAllBe(line => line.Length <= 120);
         code.ShouldContain("homeCheckStream.AppendOne(new HomeCheckAssignmentAcceptedEvent(...));   // or volunteerApplicationStream");
 
         // IEventStream<T> erases the event types; the source generator reads AppendOne instead (GH-4914)
