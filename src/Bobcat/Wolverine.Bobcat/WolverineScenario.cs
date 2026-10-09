@@ -24,6 +24,13 @@ public sealed record ActOutcome(
 {
     /// <summary>Nothing has acted yet.</summary>
     public static readonly ActOutcome None = new(null, Array.Empty<IEvent>(), null);
+
+    /// <summary>
+    /// GH-4920. Every event the act appended, on any stream, in sequence order: everything the store issued
+    /// after the high-water sequence recorded just before the act. What a stream already held never counts,
+    /// whoever arranged it, so <c>ThenEventsOn</c> checks only what the act added to that stream.
+    /// </summary>
+    public IReadOnlyList<IEvent> AllNewEvents { get; init; } = Array.Empty<IEvent>();
 }
 
 /// <summary>
@@ -353,7 +360,8 @@ public class WolverineScenario
         HandlerWarmUp.WarmBeforeTracking(Host);
 
         var store = hasStore() ? Store : null;
-        long? floor = store is not null && _stream is null ? await EventStores.HighWaterSequenceAsync(store) : null;
+        // GH-4920: always the floor, so every stream's share of the act is known, not only the arranged one's
+        long? floor = store is not null ? await EventStores.HighWaterSequenceAsync(store) : null;
         var before = store is not null && _stream is not null ? await fetchAsync(store, _stream) : Array.Empty<IEvent>();
 
         var tracking = Host.TrackActivity().Timeout(Timeout).DoNotAssertOnExceptionsDetected();
@@ -372,14 +380,16 @@ public class WolverineScenario
         }
 
         IReadOnlyList<IEvent> appended = Array.Empty<IEvent>();
+        IReadOnlyList<IEvent> all = Array.Empty<IEvent>();
         if (store is not null)
         {
+            all = await EventStores.QueryEventsSinceAsync(store, floor!.Value + 1);
             appended = _stream is not null
                 ? (await fetchAsync(store, _stream)).Skip(before.Count).ToList()
-                : await EventStores.QueryEventsSinceAsync(store, floor!.Value + 1);
+                : all;
         }
 
-        var outcome = new ActOutcome(session, appended, error);
+        var outcome = new ActOutcome(session, appended, error) { AllNewEvents = all };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
 
@@ -483,6 +493,63 @@ public class WolverineScenario
 
         Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")));
     }
+
+    /// <summary>
+    /// GH-4920. The act appended exactly these events, in order, to <typeparamref name="TAggregate" />'s stream
+    /// with this identity — for a command that decides against several streams, where <c>ThenEvents</c> can
+    /// only speak for the one the act addresses. Only what the act added counts, never what was arranged.
+    /// </summary>
+    public void ThenEventsOn<TAggregate>(Guid id, params object[] events) where TAggregate : class
+        => verifyEventsOn(typeof(TAggregate), id, flatten(events));
+
+    /// <inheritdoc cref="ThenEventsOn{TAggregate}(Guid, object[])" />
+    public void ThenEventsOn<TAggregate>(string key, params object[] events) where TAggregate : class
+        => verifyEventsOn(typeof(TAggregate), key, flatten(events));
+
+    /// <summary>GH-4920. The act appended nothing to <typeparamref name="TAggregate" />'s stream with this identity.</summary>
+    public void ThenNoEventsOn<TAggregate>(Guid id) where TAggregate : class => verifyEventsOn(typeof(TAggregate), id, []);
+
+    /// <inheritdoc cref="ThenNoEventsOn{TAggregate}(Guid)" />
+    public void ThenNoEventsOn<TAggregate>(string key) where TAggregate : class => verifyEventsOn(typeof(TAggregate), key, []);
+
+    private void verifyEventsOn(Type aggregate, object id, object[] expected)
+    {
+        var text = expected.Length == 0
+            ? $"no events are emitted on the {aggregate.Name} stream {ScenarioValues.Format(id)}"
+            : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on the {aggregate.Name} stream {ScenarioValues.Format(id)}";
+        using var step = ScenarioRecorder.Step("Then", text);
+        if (!actSucceeded()) return;
+
+        var onStream = LastAct.AllNewEvents.Where(x => isOn(x, id)).Select(x => x.Data).ToArray();
+        if (expected.Length == 0)
+        {
+            Verdicts.Fact(onStream.Length == 0,
+                $"Expected no events on the {aggregate.Name} stream {id}, but the act appended {ScenarioValues.DescribeAll(onStream)}");
+            return;
+        }
+
+        if (onStream.Length == 0)
+        {
+            // Say where the act's events DID go, which is usually the whole answer
+            var elsewhere = LastAct.AllNewEvents
+                .GroupBy(x => (object?)x.StreamKey ?? x.StreamId)
+                .Select(x => $"{x.Key}: {ScenarioValues.DescribeAll(x.Select(e => e.Data))}")
+                .ToList();
+            Verdicts.Fact(false, elsewhere.Count == 0
+                ? $"Expected events on the {aggregate.Name} stream {id}, but the act appended no events anywhere"
+                : $"Expected events on the {aggregate.Name} stream {id}, but the act appended none there. It appended to: {string.Join("; ", elsewhere)}");
+            return;
+        }
+
+        verifySet("event", onStream, expected, SetMode.Ordered);
+    }
+
+    private static bool isOn(IEvent @event, object id) => id switch
+    {
+        Guid guid => @event.StreamId == guid,
+        string key => @event.StreamKey == key,
+        _ => false
+    };
 
     /// <summary>The act appended nothing — the refusal half of a guard.</summary>
     public void ThenNoEvents()

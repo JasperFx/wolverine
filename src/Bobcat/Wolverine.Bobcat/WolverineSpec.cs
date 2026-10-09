@@ -134,6 +134,20 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenEvents(object[])" />
     public void ThenEvents(params object[] events) => Scenario.ThenEvents(events);
 
+    /// <inheritdoc cref="WolverineScenario.ThenEventsOn{TAggregate}(Guid, object[])" />
+    public void ThenEventsOn<TAggregate>(Guid id, params object[] events) where TAggregate : class
+        => Scenario.ThenEventsOn<TAggregate>(id, events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEventsOn{TAggregate}(string, object[])" />
+    public void ThenEventsOn<TAggregate>(string key, params object[] events) where TAggregate : class
+        => Scenario.ThenEventsOn<TAggregate>(key, events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoEventsOn{TAggregate}(Guid)" />
+    public void ThenNoEventsOn<TAggregate>(Guid id) where TAggregate : class => Scenario.ThenNoEventsOn<TAggregate>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoEventsOn{TAggregate}(string)" />
+    public void ThenNoEventsOn<TAggregate>(string key) where TAggregate : class => Scenario.ThenNoEventsOn<TAggregate>(key);
+
     /// <inheritdoc cref="WolverineScenario.ThenEventsInAnyOrder(object[])" />
     public void ThenEventsInAnyOrder(params object[] events) => Scenario.ThenEventsInAnyOrder(events);
 
