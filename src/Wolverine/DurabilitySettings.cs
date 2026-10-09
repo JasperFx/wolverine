@@ -619,6 +619,21 @@ public class DurabilitySettings : IDescribeMyself
     public int AssignmentSettleNodeCount { get; set; }
 
     /// <summary>
+    ///     GH-4897. How many of its first assignment evaluations a newly elected leader spends NOT placing
+    ///     agents that are running nowhere yet, when it took over a cluster whose other nodes already hold
+    ///     assignments. The pending-assignment ledger is leader-local, so a new leader cannot see the starts
+    ///     its predecessor dispatched that have not yet come up as persisted rows; placing those agents
+    ///     straight away can send one to a second node while the first copy is still starting. Holding the
+    ///     unplaced ones back for a snapshot cycle lets those rows appear and be kept where they are.
+    ///
+    ///     Only agents that are running nowhere and have no start in flight wait; moves, stops and every
+    ///     agent already visible proceed. The hold is skipped entirely when no other node holds any
+    ///     assignment -- a cold cluster's first leader, or a single node -- so it costs nothing at startup.
+    ///     Default 1. Zero disables it.
+    /// </summary>
+    public int LeaderTakeoverHoldEvaluations { get; set; } = 1;
+
+    /// <summary>
     ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
     ///     <c>StartAgents</c> control message to a node. A node running a very large agent universe
     ///     (e.g. database-per-tenant Marten with thousands of subscription shards) cannot start

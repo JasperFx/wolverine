@@ -198,6 +198,10 @@ public partial class NodeAgentController
             .ToArray();
         nodes = nodes.Where(x => !staleNodes.Contains(x)).ToList();
 
+        // GH-4897: what the stale nodes were running is orphaned, not in flight anywhere, and the takeover
+        // hold below must place it straight away. Captured here because the stale nodes leave the grid.
+        OrphanedByStaleNodes = staleNodes.SelectMany(x => x.ActiveAgents).ToHashSet();
+
         // Defensive: if the snapshot didn't include our own row at all
         // (read-after-write lag against the upsert above, brand-new node still
         // propagating), inject self so downstream leader-election and
@@ -356,6 +360,7 @@ public partial class NodeAgentController
         }
 
         IsLeader = true;
+        EvaluationsSinceElection = 0;
 
         _logger.LogInformation("Node {NodeNumber} ({NodeId}) successfully assumed leadership",
             _runtime.Options.Durability.AssignedNodeNumber, _runtime.Options.UniqueNodeId);

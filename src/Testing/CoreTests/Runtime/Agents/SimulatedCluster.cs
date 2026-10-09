@@ -56,6 +56,7 @@ internal sealed class SimulatedCluster
     // the quadratic thing being measured.
     private readonly Dictionary<Guid, HashSet<Uri>> _persistedByNode = new();
     private readonly HashSet<Guid> _dirtyNodes = [];
+    private readonly HashSet<Uri> _orphanedLastTick = [];
 
     private readonly List<int> _runningCountByRound = [];
     private readonly List<string> _doubleStartReports = [];
@@ -183,7 +184,14 @@ internal sealed class SimulatedCluster
         }
 
         _nodes.RemoveAll(x => x.NodeId == nodeId);
-        _persistedByNode.Remove(nodeId);
+
+        // For one tick the departed node is what the leader sees as a STALE row -- still listing the agents
+        // it was running, filtered out of the grid -- before it is ejected and the row is gone (GH-4897).
+        if (_persistedByNode.Remove(nodeId, out var itsAgents))
+        {
+            foreach (var uri in itsAgents) _orphanedLastTick.Add(uri);
+        }
+
         _dirtyNodes.Remove(nodeId);
 
         foreach (var uri in _running.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) forgetCopy(uri, nodeId);
@@ -231,6 +239,9 @@ internal sealed class SimulatedCluster
         _family = family ?? _family;
         (_runtime, _controller) = buildLeader(Options, _family);
 
+        // What tryStartLeadershipAsync does on election: the takeover hold (GH-4897) counts from here.
+        _controller.EvaluationsSinceElection = 0;
+
         var newId = Options.UniqueNodeId;
         node.NodeId = newId;
 
@@ -262,6 +273,10 @@ internal sealed class SimulatedCluster
         syncPersistedAssignments();
 
         var declaredBy = _nodes.ToDictionary(x => x.NodeId, x => x.Capabilities.ToHashSet());
+
+        // What the heartbeat path hands the evaluation for the stale nodes it filtered out this tick
+        _controller.OrphanedByStaleNodes = _orphanedLastTick.ToHashSet();
+        _orphanedLastTick.Clear();
 
         var stopwatch = Stopwatch.StartNew();
         var commands = await _controller.EvaluateAssignmentsAsync(_nodes.ToList(), new AgentRestrictions());
@@ -360,6 +375,10 @@ internal sealed class SimulatedCluster
             nodeId = Guid.Empty;
             return false;
         };
+
+        // What tryStartLeadershipAsync does on election; on a fresh cluster the takeover hold then sees no
+        // peer holding assignments and stands down (GH-4897).
+        controller.EvaluationsSinceElection = 0;
 
         return (runtime, controller);
     }
