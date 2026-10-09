@@ -573,6 +573,9 @@ Fisher:
 | `Automation` with `On<T>()` | a message handler for `T`, returning the command it issues as `OutgoingMessages` |
 | `.Against<T>()` | a non-nullable `[WriteModel] T` parameter |
 | `.StartsStream<T>()` | a `StartStream` return built with `Storage.StartStream<T>(...)` |
+| `model.ForAggregate<T>()` default | the same as `.Against<T>()` on every command that declares no aggregate of its own |
+| `.NoAggregate()` | a `StartStream` return built with `Storage.StartStream(id, ...)`, a stream with no aggregate type, and no warning |
+| `.DeciderModel<T>()` | a TODO and a warning: the DCB handler shape is not designed yet |
 | `.Emits<T>()` | a `T?` return when it is the slice's only event, else an `EventsToAppend` return; no `[Emits]`, because the source generator reads the events from the body |
 | `.Reads<T>()` / `.Produces<T>()` | an `[Entity] T` parameter / an `IStorageAction<T>` return |
 | an aggregate or view declared **by name** | a class with an `Apply` method per event it folds |

@@ -601,6 +601,26 @@ public static class SliceScaffolder
                     shape.Add($"{streams[0].Argument}.AppendOne(new {e}(...));   // or {string.Join(" / ", streams.Skip(1).Select(x => x.Argument))}");
                 }
             }
+            else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel)
+            {
+                // GH-4919: decides through a DCB decider model (jasperfx#994). The DCB handler shape is still
+                // being designed (GH-4865), so nothing is guessed: say what was declared, and warn
+                var decider = slice.DeciderModel is { } model ? file.Use(model) : "its decider model";
+                shape.Add($"// TODO: this slice decides through the DCB decider model {decider}. The Dynamic");
+                shape.Add("// Consistency Boundary handler shape is not designed yet (GH-4865), so write it by hand.");
+                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                    $"the slice declares the DCB decider model {decider}, and the DCB handler shape is not designed yet (GH-4865), so its handler is a TODO."));
+            }
+            else if (slice.AggregateDeclaration == AggregateDeclaration.None && emitted.Count > 0)
+            {
+                // GH-4919: deliberately no aggregate (.NoAggregate()) -- legitimate only for a slice that purely
+                // starts a stream, so the shape is a stream with no aggregate type (GH-4892), and no warning
+                file.Namespaces.Add("Wolverine.Persistence");
+                returns.Add("StartStream");
+                shape.Add("// Declared .NoAggregate(): a stream with no aggregate type");
+                shape.Add("var id = Guid.CreateVersion7();");
+                shape.Add($"return Storage.StartStream(id, {string.Join(", ", emitted.Select(x => $"new {x}(...)"))});");
+            }
             else if (emitted.Count > 0)
             {
                 // GH-4895: the model names no aggregate. A stream with no aggregate type (GH-4892) is only

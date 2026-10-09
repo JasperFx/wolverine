@@ -212,6 +212,50 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void a_for_aggregate_default_scaffolds_like_an_explicit_against()
+    {
+        // GH-4919: model.ForAggregate<T>() (jasperfx#994) gives a command that declares no aggregate its own
+        var code = plan(declared(m =>
+        {
+            m.ForAggregate<Appointment>();
+            m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler).Emits<AppointmentConfirmed>();
+        })).Files.Single().Code;
+
+        code.ShouldContain("public static AppointmentConfirmed? Handle(ConfirmAppointmentRequest command, [WriteModel] Appointment appointment)");
+    }
+
+    [Fact]
+    public void no_aggregate_scaffolds_a_stream_with_no_aggregate_type_and_no_warning()
+    {
+        // GH-4919: .NoAggregate() is the declared, deliberate case GH-4895 otherwise warns about
+        var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
+            .NoAggregate().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("public static StartStream Handle(ConfirmAppointmentRequest command)");
+        code.ShouldContain("var id = Guid.CreateVersion7();");
+        code.ShouldContain("return Storage.StartStream(id, new AppointmentConfirmed(...));");
+        code.ShouldNotContain("TODO: the model names no aggregate");
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+    }
+
+    [Fact]
+    public void a_dcb_decider_model_is_a_todo_and_a_warning_until_the_dcb_shape_is_designed()
+    {
+        // GH-4919: DeciderModel<T>() (jasperfx#994); the DCB handler shape is GH-4865's to design
+        var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
+            .DeciderModel<Appointment>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("TODO: this slice decides through the DCB decider model Appointment");
+        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest command)");
+        code.ShouldNotContain("[WriteModel]");
+
+        var warning = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning);
+        warning.Message.ShouldContain("GH-4865");
+    }
+
+    [Fact]
     public void a_command_against_several_aggregates_takes_an_event_stream_per_aggregate()
     {
         // GH-4895: one IEventStream<T> per stream, each found by its own {Aggregate}Id member
