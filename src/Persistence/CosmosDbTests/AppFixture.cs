@@ -9,7 +9,14 @@ namespace CosmosDbTests;
 public class AppFixture : IAsyncLifetime
 {
     public const string DatabaseName = "wolverine_tests";
-    private const string CosmosDbImage = "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-latest";
+    // Pinned by digest, not the floating vnext-latest tag. The emulator image rebuilt on 2026-10-08 began
+    // returning a binary-JSON node type that Microsoft.Azure.Cosmos before ~3.63 cannot parse ("Unknown
+    // JsonNodeType: Unknown"); every query failed, no node could load cluster state, and CICosmosDb hung on
+    // every run until its job cap -- while a developer machine kept passing on its cached older image under
+    // the same tag. A pinned digest is the same on every machine. Move it deliberately: re-run CICosmosDb
+    // against the new digest before updating this. This is the multi-arch manifest list (amd64 + arm64).
+    private const string CosmosDbImage =
+        "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:4535ddbd27bba762f3e068f7585feb0022a2559ceccc9394b23aa38d91d77c38";
 
     // Static container shared across all AppFixture instances
     private static CosmosDbContainer _sharedContainer = null!;
