@@ -231,6 +231,9 @@ internal sealed class SimulatedCluster
         _family = family ?? _family;
         (_runtime, _controller) = buildLeader(Options, _family);
 
+        // What tryStartLeadershipAsync does on election: the takeover hold (GH-4897) counts from here.
+        _controller.EvaluationsSinceElection = 0;
+
         var newId = Options.UniqueNodeId;
         node.NodeId = newId;
 
@@ -360,6 +363,10 @@ internal sealed class SimulatedCluster
             nodeId = Guid.Empty;
             return false;
         };
+
+        // What tryStartLeadershipAsync does on election; on a fresh cluster the takeover hold then sees no
+        // peer holding assignments and stands down (GH-4897).
+        controller.EvaluationsSinceElection = 0;
 
         return (runtime, controller);
     }

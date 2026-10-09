@@ -356,6 +356,7 @@ public partial class NodeAgentController
         }
 
         IsLeader = true;
+        EvaluationsSinceElection = 0;
 
         _logger.LogInformation("Node {NodeNumber} ({NodeId}) successfully assumed leadership",
             _runtime.Options.Durability.AssignedNodeNumber, _runtime.Options.UniqueNodeId);

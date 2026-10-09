@@ -32,6 +32,12 @@ public partial class NodeAgentController
     private int _lastUndeclaredAssignmentCount;
 
     /// <summary>
+    ///     GH-4897. How many assignment evaluations this node has run since it last assumed leadership; null
+    ///     until it has ever been elected. Drives <see cref="DurabilitySettings.LeaderTakeoverHoldEvaluations" />.
+    /// </summary>
+    internal int? EvaluationsSinceElection { get; set; }
+
+    /// <summary>
     ///     GH-4555. A placement the target node cannot honor is silent from the leader's side: the node throws
     ///     <c>Unable to find a shard with path '...'</c> on start, so no assignment row is ever written, so the
     ///     next evaluation sees the agent as unplaced and makes the identical decision. The reporter measured
@@ -224,6 +230,8 @@ public partial class NodeAgentController
             }
         }
 
+        holdUnplacedAgentsAfterTakeover(nodes, commands, issued);
+
         // Heal split-brain residue: if any agent is reported running on more
         // than one node — most likely because a stale leader and the current
         // leader both dispatched AssignAgent for the same agent in close
@@ -257,6 +265,79 @@ public partial class NodeAgentController
         }
 
         return commands;
+    }
+
+    // GH-4897. A newly elected leader's first evaluations against a cluster its predecessor was running.
+    //
+    // The pending-assignment ledger above is leader-local and in-memory, so a start the previous leader
+    // dispatched that has not yet come up as a persisted assignment row is invisible here: the agent has no
+    // OriginalNode and no PendingNode and looks completely unplaced. Placing it straight away can send it to a
+    // second node -- the dead leader's departure changed the node set, so the spread lands elsewhere -- while
+    // the first copy is still starting. GH-2602 heals that a cycle later, but the agent ran twice.
+    //
+    // So for the first LeaderTakeoverHoldEvaluations evaluations after election, a bare first-time placement
+    // is withheld: the agent is detached in the grid (so the observer and LastAssignments do not show a
+    // placement that was never sent) and nothing is dispatched for it. Every move, stop and visibly running
+    // agent proceeds. Next cycle the predecessor's starts have had a snapshot to appear as rows and are
+    // grandfathered where they are; whatever is still unplaced then is placed normally.
+    //
+    // Skipped outright when no other node holds any assignment: a cold cluster's first leader, or a single
+    // node, has no predecessor whose starts could be in flight, and must not pay a cycle for nothing.
+    private void holdUnplacedAgentsAfterTakeover(IReadOnlyList<WolverineNode> nodes, AgentCommands commands,
+        List<AssignmentGrid.Agent> issued)
+    {
+        if (EvaluationsSinceElection is not { } since)
+        {
+            return;
+        }
+
+        EvaluationsSinceElection = since + 1;
+
+        var hold = _runtime.Options.Durability.LeaderTakeoverHoldEvaluations;
+        if (since >= hold)
+        {
+            return;
+        }
+
+        var selfId = _runtime.Options.UniqueNodeId;
+        if (!nodes.Any(n => n.NodeId != selfId && n.ActiveAgents.Any(a => a != LeaderUri)))
+        {
+            // Nobody was running anything before this leader: nothing can be in flight from a predecessor.
+            EvaluationsSinceElection = hold;
+            return;
+        }
+
+        var keptCommands = new List<IAgentCommand>(commands.Count);
+        var keptAgents = new List<AssignmentGrid.Agent>(issued.Count);
+        var held = 0;
+
+        for (var i = 0; i < issued.Count; i++)
+        {
+            var agent = issued[i];
+            if (commands[i] is AssignAgent && agent.OriginalNode == null && agent.PendingNode == null)
+            {
+                agent.Detach();
+                held++;
+                continue;
+            }
+
+            keptCommands.Add(commands[i]);
+            keptAgents.Add(agent);
+        }
+
+        if (held == 0)
+        {
+            return;
+        }
+
+        commands.Clear();
+        commands.AddRange(keptCommands);
+        issued.Clear();
+        issued.AddRange(keptAgents);
+
+        _logger.LogInformation(
+            "Node {NodeNumber} is holding {Count} unplaced agent(s) back on evaluation {Evaluation} of {Hold} after assuming leadership, so starts the previous leader dispatched can surface as assignments before they are placed again",
+            _runtime.Options.Durability.AssignedNodeNumber, held, since + 1, hold);
     }
 
     // GH-3698: project the pending-assignment ledger onto the grid, so an agent whose start is already on

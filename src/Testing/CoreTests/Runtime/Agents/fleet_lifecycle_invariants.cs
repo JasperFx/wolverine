@@ -121,6 +121,74 @@ public class fleet_lifecycle_invariants
     }
 
     /// <summary>
+    ///     GH-4897. The harder version of the scenario below: the leader DIES mid-wave rather than handing over,
+    ///     so the node set changes under the new leader at the same moment it inherits an empty ledger. Starts
+    ///     in flight to the dead node are legitimately lost and re-placed; starts in flight to the survivors are
+    ///     the trap -- the new leader cannot see them, and with one node fewer the even spread lands elsewhere.
+    ///     Without the takeover hold that is a second copy of an agent still coming up on the first node.
+    /// </summary>
+    [Fact]
+    public async Task a_leader_that_dies_mid_wave_is_replaced_without_starting_anything_twice()
+    {
+        var cluster = new SimulatedCluster(nodeCount: 5, agentCount: 1280, seed: 4897);
+
+        // Half the wave lands at once, half a round later. By the time the leader dies the fast half is
+        // visible as persisted rows -- it is a cluster mid-wave, not a cold start, which is what tells the
+        // new leader a predecessor was at work -- and the slow half is still in flight on the survivors.
+        // Those land within one snapshot cycle of the takeover, which is exactly what a one-evaluation hold
+        // can cover. Longer tails are the soak's business (fleet_chaos_soak).
+        var slow = cluster.AllAgents.Where((_, i) => i % 2 == 1).ToHashSet();
+        cluster.StartCost = uri => slow.Contains(uri) ? 2 : 1;
+
+        for (var i = 0; i < 2; i++) await cluster.RunRoundAsync();
+        cluster.DispatchCounts.Count.ShouldBe(1280, "the first leader dispatched everything on its first evaluation");
+        cluster.InFlightStarts.ShouldBeGreaterThan(0, "the slow half is still in flight");
+
+        // The leader dies with the slow half in flight.
+        var dying = cluster.LeaderNodeId;
+        cluster.FailOverLeaderTo(cluster.NodeIdAt(2));
+        cluster.RemoveNode(dying);
+
+        var rounds = await cluster.RunUntilConvergedAsync(maxRounds: 40);
+        rounds.ShouldBeLessThan(40);
+        cluster.RunningAgents.Count.ShouldBe(1280);
+
+        cluster.DoubleStartReports.ShouldBeEmpty();
+        cluster.DuplicateCopies.ShouldBe(0);
+
+        // Only what the dead node took with it was started again.
+        cluster.DispatchCounts.Values.Count(x => x > 1).ShouldBeLessThanOrEqualTo(1280 / 5 + 1);
+    }
+
+    /// <summary>
+    ///     The negative control for the scenario above: the identical takeover with the hold switched off
+    ///     starts agents twice, and it is GH-2602 that cleans up afterwards. This is what the hold buys.
+    /// </summary>
+    [Fact]
+    public async Task without_the_takeover_hold_the_same_dying_leader_starts_agents_twice()
+    {
+        var cluster = new SimulatedCluster(nodeCount: 5, agentCount: 1280, seed: 4897);
+        var slow = cluster.AllAgents.Where((_, i) => i % 2 == 1).ToHashSet();
+        cluster.StartCost = uri => slow.Contains(uri) ? 2 : 1;
+
+        for (var i = 0; i < 2; i++) await cluster.RunRoundAsync();
+
+        var dying = cluster.LeaderNodeId;
+        cluster.FailOverLeaderTo(cluster.NodeIdAt(2));
+        cluster.RemoveNode(dying);
+
+        // The new leader's options are the ones the hold reads
+        cluster.Options.Durability.LeaderTakeoverHoldEvaluations = 0;
+
+        await cluster.RunUntilConvergedAsync(maxRounds: 40);
+
+        cluster.DoubleStartReports.ShouldNotBeEmpty("with no hold, the slow half is re-decided while still starting");
+        cluster.RunningAgents.Count.ShouldBe(1280);
+        cluster.DuplicateCopies.ShouldBe(0, "GH-2602 stops the older copies once both rows are visible");
+        cluster.StopsEmitted.ShouldBeGreaterThan(0, "those are the duplicate stops");
+    }
+
+    /// <summary>
     ///     The report's second symptom: three leaders in a row were replaced during one warm-up. A new leader
     ///     starts with an empty pending-assignment ledger and no memory of what its predecessor dispatched,
     ///     while slow starts are still in flight on every node. It must finish the wave, not restart it.
