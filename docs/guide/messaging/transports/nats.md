@@ -964,6 +964,10 @@ carried, so it keeps working when its NATS user may only publish responses (`all
   server's answer — and `SendAsync()` throws the `SendRejectedException` to the caller rather than logging three
   retries and discarding the message. A publish the stream discards as a duplicate `Nats-Msg-Id` is still a
   successful send, because the stream already holds that message.
+- **No PubAck**: a JetStream publish that gets no answer within the request timeout (`ConfigureTimeouts()`,
+  default 30 seconds) fails with a `TimeoutException`, which the sending agent retries like any other send failure.
+  Without that deadline NATS.Net kept waiting far longer while every server was down, and the sending agent waited
+  with it.
 - **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
 - **Dead Letter**: When Wolverine's error handling moves a message to the error queue — once its retries are
