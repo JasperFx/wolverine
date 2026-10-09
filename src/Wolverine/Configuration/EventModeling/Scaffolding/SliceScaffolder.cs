@@ -75,6 +75,13 @@ public sealed record ScaffoldFile(string RelativePath, string Code)
     /// </summary>
     public string? AppendClass { get; init; }
 
+    /// <summary>
+    ///     GH-4898. Set when <see cref="Code" /> is members -- the <c>Apply</c> methods an existing aggregate or
+    ///     view is missing -- to insert into the class of this name in an existing file, rather than a new file
+    ///     or a class appended after the others.
+    /// </summary>
+    public string? InsertInto { get; init; }
+
     /// <summary>The namespaces the appended code needs; added to the file's usings when missing.</summary>
     public IReadOnlyList<string> Usings { get; init; } = Array.Empty<string>();
 
@@ -199,6 +206,103 @@ public static class SliceScaffolder
     ///     namespace block of its own when the file does not use a file-scoped namespace. Returns null,
     ///     changing nothing, when the file already declares the class.
     /// </summary>
+    /// <summary>
+    ///     GH-4898. Insert planned members -- the missing <c>Apply</c> methods -- at the end of the existing class
+    ///     <see cref="ScaffoldFile.InsertInto" /> names, adding the usings they need. Returns null, changing
+    ///     nothing, when the class is not there or has no body to insert into (a positional record), so the
+    ///     caller says what to add by hand instead.
+    /// </summary>
+    public static string? InsertInto(string existing, ScaffoldFile file)
+    {
+        if (file.InsertInto is null) throw new ArgumentException("The file is not a planned insert.", nameof(file));
+
+        var newline = existing.Contains("\r\n") ? "\r\n" : "\n";
+        var text = existing.Replace("\r\n", "\n");
+
+        var declaration = Regex.Match(text, $@"\b(class|record|struct)\s+{Regex.Escape(file.InsertInto)}\b");
+        if (!declaration.Success) return null;
+
+        // The body's opening brace; a positional record ends in ';' first and has no body to insert into
+        var open = -1;
+        for (var i = declaration.Index; i < text.Length; i++)
+        {
+            if (text[i] == ';') return null;
+            if (text[i] == '{')
+            {
+                open = i;
+                break;
+            }
+        }
+
+        if (open < 0 || closingBrace(text, open) is not { } close) return null;
+
+        var lineStart = text.LastIndexOf('\n', declaration.Index) + 1;
+        var indent = new string(text.Skip(lineStart).TakeWhile(char.IsWhiteSpace).ToArray());
+
+        var members = file.Code.Replace("\r\n", "\n").TrimEnd().Split('\n')
+            .Select(x => x.Length == 0 ? x : indent + "    " + x);
+
+        var before = text[..close].TrimEnd();
+        var inserted = before + "\n\n" + string.Join("\n", members) + "\n" + indent + text[close..];
+
+        var lines = inserted.Split('\n').ToList();
+        var fileScoped = lines.Select(x => Regex.Match(x, @"^\s*namespace\s+([\w.]+)\s*;")).FirstOrDefault(x => x.Success);
+        var ownNamespace = fileScoped?.Groups[1].Value;
+        var missing = file.Usings
+            .Where(u => u != ownNamespace)
+            .Where(u => !lines.Any(x => Regex.IsMatch(x, $@"^\s*using\s+{Regex.Escape(u)}\s*;")))
+            .Select(u => $"using {u};")
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            var lastUsing = lines.FindLastIndex(x => Regex.IsMatch(x, @"^\s*using\s+[\w.]+\s*;"));
+            if (lastUsing < 0) missing.Add("");
+            var at = lastUsing >= 0
+                ? lastUsing + 1
+                : Math.Max(0, lines.FindIndex(x => x.Trim().Length > 0 && !x.TrimStart().StartsWith("//")));
+            lines.InsertRange(at, missing);
+        }
+
+        return string.Join(newline, lines);
+    }
+
+    // The '}' matching the '{' at open, skipping braces inside strings, characters and comments
+    private static int? closingBrace(string text, int open)
+    {
+        var depth = 0;
+        for (var i = open; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (c == '/' && i + 1 < text.Length && text[i + 1] == '/')
+            {
+                i = text.IndexOf('\n', i) is var end and >= 0 ? end : text.Length;
+                continue;
+            }
+
+            if (c == '/' && i + 1 < text.Length && text[i + 1] == '*')
+            {
+                i = text.IndexOf("*/", i + 2, StringComparison.Ordinal) is var end and >= 0 ? end + 1 : text.Length;
+                continue;
+            }
+
+            if (c is '"' or '\'')
+            {
+                for (i++; i < text.Length && text[i] != c; i++)
+                {
+                    if (text[i] == '\\') i++;
+                }
+
+                continue;
+            }
+
+            if (c == '{') depth++;
+            if (c == '}' && --depth == 0) return i;
+        }
+
+        return null;
+    }
+
     public static string? AppendTo(string existing, ScaffoldFile file)
     {
         if (file.AppendClass is null) throw new ArgumentException("The file is not a planned append.", nameof(file));
@@ -749,13 +853,45 @@ public static class SliceScaffolder
 
                     if (missing.Count == 0) continue;
 
-                    // The stub already exists, so it is the user's file, not ours. Say exactly what to add
-                    // and where, so whoever (or whatever) picks this up can make the edit without guessing.
                     var signatures = string.Join("; ", missing.Select(e => $"public void Apply({e.Name} e)"));
                     var path = _options.FindSourceFile(existing);
+
+                    // GH-4898: the methods go INTO the existing class -- the import writes aggregates and
+                    // views as bare stubs, and without these every spec against them fails to project. Only
+                    // the missing ones, each a TODO; nothing the class already has is touched.
+                    if (path is not null)
+                    {
+                        var members = new SourceWriter();
+                        var usings = new SortedSet<string>(StringComparer.Ordinal);
+                        var first = true;
+                        foreach (var e in missing)
+                        {
+                            if (!first) members.BlankLine();
+                            first = false;
+
+                            var resolved = _options.ResolveType(e);
+                            if (resolved?.Namespace is { } ns && ns != existing.Namespace) usings.Add(ns);
+                            var name = resolved?.ShortNameInCode() ?? e.Name;
+
+                            members.Write($"BLOCK:public void Apply({name} e)");
+                            members.WriteLine($"// TODO: fold {name} into the {kind}");
+                            members.FinishBlock();
+                        }
+
+                        Files.Add(new ScaffoldFile(path, members.Code())
+                        {
+                            InsertInto = existing.Name,
+                            Usings = usings.ToArray()
+                        });
+                        Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, $"{existing.FullName} ({kind})",
+                            $"added {signatures} to the existing {kind}.", path));
+                        continue;
+                    }
+
+                    // No source file to edit: say exactly what to add, so whoever picks this up need not guess
                     Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, $"{existing.FullName} ({kind})",
                         $"the {kind} already exists, so it was not rewritten. Add these methods to it by hand: {signatures}" +
-                        (path is null ? $". Its source file was not found; search for the declaration of {existing.Name}." : "."),
+                        $". Its source file was not found; search for the declaration of {existing.Name}.",
                         path));
                     continue;
                 }

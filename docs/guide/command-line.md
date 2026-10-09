@@ -579,6 +579,7 @@ Fisher:
 | `.Emits<T>()` | a `T?` return when it is the slice's only event, else an `EventsToAppend` return; no `[Emits]`, because the source generator reads the events from the body |
 | `.Reads<T>()` / `.Produces<T>()` | an `[Entity] T` parameter / an `IStorageAction<T>` return |
 | an aggregate or view declared **by name** | a class with an `Apply` method per event it folds |
+| an aggregate or view that **already exists** | the `Apply` methods it is missing, added to the end of its class |
 | any other role declared **by name** | a `public record` stub to give fields |
 
 Method bodies describe the shape to fill in and throw `NotImplementedException`, so a slice nobody has filled in yet

@@ -106,6 +106,22 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
             {
                 foreach (var file in plan.Files)
                 {
+                    if (file.InsertInto is not null)
+                    {
+                        // GH-4898: the missing Apply methods go into the existing aggregate or view
+                        var target = Path.Combine(Directory.GetCurrentDirectory(), file.RelativePath);
+                        var inserted = SliceScaffolder.InsertInto(await File.ReadAllTextAsync(target), file);
+                        if (inserted is null)
+                        {
+                            Console.WriteLine($"EDIT {file.RelativePath} -- {file.InsertInto} has no class body the scaffold can add to; add these by hand:");
+                            Console.WriteLine(file.Code);
+                            continue;
+                        }
+
+                        await File.WriteAllTextAsync(target, inserted);
+                        continue;
+                    }
+
                     if (file.AppendClass is not null)
                     {
                         // GH-4891: the handler goes into the file that declares its command. The source

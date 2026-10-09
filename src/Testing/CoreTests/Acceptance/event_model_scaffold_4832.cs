@@ -62,19 +62,115 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void an_existing_aggregate_stub_is_never_rewritten_but_the_report_says_what_to_add_and_where()
+    public void an_existing_aggregate_gets_its_missing_apply_methods_inserted_into_its_own_file()
     {
+        // GH-4898: the import writes aggregates as bare stubs; without these every spec fails to project
         var result = plan(
             declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Http)
                 .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()),
             findSource: type => $"Domain/{type.Name}.cs");
 
-        result.Files.ShouldNotContain(x => x.RelativePath.Contains("Appointment.cs") && !x.RelativePath.Contains("Confirm"));
+        var insert = result.Files.Single(x => x.InsertInto is not null);
+        insert.RelativePath.ShouldBe("Domain/Appointment.cs");
+        insert.InsertInto.ShouldBe(nameof(Appointment));
+        insert.Code.ShouldContain("public void Apply(AppointmentConfirmed e)");
+        insert.Code.ShouldContain("// TODO: fold AppointmentConfirmed into the aggregate");
 
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Edit);
+        result.Notices.ShouldContain(x => x.Kind == ScaffoldNoticeKind.Wrote && x.Path == "Domain/Appointment.cs");
+    }
+
+    [Fact]
+    public void an_existing_aggregate_whose_source_is_not_found_gets_a_report_of_what_to_add()
+    {
+        var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Http)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()));
+
+        result.Files.ShouldNotContain(x => x.InsertInto != null);
         var edit = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Edit);
-        edit.Path.ShouldBe("Domain/Appointment.cs");
         edit.Subject.ShouldBe($"{typeof(Appointment).FullName} (aggregate)");
         edit.Message.ShouldContain("public void Apply(AppointmentConfirmed e)");
+    }
+
+    private static readonly ScaffoldFile ApplyConfirmed = new("Domain/Appointment.cs",
+        "public void Apply(AppointmentConfirmed e)\n{\n    // TODO: fold AppointmentConfirmed into the aggregate\n}\n")
+    {
+        InsertInto = "Appointment",
+        Usings = ["Clinic.Scheduling"]
+    };
+
+    [Fact]
+    public void apply_methods_are_inserted_at_the_end_of_the_class_body_with_their_usings()
+    {
+        const string existing = """
+            using System;
+
+            namespace Clinic.Domain;
+
+            // A bare stub, as the import writes it
+            public class Appointment
+            {
+                public Guid Id { get; set; }
+            }
+
+            public record Other(string Text);
+            """;
+
+        var updated = SliceScaffolder.InsertInto(existing, ApplyConfirmed)!.ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+            using System;
+            using Clinic.Scheduling;
+            """.ReplaceLineEndings("\n"));
+        updated.ShouldContain("""
+            public class Appointment
+            {
+                public Guid Id { get; set; }
+
+                public void Apply(AppointmentConfirmed e)
+                {
+                    // TODO: fold AppointmentConfirmed into the aggregate
+                }
+            }
+
+            public record Other(string Text);
+            """.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void braces_in_strings_and_comments_do_not_end_the_class_early()
+    {
+        const string existing = """
+            namespace Clinic.Domain
+            {
+                public class Appointment
+                {
+                    // a } in a comment
+                    public string Text { get; set; } = "a } in a string";
+                    /* and { here */
+                }
+            }
+            """;
+
+        var updated = SliceScaffolder.InsertInto(existing, ApplyConfirmed)!.ReplaceLineEndings("\n");
+
+        updated.ShouldContain("""
+                    /* and { here */
+
+                    public void Apply(AppointmentConfirmed e)
+            """.ReplaceLineEndings("\n"));
+        updated.TrimEnd().ShouldEndWith("""
+                    }
+                }
+            }
+            """.ReplaceLineEndings("\n").TrimEnd());
+    }
+
+    [Fact]
+    public void a_positional_record_with_no_body_or_a_missing_class_changes_nothing()
+    {
+        SliceScaffolder.InsertInto("namespace Clinic;\npublic record Appointment(Guid Id);\n", ApplyConfirmed).ShouldBeNull();
+        SliceScaffolder.InsertInto("namespace Clinic;\npublic class Visit { }\n", ApplyConfirmed).ShouldBeNull();
     }
 
     [Fact]
