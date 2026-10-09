@@ -1,6 +1,8 @@
 using System.Threading.Channels;
 using JasperFx.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Nats.Internal;
 using Wolverine.Tracking;
@@ -86,6 +88,28 @@ public class NatsClientOptionsTests
         shared.Name.ShouldBe("wolverine-NatsOptsHook");
         shared.Url.ShouldBe(_fixture.ConnectionString);
         tenantA.Name.ShouldBe("wolverine-nats-tenant-tenant-a");
+    }
+
+    [Fact]
+    public async Task the_nats_client_logs_through_the_host()
+    {
+        // Without it NATS.Net logs to nowhere: a permissions violation only showed up in the server's log, and the
+        // caller saw nothing but a TimeoutException
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "NatsClientLogging";
+                opts.UseNats(_fixture.ConnectionString)
+                    .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
+                    .AddTenant("tenant-a", cfg => cfg.ConnectionString = _fixture.ConnectionString);
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        var loggerFactory = host.Services.GetRequiredService<ILoggerFactory>();
+        var transport = host.GetRuntime().Options.Transports.GetOrCreate<NatsTransport>();
+
+        transport.Connection.Opts.LoggerFactory.ShouldBeSameAs(loggerFactory);
+        transport.Tenants["tenant-a"].Connection.ShouldNotBeNull().Opts.LoggerFactory.ShouldBeSameAs(loggerFactory);
     }
 
     [Fact]

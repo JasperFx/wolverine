@@ -22,6 +22,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     private NatsConnection? _connection;
     private INatsJSContext? _jetStreamContext;
     private ILogger<NatsTransport>? _logger;
+    private ILoggerFactory? _loggerFactory;
     
     /// <summary>
     /// Minimum NATS server version required for scheduled message delivery
@@ -268,6 +269,10 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         responseEndpoint.IsUsedForReplies = true;
         responseEndpoint.IsListener = true;
 
+        // NATS.Net logs through the host too: a permissions violation is only ever reported there, and without it
+        // the caller saw nothing but the TimeoutException of the request it broke
+        _loggerFactory = runtime.LoggerFactory;
+
         // GH-4860. ConnectAsync is re-run on every retry of a failed start and at the start of every
         // BrokerResource operation -- AutoProvision's resource setup runs it right after the start-up run,
         // while the listeners and senders built in between hold the first connection. Each run used to open a
@@ -284,7 +289,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             await disposeConnectionsAsync();
 
             var natsOpts = Configuration.ToNatsOpts();
-            natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}" };
+            natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}", LoggerFactory = _loggerFactory };
             natsOpts = Configuration.ConfigureNatsOpts?.Invoke(natsOpts) ?? natsOpts;
             _connection = new NatsConnection(natsOpts);
             logDroppedMessages(_connection);
@@ -601,6 +606,10 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         var configuration = tenant.ConnectionConfiguration!;
         var opts = configuration.ToNatsOpts();
         opts = opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
+        if (_loggerFactory != null)
+        {
+            opts = opts with { LoggerFactory = _loggerFactory };
+        }
 
         // A copy of the transport's configuration as it was when the transport connected, so this is the
         // transport's hook unless the tenant's action replaced it

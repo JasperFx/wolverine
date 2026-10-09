@@ -158,6 +158,11 @@ two outstanding pings allowed. Think twice before switching `SubPendingChannelFu
 then stalls the connection's read loop instead of dropping, so one slow core NATS listener holds up every
 subscription on that connection, and the server eventually disconnects the client as a slow consumer.
 
+Wolverine hands NATS.Net the host's `ILoggerFactory`, so the client's own messages — connection changes, and
+errors the server reports only to the client, such as a permissions violation — appear in the application log
+under the `NATS.Client` categories. Raise their minimum level there to quiet them, or replace `LoggerFactory` in
+the hook.
+
 A tenant added with its own connection configuration can set `ConfigureNatsOpts` on that configuration, which
 replaces the transport's hook for that tenant's connection:
 
