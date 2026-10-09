@@ -32,10 +32,14 @@ public class event_model_scaffold_http_4832
 
         var endpoint = plan.Files.Single(x => x.RelativePath.EndsWith("ConfirmAppointment.cs")).Code;
         endpoint.ShouldContain("[WolverinePost(\"/api/confirm-appointment\")]");
-        endpoint.ShouldContain("public static (EventsToAppend, OutgoingMessages) Post(ConfirmAppointmentRequest confirmAppointmentRequest, [WriteModel] Appointment appointment)");
+        endpoint.ShouldContain("""
+                                   public static (EventsToAppend, OutgoingMessages) Post(
+                                           ConfirmAppointmentRequest command,
+                                           [WriteModel] Appointment appointment)
+                                   """.ReplaceLineEndings("\n"));
 
         var booking = plan.Files.Single(x => x.RelativePath.EndsWith("BookAppointment.cs")).Code;
-        booking.ShouldContain("public static StartStream Post(BookAppointmentRequest bookAppointmentRequest)");
+        booking.ShouldContain("public static StartStream Post(BookAppointmentRequest command)");
 
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(x => !x.IsDynamic && !string.IsNullOrEmpty(x.Location))

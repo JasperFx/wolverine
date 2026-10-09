@@ -497,7 +497,11 @@ public static class SliceScaffolder
             var multiStream = aggregates.Count > 1;
             var aggregateType = multiStream ? null : aggregates.FirstOrDefault();
             var triggerName = file.Use(trigger);
-            var triggerArgument = argumentFor(triggerName);
+            // The command is just `command`, whatever its type is called; an event that triggers an
+            // automation keeps its own name
+            var triggerArgument = slice.CommandType is { } sliceCommand && EventModelSliceDescriptor.SameType(sliceCommand, trigger)
+                ? "command"
+                : argumentFor(triggerName);
 
             var parameters = new List<string> { $"{triggerName} {triggerArgument}" };
             var shape = new List<string>();
@@ -641,10 +645,10 @@ public static class SliceScaffolder
                 file.Namespaces.Add("Wolverine.Http");
 
                 var validateParameters = aggregateArgument is null
-                    ? $"{triggerName} {triggerArgument}"
-                    : $"{triggerName} {triggerArgument}, {aggregateName} {aggregateArgument}";
+                    ? new List<string> { $"{triggerName} {triggerArgument}" }
+                    : new List<string> { $"{triggerName} {triggerArgument}", $"{aggregateName} {aggregateArgument}" };
 
-                writer.Write($"BLOCK:public static ProblemDetails Validate({validateParameters})");
+                writer.Write(signature("public static ProblemDetails Validate", validateParameters));
                 writer.WriteLine("// TODO: the guards your specifications describe. Return a ProblemDetails to refuse the request.");
                 writer.WriteLine("return WolverineContinue.NoProblems;");
                 writer.FinishBlock();
@@ -667,7 +671,7 @@ public static class SliceScaffolder
                 if (returns.Count > 0) writer.WriteLine("[EmptyResponse]");
             }
 
-            writer.Write($"BLOCK:public static {returnType} {(http ? "Post" : "Handle")}({string.Join(", ", parameters)})");
+            writer.Write(signature($"public static {returnType} {(http ? "Post" : "Handle")}", parameters));
             writer.WriteLine("// Fill this in and delete the throw -- the shape is:");
             foreach (var line in shape)
             {
@@ -796,6 +800,26 @@ public static class SliceScaffolder
 
         private static string pathFor(string[] groups, string identifier)
             => Path.Combine(groups.Append($"{identifier}.cs").ToArray());
+
+        // A method's opening line as a BLOCK: directive. A signature too long to read on one line puts
+        // each parameter on its own line instead
+        private static string signature(string method, IReadOnlyList<string> parameters)
+        {
+            var oneLine = $"{method}({string.Join(", ", parameters)})";
+            if (parameters.Count < 2 || oneLine.Length <= MaxSignatureLength) return "BLOCK:" + oneLine;
+
+            var lines = new List<string> { method + "(" };
+            for (var i = 0; i < parameters.Count; i++)
+            {
+                var last = i == parameters.Count - 1;
+                lines.Add((last ? "BLOCK:" : "") + "    " + parameters[i] + (last ? ")" : ","));
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        // A 120-column margin, less the four columns of the method's indentation in its class
+        private const int MaxSignatureLength = 116;
 
         private static string argumentFor(string typeName)
         {

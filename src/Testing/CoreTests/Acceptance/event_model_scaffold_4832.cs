@@ -47,12 +47,12 @@ public class event_model_scaffold_4832
 
         file.Code.ShouldContain("namespace Clinic.Scheduling;");
         file.Code.ShouldContain("public static class ConfirmAppointmentEndpoint");
-        file.Code.ShouldContain("public static ProblemDetails Validate(ConfirmAppointmentRequest confirmAppointmentRequest, Appointment appointment)");
+        file.Code.ShouldContain("public static ProblemDetails Validate(ConfirmAppointmentRequest command, Appointment appointment)");
         file.Code.ShouldContain("[WolverinePost(\"/api/confirm-appointment\")]");
         file.Code.ShouldContain("[EmptyResponse]");
 
         // GH-4889: one event onto the stream it loads -- the signature says so, so no [Emits]
-        file.Code.ShouldContain("public static AppointmentConfirmed? Post(ConfirmAppointmentRequest confirmAppointmentRequest, [WriteModel] Appointment appointment)");
+        file.Code.ShouldContain("public static AppointmentConfirmed? Post(ConfirmAppointmentRequest command, [WriteModel] Appointment appointment)");
         file.Code.ShouldNotContain("[Emits(");
         file.Code.ShouldContain($"using {typeof(Appointment).Namespace};");
 
@@ -174,7 +174,7 @@ public class event_model_scaffold_4832
         var code = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
             .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>())).Files.Single().Code;
 
-        code.ShouldContain("public static AppointmentConfirmed? Handle(ConfirmAppointmentRequest confirmAppointmentRequest, [WriteModel] Appointment appointment)");
+        code.ShouldContain("public static AppointmentConfirmed? Handle(ConfirmAppointmentRequest command, [WriteModel] Appointment appointment)");
         code.ShouldContain("or null when there is nothing to record");
         code.ShouldContain("If the stream may not exist yet, make the parameter Appointment?");
         code.ShouldNotContain("[Emits(");
@@ -201,7 +201,7 @@ public class event_model_scaffold_4832
             .Command<ConfirmAppointmentRequest>().Emits<AppointmentConfirmed>()));
         var code = result.Files.Single().Code;
 
-        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest confirmAppointmentRequest)");
+        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest command)");
         code.ShouldContain("TODO: the model names no aggregate this command decides against");
         code.ShouldContain(".Against<T>(), once per stream, or .StartsStream<T>()");
         code.ShouldNotContain("AppendEvents");
@@ -220,9 +220,14 @@ public class event_model_scaffold_4832
             .Emits<HomeCheckAssignmentAcceptedEvent>()));
         var code = result.Files.Single().Code;
 
-        code.ShouldContain("public static void Handle(AcceptHomeCheckAssignment acceptHomeCheckAssignment, " +
-                           "[WriteModel(nameof(AcceptHomeCheckAssignment.HomeCheckId))] IEventStream<HomeCheck> homeCheckStream, " +
-                           "[WriteModel(nameof(AcceptHomeCheckAssignment.VolunteerApplicationId))] IEventStream<VolunteerApplication> volunteerApplicationStream)");
+        // The command is just `command`, and a signature this long puts each parameter on its own line
+        code.ShouldContain("""
+                               public static void Handle(
+                                       AcceptHomeCheckAssignment command,
+                                       [WriteModel(nameof(AcceptHomeCheckAssignment.HomeCheckId))] IEventStream<HomeCheck> homeCheckStream,
+                                       [WriteModel(nameof(AcceptHomeCheckAssignment.VolunteerApplicationId))] IEventStream<VolunteerApplication> volunteerApplicationStream)
+                                   {
+                               """.ReplaceLineEndings("\n"));
         code.ShouldContain("homeCheckStream.AppendOne(new HomeCheckAssignmentAcceptedEvent(...));   // or volunteerApplicationStream");
 
         // IEventStream<T> erases the event types, so [Emits] earns its place here
