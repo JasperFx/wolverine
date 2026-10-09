@@ -143,6 +143,53 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     /// <summary>How many rounds each agent's start takes to complete on its destination node.</summary>
     public Func<Uri, int> StartCost { get; set; }
 
+    /// <summary>
+    ///     Whether a start of the agent on the node fails once its cost has run out -- a database refusing
+    ///     connections (Postgres 53300), say. A failed start never comes up and is never confirmed, so the
+    ///     leader sees an unconfirmed dispatch and re-drives it after its TTL.
+    /// </summary>
+    public Func<Uri, Guid, bool>? StartFails { get; set; }
+
+    public int FailedStarts { get; private set; }
+
+    /// <summary>Where a wave stands, for a failure message.</summary>
+    public string Describe(AgentCommands? lastCommands = null)
+    {
+        var all = AllAgents;
+        var missing = all.Where(x => !_running.ContainsKey(x)).ToArray();
+        var queued = _dispatchers.Values.SelectMany(x => x.Dispatcher.LaneStates).Sum(x => x.Queued);
+        var waiting = _batches.Values.SelectMany(x => x).Sum(x => x.Waiting.Count);
+
+        var description = $"round {Round}: {_running.Count} of {all.Length} running, {_inFlight.Count} starting, " +
+                          $"{_awaitingVisibility.Count} awaiting visibility, {waiting} waiting in batches, " +
+                          $"{queued} commands queued; per node {string.Join(", ", RunningCountsByNode)}";
+
+        foreach (var lane in _dispatchers.Values.SelectMany(x => x.Dispatcher.LaneStates).Where(x => x.Executing != null || x.Queued > 0))
+        {
+            description += $"; lane to node {nodeNumberOf(lane.Destination)}: {lane.Executing?.GetType().Name ?? "idle"} " +
+                           $"({(lane.Executing != null && _parked.Contains(lane.Executing) ? "parked" : "running")}), {lane.Queued} queued";
+        }
+
+        if (missing.Length > 0)
+        {
+            description += $"; not running, e.g. {string.Join(", ", missing.Take(3))}";
+        }
+
+        if (lastCommands is { Count: > 0 })
+        {
+            description += "; last commands: " + string.Join(", ",
+                lastCommands.GroupBy(x => x.GetType().Name).Select(x => $"{x.Count()} {x.Key}"));
+        }
+
+        return description;
+    }
+
+    /// <summary>How many rounds have run.</summary>
+    public int Round => _runningCountByRound.Count;
+
+    /// <summary>Agents whose start is under way on the node right now.</summary>
+    public int StartingOn(Guid nodeId) => _inFlight.Values.Count(x => x.NodeId == nodeId);
+
     public IReadOnlyList<int> RunningCountByRound => _runningCountByRound;
     public IReadOnlyList<string> DoubleStartReports => _doubleStartReports;
 
@@ -355,8 +402,18 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     {
         var node = _nodes.Single(x => x.NodeId == nodeId);
 
+        var previous = Options.Durability;
         Options = buildOptions();
         _family = family ?? _family;
+
+        // Every node of a fleet runs the same configuration, so the new leader inherits the scenario's tuning
+        var durability = Options.Durability;
+        durability.AgentStartBatchSize = previous.AgentStartBatchSize;
+        durability.MaxAgentStartParallelism = previous.MaxAgentStartParallelism;
+        durability.CheckAssignmentPeriod = previous.CheckAssignmentPeriod;
+        durability.CapacityAwareAssignment = previous.CapacityAwareAssignment;
+        durability.NodeOverloadThreshold = previous.NodeOverloadThreshold;
+        durability.OverloadShedBatchSize = previous.OverloadShedBatchSize;
         (_runtime, _controller) = buildLeader(Options, _family);
 
         // What tryStartLeadershipAsync does on election: the takeover hold (GH-4897) counts from here.
@@ -786,6 +843,12 @@ internal sealed class SimulatedCluster : IAsyncDisposable
             _inFlight.Remove(uri);
             if (_startingIn.Remove(uri, out var batch)) batch.Starting.Remove(uri);
 
+            if (StartFails?.Invoke(uri, pending.NodeId) == true)
+            {
+                FailedStarts++;
+                continue;
+            }
+
             // Running now — but invisible to the leader until the promotion above runs next round. A copy
             // coming up while another node already runs the agent is a duplicate, kept as one.
             if (_running.TryGetValue(uri, out var elsewhere) && elsewhere != pending.NodeId)
@@ -836,8 +899,21 @@ internal sealed class SimulatedCluster : IAsyncDisposable
             _undeclaredPlacements.Add($"{agentUri} dispatched to node {nodeId}, which does not declare it");
         }
 
+        if (_inFlight.TryGetValue(agentUri, out var restarting) && restarting.NodeId == nodeId)
+        {
+            _restartsWhileStarting.Add($"{agentUri} on node {nodeNumberOf(nodeId)} round {Round}");
+        }
+
+        // A second start supersedes the first in the books of whichever batch sent it
+        if (_startingIn.Remove(agentUri, out var superseded)) superseded.Starting.Remove(agentUri);
+
         _inFlight[agentUri] = new InFlightStart(nodeId, Math.Max(1, StartCost(agentUri)));
     }
+
+    private readonly List<string> _restartsWhileStarting = [];
+
+    /// <summary>Starts sent to a node that was still starting the same agent: one batch's work done twice.</summary>
+    public IReadOnlyList<string> RestartsWhileStarting => _restartsWhileStarting;
 
     private void stop(Uri agentUri, Guid nodeId)
     {
