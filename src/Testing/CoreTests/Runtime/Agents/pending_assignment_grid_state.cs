@@ -74,6 +74,15 @@ public class pending_assignment_grid_state
             .Concat(commands.OfType<AssignAgents>().SelectMany(x => x.AgentIds))
             .ToArray();
 
+    // A move can arrive alone or batched with the rest of the rebalance, depending on how many agents move
+    // between the same two nodes.
+    private static (Uri Agent, Guid From, Guid To, Guid? Lane)[] moves(AgentCommands commands)
+        => commands.OfType<ReassignAgent>()
+            .Select(x => (x.AgentUri, x.OriginalNode.NodeId, x.ActiveNode.NodeId, x.DestinationNodeId))
+            .Concat(commands.OfType<ReassignAgents>().SelectMany(x =>
+                x.AgentUris.Select(uri => (uri, x.OriginalNode.NodeId, x.ActiveNode.NodeId, x.DestinationNodeId))))
+            .ToArray();
+
     // Puts every agent in the "dispatched to node 1, not yet confirmed running" state the whole class is
     // about: one evaluation against a single node, whose ActiveAgents deliberately stay empty afterwards.
     private async Task dispatchEverythingToNode1Async()
@@ -83,15 +92,42 @@ public class pending_assignment_grid_state
     }
 
     [Fact]
-    public async Task a_node_joining_mid_wave_leaves_the_agents_already_dispatched_where_they_are()
+    public async Task a_node_joining_mid_wave_takes_its_share_of_the_agents_still_pending()
     {
         await dispatchEverythingToNode1Async();
 
-        // The distribution balances the genuinely unassigned remainder AROUND the in-flight agents rather
-        // than re-spreading everything evenly and having node 1's share yanked back out from under it.
+        // The in-flight agents count toward node 1's share, so node 1 keeps exactly that and only the excess
+        // moves. GH-4901: this used to come out empty, because the families that distribute after this one
+        // put every pending agent back on node 1 -- a node joining mid-wave got nothing until the wave was over.
         var commands = await evaluateAsync(_node1, _node2);
 
-        commands.ShouldBeEmpty();
+        startedAgents(commands).ShouldBeEmpty();
+
+        var moved = moves(commands);
+        moved.Length.ShouldBe(FakeAgentFamily.Names.Length / 2);
+        moved.ShouldAllBe(x => x.From == _node1.NodeId && x.To == _node2.NodeId);
+    }
+
+    [Fact]
+    public async Task an_agent_still_being_moved_is_not_moved_again()
+    {
+        await dispatchEverythingToNode1Async();
+        var moving = moves(await evaluateAsync(_node1, _node2)).Select(x => x.Agent).ToArray();
+        moving.ShouldNotBeEmpty();
+
+        // The moves are still on their way to node 2 when node 3 joins. GH-4901: a second move of the same agent
+        // queues behind the first, finds it already gone from its source, and starts it on a second node.
+        _controller.PendingDispatches = (Uri uri, out Guid nodeId) =>
+        {
+            nodeId = moving.Contains(uri) ? _node2.NodeId : _node1.NodeId;
+            return true;
+        };
+
+        var node3 = nodeFor(Guid.NewGuid(), 3, "fake://three");
+        var commands = await evaluateAsync(_node1, _node2, node3);
+
+        moves(commands).Select(x => x.Agent).ShouldNotContain(x => moving.Contains(x));
+        startedAgents(commands).ShouldNotContain(x => moving.Contains(x));
     }
 
     [Fact]
@@ -111,10 +147,9 @@ public class pending_assignment_grid_state
         // never told to let go, and both nodes ended up running the agent.
         startedAgents(commands).ShouldNotContain(pinned);
 
-        var reassign = commands.OfType<ReassignAgent>().ShouldHaveSingleItem();
-        reassign.AgentUri.ShouldBe(pinned);
-        reassign.OriginalNode.NodeId.ShouldBe(_node1.NodeId);
-        reassign.ActiveNode.NodeId.ShouldBe(_node2.NodeId);
+        var reassign = moves(commands).Single(x => x.Agent == pinned);
+        reassign.From.ShouldBe(_node1.NodeId);
+        reassign.To.ShouldBe(_node2.NodeId);
     }
 
     [Fact]
@@ -131,8 +166,7 @@ public class pending_assignment_grid_state
         // A reassignment runs in the lane of its SOURCE node (GH-3749). That matters doubly here: the
         // start it has to cancel is still sitting in node 1's queue, so a stop dispatched anywhere else
         // finds nothing to stop and node 1 brings the agent up moments later anyway.
-        var reassign = commands.OfType<ReassignAgent>().ShouldHaveSingleItem();
-        reassign.DestinationNodeId.ShouldBe(_node1.NodeId);
+        moves(commands).Single(x => x.Agent == pinned).Lane.ShouldBe(_node1.NodeId);
     }
 
     [Fact]

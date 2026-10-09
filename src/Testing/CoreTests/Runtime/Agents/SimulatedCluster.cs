@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CoreTests.Transports;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine.ComplianceTests;
@@ -27,7 +28,7 @@ namespace CoreTests.Runtime.Agents;
 /// deterministic — a failure reproduces. The one wall-clock reading taken is <see cref="EvaluationTimes" />,
 /// the cost of each leader evaluation, which is what GH-4886 was about.</para>
 /// </summary>
-internal sealed class SimulatedCluster
+internal sealed class SimulatedCluster : IAsyncDisposable
 {
     private IWolverineRuntime _runtime;
     private FakeAgentFamily _family;
@@ -63,8 +64,38 @@ internal sealed class SimulatedCluster
     private readonly List<string> _undeclaredPlacements = [];
     private readonly Dictionary<Uri, int> _dispatchCounts = new();
     private readonly List<TimeSpan> _evaluationTimes = [];
+    private readonly ErrorLog _leaderLog = new();
 
     private record struct InFlightStart(Guid NodeId, int RoundsRemaining);
+
+    // Dispatcher lanes, opt-in through UseDispatcherLanes. Every node that has led owns a real
+    // AgentCommandDispatcher, as its runtime does, and keeps it after losing the leadership.
+    private readonly Dictionary<Guid, (AgentCommandDispatcher Dispatcher, CancellationTokenSource Cancellation)>
+        _dispatchers = new();
+
+    // Dispatchers of nodes that have left, cancelled and awaiting disposal.
+    private readonly List<(AgentCommandDispatcher Dispatcher, CancellationTokenSource Cancellation)> _retiredDispatchers = [];
+
+    // Commands the lanes handed to the executor that the simulation has not taken up yet, and every command
+    // still parked in the executor. Written from the lane threads, hence the lock.
+    private readonly object _laneGate = new();
+    private readonly List<LaneWork> _laneWork = [];
+    private readonly HashSet<IAgentCommand> _parked = new(ReferenceEqualityComparer.Instance);
+
+    // A start command being worked through on its destination: MaxAgentStartParallelism agents at a time,
+    // replying once the whole batch is done, as StartAgents does.
+    private readonly Dictionary<Guid, List<NodeBatch>> _batches = new();
+    private readonly Dictionary<Uri, NodeBatch> _startingIn = new();
+
+    private sealed record LaneWork(IAgentCommand Command, TaskCompletionSource<AgentCommands?> Completion);
+
+    private sealed class NodeBatch(LaneWork work, IEnumerable<Uri> agents)
+    {
+        public LaneWork Work { get; } = work;
+        public Queue<Uri> Waiting { get; } = new(agents);
+        public HashSet<Uri> Starting { get; } = [];
+        public bool IsDone => Waiting.Count == 0 && Starting.Count == 0;
+    }
 
     public SimulatedCluster(int nodeCount, int agentCount, int seed)
         : this(nodeCount, new FakeAgentFamily("fake", agentCount), seed)
@@ -126,11 +157,23 @@ internal sealed class SimulatedCluster
     public int StopsEmitted { get; private set; }
     public int ReassignmentsEmitted { get; private set; }
 
+    /// <summary>
+    ///     Errors the leader logged. A family whose distribution throws is caught and logged by the evaluation,
+    ///     which then carries on with whatever the grid held -- easy to mistake for a placement decision.
+    /// </summary>
+    public IReadOnlyList<string> LeaderErrors => _leaderLog.Errors;
+
     /// <summary>Wall-clock cost of each leader evaluation, in round order.</summary>
     public IReadOnlyList<TimeSpan> EvaluationTimes => _evaluationTimes;
 
     /// <summary>Starts dispatched but not yet visible to the leader as persisted assignment rows.</summary>
     public int InFlightStarts => _inFlight.Count + _awaitingVisibility.Count;
+
+    /// <summary>
+    ///     Whether commands go through real <see cref="AgentCommandDispatcher" /> lanes rather than being applied
+    ///     the moment the leader emits them. See <see cref="UseDispatcherLanes" />.
+    /// </summary>
+    public bool UsesDispatcherLanes { get; private set; }
 
     /// <summary>The leader of record: the node whose controller evaluates.</summary>
     public Guid LeaderNodeId => Options.UniqueNodeId;
@@ -159,6 +202,59 @@ internal sealed class SimulatedCluster
     public IEnumerable<Uri> AssignedIn(AgentCommands commands)
         => commands.OfType<AssignAgents>().SelectMany(x => x.AgentIds)
             .Concat(commands.OfType<AssignAgent>().Select(x => x.AgentUri));
+
+    /// <summary>
+    ///     The load a node advertises on its heartbeat (see <see cref="WolverineNode.LoadFactor" />); null for
+    ///     none. Only read by the leader when <see cref="DurabilitySettings.CapacityAwareAssignment" /> is on.
+    /// </summary>
+    public void AdvertiseLoad(Guid nodeId, double? loadFactor)
+        => _nodes.Single(x => x.NodeId == nodeId).LoadFactor = loadFactor;
+
+    /// <summary>
+    ///     Route the leader's commands through a real <see cref="AgentCommandDispatcher" /> instead of applying
+    ///     them on the spot: a serial lane per destination node, a reassignment run in its SOURCE node's lane,
+    ///     and the dispatcher as the leader's pending-dispatch probe, as in production. A start command is then
+    ///     worked through on its node <see cref="DurabilitySettings.MaxAgentStartParallelism" /> agents at a
+    ///     time, each taking <see cref="StartCost" /> rounds, and its lane moves on once the whole batch is done.
+    ///
+    ///     <para>Without this every start runs concurrently with every other, so a node never builds up a
+    ///     backlog and nothing queued behind one can be held up -- which is the shape of GH-4901.</para>
+    /// </summary>
+    public void UseDispatcherLanes()
+    {
+        UsesDispatcherLanes = true;
+        attachDispatcher();
+    }
+
+    private void attachDispatcher()
+    {
+        var leaderId = Options.UniqueNodeId;
+        if (!_dispatchers.TryGetValue(leaderId, out var entry))
+        {
+            var cancellation = new CancellationTokenSource();
+            var dispatcher = new AgentCommandDispatcher(parkForSimulation, NullLogger.Instance, cancellation.Token);
+            entry = (dispatcher, cancellation);
+            _dispatchers[leaderId] = entry;
+        }
+
+        _controller.PendingDispatches = entry.Dispatcher.TryFindPendingDestination;
+    }
+
+    // The dispatcher's executor. Nothing happens here: the command is parked until the simulation applies it
+    // between rounds, so the lanes move deterministically.
+    private Task<AgentCommands?> parkForSimulation(IAgentCommand command, CancellationToken token)
+    {
+        var completion = new TaskCompletionSource<AgentCommands?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        token.Register(() => completion.TrySetCanceled(token));
+
+        lock (_laneGate)
+        {
+            _laneWork.Add(new LaneWork(command, completion));
+            _parked.Add(command);
+        }
+
+        return completion.Task;
+    }
 
     /// <summary>
     ///     A node joins the cluster declaring <paramref name="capabilities" /> and running nothing — a scale-up,
@@ -203,6 +299,27 @@ internal sealed class SimulatedCluster
 
         foreach (var uri in _awaitingVisibility.Where(x => x.Value == nodeId).Select(x => x.Key).ToArray()) _awaitingVisibility.Remove(uri);
         foreach (var uri in _inFlight.Where(x => x.Value.NodeId == nodeId).Select(x => x.Key).ToArray()) _inFlight.Remove(uri);
+
+        // Work sent to the departed node fails. Its own dispatcher, if it ever led, goes with it: what it still
+        // had queued is never sent, while what it already sent carries on at the destination.
+        failBatchesOn(nodeId, $"Node {nodeId} has left the cluster");
+
+        if (_dispatchers.Remove(nodeId, out var departed))
+        {
+            departed.Cancellation.Cancel();
+            _retiredDispatchers.Add(departed);
+        }
+    }
+
+    private void failBatchesOn(Guid nodeId, string reason)
+    {
+        if (!_batches.Remove(nodeId, out var batches)) return;
+
+        foreach (var batch in batches)
+        {
+            foreach (var uri in batch.Starting) _startingIn.Remove(uri);
+            fail(batch.Work, new InvalidOperationException(reason));
+        }
     }
 
     // The primary copy on nodeId is gone; a surviving extra copy, if any, becomes the primary.
@@ -261,6 +378,15 @@ internal sealed class SimulatedCluster
             _inFlight[uri] = _inFlight[uri] with { NodeId = newId };
         }
 
+        if (UsesDispatcherLanes)
+        {
+            // Commands already addressed to the old label cannot follow the relabel, so they fail and the new
+            // leader drives them again -- the same as a batch sent to a node that was replaced.
+            if (_dispatchers.Remove(nodeId, out var own)) _dispatchers[newId] = own;
+            failBatchesOn(nodeId, $"Node {nodeId} was relabelled");
+            attachDispatcher();
+        }
+
         return newId;
     }
 
@@ -281,6 +407,20 @@ internal sealed class SimulatedCluster
         var stopwatch = Stopwatch.StartNew();
         var commands = await _controller.EvaluateAssignmentsAsync(_nodes.ToList(), new AgentRestrictions());
         _evaluationTimes.Add(stopwatch.Elapsed);
+
+        if (UsesDispatcherLanes)
+        {
+            var dispatcher = _dispatchers[Options.UniqueNodeId].Dispatcher;
+            foreach (var command in commands)
+            {
+                count(command);
+                dispatcher.Enqueue(command);
+            }
+
+            await driveLanesAsync(declaredBy);
+            _runningCountByRound.Add(_running.Count);
+            return commands;
+        }
 
         foreach (var command in commands)
         {
@@ -327,6 +467,213 @@ internal sealed class SimulatedCluster
         return commands;
     }
 
+    private void count(IAgentCommand command)
+    {
+        switch (command)
+        {
+            case ReassignAgent:
+                ReassignmentsEmitted++;
+                break;
+            case ReassignAgents reassigns:
+                ReassignmentsEmitted += reassigns.AgentUris.Length;
+                break;
+            case StopRemoteAgent:
+                StopsEmitted++;
+                break;
+            case StopRemoteAgents stops:
+                StopsEmitted += stops.AgentIds.Length;
+                break;
+        }
+    }
+
+    // Let the lanes run until each is idle or parked on a start its node is still working through. A reassignment
+    // or a stop completes at once and may cascade into another lane, so this goes round until nothing new turns
+    // up, and then each node begins as many of its waiting starts as its parallelism allows.
+    private async Task driveLanesAsync(Dictionary<Guid, HashSet<Uri>> declaredBy)
+    {
+        while (true)
+        {
+            await waitForLanesAsync();
+
+            List<LaneWork> work;
+            lock (_laneGate)
+            {
+                work = _laneWork.Where(x => !x.Completion.Task.IsCompleted).ToList();
+                _laneWork.Clear();
+            }
+
+            if (work.Count == 0) break;
+
+            foreach (var item in work.OrderBy(x => nodeNumberOf(x.Command.DestinationNodeId))
+                         .ThenBy(x => x.Command.GetType().Name, StringComparer.Ordinal)
+                         .ThenBy(x => firstAgentOf(x.Command), StringComparer.Ordinal))
+            {
+                apply(item);
+            }
+        }
+
+        var parallelism = Math.Max(1, Options.Durability.MaxAgentStartParallelism);
+        foreach (var node in _nodes)
+        {
+            if (!_batches.TryGetValue(node.NodeId, out var batches)) continue;
+
+            foreach (var batch in batches)
+            {
+                while (batch.Starting.Count < parallelism && batch.Waiting.Count > 0)
+                {
+                    var uri = batch.Waiting.Dequeue();
+                    dispatchStart(uri, node.NodeId, declaredBy);
+                    batch.Starting.Add(uri);
+                    _startingIn[uri] = batch;
+                }
+            }
+        }
+    }
+
+    private void apply(LaneWork item)
+    {
+        switch (item.Command)
+        {
+            case AssignAgent assign:
+                startBatch(item, assign.Destination.NodeId, [assign.AgentUri]);
+                break;
+
+            case AssignAgents assigns:
+                startBatch(item, assigns.Destination.NodeId, assigns.AgentIds);
+                break;
+
+            case ReassignAgent reassign:
+                complete(item, move(reassign.OriginalNode, reassign.ActiveNode, [reassign.AgentUri]));
+                break;
+
+            case ReassignAgents reassigns:
+                complete(item, move(reassigns.OriginalNode, reassigns.ActiveNode, reassigns.AgentUris));
+                break;
+
+            case StopRemoteAgent stopOne:
+                stop(stopOne.AgentUri, stopOne.Destination.NodeId);
+                complete(item, AgentCommands.Empty);
+                break;
+
+            case StopRemoteAgents stopMany:
+                foreach (var uri in stopMany.AgentIds) stop(uri, stopMany.Destination.NodeId);
+                complete(item, AgentCommands.Empty);
+                break;
+
+            default:
+                complete(item, AgentCommands.Empty);
+                break;
+        }
+    }
+
+    private void startBatch(LaneWork item, Guid nodeId, Uri[] agents)
+    {
+        if (_nodes.All(x => x.NodeId != nodeId))
+        {
+            fail(item, new InvalidOperationException($"Node {nodeId} is not in the cluster"));
+            return;
+        }
+
+        if (!_batches.TryGetValue(nodeId, out var batches)) _batches[nodeId] = batches = [];
+        batches.Add(new NodeBatch(item, agents));
+    }
+
+    // ReassignAgents: stop at the source, and only what was confirmed gone cascades as a start in the
+    // destination's own lane.
+    private AgentCommands move(NodeDestination source, NodeDestination destination, Uri[] agents)
+    {
+        if (_nodes.All(x => x.NodeId != source.NodeId)) return AgentCommands.Empty;
+
+        foreach (var uri in agents) stop(uri, source.NodeId);
+
+        return agents.Length == 1
+            ? [new AssignAgent(agents[0], destination)]
+            : [new AssignAgents(destination, agents)];
+    }
+
+    // A batch replies once every agent in it has come up (or been stopped while starting).
+    private void completeFinishedBatches()
+    {
+        foreach (var batches in _batches.Values)
+        {
+            foreach (var batch in batches.Where(x => x.IsDone).ToArray())
+            {
+                batches.Remove(batch);
+                complete(batch.Work, AgentCommands.Empty);
+            }
+        }
+    }
+
+    private void complete(LaneWork item, AgentCommands result)
+    {
+        lock (_laneGate) _parked.Remove(item.Command);
+        item.Completion.TrySetResult(result);
+    }
+
+    private void fail(LaneWork item, Exception failure)
+    {
+        lock (_laneGate) _parked.Remove(item.Command);
+        item.Completion.TrySetException(failure);
+    }
+
+    private async Task waitForLanesAsync()
+    {
+        var waited = Stopwatch.StartNew();
+        while (true)
+        {
+            lock (_laneGate)
+            {
+                var settled = _dispatchers.Values.All(entry => entry.Dispatcher.LaneStates.All(lane =>
+                    lane.Executing == null ? lane.Queued == 0 : _parked.Contains(lane.Executing)));
+
+                if (settled) return;
+            }
+
+            if (waited.Elapsed > TimeSpan.FromSeconds(30))
+            {
+                throw new TimeoutException("The dispatcher lanes did not settle");
+            }
+
+            await Task.Yield();
+        }
+    }
+
+    private int nodeNumberOf(Guid? nodeId)
+        => _nodes.FirstOrDefault(x => x.NodeId == nodeId)?.AssignedNodeNumber ?? int.MaxValue;
+
+    private static string firstAgentOf(IAgentCommand command) => command switch
+    {
+        AssignAgent x => x.AgentUri.ToString(),
+        AssignAgents x => x.AgentIds.FirstOrDefault()?.ToString() ?? "",
+        ReassignAgent x => x.AgentUri.ToString(),
+        ReassignAgents x => x.AgentUris.FirstOrDefault()?.ToString() ?? "",
+        StopRemoteAgent x => x.AgentUri.ToString(),
+        StopRemoteAgents x => x.AgentIds.FirstOrDefault()?.ToString() ?? "",
+        _ => ""
+    };
+
+    private bool lanesAreIdle()
+    {
+        if (!UsesDispatcherLanes) return true;
+        if (_batches.Values.Any(x => x.Count > 0)) return false;
+
+        return _dispatchers.Values.All(entry =>
+            entry.Dispatcher.LaneStates.All(x => x.Executing == null && x.Queued == 0));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var (dispatcher, cancellation) in _dispatchers.Values.Concat(_retiredDispatchers))
+        {
+            await cancellation.CancelAsync();
+            await dispatcher.DisposeAsync();
+            cancellation.Dispose();
+        }
+
+        _dispatchers.Clear();
+        _retiredDispatchers.Clear();
+    }
+
     /// <summary>Runs rounds until every known agent is running and the leader has nothing left to say.</summary>
     public async Task<int> RunUntilConvergedAsync(int maxRounds)
     {
@@ -335,7 +682,7 @@ internal sealed class SimulatedCluster
             var commands = await RunRoundAsync();
 
             if (commands.Count == 0 && _inFlight.Count == 0 && _awaitingVisibility.Count == 0
-                && _running.Count == AllAgents.Length)
+                && _running.Count == AllAgents.Length && lanesAreIdle())
             {
                 return round;
             }
@@ -360,7 +707,7 @@ internal sealed class SimulatedCluster
         runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
 
         var controller = new NodeAgentController(runtime, Substitute.For<INodeAgentPersistence>(), [family],
-            NullLogger<NodeAgentController>.Instance, CancellationToken.None);
+            _leaderLog, CancellationToken.None);
 
         // The dispatcher holds a command from the moment it is queued until its lane is done with it,
         // whatever the outcome. An in-flight start here is exactly that hold.
@@ -432,6 +779,7 @@ internal sealed class SimulatedCluster
             }
 
             _inFlight.Remove(uri);
+            if (_startingIn.Remove(uri, out var batch)) batch.Starting.Remove(uri);
 
             // Running now — but invisible to the leader until the promotion above runs next round. A copy
             // coming up while another node already runs the agent is a duplicate, kept as one.
@@ -451,6 +799,8 @@ internal sealed class SimulatedCluster
             // held for the one snapshot cycle it takes the persisted assignment row to become visible.
             _controller.ConfirmDispatched([uri], pending.NodeId);
         }
+
+        completeFinishedBatches();
     }
 
     private void dispatchStart(Uri agentUri, Guid nodeId, Dictionary<Guid, HashSet<Uri>> declaredBy)
@@ -506,6 +856,22 @@ internal sealed class SimulatedCluster
         if (_inFlight.TryGetValue(agentUri, out var pending) && pending.NodeId == nodeId)
         {
             _inFlight.Remove(agentUri);
+            if (_startingIn.Remove(agentUri, out var batch)) batch.Starting.Remove(agentUri);
+        }
+    }
+
+    private sealed class ErrorLog : ILogger<NodeAgentController>
+    {
+        public List<string> Errors { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error) Errors.Add($"{formatter(state, exception)} {exception}");
         }
     }
 }

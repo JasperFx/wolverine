@@ -27,7 +27,7 @@ public partial class NodeAgentController
 
     private readonly Dictionary<Uri, PendingAssignment> _pendingAssignments = new();
 
-    private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt);
+    private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt, bool IsMove = false);
 
     private int _lastUndeclaredAssignmentCount;
 
@@ -120,7 +120,7 @@ public partial class NodeAgentController
             {
                 if (_pendingAssignments.TryGetValue(uri, out var pending) && pending.NodeId == nodeId)
                 {
-                    _pendingAssignments[uri] = new PendingAssignment(nodeId, now);
+                    _pendingAssignments[uri] = pending with { SentAt = now };
                 }
             }
         }
@@ -215,7 +215,11 @@ public partial class NodeAgentController
                 // dispatch) and BEFORE the family distributes, so the distribution balances the remaining
                 // agents *around* the ones already in flight instead of spreading everything evenly and
                 // then having them yanked back. See the method.
-                applyPendingAssignments(grid);
+                //
+                // GH-4901: only this family's agents. Applied to the whole grid, the next family's pass put
+                // every pending agent of the families before it back on its pending node, undoing their
+                // decisions to move it -- so an agent queued for a node stayed there until it had started.
+                applyPendingAssignments(grid, agentFamily.Scheme);
 
                 await agentFamily.EvaluateAssignmentsAsync(grid);
             }
@@ -381,15 +385,15 @@ public partial class NodeAgentController
     //
     // Deliberately does NOT touch Agent.OriginalNode -- the ledger confirms entries by matching OriginalNode,
     // and fabricating one here would make every pending entry instantly self-confirming.
-    private void applyPendingAssignments(AssignmentGrid grid)
+    private void applyPendingAssignments(AssignmentGrid grid, string scheme)
     {
         lock (_pendingLock)
         {
-            applyPendingAssignmentsLocked(grid);
+            applyPendingAssignmentsLocked(grid, scheme);
         }
     }
 
-    private void applyPendingAssignmentsLocked(AssignmentGrid grid)
+    private void applyPendingAssignmentsLocked(AssignmentGrid grid, string scheme)
     {
         if (_pendingAssignments.Count == 0)
         {
@@ -406,7 +410,7 @@ public partial class NodeAgentController
         var nodes = grid.Nodes.ToDictionary(x => x.NodeId);
         List<Uri>? abandoned = null;
 
-        foreach (var agent in grid.AllAgents)
+        foreach (var agent in grid.AgentsForScheme(scheme))
         {
             if (!_pendingAssignments.TryGetValue(agent.Uri, out var pending)) continue;
 
@@ -430,6 +434,7 @@ public partial class NodeAgentController
             }
 
             agent.PendingNode = node;
+            agent.PendingMove = pending.IsMove;
 
             // The dispatcher holds a command from the moment it is queued until its lane is done with it,
             // whatever the outcome -- that, not the clock, is when a dispatch stops being outstanding.
@@ -522,7 +527,7 @@ public partial class NodeAgentController
                     // The stop half is synchronous within the command; what we are now waiting on is the
                     // start on the node taking the agent over.
                     _pendingAssignments[reassign.AgentUri] =
-                        new PendingAssignment(reassign.ActiveNode.NodeId, now);
+                        new PendingAssignment(reassign.ActiveNode.NodeId, now, IsMove: true);
                     break;
 
                 case StopRemoteAgent stop:
