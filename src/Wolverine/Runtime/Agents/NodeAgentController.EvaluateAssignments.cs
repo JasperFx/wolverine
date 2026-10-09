@@ -27,7 +27,7 @@ public partial class NodeAgentController
 
     private readonly Dictionary<Uri, PendingAssignment> _pendingAssignments = new();
 
-    private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt, bool IsMove = false);
+    private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt, bool IsMove = false, Guid? SourceNodeId = null);
 
     private int _lastUndeclaredAssignmentCount;
 
@@ -36,6 +36,12 @@ public partial class NodeAgentController
     ///     until it has ever been elected. Drives <see cref="DurabilitySettings.LeaderTakeoverHoldEvaluations" />.
     /// </summary>
     internal int? EvaluationsSinceElection { get; set; }
+
+    /// <summary>
+    ///     The clock the pending-assignment ledger stamps and ages its entries with. A simulation drives it in
+    ///     evaluation-sized steps so the TTL backstop means "two evaluations" there exactly as it does here.
+    /// </summary>
+    internal Func<DateTimeOffset> Clock { get; set; } = () => DateTimeOffset.UtcNow;
 
     /// <summary>
     ///     GH-4897. The agents the stale nodes filtered out of this tick's snapshot were running. A dead
@@ -112,7 +118,7 @@ public partial class NodeAgentController
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = Clock();
 
         lock (_pendingLock)
         {
@@ -400,7 +406,7 @@ public partial class NodeAgentController
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = Clock();
 
         // Backstop only, and it no longer decides on its own whether a dispatch is still live -- the
         // dispatcher does. This covers the window between a command completing on the wire and the
@@ -435,6 +441,11 @@ public partial class NodeAgentController
 
             agent.PendingNode = node;
             agent.PendingMove = pending.IsMove;
+
+            // The node a pending move is taking the agent FROM, while that node is still here: a re-drive of
+            // the move has to stop the agent there first, however invisible the copy still is (its row only
+            // appears once the start it is waiting in has run).
+            agent.PendingSource = pending.SourceNodeId is { } source && nodes.TryGetValue(source, out var from) ? from : null;
 
             // The dispatcher holds a command from the moment it is queued until its lane is done with it,
             // whatever the outcome -- that, not the clock, is when a dispatch stops being outstanding.
@@ -479,7 +490,7 @@ public partial class NodeAgentController
 
     private void reconcilePendingAssignmentsLocked(AssignmentGrid grid, AgentCommands commands)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = Clock();
 
         // Confirmation: an agent observed running on the very node we assigned it to is no longer pending.
         // The grid sets Agent.OriginalNode from each node's persisted ActiveAgents, so a matching
@@ -527,7 +538,7 @@ public partial class NodeAgentController
                     // The stop half is synchronous within the command; what we are now waiting on is the
                     // start on the node taking the agent over.
                     _pendingAssignments[reassign.AgentUri] =
-                        new PendingAssignment(reassign.ActiveNode.NodeId, now, IsMove: true);
+                        new PendingAssignment(reassign.ActiveNode.NodeId, now, IsMove: true, SourceNodeId: reassign.OriginalNode.NodeId);
                     break;
 
                 case StopRemoteAgent stop:

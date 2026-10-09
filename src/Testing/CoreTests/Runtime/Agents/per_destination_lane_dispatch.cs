@@ -195,7 +195,9 @@ public class per_destination_lane_dispatch
     /// <summary>
     /// A re-target is not a duplicate. Keying in-flight suppression on the agent alone stranded an agent for
     /// as long as the doomed in-flight copy took to time out — exactly when the leader was trying to move it
-    /// off a node that had just gone stale.
+    /// off a node that had just gone stale. The doomed copy itself is skipped if its lane has not taken it up
+    /// yet (GH-4901 follow-up: a start a newer one has superseded is never claimed), and runs out its own
+    /// reply window if it has; either way it holds nothing up.
     /// </summary>
     [Fact]
     public async Task the_same_agent_aimed_at_a_different_node_is_not_suppressed()
@@ -213,9 +215,9 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeA)));
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeB)));
 
-        // The re-target went to a different lane and is running there, while the doomed copy sits on NodeA.
+        // The re-target went to a different lane and is running there, whatever became of the doomed copy.
         await Task.Delay(100, TestContext.Current.CancellationToken);
-        destinations.Distinct().OrderBy(x => x).Count().ShouldBe(2);
+        destinations.ShouldContain(NodeB);
 
         gate.SetResult();
     }
@@ -492,6 +494,129 @@ public class per_destination_lane_dispatch
         executed.Count.ShouldBe(1, "the move waits for the start it has to stop");
 
         started.SetResult();
+        await moved.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        executed.OfType<ReassignAgent>().ShouldHaveSingleItem().DestinationNodeId.ShouldBe(NodeA);
+    }
+
+    /// <summary>
+    /// GH-4901, found by the laned chaos soak. A start queued for a node that has since gone reaches its lane after
+    /// the leader has already re-started the agent elsewhere. It must not claim the agent: claiming it clobbered the
+    /// live start's claim and releasing it afterwards removed that claim, so the next move of the agent withdrew
+    /// the live start as "only queued" and started a second copy while the first was still coming up.
+    /// </summary>
+    [Fact]
+    public async Task a_stale_queued_start_does_not_steal_the_claim_of_a_newer_start_elsewhere()
+    {
+        var executed = new ConcurrentQueue<IAgentCommand>();
+        var holdA = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holdB = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var startingOnB = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var laneADrained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var moved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            executed.Enqueue(command);
+            switch (command)
+            {
+                case AssignAgent { AgentUri.Host: "busy" }:
+                    await holdA.Task;
+                    break;
+                case AssignAgents batch when batch.Destination.NodeId == NodeB:
+                    startingOnB.TrySetResult();
+                    await holdB.Task;
+                    break;
+                case AssignAgent { AgentUri.Host: "last" }:
+                    laneADrained.TrySetResult();
+                    break;
+                case ReassignAgent:
+                    moved.TrySetResult();
+                    break;
+            }
+
+            return AgentCommands.Empty;
+        });
+
+        // Node A is busy, with a start for one and two queued behind it.
+        dispatcher.Enqueue(new AssignAgent(agent("busy"), destination(NodeA)));
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("one"), agent("two")]));
+
+        // Node A leaves the cluster and the leader re-targets both to node B, which begins starting them.
+        dispatcher.Enqueue(new AssignAgents(destination(NodeB), [agent("one"), agent("two")]));
+        await startingOnB.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // Now the stale start for node A reaches its lane. It owns nothing any more and is skipped outright.
+        dispatcher.Enqueue(new AssignAgent(agent("last"), destination(NodeA)));
+        holdA.SetResult();
+        await laneADrained.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        executed.OfType<AssignAgents>().Where(x => x.Destination.NodeId == NodeA).ShouldBeEmpty("the stale start was skipped");
+
+        // While node B is still starting one, the leader moves it to C. B's start is under way, so this is a
+        // stop-then-start behind it in B's lane -- never a bare start on C.
+        dispatcher.Enqueue(new ReassignAgent(agent("one"), destination(NodeB), destination(NodeC)));
+
+        // The leader asks about the move it just issued, and the move -- not the start it supersedes -- is
+        // what is outstanding for one now.
+        dispatcher.TryFindPendingDestination(agent("one"), out var pendingOn).ShouldBeTrue();
+        pendingOn.ShouldBe(NodeC);
+
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        executed.Where(x => x.DestinationNodeId == NodeC).ShouldBeEmpty("one was started on C while B was still starting it");
+
+        holdB.SetResult();
+        await moved.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        executed.OfType<ReassignAgent>().ShouldHaveSingleItem().DestinationNodeId.ShouldBe(NodeB);
+    }
+
+    /// <summary>
+    /// GH-4901, found by the laned chaos soak. The leader re-drives a start whose assignment row has not surfaced
+    /// yet; the agent is very likely already running on that node. A move queued behind that re-drive must stop
+    /// the agent at the source, not withdraw the re-drive as a start that never ran anywhere.
+    /// </summary>
+    [Fact]
+    public async Task a_re_driven_start_is_not_withdrawn_by_a_later_move()
+    {
+        var executed = new ConcurrentQueue<IAgentCommand>();
+        var firstDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holdA = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var moved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            executed.Enqueue(command);
+            switch (command)
+            {
+                case AssignAgent { AgentUri.Host: "marker" }:
+                    // The lane is serial, so reaching this means the start of one before it has fully finished
+                    firstDone.TrySetResult();
+                    break;
+                case AssignAgent { AgentUri.Host: "busy" }:
+                    await holdA.Task;
+                    break;
+                case ReassignAgent:
+                    moved.TrySetResult();
+                    break;
+            }
+
+            return AgentCommands.Empty;
+        });
+
+        // one starts on node A and the lane moves on
+        dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeA)));
+        dispatcher.Enqueue(new AssignAgent(agent("marker"), destination(NodeA)));
+        await firstDone.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // Node A gets busy, and the leader re-drives one behind it: its row has not turned up yet
+        dispatcher.Enqueue(new AssignAgent(agent("busy"), destination(NodeA)));
+        dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeA)));
+
+        // Then the leader moves one to B. The re-drive is only queued, but one has run on A already.
+        dispatcher.Enqueue(new ReassignAgent(agent("one"), destination(NodeA), destination(NodeB)));
+
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        executed.Where(x => x.DestinationNodeId == NodeB).ShouldBeEmpty("one was started on B while A may still be running it");
+
+        holdA.SetResult();
         await moved.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         executed.OfType<ReassignAgent>().ShouldHaveSingleItem().DestinationNodeId.ShouldBe(NodeA);
     }
