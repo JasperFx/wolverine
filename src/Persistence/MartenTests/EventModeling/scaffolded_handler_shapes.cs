@@ -18,6 +18,7 @@ namespace MartenTests.EventModeling.ScaffoldedShapes;
 //
 //   GH-4889: TEvent? Handle(command, [WriteModel] Aggregate) -- one event, or null for none, with no
 //            [Emits], and the derived Event Model still knows what it emits.
+//   GH-4914: no shape carries [Emits]; the source generator reads what each body appends.
 //   GH-4889: [WriteModel] Aggregate? -- the stream may not exist yet; the event starts it.
 //   GH-4895: [WriteModel(nameof(Command.XId))] IEventStream<X> per stream -- a command that decides
 //            against several streams, the same aggregate type twice included.
@@ -169,6 +170,20 @@ public class scaffolded_handler_shapes : IAsyncLifetime
         model.Slices.Single(x => x.Name == nameof(OpenLedger))
             .EmittedEvents.Select(x => x.Name).ShouldBe(new[] { nameof(LedgerOpened) });
     }
+
+    [Fact]
+    public void the_derived_event_model_reads_what_a_handler_body_appends_with_no_emits_attribute()
+    {
+        // GH-4914: JasperFx.Events.SourceGenerator reads the events these shapes construct in their bodies
+        // into the assembly's emitted-events manifest (jasperfx#990), so none of them carries [Emits]
+        var model = WolverineEventModelSource.Describe(theHost.GetRuntime());
+
+        string[] emitted(string slice) => model.Slices.Single(x => x.Name == slice).EmittedEvents.Select(x => x.Name).OrderBy(x => x).ToArray();
+
+        emitted(nameof(StartUntypedLedger)).ShouldBe(new[] { nameof(LedgerOpened) });
+        emitted(nameof(NoteLedgerAndJournal)).ShouldBe(new[] { nameof(JournalNoted), nameof(LedgerNoted) });
+        emitted(nameof(TransferNote)).ShouldBe(new[] { nameof(LedgerNoted) });
+    }
 }
 
 public record LedgerOpened;
@@ -228,7 +243,6 @@ public static class OpenLedgerHandler
 
 public static class StartUntypedLedgerHandler
 {
-    [Emits(typeof(LedgerOpened))]
     public static StartStreamWithoutAggregate Handle(StartUntypedLedger command)
         => MartenOps.StartStream(command.Id, new LedgerOpened());
 }
@@ -236,7 +250,6 @@ public static class StartUntypedLedgerHandler
 // GH-4895: exactly the shape the scaffold writes for a command against several aggregates
 public static class NoteLedgerAndJournalHandler
 {
-    [Emits(typeof(LedgerNoted), typeof(JournalNoted))]
     public static void Handle(NoteLedgerAndJournal command,
         [WriteModel(nameof(NoteLedgerAndJournal.LedgerId))] IEventStream<Ledger> ledgerStream,
         [WriteModel(nameof(NoteLedgerAndJournal.JournalId))] IEventStream<Journal> journalStream)
@@ -249,7 +262,6 @@ public static class NoteLedgerAndJournalHandler
 // The same aggregate type twice: each stream is told apart by the member that identifies it
 public static class TransferNoteHandler
 {
-    [Emits(typeof(LedgerNoted))]
     public static void Handle(TransferNote command,
         [WriteModel(nameof(TransferNote.FromId))] IEventStream<Ledger> from,
         [WriteModel(nameof(TransferNote.ToId))] IEventStream<Ledger> to)

@@ -532,7 +532,7 @@ public class NoOp : IMartenOp
     }
 }
 
-public interface IStartStream : IMartenOp
+public interface IStartStream : IMartenOp, JasperFx.Events.ICarriesEvents
 {
     string StreamKey { get; }
     Guid StreamId { get; }

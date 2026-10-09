@@ -10,11 +10,13 @@ namespace Wolverine.Persistence.EventSourcing;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Use it where the events are constructed in the method body and returned through
-///         <see cref="EventsToAppend" />, the store's <c>Events</c> collection, <see cref="StartStream" />,
-///         <see cref="AppendEvents" /> or an <c>IEventStream&lt;T&gt;</c>. A handler that returns its event
-///         type directly — <c>public static OrderShipped? Handle(ShipOrder command, [WriteModel] Order order)</c>
-///         — needs none: the signature already says it.
+///         Usually unnecessary. A handler that returns its event type directly —
+///         <c>public static OrderShipped? Handle(ShipOrder command, [WriteModel] Order order)</c> — needs none:
+///         the signature already says it. Events constructed in the method body and returned through
+///         <see cref="EventsToAppend" />, <see cref="StartStream" />, <see cref="AppendEvents" /> or appended to an
+///         <c>IEventStream&lt;T&gt;</c> need none either: the JasperFx.Events source generator reads them from
+///         the body into an assembly manifest the derived model reads (GH-4914, jasperfx#990). Use it for an
+///         event the generator cannot see — built in a helper method, or held as <c>object</c>.
 ///     </para>
 ///     <para>
 ///         Wolverine's Event Model is <em>derived</em>: the roles of a slice are read off the handler

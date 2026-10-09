@@ -343,7 +343,7 @@ public class NoOp : IFisherOp
     }
 }
 
-public interface IStartStream : IFisherOp
+public interface IStartStream : IFisherOp, JasperFx.Events.ICarriesEvents
 {
     string StreamKey { get; }
     Guid StreamId { get; }

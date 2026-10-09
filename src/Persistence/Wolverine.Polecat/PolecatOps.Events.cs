@@ -152,7 +152,7 @@ public abstract class StreamOp : ITenantedPolecatOp
 /// Starts a new event stream with no aggregate type (GH-4892): the untyped counterpart of
 /// <see cref="StartStream{T}" />, for a model that names no aggregate for the stream.
 /// </summary>
-public class StartStreamWithoutAggregate : StreamOp
+public class StartStreamWithoutAggregate : StreamOp, JasperFx.Events.ICarriesEvents
 {
     public StartStreamWithoutAggregate(Guid streamId, params object[] events) : base(streamId)
     {

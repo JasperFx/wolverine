@@ -135,8 +135,8 @@ public class event_model_scaffold_4832
         handler.Code.ShouldContain("var id = Guid.CreateVersion7();");
         handler.Code.ShouldNotContain("NewGuid");
 
-        // StartStream erases the event types, so this is where [Emits] still earns its place
-        handler.Code.ShouldContain("[Emits(typeof(CaseOpened))]");
+        // StartStream erases the event types, and the source generator reads them from the body (GH-4914)
+        handler.Code.ShouldNotContain("[Emits(");
         handler.Code.ShouldContain("public record PatientReferred;");
         handler.Code.ShouldContain("public record CaseOpened;");
         handler.Code.ShouldNotContain("public record ClinicCase;");
@@ -182,14 +182,14 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void a_slice_that_also_sends_messages_keeps_events_to_append_and_emits()
+    public void a_slice_that_also_sends_messages_keeps_events_to_append_with_no_emits()
     {
         var code = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
             .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()
             .Publishes<AppointmentReminderScheduled>())).Files.Single().Code;
 
         code.ShouldContain("public static (EventsToAppend, OutgoingMessages) Handle(");
-        code.ShouldContain("[Emits(typeof(AppointmentConfirmed))]");
+        code.ShouldNotContain("[Emits(");
     }
 
     [Fact]
@@ -230,8 +230,8 @@ public class event_model_scaffold_4832
                                """.ReplaceLineEndings("\n"));
         code.ShouldContain("homeCheckStream.AppendOne(new HomeCheckAssignmentAcceptedEvent(...));   // or volunteerApplicationStream");
 
-        // IEventStream<T> erases the event types, so [Emits] earns its place here
-        code.ShouldContain("[Emits(typeof(HomeCheckAssignmentAcceptedEvent))]");
+        // IEventStream<T> erases the event types; the source generator reads AppendOne instead (GH-4914)
+        code.ShouldNotContain("[Emits(");
         result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
     }
 

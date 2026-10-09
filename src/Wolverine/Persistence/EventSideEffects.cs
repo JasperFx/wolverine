@@ -102,7 +102,7 @@ internal static class EventSideEffectFrames
 ///         constructing them directly.
 ///     </para>
 /// </remarks>
-public class AppendEvents : ISideEffectAware
+public class AppendEvents : ISideEffectAware, ICarriesEvents
 {
     static Frame ISideEffectAware.BuildFrame(IChain chain, Variable variable, GenerationRules rules,
         IServiceContainer container)
@@ -182,7 +182,7 @@ public class AppendEvents : ISideEffectAware
 ///     Start a brand new event stream as a Wolverine <see cref="ISideEffect" />. See <see cref="AppendEvents" />
 ///     for the rationale; this is the same mechanism for the "this stream does not exist yet" case.
 /// </summary>
-public class StartStream : ISideEffectAware
+public class StartStream : ISideEffectAware, ICarriesEvents
 {
     static Frame ISideEffectAware.BuildFrame(IChain chain, Variable variable, GenerationRules rules,
         IServiceContainer container)

@@ -102,7 +102,7 @@ public static partial class MartenOps
 /// Starts a new event stream with no aggregate type (GH-4892): the untyped counterpart of
 /// <see cref="StartStream{T}" />, for a model that names no aggregate for the stream.
 /// </summary>
-public class StartStreamWithoutAggregate : ITenantedMartenOp
+public class StartStreamWithoutAggregate : ITenantedMartenOp, JasperFx.Events.ICarriesEvents
 {
     public StartStreamWithoutAggregate(Guid streamId, params object[] events)
     {

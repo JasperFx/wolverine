@@ -378,8 +378,16 @@ public static StartStream Handle(HomeCheckAssignmentAccepted trigger)
 ```
 
 The slice is known to append events; the events themselves are built in the method body, so nothing on the
-signature says what they are. Put `[Emits]` on the handler method (or on the handler type, when every method
-of it emits the same events) to say it:
+signature says what they are. **The JasperFx.Events source generator reads them from the body instead**
+(GH-4914): it records the events a handler passes to `AppendOne`/`AppendMany` on an `IEventStream<T>`, to
+`Storage.StartStream` or `MartenOps`/`PolecatOps`/`FisherOps.StartStream`, or puts in an `EventsToAppend`, in an
+assembly-level manifest that the derived model reads. Marten, Polecat and Fisher bundle that generator, so this
+needs no setup once your store ships with JasperFx 2.82 or later. Until then, reference
+`JasperFx.Events.SourceGenerator` 2.82+ in the application project directly.
+
+The generator can't see an event built somewhere else, such as in a helper method or held as `object`. For
+that, put `[Emits]` on the handler method (or on the handler type, when every method of it emits the same
+events) to say it:
 
 ```cs
 [Emits(typeof(AppointmentConfirmed))]
@@ -391,9 +399,9 @@ public static (ConfirmAppointmentResponse, EventsToAppend) Post(
 }
 ```
 
-It is additive — everything the signature already says still holds — and purely diagnostic: nothing about
-dispatch, codegen or persistence reads it. Without it, `emittedEvents` on those slices is empty, which is
-indistinguishable from a slice that emits nothing at all.
+It is additive — everything the signature and the generator already say still holds — and purely
+diagnostic: nothing about dispatch, codegen or persistence reads it. Without it, or the generator, `emittedEvents`
+on those slices is empty, which is indistinguishable from a slice that emits nothing at all.
 
 ::: tip
 `[Emits]` is worth reaching for precisely when a declared model says a slice emits an event. An empty derived
@@ -560,7 +568,7 @@ Fisher:
 | `Automation` with `On<T>()` | a message handler for `T`, returning the command it issues as `OutgoingMessages` |
 | `.Against<T>()` | a non-nullable `[WriteModel] T` parameter |
 | `.StartsStream<T>()` | a `StartStream` return built with `Storage.StartStream<T>(...)` |
-| `.Emits<T>()` | an `EventsToAppend` return, with `[Emits(typeof(T))]` so the derived model sees the events |
+| `.Emits<T>()` | a `T?` return when it is the slice's only event, else an `EventsToAppend` return; no `[Emits]`, because the source generator reads the events from the body |
 | `.Reads<T>()` / `.Produces<T>()` | an `[Entity] T` parameter / an `IStorageAction<T>` return |
 | an aggregate or view declared **by name** | a class with an `Apply` method per event it folds |
 | any other role declared **by name** | a `public record` stub to give fields |

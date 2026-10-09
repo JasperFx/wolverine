@@ -355,7 +355,7 @@ public class NoOp : IPolecatOp
     }
 }
 
-public interface IStartStream : IPolecatOp
+public interface IStartStream : IPolecatOp, JasperFx.Events.ICarriesEvents
 {
     string StreamKey { get; }
     Guid StreamId { get; }

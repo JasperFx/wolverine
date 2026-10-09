@@ -126,9 +126,10 @@ public sealed class SliceScaffoldOptions
 ///     </para>
 ///     <para>
 ///         <b>The signature says what it emits wherever it can</b> (GH-4889): one event onto the stream the
-///         slice loads is a <c>TEvent?</c> return, with no <c>[Emits]</c>. <c>[Emits]</c> is written only
-///         where the return type erases the events — <c>StartStream</c>, <c>AppendEvents</c>,
-///         <c>EventsToAppend</c>, <c>IEventStream&lt;T&gt;</c>. A new stream's id is a version 7 Guid (GH-4888).
+///         slice loads is a <c>TEvent?</c> return. Where the return type erases the events —
+///         <c>StartStream</c>, <c>AppendEvents</c>, <c>EventsToAppend</c>, <c>IEventStream&lt;T&gt;</c> — the
+///         source generator reads them from the body instead (GH-4914, jasperfx#990), so no shape gets
+///         <c>[Emits]</c>. A new stream's id is a version 7 Guid (GH-4888).
 ///     </para>
 ///     <para>
 ///         <b>Every command decides against something</b> (GH-4895). One <c>.Against&lt;T&gt;()</c> is a
@@ -593,7 +594,7 @@ public static class SliceScaffolder
             }
             else if (multiStream)
             {
-                // Each event goes onto the stream it belongs to; the signature cannot say which, so [Emits]
+                // Each event goes onto the stream it belongs to; the generator reads which from the body
                 shape.Add("// Append each event to the stream it belongs to:");
                 foreach (var e in emitted)
                 {
@@ -655,15 +656,8 @@ public static class SliceScaffolder
                 writer.BlankLine();
             }
 
-            // [Emits] only where the signature cannot say it (GH-4889): a typed return already does
-            if (!typedEvent)
-            {
-                if (emitted.Count > 0) file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                foreach (var e in emitted)
-                {
-                    writer.WriteLine($"[Emits(typeof({e}))]");
-                }
-            }
+            // No [Emits] (GH-4914): a typed return says it, and JasperFx.Events.SourceGenerator reads the
+            // events every other shape constructs in its body into the emitted-events manifest (jasperfx#990)
 
             if (http)
             {
