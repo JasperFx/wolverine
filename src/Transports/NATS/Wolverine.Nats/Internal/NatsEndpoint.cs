@@ -600,10 +600,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
         foreach (var tenant in dedicatedTenants)
         {
+            // The tenant's own mapper, as for sending to it: with SameSubjectTenantMapper the tenant's producers
+            // publish to the plain subject, which a JetStream consumer filtering on the transport's "*.{subject}"
+            // never took
+            var mapper = tenant.SubjectMapper ?? tenantMapper!;
             var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
             var tenantListener = await startListenerAsync(
                 runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
-                subscriptionPattern, tenantMapper, deadLetterSender);
+                mapper.GetSubscriptionPattern(Subject), mapper, deadLetterSender);
             compound.Inner.Add(tenantListener);
         }
 

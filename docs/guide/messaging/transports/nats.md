@@ -921,6 +921,30 @@ id, and its ack/nak/dead-letter is routed back over the same connection. Sending
 transport's, unless its action changed them — are provisioned on each tenant server as well, as the tenant's own
 `AutoProvision` and `Provisioning` say.
 
+### Tenants on Their Own Account
+
+By default a tenant's subjects carry the tenant id as a prefix (`tenant-a.orders`), also on a tenant's dedicated
+connection, where a listener then consumes `*.orders`. When each tenant has a NATS account of its own, the account
+already keeps the tenants apart and their producers publish to the plain subjects. Give those tenants
+`SameSubjectTenantMapper`, which sends to and listens on the plain subject over the tenant's connection; the
+tenant id of an incoming message then comes from the connection it arrived on:
+
+```csharp
+opts.UseNats("nats://shared:4222")
+    .ConfigureMultiTenancy(TenantedIdBehavior.TenantIdRequired)
+    .AddTenant("tenant-a", new SameSubjectTenantMapper(), cfg =>
+    {
+        cfg.ConnectionString = "nats://hub:4222";
+        cfg.CredentialsFile = "/etc/nats/tenant-a.creds";
+    });
+```
+
+A listener uses each tenant's own mapper on that tenant's connection, and the transport's mapper on the shared
+connection. A JetStream listener with a consumer name uses that name on every connection, so tenants that reach
+the same stream in one account with different mappers — or a tenant and the shared connection — share the
+consumer and overwrite each other's filter: keep such tenants in accounts of their own. `SameSubjectTenantMapper`
+is meant for tenants with a connection of their own; on the shared connection a plain subject names no tenant.
+
 ### Custom Subject Mapper
 
 ```csharp
