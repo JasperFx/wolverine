@@ -56,19 +56,19 @@
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
-    <PackageVersion Include="Bobcat.Supervisor" Version="0.32.0" />
+    <PackageVersion Include="Bobcat.Supervisor" Version="0.37.0-local.5" />
     <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833). -->
-    <PackageVersion Include="Bobcat" Version="0.32.0" />
-    <PackageVersion Include="Bobcat.Xunit" Version="0.32.0" />
-    <PackageVersion Include="Bobcat.Generators" Version="0.32.0" />
-    <PackageVersion Include="JasperFx" Version="2.81.0" />
-    <PackageVersion Include="JasperFx.Events" Version="2.81.0" />
-    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.81.0" />
-    <PackageVersion Include="JasperFx.Events.InMemory" Version="2.81.0" />
+    <PackageVersion Include="Bobcat" Version="0.37.0-local.5" />
+    <PackageVersion Include="Bobcat.Xunit" Version="0.37.0-local.5" />
+    <PackageVersion Include="Bobcat.Generators" Version="0.37.0-local.5" />
+    <PackageVersion Include="JasperFx" Version="2.82.0" />
+    <PackageVersion Include="JasperFx.Events" Version="2.82.0" />
+    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.82.0" />
+    <PackageVersion Include="JasperFx.Events.InMemory" Version="2.82.0" />
     <!-- RuntimeCompiler is on its own 5.x line (the Roslyn compiler package) — not the 2.1.x
          family; it stays at 5.0.0. -->
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.0" />
-    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.81.0" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.82.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
     <PackageVersion Include="Marten" Version="9.46.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.3" />
