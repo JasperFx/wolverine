@@ -163,6 +163,9 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     /// </summary>
     public IReadOnlyList<string> LeaderErrors => _leaderLog.Errors;
 
+    /// <summary>Called at the end of every round, for invariants a scenario checks as it goes.</summary>
+    public Action<AgentCommands>? AfterRound { get; set; }
+
     /// <summary>Wall-clock cost of each leader evaluation, in round order.</summary>
     public IReadOnlyList<TimeSpan> EvaluationTimes => _evaluationTimes;
 
@@ -419,6 +422,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
 
             await driveLanesAsync(declaredBy);
             _runningCountByRound.Add(_running.Count);
+            AfterRound?.Invoke(commands);
             return commands;
         }
 
@@ -463,6 +467,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         }
 
         _runningCountByRound.Add(_running.Count);
+        AfterRound?.Invoke(commands);
 
         return commands;
     }

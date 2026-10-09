@@ -106,16 +106,18 @@ public class green_warm_up_spreads_over_every_green_node_4901
         int greenOnlyOn(Guid node) =>
             cluster.RunningAssignments.Count(x => x.Value == node && greenOnly.Contains(x.Key));
 
+        // Every round from here on, including the ones RunUntilConvergedAsync runs
+        cluster.AfterRound = _ =>
+        {
+            foreach (var node in cluster.NodeIds)
+            {
+                peak[node] = Math.Max(peak.GetValueOrDefault(node), cluster.RunningCountOn(node));
+            }
+        };
+
         async Task runRoundsAsync(int rounds)
         {
-            for (var i = 0; i < rounds; i++)
-            {
-                await cluster.RunRoundAsync();
-                foreach (var node in cluster.NodeIds)
-                {
-                    peak[node] = Math.Max(peak.GetValueOrDefault(node), cluster.RunningCountOn(node));
-                }
-            }
+            for (var i = 0; i < rounds; i++) await cluster.RunRoundAsync();
         }
 
         void join(double? load)
@@ -151,12 +153,14 @@ public class green_warm_up_spreads_over_every_green_node_4901
                 $"green node {greenNodes.IndexOf(node) + 1} ended up with too little of the bumped projections");
         }
 
-        // No node ever ran more than its share, give or take one shard database: groups are indivisible.
+        // No node ever ran more than its share, give or take one shard database (groups are indivisible) and the
+        // batch it was already starting when part of its share moved: that batch finishes before the move runs.
         var share = (int)Math.Ceiling((double)cluster.AllAgents.Length / cluster.NodeIds.Count);
         var groupSize = Tenants.Length * Projections.Length;
+        var batch = cluster.Options.Durability.AgentStartBatchSize;
         foreach (var (node, count) in peak)
         {
-            count.ShouldBeLessThanOrEqualTo(share + groupSize, $"node {node} peaked above its share");
+            count.ShouldBeLessThanOrEqualTo(share + groupSize + batch, $"node {node} peaked above its share");
         }
 
         foreach (var uri in greenOnly)

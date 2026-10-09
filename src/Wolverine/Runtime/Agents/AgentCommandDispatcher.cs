@@ -409,8 +409,10 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             }
             finally
             {
-                releaseStarts(claimed, destination);
+                // In-flight ownership first: a start whose claim is gone but whose ownership is not would look
+                // queued, and a reassignment could withdraw it without stopping the copy that just came up.
                 release(command, destination);
+                releaseStarts(claimed, destination);
                 lane.Executing = null;
             }
         }
