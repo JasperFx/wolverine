@@ -322,6 +322,18 @@ The `event-model` command writes that whole picture — Wolverine's derived slic
 [overlay](https://github.com/JasperFx/jasperfx/issues/687) the application registered with
 `services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
 
+To read the model rather than export it, `describe-event-model` (GH-4917) prints it by domain and chapter: each
+slice's trigger, command, aggregate (and whether it came from a `ForAggregate` default, `NoAggregate()` or a DCB
+decider), the events it emits, what it publishes, reads and produces, the code behind it, its specifications and
+its hotspots, with a summary per chapter. In a terminal it is a tree; redirected, it is plain text to paste into
+an issue or a pull request.
+
+```bash
+dotnet run -- describe-event-model
+dotnet run -- describe-event-model --chapter BookingAppointments
+dotnet run -- describe-event-model --hotspots-only > open-questions.txt
+```
+
 Every `EventModelDefinition` subclass in the application's assemblies is registered for you (GH-4916), from the
 manifest JasperFx's source generator writes at compile time, so one definition per chapter needs no
 `AddEventModel<T>()` each. Definitions with no `Name` join the application's model. A definition you register
