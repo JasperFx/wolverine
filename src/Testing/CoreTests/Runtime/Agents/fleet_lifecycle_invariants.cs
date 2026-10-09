@@ -161,6 +161,30 @@ public class fleet_lifecycle_invariants
     }
 
     /// <summary>
+    ///     GH-4897's one hard constraint, pinned by the leader-election compliance suites: what the dead leader
+    ///     was RUNNING is orphaned, not in flight, and the new leader places it on its very first evaluation.
+    ///     The compliance tests run the survivors on a ten-minute heartbeat and trigger exactly one evaluation,
+    ///     so a held orphan there is an orphan that never gets placed.
+    /// </summary>
+    [Fact]
+    public async Task a_dead_leaders_orphans_are_placed_on_the_new_leaders_first_evaluation()
+    {
+        var cluster = new SimulatedCluster(nodeCount: 4, agentCount: 12, seed: 4897);
+        (await cluster.RunUntilConvergedAsync(maxRounds: 10)).ShouldBeLessThan(10);
+
+        var dying = cluster.LeaderNodeId;
+        var orphans = cluster.RunningAssignments.Where(x => x.Value == dying).Select(x => x.Key).ToHashSet();
+        orphans.ShouldNotBeEmpty();
+
+        cluster.FailOverLeaderTo(cluster.NodeIdAt(1));
+        cluster.RemoveNode(dying);
+
+        var first = await cluster.RunRoundAsync();
+
+        cluster.AssignedIn(first).OrderBy(x => x.ToString()).ShouldBe(orphans.OrderBy(x => x.ToString()));
+    }
+
+    /// <summary>
     ///     The negative control for the scenario above: the identical takeover with the hold switched off
     ///     starts agents twice, and it is GH-2602 that cleans up afterwards. This is what the hold buys.
     /// </summary>

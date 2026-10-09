@@ -38,6 +38,14 @@ public partial class NodeAgentController
     internal int? EvaluationsSinceElection { get; set; }
 
     /// <summary>
+    ///     GH-4897. The agents the stale nodes filtered out of this tick's snapshot were running. A dead
+    ///     node's agents are orphans -- running nowhere, with no start in flight for them anywhere -- and
+    ///     the takeover hold must never delay them: a leader whose predecessor died is precisely when they
+    ///     turn up, and a cluster with a slow heartbeat may not evaluate again for a long time.
+    /// </summary>
+    internal HashSet<Uri> OrphanedByStaleNodes { get; set; } = [];
+
+    /// <summary>
     ///     GH-4555. A placement the target node cannot honor is silent from the leader's side: the node throws
     ///     <c>Unable to find a shard with path '...'</c> on start, so no assignment row is ever written, so the
     ///     next evaluation sees the agent as unplaced and makes the identical decision. The reporter measured
@@ -281,6 +289,12 @@ public partial class NodeAgentController
     // agent proceeds. Next cycle the predecessor's starts have had a snapshot to appear as rows and are
     // grandfathered where they are; whatever is still unplaced then is placed normally.
     //
+    // Except the orphans. An agent a STALE node was running has no OriginalNode either -- the stale node is
+    // filtered out of the grid upstream -- but nothing is in flight for it anywhere; it is simply down. Those
+    // are placed on this very evaluation. The leader-election compliance tests pin this: the survivors run
+    // on a ten-minute heartbeat and trigger exactly one evaluation after the old leader goes stale, so a
+    // held orphan there is an orphan that never gets placed.
+    //
     // Skipped outright when no other node holds any assignment: a cold cluster's first leader, or a single
     // node, has no predecessor whose starts could be in flight, and must not pay a cycle for nothing.
     private void holdUnplacedAgentsAfterTakeover(IReadOnlyList<WolverineNode> nodes, AgentCommands commands,
@@ -311,10 +325,13 @@ public partial class NodeAgentController
         var keptAgents = new List<AssignmentGrid.Agent>(issued.Count);
         var held = 0;
 
+        var orphans = OrphanedByStaleNodes;
+
         for (var i = 0; i < issued.Count; i++)
         {
             var agent = issued[i];
-            if (commands[i] is AssignAgent && agent.OriginalNode == null && agent.PendingNode == null)
+            if (commands[i] is AssignAgent && agent.OriginalNode == null && agent.PendingNode == null
+                && !orphans.Contains(agent.Uri))
             {
                 agent.Detach();
                 held++;
