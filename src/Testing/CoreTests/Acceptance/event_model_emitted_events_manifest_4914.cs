@@ -17,13 +17,13 @@ namespace CoreTests.Acceptance.EventModel4914;
 // GH-4914: the events a handler's body constructs are on the derived slice with no [Emits]
 public class emitted_events_from_the_source_generators_manifest_4914
 {
-    private static HandlerChain chainFor<THandler>(System.Linq.Expressions.Expression<Action<THandler>> expression)
-        => HandlerChain.For(expression, new HandlerGraph());
+    // The scaffold writes static handler classes, so the chain is built from the type, not a generic argument
+    private static HandlerChain chainFor(Type handlerType) => HandlerChain.For(handlerType, "Handle", new HandlerGraph());
 
     [Fact]
     public void the_manifest_names_the_events_a_start_stream_carries()
     {
-        var slice = EventModelRoles.ForHandlerChain(chainFor<OpenAccountHandler>(x => OpenAccountHandler.Handle(null!)));
+        var slice = EventModelRoles.ForHandlerChain(chainFor(typeof(OpenAccountHandler)));
 
         slice.EmittedEvents.Select(x => x.Name).ShouldBe(new[] { nameof(AccountOpened) });
     }
@@ -31,7 +31,7 @@ public class emitted_events_from_the_source_generators_manifest_4914
     [Fact]
     public void the_manifest_is_unioned_with_emits_and_never_duplicates_an_event()
     {
-        var slice = EventModelRoles.ForHandlerChain(chainFor<DepositHandler>(x => DepositHandler.Handle(null!, null!)));
+        var slice = EventModelRoles.ForHandlerChain(chainFor(typeof(DepositHandler)));
 
         // [Emits] first, then the manifest; FundsDeposited is in both and listed once
         slice.EmittedEvents.Select(x => x.Name)
@@ -42,7 +42,7 @@ public class emitted_events_from_the_source_generators_manifest_4914
     [Fact]
     public void a_method_the_manifest_does_not_name_is_unchanged()
     {
-        var slice = EventModelRoles.ForHandlerChain(chainFor<CloseAccountHandler>(x => CloseAccountHandler.Handle(null!)));
+        var slice = EventModelRoles.ForHandlerChain(chainFor(typeof(CloseAccountHandler)));
 
         slice.EmittedEvents.ShouldBeEmpty();
     }
@@ -62,19 +62,19 @@ public class Account
     public Guid Id { get; set; }
 }
 
-public class OpenAccountHandler
+public static class OpenAccountHandler
 {
     public static StartStream Handle(OpenAccount command) => Storage.StartStream<Account>(command.Id, new AccountOpened(command.Id));
 }
 
-public class DepositHandler
+public static class DepositHandler
 {
     [Emits(typeof(FundsDeposited), typeof(OverdraftCleared))]
     public static EventsToAppend Handle(Deposit command, [WriteModel] Account account)
         => new() { new FundsDeposited(command.Amount), new BalanceChecked() };
 }
 
-public class CloseAccountHandler
+public static class CloseAccountHandler
 {
     public static StartStream Handle(CloseAccount command) => Storage.StartStream<Account>(command.Id);
 }
