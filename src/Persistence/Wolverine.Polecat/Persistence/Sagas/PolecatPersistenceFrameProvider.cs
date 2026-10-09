@@ -178,15 +178,27 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         // vanished, with no exception.
         //
         // GH-3956: same hole on the DOCUMENT side. See MartenPersistenceFrameProvider.CanApply.
-        // IDocumentReadOperations is probed but NOT matched, exactly as IQuerySession has always been --
-        // a read-only parameter is not evidence that the chain writes anything.
-        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations)
-                                            || x.Closes(typeof(IEventStream<>))
-                                            || x == typeof(global::JasperFx.Events.IEventOperations)
-                                            || x == typeof(global::JasperFx.Events.IEventStoreOperations)
-                                            || x == typeof(global::Polecat.Events.IEventOperations)
-                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentSessionOperations)
-                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentWriteOperations));
+        // IDocumentReadOperations and IQuerySession are probed but not matched on their own -- a read-only
+        // parameter is not evidence that the chain writes anything.
+        if (serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations)
+                                         || x.Closes(typeof(IEventStream<>))
+                                         || x == typeof(global::JasperFx.Events.IEventOperations)
+                                         || x == typeof(global::JasperFx.Events.IEventStoreOperations)
+                                         || x == typeof(global::Polecat.Events.IEventOperations)
+                                         || x == typeof(global::JasperFx.Events.Documents.IDocumentSessionOperations)
+                                         || x == typeof(global::JasperFx.Events.Documents.IDocumentWriteOperations)))
+        {
+            return true;
+        }
+
+        // GH-4907: the IQuerySession permutation of GH-2941, as fixed for Marten in #4910. A read-only
+        // parameter is served by casting the outbox-enrolled IDocumentSession, so a chain that reads AND
+        // sends messages queues its envelopes on a session nothing commits: a scheduled message is never
+        // handled, and a durable local one only ever runs from memory. Reading alone still does not claim
+        // the chain; reading plus sending does.
+        return serviceDependencies.Any(x => x == typeof(IQuerySession)
+                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentReadOperations))
+               && chain.CanSendMessages(container);
     }
 
     private static bool ChainHasPolecatSessionAttributes(IChain chain)
