@@ -195,7 +195,9 @@ public class per_destination_lane_dispatch
     /// <summary>
     /// A re-target is not a duplicate. Keying in-flight suppression on the agent alone stranded an agent for
     /// as long as the doomed in-flight copy took to time out — exactly when the leader was trying to move it
-    /// off a node that had just gone stale.
+    /// off a node that had just gone stale. The doomed copy itself is skipped if its lane has not taken it up
+    /// yet (GH-4901 follow-up: a start a newer one has superseded is never claimed), and runs out its own
+    /// reply window if it has; either way it holds nothing up.
     /// </summary>
     [Fact]
     public async Task the_same_agent_aimed_at_a_different_node_is_not_suppressed()
@@ -213,9 +215,9 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeA)));
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeB)));
 
-        // The re-target went to a different lane and is running there, while the doomed copy sits on NodeA.
+        // The re-target went to a different lane and is running there, whatever became of the doomed copy.
         await Task.Delay(100, TestContext.Current.CancellationToken);
-        destinations.Distinct().OrderBy(x => x).Count().ShouldBe(2);
+        destinations.ShouldContain(NodeB);
 
         gate.SetResult();
     }
