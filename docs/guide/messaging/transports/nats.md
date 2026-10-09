@@ -406,6 +406,14 @@ opts.ListenToNatsSubject("orders.received")
     .UseJetStream("ORDERS", "my-consumer");
 ```
 
+Without a consumer name, as for the shard listeners of `UseShardedNatsSubjects()`, Wolverine creates an ephemeral
+consumer named after the listener's subject: the subject itself when it has a single token, otherwise the subject
+with `.` turned into `_` and a short hash appended (`orders_received_1a2b3c4d`). The server removes an ephemeral
+consumer shortly after its listener stops (by default after 5 seconds); name the consumer to keep it, and its
+position, across restarts. The derived name is the same on every node and in every application that listens to
+that subject on that stream without a consumer name, so they share one consumer and split its messages between
+them; give each application a consumer name of its own when every one of them should receive all messages.
+
 A durable inbox or outbox needs JetStream: `UseDurableInbox()` and `UseDurableOutbox()` are only allowed on a
 JetStream endpoint. The policies `UseDurableInboxOnAllListeners()` and `UseDurableOutboxOnAllSendingEndpoints()`
 make every JetStream listener and publishing endpoint durable and leave core NATS endpoints as they are. A durable

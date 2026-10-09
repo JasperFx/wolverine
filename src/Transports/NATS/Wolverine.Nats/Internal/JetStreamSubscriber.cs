@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -96,13 +98,20 @@ internal class JetStreamSubscriber : INatsSubscriber
         }
         else
         {
+            // NATS.Net sends a create request without a name to $JS.API.CONSUMER.CREATE.{stream}.{filter}
+            // (nats-io/nats.net#448), and the server takes the token after the stream for the consumer's name: a
+            // single-token subject quietly named the consumer after itself, and a subject with a dot failed every
+            // start with 10131. So the ephemeral consumer is named on purpose, after the subject it filters on
+            config.Name = EphemeralConsumerName(_subscriptionPattern);
+
             _consumer = await _jetStreamContext.CreateOrUpdateConsumerAsync(
                 _endpoint.StreamName!,
                 config,
                 cancellation
             );
             _logger.LogInformation(
-                "Created ephemeral consumer for subject {Subject}",
+                "Created ephemeral consumer {Consumer} for subject {Subject}",
+                config.Name,
                 _endpoint.Subject
             );
         }
@@ -210,6 +219,23 @@ internal class JetStreamSubscriber : INatsSubscriber
             },
             cancellation
         );
+    }
+
+    /// <summary>
+    /// The name of the ephemeral consumer of a listener without a consumer name: the subject itself when it is a
+    /// single token, which is what the server named such a consumer before, otherwise the subject with its dots
+    /// and wildcards spelled out, plus a short hash so two subjects cannot end up with the same name.
+    /// </summary>
+    internal static string EphemeralConsumerName(string subject)
+    {
+        if (subject.IndexOfAny(['.', '*', '>']) < 0)
+        {
+            return subject;
+        }
+
+        var readable = subject.Replace('.', '_').Replace("*", "any").Replace(">", "all");
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject)))[..8].ToLowerInvariant();
+        return $"{readable}_{hash}";
     }
 
     /// <summary>
