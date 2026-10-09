@@ -112,17 +112,69 @@ public abstract class ScheduledJobCompliance: IAsyncLifetime
 
         ReceivedMessageCount().ShouldBe(0);
 
-        await AfterReceivingMessages();
-
+        // Both waits are bounded. Unbounded, a scheduled message that never fires held a CI job until its
+        // 20 minute cap cancelled it, with nothing in the log to say why (CICosmosDb, 2026-10-09). Bounded,
+        // the failure names the phase it stuck in and dumps what the node knows.
+        var received = AfterReceivingMessages();
+        if (await Task.WhenAny(received, Task.Delay(60.Seconds())) != received)
+        {
+            throw new TimeoutException(
+                $"The 5 second scheduled message was never received within 60 seconds.\n{await describeNodeStateAsync()}");
+        }
 
         //TheIdOfTheOnlyReceivedMessageShouldBe().ShouldBe(2);
 
+        var stopwatch = Stopwatch.StartNew();
         while (await PersistedScheduledCount() != 2)
         {
+            if (stopwatch.Elapsed > 60.Seconds())
+            {
+                throw new TimeoutException(
+                    $"The persisted scheduled count never settled at 2 within 60 seconds of the message arriving.\n{await describeNodeStateAsync()}");
+            }
+
             await Task.Delay(250.Milliseconds());
         }
 
         (await PersistedScheduledCount()).ShouldBe(2);
+    }
+
+    private async Task<string> describeNodeStateAsync()
+    {
+        var runtime = theHost.GetRuntime();
+        var lines = new List<string>
+        {
+            $"received: [{string.Join(", ", theReceiver.ReceivedMessages.Select(x => x.Id))}]",
+            $"this node: {runtime.Options.UniqueNodeId} (number {runtime.Options.Durability.AssignedNodeNumber}), mode {runtime.Options.Durability.Mode}, leader: {runtime.NodeController?.IsLeader}",
+            $"running here: [{string.Join(", ", runtime.Agents.AllRunningAgentUris().Select(x => x.ToString()))}]"
+        };
+
+        try
+        {
+            var counts = await runtime.Storage.Admin.FetchCountsAsync();
+            lines.Add($"envelope counts: incoming {counts.Incoming}, scheduled {counts.Scheduled}, handled {counts.Handled}, outgoing {counts.Outgoing}, dead letter {counts.DeadLetter}");
+        }
+        catch (Exception e)
+        {
+            lines.Add($"envelope counts unavailable: {e.GetType().Name}: {e.Message}");
+        }
+
+        try
+        {
+            var state = await runtime.Storage.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+            lines.Add($"persisted nodes ({state.Nodes.Count}):");
+            foreach (var node in state.Nodes)
+            {
+                var age = DateTimeOffset.UtcNow - node.LastHealthCheck;
+                lines.Add($"  {node.NodeId} number {node.AssignedNodeNumber}, last health check {age.TotalSeconds:F0}s ago, running [{string.Join(", ", node.ActiveAgents.Select(x => x.ToString()))}]");
+            }
+        }
+        catch (Exception e)
+        {
+            lines.Add($"node state unavailable: {e.GetType().Name}: {e.Message}");
+        }
+
+        return string.Join("\n", lines);
     }
 }
 
