@@ -648,6 +648,14 @@ public sealed partial class WolverineOptions
     public string ServiceName { get; set; } = null!;
 
     /// <summary>
+    ///     GH-4916. Register every <c>EventModelDefinition</c> subclass in the application's assemblies from the
+    ///     compile-time manifest JasperFx.SourceGenerator writes, so no definition needs its own
+    ///     <c>AddEventModel&lt;T&gt;()</c>. Diagnostic surface only; default true. Set false to register
+    ///     definitions explicitly and only those.
+    /// </summary>
+    public bool AutoRegisterEventModelDefinitions { get; set; } = true;
+
+    /// <summary>
     ///     Free-form, user-defined service-level tags. These are surfaced on <c>ServiceCapabilities.Tags</c> and flow
     ///     to monitoring tools (e.g. CritterWatch) so operators can label and filter related services by their own
     ///     conventions. The operator owns any <c>key:value</c> convention — Wolverine treats these as opaque strings.

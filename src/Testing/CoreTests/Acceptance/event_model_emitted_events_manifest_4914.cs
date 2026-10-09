@@ -1,4 +1,5 @@
 using JasperFx.Events;
+using Wolverine.Attributes;
 using Wolverine.Configuration.EventModeling;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
@@ -62,11 +63,14 @@ public class Account
     public Guid Id { get; set; }
 }
 
+// Never discovered: it would reach every CoreTests host, none of which has an event store
+[WolverineIgnore]
 public static class OpenAccountHandler
 {
     public static StartStream Handle(OpenAccount command) => Storage.StartStream<Account>(command.Id, new AccountOpened(command.Id));
 }
 
+[WolverineIgnore]
 public static class DepositHandler
 {
     [Emits(typeof(FundsDeposited), typeof(OverdraftCleared))]
@@ -74,6 +78,7 @@ public static class DepositHandler
         => new() { new FundsDeposited(command.Amount), new BalanceChecked() };
 }
 
+[WolverineIgnore]
 public static class CloseAccountHandler
 {
     public static StartStream Handle(CloseAccount command) => Storage.StartStream<Account>(command.Id);

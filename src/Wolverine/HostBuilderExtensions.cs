@@ -237,6 +237,12 @@ public static class HostBuilderExtensions
             services.AddSingleton<IEventModelDefinitionSource, WolverineEventModelSource>();
         }
 
+        // GH-4916: every EventModelDefinition in the application's assemblies, from the generated manifest
+        if (services.All(x => x.ImplementationType != typeof(DiscoveredEventModelDefinitions)))
+        {
+            services.AddSingleton<IEventModelDefinitionSource, DiscoveredEventModelDefinitions>();
+        }
+
         services.AddSingleton<IFaultPublisher>(sp =>
         {
             var wolverineOptions = sp.GetRequiredService<WolverineOptions>();

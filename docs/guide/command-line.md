@@ -322,6 +322,11 @@ The `event-model` command writes that whole picture — Wolverine's derived slic
 [overlay](https://github.com/JasperFx/jasperfx/issues/687) the application registered with
 `services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
 
+Every `EventModelDefinition` subclass in the application's assemblies is registered for you (GH-4916), from the
+manifest JasperFx's source generator writes at compile time, so one definition per chapter needs no
+`AddEventModel<T>()` each. Definitions with no `Name` join the application's model. A definition you register
+yourself is not registered twice, and `opts.AutoRegisterEventModelDefinitions = false` turns the discovery off.
+
 ```bash
 dotnet run -- event-model                       # writes event-model.json in the working directory
 dotnet run -- event-model --json ./docs/orders.json
