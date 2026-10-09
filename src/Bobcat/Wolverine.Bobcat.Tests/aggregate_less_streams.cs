@@ -60,6 +60,9 @@ public abstract class AggregateLessHost : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        // A host that failed to start has nothing to stop; let the startup failure be the one reported
+        if (Host is null) return;
+
         await Host.StopAsync();
         Host.Dispose();
     }
