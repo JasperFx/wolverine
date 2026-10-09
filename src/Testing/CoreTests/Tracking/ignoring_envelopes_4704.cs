@@ -183,6 +183,39 @@ public class ignoring_envelopes_through_the_configuration_4704
         session.Executed.MessagesOf<OtherTrackedThing>().ShouldBeEmpty();
         session.Executed.MessagesOf<TrackedThing>().ShouldHaveSingleItem();
     }
+
+    /// <summary>
+    /// A stage added with AddStage runs as a child TrackedSession built by the copy constructor in
+    /// TrackedSession.Execution.cs, and the child's records are merged back into the parent. The filter has to
+    /// travel with the other ignore rules, or everything recorded during the stage passes it.
+    /// </summary>
+    [Fact]
+    public async Task the_filter_also_applies_inside_a_secondary_stage()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(TrackedThingHandler));
+                opts.PublishMessage<TrackedThing>().ToLocalQueue("under-test");
+                opts.PublishMessage<OtherTrackedThing>().ToLocalQueue("background");
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        var ignored = new Uri("local://background");
+
+        var session = await host.TrackActivity()
+            .IgnoreEnvelopes(e => e.Destination == ignored)
+            .AddStage(async (_, bus, _) =>
+            {
+                await bus.PublishAsync(new TrackedThing());
+                await bus.PublishAsync(new OtherTrackedThing());
+            })
+            .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => Task.CompletedTask));
+
+        session.AllRecordsInOrder().ShouldAllBe(x => x.Envelope!.Destination != ignored);
+        session.Executed.MessagesOf<OtherTrackedThing>().ShouldBeEmpty();
+        session.Executed.MessagesOf<TrackedThing>().ShouldHaveSingleItem();
+    }
 }
 
 public record TrackedThing;

@@ -14,6 +14,7 @@ internal partial class TrackedSession
         _otherHosts.AddRange(parent._otherHosts);
         _primaryLogger = parent._primaryLogger;
         _ignoreMessageRules.AddRange(parent._ignoreMessageRules);
+        _ignoreEnvelopeRules.AddRange(parent._ignoreEnvelopeRules);
         _ignoreSystemCommands = parent._ignoreSystemCommands;
         _source = new();
 
