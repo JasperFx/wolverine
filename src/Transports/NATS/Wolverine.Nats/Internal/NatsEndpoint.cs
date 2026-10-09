@@ -79,6 +79,17 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal NatsProvisioning ConsumerProvisioning => _transport.Configuration.ConsumerProvisioning;
 
     /// <summary>
+    /// See <see cref="NatsTransportConfiguration.TrustTenantIdHeader"/>
+    /// </summary>
+    [IgnoreDescription]
+    internal bool TrustsTenantIdHeader => _transport.Configuration.TrustTenantIdHeader;
+
+    /// <summary>
+    /// The ids of the tenants configured on the transport
+    /// </summary>
+    internal HashSet<string> TenantIds() => _transport.Tenants.Select(x => x.TenantId).ToHashSet();
+
+    /// <summary>
     /// Normalize a per-message subject honoring the transport's
     /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
     /// </summary>

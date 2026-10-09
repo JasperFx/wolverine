@@ -893,11 +893,11 @@ On the tenant's connection, these settings of the tenant's configuration apply:
 
 Everything else applies transport-wide, also to the tenant's connection: `EnableJetStream`, `DefaultQueueGroup`,
 `NormalizeSubjects`, `MsgIdSource`, `ConfigureJetStreamPublish`, the tenant and subject resolvers,
-`TenantSubjectPrefix`, the consumer defaults in `JetStreamDefaults` (`AckWait`, `MaxDeliver`, `DeliverPolicy`) and
-the stream limits resource setup uses. The named consumers of listeners on the tenant's connection follow the
-transport's `Provisioning()` as well. Startup logs a warning when a tenant's action changes any of these. Whether a
-JetStream endpoint schedules messages natively follows the transport's stream declaration and the shared server
-too, also when it sends to a tenant.
+`TenantSubjectPrefix`, `TrustTenantIdHeader`, the consumer defaults in `JetStreamDefaults` (`AckWait`, `MaxDeliver`,
+`DeliverPolicy`) and the stream limits resource setup uses. The named consumers of listeners on the tenant's
+connection follow the transport's `Provisioning()` as well. Startup logs a warning when a tenant's action changes
+any of these. Whether a JetStream endpoint schedules messages natively follows the transport's stream declaration
+and the shared server too, also when it sends to a tenant.
 
 ```csharp
 opts.UseNats("nats://shared:4222")
@@ -920,6 +920,28 @@ id, and its ack/nak/dead-letter is routed back over the same connection. Sending
 `TenantId` publishes it over that tenant's connection. The streams the tenant's configuration declares — the
 transport's, unless its action changed them — are provisioned on each tenant server as well, as the tenant's own
 `AutoProvision` and `Provisioning` say.
+
+### Where the Tenant Id Comes From
+
+A message that arrives on a tenant's dedicated connection always belongs to that tenant. On the shared connection
+a tenant-aware listener takes the tenant id from the message's `tenant-id` header, and otherwise from the subject's
+tenant prefix — so any producer that may publish to the subject can act in any tenant's name. When producers you
+do not control publish there, turn that off:
+
+```csharp
+opts.UseNats(nats =>
+{
+    nats.ConnectionString = "nats://shared:4222";
+    nats.TrustTenantIdHeader = false;
+})
+.AddTenant("tenant-a")
+.AddTenant("tenant-b");
+```
+
+The tenant id then comes only from the subject prefix, and only for a configured tenant; a message on the plain
+subject has no tenant, whatever its header says. Keep the shared connection out of the tenants' accounts as well:
+in the same account, the shared and the tenant's listener both receive a core NATS message, and on a JetStream
+consumer they share, which of the two takes a message is left to chance.
 
 ### Tenants on Their Own Account
 

@@ -67,6 +67,16 @@ public class NatsTransportConfiguration
     public bool NormalizeSubjects { get; set; } = true;
     public JetStreamDefaults JetStreamDefaults { get; set; } = new();
 
+    /// <summary>
+    /// Whether a tenant-aware listener takes the tenant id of an incoming message from its <c>tenant-id</c> header
+    /// (the default). Set it to false when producers you do not control can publish to the listener's subjects:
+    /// a message on a tenant's own connection then belongs to that tenant, a message on the shared connection to
+    /// the configured tenant its subject prefix names, and any other message to no tenant, whatever its header
+    /// says. Only tenant-aware listeners of a transport with tenants (<c>AddTenant()</c>) have anything to take the
+    /// tenant from instead; everywhere else the header is used as before.
+    /// </summary>
+    public bool TrustTenantIdHeader { get; set; } = true;
+
     public ITenantIdResolver? TenantIdResolver { get; set; }
     public ISubjectResolver? SubjectResolver { get; set; }
     public string? TenantSubjectPrefix { get; set; }
@@ -154,6 +164,7 @@ public class NatsTransportConfiguration
         check(nameof(TenantIdResolver), TenantIdResolver, tenant.TenantIdResolver);
         check(nameof(SubjectResolver), SubjectResolver, tenant.SubjectResolver);
         check(nameof(TenantSubjectPrefix), TenantSubjectPrefix, tenant.TenantSubjectPrefix);
+        check(nameof(TrustTenantIdHeader), TrustTenantIdHeader, tenant.TrustTenantIdHeader);
         check(nameof(ConfigureJetStreamPublish), ConfigureJetStreamPublish, tenant.ConfigureJetStreamPublish);
 
         // The consumers of listeners on the tenant's connection and the streams resource setup creates for an

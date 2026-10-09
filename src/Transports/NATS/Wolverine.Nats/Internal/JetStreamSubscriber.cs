@@ -196,7 +196,7 @@ internal class JetStreamSubscriber : INatsSubscriber
                             continue;
                         }
                         var envelope = new NatsEnvelope(null, msg);
-                        _mapper.MapIncomingToEnvelope(envelope, msg);
+                        _mapper.MapIncoming(envelope, msg);
 
                         if (_batching != null)
                         {
