@@ -70,6 +70,13 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     private readonly Dictionary<Uri, Guid> _starting = new();
     private readonly HashSet<(Uri Agent, Guid Lane)> _withdrawn = [];
 
+    // Starts a lane has handed to its node at some point, by (agent, node). A later start for the same pair is
+    // a RE-DRIVE -- the leader re-sending a start whose assignment row has not surfaced yet -- and the agent
+    // may well be running there already, so a reassignment must stop it at the source rather than withdraw
+    // the queued re-drive as if nothing had ever run (found by the laned fleet_chaos_soak). Cleared when a
+    // move or stop away from that node executes.
+    private readonly HashSet<(Uri Agent, Guid Node)> _handedOver = [];
+
     // GH-3781: latched by DisposeAsync so a lane stops picking work up. Completing a channel writer does
     // NOT discard what is already buffered -- ReadAsync keeps handing it out -- so without this, shutdown
     // executed every command still queued for a node that had already gone, one reply window at a time.
@@ -117,8 +124,13 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     ///     agent on its destination for exactly as long as this says the dispatch is still outstanding, rather
     ///     than for a fixed TTL that a wave of slow starts trivially outlives.
     /// </summary>
+    //
+    // A pending MOVE answers ahead of a start still in flight for the same agent: the move supersedes that
+    // start (its stop is queued behind it), and the ledger entry the leader is asking about is the move's
+    // destination. Answering the start's node instead made the move look lost the moment its TTL lapsed,
+    // and a long start outlives the TTL routinely (found by the laned fleet_chaos_soak).
     public bool TryFindPendingDestination(Uri agentUri, out Guid nodeId)
-        => _inFlight.TryGetValue(agentUri, out nodeId) || _moving.TryGetValue(agentUri, out nodeId);
+        => _moving.TryGetValue(agentUri, out nodeId) || _inFlight.TryGetValue(agentUri, out nodeId);
 
     /// <summary>
     ///     Queue a command for its destination's lane, unless equivalent work is already queued or running.
@@ -201,7 +213,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         lock (_claims)
         {
             withdrawn = move.Agents
-                .Where(uri => _inFlight.TryGetValue(uri, out var owner) && owner == source && !_starting.ContainsKey(uri))
+                .Where(uri => _inFlight.TryGetValue(uri, out var owner) && owner == source && !_starting.ContainsKey(uri)
+                              && !_handedOver.Contains((uri, source)))
                 .ToArray();
 
             foreach (var uri in withdrawn)
@@ -236,6 +249,16 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
     // GH-4901: a start command less whatever a reassignment withdrew from it while it was queued, marked as
     // handed to the node so it can no longer be withdrawn. Null if nothing is left to start.
+    //
+    // An agent a NEWER start owns elsewhere is not claimed. A start queued for a node that has since gone (the
+    // leader re-targets its agents the moment the node leaves the snapshot) reaches its lane long after a
+    // newer start for the same agent was queued elsewhere and overwrote _inFlight; claiming it here anyway
+    // overwrote the live start's _starting entry, and releasing it afterwards removed that entry, so the live
+    // start looked merely queued to the next reassignment, which withdrew it and started the agent a second
+    // time (found by the laned fleet_chaos_soak). An agent with NO _inFlight entry is still claimed: a
+    // withdrawal clears the entry and relies on its re-enqueue to restore it, and that re-enqueue can be
+    // collapsed as a duplicate of a start already queued here, leaving the only queued start for the agent
+    // without an entry -- skipping it then strands the agent on a pending move no command will ever land.
     private IAgentCommand? claimStarts(IAgentCommand command, Guid destination)
     {
         var agents = StartedAgentsOf(command);
@@ -247,9 +270,16 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         Uri[] owned;
         lock (_claims)
         {
-            owned = agents.Where(uri => !_withdrawn.Remove((uri, destination))).ToArray();
+            owned = agents
+                .Where(uri => !_withdrawn.Remove((uri, destination)))
+                .Where(uri => !(_inFlight.TryGetValue(uri, out var owner) && owner != destination))
+                .ToArray();
 
-            foreach (var uri in owned) _starting[uri] = destination;
+            foreach (var uri in owned)
+            {
+                _starting[uri] = destination;
+                _handedOver.Add((uri, destination));
+            }
         }
 
         if (owned.Length == agents.Length)
@@ -328,6 +358,25 @@ internal class AgentCommandDispatcher : IAsyncDisposable
                 {
                     _moving.TryRemove(uri, out _);
                 }
+            }
+        }
+
+        // A move or a stop that has run at its node means the agent is no longer running there, so a later
+        // start for it on that node is a first start again, not a re-drive.
+        (Guid Node, Uri[]? Agents) stoppedAt = command switch
+        {
+            ReassignAgent one => (one.OriginalNode.NodeId, [one.AgentUri]),
+            ReassignAgents many => (many.OriginalNode.NodeId, many.AgentUris),
+            StopRemoteAgent one => (one.Destination.NodeId, [one.AgentUri]),
+            StopRemoteAgents many => (many.Destination.NodeId, many.AgentIds),
+            _ => (Guid.Empty, null)
+        };
+
+        if (stoppedAt.Agents != null)
+        {
+            lock (_claims)
+            {
+                foreach (var uri in stoppedAt.Agents) _handedOver.Remove((uri, stoppedAt.Node));
             }
         }
     }
@@ -469,6 +518,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         {
             _starting.Clear();
             _withdrawn.Clear();
+            _handedOver.Clear();
         }
     }
 

@@ -64,6 +64,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     private readonly List<string> _undeclaredPlacements = [];
     private readonly Dictionary<Uri, int> _dispatchCounts = new();
     private readonly List<TimeSpan> _evaluationTimes = [];
+    private DateTimeOffset _now = DateTimeOffset.UtcNow;
     private readonly ErrorLog _leaderLog = new();
 
     private record struct InFlightStart(Guid NodeId, int RoundsRemaining);
@@ -95,6 +96,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         public Queue<Uri> Waiting { get; } = new(agents);
         public HashSet<Uri> Starting { get; } = [];
         public bool IsDone => Waiting.Count == 0 && Starting.Count == 0;
+        public int HandedOverAt { get; init; }
     }
 
     public SimulatedCluster(int nodeCount, int agentCount, int seed)
@@ -173,6 +175,19 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         if (missing.Length > 0)
         {
             description += $"; not running, e.g. {string.Join(", ", missing.Take(3))}";
+
+            // Why the first of them is not being placed: what the dispatchers say and what the leader's grid holds
+            var first = missing[0];
+            foreach (var (id, entry) in _dispatchers)
+            {
+                var pending = entry.Dispatcher.TryFindPendingDestination(first, out var on) ? on.ToString()[..8] : "none";
+                description += $"; dispatcher of {id.ToString()[..8]} says {first} pending on {pending}";
+            }
+
+            var known = _controller.LastAssignments?.AllAgents.FirstOrDefault(x => x.Uri == first);
+            description += known == null
+                ? $"; the leader's grid does not know {first}"
+                : $"; the leader's grid has {first}: assigned {known.AssignedNode?.AssignedId.ToString() ?? "-"}, original {known.OriginalNode?.AssignedId.ToString() ?? "-"}, pending {known.PendingNode?.AssignedId.ToString() ?? "-"}{(known.PendingMove ? " (move)" : "")}, retry due {known.PendingRetryDue}, candidates [{string.Join(",", known.CandidateNodes.Select(x => x.AssignedId))}]";
         }
 
         if (lastCommands is { Count: > 0 })
@@ -213,11 +228,34 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     /// <summary>Called at the end of every round, for invariants a scenario checks as it goes.</summary>
     public Action<AgentCommands>? AfterRound { get; set; }
 
+    /// <summary>Every change to one agent's ground truth, for tracing a failure: the agent and what happened to it.</summary>
+    public Action<Uri, string>? OnAgentEvent { get; set; }
+
+    // WOLVERINE_AGENT_TRACE=<uri>: that agent's whole history, appended to any double-start report about it
+    private static readonly Uri? Traced = Environment.GetEnvironmentVariable("WOLVERINE_AGENT_TRACE") is { Length: > 0 } t ? new Uri(t) : null;
+    private readonly List<string> _tracedHistory = [];
+
+    private void record(Uri uri, string what)
+    {
+        if (uri == Traced)
+        {
+            _tracedHistory.Add($"r{Round + 1}: {what}");
+            if (Environment.GetEnvironmentVariable("WOLVERINE_AGENT_TRACE_FILE") is { Length: > 0 } file)
+            {
+                File.AppendAllText(file, $"r{Round + 1}: {what}\n");
+            }
+        }
+        OnAgentEvent?.Invoke(uri, what);
+    }
+
     /// <summary>Wall-clock cost of each leader evaluation, in round order.</summary>
     public IReadOnlyList<TimeSpan> EvaluationTimes => _evaluationTimes;
 
     /// <summary>Starts dispatched but not yet visible to the leader as persisted assignment rows.</summary>
     public int InFlightStarts => _inFlight.Count + _awaitingVisibility.Count;
+
+    /// <summary>With dispatcher lanes on: nothing queued, executing or being worked through on any node.</summary>
+    public bool LanesAreIdle => lanesAreIdle();
 
     /// <summary>
     ///     Whether commands go through real <see cref="AgentCommandDispatcher" /> lanes rather than being applied
@@ -378,6 +416,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         if (!_running.TryGetValue(uri, out var primary) || primary != nodeId) return;
 
         _running.Remove(uri);
+        record(uri, $"primary copy on {nodeId.ToString()[..8]} forgotten");
 
         if (_extraCopies.TryGetValue(uri, out var copies) && copies.Count > 0)
         {
@@ -385,6 +424,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
             copies.Remove(promoted);
             if (copies.Count == 0) _extraCopies.Remove(uri);
             _running[uri] = promoted;
+            record(uri, $"extra copy on {promoted.ToString()[..8]} promoted to primary");
         }
     }
 
@@ -455,8 +495,15 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     /// </summary>
     public async Task<AgentCommands> RunRoundAsync()
     {
+        _now += Options.Durability.HealthCheckPollingTime;
         landCompletedStarts();
         syncPersistedAssignments();
+
+        // Landing a batch completes its lane command, and the lane's own bookkeeping (releasing in-flight
+        // ownership, moving on to the next command) runs on its worker afterwards. The leader's evaluation
+        // consults that bookkeeping through its pending-dispatch probe, so let the lanes settle first -- or
+        // the probe races the release and the run is no longer deterministic.
+        if (UsesDispatcherLanes) await waitForLanesAsync();
 
         var declaredBy = _nodes.ToDictionary(x => x.NodeId, x => x.Capabilities.ToHashSet());
 
@@ -467,6 +514,30 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         var stopwatch = Stopwatch.StartNew();
         var commands = await _controller.EvaluateAssignmentsAsync(_nodes.ToList(), new AgentRestrictions());
         _evaluationTimes.Add(stopwatch.Elapsed);
+
+        if (Traced != null)
+        {
+            foreach (var command in commands)
+            {
+                var named = command switch
+                {
+                    AssignAgent x => x.AgentUri == Traced,
+                    AssignAgents x => x.AgentIds.Contains(Traced),
+                    ReassignAgent x => x.AgentUri == Traced,
+                    ReassignAgents x => x.AgentUris.Contains(Traced),
+                    StopRemoteAgent x => x.AgentUri == Traced,
+                    StopRemoteAgents x => x.AgentIds.Contains(Traced),
+                    _ => false
+                };
+                if (named) record(Traced, $"leader emitted {command.GetType().Name} -> lane {nodeNumberOf(command.DestinationNodeId)}");
+            }
+
+            var known = _controller.LastAssignments?.AllAgents.FirstOrDefault(x => x.Uri == Traced);
+            if (known != null)
+            {
+                record(Traced, $"grid: assigned {known.AssignedNode?.AssignedId.ToString() ?? "-"}, original {known.OriginalNode?.AssignedId.ToString() ?? "-"}, pending {known.PendingNode?.AssignedId.ToString() ?? "-"}{(known.PendingMove ? " (move)" : "")}, retry due {known.PendingRetryDue}");
+            }
+        }
 
         if (UsesDispatcherLanes)
         {
@@ -571,6 +642,11 @@ internal sealed class SimulatedCluster : IAsyncDisposable
                          .ThenBy(x => firstAgentOf(x.Command), StringComparer.Ordinal))
             {
                 apply(item);
+
+                // One at a time: completing a command runs its lane's continuation on another thread, and that
+                // is what enqueues its cascade. Settling after each keeps cascades from different lanes in
+                // this sorted order rather than in thread order, which is what makes a seed replay exactly.
+                await waitForLanesAsync();
             }
         }
 
@@ -584,7 +660,7 @@ internal sealed class SimulatedCluster : IAsyncDisposable
                 while (batch.Starting.Count < parallelism && batch.Waiting.Count > 0)
                 {
                     var uri = batch.Waiting.Dequeue();
-                    dispatchStart(uri, node.NodeId, declaredBy);
+                    dispatchStart(uri, node.NodeId, declaredBy, $"{batch.Work.Command} handed to the node at round {batch.HandedOverAt}");
                     batch.Starting.Add(uri);
                     _startingIn[uri] = batch;
                 }
@@ -637,16 +713,18 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         }
 
         if (!_batches.TryGetValue(nodeId, out var batches)) _batches[nodeId] = batches = [];
-        batches.Add(new NodeBatch(item, agents));
+        batches.Add(new NodeBatch(item, agents) { HandedOverAt = Round });
     }
 
     // ReassignAgents: stop at the source, and only what was confirmed gone cascades as a start in the
-    // destination's own lane.
+    // destination's own lane. A source that has left the cluster confirms every stop at once -- absence from
+    // it is what AgentWorkConfirmation observes as Gone -- so the starts cascade the same way.
     private AgentCommands move(NodeDestination source, NodeDestination destination, Uri[] agents)
     {
-        if (_nodes.All(x => x.NodeId != source.NodeId)) return AgentCommands.Empty;
-
-        foreach (var uri in agents) stop(uri, source.NodeId);
+        if (_nodes.Any(x => x.NodeId == source.NodeId))
+        {
+            foreach (var uri in agents) stop(uri, source.NodeId);
+        }
 
         return agents.Length == 1
             ? [new AssignAgent(agents[0], destination)]
@@ -789,6 +867,11 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         // peer holding assignments and stands down (GH-4897).
         controller.EvaluationsSinceElection = 0;
 
+        // The ledger ages its entries on this clock, which a round advances by one health-check period, so its
+        // TTL backstop (2 x CheckAssignmentPeriod) is two evaluations here as in production -- not wall time,
+        // which a run of millisecond rounds never reaches and which made a replay depend on the machine.
+        controller.Clock = () => _now;
+
         return (runtime, controller);
     }
 
@@ -855,10 +938,12 @@ internal sealed class SimulatedCluster : IAsyncDisposable
             {
                 if (!_extraCopies.TryGetValue(uri, out var copies)) _extraCopies[uri] = copies = [];
                 copies.Add(pending.NodeId);
+                record(uri, $"landed on {pending.NodeId.ToString()[..8]} as an EXTRA copy (primary on {elsewhere.ToString()[..8]})");
             }
             else
             {
                 _running[uri] = pending.NodeId;
+                record(uri, $"landed on {pending.NodeId.ToString()[..8]}");
             }
 
             _awaitingVisibility[uri] = pending.NodeId;
@@ -871,23 +956,25 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         completeFinishedBatches();
     }
 
-    private void dispatchStart(Uri agentUri, Guid nodeId, Dictionary<Guid, HashSet<Uri>> declaredBy)
+    private void dispatchStart(Uri agentUri, Guid nodeId, Dictionary<Guid, HashSet<Uri>> declaredBy, string? via = null)
     {
         _dispatchCounts.TryGetValue(agentUri, out var count);
         _dispatchCounts[agentUri] = count + 1;
+        record(agentUri, $"start dispatched to {nodeId.ToString()[..8]}{(via == null ? "" : " via " + via)}");
 
         // The single-copy invariant, asserted at the moment it would be violated rather than inferred from
         // the end state — a second copy that is later stopped still ran twice.
         if (_inFlight.TryGetValue(agentUri, out var already) && already.NodeId != nodeId)
         {
             _doubleStartReports.Add(
-                $"{agentUri} dispatched to node {nodeId} while a start was still in flight to node {already.NodeId}");
+                $"{agentUri} dispatched to node {nodeId} while a start was still in flight to node {already.NodeId}{(via == null ? "" : $" via {via}")}");
         }
 
         if (_running.TryGetValue(agentUri, out var runningOn) && runningOn != nodeId)
         {
             _doubleStartReports.Add(
-                $"{agentUri} dispatched to node {nodeId} while already running on node {runningOn}");
+                $"{agentUri} dispatched to node {nodeId} while already running on node {runningOn}{(via == null ? "" : $" via {via}")}"
+                + (agentUri == Traced ? "\nHISTORY:\n" + string.Join("\n", _tracedHistory) : ""));
         }
 
         // The capability invariant: only when SOME node declares the agent, mirroring

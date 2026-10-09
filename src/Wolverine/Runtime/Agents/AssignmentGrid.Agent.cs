@@ -78,6 +78,13 @@ public partial class AssignmentGrid
         internal bool PendingMove { get; set; }
 
         /// <summary>
+        ///     The node a pending move (<see cref="PendingMove" />) is taking the agent from, if it is still in the
+        ///     cluster. A re-drive of that move is a stop there followed by a start, never a bare start: the copy
+        ///     at the source may still be coming up, invisible, when the move went unconfirmed past its TTL.
+        /// </summary>
+        internal Node? PendingSource { get; set; }
+
+        /// <summary>
         /// Possible nodes that can support this agent. NOTE: this is only applied through
         /// MatchAgentsToNodesFor()
         /// </summary>
@@ -126,7 +133,13 @@ public partial class AssignmentGrid
                             return false;
                         }
 
-                        command = new AssignAgent(Uri, AssignedNode.ToDestination());
+                        // A move gone unconfirmed is driven again as the stop-then-start it was. A bare start
+                        // here skipped the stop at the source, whose copy of the agent was still starting --
+                        // its row not visible yet -- and started a second copy (GH-4901 follow-up, found by
+                        // the laned fleet_chaos_soak once the TTL could lapse during a long start).
+                        command = PendingMove && PendingSource != null
+                            ? new ReassignAgent(Uri, PendingSource.ToDestination(), AssignedNode.ToDestination())
+                            : new AssignAgent(Uri, AssignedNode.ToDestination());
                         return true;
                     }
 
@@ -141,7 +154,10 @@ public partial class AssignmentGrid
                     // ReassignAgent always runs in its source's lane (GH-3749), which is exactly the ordering
                     // this case needs: the stop queues behind the start it is cancelling. If that start is
                     // still only queued, the dispatcher re-targets it instead (GH-4901).
-                    command = new ReassignAgent(Uri, PendingNode.ToDestination(), AssignedNode.ToDestination());
+                    // Same for a move being re-decided to a third node: the stop belongs at the source it is
+                    // leaving, not at the destination it never reached.
+                    var stopAt = PendingMove && PendingSource != null ? PendingSource : PendingNode;
+                    command = new ReassignAgent(Uri, stopAt.ToDestination(), AssignedNode.ToDestination());
                     return true;
                 }
 

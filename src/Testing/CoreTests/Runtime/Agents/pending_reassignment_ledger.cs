@@ -306,4 +306,46 @@ public class pending_reassignment_ledger
         nodeId.ShouldBe(batch.ActiveNode.NodeId);
         nodeId.ShouldNotBe(batch.OriginalNode.NodeId);
     }
+
+    /// <summary>
+    /// GH-4901 follow-up, found by the laned chaos soak. The agents are still STARTING on the incumbent -- a long
+    /// start, no row yet -- when the leader decides to move half of them to the newcomer, and that move goes
+    /// unconfirmed past the TTL because the move is queued behind the start. Re-driving it must stop the agent
+    /// at the incumbent before starting it on the newcomer; a bare start there is a second copy.
+    /// </summary>
+    [Fact]
+    public async Task an_unconfirmed_move_of_an_agent_still_starting_at_its_source_is_re_driven_as_a_stop_then_start()
+    {
+        _options.Durability.CheckAssignmentPeriod = 10.Milliseconds();
+
+        // Everything is dispatched to the incumbent and is still starting there: the dispatcher reports every
+        // agent in flight to the incumbent, and no row has been persisted yet.
+        var startedOn = new Dictionary<Uri, Guid>();
+        _controller.PendingDispatches = (Uri uri, out Guid nodeId) => startedOn.TryGetValue(uri, out nodeId);
+        var first = await _controller.EvaluateAssignmentsAsync([_incumbent], new AgentRestrictions());
+        foreach (var uri in first.OfType<AssignAgents>().SelectMany(x => x.AgentIds).Concat(first.OfType<AssignAgent>().Select(x => x.AgentUri)))
+        {
+            startedOn[uri] = _incumbent.NodeId;
+        }
+        startedOn.Count.ShouldBe(_family.AllAgentUris().Length);
+
+        // The newcomer joins; the leader moves half. The dispatcher still only knows the starts in flight.
+        var second = await evaluateAsync();
+        var moved = second.OfType<ReassignAgents>().SelectMany(x => x.AgentUris)
+            .Concat(second.OfType<ReassignAgent>().Select(x => x.AgentUri)).ToArray();
+        moved.ShouldNotBeEmpty();
+
+        await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken); // past the 20ms TTL
+
+        var third = await evaluateAsync();
+
+        var bareStarts = third.OfType<AssignAgents>().SelectMany(x => x.AgentIds)
+            .Concat(third.OfType<AssignAgent>().Select(x => x.AgentUri)).ToArray();
+        bareStarts.ShouldNotContain(x => moved.Contains(x), "a moved agent was re-driven as a bare start on the newcomer");
+
+        var reDriven = third.OfType<ReassignAgents>().Where(x => x.OriginalNode.NodeId == _incumbent.NodeId && x.ActiveNode.NodeId == _newcomer.NodeId).SelectMany(x => x.AgentUris)
+            .Concat(third.OfType<ReassignAgent>().Where(x => x.OriginalNode.NodeId == _incumbent.NodeId && x.ActiveNode.NodeId == _newcomer.NodeId).Select(x => x.AgentUri))
+            .ToArray();
+        reDriven.OrderBy(x => x.ToString()).ShouldBe(moved.OrderBy(x => x.ToString()), "the move is driven again from the incumbent");
+    }
 }

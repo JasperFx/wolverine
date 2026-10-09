@@ -27,8 +27,15 @@ public class fleet_chaos_soak
     private const int MaxNodes = 8;
     private const int MinNodes = 2;
 
-    /// <summary>Starts cost one to three rounds, so a quiet window of this many rounds must see convergence.</summary>
-    private const int QuietRoundsToConverge = 20;
+    /// <summary>
+    ///     Starts cost one to three rounds and a node works through its batches fifty agents at a time, so a wave
+    ///     over a few nodes takes a couple of dozen rounds at most; a quiet window of this many rounds must see
+    ///     full convergence.
+    /// </summary>
+    private const int QuietRoundsToConverge = 40;
+
+    /// <summary>The longest a start takes; <c>StartCost</c> rolls one to this many rounds.</summary>
+    private const int MaxStartRounds = 3;
 
     private static readonly string[] Databases = Enumerable.Range(1, 24).Select(i => $"db{i:D2}").ToArray();
     private static readonly string[] Tenants = Enumerable.Range(1, 8).Select(i => $"t{i}").ToArray();
@@ -70,24 +77,45 @@ public class fleet_chaos_soak
         // Node id -> the version it runs, so a leader failover can hand the new leader its own version's family
         var versions = new Dictionary<Guid, int>();
 
-        var cluster = new SimulatedCluster(nodeCount: 3, familyFor(version), seed: seed);
+        await using var cluster = new SimulatedCluster(nodeCount: 3, familyFor(version), seed: seed);
         foreach (var id in cluster.NodeIds) versions[id] = version;
+
+        // GH-4901 was invisible to this soak while commands were applied the moment the leader emitted them:
+        // no node ever built a backlog, so nothing could be stuck behind one. Real dispatcher lanes, with a
+        // start batch worked through at MaxAgentStartParallelism, are what let a pile-up on one node show.
+        cluster.UseDispatcherLanes();
+
+        // A fleet of per-tenant agents runs with these raised well above the defaults, as the field does;
+        // at the defaults (50 / 10) the lanes alone take longer than the quiet window to push a wave through.
+        cluster.Options.Durability.AgentStartBatchSize = 50;
+        cluster.Options.Durability.MaxAgentStartParallelism = 50;
 
         var costs = new Dictionary<Uri, int>();
         cluster.StartCost = uri =>
         {
-            if (!costs.TryGetValue(uri, out var cost)) costs[uri] = cost = random.Next(1, 4);
+            if (!costs.TryGetValue(uri, out var cost)) costs[uri] = cost = random.Next(1, MaxStartRounds + 1);
             return cost;
         };
 
         var quietSince = 0;
         var leaderChangedAt = int.MinValue;
+        var inheritedWorkDrained = true;
         var log = new List<string>();
+
+        var traced = Environment.GetEnvironmentVariable("WOLVERINE_CHAOS_TRACE") is { Length: > 0 } t ? new Uri(t) : null;
+        var trace = new List<string>();
+        var currentRound = 0;
+        if (traced != null) cluster.OnAgentEvent = (uri, what) => { if (uri == traced) trace.Add($"  r{currentRound} event: {what}"); };
 
         void transition(int round, string what, bool leaderChanged = false)
         {
             quietSince = round;
-            if (leaderChanged) leaderChangedAt = round;
+            if (leaderChanged)
+            {
+                leaderChangedAt = round;
+                inheritedWorkDrained = false;
+            }
+
             log.Add($"round {round}: {what}");
         }
 
@@ -95,6 +123,7 @@ public class fleet_chaos_soak
 
         for (var round = 1; round <= rounds; round++)
         {
+            currentRound = round;
             var roll = random.NextDouble();
 
             if (roll < 0.05 && cluster.NodeIds.Count < MaxNodes)
@@ -143,29 +172,60 @@ public class fleet_chaos_soak
             }
 
             var doubleStartsBefore = cluster.DoubleStartReports.Count;
+            var restartsBefore = cluster.RestartsWhileStarting.Count;
             var commands = await cluster.RunRoundAsync();
+
+            // WOLVERINE_CHAOS_TRACE=<agent uri>: one line per round about that agent, for replaying a failure
+            if (traced != null)
+            {
+                var runningOn = cluster.RunningAssignments.TryGetValue(traced, out var n) ? n.ToString()[..8] : "-";
+                var naming = commands.Where(x => names(x, traced)).Select(x => x.GetType().Name + "->" + (x.DestinationNodeId?.ToString()[..8] ?? "?"));
+                trace.Add($"r{round}: running on {runningOn}; dispatches {cluster.DispatchCounts.GetValueOrDefault(traced)}; commands [{string.Join(", ", naming)}]; nodes [{string.Join(", ", cluster.NodeIds.Select(x => x.ToString()[..8]))}] leader {cluster.LeaderNodeId.ToString()[..8]}");
+            }
 
             // Invariants that hold on every round, transition or not.
             cluster.UndeclaredPlacements.ShouldBeEmpty(where(round));
+            cluster.LeaderErrors.ShouldBeEmpty(where(round));
 
-            // A double start is only ever legitimate right after a leader change: the new leader has an empty
-            // pending ledger and cannot see starts its predecessor dispatched, so it may re-decide one to a
-            // different node. Anywhere else it is a defect. Either way the duplicate must be healed by the
-            // time the fleet settles (asserted below), which is GH-2602's job.
-            if (cluster.DoubleStartReports.Count > doubleStartsBefore && round - leaderChangedAt > 2)
+            // A double start, or a start re-sent to a node still starting the agent, is only ever legitimate
+            // while a leader change is still being absorbed: the new leader has an empty pending ledger and its
+            // own dispatcher, so it cannot see what its predecessor dispatched. With real lanes that is not just
+            // the starts under way -- a batch the old leader handed to a node keeps draining there, and an agent
+            // still WAITING in it is neither running nor starting, invisible to everyone until the batch reaches
+            // it. The one-evaluation takeover hold (GH-4897) cannot cover that, so until every lane and batch
+            // has drained once after the change, a re-decided start is the known cost. Anywhere else it is a
+            // defect. Either way the duplicate must be healed by the time the fleet settles (asserted below),
+            // which is GH-2602's job.
+            if (!inheritedWorkDrained && cluster.LanesAreIdle && cluster.InFlightStarts == 0)
             {
-                throw new ShouldAssertException(
-                    $"double start outside a leader change: {cluster.DoubleStartReports[^1]}; {where(round)}");
+                inheritedWorkDrained = true;
             }
 
-            var settled = commands.Count == 0 && cluster.InFlightStarts == 0
+            var afterLeaderChange = !inheritedWorkDrained || round - leaderChangedAt <= MaxStartRounds + 1;
+
+            if (cluster.DoubleStartReports.Count > doubleStartsBefore && !afterLeaderChange)
+            {
+                var report = cluster.DoubleStartReports[^1];
+                var uri = report[..report.IndexOf(' ')];
+                var touching = commands.Where(x => names(x, new Uri(uri))).Select(x => x.ToString());
+                throw new ShouldAssertException(
+                    $"double start outside a leader change: {report}; commands this round naming it: [{string.Join(" | ", touching)}]; {cluster.Describe(commands)}; {where(round)}" +
+                    (trace.Count > 0 ? "\nTRACE:\n" + string.Join("\n", trace.TakeLast(40)) : ""));
+            }
+
+            if (cluster.RestartsWhileStarting.Count > restartsBefore && !afterLeaderChange)
+            {
+                throw new ShouldAssertException(
+                    $"start re-sent to a node still starting it, outside a leader change: {cluster.RestartsWhileStarting[^1]}; {where(round)}");
+            }
+
+            var settled = commands.Count == 0 && cluster.InFlightStarts == 0 && cluster.LanesAreIdle
                           && cluster.RunningAgents.Count == cluster.AllAgents.Length;
 
             if (round - quietSince >= QuietRoundsToConverge)
             {
                 settled.ShouldBeTrue(
-                    $"not converged {round - quietSince} rounds after the last transition: {commands.Count} commands, " +
-                    $"{cluster.InFlightStarts} in flight, {cluster.RunningAgents.Count}/{cluster.AllAgents.Length} running; {where(round)}");
+                    $"not converged {round - quietSince} rounds after the last transition: {cluster.Describe(commands)}; {where(round)}");
 
                 cluster.DuplicateCopies.ShouldBe(0, $"duplicate copies not healed; {where(round)}");
 
@@ -175,6 +235,18 @@ public class fleet_chaos_soak
             }
         }
     }
+
+    /// <summary>Does the command start, move or stop this agent? (A command's ToString does not list its agent ids.)</summary>
+    private static bool names(IAgentCommand command, Uri agent) => command switch
+    {
+        AssignAgent x => x.AgentUri == agent,
+        AssignAgents x => x.AgentIds.Contains(agent),
+        ReassignAgent x => x.AgentUri == agent,
+        ReassignAgents x => x.AgentUris.Contains(agent),
+        StopRemoteAgent x => x.AgentUri == agent,
+        StopRemoteAgents x => x.AgentIds.Contains(agent),
+        _ => false
+    };
 
     /// <summary>
     ///     The bound group affinity exists for. A database's agents are sub-partitioned by the set of nodes that
