@@ -17,6 +17,7 @@ using Wolverine.Persistence;
 using Wolverine.Persistence.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using IRevisioned = JasperFx.IRevisioned;
 
 namespace Wolverine.Marten.Persistence.Sagas;
@@ -219,13 +220,40 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         // handler could already declare one and have it bind -- it just never got a commit.
         // IDocumentReadOperations is deliberately probed but NOT matched here, exactly as IQuerySession
         // has always been: a read-only parameter is not evidence that the chain writes anything.
-        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations)
+        if (serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations)
                                             || x.Closes(typeof(IEventStream<>))
                                             || x == typeof(global::JasperFx.Events.IEventOperations)
                                             || x == typeof(global::JasperFx.Events.IEventStoreOperations)
                                             || x == typeof(global::Marten.Events.IEventStoreOperations)
                                             || x == typeof(global::JasperFx.Events.Documents.IDocumentSessionOperations)
-                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentWriteOperations));
+                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentWriteOperations)))
+        {
+            return true;
+        }
+
+        // GH-4907: the IQuerySession permutation of GH-2941. A read-only parameter is served by casting the
+        // outbox-enrolled IDocumentSession, so a chain that reads AND sends messages queues its envelopes on a
+        // session nothing commits: a scheduled message is never handled, and a durable local one only ever
+        // runs from memory. Reading alone still does not claim the chain; reading plus sending does.
+        return serviceDependencies.Any(x => x == typeof(IQuerySession)
+                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentReadOperations))
+               && chainCanSendMessages(chain, container);
+    }
+
+    private static bool chainCanSendMessages(IChain chain, IServiceContainer container)
+    {
+        if (chain.ServiceDependencies(container, new[] { typeof(IMessageBus), typeof(IMessageContext) })
+            .Any(x => x == typeof(IMessageBus) || x == typeof(IMessageContext)))
+        {
+            return true;
+        }
+
+        if (chain.ReturnVariablesOfType<OutgoingMessages>().Any()) return true;
+
+        // A message handler cascades whatever its handler methods return. An HTTP endpoint writes its first
+        // return value as the response, so only the ones after it cascade.
+        var firstCascadingReturn = chain is HandlerChain ? 0 : 1;
+        return chain.HandlerCalls().Any(call => call.Creates.Skip(firstCascadingReturn).Any());
     }
 
     private static bool ChainHasMartenSessionAttributes(IChain chain)
