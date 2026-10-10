@@ -21,6 +21,7 @@ internal partial class TrackedSession
         AssertAnyFailureAcknowledgements = parent.AssertAnyFailureAcknowledgements;
         AssertNoExceptions = false;
         AlwaysTrackExternalTransports = parent.AlwaysTrackExternalTransports;
+        CorrelationId = parent.CorrelationId;
 
         Execution = c => func(_primaryLogger, c, _cancellation.Token);
     }
@@ -29,6 +30,7 @@ internal partial class TrackedSession
     {
         await using var scope = _primaryHost.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
+        if (CorrelationId is not null) context.CorrelationId = CorrelationId;
         await execution(context).WaitAsync(Timeout).ConfigureAwait(false);
     }
     

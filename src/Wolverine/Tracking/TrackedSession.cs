@@ -139,6 +139,9 @@ internal partial class TrackedSession : ITrackedSession
 
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
+    /// <summary>GH-4931. The correlation id the tracked work runs under, when one was given.</summary>
+    public string? CorrelationId { get; set; }
+
     public bool AssertNoExceptions { get; set; } = true;
 
     /// <summary>

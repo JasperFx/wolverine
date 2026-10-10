@@ -29,6 +29,19 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    ///     GH-4931. Run the tracked work under this correlation id, which every message it causes carries on,
+    ///     and which an event store with correlation ids enabled records on every event they append — so a
+    ///     test can find what its act caused even across an asynchronous boundary the session does not see,
+    ///     such as an event subscription.
+    /// </summary>
+    public TrackedSessionConfiguration WithCorrelationId(string correlationId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(correlationId);
+        Session.CorrelationId = correlationId;
+        return this;
+    }
+
+    /// <summary>
     /// Do not track any messages of this type
     /// Helpful for polling operations that maybe happening during your testing
     /// </summary>

@@ -33,6 +33,7 @@ public class tracked_sessions_record_appended_events_4931 : PostgresqlContext, I
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = "tracked_appends";
                         m.Events.MetadataConfig.CausationIdEnabled = true;
+                        m.Events.MetadataConfig.CorrelationIdEnabled = true;
                         m.Events.RegisterTagType<DriverId4931>();
                         m.Events.TagWith<TripStarted4931>(e => e.Driver);
                     })
@@ -115,7 +116,30 @@ public class tracked_sessions_record_appended_events_4931 : PostgresqlContext, I
 
         session.AppendedEvents.Single().Events.Single().CausationId.ShouldBe("the-booking-request");
     }
+
+    [Fact]
+    public async Task a_tracked_session_can_run_under_a_correlation_id_its_cascades_carry_too()
+    {
+        // GH-4931: the correlation id given up front reaches every event the act caused, cascades included,
+        // which is how a test finds events appended past an asynchronous boundary the session cannot see
+        var start = await _host.InvokeMessageAndWaitAsync(new StartTrip4931(new DriverId4931(Guid.NewGuid())));
+        var tripId = start.AppendedEvents.Single().StartedStreams.Single().Id;
+
+        var session = await _host.TrackActivity()
+            .WithCorrelationId("the-trip-test")
+            .InvokeMessageAndWaitAsync(new CompleteTrip4931(tripId));
+
+        session.AppendedEvents.SelectMany(x => x.Events).Select(x => x.CorrelationId)
+            .ShouldBe(["the-trip-test", "the-trip-test"]);
+
+        // ... and it is in the store, to be queried by
+        await using var query = _host.DocumentStore().QuerySession();
+        var stored = await query.Events.QueryAllRawEvents().Where(x => x.CorrelationId == "the-trip-test")
+            .ToListAsync(TestContext.Current.CancellationToken);
+        stored.Count.ShouldBe(2);
+    }
 }
+
 
 
 public record struct DriverId4931(Guid Value);
