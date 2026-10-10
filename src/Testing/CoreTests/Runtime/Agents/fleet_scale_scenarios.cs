@@ -114,6 +114,8 @@ public class fleet_scale_scenarios
             }
         }
 
+        public int PeakOn(Guid node) => _peak.GetValueOrDefault(node);
+
         public void AssertNoPileUp(int slack, string step)
         {
             foreach (var node in _cluster.NodeIds)
@@ -234,6 +236,73 @@ public class fleet_scale_scenarios
 
         cluster.NodeIds.Count.ShouldBe(5);
         cluster.RunningAgents.OrderBy(x => x.ToString()).ShouldBe(green.OrderBy(x => x.ToString()));
+    }
+
+    /// <summary>
+    ///     GH-4569, the 6.48.2 measurement: the first node of a cold cluster took 37,310 of 37,388 agents before any
+    ///     peer registered, and every peer was then served out of the first node's lane as a stop-then-start. The
+    ///     first node holds its placement back for an evaluation, which is enough for pods that start together.
+    /// </summary>
+    [Fact]
+    public async Task a_cold_start_with_staggered_joins_does_not_pile_onto_the_first_node()
+    {
+        var fleet = Ci;
+        await using var cluster = coldFirstNode(fleet);
+        var first = cluster.LeaderNodeId;
+
+        var watch = new Watch(cluster);
+        watch.Begin();
+
+        // Alone: the first evaluation places nothing
+        await cluster.RunRoundAsync();
+        cluster.InFlightStarts.ShouldBe(0, "the lone first node holds its placement back");
+        cluster.RunningAgents.ShouldBeEmpty();
+
+        // The rest of the deployment registers before the next evaluation
+        var blue = uris(fleet.Declared("v30"));
+        for (var i = 0; i < 4; i++) cluster.AddNode(blue);
+
+        await convergeAsync(cluster, fleet, "cold start");
+
+        var share = (int)Math.Ceiling(blue.Length / 5.0);
+        watch.PeakOn(first).ShouldBeLessThanOrEqualTo(share + fleet.GroupSize, "the first node only ever ran its share");
+    }
+
+    /// <summary>
+    ///     The same start without the hold, pinned so the cost it prevents stays visible: the first node runs far
+    ///     more than its share before the others get anything.
+    /// </summary>
+    [Fact]
+    public async Task without_the_cold_start_hold_the_first_node_takes_everything()
+    {
+        var fleet = Ci;
+        await using var cluster = coldFirstNode(fleet);
+        cluster.Options.Durability.LeaderColdStartHoldEvaluations = 0;
+        var first = cluster.LeaderNodeId;
+
+        var watch = new Watch(cluster);
+        watch.Begin();
+
+        await cluster.RunRoundAsync();
+        cluster.InFlightStarts.ShouldBeGreaterThan(0);
+
+        var blue = uris(fleet.Declared("v30"));
+        for (var i = 0; i < 4; i++) cluster.AddNode(blue);
+        await convergeAsync(cluster, fleet, "cold start without the hold");
+
+        var share = (int)Math.Ceiling(blue.Length / 5.0);
+        watch.PeakOn(first).ShouldBeGreaterThan(2 * share, "the first node started far more than its eventual share");
+    }
+
+    // A cold cluster whose first node comes up alone and starts agents fast relative to its peers registering:
+    // a chunk the size of a whole fleet's share lands in a round, as the field's 2,500-agent batches do.
+    private static SimulatedCluster coldFirstNode(Fleet fleet)
+    {
+        var cluster = new SimulatedCluster(nodeCount: 1, familyFor(fleet.Declared("v30")), seed: 4569);
+        cluster.UseDispatcherLanes();
+        cluster.Options.Durability.AgentStartBatchSize = 6 * fleet.StartBatchSize;
+        cluster.Options.Durability.MaxAgentStartParallelism = 6 * fleet.StartBatchSize;
+        return cluster;
     }
 
     /// <summary>

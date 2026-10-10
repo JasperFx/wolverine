@@ -233,4 +233,25 @@ public class ejection_hysteresis_tests
         await tickAsync();
         departed.Count.ShouldBe(1);
     }
+
+    /// <summary>
+    /// GH-4897 exempted a STALE node's agents from the takeover hold, because they are running nowhere. A node
+    /// that shut down cleanly deleted its own row, and its agents are orphans in exactly the same way -- but
+    /// they were held for an evaluation on every leader change of every rolling deploy.
+    /// </summary>
+    [Fact]
+    public async Task the_agents_of_a_node_whose_row_vanished_are_orphans_for_the_takeover_hold()
+    {
+        var running = new Uri("fake://one");
+        var peer = Peer(stale: false);
+        peer.AssignAgents([running]);
+
+        snapshotIs(Self(), peer);
+        await tickAsync();
+        _controller.OrphanedByStaleNodes.ShouldBeEmpty();
+
+        snapshotIs(Self());
+        await tickAsync();
+        _controller.OrphanedByStaleNodes.ShouldBe([running]);
+    }
 }

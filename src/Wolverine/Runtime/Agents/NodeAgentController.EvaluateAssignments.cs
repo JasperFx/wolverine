@@ -317,31 +317,75 @@ public partial class NodeAgentController
 
         EvaluationsSinceElection = since + 1;
 
-        var hold = _runtime.Options.Durability.LeaderTakeoverHoldEvaluations;
-        if (since >= hold)
+        var selfId = _runtime.Options.UniqueNodeId;
+        var durability = _runtime.Options.Durability;
+
+        var takingOver = nodes.Any(n => n.NodeId != selfId && n.ActiveAgents.Any(a => a != LeaderUri));
+        var alone = nodes.All(n => n.NodeId == selfId);
+
+        int hold;
+        string reason;
+        if (takingOver)
         {
+            hold = durability.LeaderTakeoverHoldEvaluations;
+            reason = "so starts the previous leader dispatched can surface as assignments before they are placed again";
+        }
+        else if (alone)
+        {
+            // GH-4569: the first node of a cold cluster. With nobody else registered yet every path hands it
+            // the whole agent universe, and every node that joins afterwards is then served out of this node's
+            // own lane as a stop-then-start -- on the reported fleet 37,310 of 37,388 agents started on the
+            // first node before any peer got a share. Holding first-time placement back for a tick or two is
+            // enough for pods that start together to register; a rollout that takes longer than that is what
+            // AssignmentSettlePeriod is for. Gated on the size of the wave, so a single node that genuinely
+            // runs a handful of agents is not made to wait on peers that are never coming.
+            hold = durability.LeaderColdStartHoldEvaluations;
+            reason = "so the nodes starting alongside it can register and take their share of the agents";
+        }
+        else
+        {
+            // Other nodes are here and none of them runs anything: nothing can be in flight from a predecessor,
+            // and nobody is still arriving that this node need wait for. Null is "no hold is owed", the same
+            // as never having been elected; the next election starts the count again.
+            EvaluationsSinceElection = null;
             return;
         }
 
-        var selfId = _runtime.Options.UniqueNodeId;
-        if (!nodes.Any(n => n.NodeId != selfId && n.ActiveAgents.Any(a => a != LeaderUri)))
+        if (since >= hold)
         {
-            // Nobody was running anything before this leader: nothing can be in flight from a predecessor.
-            EvaluationsSinceElection = hold;
+            EvaluationsSinceElection = null;
             return;
+        }
+
+        var orphans = OrphanedByStaleNodes;
+
+        bool holdable(int i) => commands[i] is AssignAgent && issued[i].OriginalNode == null
+                                                            && issued[i].PendingNode == null
+                                                            && !orphans.Contains(issued[i].Uri);
+
+        if (alone)
+        {
+            var wave = 0;
+            for (var i = 0; i < issued.Count; i++)
+            {
+                if (holdable(i)) wave++;
+            }
+
+            if (wave <= durability.AgentStartBatchSize)
+            {
+                EvaluationsSinceElection = null;
+                return;
+            }
         }
 
         var keptCommands = new List<IAgentCommand>(commands.Count);
         var keptAgents = new List<AssignmentGrid.Agent>(issued.Count);
         var held = 0;
 
-        var orphans = OrphanedByStaleNodes;
-
         for (var i = 0; i < issued.Count; i++)
         {
             var agent = issued[i];
-            if (commands[i] is AssignAgent && agent.OriginalNode == null && agent.PendingNode == null
-                && !orphans.Contains(agent.Uri))
+            if (holdable(i))
             {
                 agent.Detach();
                 held++;
@@ -363,8 +407,8 @@ public partial class NodeAgentController
         issued.AddRange(keptAgents);
 
         _logger.LogInformation(
-            "Node {NodeNumber} is holding {Count} unplaced agent(s) back on evaluation {Evaluation} of {Hold} after assuming leadership, so starts the previous leader dispatched can surface as assignments before they are placed again",
-            _runtime.Options.Durability.AssignedNodeNumber, held, since + 1, hold);
+            "Node {NodeNumber} is holding {Count} unplaced agent(s) back on evaluation {Evaluation} of {Hold} after assuming leadership, {Reason}",
+            _runtime.Options.Durability.AssignedNodeNumber, held, since + 1, hold, reason);
     }
 
     // GH-3698: project the pending-assignment ledger onto the grid, so an agent whose start is already on

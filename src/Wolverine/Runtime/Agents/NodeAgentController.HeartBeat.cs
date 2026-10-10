@@ -180,7 +180,7 @@ public partial class NodeAgentController
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
 
-        noteDepartedRows(nodes);
+        var orphanedByDepartedRows = noteDepartedRows(nodes);
 
         // Check for stale nodes that are no longer writing health checks. By
         // definition we just wrote our own heartbeat above, so we must never
@@ -201,7 +201,7 @@ public partial class NodeAgentController
 
         // GH-4897: what the stale nodes were running is orphaned, not in flight anywhere, and the takeover
         // hold below must place it straight away. Captured here because the stale nodes leave the grid.
-        OrphanedByStaleNodes = staleNodes.SelectMany(x => x.ActiveAgents).ToHashSet();
+        OrphanedByStaleNodes = staleNodes.SelectMany(x => x.ActiveAgents).Concat(orphanedByDepartedRows).ToHashSet();
 
         // Defensive: if the snapshot didn't include our own row at all
         // (read-after-write lag against the upsert above, brand-new node still
@@ -245,6 +245,20 @@ public partial class NodeAgentController
         {
             _logger.LogError(e, "Error reconciling local agents on node {NodeNumber}",
                 _runtime.Options.Durability.AssignedNodeNumber);
+        }
+
+        // GH-4569: a node that may not lead -- a warm-up node of a blue/green rollout, say, whose store
+        // enumerates a different agent set than the serving fleet's -- does everything above (heartbeat, local
+        // sweeps, ejection) and nothing below. It never contends for the lock, and if its configuration changed
+        // underneath an existing lease it lets go.
+        if (!_runtime.Options.Durability.LeadershipEligible)
+        {
+            if (IsLeader)
+            {
+                await stepDownAsync("this node is not eligible for leadership (Durability.LeadershipEligible is false)");
+            }
+
+            return AgentCommands.Empty;
         }
 
         // Detect lost leadership: we *thought* we were the leader (from a
@@ -390,22 +404,30 @@ public partial class NodeAgentController
     /// </summary>
     internal Action<Guid>? NodeDeparted { get; set; }
 
-    // The node rows present in the previous tick's snapshot, BEFORE stale filtering, so a departure here means
-    // the row itself is gone. Only ever touched from the serialized health-check path.
-    private HashSet<Guid> _rowsLastTick = [];
+    // The node rows present in the previous tick's snapshot, BEFORE stale filtering, each with the agents it
+    // was running, so a departure here means the row itself is gone and what it ran is known. Only ever
+    // touched from the serialized health-check path.
+    private Dictionary<Guid, Uri[]> _rowsLastTick = new();
 
-    private void noteDepartedRows(IReadOnlyList<WolverineNode> nodes)
+    // Returns the agents the departed rows were running: a node that shut down cleanly deleted its own row,
+    // and its agents are orphans exactly as a stale node's are. GH-4897 only knew the stale ones, so a new
+    // leader held a cleanly departed predecessor's agents back for a takeover evaluation they did not need
+    // -- paid on every leader change of every rolling deploy.
+    private HashSet<Uri> noteDepartedRows(IReadOnlyList<WolverineNode> nodes)
     {
-        var current = nodes.Select(x => x.NodeId).ToHashSet();
-        foreach (var departed in _rowsLastTick)
+        var current = nodes.ToDictionary(x => x.NodeId, x => x.ActiveAgents.ToArray());
+        var orphaned = new HashSet<Uri>();
+
+        foreach (var (departed, itsAgents) in _rowsLastTick)
         {
-            if (!current.Contains(departed))
-            {
-                noteNodeDeparted(departed);
-            }
+            if (current.ContainsKey(departed)) continue;
+
+            foreach (var uri in itsAgents) orphaned.Add(uri);
+            noteNodeDeparted(departed);
         }
 
         _rowsLastTick = current;
+        return orphaned;
     }
 
     private void noteNodeDeparted(Guid nodeId)

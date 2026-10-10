@@ -627,11 +627,37 @@ public class DurabilitySettings : IDescribeMyself
     ///     unplaced ones back for a snapshot cycle lets those rows appear and be kept where they are.
     ///
     ///     Only agents that are running nowhere and have no start in flight wait; moves, stops and every
-    ///     agent already visible proceed. The hold is skipped entirely when no other node holds any
-    ///     assignment -- a cold cluster's first leader, or a single node -- so it costs nothing at startup.
+    ///     agent already visible proceed. The hold only applies when another node already holds assignments;
+    ///     a cold cluster's first leader is governed by <see cref="LeaderColdStartHoldEvaluations" /> instead.
     ///     Default 1. Zero disables it.
     /// </summary>
     public int LeaderTakeoverHoldEvaluations { get; set; } = 1;
+
+    /// <summary>
+    ///     GH-4569. How many assignment evaluations the first node of a cold cluster spends NOT placing agents
+    ///     while it is the only node registered. With nobody else in the node table every distribution hands
+    ///     that node the whole agent universe, and each node that joins afterwards is served out of the first
+    ///     node's own lane as a stop-then-start: on the reported fleet 37,310 of 37,388 agents started on the
+    ///     first node before any peer got a share. One or two evaluations is enough for pods that start
+    ///     together to register and take their share from the outset.
+    ///
+    ///     Only applies when the wave being held is larger than <see cref="AgentStartBatchSize" />, so a single
+    ///     node running a handful of agents is not made to wait for peers that are never coming, and ends the
+    ///     moment a second node registers. A rollout whose pods arrive over a longer period is what
+    ///     <see cref="AssignmentSettlePeriod" /> is for. Default 1. Zero disables it.
+    /// </summary>
+    public int LeaderColdStartHoldEvaluations { get; set; } = 1;
+
+    /// <summary>
+    ///     GH-4569. Whether this node may be elected leader of the cluster and run the agent assignment. Every
+    ///     node is eligible by default. Set it to false on a node that should run agents but never decide
+    ///     their placement -- the warm-up nodes of a blue/green rollout, whose own store enumerates the NEW
+    ///     version's agents and which would otherwise evaluate the whole cluster from the least representative
+    ///     node in it. An ineligible node still heartbeats, ejects stale peers, reconciles and sweeps its own
+    ///     agents, and takes whatever assignments the leader gives it; it simply never contends for the
+    ///     leadership lock. At least one node of the cluster must be eligible, or nothing is ever assigned.
+    /// </summary>
+    public bool LeadershipEligible { get; set; } = true;
 
     /// <summary>
     ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
