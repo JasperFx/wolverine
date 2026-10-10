@@ -10,16 +10,27 @@ internal class HandlerContinuationFrame : SyncFrame
 {
     private readonly Variable _variable;
 
-    public HandlerContinuationFrame(MethodCall call)
+    /// <summary>
+    /// GH-4877. <paramref name="index"/> is the frame's position among the continuation-carrying frames of
+    /// ITS OWN chain (<see cref="IChain.NextContinuationVariableIndex"/>), the convention GH-4714 set for
+    /// the validation and requirement frames: index 0 keeps the bare name, later ones are suffixed so two
+    /// in one generated method cannot collide. This frame was the last one still numbering from a
+    /// process-wide static, so a chain's generated source depended on how many continuation frames the
+    /// process had built before it -- which, under embedded static codegen inside a booted host, varied
+    /// run to run and failed a drift gate on suffix-only diffs.
+    /// </summary>
+    public HandlerContinuationFrame(MethodCall call, int index)
     {
         _variable = call.Creates.FirstOrDefault(x => x.VariableType == typeof(HandlerContinuation)) ??
                     throw new ArgumentOutOfRangeException(nameof(call),"Supplied call does not create a HandlerContinuation");
-        _variable.OverrideName(_variable.Usage + ++Count);
+
+        if (index > 0)
+        {
+            _variable.OverrideName(_variable.Usage + index);
+        }
 
         uses.Add(_variable);
     }
-
-    private static int Count { get; set; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {

@@ -504,7 +504,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     {
         var frame = new EntityIsNotNullGuardFrame(variable);
 
-        return [frame, new HandlerContinuationFrame(frame)];
+        return [frame, new HandlerContinuationFrame(frame, NextContinuationVariableIndex())];
     }
 
     /// <inheritdoc />
@@ -552,7 +552,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             case OnMissing.EmptyContentWith204:
                 var frame = new EntityIsNotNullGuardFrame(data) { Requirement = requirement };
 
-                return [frame, new HandlerContinuationFrame(frame)];
+                return [frame, new HandlerContinuationFrame(frame, NextContinuationVariableIndex())];
                 
             default:
                 // AddStopConditionIfNull declares the identity nullable, so an entity addressed by

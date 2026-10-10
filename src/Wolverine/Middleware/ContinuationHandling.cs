@@ -97,7 +97,7 @@ internal class HandlerContinuationPolicy : IContinuationStrategy
     {
         if (call.CreatesNewOf<HandlerContinuation>())
         {
-            frame = new HandlerContinuationFrame(call);
+            frame = new HandlerContinuationFrame(call, chain.NextContinuationVariableIndex());
             return true;
         }
 
