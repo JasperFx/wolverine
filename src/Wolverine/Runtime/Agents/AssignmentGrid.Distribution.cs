@@ -364,14 +364,17 @@ public partial class AssignmentGrid
                 // partition keeps it as long as that doesn't push the node past the ceiling. Without this,
                 // every evaluation reshuffles groups from scratch and a node whose stale capability snapshot
                 // keeps it out of the capability candidates can be starved permanently across evaluations.
-                var incumbent = members[0].AssignedNode;
-                if (incumbent != null && members.Any(m => m.AssignedNode != incumbent))
-                {
-                    incumbent = null;
-                }
+                // GH-3987: the incumbent used to be recognised only when EVERY member sat on one node. A
+                // partition split across two nodes -- one member released under a GH-3888 embargo and placed
+                // on a peer, one member an operator pinned elsewhere, a start that landed on a fallback node
+                // during a warm-up -- had no incumbent at all and was placed from scratch, which could put the
+                // WHOLE shard database on a third node. One moved agent became a database's worth of moves,
+                // and with the embargo lifting every AgentReleaseCooldown that repeated as a ten-minute
+                // oscillation on a cluster whose node set never changed. The host is now the node already
+                // running the most members (an operator's pin outranks that), and only the stragglers move.
+                var incumbent = hostFor(members, candidates);
 
-                if (incumbent != null && candidates.Contains(incumbent) &&
-                    load[incumbent] + members.Count <= maximum)
+                if (incumbent != null && load[incumbent] + members.Count <= maximum)
                 {
                     // GH-4592: an OVERLOADED incumbent gives its partition up instead of keeping it --
                     // but only when somewhere else can actually take the whole thing, and only for a
@@ -383,16 +386,18 @@ public partial class AssignmentGrid
                     // node hosting twenty databases that shed all twenty at once would hand the cluster a
                     // connection-pool stampede and twenty rounds of projection catch-up, so pressure is
                     // relieved a partition at a time and re-sampled on the next heartbeat.
+                    // A pinned member keeps its partition on the pinned node whatever the load reading says:
+                    // shedding it would move everything but the pin, and split the database for good.
                     var shedding = incumbent.IsOverloaded
                                    && shedsRemaining > 0
+                                   && !members.Any(m => m.IsPinned)
                                    && candidates.Any(n => !ReferenceEquals(n, incumbent)
                                                           && n.IsAcceptingAgents
                                                           && load[n] + members.Count <= maximum);
 
                     if (!shedding)
                     {
-                        load[incumbent] += members.Count;
-                        remember(siblingHosts, incumbent);
+                        place(incumbent, members, siblingHosts);
                         continue;
                     }
 
@@ -428,14 +433,63 @@ public partial class AssignmentGrid
                         .FirstOrDefault()
                     ?? InCapacityOrder(placeable, n => load[n]).First();
 
-                foreach (var agent in members)
+                place(node, members, siblingHosts);
+            }
+        }
+
+        // Put a partition on its host: every member that is not already there is moved, except a pinned
+        // member sitting elsewhere, which stays put and counts toward its own node's load instead. This
+        // path never consulted IsPinned before (GH-4591 covered the even paths only), so a pin on one agent
+        // of a multi-database store was quietly overridden on every evaluation.
+        void place(Node host, List<Agent> members, List<Node> siblingHosts)
+        {
+            var placed = 0;
+            foreach (var member in members)
+            {
+                if (member.IsPinned && member.AssignedNode != null && !ReferenceEquals(member.AssignedNode, host))
                 {
-                    node.Assign(agent);
+                    load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
+                    continue;
                 }
 
-                load[node] += members.Count;
-                remember(siblingHosts, node);
+                if (!ReferenceEquals(member.AssignedNode, host))
+                {
+                    host.Assign(member);
+                }
+
+                placed++;
             }
+
+            load[host] += placed;
+            remember(siblingHosts, host);
+        }
+
+        // The node a partition should stay on, if any: the node an operator pinned one of its members to,
+        // else the node already running the most of them. Only a candidate counts -- a node running part of
+        // a partition it cannot run the rest of is not a home for it (GH-4562). Deterministic tie-breaks so
+        // two evaluations of the same split agree.
+        static Node? hostFor(List<Agent> members, List<Node> candidates)
+        {
+            var pinnedTo = members
+                .Where(m => m.IsPinned && m.AssignedNode != null && candidates.Contains(m.AssignedNode))
+                .Select(m => m.AssignedNode!)
+                .OrderBy(n => n.IsLeader)
+                .ThenBy(n => n.AssignedId)
+                .FirstOrDefault();
+
+            if (pinnedTo != null)
+            {
+                return pinnedTo;
+            }
+
+            return members
+                .Where(m => m.AssignedNode != null && candidates.Contains(m.AssignedNode))
+                .GroupBy(m => m.AssignedNode!)
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.Key.IsLeader)
+                .ThenBy(g => g.Key.AssignedId)
+                .Select(g => g.Key)
+                .FirstOrDefault();
         }
 
         static void remember(List<Node> hosts, Node node)

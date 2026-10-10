@@ -287,9 +287,12 @@ public class fleet_scale_scenarios
     }
 
     /// <summary>
-    ///     The same with the default one-evaluation hold, which a start lasting several evaluations outlives: the
-    ///     successor starts some agents a second time, and GH-2602 stops the older copies once both are visible.
-    ///     Pinned so the cost of the default stays visible; it is not a goal.
+    ///     The same with the default one-evaluation hold, which a start lasting several evaluations outlives.
+    ///     This used to pin the cost of the default: the successor started some agents a second time and GH-2602
+    ///     stopped the older copies once both were visible. Since GH-3987 a partition keeps the node already
+    ///     running most of it, so the starts the dead leader left in flight land where the successor places the
+    ///     rest of their database and nothing runs twice on this shape. Whatever a future shape costs, the
+    ///     invariant is that duplicates never survive convergence.
     /// </summary>
     [Fact]
     public async Task the_leader_dying_mid_warm_up_with_the_default_hold_heals_its_duplicates()
@@ -299,9 +302,9 @@ public class fleet_scale_scenarios
         (await cluster.RunUntilConvergedAsync(40)).ShouldBeLessThan(40, cluster.Describe());
         cluster.RunningAgents.Count.ShouldBe(cluster.AllAgents.Length);
 
-        cluster.DoubleStartReports.ShouldNotBeEmpty();
         cluster.DuplicateCopies.ShouldBe(0);
-        cluster.StopsEmitted.ShouldBeGreaterThan(0, "those are the duplicate stops");
+        cluster.DoubleStartReports.ShouldBeEmpty(
+            "the in-flight starts land on the node the successor keeps their database on, so nothing starts twice");
     }
 
     private const int StartRounds = 2;

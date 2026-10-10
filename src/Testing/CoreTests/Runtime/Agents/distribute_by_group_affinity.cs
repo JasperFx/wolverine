@@ -581,5 +581,93 @@ public class distribute_by_group_affinity
             hosts.ShouldContain(host => greens.Contains(host!), $"{db}'s new version must be on a green node");
         }
     }
+
+    [Fact]
+    public void a_split_group_consolidates_by_moving_the_minority()
+    {
+        // GH-3987. A database whose agents sit on two nodes -- one released under a GH-3888 embargo and placed
+        // on a peer, say, and now back in the fold once the cooldown lapsed -- used to have no incumbent at all
+        // and was placed from scratch, which could move the whole database to a third node. The straggler
+        // comes home; nothing else moves.
+        var tenants = new[] { "t1", "t2", "t3", "t4" };
+        Uri[] Db(string db) => tenants.Select(t => Agent(db, t)).ToArray();
+
+        var grid = new AssignmentGrid();
+        var node1 = grid.WithNode(1, Guid.NewGuid());
+        var node2 = grid.WithNode(2, Guid.NewGuid());
+        var node3 = grid.WithNode(3, Guid.NewGuid());
+
+        node1.Running(Db("db1").Take(3).ToArray());
+        node2.Running(Db("db1").Skip(3).Concat(Db("db2")).ToArray());
+        node3.Running(Db("db3"));
+
+        var before = grid.AllAgents.ToDictionary(a => a.Uri, a => a.AssignedNode);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        var moved = grid.AllAgents.Where(a => !ReferenceEquals(a.AssignedNode, before[a.Uri])).ToList();
+        moved.Select(a => a.Uri).ShouldBe([Agent("db1", "t4")], "only the straggler moves");
+        moved.Single().AssignedNode.ShouldBe(node1, "and it moves to the node running the rest of its database");
+
+        // Reality catches up with the placement: evaluating that state again is a fixed point.
+        var settled = new AssignmentGrid();
+        var again = new[] { settled.WithNode(1, node1.NodeId), settled.WithNode(2, node2.NodeId), settled.WithNode(3, node3.NodeId) };
+        foreach (var agent in grid.AllAgents)
+        {
+            again[agent.AssignedNode!.AssignedId - 1].Running(agent.Uri);
+        }
+
+        settled.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+        settled.AllAgents.Where(a => !ReferenceEquals(a.AssignedNode, a.OriginalNode)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_pinned_member_fixes_its_groups_host_and_the_pin_is_never_overridden()
+    {
+        // GH-3987 / GH-4591 for this path: DistributeByGroupAffinity never looked at IsPinned, so an operator
+        // pinning one agent of a multi-database store (CritterWatch's PinAgentToNode) had the pin quietly
+        // overridden by the group placement on every evaluation. The pin now names the group's host.
+        var tenants = new[] { "t1", "t2", "t3" };
+        Uri[] Db(string db) => tenants.Select(t => Agent(db, t)).ToArray();
+
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+
+        AssignmentGrid Build(Func<string, AssignmentGrid.Node[], AssignmentGrid.Node> runningOn)
+        {
+            var grid = new AssignmentGrid();
+            var nodes = new[] { grid.WithNode(1, ids[0]), grid.WithNode(2, ids[1]), grid.WithNode(3, ids[2]) };
+            foreach (var db in new[] { "db1", "db2", "db3" })
+            {
+                runningOn(db, nodes).Running(Db(db));
+            }
+
+            // As ApplyRestrictions leaves a pin: assigned to the pinned node, flagged.
+            var pinned = grid.AgentFor(Agent("db1", "t1"));
+            nodes[2].Assign(pinned);
+            pinned.IsPinned = true;
+            return grid;
+        }
+
+        var first = Build((db, nodes) => db switch { "db1" => nodes[0], "db2" => nodes[1], _ => nodes[2] });
+        first.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        foreach (var uri in Db("db1"))
+        {
+            first.AgentFor(uri).AssignedNode!.NodeId.ShouldBe(ids[2], "the whole database follows the pin");
+        }
+
+        first.AgentFor(Agent("db1", "t1")).IsPinned.ShouldBeTrue();
+        Db("db2").Select(uri => first.AgentFor(uri).AssignedNode!.NodeId).ShouldAllBe(id => id == ids[1], "db2 is untouched");
+        Db("db3").Select(uri => first.AgentFor(uri).AssignedNode!.NodeId).Distinct().Count()
+            .ShouldBe(1, "db3 gives way to the pinned database but stays whole");
+
+        // The next evaluation sees that placement as reality, re-applies the pin, and must move nothing.
+        var placement = first.AllAgents.ToDictionary(a => a.Uri, a => a.AssignedNode!.NodeId);
+        var second = Build((db, nodes) => nodes.Single(n => n.NodeId == placement[Agent(db, "t1")]));
+        second.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        second.AllAgents.Where(a => a.AssignedNode!.NodeId != placement[a.Uri]).Select(a => a.Uri.ToString())
+            .ShouldBeEmpty("a pinned group is a fixed point, not a pin/placement fight");
+    }
 }
 
