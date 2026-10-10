@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using JasperFx.CodeGeneration;
@@ -447,7 +448,21 @@ public static class SliceScaffolder
                     foreach (var view in slice.ReadModelTypes) _stateTypeNames.Add(view.Name);
                 }
             }
+
+            // Every slice, scaffolded or not: whatever starts a stream is the first event its aggregate
+            // and views see
+            foreach (var slice in model.Slices)
+            {
+                if (slice.StartsStream is not null) _startingEvents.AddRange(slice.EmittedEvents);
+            }
         }
+
+        // The events that start a stream: Apply methods for them come first, and a record builds itself
+        // from them with a static Create
+        private readonly List<TypeDescriptor> _startingEvents = new();
+
+        private bool isStarting(TypeDescriptor e)
+            => _startingEvents.Any(x => EventModelSliceDescriptor.SameType(x, e));
 
         public List<ScaffoldFile> Files { get; } = new();
         public List<ScaffoldNotice> Notices { get; } = new();
@@ -708,7 +723,8 @@ public static class SliceScaffolder
             {
                 returns.Add($"{emitted[0]}?");
                 shape.Add($"return new {emitted[0]}(...);   // or null when there is nothing to record");
-                shape.Add($"// If the stream may not exist yet, make the parameter {aggregateName}? -- [WriteModel] then does not require it");
+                shape.Add($"// If the stream may not exist yet, make the parameter {aggregateName}?");
+                shape.Add("// -- [WriteModel] then does not require it");
             }
             else if (emitted.Count > 0 && aggregateType is not null)
             {
@@ -861,6 +877,9 @@ public static class SliceScaffolder
                     .GroupBy(x => x.Name, StringComparer.Ordinal).Select(x => x.First())
                     .ToList();
 
+                // The events that start the stream come first, as they happen first
+                events = events.Where(isStarting).Concat(events.Where(e => !isStarting(e))).ToList();
+
                 var kind = state.IsView ? "view" : "aggregate";
                 var existing = _options.ResolveType(state.Type);
 
@@ -873,9 +892,20 @@ public static class SliceScaffolder
 
                     if (missing.Count == 0) continue;
 
-                    var signatures = string.Join("; ", missing.Select(e => isRecord(existing)
-                        ? $"public {existing.Name} Apply({e.Name} e)"
-                        : $"public void Apply({e.Name} e)"));
+                    // A record has nothing to fold its first event into, so it builds itself from that event
+                    // with a static Create: one for each event that starts its stream, or for the first event
+                    // it folds when none of them does
+                    var immutable = isRecord(existing);
+                    var starters = events.Where(isStarting).ToList();
+                    if (starters.Count == 0 && !hasCreate(existing)) starters.Add(events[0]);
+                    bool creates(TypeDescriptor e)
+                        => immutable && starters.Any(x => EventModelSliceDescriptor.SameType(x, e));
+
+                    var signatures = string.Join("; ", missing.Select(e => creates(e)
+                        ? $"public static {existing.Name} Create({e.Name} e)"
+                        : immutable
+                            ? $"public {existing.Name} Apply({e.Name} e)"
+                            : $"public void Apply({e.Name} e)"));
                     var path = _options.FindSourceFile(existing);
 
                     // GH-4898: the methods go INTO the existing class -- the import writes aggregates and
@@ -889,7 +919,6 @@ public static class SliceScaffolder
 
                         // A record's members are init-only, so its Apply returns the new state -- the
                         // immutable shape the stores fold a view or aggregate with -- rather than mutating
-                        var immutable = isRecord(existing);
                         foreach (var e in missing)
                         {
                             if (!first) members.BlankLine();
@@ -899,7 +928,14 @@ public static class SliceScaffolder
                             if (resolved?.Namespace is { } ns && ns != existing.Namespace) usings.Add(ns);
                             var name = resolved?.ShortNameInCode() ?? e.Name;
 
-                            if (immutable)
+                            if (creates(e))
+                            {
+                                usings.Add("System");
+                                members.Write($"BLOCK:public static {existing.ShortNameInCode()} Create({name} e)");
+                                members.WriteLine($"// TODO: build the {kind} from {name}, the first event it sees");
+                                members.WriteLine($"throw new NotImplementedException(\"TODO: {existing.ShortNameInCode()} from {name}\");");
+                            }
+                            else if (immutable)
                             {
                                 members.Write($"BLOCK:public {existing.ShortNameInCode()} Apply({name} e)");
                                 members.WriteLine($"// TODO: fold {name} into the {kind}, as a copy: this with {{ ... }}");
@@ -968,6 +1004,11 @@ public static class SliceScaffolder
             Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
         private static bool isRecord(Type type) => type.GetMethod("<Clone>$") is not null;
 
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static bool hasCreate(Type type)
+            => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Any(x => x.Name == "Create");
+
         private void add(string subject, string path, SliceFile file, string? note = null)
         {
             Files.Add(new ScaffoldFile(path, file.Render()));
@@ -999,14 +1040,41 @@ public static class SliceScaffolder
             var oneLine = $"{method}({string.Join(", ", parameters)})";
             if (parameters.Count < 2 || oneLine.Length <= MaxSignatureLength) return "BLOCK:" + oneLine;
 
+            // A parameter still too long for its own line puts its attribute on the line above -- and then
+            // every attributed parameter does, so the signature reads one way
+            var splitAttributes = parameters.Any(x => attributeLength(x) > 0 && 4 + x.Length + 1 > MaxSignatureLength);
+
             var lines = new List<string> { method + "(" };
             for (var i = 0; i < parameters.Count; i++)
             {
                 var last = i == parameters.Count - 1;
-                lines.Add((last ? "BLOCK:" : "") + "    " + parameters[i] + (last ? ")" : ","));
+                var parameter = parameters[i];
+                var attribute = splitAttributes ? attributeLength(parameter) : 0;
+                if (attribute > 0)
+                {
+                    lines.Add("    " + parameter[..attribute]);
+                    parameter = parameter[attribute..].TrimStart();
+                }
+
+                lines.Add((last ? "BLOCK:" : "") + "    " + parameter + (last ? ")" : ","));
             }
 
             return string.Join("\n", lines);
+        }
+
+        // The length of a parameter's leading [Attribute(...)], or 0 when it has none
+        private static int attributeLength(string parameter)
+        {
+            if (!parameter.StartsWith('[')) return 0;
+
+            var depth = 0;
+            for (var i = 0; i < parameter.Length; i++)
+            {
+                if (parameter[i] == '[') depth++;
+                else if (parameter[i] == ']' && --depth == 0) return i + 1;
+            }
+
+            return 0;
         }
 
         // A 120-column margin, less the four columns of the method's indentation in its class
