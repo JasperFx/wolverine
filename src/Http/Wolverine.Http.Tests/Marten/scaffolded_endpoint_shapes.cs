@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
@@ -44,7 +45,12 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
 
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
-                q.Excludes.WithCondition("Not a scaffolded endpoint shape", type => !Endpoints.Contains(type)))));
+            {
+                // The shapes are [WolverineIgnore]d so no other host scanning this assembly, most of them
+                // without an event store, tries to compile them; a user include brings them back here
+                q.Includes.WithCondition("A scaffolded endpoint shape", type => Endpoints.Contains(type));
+                q.Excludes.WithCondition("Not a scaffolded endpoint shape", type => !Endpoints.Contains(type));
+            })));
     }
 
     public async ValueTask DisposeAsync()
@@ -145,7 +151,8 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
 
 // GH-4927: the HTTP endpoint shapes `wolverine scaffold` writes, filled in and run against a real host -- the
 // HTTP twin of scaffolded_handler_shapes. Each class is exactly what the scaffold writes for its slice, with
-// the TODO body replaced by the shape its comment gives.
+// the TODO body replaced by the shape its comment gives, plus the [WolverineIgnore] that keeps them out of
+// every other host in this assembly.
 
 public record OpenScaffoldLedger(string Name);
 public record NoteScaffoldLedger(Guid Id, string Note);
@@ -173,6 +180,7 @@ public class ScaffoldJournal
 }
 
 // A stream start: a 201 with the id the endpoint assigned (GH-4927)
+[WolverineIgnore]
 public static class OpenScaffoldLedgerEndpoint
 {
     [WolverinePost("/api/scaffold-shapes/open-scaffold-ledger")]
@@ -185,6 +193,7 @@ public static class OpenScaffoldLedgerEndpoint
 }
 
 // One event onto the stream it loads, guarded by Validate (GH-4889)
+[WolverineIgnore]
 public static class NoteScaffoldLedgerEndpoint
 {
     public static ProblemDetails Validate(NoteScaffoldLedger command, ScaffoldLedger scaffoldLedger)
@@ -199,6 +208,7 @@ public static class NoteScaffoldLedgerEndpoint
 }
 
 // A command deciding against two streams: one IEventStream<T> each (GH-4895)
+[WolverineIgnore]
 public static class NoteScaffoldBothEndpoint
 {
     public static ProblemDetails Validate(NoteScaffoldBoth command) => WolverineContinue.NoProblems;

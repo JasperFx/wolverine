@@ -39,7 +39,8 @@ public class event_model_scaffold_http_4832
                                    """.ReplaceLineEndings("\n"));
 
         var booking = plan.Files.Single(x => x.RelativePath.EndsWith("BookAppointment.cs")).Code;
-        booking.ShouldContain("public static StartStream Post(BookAppointmentRequest command)");
+        // GH-4927: an HTTP stream start answers 201 with the id the endpoint assigned
+        booking.ShouldContain("public static (CreationResponse<Guid>, StartStream) Post(BookAppointmentRequest command)");
 
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(x => !x.IsDynamic && !string.IsNullOrEmpty(x.Location))
