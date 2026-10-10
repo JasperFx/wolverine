@@ -151,7 +151,7 @@ public class kestrel_backed_request_bodies : IAsyncLifetime
     }
 
     [Fact]
-    public async Task an_optional_body_sent_chunked_with_zero_bytes_binds_null()
+    public async Task an_optional_body_sent_chunked_with_zero_bytes_is_a_400()
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/kestrel/optional-body")
         {
@@ -162,10 +162,10 @@ public class kestrel_backed_request_bodies : IAsyncLifetime
 
         using var response = await theClient.SendAsync(request, TestContext.Current.CancellationToken);
 
-        // Kestrel says CanHaveBody for a chunked request, so Wolverine peeks -- and finds nothing. Pinned
-        // as null rather than the 400 minimal APIs give here; see question 1 on GH-4935
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBe("no-body");
+        // Kestrel says CanHaveBody for a chunked request, so this is an EMPTY body rather than a missing
+        // one: it is read, there is no JSON in it, and the answer is the 400 minimal APIs give here.
+        // GH-4935, question 1, decided as minimal API parity
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
