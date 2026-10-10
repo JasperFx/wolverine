@@ -269,6 +269,36 @@ public class event_subscription_family_stale_agent_retirement
         => EventSubscriptionAgentFamily.UriFor(TheIdentity, TheDatabase,
             tenantId == null ? BaseShard : BaseShard.ForTenant(tenantId));
 
+    /// <summary>
+    /// The leader enumerates the family's agents and then asks it to distribute them, back to back, and the
+    /// retirement pass used to enumerate all over again: one usage descriptor per store per evaluation became
+    /// two, and for a master-table tenancy each one is a database round trip.
+    /// </summary>
+    [Fact]
+    public async Task an_evaluation_builds_each_stores_usage_once()
+    {
+        var store = Substitute.For<IEventStore>();
+        store.Identity.Returns(TheIdentity);
+        store.DatabaseCardinality.Returns(DatabaseCardinality.StaticMultiple);
+        store.DistributesAgentsPerTenant.Returns(true);
+        store.TryCreateUsage(Arg.Any<CancellationToken>()).Returns(Task.FromResult<EventStoreUsage?>(UsageWith("t1", "t2")));
+        var family = new EventSubscriptionAgentFamily(new[] { store }, Array.Empty<IObserver<ShardState>>());
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+
+        // As NodeAgentController.EvaluateAssignmentsAsync drives a family
+        grid.WithAgents((await family.AllKnownAgentsAsync()).ToArray());
+        await family.EvaluateAssignmentsAsync(grid);
+
+        await store.Received(1).TryCreateUsage(Arg.Any<CancellationToken>());
+        grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
+
+        // Driven on its own, the family still enumerates for itself
+        await family.EvaluateAssignmentsAsync(grid);
+        await store.Received(2).TryCreateUsage(Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task running_store_global_agent_is_stopped_when_the_database_gains_its_first_tenants()
     {

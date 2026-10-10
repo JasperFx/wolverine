@@ -114,6 +114,8 @@ public class fleet_scale_scenarios
             }
         }
 
+        public int PeakOn(Guid node) => _peak.GetValueOrDefault(node);
+
         public void AssertNoPileUp(int slack, string step)
         {
             foreach (var node in _cluster.NodeIds)
@@ -237,6 +239,73 @@ public class fleet_scale_scenarios
     }
 
     /// <summary>
+    ///     GH-4569, the 6.48.2 measurement: the first node of a cold cluster took 37,310 of 37,388 agents before any
+    ///     peer registered, and every peer was then served out of the first node's lane as a stop-then-start. The
+    ///     first node holds its placement back for an evaluation, which is enough for pods that start together.
+    /// </summary>
+    [Fact]
+    public async Task a_cold_start_with_staggered_joins_does_not_pile_onto_the_first_node()
+    {
+        var fleet = Ci;
+        await using var cluster = coldFirstNode(fleet);
+        var first = cluster.LeaderNodeId;
+
+        var watch = new Watch(cluster);
+        watch.Begin();
+
+        // Alone: the first evaluation places nothing
+        await cluster.RunRoundAsync();
+        cluster.InFlightStarts.ShouldBe(0, "the lone first node holds its placement back");
+        cluster.RunningAgents.ShouldBeEmpty();
+
+        // The rest of the deployment registers before the next evaluation
+        var blue = uris(fleet.Declared("v30"));
+        for (var i = 0; i < 4; i++) cluster.AddNode(blue);
+
+        await convergeAsync(cluster, fleet, "cold start");
+
+        var share = (int)Math.Ceiling(blue.Length / 5.0);
+        watch.PeakOn(first).ShouldBeLessThanOrEqualTo(share + fleet.GroupSize, "the first node only ever ran its share");
+    }
+
+    /// <summary>
+    ///     The same start without the hold, pinned so the cost it prevents stays visible: the first node runs far
+    ///     more than its share before the others get anything.
+    /// </summary>
+    [Fact]
+    public async Task without_the_cold_start_hold_the_first_node_takes_everything()
+    {
+        var fleet = Ci;
+        await using var cluster = coldFirstNode(fleet);
+        cluster.Options.Durability.LeaderColdStartHoldEvaluations = 0;
+        var first = cluster.LeaderNodeId;
+
+        var watch = new Watch(cluster);
+        watch.Begin();
+
+        await cluster.RunRoundAsync();
+        cluster.InFlightStarts.ShouldBeGreaterThan(0);
+
+        var blue = uris(fleet.Declared("v30"));
+        for (var i = 0; i < 4; i++) cluster.AddNode(blue);
+        await convergeAsync(cluster, fleet, "cold start without the hold");
+
+        var share = (int)Math.Ceiling(blue.Length / 5.0);
+        watch.PeakOn(first).ShouldBeGreaterThan(2 * share, "the first node started far more than its eventual share");
+    }
+
+    // A cold cluster whose first node comes up alone and starts agents fast relative to its peers registering:
+    // a chunk the size of a whole fleet's share lands in a round, as the field's 2,500-agent batches do.
+    private static SimulatedCluster coldFirstNode(Fleet fleet)
+    {
+        var cluster = new SimulatedCluster(nodeCount: 1, familyFor(fleet.Declared("v30")), seed: 4569);
+        cluster.UseDispatcherLanes();
+        cluster.Options.Durability.AgentStartBatchSize = 6 * fleet.StartBatchSize;
+        cluster.Options.Durability.MaxAgentStartParallelism = 6 * fleet.StartBatchSize;
+        return cluster;
+    }
+
+    /// <summary>
     ///     GH-3959's shape during a warm-up: a green node dies while the wave is still landing. What it held has to
     ///     spread over the green nodes left, not pile onto one of them.
     /// </summary>
@@ -287,9 +356,12 @@ public class fleet_scale_scenarios
     }
 
     /// <summary>
-    ///     The same with the default one-evaluation hold, which a start lasting several evaluations outlives: the
-    ///     successor starts some agents a second time, and GH-2602 stops the older copies once both are visible.
-    ///     Pinned so the cost of the default stays visible; it is not a goal.
+    ///     The same with the default one-evaluation hold, which a start lasting several evaluations outlives.
+    ///     This used to pin the cost of the default: the successor started some agents a second time and GH-2602
+    ///     stopped the older copies once both were visible. Since GH-3987 a partition keeps the node already
+    ///     running most of it, so the starts the dead leader left in flight land where the successor places the
+    ///     rest of their database and nothing runs twice on this shape. Whatever a future shape costs, the
+    ///     invariant is that duplicates never survive convergence.
     /// </summary>
     [Fact]
     public async Task the_leader_dying_mid_warm_up_with_the_default_hold_heals_its_duplicates()
@@ -299,9 +371,9 @@ public class fleet_scale_scenarios
         (await cluster.RunUntilConvergedAsync(40)).ShouldBeLessThan(40, cluster.Describe());
         cluster.RunningAgents.Count.ShouldBe(cluster.AllAgents.Length);
 
-        cluster.DoubleStartReports.ShouldNotBeEmpty();
         cluster.DuplicateCopies.ShouldBe(0);
-        cluster.StopsEmitted.ShouldBeGreaterThan(0, "those are the duplicate stops");
+        cluster.DoubleStartReports.ShouldBeEmpty(
+            "the in-flight starts land on the node the successor keeps their database on, so nothing starts twice");
     }
 
     private const int StartRounds = 2;

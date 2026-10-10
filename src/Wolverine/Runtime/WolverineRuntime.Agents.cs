@@ -460,6 +460,10 @@ public partial class WolverineRuntime : IAgentRuntime
             // NodeAgentController.PendingDispatches.
             NodeController.PendingDispatches = _dispatcher.TryFindPendingDestination;
 
+            // A node that has left the cluster takes its lane with it: nothing queued there can succeed, and
+            // a command executing against it would otherwise wait out its whole reply window.
+            NodeController.NodeDeparted = _dispatcher.AbandonLane;
+
             // GH-4734: registration itself moved ahead of the transports (see registerLocalNodeAsync), but
             // anything it asks to be PUBLISHED has to wait until there is a transport to publish over.
             foreach (var command in _startupAgentCommands ?? AgentCommands.Empty)
@@ -576,6 +580,7 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         controller.PendingDispatches = null;
+        controller.NodeDeparted = null;
 
         var deferredWork = controller.TakeDeferredWork();
         if (deferredWork != null)
@@ -615,6 +620,7 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         controller.PendingDispatches = null;
+        controller.NodeDeparted = null;
 
         var deferredWork = controller.TakeDeferredWork();
         if (deferredWork != null)

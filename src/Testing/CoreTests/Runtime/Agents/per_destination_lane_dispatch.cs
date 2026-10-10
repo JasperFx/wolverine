@@ -361,6 +361,93 @@ public class per_destination_lane_dispatch
         never.SetResult();
     }
 
+    /// <summary>
+    /// PR #4537's finding. A reassignment runs in its SOURCE's lane and waits for the stop to be confirmed; a
+    /// node that was killed confirms nothing, so the lane sat out the whole reply window while the dispatcher
+    /// reported the agents as still moving and the leader's ledger held them there. Once the node is known to
+    /// have left, its lane is abandoned: the executing command is cancelled, what was queued behind it is
+    /// dropped, every claim is released, and a node returning under the same id gets a fresh lane.
+    /// </summary>
+    [Fact]
+    public async Task abandoning_a_departed_nodes_lane_cancels_its_work_and_frees_its_agents()
+    {
+        var log = new ConcurrentQueue<string>();
+        var running = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blocked = 0;
+
+        static string name(IAgentCommand command) => command switch
+        {
+            ReassignAgents move => $"move:{move.AgentUris[0]}",
+            AssignAgents start => $"start:{start.AgentIds[0]}",
+            _ => command.GetType().Name
+        };
+
+        var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            log.Enqueue($"enter:{name(command)}");
+
+            // The first command into node A's lane is a stop against a node that will never answer. It honours
+            // the token, as AgentWorkConfirmation's polling does.
+            if (command.DestinationNodeId == NodeA && Interlocked.CompareExchange(ref blocked, 1, 0) == 0)
+            {
+                running.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    cancelled.TrySetResult();
+                    throw;
+                }
+            }
+
+            log.Enqueue($"exit:{name(command)}");
+            return AgentCommands.Empty;
+        });
+
+        dispatcher.Enqueue(new ReassignAgents(destination(NodeA), destination(NodeB), [agent("a1"), agent("a2")]));
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("a3")]));
+        await running.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        dispatcher.TryFindPendingDestination(agent("a1"), out var movingTo).ShouldBeTrue();
+        movingTo.ShouldBe(NodeB);
+
+        dispatcher.AbandonLane(NodeA);
+        await cancelled.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // The lane lets go of everything it held, so the leader is free to re-place these agents
+        await waitUntilAsync(() => !dispatcher.TryFindPendingDestination(agent("a1"), out _));
+        dispatcher.TryFindPendingDestination(agent("a2"), out _).ShouldBeFalse();
+        dispatcher.TryFindPendingDestination(agent("a3"), out _).ShouldBeFalse();
+        dispatcher.InFlightAgents.ShouldBeEmpty();
+        dispatcher.LaneCount.ShouldBe(0);
+
+        // What was queued behind the cancelled command never runs
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        log.ShouldNotContain($"enter:start:{agent("a3")}");
+
+        // The node comes back under the same id: a fresh lane works its queue
+        dispatcher.Enqueue(new AssignAgents(destination(NodeA), [agent("a4")]));
+        await waitUntilAsync(() => log.Contains($"exit:start:{agent("a4")}"));
+        dispatcher.LaneCount.ShouldBe(1);
+    }
+
+    private static async Task waitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow > deadline)
+            {
+                throw new TimeoutException("The condition was not met in time");
+            }
+
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+    }
+
     private static async Task withLaneShutdownTimeout(TimeSpan timeout, Func<Task> action)
     {
         var previous = AgentCommandDispatcher.LaneShutdownTimeout;

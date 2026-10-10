@@ -392,6 +392,47 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         o.Durability.StaleNodeTimeout = 15.Minutes();
     }
 
+    /// <summary>
+    /// GH-4569. A node configured as not eligible for leadership runs agents like any other but never takes
+    /// the leadership lock, even when it is the one prodded after the leader goes stale; an eligible peer does.
+    /// </summary>
+    [Fact]
+    public async Task a_node_that_is_not_eligible_for_leadership_never_takes_it()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var ineligible = await startHostAsync(o =>
+        {
+            ConfigureSlowHeartbeat(o);
+            o.Durability.LeadershipEligible = false;
+        });
+        var eligible = await startHostAsync(ConfigureSlowHeartbeat);
+
+        // It still takes its share of the agents
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 4);
+            w.ExpectRunningAgents(ineligible, 4);
+            w.ExpectRunningAgents(eligible, 4);
+        }, 30.Seconds());
+
+        await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
+
+        // Prodded first, the ineligible node declines the vacant leadership
+        await ineligible.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await ineligible.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        ineligible.GetRuntime().IsLeader().ShouldBeFalse();
+
+        await eligible.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await eligible.WaitUntilAssumesLeadershipAsync(15.Seconds());
+
+        await eligible.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(ineligible, 6);
+            w.ExpectRunningAgents(eligible, 6);
+        }, 30.Seconds());
+    }
+
     [Fact]
     public async Task leader_switchover_between_nodes()
     {
