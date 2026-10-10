@@ -153,3 +153,29 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
         report.Cells.ShouldContain(x => x.Name == "response" && x.DisplayText.Contains("Confirmed"));
     }
 }
+
+// GH-4931: an endpoint's own events are what it committed with no envelope; anything it cascades is not
+[Collection(nameof(AppCollection))]
+public class the_endpoints_own_events(AppHost app) : WolverineHttpSpec(app.Host)
+{
+    [Fact]
+    public async Task then_events_is_the_endpoints_own_and_its_cascades_events_are_not()
+    {
+        var theAppointment = Guid.NewGuid();
+        await GivenEvents<Appointment>(theAppointment, new AppointmentScheduled(theAppointment, "Ann"));
+
+        await WhenPosted(new RemindPatient(theAppointment));
+
+        ThenEvents(new PatientReminded(theAppointment));
+        ThenEventsOn<Appointment>(theAppointment, new PatientReminded(theAppointment), new ReminderLogged(theAppointment));
+    }
+
+    [Fact]
+    public async Task a_stream_the_endpoint_started_is_named_by_the_id_it_assigned()
+    {
+        await WhenPosted(new BookAppointment("Ann"));
+
+        var theAppointment = TheStartedStream<Appointment>();
+        ThenEvents(new AppointmentScheduled(theAppointment, "Ann"));
+    }
+}

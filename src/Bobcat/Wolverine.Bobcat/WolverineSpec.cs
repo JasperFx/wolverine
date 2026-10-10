@@ -200,6 +200,12 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.TheAggregate{T}(string)" />
     public Task<T?> TheAggregate<T>(string key) where T : class => Scenario.TheAggregate<T>(key);
 
+    /// <inheritdoc cref="WolverineScenario.TheStartedStream{TAggregate}()" />
+    public Guid TheStartedStream<TAggregate>() where TAggregate : class => Scenario.TheStartedStream<TAggregate>();
+
+    /// <inheritdoc cref="WolverineScenario.TheStartedStreamKey{TAggregate}()" />
+    public string TheStartedStreamKey<TAggregate>() where TAggregate : class => Scenario.TheStartedStreamKey<TAggregate>();
+
     /// <inheritdoc cref="WolverineScenario.ThenRefusedWith(string)" />
     public void ThenRefusedWith(string reason) => Scenario.ThenRefusedWith(reason);
 

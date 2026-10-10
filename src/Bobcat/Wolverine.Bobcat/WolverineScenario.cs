@@ -13,7 +13,10 @@ namespace Wolverine.Bobcat;
 /// What one act did: the tracked session, the events it appended, and how it failed or was refused.
 /// </summary>
 /// <param name="Session">The tracked session, when the act got as far as completing one.</param>
-/// <param name="NewEvents">The events the act appended — the arranged stream's delta, or, with no stream arranged, everything the store issued after the act began.</param>
+/// <param name="NewEvents">
+/// The events the act itself appended (GH-4931): what the sessions handling the act's own message, or its
+/// HTTP request, committed. A cascade's events are in <see cref="AllNewEvents" />, not here.
+/// </param>
 /// <param name="Error">The exception the act raised or a handler threw, when there was one.</param>
 /// <param name="Refusal">A refusal that is an answer rather than a failure — an HTTP endpoint's 4xx body. A bus-dispatched command refuses by throwing, which is <paramref name="Error" />.</param>
 public sealed record ActOutcome(
@@ -26,11 +29,21 @@ public sealed record ActOutcome(
     public static readonly ActOutcome None = new(null, Array.Empty<IEvent>(), null);
 
     /// <summary>
-    /// GH-4920. Every event the act appended, on any stream, in sequence order: everything the store issued
-    /// after the high-water sequence recorded just before the act. What a stream already held never counts,
-    /// whoever arranged it, so <c>ThenEventsOn</c> checks only what the act added to that stream.
+    /// GH-4920 / GH-4931. Every event appended while the act ran, on any stream, its cascades' included, in
+    /// commit order: what the tracked session heard each event-store session commit. What a stream already
+    /// held never counts, whoever arranged it, and neither does anything concurrent work appended, so
+    /// <c>ThenEventsOn</c> checks only what the act added to that stream.
     /// </summary>
     public IReadOnlyList<IEvent> AllNewEvents { get; init; } = Array.Empty<IEvent>();
+
+    /// <summary>
+    /// GH-4931. Each event-store session that committed while the act ran, with the message it was handling,
+    /// which says whose events are whose.
+    /// </summary>
+    public IReadOnlyList<AppendedEvents> Appended { get; init; } = Array.Empty<AppendedEvents>();
+
+    /// <summary>GH-4931. The streams the act itself started, with the ids its handler assigned.</summary>
+    public IReadOnlyList<StreamAction> StartedStreams { get; init; } = Array.Empty<StreamAction>();
 }
 
 /// <summary>
@@ -64,6 +77,20 @@ public class WolverineScenario
     private readonly string? _storeName;
     private IEventStore? _store;
     private object? _stream;
+
+    // GH-4931: the message an act dispatches -- built from a partial object, so not always the object the
+    // step was given -- which is how its own events are told from its cascades'
+    private object? _dispatched;
+
+    // An act whose own work runs with no envelope at all -- an HTTP request -- so only its envelope-less
+    // commits are its own, never a cascade's
+    private static readonly object NoMessage = new();
+
+    /// <summary>
+    /// GH-4931. The next act reaches the application with no message of its own, such as an HTTP request:
+    /// only what is committed outside any message handler is its own, and every cascade's events are not.
+    /// </summary>
+    protected internal void NextActDispatchesNoMessage() => _dispatched = NoMessage;
 
     /// <param name="host">The application under test.</param>
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
@@ -296,6 +323,7 @@ public class WolverineScenario
     {
         // Built before the act, so a partial object the type cannot take fails the spec, not the act
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is received");
+        _dispatched = built;
         return ActAsync("{0} is received", message,
             tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(built));
     }
@@ -305,6 +333,7 @@ public class WolverineScenario
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
     {
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is published");
+        _dispatched = built;
         return ActAsync("{0} is published", message,
             tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(built));
     }
@@ -359,10 +388,9 @@ public class WolverineScenario
 
         HandlerWarmUp.WarmBeforeTracking(Host);
 
-        var store = hasStore() ? Store : null;
-        // GH-4920: always the floor, so every stream's share of the act is known, not only the arranged one's
-        long? floor = store is not null ? await EventStores.HighWaterSequenceAsync(store) : null;
-        var before = store is not null && _stream is not null ? await fetchAsync(store, _stream) : Array.Empty<IEvent>();
+        // GH-4931: claimed before the act, so a step that throws before dispatching leaves nothing behind
+        var dispatched = _dispatched;
+        _dispatched = null;
 
         var tracking = Host.TrackActivity().Timeout(Timeout).DoNotAssertOnExceptionsDetected();
         if (IncludeExternalTransports) tracking = tracking.IncludeExternalTransports();
@@ -379,17 +407,19 @@ public class WolverineScenario
             error = e;
         }
 
-        IReadOnlyList<IEvent> appended = Array.Empty<IEvent>();
-        IReadOnlyList<IEvent> all = Array.Empty<IEvent>();
-        if (store is not null)
-        {
-            all = await EventStores.QueryEventsSinceAsync(store, floor!.Value + 1);
-            appended = _stream is not null
-                ? (await fetchAsync(store, _stream)).Skip(before.Count).ToList()
-                : all;
-        }
+        // GH-4931: what the act appended is what the tracked session heard each event-store session commit --
+        // never read back from the store, so concurrent work is never counted and the events keep their tags
+        var commits = session?.AppendedEvents ?? Array.Empty<AppendedEvents>();
+        var own = commits.Where(x => isTheActsOwn(x, dispatched)).ToList();
+        var appended = own.SelectMany(x => x.Events).ToList();
+        var all = commits.SelectMany(x => x.Events).ToList();
 
-        var outcome = new ActOutcome(session, appended, error) { AllNewEvents = all };
+        var outcome = new ActOutcome(session, appended, error)
+        {
+            AllNewEvents = all,
+            Appended = commits,
+            StartedStreams = own.SelectMany(x => x.StartedStreams).ToList()
+        };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
 
@@ -406,6 +436,12 @@ public class WolverineScenario
         string key => EventStores.FetchStreamAsync(store, key),
         _ => throw new ArgumentOutOfRangeException(nameof(id), $"A stream is identified by a Guid or a string, not a {id.GetType().Name}")
     };
+
+    // GH-4931: the act's own commits are those of the sessions that handled the act itself. An HTTP endpoint
+    // has no envelope; a dispatched message is its envelope's message, and a cascade's envelope carries a
+    // message of its own. An act that dispatches nothing Bobcat can see -- WhenTracked -- owns everything.
+    private static bool isTheActsOwn(AppendedEvents commit, object? dispatched)
+        => dispatched is null || commit.Envelope is null || ReferenceEquals(commit.Envelope.Message, dispatched);
 
     // ---- assert: events ----------------------------------------------------------------------
 
@@ -604,6 +640,33 @@ public class WolverineScenario
 
     /// <inheritdoc cref="TheAggregate{T}(Guid)" />
     public Task<T?> TheAggregate<T>(string key) where T : class => EventStores.AggregateStreamAsync<T>(Store, key);
+
+    /// <summary>
+    /// GH-4931. The id the last act's handler assigned to the <typeparamref name="TAggregate" /> stream it
+    /// started -- for a command that starts a stream, whose id a spec cannot know before the act. Read from
+    /// what the act's own session committed, so a stream a cascade started is not it.
+    /// </summary>
+    /// <exception cref="SpecCriticalException">The act started no such stream, or more than one.</exception>
+    public Guid TheStartedStream<TAggregate>() where TAggregate : class => startedStream(typeof(TAggregate)).Id;
+
+    /// <inheritdoc cref="TheStartedStream{TAggregate}()" />
+    public string TheStartedStreamKey<TAggregate>() where TAggregate : class
+        => startedStream(typeof(TAggregate)).Key
+           ?? throw new SpecCriticalException($"The {typeof(TAggregate).Name} stream the act started is identified by a Guid, not a string key. Use TheStartedStream<{typeof(TAggregate).Name}>().");
+
+    private StreamAction startedStream(Type aggregate)
+    {
+        // A stream started with no aggregate type (Storage.StartStream with events only) can still be the one
+        var started = LastAct.StartedStreams.Where(x => x.AggregateType is null || x.AggregateType == aggregate).ToList();
+        return started.Count switch
+        {
+            1 => started[0],
+            0 => throw new SpecCriticalException(LastAct.StartedStreams.Count == 0
+                ? $"The act started no {aggregate.Name} stream; it started no stream at all."
+                : $"The act started no {aggregate.Name} stream. It started: {string.Join(", ", LastAct.StartedStreams.Select(x => x.AggregateType?.Name ?? "(no aggregate type)"))}."),
+            _ => throw new SpecCriticalException($"The act started {started.Count} {aggregate.Name} streams, so there is no one id to name.")
+        };
+    }
 
     // ---- assert: refusals --------------------------------------------------------------------
 

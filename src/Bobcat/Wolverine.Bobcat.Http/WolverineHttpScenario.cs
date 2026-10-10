@@ -59,6 +59,9 @@ public class WolverineHttpScenario : WolverineScenario
         LastResponse = null;
         string? responseBody = null;
 
+        // GH-4931: the endpoint's own commits have no envelope; anything it cascades does
+        NextActDispatchesNoMessage();
+
         // {0} is the command, described in full when it fits; the route is escaped out of the format
         await ActAsync($"{{0}} is posted to \"{route.Replace("{", "{{").Replace("}", "}}")}\"", command,
             tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
