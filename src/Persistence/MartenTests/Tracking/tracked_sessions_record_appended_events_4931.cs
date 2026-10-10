@@ -125,16 +125,18 @@ public class tracked_sessions_record_appended_events_4931 : PostgresqlContext, I
         var start = await _host.InvokeMessageAndWaitAsync(new StartTrip4931(new DriverId4931(Guid.NewGuid())));
         var tripId = start.AppendedEvents.Single().StartedStreams.Single().Id;
 
+        // Unique per run: the schema keeps every earlier run's events
+        var correlationId = $"the-trip-test-{Guid.NewGuid():N}";
         var session = await _host.TrackActivity()
-            .WithCorrelationId("the-trip-test")
+            .WithCorrelationId(correlationId)
             .InvokeMessageAndWaitAsync(new CompleteTrip4931(tripId));
 
         session.AppendedEvents.SelectMany(x => x.Events).Select(x => x.CorrelationId)
-            .ShouldBe(["the-trip-test", "the-trip-test"]);
+            .ShouldBe([correlationId, correlationId]);
 
         // ... and it is in the store, to be queried by
         await using var query = _host.DocumentStore().QuerySession();
-        var stored = await query.Events.QueryAllRawEvents().Where(x => x.CorrelationId == "the-trip-test")
+        var stored = await query.Events.QueryAllRawEvents().Where(x => x.CorrelationId == correlationId)
             .ToListAsync(TestContext.Current.CancellationToken);
         stored.Count.ShouldBe(2);
     }
