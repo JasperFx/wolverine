@@ -38,3 +38,25 @@ With `NamingSource.FromHandlerType`, each handler class gets its own dedicated S
 This ensures that each handler independently receives a copy of every message. Outgoing queue names are still derived
 from the message type.
 
+## Separated Handler Behavior <Badge type="tip" text="6.49" />
+
+With `MultipleHandlerBehavior.Separated`, every handler of a message type past the first is its own handler
+chain with its own listener. SQS has no exchange or topic to fan a message out from, so the convention does the
+fan-out at the sender:
+
+* the first handler keeps the message type's own queue;
+* every other handler listens on a queue named from the handler type, run through the transport's naming
+  rules (the same name RabbitMQ gives its per-handler queue);
+* the sender publishes the message to each of those queues.
+
+```csharp
+opts.UseAmazonSqsTransport()
+    .AutoProvision()
+    .UseConventionalRouting();
+
+opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+```
+
+The per-handler queues are known only to the process that holds those handlers. A publisher in another process
+publishes to the message type's queue alone, so the copies for the other handlers never happen. Fan-out across
+processes on AWS needs an [SNS topic](../sns) in front of the queues.
