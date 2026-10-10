@@ -32,6 +32,7 @@ public class tracked_sessions_record_appended_events_4931 : PostgresqlContext, I
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = "tracked_appends";
+                        m.Events.MetadataConfig.CausationIdEnabled = true;
                         m.Events.RegisterTagType<DriverId4931>();
                         m.Events.TagWith<TripStarted4931>(e => e.Driver);
                     })
@@ -102,7 +103,20 @@ public class tracked_sessions_record_appended_events_4931 : PostgresqlContext, I
         var @event = session.AppendedEvents.Single().Events.Single();
         @event.Tags.ShouldNotBeNull().ShouldContain(new EventTag(typeof(DriverId4931), driver));
     }
+
+    [Fact]
+    public async Task a_causation_id_sent_with_the_message_is_the_causation_of_the_events_it_appended()
+    {
+        // GH-4931: DeliveryOptions.CausationId is honored the same way on every store
+        var command = new StartTrip4931(new DriverId4931(Guid.NewGuid()));
+
+        var session = await _host.TrackActivity()
+            .SendMessageAndWaitAsync(command, new DeliveryOptions { CausationId = "the-booking-request" });
+
+        session.AppendedEvents.Single().Events.Single().CausationId.ShouldBe("the-booking-request");
+    }
 }
+
 
 public record struct DriverId4931(Guid Value);
 
