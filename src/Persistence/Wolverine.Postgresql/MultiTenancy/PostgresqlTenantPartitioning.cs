@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
@@ -26,7 +27,7 @@ public class PostgresqlTenantPartitioningProviderFactory : ITenantPartitioningPr
 ///     PostgreSQL partition-per-tenant: LIST partitioning on the tenant id column,
 ///     managed through Weasel's ManagedListPartitions control table
 /// </summary>
-internal class PostgresqlTenantPartitioning : ITenantPartitioning
+internal class PostgresqlTenantPartitioning : ITenantPartitioning, ITenantPartitionRebuilder
 {
     private readonly ManagedListPartitions _partitions;
     private readonly TenantPartitioningOptions _options;
@@ -166,5 +167,141 @@ internal class PostgresqlTenantPartitioning : ITenantPartitioning
             await _partitions.DropPartitionFromAllTablesForValue((PostgresqlDatabase)database, logger, tenantId,
                 token);
         }
+    }
+
+    // ---- GH-3541: enabling partitioning over an existing table -------------------------------
+
+    private IEnumerable<Table> managedTables(IDatabaseWithTables database)
+    {
+        return database.AllObjects().OfType<Table>()
+            .Where(x => x.Partitioning is ListPartitioning list && list.PartitionManager == _partitions);
+    }
+
+    public async Task<IReadOnlyList<UnpartitionedTable>> FindUnpartitionedTablesAsync(IDatabaseWithTables database,
+        CancellationToken token)
+    {
+        var list = new List<UnpartitionedTable>();
+
+        await using var conn = ((PostgresqlDatabase)database).CreateConnection();
+        await conn.OpenAsync(token);
+
+        foreach (var table in managedTables(database))
+        {
+            // relkind 'p' is a partitioned parent; 'r' is a plain table; no row means no table yet
+            await using var relkind = conn.CreateCommand(
+                "select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = :schema and c.relname = :name");
+            relkind.Parameters.AddWithValue("schema", table.Identifier.Schema);
+            relkind.Parameters.AddWithValue("name", table.Identifier.Name);
+
+            var kind = await relkind.ExecuteScalarAsync(token);
+            if (kind is not char c || c == 'p')
+            {
+                continue;
+            }
+
+            list.Add(await describeAsync(conn, table, token));
+        }
+
+        return list;
+    }
+
+    private async Task<UnpartitionedTable> describeAsync(NpgsqlConnection conn, Table table, CancellationToken token)
+    {
+        var qualified = PostgresqlObjectName.From(table.Identifier);
+        var tenantColumn = SchemaUtils.QuoteName(_options.TenantIdColumn);
+
+        var tenants = new List<string>();
+        long rows = 0;
+
+        await using var cmd = conn.CreateCommand(
+            $"select {tenantColumn}, count(*) from {qualified} group by {tenantColumn}");
+        await using var reader = await cmd.ExecuteReaderAsync(token);
+        while (await reader.ReadAsync(token))
+        {
+            if (!await reader.IsDBNullAsync(0, token))
+            {
+                tenants.Add(reader.GetString(0));
+            }
+
+            rows += reader.GetInt64(1);
+        }
+
+        return new UnpartitionedTable(table.Identifier, rows, tenants);
+    }
+
+    public string WriteRebuildScript(IDatabaseWithTables database, UnpartitionedTable unpartitioned)
+    {
+        var db = (PostgresqlDatabase)database;
+        var table = managedTables(database).Single(x => x.Identifier.QualifiedName == unpartitioned.Identifier.QualifiedName);
+
+        var original = PostgresqlObjectName.From(table.Identifier);
+        var backup = PostgresqlObjectName.From(backupNameFor(table.Identifier));
+
+        // The rebuilt table has exactly the columns the plain one had -- the partition column is
+        // the tenant id column every conjoined table already carries -- so the reload is a straight
+        // column-for-column copy. Quoted, because EF-mapped column names are not always lower case
+        var columns = table.Columns.Select(x => x.QuotedName).Join(", ");
+
+        var writer = new StringWriter();
+        writer.WriteLine($"-- GH-3541: rebuild {table.Identifier.QualifiedName} as a partitioned table, keeping its {unpartitioned.RowCount} rows");
+        writer.WriteLine($"create table {backup} as select * from {original};");
+        writer.WriteLine($"drop table {original} cascade;");
+        writer.WriteLine();
+
+        // The same definition that creates the table on a fresh database: the partitioned parent,
+        // one partition per registered tenant, then the indexes and foreign keys
+        table.WriteCreateStatement(db.Migrator, writer);
+
+        writer.WriteLine();
+        writer.WriteLine($"insert into {original} ({columns}) select {columns} from {backup};");
+        writer.WriteLine();
+        writer.WriteLine("-- Every row must have found a partition; a tenant without one fails the insert above, but belt and braces");
+        writer.WriteLine("do $$ begin");
+        writer.WriteLine($"  if (select count(*) from {original}) <> (select count(*) from {backup}) then");
+        writer.WriteLine($"    raise exception 'Row count mismatch after rebuilding {table.Identifier.QualifiedName} as partitioned; the original rows are still in {backup.QualifiedName}';");
+        writer.WriteLine("  end if;");
+        writer.WriteLine("end $$;");
+        writer.WriteLine($"drop table {backup} cascade;");
+
+        return writer.ToString();
+    }
+
+    public async Task RebuildAsync(ILogger logger, IDatabaseWithTables database, UnpartitionedTable table,
+        CancellationToken token)
+    {
+        var script = WriteRebuildScript(database, table);
+
+        await using var conn = ((PostgresqlDatabase)database).CreateConnection();
+        await conn.OpenAsync(token);
+        await using var tx = await conn.BeginTransactionAsync(token);
+
+        await using var cmd = conn.CreateCommand(script);
+        cmd.Transaction = tx;
+        await cmd.ExecuteNonQueryAsync(token);
+
+        await tx.CommitAsync(token);
+
+        logger.LogInformation("Rebuilt {Table} as a tenant-partitioned table, keeping {Rows} rows across tenants {Tenants}",
+            table.Identifier.QualifiedName, table.RowCount, table.TenantIds.Join(", "));
+    }
+
+    public async Task DropEmptyTableAsync(IDatabaseWithTables database, UnpartitionedTable table,
+        CancellationToken token)
+    {
+        if (table.RowCount != 0)
+        {
+            throw new InvalidOperationException(
+                $"{table.Identifier.QualifiedName} holds {table.RowCount} rows and cannot be dropped; rebuild it instead");
+        }
+
+        await using var conn = ((PostgresqlDatabase)database).CreateConnection();
+        await conn.OpenAsync(token);
+        await using var cmd = conn.CreateCommand($"drop table {PostgresqlObjectName.From(table.Identifier)} cascade;");
+        await cmd.ExecuteNonQueryAsync(token);
+    }
+
+    private static DbObjectName backupNameFor(DbObjectName identifier)
+    {
+        return new DbObjectName(identifier.Schema, identifier.Name + "_unpartitioned");
     }
 }

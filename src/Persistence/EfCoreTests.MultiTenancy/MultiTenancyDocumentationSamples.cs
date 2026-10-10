@@ -369,6 +369,29 @@ public class ConjoinedTenancyDocumentationSamples
         #endregion
     }
 
+    public static async Task rebuild_existing_tables(IHost host)
+    {
+        #region sample_conjoined_partitioning_rebuild_existing_tables
+
+        var partitions = host.Services
+            .GetRequiredService<IConjoinedTenantPartitions<ConjoinedTenancy.ConjoinedItemsDbContext>>();
+
+        // Which managed tables exist as plain, unpartitioned tables, with their row
+        // counts and the tenant ids found in their rows
+        var plain = await partitions.FindUnpartitionedTablesAsync();
+
+        // Rebuild each of them as a partitioned table, keeping every row: register
+        // the tenants found in the rows, then -- in one transaction per table -- copy
+        // the rows aside, drop the table, recreate it partitioned, reload the rows,
+        // and drop the copy. Run this while nothing is writing to those tables
+        var rebuilt = await partitions.RebuildUnpartitionedTablesAsync();
+
+        // Or take the DDL that would run, review it, and apply it yourself
+        var script = await partitions.WriteRebuildScriptAsync();
+
+        #endregion
+    }
+
     #region sample_conjoined_tenanted_entity
 
     // Implementing the JasperFx.MultiTenancy.ITenanted interface --

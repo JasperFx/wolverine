@@ -88,9 +88,15 @@ curl -s -X DELETE http://localhost:5581/tenants/globex
 ## Physical partitioning (optional)
 
 Uncomment `tenancy => tenancy.PartitionPerTenant()` in `Program.cs` and every
-non-saga `ITenanted` table becomes PostgreSQL LIST-partitioned per tenant,
+`ITenanted` table, sagas included, becomes PostgreSQL LIST-partitioned per tenant,
 managed by Weasel through the `wolverine_tenant_partitions` control table —
 adding/removing tenants through the `/tenants` endpoints creates/drops the
-partitions. No partition DDL in your migrations. (Drop the `invoicing` schema
-first when toggling this on an existing database — a plain table can't be
-converted to a partitioned one in place.)
+partitions. No partition DDL in your migrations.
+
+Toggling this on an existing database: a plain table can't be converted to a
+partitioned one in place. Empty tables are recreated partitioned at startup; a
+table with rows makes startup fail with `UnpartitionedTenantTableException`
+until you rebuild it through
+`IConjoinedTenantPartitions<InvoicingDbContext>.RebuildUnpartitionedTablesAsync()`
+(or apply the script from `WriteRebuildScriptAsync()`). For this sample, dropping
+the `invoicing` schema is the quick route.
