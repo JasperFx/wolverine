@@ -445,6 +445,19 @@ public class WolverineScenario
 
     // ---- assert: events ----------------------------------------------------------------------
 
+    // wolverine#4865: the tags each event was appended with -- strong-typed ids, as the store tagged them.
+    // Read from the events the act's sessions committed, so they are there; no store reads them back.
+    private static Func<object, IReadOnlyList<object>?> tagsOf(IReadOnlyList<IEvent> events)
+    {
+        var tags = new Dictionary<object, IReadOnlyList<object>>(ReferenceEqualityComparer.Instance);
+        foreach (var e in events)
+        {
+            tags[e.Data] = e.Tags?.Select(x => x.Value).ToArray() ?? Array.Empty<object>();
+        }
+
+        return data => tags.GetValueOrDefault(data);
+    }
+
     /// <summary>The act appended exactly these event types, in this order.</summary>
     public void ThenEvents(params Type[] events)
     {
@@ -515,7 +528,7 @@ public class WolverineScenario
         using var step = ScenarioRecorder.Step("Then", text);
         if (!actSucceeded()) return;
 
-        verifySet("event", LastAct.NewEvents.Select(x => x.Data).ToArray(), expected, mode);
+        verifySet("event", LastAct.NewEvents.Select(x => x.Data).ToArray(), expected, mode, tagsOf(LastAct.NewEvents));
     }
 
     private void verifyAbsent(object[] forbidden)
@@ -524,7 +537,8 @@ public class WolverineScenario
             $"{describeTypes(forbidden.Select(PartialMatching.ExpectedType).ToArray())} {(forbidden.Length == 1 ? "is" : "are")} not emitted");
         if (!actSucceeded()) return;
 
-        var run = ObjectSetVerification.Absent(LastAct.NewEvents.Select(x => x.Data).ToArray(), forbidden, "event");
+        var run = ObjectSetVerification.Absent(LastAct.NewEvents.Select(x => x.Data).ToArray(), forbidden, "event",
+            tagsOf(LastAct.NewEvents));
         if (Verdicts.Recording) run.Report(null);
 
         Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")));
@@ -577,7 +591,7 @@ public class WolverineScenario
             return;
         }
 
-        verifySet("event", onStream, expected, SetMode.Ordered);
+        verifySet("event", onStream, expected, SetMode.Ordered, tagsOf(LastAct.AllNewEvents));
     }
 
     private static bool isOn(IEvent @event, object id) => id switch
@@ -1191,9 +1205,12 @@ public class WolverineScenario
     /// ORDER — rather than a positional comparison that reads one missing
     /// event as every later one wrong.
     /// </summary>
-    private void verifySet(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected, SetMode mode)
+    private void verifySet(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected, SetMode mode,
+        Func<object, IReadOnlyList<object>?>? tags = null)
     {
-        var run = ObjectSetVerification.Verify(actual, expected, noun, mode);
+        var run = tags is null
+            ? ObjectSetVerification.Verify(actual, expected, noun, mode)
+            : ObjectSetVerification.Verify(actual, expected, noun, mode, tags);
 
         if (Verdicts.Recording) run.Report(null);
 

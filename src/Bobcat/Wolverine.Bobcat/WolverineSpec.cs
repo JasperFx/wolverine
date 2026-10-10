@@ -80,6 +80,13 @@ public abstract class WolverineSpec
     public static Specified<T> Specify<T>(params System.Linq.Expressions.Expression<Action<T>>[] checks)
         => Specifications.Specify(checks);
 
+    /// <summary>
+    /// A whole event expected with exactly these Dynamic Consistency Boundary tags, in any order
+    /// (wolverine#4865): <c>ThenEvents(Tagged(new SeatReserved(theScreeningId, "4C"), theScreeningId, theCustomerId))</c>.
+    /// A partial one says its tags itself: <c>Specify&lt;SeatReserved&gt;().Tagged(theScreeningId)</c>.
+    /// </summary>
+    public static TaggedValue Tagged(object value, params object[] tags) => Specifications.Tagged(value, tags);
+
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public ActOutcome LastAct => Scenario.LastAct;
 
