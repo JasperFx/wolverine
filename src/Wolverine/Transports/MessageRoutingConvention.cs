@@ -212,26 +212,25 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
 
     IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
-        var endpoint = tryRegisterSenderConfiguration(messageType, runtime);
-        if (endpoint == null)
-        {
-            yield break;
-        }
+        var endpoints = tryRegisterSenderConfiguration(messageType, runtime);
 
-        // Description passes (FindResources / describe) run before any broker connection
-        // exists, and routes built there tolerate a null Sender and are never cached
-        // (GH-2897) — so don't force the agent here, where it would open a broker
-        // connection during resource discovery or throw (e.g. RabbitMQ's SendingConnection).
-        if (WolverineSystemPart.WithinDescription)
+        foreach (var endpoint in endpoints)
         {
-            yield return endpoint;
-            yield break;
-        }
+            // Description passes (FindResources / describe) run before any broker connection
+            // exists, and routes built there tolerate a null Sender and are never cached
+            // (GH-2897) — so don't force the agent here, where it would open a broker
+            // connection during resource discovery or throw (e.g. RabbitMQ's SendingConnection).
+            if (WolverineSystemPart.WithinDescription)
+            {
+                yield return endpoint;
+                continue;
+            }
 
-        // This will start up the sending agent. Only safe to call once the broker
-        // transport has been initialized (i.e. the sending connection is open).
-        var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
-        yield return sendingAgent.Endpoint;
+            // This will start up the sending agent. Only safe to call once the broker
+            // transport has been initialized (i.e. the sending connection is open).
+            var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
+            yield return sendingAgent.Endpoint;
+        }
     }
 
     void IMessageRoutingConvention.PreregisterSenders(IReadOnlyList<Type> handledMessageTypes, IWolverineRuntime runtime)
@@ -259,33 +258,103 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
     }
 
     /// <summary>
-    /// Locate or create the subscriber endpoint for <paramref name="messageType"/>, register
-    /// the subscription and apply <see cref="_configureSending"/> exactly once per message
-    /// type. Returns the endpoint, or null if filtering rules say this convention should
-    /// not produce a sender for the message type. Does NOT build the sending agent — that
-    /// is the caller's responsibility (and only safe once the broker is connected).
+    /// GH-4524 / GH-4525. The destinations a convention publishes <paramref name="messageType"/> to IN
+    /// ADDITION to the one <see cref="FindOrCreateSubscriber"/> names. A transport whose destination fans
+    /// out by itself -- a RabbitMQ exchange, an Azure Service Bus topic, an SNS topic -- never needs this:
+    /// one destination, and the broker delivers to every queue or subscription behind it. A transport whose
+    /// destination is a plain queue has nothing to fan out with, so under
+    /// <see cref="MultipleHandlerBehavior.Separated"/> the sender itself has to publish to one queue per
+    /// separated handler; <see cref="SeparatedHandlerTypesFor"/> names those handlers. Each endpoint returned
+    /// here is registered, configured and routed exactly like the primary one. Empty by default.
     /// </summary>
-    private Endpoint? tryRegisterSenderConfiguration(Type messageType, IWolverineRuntime runtime)
+    protected virtual IEnumerable<(TSubscriber, Endpoint)> FindOrCreateAdditionalSubscribers(string identifier,
+        TTransport transport, Type messageType, IWolverineRuntime runtime)
+    {
+        yield break;
+    }
+
+    /// <summary>
+    /// GH-4524 / GH-4525. Whether the sender should publish <paramref name="messageType"/> to the message
+    /// type's own destination at all. True by default. A queue-only transport under
+    /// <see cref="MultipleHandlerBehavior.Separated"/> returns false when every local handler was moved to a
+    /// per-handler queue and nothing listens on the message type's queue any more -- publishing there would
+    /// pile up copies nobody consumes. The destinations from <see cref="FindOrCreateAdditionalSubscribers"/>
+    /// are unaffected.
+    /// </summary>
+    protected virtual bool ShouldPublishToConventionalDestination(string identifier, TTransport transport,
+        Type messageType, IWolverineRuntime runtime)
+    {
+        return true;
+    }
+
+    /// <summary>
+    /// True when <see cref="MultipleHandlerBehavior.Separated"/> moved EVERY local handler of
+    /// <paramref name="messageType"/> to its own listener, leaving the message type's own destination with no
+    /// listener in this process. Mirrors the test <c>DiscoverListeners</c> makes before creating that listener.
+    /// </summary>
+    protected static bool EveryHandlerIsSeparated(Type messageType, IWolverineRuntime runtime)
+    {
+        if (runtime.Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        {
+            return false;
+        }
+
+        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+        return chain != null && !chain.Handlers.Any() && chain.ByEndpoint.Any();
+    }
+
+    /// <summary>
+    /// The handler types that <see cref="MultipleHandlerBehavior.Separated"/> moved out of the main handler
+    /// chain for <paramref name="messageType"/> and gave their own listener -- the same ones
+    /// <c>DiscoverListeners</c> hands to <see cref="FindOrCreateListenerForIdentifierUsingSeparatedHandler"/>.
+    /// Empty when the behaviour is not Separated, the message has no local handler, or only one handler
+    /// handles it (that one keeps the message type's own destination).
+    /// </summary>
+    protected static IEnumerable<Type> SeparatedHandlerTypesFor(Type messageType, IWolverineRuntime runtime)
+    {
+        if (runtime.Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        {
+            return [];
+        }
+
+        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+        if (chain == null)
+        {
+            return [];
+        }
+
+        return chain.ByEndpoint.Select(x => x.Handlers.First().HandlerType).Distinct().ToArray();
+    }
+
+    /// <summary>
+    /// Locate or create the subscriber endpoint(s) for <paramref name="messageType"/>, register
+    /// the subscription and apply <see cref="_configureSending"/> exactly once per message
+    /// type. Returns the endpoints -- the primary one first, then any from
+    /// <see cref="FindOrCreateAdditionalSubscribers"/> -- or an empty list if filtering rules say this
+    /// convention should not produce a sender for the message type. Does NOT build the sending agent —
+    /// that is the caller's responsibility (and only safe once the broker is connected).
+    /// </summary>
+    private IReadOnlyList<Endpoint> tryRegisterSenderConfiguration(Type messageType, IWolverineRuntime runtime)
     {
         if (_onlyApplyToInboundMessages)
         {
-            return null;
+            return [];
         }
 
         if (!_typeFilters.Matches(messageType))
         {
-            return null;
+            return [];
         }
 
         if (messageType.CanBeCastTo<INotToBeRouted>() || messageType == typeof(Envelope))
         {
-            return null;
+            return [];
         }
 
         var destinationName = _identifierForSender(messageType);
         if (destinationName.IsEmpty())
         {
-            return null;
+            return [];
         }
 
         // Serialize the mutation of _configuredSenders and the endpoint's Subscriptions
@@ -297,34 +366,59 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
             var transport = resolveTransport(runtime);
 
             var corrected = transport.MaybeCorrectName(destinationName);
+            var firstTime = _configuredSenders.Add(messageType);
+            var endpoints = new List<Endpoint>();
 
-            var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
-            endpoint.EndpointName = destinationName;
-
-            // Register the subscription so that endpoint policies like
-            // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
-            // endpoint when Compile() applies policies. See GH-2304 / GH-2588.
-            //
-            // Marked IsFromConvention=true so ExplicitRouting (and the diagnostics command)
-            // don't mistake the conventional sender for a user-wired publish rule. Without
-            // this flag, ExplicitRouting picks up the conventional sender via
-            // Endpoint.ShouldSendMessage and short-circuits past LocalRouting — handled
-            // messages stop routing to their local handlers and explicit publish rules get
-            // duplicated against the conventional broker exchange. See the MessageRoutingTests
-            // regression that motivated splitting Subscription.ForType from
-            // Subscription.ForConventionalType.
-            if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
+            if (ShouldPublishToConventionalDestination(corrected, transport, messageType, runtime))
             {
-                endpoint.Subscriptions.Add(Subscription.ForConventionalType(messageType));
+                var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
+                endpoint.EndpointName = destinationName;
+
+                // Register the subscription so that endpoint policies like
+                // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
+                // endpoint when Compile() applies policies. See GH-2304 / GH-2588.
+                //
+                // Marked IsFromConvention=true so ExplicitRouting (and the diagnostics command)
+                // don't mistake the conventional sender for a user-wired publish rule. Without
+                // this flag, ExplicitRouting picks up the conventional sender via
+                // Endpoint.ShouldSendMessage and short-circuits past LocalRouting — handled
+                // messages stop routing to their local handlers and explicit publish rules get
+                // duplicated against the conventional broker exchange. See the MessageRoutingTests
+                // regression that motivated splitting Subscription.ForType from
+                // Subscription.ForConventionalType.
+                if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
+                {
+                    endpoint.Subscriptions.Add(Subscription.ForConventionalType(messageType));
+                }
+
+                if (firstTime)
+                {
+                    _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
+                    configuration.As<IDelayedEndpointConfiguration>().Apply();
+                }
+
+                endpoints.Add(endpoint);
             }
 
-            if (_configuredSenders.Add(messageType))
+            // GH-4524 / GH-4525: the extra destinations a queue-only transport has to publish to itself
+            foreach (var (additionalConfiguration, additional) in
+                     FindOrCreateAdditionalSubscribers(corrected, transport, messageType, runtime))
             {
-                _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
-                configuration.As<IDelayedEndpointConfiguration>().Apply();
+                if (!additional.Subscriptions.Any(s => s.Matches(messageType)))
+                {
+                    additional.Subscriptions.Add(Subscription.ForConventionalType(messageType));
+                }
+
+                if (firstTime)
+                {
+                    _configureSending(additionalConfiguration, new MessageRoutingContext(messageType, runtime));
+                    additionalConfiguration.As<IDelayedEndpointConfiguration>().Apply();
+                }
+
+                endpoints.Add(additional);
             }
 
-            return endpoint;
+            return endpoints;
         }
     }
 
