@@ -709,6 +709,10 @@ public static class SliceScaffolder
             // What the handler returns, in the store-agnostic vocabulary
             var returns = new List<string>();
 
+            // GH-4865: a DCB slice's Load body, the EventTagQuery its decision reads; null for a TODO
+            string? deciderLoad = null;
+            var isDecider = slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is not null;
+
             if (slice.StartsStream is { } stream)
             {
                 // GH-4888: a sequential (version 7) Guid, never Guid.NewGuid() -- a random stream id
@@ -741,15 +745,51 @@ public static class SliceScaffolder
                     shape.Add($"{streams[0].Argument}.AppendOne(new {e}(...));   // or {string.Join(" / ", streams.Skip(1).Select(x => x.Argument))}");
                 }
             }
+            else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is { } model)
+            {
+                // GH-4865: a DCB decider model (jasperfx#994) is a self-aggregate. The handler takes it through
+                // [DcbModel], fetched by the EventTagQuery its Load method returns, and whatever it returns is
+                // appended through that boundary. The decider folds what the slice emits
+                file.Namespaces.Add("JasperFx.Events.Tags");
+                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                var decider = file.Use(model);
+                parameters.Add($"[DcbModel] {decider} {argumentFor(decider)}");
+                stateType(model, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+
+                if (emitted.Count == 1 && outgoing.Count == 0)
+                {
+                    returns.Add(emitted[0]);
+                    shape.Add($"return new {emitted[0]}(...);   // appended through the {decider} boundary");
+                }
+                else if (emitted.Count > 0)
+                {
+                    returns.Add("EventsToAppend");
+                    shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
+                }
+
+                // The tags the decision reads are the command's strong-typed ids, each a tag
+                var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
+                var tags = commandType is null ? [] : strongTypedIdMembers(commandType);
+                deciderLoad = tags.Count == 0
+                    ? null
+                    : $"return EventTagQuery.For({triggerArgument}.{tags[0].Member})" +
+                      string.Concat(tags.Skip(1).Select(x => $".Or({triggerArgument}.{x.Member})")) + ";";
+
+                if (tags.Count == 0)
+                {
+                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                        $"the slice decides through the DCB decider model {decider}, but {triggerName} has no strong-typed id member to tag the query with, so its Load method is a TODO. A DCB tag is a strong-typed identifier (GH-4883)."));
+                }
+
+                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, slice.Name,
+                    $"register each tag type{(tags.Count == 0 ? "" : $" ({string.Join(", ", tags.Select(x => x.Type).Distinct())})")} with the event store, and {decider} as a live single-stream aggregation, so [DcbModel] can fetch it by tags."));
+            }
             else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel)
             {
-                // GH-4919: decides through a DCB decider model (jasperfx#994). The DCB handler shape is still
-                // being designed (GH-4865), so nothing is guessed: say what was declared, and warn
-                var decider = slice.DeciderModel is { } model ? file.Use(model) : "its decider model";
-                shape.Add($"// TODO: this slice decides through the DCB decider model {decider}. The Dynamic");
-                shape.Add("// Consistency Boundary handler shape is not designed yet (GH-4865), so write it by hand.");
+                // A decider model declared by a name no type answers to: nothing to take or fold
+                shape.Add("// TODO: this slice decides through a DCB decider model the scaffold cannot resolve.");
                 Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
-                    $"the slice declares the DCB decider model {decider}, and the DCB handler shape is not designed yet (GH-4865), so its handler is a TODO."));
+                    "the slice declares a DCB decider model the scaffold cannot resolve, so its handler is a TODO."));
             }
             else if (slice.AggregateDeclaration == AggregateDeclaration.None && emitted.Count > 0)
             {
@@ -823,6 +863,25 @@ public static class SliceScaffolder
             {
                 writer.WriteLine($"[WolverinePost(\"{RouteFor(identifier)}\")]");
                 if (returns.Count > 0) writer.WriteLine("[EmptyResponse]");
+            }
+
+            if (isDecider)
+            {
+                writer.Write($"BLOCK:public static EventTagQuery Load({triggerName} {triggerArgument})");
+                if (deciderLoad is null)
+                {
+                    writer.WriteLine("// The tags this decision reads -- a DCB tag is a strong-typed identifier:");
+                    writer.WriteLine("//     return EventTagQuery.For(command.SomeId).Or(command.OtherId);");
+                    writer.WriteLine($"throw new NotImplementedException(\"TODO: the tags {slice.Name} reads\");");
+                }
+                else
+                {
+                    writer.WriteLine("// The tags this decision reads; narrow it to the events it needs with .AndEventsOfType<...>()");
+                    writer.WriteLine(deciderLoad);
+                }
+
+                writer.FinishBlock();
+                writer.BlankLine();
             }
 
             writer.Write(signature($"public static {returnType} {(http ? "Post" : "Handle")}", parameters));
@@ -997,6 +1056,26 @@ public static class SliceScaffolder
                 writer.FinishBlock();
                 add($"{state.Type.Name} ({kind})", filePath, file);
             }
+        }
+
+        // GH-4865: the members of a command that are strong-typed ids -- a type whose public Value is a Guid, a
+        // string or an integer, the shape a DCB tag takes -- in declaration order
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static IReadOnlyList<(string Member, string Type)> strongTypedIdMembers(Type command)
+            => command.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(x => isStrongTypedId(x.PropertyType))
+                .Select(x => (x.Name, x.PropertyType.Name))
+                .ToList();
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static bool isStrongTypedId(Type type)
+        {
+            if (type.IsPrimitive || type.IsEnum || type.IsGenericType || type == typeof(string) || type == typeof(Guid)) return false;
+            var value = type.GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
+            return value?.PropertyType is { } inner
+                   && (inner == typeof(Guid) || inner == typeof(string) || inner == typeof(int) || inner == typeof(long));
         }
 
         // The compiler gives every record a clone method; nothing else has one

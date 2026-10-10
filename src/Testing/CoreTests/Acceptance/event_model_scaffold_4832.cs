@@ -435,19 +435,47 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
-    public void a_dcb_decider_model_is_a_todo_and_a_warning_until_the_dcb_shape_is_designed()
+    public void a_dcb_decider_model_is_a_self_aggregate_fetched_by_the_commands_strong_typed_ids()
     {
-        // GH-4919: DeciderModel<T>() (jasperfx#994); the DCB handler shape is GH-4865's to design
-        var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
-            .DeciderModel<Appointment>().Emits<AppointmentConfirmed>()));
-        var code = result.Files.Single().Code;
+        // GH-4865: DeciderModel<T>() (jasperfx#994) scaffolds [DcbModel] T, fetched by the EventTagQuery a Load
+        // method builds from the command's strong-typed ids, and T folds what the slice emits
+        var result = plan(
+            declared(m => m.Command<ReserveSeat>().TriggeredBy(TriggerKind.MessageHandler)
+                .DeciderModel<SeatAvailability>().Emits<SeatReserved>()),
+            findSource: type => $"Domain/{type.Name}.cs");
+        var code = result.Files.Single(x => x.InsertInto is null).Code;
 
-        code.ShouldContain("TODO: this slice decides through the DCB decider model Appointment");
-        code.ShouldContain("public static void Handle(ConfirmAppointmentRequest command)");
+        code.ShouldContain("""
+                               public static EventTagQuery Load(ReserveSeat command)
+                               {
+                                   // The tags this decision reads; narrow it to the events it needs with .AndEventsOfType<...>()
+                                   return EventTagQuery.For(command.Screening).Or(command.Customer);
+                               }
+                           """.ReplaceLineEndings("\n"));
+        code.ShouldContain("public static SeatReserved Handle(ReserveSeat command, [DcbModel] SeatAvailability seatAvailability)");
+        code.ShouldContain("return new SeatReserved(...);   // appended through the SeatAvailability boundary");
         code.ShouldNotContain("[WriteModel]");
 
+        // A self-aggregate: the decider folds what the slice emits
+        result.Files.Single(x => x.InsertInto == nameof(SeatAvailability)).Code.ShouldContain("public void Apply(SeatReserved e)");
+
+        var register = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Edit && x.Subject == "ReserveSeat");
+        register.Message.ShouldContain("(ScreeningTag, CustomerTag)");
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+    }
+
+    [Fact]
+    public void a_dcb_command_with_no_strong_typed_ids_leaves_its_tags_a_todo()
+    {
+        var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
+            .DeciderModel<Appointment>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single(x => x.InsertInto is null).Code;
+
+        code.ShouldContain("throw new NotImplementedException(\"TODO: the tags ConfirmAppointmentRequest reads\");");
+        code.ShouldContain("[DcbModel] Appointment appointment");
+
         var warning = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Warning);
-        warning.Message.ShouldContain("GH-4865");
+        warning.Message.ShouldContain("GH-4883");
     }
 
     [Fact]
@@ -699,6 +727,19 @@ public record AppointmentBoard(Guid Id, int Confirmed);
 public record AcceptHomeCheckAssignment(Guid HomeCheckId, Guid VolunteerApplicationId);
 
 public record HomeCheckAssignmentAcceptedEvent;
+
+public readonly record struct ScreeningTag(Guid Value);
+
+public record CustomerTag(string Value);
+
+public record ReserveSeat(ScreeningTag Screening, CustomerTag Customer, string Seat);
+
+public record SeatReserved;
+
+public class SeatAvailability
+{
+    public Guid Id { get; set; }
+}
 
 public class HomeCheck
 {
