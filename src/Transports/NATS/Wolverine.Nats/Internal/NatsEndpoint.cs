@@ -58,6 +58,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal Func<Envelope, string>? MsgIdSource => _transport.Configuration.MsgIdSource;
 
     /// <summary>
+    /// Optional transport-wide last word over JetStream publish options (GH-4860).
+    /// Sourced from <see cref="NatsTransportConfiguration.ConfigureJetStreamPublish"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal Func<Envelope, NatsJSPubOpts, NatsJSPubOpts>? ConfigureJetStreamPublish =>
+        _transport.Configuration.ConfigureJetStreamPublish;
+
+    /// <summary>
     /// Transport-wide JetStream stream/consumer template applied when Wolverine auto-provisions.
     /// </summary>
     [IgnoreDescription]

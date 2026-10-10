@@ -31,7 +31,13 @@ internal static class JetStreamProvisioning
             AllowDirect = config.AllowDirect,
             DenyDelete = config.DenyDelete,
             DenyPurge = config.DenyPurge,
-            AllowMsgSchedules = config.AllowMsgSchedules
+            AllowMsgSchedules = config.AllowMsgSchedules,
+
+            // GH-4860. Declared only when the configuration says so; null / empty leaves the server's own
+            // mirror, sources and placement alone, as every other unmanaged setting
+            Mirror = config.Mirror,
+            Sources = config.Sources.Count == 0 ? null : config.Sources.ToList(),
+            Placement = config.Placement
         };
     }
 
@@ -56,6 +62,24 @@ internal static class JetStreamProvisioning
         existing.DenyDelete = desired.DenyDelete;
         existing.DenyPurge = desired.DenyPurge;
         existing.AllowMsgSchedules = desired.AllowMsgSchedules;
+
+        // GH-4860. Managed only when declared, so a stream whose mirror, sources or placement the operations
+        // team set by hand keeps them unless the configuration names its own
+        if (desired.Mirror != null)
+        {
+            existing.Mirror = desired.Mirror;
+        }
+
+        if (desired.Sources is { Count: > 0 })
+        {
+            existing.Sources = desired.Sources;
+        }
+
+        if (desired.Placement != null)
+        {
+            existing.Placement = desired.Placement;
+        }
+
         return existing;
     }
 
@@ -95,7 +119,51 @@ internal static class JetStreamProvisioning
         compare(differences, nameof(StreamConfig.AllowMsgSchedules), desired.AllowMsgSchedules,
             actual.AllowMsgSchedules);
 
+        // GH-4860. Compared only when declared, matching what the overlay above manages
+        if (desired.Mirror != null)
+        {
+            compare(differences, nameof(StreamConfig.Mirror), describe(desired.Mirror), describe(actual.Mirror));
+        }
+
+        if (desired.Sources is { Count: > 0 })
+        {
+            compare(differences, nameof(StreamConfig.Sources),
+                describe(desired.Sources.Select(describe)), describe((actual.Sources ?? []).Select(describe)));
+        }
+
+        if (desired.Placement != null)
+        {
+            compare(differences, nameof(StreamConfig.Placement), describe(desired.Placement), describe(actual.Placement));
+        }
+
         return differences;
+    }
+
+    private static string describe(StreamSource? source)
+    {
+        if (source == null)
+        {
+            return "(none)";
+        }
+
+        var parts = new List<string> { source.Name };
+        if (!string.IsNullOrEmpty(source.FilterSubject)) parts.Add($"filter {source.FilterSubject}");
+        if (source.OptStartSeq > 0) parts.Add($"from seq {source.OptStartSeq}");
+        if (source.OptStartTime != default) parts.Add($"from {source.OptStartTime:O}");
+        if (!string.IsNullOrEmpty(source.Domain)) parts.Add($"domain {source.Domain}");
+        return string.Join(", ", parts);
+    }
+
+    private static string describe(Placement? placement)
+    {
+        if (placement == null)
+        {
+            return "(none)";
+        }
+
+        var cluster = string.IsNullOrEmpty(placement.Cluster) ? "any cluster" : $"cluster {placement.Cluster}";
+        var tags = placement.Tags is { Count: > 0 } ? $"tags [{string.Join(", ", placement.Tags.Order(StringComparer.Ordinal))}]" : "no tags";
+        return $"{cluster}, {tags}";
     }
 
     /// <summary>

@@ -21,18 +21,21 @@ internal class JetStreamPublisher : INatsPublisher
     private readonly ILogger<NatsEndpoint> _logger;
     private readonly string _scheduleSubjectSuffix;
     private readonly Func<Envelope, string>? _msgIdSource;
+    private readonly Func<Envelope, NatsJSPubOpts, NatsJSPubOpts>? _configurePublish;
 
     public JetStreamPublisher(NatsConnection connection,
         INatsJSContext jetStreamContext,
         ILogger<NatsEndpoint> logger,
         string scheduleSubjectSuffix = ".scheduled",
-        Func<Envelope, string>? msgIdSource = null)
+        Func<Envelope, string>? msgIdSource = null,
+        Func<Envelope, NatsJSPubOpts, NatsJSPubOpts>? configurePublish = null)
     {
         _connection = connection;
         _jetStreamContext = jetStreamContext;
         _logger = logger;
         _scheduleSubjectSuffix = scheduleSubjectSuffix;
         _msgIdSource = msgIdSource;
+        _configurePublish = configurePublish;
     }
 
     /// <summary>
@@ -107,6 +110,13 @@ internal class JetStreamPublisher : INatsPublisher
             var pubOpts = envelope.ScheduledTime.HasValue
                 ? null
                 : buildDedupOptions(envelope, headers);
+
+            // GH-4860. The application's last word: it sees the options as built (Nats-Msg-Id resolved, or
+            // none for a scheduled publish) and the publish uses what it hands back
+            if (_configurePublish != null)
+            {
+                pubOpts = _configurePublish(envelope, pubOpts ?? new NatsJSPubOpts());
+            }
 
             if (envelope.ScheduledTime.HasValue)
             {

@@ -82,6 +82,18 @@ public class NatsTransportConfiguration
     public Func<Envelope, string>? MsgIdSource { get; set; }
 
     /// <summary>
+    /// GH-4860. Optional last word over the <see cref="NatsJSPubOpts"/> of every JetStream publish: it receives
+    /// the envelope and the options Wolverine built -- the <c>Nats-Msg-Id</c> already resolved -- and the publish
+    /// uses whatever it returns. Reach for it for the publish options Wolverine does not surface itself, such as
+    /// the <c>Nats-Expected-*</c> checks (<see cref="NatsJSPubOpts.ExpectedStream"/>,
+    /// <see cref="NatsJSPubOpts.ExpectedLastSequence"/>, <see cref="NatsJSPubOpts.ExpectedLastSubjectSequence"/>,
+    /// <see cref="NatsJSPubOpts.ExpectedLastMsgId"/>) or a per-publish timeout. Null (the default) leaves the
+    /// options as Wolverine built them.
+    /// </summary>
+    [IgnoreDescription]
+    public Func<Envelope, NatsJSPubOpts, NatsJSPubOpts>? ConfigureJetStreamPublish { get; set; }
+
+    /// <summary>
     /// Optional last word over the NATS.Net <see cref="NatsOpts"/> of a connection the transport opens: it receives
     /// the options Wolverine built from this configuration -- connection already named -- and the connection uses
     /// whatever it returns. Reach for it for client settings this configuration does not surface, such as

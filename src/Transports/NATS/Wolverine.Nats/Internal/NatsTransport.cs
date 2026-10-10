@@ -266,14 +266,30 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         responseEndpoint.IsUsedForReplies = true;
         responseEndpoint.IsListener = true;
 
-        var natsOpts = Configuration.ToNatsOpts();
-        natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}" };
-        natsOpts = Configuration.ConfigureNatsOpts?.Invoke(natsOpts) ?? natsOpts;
-        _connection = new NatsConnection(natsOpts);
-        logDroppedMessages(_connection);
-        await _connection.ConnectAsync();
+        // GH-4860. ConnectAsync is re-run on every retry of a failed start and at the start of every
+        // BrokerResource operation -- AutoProvision's resource setup runs it right after the start-up run,
+        // while the listeners and senders built in between hold the first connection. Each run used to open a
+        // fresh NatsConnection, and a fresh one per tenant with its own connection, on top of the previous
+        // without disposing it, so a broker that took a few attempts to reach left that many half-open client
+        // connections behind. A connection that is alive is reused; only one a previous run left dead -- a
+        // failed connect, a close -- is disposed and replaced.
+        if (_connection is { ConnectionState: not NatsConnectionState.Closed })
+        {
+            _logger.LogDebug("Reusing the open NATS connection to {Url}", Configuration.ConnectionString);
+        }
+        else
+        {
+            await disposeConnectionsAsync();
 
-        _logger.LogInformation("Connected to NATS at {Url}", Configuration.ConnectionString);
+            var natsOpts = Configuration.ToNatsOpts();
+            natsOpts = natsOpts with { Name = $"wolverine-{runtime.Options.ServiceName}" };
+            natsOpts = Configuration.ConfigureNatsOpts?.Invoke(natsOpts) ?? natsOpts;
+            _connection = new NatsConnection(natsOpts);
+            logDroppedMessages(_connection);
+            await _connection.ConnectAsync();
+
+            _logger.LogInformation("Connected to NATS at {Url}", Configuration.ConnectionString);
+        }
         
         // Check server version for scheduled send support
         if (_connection.ServerInfo?.Version != null && 
@@ -313,6 +329,12 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         // without their own connection reuse the shared connection above (subject-prefix isolation only).
         foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
         {
+            // Same rule as the shared connection: a tenant connection a previous run opened is kept
+            if (tenant.Connection is { ConnectionState: not NatsConnectionState.Closed })
+            {
+                continue;
+            }
+
             var tenantConnection = new NatsConnection(buildTenantNatsOpts(tenant));
             logDroppedMessages(tenantConnection);
             tenant.Connection = tenantConnection;
@@ -510,7 +532,17 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         return endpoint;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
+    {
+        return disposeConnectionsAsync();
+    }
+
+    /// <summary>
+    /// Dispose the shared connection and every tenant's dedicated connection, and forget them. Shared by
+    /// DisposeAsync and by ConnectAsync, which has to release whatever a previous attempt opened before it
+    /// opens again (GH-4860)
+    /// </summary>
+    private async ValueTask disposeConnectionsAsync()
     {
         foreach (var tenant in Tenants.Where(x => x.Connection != null))
         {
@@ -522,14 +554,20 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             {
                 _logger?.LogError(ex, "Error disposing NATS connection for tenant {TenantId}", tenant.TenantId);
             }
+
+            tenant.Connection = null;
+        }
+
+        var connection = _connection;
+        _connection = null;
+        if (connection == null)
+        {
+            return;
         }
 
         try
         {
-            if (_connection != null)
-            {
-                await _connection.DisposeAsync();
-            }
+            await connection.DisposeAsync();
         }
         catch (Exception ex)
         {
