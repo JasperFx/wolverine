@@ -85,6 +85,13 @@ public interface ITrackedSession
     RecordCollection Discarded { get; }
 
     /// <summary>
+    ///     GH-4931. Every event-store session that committed appended events during the tracked session, in
+    ///     commit order, each with the message being handled when it committed. Recorded by the Marten,
+    ///     Polecat and Fisher integrations for sessions opened through Wolverine's outbox.
+    /// </summary>
+    IReadOnlyList<AppendedEvents> AppendedEvents => Array.Empty<AppendedEvents>();
+
+    /// <summary>
     ///     Finds a message of type T that was either sent, received,
     ///     or executed during this session. This will throw an exception
     ///     if there is more than one message

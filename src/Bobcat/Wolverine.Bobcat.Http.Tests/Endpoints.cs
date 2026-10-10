@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Persistence;
@@ -83,5 +84,42 @@ public static class SendConfirmationEmailHandler
 {
     public static void Handle(SendConfirmationEmail message)
     {
+    }
+}
+
+// GH-4931: an endpoint that appends and cascades, and one that starts a stream with an id it assigns
+public record RemindPatient(Guid AppointmentId);
+
+public record PatientReminded(Guid AppointmentId);
+
+public record LogReminder(Guid AppointmentId);
+
+public record ReminderLogged(Guid AppointmentId);
+
+public static class RemindPatientEndpoint
+{
+    [WolverinePost("/api/appointments/remind")]
+    public static (string, EventsToAppend, OutgoingMessages) Post(RemindPatient command, [WriteModel] Appointment appointment)
+        => ("Reminded",
+            new EventsToAppend { new PatientReminded(command.AppointmentId) },
+            new OutgoingMessages { new LogReminder(command.AppointmentId) });
+}
+
+public static class LogReminderHandler
+{
+    public static void Handle(LogReminder message, [WriteModel] IEventStream<Appointment> appointment)
+        => appointment.AppendOne(new ReminderLogged(message.AppointmentId));
+}
+
+public record BookAppointment(string Patient);
+
+public static class BookAppointmentEndpoint
+{
+    [WolverinePost("/api/appointments/book")]
+    [EmptyResponse]
+    public static StartStream Post(BookAppointment command)
+    {
+        var id = Guid.CreateVersion7();
+        return Storage.StartStream<Appointment>(id, new AppointmentScheduled(id, command.Patient));
     }
 }

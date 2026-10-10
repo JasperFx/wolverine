@@ -117,7 +117,8 @@ public class OutboxedSessionFactory
             options.Listeners.Add(new PublishIncomingEventsBeforeCommit(context));
         }
 
-        if (_shouldTrackAppends)
+        // GH-4931: a tracked session hears what this session appends, whether or not the observer does
+        if (_shouldTrackAppends || _runtime is WolverineRuntime { ActiveSession: not null })
         {
             options.Listeners.Add(new NotifyObserverOfAppendedEvents(context));
         }
@@ -168,7 +169,16 @@ public class OutboxedSessionFactory
     {
         context.OverrideStorage(MessageStore);
 
-        if (context.ConversationId != Guid.Empty)
+        // A per-message CausationId override supplied via DeliveryOptions.CausationId (envelope header
+        // "causation-id") takes precedence over the default ConversationId-based causation chain, as it does
+        // for Marten (GH-4931: the same causation on every store, so events can be traced to what caused them)
+        if (context.Envelope is { } env
+            && env.Headers.TryGetValue(EnvelopeConstants.CausationIdKey, out var headerCausationId)
+            && !string.IsNullOrEmpty(headerCausationId))
+        {
+            session.CausationId = headerCausationId;
+        }
+        else if (context.ConversationId != Guid.Empty)
         {
             session.CausationId = context.ConversationId.ToString();
         }

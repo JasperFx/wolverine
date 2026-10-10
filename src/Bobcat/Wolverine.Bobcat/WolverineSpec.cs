@@ -80,6 +80,13 @@ public abstract class WolverineSpec
     public static Specified<T> Specify<T>(params System.Linq.Expressions.Expression<Action<T>>[] checks)
         => Specifications.Specify(checks);
 
+    /// <summary>
+    /// A whole event expected with exactly these Dynamic Consistency Boundary tags, in any order
+    /// (wolverine#4865): <c>ThenEvents(Tagged(new SeatReserved(theScreeningId, "4C"), theScreeningId, theCustomerId))</c>.
+    /// A partial one says its tags itself: <c>Specify&lt;SeatReserved&gt;().Tagged(theScreeningId)</c>.
+    /// </summary>
+    public static TaggedValue Tagged(object value, params object[] tags) => Specifications.Tagged(value, tags);
+
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public ActOutcome LastAct => Scenario.LastAct;
 
@@ -199,6 +206,68 @@ public abstract class WolverineSpec
 
     /// <inheritdoc cref="WolverineScenario.TheAggregate{T}(string)" />
     public Task<T?> TheAggregate<T>(string key) where T : class => Scenario.TheAggregate<T>(key);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEventsOn(JasperFx.Events.Tags.EventTagQuery, object[])" />
+    public void ThenEventsOn(JasperFx.Events.Tags.EventTagQuery query, params object[] events) => Scenario.ThenEventsOn(query, events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoEventsOn(JasperFx.Events.Tags.EventTagQuery)" />
+    public void ThenNoEventsOn(JasperFx.Events.Tags.EventTagQuery query) => Scenario.ThenNoEventsOn(query);
+
+    /// <inheritdoc cref="WolverineScenario.TheDcbModel{T}(JasperFx.Events.Tags.EventTagQuery)" />
+    public Task<T?> TheDcbModel<T>(JasperFx.Events.Tags.EventTagQuery query) where T : class => Scenario.TheDcbModel<T>(query);
+
+    /// <inheritdoc cref="WolverineScenario.ThenDcbModel{T}(JasperFx.Events.Tags.EventTagQuery, object)" />
+    public Task ThenDcbModel<T>(JasperFx.Events.Tags.EventTagQuery query, object expected) where T : class
+        => Scenario.ThenDcbModel<T>(query, expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenStreamIsStartedWithEvents{TAggregate}(object[])" />
+    public Task ThenStreamIsStartedWithEvents<TAggregate>(params object[] events) where TAggregate : class
+        => Scenario.ThenStreamIsStartedWithEvents<TAggregate>(events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenSingleDocument{T}(object?)" />
+    public Task<T> ThenSingleDocument<T>(object? expected = null) where T : class => Scenario.ThenSingleDocument<T>(expected);
+
+    /// <inheritdoc cref="WolverineScenario.AfterAsyncDaemonsCatchUpAsync()" />
+    public Task AfterAsyncDaemonsCatchUpAsync() => Scenario.AfterAsyncDaemonsCatchUpAsync();
+
+    /// <inheritdoc cref="WolverineScenario.AfterAsyncDaemonsCatchUpAsync(string)" />
+    public Task AfterAsyncDaemonsCatchUpAsync(string tenantId) => Scenario.AfterAsyncDaemonsCatchUpAsync(tenantId);
+
+    /// <inheritdoc cref="WolverineScenario.GivenEvents{TAggregate}(object, object[])" />
+    public Task GivenEvents<TAggregate>(object id, params object[] events) where TAggregate : class
+        => Scenario.GivenEvents<TAggregate>(id, events);
+
+    /// <inheritdoc cref="WolverineScenario.GivenNoEventsFor{TAggregate}(object)" />
+    public Task GivenNoEventsFor<TAggregate>(object id) where TAggregate : class => Scenario.GivenNoEventsFor<TAggregate>(id);
+
+    /// <inheritdoc cref="WolverineScenario.GivenEventsOn{TAggregate}(object, object[])" />
+    public Task GivenEventsOn<TAggregate>(object id, params object[] events) where TAggregate : class
+        => Scenario.GivenEventsOn<TAggregate>(id, events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEventsOn{TAggregate}(object, object[])" />
+    public void ThenEventsOn<TAggregate>(object id, params object[] events) where TAggregate : class
+        => Scenario.ThenEventsOn<TAggregate>(id, events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoEventsOn{TAggregate}(object)" />
+    public void ThenNoEventsOn<TAggregate>(object id) where TAggregate : class => Scenario.ThenNoEventsOn<TAggregate>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenStreamIsStarted{TAggregate}(object)" />
+    public Task ThenStreamIsStarted<TAggregate>(object id) where TAggregate : class => Scenario.ThenStreamIsStarted<TAggregate>(id);
+
+    /// <inheritdoc cref="WolverineScenario.TheAggregate{T}(object)" />
+    public Task<T?> TheAggregate<T>(object id) where T : class => Scenario.TheAggregate<T>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAggregate{T}(object)" />
+    public Task<T> ThenAggregate<T>(object id) where T : class => Scenario.ThenAggregate<T>(id);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAggregate{T}(object, object)" />
+    public Task<T> ThenAggregate<T>(object id, object expected) where T : class => Scenario.ThenAggregate<T>(id, expected);
+
+    /// <inheritdoc cref="WolverineScenario.TheStartedStream{TAggregate}()" />
+    public Guid TheStartedStream<TAggregate>() where TAggregate : class => Scenario.TheStartedStream<TAggregate>();
+
+    /// <inheritdoc cref="WolverineScenario.TheStartedStreamKey{TAggregate}()" />
+    public string TheStartedStreamKey<TAggregate>() where TAggregate : class => Scenario.TheStartedStreamKey<TAggregate>();
 
     /// <inheritdoc cref="WolverineScenario.ThenRefusedWith(string)" />
     public void ThenRefusedWith(string reason) => Scenario.ThenRefusedWith(reason);

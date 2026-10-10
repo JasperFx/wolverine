@@ -24,6 +24,9 @@ internal partial class TrackedSession : ITrackedSession
 
     private readonly IList<Exception> _exceptions = new List<Exception>();
 
+    // GH-4931: committed from handler threads too, so locked like _statuses
+    private readonly List<AppendedEvents> _appended = new();
+
     private readonly IList<WolverineRuntime> _otherHosts = new List<WolverineRuntime>();
     private readonly IHost _primaryHost;
     private readonly WolverineRuntime _primaryLogger;
@@ -135,6 +138,9 @@ internal partial class TrackedSession : ITrackedSession
     public Queue<ISecondStateExecution> SecondaryStages { get; } = new();
 
     public TimeSpan Timeout { get; set; } = 5.Seconds();
+
+    /// <summary>GH-4931. The correlation id the tracked work runs under, when one was given.</summary>
+    public string? CorrelationId { get; set; }
 
     public bool AssertNoExceptions { get; set; } = true;
 
@@ -684,6 +690,25 @@ internal partial class TrackedSession : ITrackedSession
     public void IgnoreEnvelopes(Func<Envelope, bool> filter)
     {
         _ignoreEnvelopeRules.Add(filter);
+    }
+
+    public IReadOnlyList<AppendedEvents> AppendedEvents
+    {
+        get
+        {
+            lock (_appended)
+            {
+                return _appended.ToArray();
+            }
+        }
+    }
+
+    internal void RecordAppendedEvents(AppendedEvents appended)
+    {
+        lock (_appended)
+        {
+            _appended.Add(appended);
+        }
     }
 
     public void LogStatus(string message)

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using ImTools;
 using JasperFx.Core;
+using JasperFx.Events;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -62,6 +63,16 @@ public sealed partial class WolverineRuntime : IMessageTracker
     }
 
     internal TrackedSession? ActiveSession { get; set; }
+
+    /// <summary>
+    ///     GH-4931. Record one event-store session's committed streams against the active tracked session, if
+    ///     there is one, attributed to the message <paramref name="context" /> was handling.
+    /// </summary>
+    internal void RecordAppendedEvents(MessageContext context, IReadOnlyList<StreamAction> streams)
+    {
+        if (streams.Count == 0) return;
+        ActiveSession?.RecordAppendedEvents(new AppendedEvents(context.Envelope, _serviceName, streams));
+    }
 
     /// <summary>
     /// Build the metric tag set for an envelope: the standard tags (message.type + message.destination +

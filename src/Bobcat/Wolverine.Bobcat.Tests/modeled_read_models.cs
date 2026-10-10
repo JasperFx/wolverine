@@ -5,8 +5,22 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Wolverine.Bobcat.Tests;
 
-/// <summary>A singleton view: one document, which no identity in a spec names.</summary>
+/// <summary>A document stored directly, by id.</summary>
 public record Dashboard(Guid Id, int OpenAppointments, string Status);
+
+/// <summary>A multi-stream view: one per patient, across every appointment stream.</summary>
+public class PatientAppointments
+{
+    public string Id { get; set; } = "";
+    public int Scheduled { get; set; }
+}
+
+public partial class PatientAppointmentsProjection : global::Marten.Events.Projections.MultiStreamProjection<PatientAppointments, string>
+{
+    public PatientAppointmentsProjection() => Identity<AppointmentScheduled>(e => string.IsNullOrEmpty(e.Patient?.Name) ? "(no patient)" : e.Patient.Name);
+
+    public void Apply(PatientAppointments view, AppointmentScheduled e) => view.Scheduled++;
+}
 
 // The read-model shapes an event model's examples take that an id alone cannot reach: a view given
 // directly, a singleton view, and a view that does not exist at all (bobcat#423 round 2)
@@ -32,10 +46,11 @@ public class modeled_read_models(AppointmentsHost app) : WolverineSpec(app.Host)
     [Fact]
     public async Task a_partial_read_model_given_directly_fills_what_it_does_not_name()
     {
-        await GivenReadModel<Dashboard>(Specify<Dashboard>().With(x => x.Status, "quiet"));
+        var theDashboard = Guid.NewGuid();
+        await GivenReadModel<Dashboard>(Specify<Dashboard>().With(x => x.Id, theDashboard).With(x => x.Status, "quiet"));
 
-        var dashboard = await ThenSingleReadModel<Dashboard>(Specify<Dashboard>().With(x => x.Status, "quiet"));
-        dashboard.Id.ShouldNotBe(Guid.Empty);
+        var dashboard = await ThenReadModel<Dashboard>(theDashboard, Specify<Dashboard>().With(x => x.Status, "quiet"));
+        dashboard.Id.ShouldBe(theDashboard);
     }
 
     [Fact]
@@ -57,20 +72,38 @@ public class modeled_read_models(AppointmentsHost app) : WolverineSpec(app.Host)
     }
 
     [Fact]
-    public async Task a_single_read_model_fails_when_there_are_two()
+    public async Task a_single_read_model_is_the_one_of_the_stream_the_scenario_arranged()
     {
-        await GivenReadModel<Dashboard>(Specify<Dashboard>());
-        await GivenReadModel<Dashboard>(Specify<Dashboard>());
+        // wolverine#4865: read through FetchLatest, from the stream the givens arranged
+        var theAppointment = Guid.NewGuid();
+        await GivenEvents<Appointment>(theAppointment, new AppointmentScheduled(theAppointment, new Patient("Ann", new Address("Austin")), []));
 
-        (await Should.ThrowAsync<SpecificationFailedException>(() => ThenSingleReadModel<Dashboard>()))
-            .Message.ShouldBe("Expected exactly one Dashboard document, but there are 2.");
+        var appointment = await ThenSingleReadModel<Appointment>(Specify<Appointment>().With(x => x.Id, theAppointment));
+        appointment.Confirmed.ShouldBeFalse();
     }
 
     [Fact]
-    public async Task a_single_read_model_fails_when_there_is_none()
+    public async Task a_single_read_model_refuses_a_multi_stream_projection()
     {
-        (await Should.ThrowAsync<SpecificationFailedException>(() => ThenSingleReadModel<Dashboard>()))
-            .Message.ShouldBe("Expected exactly one Dashboard document, but there are none.");
+        var failure = await Should.ThrowAsync<SpecCriticalException>(() => ThenSingleReadModel<PatientAppointments>());
+        failure.Message.ShouldContain("PatientAppointments is a MultiStreamProjection");
+    }
+
+    [Fact]
+    public async Task a_single_read_model_needs_a_stream_to_be_about()
+    {
+        var failure = await Should.ThrowAsync<SpecCriticalException>(() => ThenSingleReadModel<Appointment>());
+        failure.Message.ShouldContain("the act started none and the givens arranged none");
+    }
+
+    [Fact]
+    public async Task a_single_document_is_loaded_by_the_id_of_the_stream_the_scenario_is_about()
+    {
+        var theAppointment = Guid.NewGuid();
+        await GivenEvents<Appointment>(theAppointment, new AppointmentScheduled(theAppointment, new Patient("Ann", new Address("Austin")), []));
+        await GivenReadModel<Dashboard>(new Dashboard(theAppointment, 1, "busy"));
+
+        await ThenSingleDocument<Dashboard>(Specify<Dashboard>().With(x => x.Status, "busy"));
     }
 
     [Fact]
