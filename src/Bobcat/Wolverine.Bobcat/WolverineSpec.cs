@@ -207,6 +207,12 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.TheAggregate{T}(string)" />
     public Task<T?> TheAggregate<T>(string key) where T : class => Scenario.TheAggregate<T>(key);
 
+    /// <inheritdoc cref="WolverineScenario.ThenEventsOn(JasperFx.Events.Tags.EventTagQuery, object[])" />
+    public void ThenEventsOn(JasperFx.Events.Tags.EventTagQuery query, params object[] events) => Scenario.ThenEventsOn(query, events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoEventsOn(JasperFx.Events.Tags.EventTagQuery)" />
+    public void ThenNoEventsOn(JasperFx.Events.Tags.EventTagQuery query) => Scenario.ThenNoEventsOn(query);
+
     /// <inheritdoc cref="WolverineScenario.TheDcbModel{T}(JasperFx.Events.Tags.EventTagQuery)" />
     public Task<T?> TheDcbModel<T>(JasperFx.Events.Tags.EventTagQuery query) where T : class => Scenario.TheDcbModel<T>(query);
 

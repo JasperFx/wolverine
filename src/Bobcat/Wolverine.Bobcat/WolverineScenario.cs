@@ -615,6 +615,43 @@ public class WolverineScenario
         verifySet("event", onStream, expected, SetMode.Ordered, tagsOf(LastAct.AllNewEvents));
     }
 
+    /// <summary>
+    /// wolverine#4865. The act appended exactly these events, in order, among those <paramref name="query" />
+    /// selects by their tags — the DCB counterpart to <see cref="ThenEventsOn{TAggregate}(Guid, object[])" />,
+    /// for a decision whose consistency boundary is a tag query rather than one stream. Only what the act
+    /// added counts, its cascades' included.
+    /// </summary>
+    public void ThenEventsOn(EventTagQuery query, params object[] events)
+    {
+        var expected = flatten(events);
+        var scope = EventStores.Describe(query);
+        var text = expected.Length == 0
+            ? $"no events are emitted on {scope}"
+            : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on {scope}";
+        using var step = ScenarioRecorder.Step("Then", text);
+        if (!actSucceeded()) return;
+
+        var selected = LastAct.AllNewEvents.Where(x => selects(query, x)).ToList();
+        if (expected.Length == 0)
+        {
+            Verdicts.Fact(selected.Count == 0,
+                $"Expected no events on {scope}, but the act appended {ScenarioValues.DescribeAll(selected.Select(x => x.Data))}");
+            return;
+        }
+
+        verifySet("event", selected.Select(x => x.Data).ToArray(), expected, SetMode.Ordered, tagsOf(selected));
+    }
+
+    /// <summary>wolverine#4865. The act appended nothing that <paramref name="query" /> selects.</summary>
+    public void ThenNoEventsOn(EventTagQuery query) => ThenEventsOn(query);
+
+    // Whether a tag query selects an event: one of its conditions names a tag the event carries, and
+    // either no event type or the event's own
+    private static bool selects(EventTagQuery query, IEvent @event)
+        => @event.Tags is { Count: > 0 } tags && query.Conditions.Any(condition =>
+            (condition.EventType is null || condition.EventType == @event.Data.GetType())
+            && tags.Any(tag => tag.TagType == condition.TagType && Equals(tag.Value, condition.TagValue)));
+
     private static bool isOn(IEvent @event, object id) => id switch
     {
         Guid guid => @event.StreamId == guid,

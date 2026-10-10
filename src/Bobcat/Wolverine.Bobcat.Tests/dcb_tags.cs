@@ -149,4 +149,23 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
 
         (await TheDcbModel<SeatAvailability>(EventTagQuery.For(theScreeningId)))!.Seats.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task events_are_checked_within_the_boundary_a_tag_query_draws()
+    {
+        var otherCustomer = new CustomerId("CUST-999");
+        await GivenEvents<SeatAvailability>(theScreeningId.Value, Tagged(new ScreeningScheduled(theScreeningId, 10), theScreeningId));
+
+        await WhenReceived(new ReserveSeat(theScreeningId, theCustomerId, "4C"));
+
+        ThenEventsOn(EventTagQuery.For(theCustomerId), Specify<SeatReserved>().With(x => x.Seat, "4C"));
+        ThenEventsOn(EventTagQuery.For(theScreeningId).AndEventsOfType<SeatReserved>(), Specify<SeatReserved>().Tagged(theScreeningId, theCustomerId));
+        ThenNoEventsOn(EventTagQuery.For(otherCustomer));
+
+        // Arranged history is never the act's, even when the query selects it
+        ThenNoEventsOn(EventTagQuery.For(theScreeningId).AndEventsOfType<ScreeningScheduled>());
+
+        var failure = Should.Throw<Exception>(() => ThenEventsOn(EventTagQuery.For(otherCustomer), Specify<SeatReserved>()));
+        failure.Message.ShouldContain("MISSING");
+    }
 }
