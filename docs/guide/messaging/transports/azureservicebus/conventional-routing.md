@@ -115,3 +115,27 @@ for each separate handler using the handler type to derive the subscription name
 the topic name. Both the topic and subscription are declared by the transport if using the `AutoProvision()` setting.
 
 
+
+
+## Separated Handlers with Queue Routing <Badge type="tip" text="6.49" />
+
+The queue convention supports `MultipleHandlerBehavior.Separated` too, from 6.49. A queue does not fan out the
+way a topic does, so the convention does the fan-out at the sender:
+
+* the first handler keeps the message type's own queue;
+* every other handler listens on a queue named from the handler type, run through the transport's naming
+  rules (the same name the topic convention gives its per-handler subscription);
+* the sender publishes the message to each of those queues.
+
+```csharp
+opts.UseAzureServiceBus("connection string")
+    .AutoProvision()
+    .UseConventionalRouting();
+
+opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+```
+
+The per-handler queues are known only to the process that holds those handlers. A publisher in another process
+publishes to the message type's queue alone, so the copies for the other handlers never happen. When several
+processes need the same message, use the [topic and subscription convention](#route-to-topics-and-subscriptions)
+instead; a topic is the Service Bus primitive for fan-out.
