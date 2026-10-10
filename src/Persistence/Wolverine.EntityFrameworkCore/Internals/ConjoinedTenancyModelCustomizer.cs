@@ -97,6 +97,7 @@ public class ConjoinedTenancyModelCustomizer : WolverineModelCustomizer
 #endif
         }
 
+        applyCompositeSagaKeys(modelBuilder, context);
         applyTenantPartitioning(modelBuilder, context);
     }
 
@@ -160,6 +161,69 @@ public class ConjoinedTenancyModelCustomizer : WolverineModelCustomizer
         protected override Expression VisitParameter(ParameterExpression node)
         {
             return ReferenceEquals(node, _from) ? _to : base.VisitParameter(node);
+        }
+    }
+
+    /// <summary>
+    /// GH-3542. Promotes a partitioned saga's identity to a real composite <c>(TenantId, Id)</c> key in the
+    /// EF model, rather than leaving the composite to exist only in the database as it does for every other
+    /// partitioned entity. See <see cref="ConjoinedTenancy.NeedsCompositeModelKey"/> for why sagas are the
+    /// exception: their ids are app-assigned, so a db-only composite would let two tenants choose the same
+    /// saga id and collide silently.
+    ///
+    /// <para>
+    /// The key order is <c>(Id, TenantId)</c> -- the saga's own id FIRST -- and that ordering is load-bearing
+    /// rather than cosmetic. Wolverine determines a saga's id type from
+    /// <c>FindPrimaryKey().GetKeyType()</c>, i.e. it assumes the primary key IS the saga id. Leading with the
+    /// tenant makes that assumption produce the tenant's type, and the saga id is then assigned into
+    /// <c>TenantId</c> -- which surfaces as a CrossTenantWriteException naming a Guid as the tenant. Neither
+    /// PostgreSQL nor SQL Server requires the partition column to lead the key, only to be part of it, so
+    /// nothing is given up by putting it second.
+    /// </para>
+    ///
+    /// <para>
+    /// EF takes composite key values in key order, so <c>LoadEntityFrame</c> emits
+    /// <c>FindAsync(sagaId, tenantId)</c> to match. The generated load and this declaration have to agree or
+    /// every saga load silently misses.
+    /// </para>
+    /// </summary>
+    private static void applyCompositeSagaKeys(ModelBuilder modelBuilder, DbContext context)
+    {
+        var options = ConjoinedTenancy.OptionsFor(context.GetType());
+        if (!options.PartitioningEnabled)
+        {
+            return;
+        }
+
+        var sagas = modelBuilder.Model.GetEntityTypes()
+            .Where(ConjoinedTenancy.NeedsCompositeModelKey)
+            .ToArray();
+
+        foreach (var entityType in sagas)
+        {
+            var existing = entityType.FindPrimaryKey();
+            if (existing == null) continue;
+
+            // Whatever the user declared stays the HEAD of the key; only the tenant is appended, so a saga
+            // with an unusual key shape is not quietly replaced with an assumed one, and the saga's own id
+            // stays the first key property that Wolverine's saga-id determination reads.
+            var keyProperties = existing.Properties.Select(x => x.Name)
+                .Append(nameof(IHasTenantId.TenantId))
+                .Distinct()
+                .ToArray();
+
+            var entity = modelBuilder.Entity(entityType.ClrType);
+            entity.HasKey(keyProperties);
+
+            // The tenant column's default value makes EF treat TenantId as store-generated, and a
+            // store-generated string KEY gets a temporary GUID at Add() time so the entity can be
+            // tracked. That GUID is what the parked branch saw in CrossTenantWriteException. Supplying
+            // the generator ourselves keeps the key store-generated -- handlers never set TenantId --
+            // while making the generated value the context's own tenant. See
+            // ConjoinedTenantIdValueGenerator for the full account.
+            entity.Property(nameof(IHasTenantId.TenantId))
+                .ValueGeneratedOnAdd()
+                .HasValueGenerator<ConjoinedTenantIdValueGenerator>();
         }
     }
 
