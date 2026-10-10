@@ -116,7 +116,8 @@ public class OutboxedSessionFactory
             options.Listeners.Add(new PublishIncomingEventsBeforeCommit(context));
         }
 
-        if (_shouldTrackAppends)
+        // GH-4931: a tracked session hears what this session appends, whether or not the observer does
+        if (_shouldTrackAppends || _runtime is WolverineRuntime { ActiveSession: not null })
         {
             options.Listeners.Add(new NotifyObserverOfAppendedEvents(context));
         }
