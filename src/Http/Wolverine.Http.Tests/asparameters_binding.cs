@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text;
 using Alba;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -251,6 +253,41 @@ public class asparameters_binding : IntegrationContext
         });
 
         (await result.ReadAsTextAsync()).ShouldBe("body:Bob");
+    }
+
+    // A chunked request carries no Content-Length, so an optional body sent chunked must still bind
+    // instead of being mistaken for a missing body. Sent through the real TestServer client handler so
+    // the server sees genuine chunked framing (CanHaveBody = true, ContentLength = null).
+    [Fact]
+    public async Task nullable_from_body_sent_chunked_binds_value()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/3135/optional-body?Name=Jeremy")
+        {
+            Content = new StringContent("{\"passengerName\":\"Bob\"}", Encoding.UTF8, "application/json")
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        var response = await Host.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBe("body:Bob");
+    }
+
+    // A chunked request with zero bytes still binds null, as it did before chunked bodies were read.
+    // Minimal APIs answer 400 here (CanHaveBody is true, so they try to deserialize the empty body).
+    [Fact]
+    public async Task nullable_from_body_sent_chunked_but_empty_binds_null()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/3135/optional-body?Name=Jeremy")
+        {
+            Content = new StringContent("", Encoding.UTF8, "application/json")
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        var response = await Host.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBe("no-body");
     }
 
     // Regression guard: a NON-nullable [FromBody] member is still required — a missing body 400s.

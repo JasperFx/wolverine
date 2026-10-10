@@ -438,26 +438,56 @@ public abstract class HttpHandler
         // An optional body (a nullable [FromBody] member) with no content binds null and continues
         // instead of failing content-type/JSON validation. Mirrors minimal-API optional-body
         // semantics. See GH-3135.
+        //
+        // A missing Content-Length is not proof of a missing body: a chunked request, or an HTTP/2 request
+        // without content-length, carries its body with no Content-Length at all, and used to be silently
+        // bound as null. Ask the server the way minimal APIs do (IHttpRequestBodyDetectionFeature.CanHaveBody),
+        // and when it cannot rule a body out, peek at the body below instead of guessing.
+        var peekOptionalBody = false;
         if (optional && context.Request.ContentLength is null or 0)
         {
-            return (default, HandlerContinuation.Continue);
-        }
+            if (context.Request.ContentLength == 0 ||
+                context.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == false)
+            {
+                return (default, HandlerContinuation.Continue);
+            }
 
-        if (!isRequestJson(context))
-        {
-            context.Response.StatusCode = 415;
-            return (default, HandlerContinuation.Stop);
-        }
-
-        if (!acceptsJson(context))
-        {
-            context.Response.StatusCode = 406;
-            return (default, HandlerContinuation.Stop);
+            peekOptionalBody = true;
         }
 
         try
         {
-            var body = await JsonSerializer.DeserializeAsync<T>(context.Request.Body, _jsonOptions,
+            var stream = context.Request.Body;
+            if (peekOptionalBody)
+            {
+                // Peek without consuming. A body that turns out to be zero bytes still binds null, as it
+                // always has (minimal APIs answer 400 here instead). Deserialize from the same PipeReader
+                // afterward so the peeked bytes are not lost on servers whose Request.Body is not backed
+                // by BodyReader.
+                var reader = context.Request.BodyReader;
+                var peek = await reader.ReadAsync(context.RequestAborted);
+                reader.AdvanceTo(peek.Buffer.Start);
+                if (peek.Buffer.IsEmpty && peek.IsCompleted)
+                {
+                    return (default, HandlerContinuation.Continue);
+                }
+
+                stream = reader.AsStream(leaveOpen: true);
+            }
+
+            if (!isRequestJson(context))
+            {
+                context.Response.StatusCode = 415;
+                return (default, HandlerContinuation.Stop);
+            }
+
+            if (!acceptsJson(context))
+            {
+                context.Response.StatusCode = 406;
+                return (default, HandlerContinuation.Stop);
+            }
+
+            var body = await JsonSerializer.DeserializeAsync<T>(stream, _jsonOptions,
                 context.RequestAborted);
 
             return (body, HandlerContinuation.Continue);
