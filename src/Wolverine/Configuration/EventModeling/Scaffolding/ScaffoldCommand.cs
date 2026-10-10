@@ -99,7 +99,8 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
                     : options.ApplicationAssembly?.GetName().Name ?? "App",
                 ResolveType = TypeResolver.For(options, model),
                 FileExists = path => File.Exists(Path.Combine(output, path)),
-                FindSourceFile = SourceFiles.Finder(Directory.GetCurrentDirectory())
+                FindSourceFile = SourceFiles.Finder(Directory.GetCurrentDirectory()),
+                MultiStreamProjectionBase = multiStreamProjectionBaseOf(host.Services)
             });
 
             if (!input.DryRunFlag)
@@ -322,5 +323,19 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
 
             return directory;
         }
+    }
+
+    // wolverine#4865: the store's own multi-stream projection base, found from the event store the host
+    // registers -- the scaffold never references a store package
+    private static string? multiStreamProjectionBaseOf(IServiceProvider services)
+    {
+        var store = services.GetServices<JasperFx.Events.IEventStore>().FirstOrDefault();
+        return store?.GetType().Assembly.GetName().Name switch
+        {
+            "Marten" => "Marten.Events.Projections.MultiStreamProjection",
+            "Polecat" => "Polecat.Projections.MultiStreamProjection",
+            "Fisher" => "Fisher.Projections.MultiStreamProjection",
+            _ => null
+        };
     }
 }

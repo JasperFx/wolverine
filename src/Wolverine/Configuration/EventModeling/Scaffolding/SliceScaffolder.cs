@@ -113,6 +113,14 @@ public sealed class SliceScaffoldOptions
 
     /// <summary>The source file declaring an existing type, so an <see cref="ScaffoldNoticeKind.Edit" /> can say where.</summary>
     public Func<Type, string?> FindSourceFile { get; set; } = _ => null;
+
+    /// <summary>
+    ///     wolverine#4865. The event store's multi-stream projection base class, without its type arguments —
+    ///     <c>Marten.Events.Projections.MultiStreamProjection</c>, say — for a view declared
+    ///     <c>AsMultiStream()</c>. Null when the store is not known, and the scaffold then only says what to
+    ///     write and register.
+    /// </summary>
+    public string? MultiStreamProjectionBase { get; set; }
 }
 
 /// <summary>
@@ -570,6 +578,7 @@ public static class SliceScaffolder
             foreach (var view in slice.ReadModelTypes)
             {
                 stateType(view, slice, isView: true).Events.AddRange(slice.ConsumedEvents);
+                if (slice.ViewProjection == ViewProjection.MultiStream) scaffoldMultiStreamProjection(slice, view);
             }
 
             if (slice.ConsumedEvents.Count == 0)
@@ -577,6 +586,60 @@ public static class SliceScaffolder
                 Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
                     "the View slice declares no events it folds, so its view gets no Apply methods. Declare them with .From<T>()."));
             }
+        }
+
+        // wolverine#4865: a view declared AsMultiStream() is one read model per identity that many streams'
+        // events group into. The view folds them itself, through the Apply methods it gets like any view; what a
+        // multi-stream projection adds is the identity rule, which the model cannot say, and an Async registration
+        private void scaffoldMultiStreamProjection(EventModelSliceDescriptor slice, TypeDescriptor view)
+        {
+            var name = IdentifierFor(view.Name) + "Projection";
+            var registration = $"opts.Projections.Add<{name}>(ProjectionLifecycle.Async)";
+
+            if (_options.MultiStreamProjectionBase is not { } baseType)
+            {
+                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
+                    $"the view is a multi-stream projection. Write {name}, a multi-stream projection of {view.Name} that says which {view.Name} each event belongs to, and register it with an Async lifecycle: {registration}."));
+                return;
+            }
+
+            var path = pathFor(groupsOf(slice), name);
+            if (_options.FileExists(path))
+            {
+                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, $"{name} (projection)",
+                    "the file already exists and was left exactly as it is.", path));
+                return;
+            }
+
+            var file = new SliceFile(this, namespaceFor(slice));
+            var writer = file.Body;
+            var viewName = file.Use(view);
+            var idType = identityTypeOf(_options.ResolveType(view));
+
+            writer.WriteLine($"// Scaffolded by `wolverine scaffold` for the multi-stream view '{view.Name}'.");
+            writer.WriteLine("// It is yours now: the scaffold never writes to this class again.");
+            writer.Write($"BLOCK:public class {name} : {baseType}<{viewName}, {idType}>");
+            writer.Write($"BLOCK:public {name}()");
+            writer.WriteLine($"// TODO: which {viewName} each event belongs to, one rule per event the view folds:");
+            foreach (var e in slice.ConsumedEvents)
+            {
+                writer.WriteLine($"//     Identity<{file.Use(e)}>(e => e.{viewName}Id);");
+            }
+
+            writer.FinishBlock();
+            writer.FinishBlock();
+            add($"{name} (projection)", path, file);
+
+            Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
+                $"register {name} with an Async lifecycle: {registration}.", path));
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static string identityTypeOf(Type? view)
+        {
+            var id = view?.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.PropertyType;
+            return id is null ? "Guid" : id == typeof(Guid) ? "Guid" : id == typeof(string) ? "string" : id.Name;
         }
 
         private StateType stateType(TypeDescriptor type, EventModelSliceDescriptor slice, bool isView)

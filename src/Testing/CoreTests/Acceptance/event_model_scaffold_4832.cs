@@ -465,6 +465,41 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void a_multi_stream_view_gets_a_projection_with_its_identity_rules_to_write_and_an_async_registration()
+    {
+        // wolverine#4865: AsMultiStream() -- the identity rule is the one thing the model cannot say
+        var result = SliceScaffolder.Plan(
+            declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>().From<AppointmentReminderScheduled>().AsMultiStream()),
+            new SliceScaffoldOptions
+            {
+                RootNamespace = "Clinic",
+                ResolveType = resolve,
+                FindSourceFile = type => $"Domain/{type.Name}.cs",
+                MultiStreamProjectionBase = "Marten.Events.Projections.MultiStreamProjection"
+            });
+
+        var projection = result.Files.Single(x => x.RelativePath == "AppointmentBoardProjection.cs").Code;
+        projection.ShouldContain("public class AppointmentBoardProjection : Marten.Events.Projections.MultiStreamProjection<AppointmentBoard, Guid>");
+        projection.ShouldContain("//     Identity<AppointmentConfirmed>(e => e.AppointmentBoardId);");
+        projection.ShouldContain("//     Identity<AppointmentReminderScheduled>(e => e.AppointmentBoardId);");
+
+        result.Notices.ShouldContain(x => x.Kind == ScaffoldNoticeKind.Edit
+                                          && x.Message.Contains("opts.Projections.Add<AppointmentBoardProjection>(ProjectionLifecycle.Async)"));
+
+        // The view still folds what it consumes itself
+        result.Files.Single(x => x.InsertInto == nameof(AppointmentBoard)).Code.ShouldContain("Create(AppointmentConfirmed e)");
+    }
+
+    [Fact]
+    public void a_multi_stream_view_on_a_store_the_scaffold_does_not_know_is_only_described()
+    {
+        var result = plan(declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>().AsMultiStream()));
+
+        result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("Projection.cs"));
+        result.Notices.ShouldContain(x => x.Kind == ScaffoldNoticeKind.Edit && x.Message.Contains("ProjectionLifecycle.Async"));
+    }
+
+    [Fact]
     public void a_dcb_command_with_no_strong_typed_ids_leaves_its_tags_a_todo()
     {
         var result = plan(declared(m => m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler)
