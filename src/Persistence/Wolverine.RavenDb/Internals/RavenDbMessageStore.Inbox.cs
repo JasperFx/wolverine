@@ -15,15 +15,19 @@ public partial class RavenDbMessageStore : IMessageInbox
     {
         // GH-4216: a Handled document is never resurrected by a late retry booking. It is the dedup window's
         // record that the message completed; flipping it back to Scheduled with its body intact ran the
-        // message a second time
+        // message a second time. The check lives in the patch script rather than the query on purpose: a
+        // query on id() alone needs no index, while "and m.Status != $handled" made this an index query that
+        // CI's RavenDB refused with "Cannot perform bulk operation. Index is stale."
         var query = $@"
             from IncomingMessages as m
-            where id() = $id and m.Status != $handled
+            where id() = $id
             update {{
-                this.ExecutionTime = $time;
-                this.Status = $status;
-                this.Attempts = $attempts;
-                this.OwnerId = 0;
+                if (this.Status !== $handled) {{
+                    this.ExecutionTime = $time;
+                    this.Status = $status;
+                    this.Attempts = $attempts;
+                    this.OwnerId = 0;
+                }}
             }}";
 
         var operation = new PatchByQueryOperation(new IndexQuery
