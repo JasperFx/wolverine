@@ -227,18 +227,36 @@ public class asparameters_binding : IntegrationContext
         });
     }
 
-    // GH-3135 WS3: a nullable [FromBody] member is optional — a missing body binds null and the
-    // endpoint runs (200) instead of returning 400 ("input does not contain any JSON tokens").
+    // GH-3135 WS3: a nullable [FromBody] member is optional — a request with no body binds null and
+    // the endpoint runs (200) instead of returning 400 ("input does not contain any JSON tokens").
+    // "No body" is decided the way minimal APIs decide it (GH-4935): Content-Length: 0, or the server
+    // saying there cannot be one. An Alba scenario always says there CAN be one, so the no-body request
+    // is sent with an explicit Content-Length: 0, which is what HttpClient sends for a bodiless POST.
     [Fact]
     public async Task nullable_from_body_missing_binds_null()
     {
         var result = await Scenario(x =>
         {
             x.Post.Url("/api/3135/optional-body?Name=Jeremy");
+            x.ConfigureHttpContext(c => c.Request.ContentLength = 0);
             x.StatusCodeShouldBe(200);
         });
 
         (await result.ReadAsTextAsync()).ShouldBe("no-body");
+    }
+
+    // GH-4935, question 1, decided as minimal API parity: when the server says the request CAN have a
+    // body and there is nothing in it, that is not "no body", it is an empty body -- invalid JSON, 400.
+    // Alba always reports CanHaveBody, so a scenario that sends nothing at all lands here, exactly as
+    // the same scenario against a minimal API endpoint does.
+    [Fact]
+    public async Task nullable_from_body_with_an_empty_body_the_server_cannot_rule_out_is_a_400()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Url("/api/3135/optional-body?Name=Jeremy");
+            x.StatusCodeShouldBe(400);
+        });
     }
 
     [Fact]
@@ -273,10 +291,11 @@ public class asparameters_binding : IntegrationContext
         (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBe("body:Bob");
     }
 
-    // A chunked request with zero bytes still binds null, as it did before chunked bodies were read.
-    // Minimal APIs answer 400 here (CanHaveBody is true, so they try to deserialize the empty body).
+    // A chunked request with zero bytes is an EMPTY body, not a missing one: the server says it can have
+    // a body (CanHaveBody is true), so it is read, and there is no JSON in it. 400, as minimal APIs
+    // answer it. GH-4935, question 1.
     [Fact]
-    public async Task nullable_from_body_sent_chunked_but_empty_binds_null()
+    public async Task nullable_from_body_sent_chunked_but_empty_is_a_400()
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/3135/optional-body?Name=Jeremy")
         {
@@ -286,8 +305,61 @@ public class asparameters_binding : IntegrationContext
 
         var response = await Host.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
 
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    // GH-4935, question 2, decided as minimal API parity: a top-level NULLABLE body parameter is an
+    // optional body too, not only a nullable [FromBody] member of an [AsParameters] type.
+    [Fact]
+    public async Task nullable_body_parameter_missing_binds_null()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Url("/api/4935/optional-body-param");
+            x.ConfigureHttpContext(c => c.Request.ContentLength = 0);
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("no-body");
+    }
+
+    [Fact]
+    public async Task nullable_body_parameter_present_binds_value()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Json(new WolverineWebApi.AddPassengerPayload("Bob")).ToUrl("/api/4935/optional-body-param");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("body:Bob");
+    }
+
+    [Fact]
+    public async Task nullable_body_parameter_sent_chunked_binds_value()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/4935/optional-body-param")
+        {
+            Content = new StringContent("{\"passengerName\":\"Bob\"}", Encoding.UTF8, "application/json")
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        var response = await Host.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBe("no-body");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldBe("body:Bob");
+    }
+
+    // Regression guard for question 2: a NON-nullable body parameter is still required.
+    [Fact]
+    public async Task non_nullable_body_parameter_missing_still_fails()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Url("/api/4935/required-body-param");
+            x.ConfigureHttpContext(c => c.Request.ContentLength = 0);
+            x.StatusCodeShouldBe(400);
+        });
     }
 
     // Regression guard: a NON-nullable [FromBody] member is still required — a missing body 400s.
