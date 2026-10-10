@@ -25,6 +25,99 @@ public class scheduled_message_references(DatabaseFixture fixture) : ScheduledMe
         options.Services.AddSingleton(_documents);
         options.UseRavenDbPersistence();
     }
+
+    [Theory]
+    [InlineData("promoted")]
+    [InlineData("earlier")]
+    [InlineData("later")]
+    [InlineData("missing-time")]
+    [InlineData("reference")]
+    [InlineData("tenant")]
+    [InlineData("service")]
+    [InlineData("envelope-id")]
+    [InlineData("message-type")]
+    public async Task cancellation_rechecks_stale_index_matches_against_loaded_documents(string change)
+    {
+        using var host = await startHost(firstPoll: TimeSpan.FromHours(1));
+        var schedules = host.Services.GetRequiredService<IMessageStore>().ScheduledMessages;
+        var due = DateTimeOffset.UtcNow.AddHours(2);
+        await host.MessageBus().ScheduleAsync(new ReferencedWork(1), due,
+            new DeliveryOptions { ReferenceKey = "account/1", TenantId = "tenant-a" });
+        await host.MessageBus().ScheduleAsync(new ReferencedWork(2), due,
+            new DeliveryOptions { ReferenceKey = "account/1", TenantId = "tenant-a" });
+        var original = await schedules.QueryAsync(new ScheduledMessageQuery(), TestContext.Current.CancellationToken);
+        var query = new ScheduledMessageQuery
+        {
+            ReferenceKey = "account/1", TenantId = "tenant-a",
+            MessageIds = original.Messages.Select(x => x.Id).ToArray(),
+            MessageType = original.Messages.First().MessageType,
+            ExecutionTimeFrom = due, ExecutionTimeTo = due
+        };
+        var indexed = await schedules.QueryAsync(query, TestContext.Current.CancellationToken);
+        indexed.TotalCount.ShouldBe(2);
+        var selected = indexed.Messages.First();
+        var persistence = (RavenDbMessageStore)host.Services.GetRequiredService<IMessageStore>();
+        var identity = persistence.IdentityFor(new Envelope { Id = selected.Id, Destination = new Uri(selected.Destination!) });
+
+        // Freeze the matching index, then change the document before cancellation loads its current
+        // state and change vector. Bypass the wait only in this test to deterministically reproduce
+        // a change after WaitForNonStaleResults' cutoff without timing the server's query execution.
+        void useFrozenIndex(object? sender, BeforeQueryEventArgs args)
+        {
+            args.QueryCustomization.BeforeQueryExecuted(q => q.WaitForNonStaleResults = false);
+        }
+
+        await _documents!.Maintenance.SendAsync(new StopIndexingOperation(), TestContext.Current.CancellationToken);
+        try
+        {
+            using (var competing = _documents.OpenAsyncSession())
+            {
+                var current = await competing.LoadAsync<IncomingMessage>(identity, TestContext.Current.CancellationToken);
+                switch (change)
+                {
+                    case "promoted": current.Status = EnvelopeStatus.Incoming; break;
+                    case "earlier": current.ExecutionTime = due.AddHours(-1); break;
+                    case "later": current.ExecutionTime = due.AddHours(1); break;
+                    case "missing-time": current.ExecutionTime = null; break;
+                    case "reference": current.ReferenceKey = "Account/1"; break;
+                    case "tenant": current.TenantId = "Tenant-A"; break;
+                    case "service": current.ServiceName = "another-application"; break;
+                    case "envelope-id": current.EnvelopeId = Guid.NewGuid(); break;
+                    case "message-type": current.MessageType = "other-work"; break;
+                }
+
+                // A case-only change to message type still matches RavenDB's existing predicate.
+                var matching = indexed.Messages.Last();
+                var matchingIdentity = persistence.IdentityFor(new Envelope { Id = matching.Id, Destination = new Uri(matching.Destination!) });
+                var stillMatching = await competing.LoadAsync<IncomingMessage>(matchingIdentity, TestContext.Current.CancellationToken);
+                stillMatching.MessageType = stillMatching.MessageType.ToUpperInvariant();
+                await competing.SaveChangesAsync(TestContext.Current.CancellationToken);
+            }
+
+            _documents.OnBeforeQuery += useFrozenIndex;
+            try
+            {
+                await schedules.CancelAsync(query, TestContext.Current.CancellationToken);
+            }
+            finally
+            {
+                _documents.OnBeforeQuery -= useFrozenIndex;
+            }
+
+            using var verification = _documents.OpenAsyncSession();
+            var remaining = await verification.LoadAsync<IncomingMessage>(identity, TestContext.Current.CancellationToken);
+            remaining.ShouldNotBeNull();
+            remaining.Status.ShouldBe(change == "promoted" ? EnvelopeStatus.Incoming : EnvelopeStatus.Scheduled);
+            var cancelled = indexed.Messages.Last();
+            var cancelledIdentity = persistence.IdentityFor(new Envelope { Id = cancelled.Id, Destination = new Uri(cancelled.Destination!) });
+            (await verification.LoadAsync<IncomingMessage>(cancelledIdentity, TestContext.Current.CancellationToken)).ShouldBeNull();
+        }
+        finally
+        {
+            await _documents.Maintenance.SendAsync(new StartIndexingOperation(), TestContext.Current.CancellationToken);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

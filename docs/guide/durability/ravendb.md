@@ -301,7 +301,9 @@ other nodes have replicated, and query results are not a claim on the returned w
 
 Cancellation combines every supplied filter, including IDs, and ignores pagination. An empty query
 retains the existing behavior of selecting all scheduled incoming messages in the store. Cancellation
-and rescheduling use optimistic concurrency: if a selected document changes before saving, RavenDB
+rechecks the loaded status and every supplied filter before deleting: an index match can refer to a
+document that has already been promoted or moved outside the requested bounds. Cancellation and
+rescheduling use optimistic concurrency: if a loaded document changes before saving, RavenDB
 throws `ConcurrencyException` and aborts that session's writes. Refresh the query before deciding
 whether to retry. Scheduled promotion also checks the loaded document versions before dispatch, so
 a stale promotion cannot recreate a document deleted by cancellation on the same database node.

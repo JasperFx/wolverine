@@ -52,10 +52,29 @@ public partial class RavenDbMessageStore : IScheduledMessages
         var messages = await scheduledMessages(session, query).ToListAsync(token);
         foreach (var message in messages)
         {
+            // A non-stale query only waits through its arrival cutoff. The index can still match
+            // while the loaded document already has a newer state and change vector. Optimistic
+            // concurrency protects changes after loading; recheck the loaded state as well.
+            if (!matchesScheduledMessage(message, query)) continue;
             session.Delete(message);
         }
 
         await session.SaveChangesAsync(token);
+    }
+
+    private bool matchesScheduledMessage(IncomingMessage message, ScheduledMessageQuery query)
+    {
+        if (message.Status != EnvelopeStatus.Scheduled) return false;
+        if (query.ReferenceKey != null &&
+            (message.ReferenceKey != query.ReferenceKey || message.ServiceName != ServiceName)) return false;
+        if (query.TenantId != null && message.TenantId != query.TenantId) return false;
+        if (query.MessageIds.Length > 0 && !query.MessageIds.Contains(message.EnvelopeId)) return false;
+        // The existing message-type index predicate is case-insensitive; reference and tenant are exact.
+        if (query.MessageType.IsNotEmpty() &&
+            !string.Equals(message.MessageType, query.MessageType, StringComparison.OrdinalIgnoreCase)) return false;
+        if (query.ExecutionTimeFrom.HasValue && !(message.ExecutionTime >= query.ExecutionTimeFrom.Value)) return false;
+        if (query.ExecutionTimeTo.HasValue && !(message.ExecutionTime <= query.ExecutionTimeTo.Value)) return false;
+        return true;
     }
 
     private IRavenQueryable<IncomingMessage> scheduledMessages(IAsyncDocumentSession session, ScheduledMessageQuery query)
