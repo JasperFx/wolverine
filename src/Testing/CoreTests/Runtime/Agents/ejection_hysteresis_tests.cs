@@ -192,4 +192,45 @@ public class ejection_hysteresis_tests
         await _runtime.Observer.Received(1)
             .StaleNodes(Arg.Is<IReadOnlyList<WolverineNode>>(x => x.Count == 1 && x[0].NodeId == _peerId));
     }
+
+    /// <summary>
+    /// PR #4537's finding. A departed node's lane in the command dispatcher otherwise waits out a reply window
+    /// nobody will send, holding the agents it was moving in the leader's ledger for up to twenty-five minutes.
+    /// The controller reports a departure at the moment it ejects a stale row, and never inside the hysteresis
+    /// window -- a node that blips stale for a tick is not gone.
+    /// </summary>
+    [Fact]
+    public async Task reports_the_departure_of_a_peer_when_it_ejects_it_and_not_before()
+    {
+        var departed = new List<Guid>();
+        _controller.NodeDeparted = departed.Add;
+
+        snapshotIs(Self(), Peer(stale: true));
+
+        await tickAsync(); // stale observation 1 of 2
+        departed.ShouldBeEmpty();
+
+        await tickAsync(); // ejected
+        departed.ShouldBe([_peerId]);
+    }
+
+    [Fact]
+    public async Task reports_the_departure_of_a_peer_whose_row_is_simply_gone()
+    {
+        var departed = new List<Guid>();
+        _controller.NodeDeparted = departed.Add;
+
+        snapshotIs(Self(), Peer(stale: false));
+        await tickAsync();
+        departed.ShouldBeEmpty();
+
+        // A clean shutdown deletes the node's own row; a peer that ejected it does the same
+        snapshotIs(Self());
+        await tickAsync();
+        departed.ShouldBe([_peerId]);
+
+        // Said once, not on every later tick
+        await tickAsync();
+        departed.Count.ShouldBe(1);
+    }
 }

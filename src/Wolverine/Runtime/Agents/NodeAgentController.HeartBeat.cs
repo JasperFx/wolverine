@@ -180,6 +180,7 @@ public partial class NodeAgentController
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
 
+        noteDepartedRows(nodes);
 
         // Check for stale nodes that are no longer writing health checks. By
         // definition we just wrote our own heartbeat above, so we must never
@@ -380,6 +381,47 @@ public partial class NodeAgentController
             : await EvaluateAssignmentsAsync(nodes, restrictions);
     }
 
+    /// <summary>
+    ///     Told the id of every node that has left the cluster as this node sees it: a row this node ejected as
+    ///     stale, or a row that was in the previous tick's snapshot and is gone from this one (a clean shutdown,
+    ///     or an ejection by a peer). The runtime points this at the command dispatcher so the departed node's
+    ///     lane is abandoned rather than left waiting out a reply window nobody will ever send (PR #4537's
+    ///     finding). Invoked on every node, whatever its role; only a leader has lanes with anything in them.
+    /// </summary>
+    internal Action<Guid>? NodeDeparted { get; set; }
+
+    // The node rows present in the previous tick's snapshot, BEFORE stale filtering, so a departure here means
+    // the row itself is gone. Only ever touched from the serialized health-check path.
+    private HashSet<Guid> _rowsLastTick = [];
+
+    private void noteDepartedRows(IReadOnlyList<WolverineNode> nodes)
+    {
+        var current = nodes.Select(x => x.NodeId).ToHashSet();
+        foreach (var departed in _rowsLastTick)
+        {
+            if (!current.Contains(departed))
+            {
+                noteNodeDeparted(departed);
+            }
+        }
+
+        _rowsLastTick = current;
+    }
+
+    private void noteNodeDeparted(Guid nodeId)
+    {
+        if (nodeId == _runtime.Options.UniqueNodeId) return;
+
+        try
+        {
+            NodeDeparted?.Invoke(nodeId);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error handling the departure of node {NodeId}", nodeId);
+        }
+    }
+
     // The node ids seen on the previous health-check tick, and the timestamps that bound the current wait.
     // Only ever touched from the serialized health-check path.
     private HashSet<Guid> _knownNodes = [];
@@ -518,6 +560,10 @@ public partial class NodeAgentController
             await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
             _staleObservations.Remove(staleNode.NodeId);
             ejected.Add(staleNode);
+
+            // Its row is gone from here on, so the next snapshot would report it anyway; saying so now spares
+            // whatever is parked in its lane one more tick of waiting on a node that is not there.
+            noteNodeDeparted(staleNode.NodeId);
 
             // GH-4852. This is the whole crash-recovery story for everything the dead node was holding -- the
             // delete above also releases every inbox and outbox envelope it owned -- and until now it was the
