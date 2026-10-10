@@ -62,6 +62,20 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void an_http_stream_start_answers_with_the_id_it_assigned()
+    {
+        // GH-4927: a 201 with the new stream's id, not an empty response the caller cannot follow
+        var result = plan(declared(m => m.Slice("OpenAppointment").Pattern(SlicePattern.Command).TriggeredBy(TriggerKind.Http)
+            .Command<ProposeAppointment>().StartsStream<Appointment>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("[WolverinePost(\"/api/open-appointment\")]");
+        code.ShouldNotContain("[EmptyResponse]");
+        code.ShouldContain("public static (CreationResponse<Guid>, StartStream) Post(ProposeAppointment command)");
+        code.ShouldContain("//     return (new CreationResponse<Guid>($\"/api/appointment/{id}\", id), Storage.StartStream<Appointment>(id, new AppointmentConfirmed(...)));");
+    }
+
+    [Fact]
     public void an_existing_aggregate_gets_its_missing_apply_methods_inserted_into_its_own_file()
     {
         // GH-4898: the import writes aggregates as bare stubs; without these every spec fails to project

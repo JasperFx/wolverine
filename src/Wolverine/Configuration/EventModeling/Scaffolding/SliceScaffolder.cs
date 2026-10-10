@@ -908,7 +908,18 @@ public static class SliceScaffolder
                 returns.Add("StartStream");
                 var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
                 shape.Add("var id = Guid.CreateVersion7();");
-                shape.Add($"return Storage.StartStream<{file.Use(stream)}>(id, {events});");
+
+                if (http)
+                {
+                    // GH-4927: an HTTP caller learns the id the endpoint assigned, from a 201 and its Location
+                    returns.Insert(0, "CreationResponse<Guid>");
+                    var location = RouteFor(IdentifierFor(stream.Name));
+                    shape.Add($"return (new CreationResponse<Guid>($\"{location}/{{id}}\", id), Storage.StartStream<{file.Use(stream)}>(id, {events}));");
+                }
+                else
+                {
+                    shape.Add($"return Storage.StartStream<{file.Use(stream)}>(id, {events});");
+                }
             }
             else if (typedEvent)
             {
@@ -1049,7 +1060,9 @@ public static class SliceScaffolder
             if (http)
             {
                 writer.WriteLine($"[WolverinePost(\"{RouteFor(identifier)}\")]");
-                if (returns.Count > 0) writer.WriteLine("[EmptyResponse]");
+                // A CreationResponse is the response; anything else returned is a side effect
+                if (returns.Count > 0 && !returns[0].StartsWith("CreationResponse", StringComparison.Ordinal))
+                    writer.WriteLine("[EmptyResponse]");
             }
 
             if (isDecider)
