@@ -479,6 +479,29 @@ public abstract class HttpHandler
 
             return (default, HandlerContinuation.Stop);
         }
+        catch (BadHttpRequestException e)
+        {
+            // GH-4933: the server refused the request body itself before any JSON was parsed: Kestrel's 413 for a
+            // body over [RequestSizeLimit] / MaxRequestBodySize, a 400 for a malformed chunk or a truncated body, a
+            // 408 for a body that arrives too slowly. Those are client errors that carry their own status, so answer
+            // with it, as minimal APIs do. The general catch below would report it as a 500 "server side
+            // serialization problem", which sends the client a retryable status for a request that can never
+            // succeed, and writes a client-triggerable Error log on every one.
+            var logger = context.RequestServices.GetService<ILogger<T>>();
+            logger?.LogDebug(e, "The request body at {Url} could not be read for {Type}",
+                context.Request.Path, typeof(T).FullNameInCode());
+
+            await Results.Problem(new()
+            {
+                Type = $"https://httpstatuses.com/{e.StatusCode}",
+                Title = "Request body could not be read",
+                Status = e.StatusCode,
+                Detail = e.Message,
+                Instance = context.Request.Path
+            }).ExecuteAsync(context);
+
+            return (default, HandlerContinuation.Stop);
+        }
         catch (Exception e)
         {
             var logger = context.RequestServices.GetService<ILogger<T>>();
