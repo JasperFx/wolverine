@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
 using Weasel.Core;
 using Wolverine.Transports;
 
@@ -41,11 +42,9 @@ public abstract partial class MessageDatabase<T>
     /// through anyway. Same distinction #4209's promotion fix and #4224's mark-as-handled fix both had to
     /// make.
     ///
-    /// Gated on partitioning, so every non-partitioned store issues byte-for-byte the statement it always
-    /// did. Whether a non-partitioned store should also refuse to reschedule a <c>Handled</c> row is a
-    /// separate decision with its own consequence -- the <c>rowsAffected == 0</c> fallback below would then
-    /// insert onto that row's primary key -- and #4216 asks for it to be made deliberately rather than as a
-    /// side effect of an incident fix.
+    /// The delete-then-update pair is gated on partitioning, where the pairs exist. Refusing to reschedule a
+    /// <c>Handled</c> row is not: every store refuses it (GH-4216, decided), and the <c>rowsAffected == 0</c>
+    /// fallback below treats the resulting insert collision as "already handled, discard".
     /// </summary>
     protected string ScheduleExecutionSql()
     {
@@ -55,9 +54,15 @@ public abstract partial class MessageDatabase<T>
             $"update {table} set execution_time = @time, status = '{EnvelopeStatus.Scheduled}', attempts = @attempts, owner_id = {TransportConstants.AnyNode}";
         var identity = $"where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
+        // GH-4216, the decision the note below used to defer: a retry booking that lands AFTER the message was
+        // marked handled must not resurrect it. ScheduleExecutionAsync runs from a RetryBlock in DurableReceiver,
+        // so it is free to land after mark-as-handled for the same identity, and until now every non-partitioned
+        // store then flipped the retained Handled row straight back to Scheduled with its body intact -- a second,
+        // fully executable copy of a message that already completed. The Handled row is the dedup window's record
+        // of completion and is nobody else's to touch, on any store.
         if (!Durability.EnableInboxPartitioning)
         {
-            return $"{set} {identity};";
+            return $"{set} {identity} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}';";
         }
 
         var scheduledExists = Durability.MessageIdentity == MessageIdentity.IdOnly
@@ -123,7 +128,19 @@ public abstract partial class MessageDatabase<T>
 
         if (rowsAffected == 0)
         {
-            await StoreIncomingAsync(envelope);
+            try
+            {
+                await StoreIncomingAsync(envelope);
+            }
+            catch (DuplicateIncomingEnvelopeException)
+            {
+                // GH-4216. The update matched nothing because the only row for this identity is a retained
+                // Handled one, and that row is exactly where the insert collided. The message already completed;
+                // a retry booked after the fact is discarded, not executed a second time.
+                Logger.LogDebug(
+                    "Discarding the retry of envelope {EnvelopeId} ({MessageType}) at {Destination}: it was already marked as handled",
+                    envelope.Id, envelope.MessageType, envelope.Destination);
+            }
         }
     }
 }

@@ -13,9 +13,12 @@ public partial class RavenDbMessageStore : IMessageInbox
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
+        // GH-4216: a Handled document is never resurrected by a late retry booking. It is the dedup window's
+        // record that the message completed; flipping it back to Scheduled with its body intact ran the
+        // message a second time
         var query = $@"
             from IncomingMessages as m
-            where id() = $id
+            where id() = $id and m.Status != $handled
             update {{
                 this.ExecutionTime = $time;
                 this.Status = $status;
@@ -32,6 +35,7 @@ public partial class RavenDbMessageStore : IMessageInbox
                 {"id", _identity(envelope)},
                 {"attempts", envelope.Attempts},
                 {"status", EnvelopeStatus.Scheduled},
+                {"handled", EnvelopeStatus.Handled},
                 {"time", envelope.ScheduledTime}
             }
         });
@@ -145,12 +149,30 @@ public partial class RavenDbMessageStore : IMessageInbox
         return (await session.LoadAsync<IncomingMessage>(identity, cancellation)) != null;
     }
 
-    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
+    public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;
         envelope.OwnerId = TransportConstants.AnyNode;
 
-        return StoreIncomingAsync(envelope);
+        // GH-4216. This was INSERT-only, so it threw DuplicateIncomingEnvelopeException whenever a document already
+        // existed for the identity -- which is the normal case this method exists for (GH-2462 / GH-2823 on the
+        // relational stores). Update first, insert only when nothing is there, and leave a Handled document
+        // alone: the message already completed, so a retry booked after the fact is discarded
+        using var session = _store.OpenAsyncSession();
+        var existing = await session.LoadAsync<IncomingMessage>(_identity(envelope));
+
+        if (existing == null)
+        {
+            await StoreIncomingAsync(envelope);
+            return;
+        }
+
+        if (existing.Status == EnvelopeStatus.Handled)
+        {
+            return;
+        }
+
+        await ScheduleExecutionAsync(envelope);
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
@@ -226,7 +248,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         using var session = _store.OpenAsyncSession();
         var command = $@"
 from IncomingMessages as m
-where m.OwnerId = $owner and m.Destination = $uri
+where m.OwnerId = $owner and m.ReceivedAt = $uri
 update
 {{
     m.OwnerId = 0
@@ -240,7 +262,8 @@ update
             QueryParameters = new Parameters()
             {
                 {"owner", ownerId},
-                {"uri", receivedAt}
+                // GH-4216: the document's property is ReceivedAt (there is no Destination), stored as the Uri's string
+                {"uri", receivedAt.ToString()}
             }
         };
 

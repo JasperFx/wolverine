@@ -16,6 +16,14 @@ public partial class CosmosDbMessageStore : IMessageInbox
             var response =
                 await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
             var message = response.Resource;
+
+            // GH-4216: a Handled document is never resurrected by a late retry booking. It is the dedup
+            // window's record that the message completed
+            if (message.Status == EnvelopeStatus.Handled)
+            {
+                return;
+            }
+
             message.ExecutionTime = envelope.ScheduledTime;
             message.Status = EnvelopeStatus.Scheduled;
             message.Attempts = envelope.Attempts;
@@ -142,12 +150,32 @@ public partial class CosmosDbMessageStore : IMessageInbox
         }
     }
 
-    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
+    public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;
         envelope.OwnerId = TransportConstants.AnyNode;
 
-        return StoreIncomingAsync(envelope);
+        // GH-4216. This was INSERT-only, so it threw DuplicateIncomingEnvelopeException whenever a document already
+        // existed for the identity -- the normal case this method exists for (GH-2462 / GH-2823 on the relational
+        // stores). Update first, insert only when nothing is there, and leave a Handled document alone: the
+        // message already completed, so a retry booked after the fact is discarded
+        var id = _identity(envelope);
+        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
+        try
+        {
+            var response = await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
+            if (response.Resource.Status == EnvelopeStatus.Handled)
+            {
+                return;
+            }
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            await StoreIncomingAsync(envelope);
+            return;
+        }
+
+        await ScheduleExecutionAsync(envelope);
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
