@@ -131,6 +131,11 @@ public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbCon
             // are computed, and the partition control table migrates with the entity tables
             var partitions = (ConjoinedTenantPartitions<T>)_serviceProvider
                 .GetRequiredService<IConjoinedTenantPartitions<T>>();
+
+            // GH-3541. A table that already exists unpartitioned cannot be converted in place; refuse
+            // loudly when it holds rows, recreate it when it does not
+            await partitions.PrepareExistingTablesForMigrationAsync(CancellationToken.None);
+
             var database = await partitions.BuildWeaselDatabaseAsync(CancellationToken.None);
             await database.ApplyAllConfiguredChangesToDatabaseAsync(AutoCreate.CreateOrUpdate);
             return;

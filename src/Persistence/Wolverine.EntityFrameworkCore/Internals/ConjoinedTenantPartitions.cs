@@ -62,6 +62,31 @@ public interface IConjoinedTenantPartitions<T> where T : DbContext
     ///     Hydrate the in-memory tenant partition map from the control table
     /// </summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     GH-3541. Every managed table that already exists as a plain, unpartitioned table -- what
+    ///     PartitionPerTenant() meets when it is switched on for a DbContext that has tables with data.
+    ///     Each entry carries the row count and the tenant ids found in the rows. Empty means every
+    ///     managed table is either partitioned or not created yet
+    /// </summary>
+    Task<IReadOnlyList<UnpartitionedTable>> FindUnpartitionedTablesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     GH-3541. Rebuild every plain managed table as a partitioned one, keeping its rows: each
+    ///     table is copied aside, dropped, recreated partitioned from the same definition that creates
+    ///     it on a fresh database, reloaded, and the copy dropped -- all in one transaction per table.
+    ///     Every tenant id found in the rows is registered first (additive and idempotent, like
+    ///     AddTenantAsync) so the rows have a partition to land in. Run this while the application is
+    ///     not writing to those tables. Returns the qualified names of the tables rebuilt
+    /// </summary>
+    Task<IReadOnlyList<string>> RebuildUnpartitionedTablesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     GH-3541. The DDL that RebuildUnpartitionedTablesAsync() would execute, to review or apply by
+    ///     hand -- one transaction-sized script per plain table, concatenated. Like the rebuild, this
+    ///     registers every tenant id found in the rows first, so the script's partitions match the data
+    /// </summary>
+    Task<string> WriteRebuildScriptAsync(CancellationToken cancellationToken = default);
 }
 
 internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> where T : DbContext
@@ -126,7 +151,7 @@ internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> wher
         }
     }
 
-    internal EfSchemaMappingCustomization BuildCustomization()
+    internal EfSchemaMappingCustomization BuildCustomization(ISet<string>? leaveUnpartitioned = null)
     {
         var partitioning = Partitioning;
         return new EfSchemaMappingCustomization
@@ -134,7 +159,8 @@ internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> wher
             AdditionalObjects = partitioning.AdditionalSchemaObjects,
             CustomizeTable = (entityType, table) =>
             {
-                if (ConjoinedTenancy.IsPartitionedEntity(entityType))
+                if (ConjoinedTenancy.IsPartitionedEntity(entityType)
+                    && leaveUnpartitioned?.Contains(table.Identifier.QualifiedName) != true)
                 {
                     partitioning.ApplyToTable(table);
                 }
@@ -149,12 +175,19 @@ internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> wher
             return _database;
         }
 
+        var database = await buildWeaselDatabaseAsync(null, cancellationToken);
+        _database = database;
+        return database;
+    }
+
+    private async ValueTask<IDatabaseWithTables> buildWeaselDatabaseAsync(ISet<string>? leaveUnpartitioned,
+        CancellationToken cancellationToken)
+    {
         var builder = _serviceProvider.GetRequiredService<IDbContextBuilder<T>>();
         await using var context = await builder.BuildAsync(cancellationToken);
-        var database = _serviceProvider.CreateDatabase(context, BuildCustomization(),
+        var database = _serviceProvider.CreateDatabase(context, BuildCustomization(leaveUnpartitioned),
             "conjoined:" + typeof(T).FullNameInCode());
         Partitioning.AttachInitializer(database);
-        _database = database;
         return database;
     }
 
@@ -173,6 +206,7 @@ internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> wher
         CancellationToken cancellationToken = default)
     {
         var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        await assertNoUnpartitionedTablesAsync(database, cancellationToken);
         return await Partitioning.AddTenantsAsync(_logger, database, tenantIdToSuffix, cancellationToken);
     }
 
@@ -180,7 +214,137 @@ internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> wher
         CancellationToken cancellationToken = default)
     {
         var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        await assertNoUnpartitionedTablesAsync(database, cancellationToken);
         return await Partitioning.MigrateAllTablesAsync(_logger, database, cancellationToken);
+    }
+
+    // ---- GH-3541: enabling partitioning over an existing table -------------------------------
+
+    private ITenantPartitionRebuilder rebuilder =>
+        Partitioning as ITenantPartitionRebuilder
+        ?? throw new NotSupportedException(
+            $"The tenant partitioning for {typeof(T).FullNameInCode()} ({Partitioning.GetType().FullNameInCode()}) does not support rebuilding existing tables");
+
+    /// <summary>
+    ///     GH-3541. The partition DDL for a tenant fails against a plain table with a raw engine error
+    ///     -- "is not partitioned" on PostgreSQL, a failed SPLIT on SQL Server -- long after the cause.
+    ///     Refuse up front, naming the tables and the way out
+    /// </summary>
+    private async Task assertNoUnpartitionedTablesAsync(IDatabaseWithTables database, CancellationToken cancellationToken)
+    {
+        var plain = await rebuilder.FindUnpartitionedTablesAsync(database, cancellationToken);
+        if (plain.Count > 0)
+        {
+            throw new UnpartitionedTenantTableException(typeof(T), plain);
+        }
+    }
+
+    public async Task<IReadOnlyList<UnpartitionedTable>> FindUnpartitionedTablesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        return await rebuilder.FindUnpartitionedTablesAsync(database, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> RebuildUnpartitionedTablesAsync(CancellationToken cancellationToken = default)
+    {
+        var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        var plain = await rebuilder.FindUnpartitionedTablesAsync(database, cancellationToken);
+        if (plain.Count == 0)
+        {
+            return [];
+        }
+
+        await registerTenantsFoundInRowsAsync(plain, cancellationToken);
+
+        var rebuilt = new List<string>();
+        foreach (var table in plain)
+        {
+            await rebuilder.RebuildAsync(_logger, database, table, cancellationToken);
+            rebuilt.Add(table.Identifier.QualifiedName);
+        }
+
+        return rebuilt;
+    }
+
+    public async Task<string> WriteRebuildScriptAsync(CancellationToken cancellationToken = default)
+    {
+        var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        var plain = await rebuilder.FindUnpartitionedTablesAsync(database, cancellationToken);
+        if (plain.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        await registerTenantsFoundInRowsAsync(plain, cancellationToken);
+
+        var script = new System.Text.StringBuilder();
+        foreach (var table in plain)
+        {
+            script.AppendLine(rebuilder.WriteRebuildScript(database, table));
+            script.AppendLine();
+        }
+
+        return script.ToString();
+    }
+
+    /// <summary>
+    ///     Every tenant whose rows sit in a plain table needs a partition before those rows can be
+    ///     reloaded. Registering goes through the ordinary add-tenant path so the registry, the
+    ///     in-memory map and the partitions of every table that IS already partitioned all move
+    ///     together -- but that path runs partition DDL against every managed table, and would fail
+    ///     against the very tables being rebuilt. So it runs against a view of the schema in which
+    ///     those tables are, for the moment, not managed
+    /// </summary>
+    private async Task registerTenantsFoundInRowsAsync(IReadOnlyList<UnpartitionedTable> plain,
+        CancellationToken cancellationToken)
+    {
+        var tenantIds = plain.SelectMany(x => x.TenantIds).Distinct().ToArray();
+        if (tenantIds.Length == 0)
+        {
+            return;
+        }
+
+        var leaveAlone = plain.Select(x => x.Identifier.QualifiedName).ToHashSet();
+        var others = await buildWeaselDatabaseAsync(leaveAlone, cancellationToken);
+
+        var result = await Partitioning.AddTenantsAsync(_logger, others,
+            tenantIds.ToDictionary(x => x, _ => (string?)null), cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            throw new TenantPartitionException(result.Failures);
+        }
+    }
+
+    /// <summary>
+    ///     Called by the Wolverine-managed migration before Weasel computes its deltas. A plain table
+    ///     holding rows is refused loudly (Weasel would otherwise try to rebuild it on PostgreSQL and
+    ///     fail the reload with a raw error, and would leave it plain on SQL Server); an EMPTY plain
+    ///     table is simply dropped so the migration recreates it partitioned
+    /// </summary>
+    internal async Task PrepareExistingTablesForMigrationAsync(CancellationToken cancellationToken)
+    {
+        var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        var plain = await rebuilder.FindUnpartitionedTablesAsync(database, cancellationToken);
+        if (plain.Count == 0)
+        {
+            return;
+        }
+
+        var withRows = plain.Where(x => x.RowCount > 0).ToList();
+        if (withRows.Count > 0)
+        {
+            throw new UnpartitionedTenantTableException(typeof(T), withRows);
+        }
+
+        foreach (var table in plain)
+        {
+            _logger.LogInformation(
+                "Dropping the empty, unpartitioned table {Table} so the migration can recreate it partitioned per tenant for {DbContextType}",
+                table.Identifier.QualifiedName, typeof(T).Name);
+            await rebuilder.DropEmptyTableAsync(database, table, cancellationToken);
+        }
     }
 
     public async Task DropTenantAsync(string tenantId, bool deleteData = false,

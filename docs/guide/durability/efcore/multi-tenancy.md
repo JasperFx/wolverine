@@ -632,9 +632,9 @@ opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.
 
 With partitioning enabled:
 
-* On PostgreSQL, every non-saga `ITenanted` entity table becomes `PARTITION BY LIST (tenant_id)` with one partition per tenant, managed through a `wolverine_tenant_partitions` control table in the durability schema
+* On PostgreSQL, every `ITenanted` entity table — sagas included — becomes `PARTITION BY LIST (tenant_id)` with one partition per tenant, managed through a `wolverine_tenant_partitions` control table in the durability schema
 * On SQL Server (which can only range-partition over a compact value), entities gain an `int tenant_ordinal` column stamped automatically by Wolverine, and tables are `RANGE RIGHT` partitioned over the ordinal with a registry table mapping tenant ids to ordinals
-* The composite `(tenant, id)` primary key exists **only in the database** — your EF model keeps its own single key, so `FindAsync()`, `Attach()`, and saga loads keep exactly the same call shapes
+* For ordinary entities the composite `(tenant, id)` primary key exists **only in the database** — your EF model keeps its own single key, so `FindAsync()` and `Attach()` keep exactly the same call shapes. Sagas are the exception; see [Partitioned Sagas](#partitioned-sagas) below
 * Multiple small tenants can share one physical partition ("bucketing") by registering them with the same partition suffix — the answer to SQL Server's partition count ceiling and to "small tenants don't deserve their own partition". See [Tenant Bucketing](#tenant-bucketing) below
 * Partitioned conjoined contexts require `UseEntityFrameworkCoreWolverineManagedMigrations()` — EF migrations cannot express the partition DDL
 
@@ -663,8 +663,68 @@ await partitions.DropTenantAsync("tenant1", deleteData: true);
 <!-- endSnippet -->
 
 Note that with partitioning enabled, a tenant's partition must exist before rows can be written for that tenant.
-Sagas are deliberately **not** partitioned in this release — they keep the conjoined query filtering and tenant
-stamping, but stay in unpartitioned tables so saga identity is untouched.
+
+### Partitioned Sagas <Badge type="tip" text="6.49" />
+
+`ITenanted` saga tables are partitioned like any other entity table, with one difference in the EF model. An
+ordinary entity's id is store-generated and cannot collide across tenants, so its composite key can live in
+the database alone. A saga's id is **assigned by your application** — a natural key, an imported id, a
+per-tenant sequence — so two tenants choosing the same saga id is an ordinary occurrence rather than an abuse.
+A composite key that existed only in the database would let those two sagas collide silently, so a partitioned
+saga gets a real composite key in the EF model: whatever key you declared, with `TenantId` appended.
+
+What that means in practice:
+
+* Two tenants can use the same saga id and get two independent sagas. Each tenant's messages only ever reach
+  its own saga, and a saga is never visible to another tenant.
+* Your handlers do not change. The saga id a message carries is still the saga id; Wolverine supplies the
+  tenant from the message's tenant id when it loads the saga, and stamps it when the saga is first stored.
+* If you load a saga yourself through the `DbContext`, `FindAsync()` now takes two key values, in the order
+  `(id, tenantId)`.
+
+### Enabling Partitioning on an Existing Table <Badge type="tip" text="6.49" />
+
+Neither PostgreSQL nor SQL Server can convert a plain table into a partitioned one in place, so switching
+`PartitionPerTenant()` on for a `DbContext` that already has tables is a migration, not a flag. Wolverine
+handles the two cases differently:
+
+* A plain table with **no rows** is dropped and recreated partitioned by the Wolverine-managed migration at
+  startup, with a log entry saying so.
+* A plain table **with rows** makes the startup migration — and `AddTenantAsync()` /
+  `MigrateTenantPartitionsAsync()` — fail with `UnpartitionedTenantTableException`, naming each table, its row
+  count and the tenants its rows belong to. Wolverine will not rebuild a table holding data as a side effect of
+  starting up or of registering a tenant.
+
+To migrate a table with data, start the application without the startup migration (or run the following from a
+console or a one-off command) and ask `IConjoinedTenantPartitions<TDbContext>` to rebuild it:
+
+<!-- snippet: sample_conjoined_partitioning_rebuild_existing_tables -->
+<a id='snippet-sample_conjoined_partitioning_rebuild_existing_tables'></a>
+```cs
+var partitions = host.Services
+    .GetRequiredService<IConjoinedTenantPartitions<ConjoinedTenancy.ConjoinedItemsDbContext>>();
+
+// Which managed tables exist as plain, unpartitioned tables, with their row
+// counts and the tenant ids found in their rows
+var plain = await partitions.FindUnpartitionedTablesAsync();
+
+// Rebuild each of them as a partitioned table, keeping every row: register
+// the tenants found in the rows, then -- in one transaction per table -- copy
+// the rows aside, drop the table, recreate it partitioned, reload the rows,
+// and drop the copy. Run this while nothing is writing to those tables
+var rebuilt = await partitions.RebuildUnpartitionedTablesAsync();
+
+// Or take the DDL that would run, review it, and apply it yourself
+var script = await partitions.WriteRebuildScriptAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_rebuild_existing_tables' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Every tenant id found in the rows is registered first, through the same path as `AddTenantAsync()`, so the
+rebuilt table has a partition for every row to land in. The rebuild itself runs as one transaction per table,
+and refuses to drop the copy if the reloaded row count does not match. On SQL Server the rebuilt table gains the
+`tenant_ordinal` column, filled from the ordinal registry on the way back in. Foreign keys from *other* tables
+to the table being rebuilt are not carried across; drop and recreate those yourself around the rebuild.
 
 ### Tenant Bucketing <Badge type="tip" text="6.24" />
 

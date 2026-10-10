@@ -42,6 +42,7 @@
         <ProjectReference Include="..\SharedPersistenceModels\SharedPersistenceModels.csproj" />
         <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
         <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\Wolverine.Polecat\Wolverine.Polecat.csproj" />
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
     </ItemGroup>

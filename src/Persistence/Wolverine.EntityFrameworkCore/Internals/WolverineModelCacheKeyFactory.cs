@@ -20,6 +20,13 @@ public class WolverineModelCacheKeyFactory : IModelCacheKeyFactory
         // No Wolverine database settings (no message store) -- type-only caching
         var schemaName = WolverineModelCustomizer.TryResolveDatabaseSettings(context)?.SchemaName;
 
-        return (context.GetType(), schemaName, designTime);
+        // GH-3541, the same shape as GH-3497: a conjoined context's model also depends on its conjoined
+        // options -- PartitionPerTenant() adds the SQL Server tenant ordinal column and the composite saga
+        // keys -- so two registrations of one context type with different options must not share a model
+        var conjoined = ConjoinedTenancy.IsConjoined(context.GetType())
+            ? ConjoinedTenancy.OptionsFor(context.GetType())
+            : null;
+
+        return (context.GetType(), schemaName, conjoined, designTime);
     }
 }
