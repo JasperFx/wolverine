@@ -48,6 +48,46 @@ public async Task post_json_happy_path()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L12-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Optional Request Bodies <Badge type="tip" text="6.49" />
+
+A request body is optional when the parameter that receives it is nullable, exactly as in ASP.NET Core minimal
+APIs. That is true of a top-level body parameter and of a nullable `[FromBody]` member of an `[AsParameters]`
+type alike:
+
+```cs
+public static class OptionalBodyEndpoint
+{
+    // A request with no body binds null and the endpoint runs
+    [WolverinePost("/api/optional-body")]
+    public static string Post(Payload? body)
+        => body is null ? "no-body" : $"body:{body.Name}";
+}
+```
+
+OpenAPI reports the request body as not required. A non-nullable body parameter stays required, and a request
+without a body gets a 400.
+
+Wolverine decides whether a request *has* a body the way minimal APIs do, by asking the server
+(`IHttpRequestBodyDetectionFeature.CanHaveBody`) rather than by looking for a `Content-Length` header, so a body
+sent with `Transfer-Encoding: chunked`, from an `HttpClient` `StreamContent` of unknown length, or over HTTP/2
+without a `content-length` header, is bound rather than mistaken for a missing one. The flip side is the same as
+in minimal APIs: when the server says the request can have a body and there is nothing in it, for instance a
+chunked request with zero bytes, that is an *empty* body, not a missing one, and it is answered with a 400
+rather than bound as null. `Content-Length: 0` is always a missing body.
+
+That last point matters in tests. An Alba scenario always reports that the request can have a body, so a scenario
+that posts nothing at all to an optional-body endpoint gets a 400, just as it would against a minimal API. Send
+the no-body case with an explicit `Content-Length: 0`, which is what `HttpClient` sends for a bodiless POST:
+
+```cs
+await host.Scenario(x =>
+{
+    x.Post.Url("/api/optional-body");
+    x.ConfigureHttpContext(c => c.Request.ContentLength = 0);
+    x.StatusCodeShouldBe(200);
+});
+```
+
 ## Configuring System.Text.Json
 
 Wolverine depends on the value of the `IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>` value registered in your application container for System.Text.Json

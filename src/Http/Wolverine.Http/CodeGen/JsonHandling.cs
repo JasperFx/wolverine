@@ -32,8 +32,9 @@ internal class ReadJsonBody : AsyncFrame
     public Variable Variable { get; }
 
     /// <summary>
-    /// When true the body is optional: an empty request body binds null and continues rather than
-    /// returning 400. Set for a nullable [FromBody] member inside an [AsParameters] type. See GH-3135.
+    /// When true the body is optional: a request with no body binds null and continues rather than
+    /// returning 400. Set for a nullable body parameter (GH-4935) and for a nullable [FromBody] member
+    /// inside an [AsParameters] type (GH-3135).
     /// </summary>
     public bool Optional { get; init; }
 
@@ -106,9 +107,15 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
+            // GH-4935 (question 2): a NULLABLE body parameter is an optional body, as it is in minimal
+            // APIs -- a request with no body binds null and the endpoint runs, and OpenAPI reports the
+            // request body as not required. This used to be true only of a nullable [FromBody] member
+            // inside an [AsParameters] type (GH-3135); a top-level `Payload? body` was still required.
+            chain.RequestBodyIsOptional = AsParametersBindingFrame.IsNullableMember(parameter);
+
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
-                ? new ReadJsonBody(parameter).Variable
+                ? new ReadJsonBody(parameter) { Optional = chain.RequestBodyIsOptional }.Variable
                 : RequireNewtonsoftCodeGen().CreateReadJsonBodyVariable(parameter);
 
             variable = chain.RequestBodyVariable;

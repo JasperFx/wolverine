@@ -87,3 +87,23 @@ public static class RouteConstraintTypingEndpoint
     [ExpectNoRequestBody]
     public static string Get(Guid id, int count) => $"{id}:{count}";
 }
+
+// GH-4935 (question 2): a top-level NULLABLE body parameter is an optional body, as it is in minimal
+// APIs -- no body binds null and the endpoint runs, and OpenAPI reports requestBody.required = false.
+// Before this only a nullable [FromBody] member of an [AsParameters] type was optional.
+public static class OptionalBodyParameterEndpoint
+{
+    [WolverinePost("/api/4935/optional-body-param")]
+    [ExpectRequestBody("application/json", "passengerName", Required = false)]
+    public static string Post(AddPassengerPayload? body)
+        => body is null ? "no-body" : $"body:{body.PassengerName}";
+}
+
+// ...and a NON-nullable body parameter stays required, with OpenAPI saying so.
+public static class RequiredBodyParameterEndpoint
+{
+    [WolverinePost("/api/4935/required-body-param")]
+    [ExpectRequestBody("application/json", "passengerName", Required = true)]
+    public static string Post(AddPassengerPayload body)
+        => $"body:{body.PassengerName}";
+}

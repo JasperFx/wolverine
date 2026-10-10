@@ -435,45 +435,24 @@ public abstract class HttpHandler
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public async ValueTask<(T?, HandlerContinuation)> ReadJsonAsync<T>(HttpContext context, bool optional = false)
     {
-        // An optional body (a nullable [FromBody] member) with no content binds null and continues
-        // instead of failing content-type/JSON validation. Mirrors minimal-API optional-body
-        // semantics. See GH-3135.
+        // An optional body -- a nullable [FromBody] parameter, or a nullable [FromBody] member of an
+        // [AsParameters] type -- binds null when the request carries no body, exactly as minimal APIs
+        // decide it: the server is asked through IHttpRequestBodyDetectionFeature.CanHaveBody rather than
+        // Content-Length, because a chunked or HTTP/2 request carries its body with no Content-Length at
+        // all (GH-4935). Content-Length: 0 is kept as the short-circuit for servers without the feature.
         //
-        // A missing Content-Length is not proof of a missing body: a chunked request, or an HTTP/2 request
-        // without content-length, carries its body with no Content-Length at all, and used to be silently
-        // bound as null. Ask the server the way minimal APIs do (IHttpRequestBodyDetectionFeature.CanHaveBody),
-        // and when it cannot rule a body out, peek at the body below instead of guessing.
-        var peekOptionalBody = false;
-        if (optional && context.Request.ContentLength is null or 0)
+        // When the server says there CAN be a body, the body is read, and an empty one fails below as
+        // invalid JSON with a 400 -- the same answer minimal APIs give a zero-byte chunked body. There is
+        // deliberately no peek-and-forgive here any more (GH-4935, question 1).
+        if (optional && (context.Request.ContentLength == 0 ||
+                         context.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == false))
         {
-            if (context.Request.ContentLength == 0 ||
-                context.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == false)
-            {
-                return (default, HandlerContinuation.Continue);
-            }
-
-            peekOptionalBody = true;
+            return (default, HandlerContinuation.Continue);
         }
 
         try
         {
             var stream = context.Request.Body;
-            if (peekOptionalBody)
-            {
-                // Peek without consuming. A body that turns out to be zero bytes still binds null, as it
-                // always has (minimal APIs answer 400 here instead). Deserialize from the same PipeReader
-                // afterward so the peeked bytes are not lost on servers whose Request.Body is not backed
-                // by BodyReader.
-                var reader = context.Request.BodyReader;
-                var peek = await reader.ReadAsync(context.RequestAborted);
-                reader.AdvanceTo(peek.Buffer.Start);
-                if (peek.Buffer.IsEmpty && peek.IsCompleted)
-                {
-                    return (default, HandlerContinuation.Continue);
-                }
-
-                stream = reader.AsStream(leaveOpen: true);
-            }
 
             if (!isRequestJson(context))
             {

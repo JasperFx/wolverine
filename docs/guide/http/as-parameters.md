@@ -194,6 +194,10 @@ the request body schema is just the `Payload` type — the route id is not dupli
 works the same way when the route id also feeds a Marten/Polecat `[WriteAggregate]`/`[Aggregate]`
 parameter on the same endpoint.
 
+A nullable `[FromBody]` member makes the body optional: a request with no body binds `null` and the endpoint
+runs. The rules for what counts as "no body" are the ones on the [JSON page](./json#optional-request-bodies),
+and they are the same for a nullable top-level body parameter.
+
 ## Using Records
 
 And lastly, you can use C# records or really just any constructor function as well
