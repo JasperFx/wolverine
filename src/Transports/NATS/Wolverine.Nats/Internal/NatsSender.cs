@@ -53,7 +53,8 @@ public class NatsSender : ISender
     )
     {
         INatsPublisher publisher = useJetStream
-            ? new JetStreamPublisher(connection, jetStreamContext!, logger, endpoint.ScheduleSubjectSuffix, endpoint.MsgIdSource)
+            ? new JetStreamPublisher(connection, jetStreamContext!, logger, endpoint.ScheduleSubjectSuffix, endpoint.MsgIdSource,
+                endpoint.ConfigureJetStreamPublish)
             : new CoreNatsPublisher(connection, logger);
 
         return new NatsSender(endpoint, publisher, logger, mapper, cancellation, supportsNativeScheduledSend,

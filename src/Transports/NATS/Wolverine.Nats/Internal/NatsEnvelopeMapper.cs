@@ -36,7 +36,7 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
     {
-        headers[key] = value;
+        headers[key] = NatsHeaderValues.Sanitize(value);
     }
 
     // GH-4328: writeIncomingHeaders copies every wire header into Envelope.Headers with the same
@@ -112,7 +112,7 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
     {
-        headers[key] = value;
+        headers[key] = NatsHeaderValues.Sanitize(value);
     }
 
     // GH-4328: writeIncomingHeaders copies every wire header into Envelope.Headers with the same
@@ -184,5 +184,25 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
                 envelope.Headers[header.Key] = header.Value;
             }
         }
+    }
+}
+
+/// <summary>
+/// GH-4860. A NATS header value is one line of the wire protocol, so NATS.Net refuses a value holding a
+/// carriage return. The dead letter copy of a message stamps the exception's stack trace into its
+/// <c>exception-stack</c> header, and on Windows a stack trace is CRLF-delimited -- so every dead letter
+/// forward from a Windows host failed, and the poison message was terminated without its copy. Line breaks
+/// are folded to a bare LF, which the protocol carries, so the trace stays readable on the other side.
+/// </summary>
+internal static class NatsHeaderValues
+{
+    public static string Sanitize(string value)
+    {
+        if (value.IndexOf('\r') < 0)
+        {
+            return value;
+        }
+
+        return value.Replace("\r\n", "\n").Replace('\r', '\n');
     }
 }

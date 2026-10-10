@@ -326,6 +326,33 @@ opts.UseNats("nats://localhost:4222")
     .DefineReplicatedStream("CRITICAL", replicas: 3, "critical.>");
 ```
 
+#### Mirrors, Sources and Placement <Badge type="tip" text="6.49" />
+
+A declared stream can be a mirror of another stream, aggregate messages from other streams, or carry a
+placement for the server to honour. All three take the NATS.Net model types directly:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .DefineStream("ORDERS", s => s.WithSubjects("orders.>"))
+
+    // A mirror has no subjects of its own; it replicates its origin
+    .DefineStream("ORDERS_MIRROR", s => s.MirrorOf("ORDERS", m => m.FilterSubject = "orders.eu.>"))
+
+    // An aggregate keeps its own subjects and pulls from other streams as well
+    .DefineStream("AUDIT", s => s
+        .WithSubjects("audit.>")
+        .SourcedFrom("ORDERS")
+        .SourcedFrom("PAYMENTS", source => source.OptStartSeq = 1000))
+
+    // Placement: a cluster name, tags the server must carry, or both
+    .DefineStream("CRITICAL", s => s.WithSubjects("critical.>").WithReplicas(3).PlacedOn("east", "ssd"));
+```
+
+They are managed the way the other stream settings are, with one difference: only when declared. A stream
+whose mirror, sources or placement an operator set by hand keeps them under `CreateOrUpdate` unless the
+configuration names its own, and `Provisioning(Verify)` compares them only when the configuration declares
+them.
+
 ### JetStream Domain
 
 For multi-tenant or leaf node configurations:
@@ -594,6 +621,24 @@ opts.UseNats("nats://localhost:4222")
         .WithSubjects("orders.>")
         .WithDeduplicationWindow(TimeSpan.FromMinutes(5)));
 ```
+
+### Customizing the Publish Options <Badge type="tip" text="6.49" />
+
+Wolverine sets `Nats-Msg-Id` and, for a scheduled message, the native scheduling headers. For every other
+JetStream publish option, such as the `Nats-Expected-*` checks or a per-publish timeout, take the last word with
+`ConfigureJetStreamPublish`. The callback receives the envelope and the `NatsJSPubOpts` Wolverine built, and the
+publish uses whatever it returns:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .AutoProvision()
+    .ConfigureJetStreamPublish((envelope, pubOpts) => envelope.Message is OrderPlaced
+        ? pubOpts with { ExpectedStream = "ORDERS" }
+        : pubOpts);
+```
+
+A publish the server then refuses, for a failed expectation as for a full stream, fails the send the way
+described under [JetStream](#jetstream).
 
 ## Scheduled Message Delivery
 

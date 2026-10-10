@@ -3,6 +3,8 @@ using Wolverine.Nats.Configuration;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
+using NATS.Client.JetStream;
+
 namespace Wolverine.Nats.Internal;
 
 public class NatsTransportExpression
@@ -37,6 +39,18 @@ public class NatsTransportExpression
     public NatsTransportExpression DeduplicateUsing(Func<Envelope, string> msgIdSource)
     {
         Transport.Configuration.MsgIdSource = msgIdSource;
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the NATS.Net publish options of every JetStream publish, for options Wolverine does not surface
+    /// itself: the <c>Nats-Expected-*</c> checks, a per-publish timeout. The callback receives the envelope and
+    /// the options Wolverine built, <c>Nats-Msg-Id</c> included, and the publish uses what it returns, e.g.
+    /// <c>(envelope, opts) => opts with { ExpectedStream = "ORDERS" }</c>.
+    /// </summary>
+    public NatsTransportExpression ConfigureJetStreamPublish(Func<Envelope, NatsJSPubOpts, NatsJSPubOpts> configure)
+    {
+        Transport.Configuration.ConfigureJetStreamPublish = configure;
         return this;
     }
 

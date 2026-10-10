@@ -33,6 +33,28 @@ public class StreamConfiguration
     public bool AllowMsgSchedules { get; set; }
 
     /// <summary>
+    /// GH-4860. Make this stream a mirror of another stream. A mirror stream has no subjects of its own
+    /// and replicates every message of its origin, so <see cref="Subjects"/> is left empty and the
+    /// origin's name, optional filter, start position and domain come from the <see cref="StreamSource"/>.
+    /// Null (the default) means the stream is not a mirror, and whatever mirror an existing stream has on
+    /// the server is left alone.
+    /// </summary>
+    public StreamSource? Mirror { get; set; }
+
+    /// <summary>
+    /// GH-4860. Streams this stream aggregates messages from, in addition to its own subjects. Empty (the
+    /// default) means the sources of an existing stream on the server are left alone.
+    /// </summary>
+    public List<StreamSource> Sources { get; set; } = new();
+
+    /// <summary>
+    /// GH-4860. Where the server places this stream: a cluster name and/or the tags a server must carry
+    /// to hold it. Null (the default) leaves placement to the server, and leaves an existing stream's
+    /// placement alone.
+    /// </summary>
+    public Placement? Placement { get; set; }
+
+    /// <summary>
     /// Add a subject to this stream
     /// </summary>
     public StreamConfiguration WithSubject(string subject)
@@ -122,6 +144,40 @@ public class StreamConfiguration
     public StreamConfiguration EnableScheduledDelivery()
     {
         AllowMsgSchedules = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Make this stream a mirror of <paramref name="originStream"/> (see <see cref="Mirror"/>). The
+    /// optional callback refines the origin: a filter subject, a start sequence or time, a JetStream domain
+    /// </summary>
+    public StreamConfiguration MirrorOf(string originStream, Action<StreamSource>? configure = null)
+    {
+        var source = new StreamSource { Name = originStream };
+        configure?.Invoke(source);
+        Mirror = source;
+        return this;
+    }
+
+    /// <summary>
+    /// Aggregate messages from <paramref name="originStream"/> into this stream (see <see cref="Sources"/>).
+    /// Call once per origin; the optional callback refines it the same way <see cref="MirrorOf"/>'s does
+    /// </summary>
+    public StreamConfiguration SourcedFrom(string originStream, Action<StreamSource>? configure = null)
+    {
+        var source = new StreamSource { Name = originStream };
+        configure?.Invoke(source);
+        Sources.Add(source);
+        return this;
+    }
+
+    /// <summary>
+    /// Place this stream on servers of <paramref name="cluster"/> and/or carrying every one of
+    /// <paramref name="tags"/> (see <see cref="Placement"/>)
+    /// </summary>
+    public StreamConfiguration PlacedOn(string? cluster, params string[] tags)
+    {
+        Placement = new Placement { Cluster = cluster, Tags = tags.Length == 0 ? null : tags.ToList() };
         return this;
     }
 }
