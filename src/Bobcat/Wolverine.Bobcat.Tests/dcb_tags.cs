@@ -168,4 +168,17 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
         var failure = Should.Throw<Exception>(() => ThenEventsOn(EventTagQuery.For(otherCustomer), Specify<SeatReserved>()));
         failure.Message.ShouldContain("MISSING");
     }
+
+    [Fact]
+    public async Task a_strong_typed_id_identifies_a_stream_anywhere_a_guid_does()
+    {
+        // wolverine#4865: theScreeningId, not theScreeningId.Value
+        await GivenEvents<SeatAvailability>(theScreeningId, Tagged(new ScreeningScheduled(theScreeningId, 10), theScreeningId));
+
+        await WhenReceived(new ReserveSeat(theScreeningId, theCustomerId, "4C"));
+
+        ThenEventsOn<SeatAvailability>(theScreeningId, Specify<SeatReserved>().With(x => x.Seat, "4C"));
+        (await TheAggregate<SeatAvailability>(theScreeningId))!.Seats.ShouldBe(9);
+        await ThenAggregate<SeatAvailability>(theScreeningId, Specify<SeatAvailability>().With(x => x.Seats, 9));
+    }
 }

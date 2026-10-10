@@ -21,6 +21,9 @@ public sealed class AppointmentsHost : IAsyncLifetime
                         m.DatabaseSchemaName = "bobcat_specs";
                         m.DisableNpgsqlLogging = true;
                         m.Projections.Snapshot<Appointment>(SnapshotLifecycle.Inline);
+
+                        // A multi-stream view, which ThenSingleReadModel refuses (wolverine#4865)
+                        m.Projections.Add<PatientAppointmentsProjection>(ProjectionLifecycle.Inline);
                     })
                     .IntegrateWithWolverine();
 

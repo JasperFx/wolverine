@@ -143,6 +143,27 @@ public abstract class the_acts_own_events<THost>(THost app) : WolverineSpec(app.
     }
 
     [Fact]
+    public async Task a_started_stream_and_its_events_read_as_one_paragraph_of_two_sentences()
+    {
+        // wolverine#4865: Storyteller's paragraph -- one call, two sentences, each with its own verdict
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await WhenReceived(new OpenTab("the regulars"));
+            await ThenStreamIsStartedWithEvents<Tab>(new TabOpened("the regulars"));
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        recording.Steps.Skip(1).Select(x => $"{x.Keyword} {x.Text}").ShouldBe([
+            "Then a Tab stream is started",
+            "And TabOpened is emitted on it"
+        ]);
+
+        // The second sentence fails on its own
+        var failure = await Should.ThrowAsync<Exception>(() => ThenStreamIsStartedWithEvents<Tab>(new TabOpened("someone else")));
+        failure.Message.ShouldContain("Name");
+    }
+
+    [Fact]
     public async Task then_events_is_the_acts_own_and_a_cascades_events_are_not()
     {
         var theTab = Guid.CreateVersion7();
