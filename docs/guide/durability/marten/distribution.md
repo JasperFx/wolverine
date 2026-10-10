@@ -252,6 +252,37 @@ The cost of a non-zero settle period is that a cold start runs no agents at all 
 why the default is off. Size it against the rollout it is meant to absorb: tens of seconds for a deploy whose pods
 come up within a minute of each other.
 
+### The first node of a cold cluster <Badge type="tip" text="6.49" />
+
+Even with the settle period off, the very first node of a cold cluster holds its placement back for one
+evaluation. With nobody else in the node table yet, every distribution would hand that node the whole agent
+universe, and each node that registers afterwards would then be served out of the first node's own lane as a
+stop-then-start of everything it had already started. One tick is enough for pods that start together to
+register and take their share from the outset.
+
+```csharp
+opts.Durability.LeaderColdStartHoldEvaluations = 1;  // default; 0 turns it off
+```
+
+The hold only applies while the first node is alone and only when the wave it is holding is larger than
+`AgentStartBatchSize`, so a single node that genuinely runs a handful of agents is not made to wait for peers
+that are never coming. A rollout whose pods arrive over a longer period is what `AssignmentSettlePeriod` is for.
+
+## Keeping a Node Out of Leadership <Badge type="tip" text="6.49" />
+
+Any node can be elected leader and run the agent assignment, including a warm-up node of a blue/green
+rollout — whose own store enumerates the *new* version's agents, which makes it the least representative
+node in the cluster to evaluate from. A node can opt out:
+
+```csharp
+opts.Durability.LeadershipEligible = false;  // default: true
+```
+
+An ineligible node still heartbeats, ejects stale peers, reconciles and sweeps its own agents, and runs
+whatever assignments the leader gives it. It simply never contends for the leadership lock, and steps down
+if the setting changed underneath an existing lease. At least one node of the cluster must be eligible, or
+nothing is ever assigned.
+
 ## Agent Start Retries <Badge type="tip" text="6.x" />
 
 An agent's very first assignment can race the subsystems it depends on coming up — an event-subscription
