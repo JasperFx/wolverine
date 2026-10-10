@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
 using WolverineWebApi;
@@ -161,6 +162,34 @@ public class posting_json : IntegrationContext
         problem.Extensions["targetType"]?.ToString()!.ShouldContain("UndeserializableRequest");
     }
 
+    // GH-4933: a body the server itself refuses -- Kestrel's 413 for a body over [RequestSizeLimit], a 400 for a
+    // bad chunk, a 408 for a slow body -- is a client error carrying its own status, and must not be reported as
+    // the 500 above. TestServer never enforces a request size limit, so the stream stands in for Kestrel's.
+    [Theory]
+    [InlineData(StatusCodes.Status413PayloadTooLarge)]
+    [InlineData(StatusCodes.Status400BadRequest)]
+    [InlineData(StatusCodes.Status408RequestTimeout)]
+    public async Task a_body_the_server_refuses_answers_with_its_own_status(int statusCode)
+    {
+        var response = await Scenario(x =>
+        {
+            x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
+            x.ConfigureHttpContext(ctx =>
+            {
+                ctx.Request.Body = new BadRequestBodyStream(statusCode);
+            });
+            x.WithRequestHeader("accept", "application/json");
+            x.StatusCodeShouldBe(statusCode);
+        });
+
+        var problem = await response.ReadAsJsonAsync<ProblemDetails>();
+
+        problem.ShouldNotBeNull();
+        problem.Title.ShouldBe("Request body could not be read");
+        problem.Status.ShouldBe(statusCode);
+        problem.Detail.ShouldBe(BadRequestBodyStream.Message);
+    }
+
     // ...while genuinely malformed JSON keeps its 400 ProblemDetails, unchanged.
     [Fact]
     public async Task malformed_json_is_still_a_400_problem_details()
@@ -179,4 +208,22 @@ public class posting_json : IntegrationContext
         problem.Title.ShouldBe("Invalid JSON format");
         problem.Status.ShouldBe(400);
     }
+}
+
+/// <summary>
+/// A request body that fails the way Kestrel's does when it refuses the body, e.g. one over the endpoint's
+/// [RequestSizeLimit].
+/// </summary>
+internal class BadRequestBodyStream(int statusCode) : MemoryStream
+{
+    public const string Message = "Request body too large. The max request body size is 1024 bytes.";
+
+    public override int Read(byte[] buffer, int offset, int count) =>
+        throw new BadHttpRequestException(Message, statusCode);
+
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+        throw new BadHttpRequestException(Message, statusCode);
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        throw new BadHttpRequestException(Message, statusCode);
 }
