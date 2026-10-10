@@ -290,11 +290,13 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        query.ThrowIfReferenceFilteringIsUnsupported();
         return Task.FromResult(new ScheduledMessageResults());
     }
 
     public Task CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        query.ThrowIfReferenceFilteringIsUnsupported();
         return Task.CompletedTask;
     }
 

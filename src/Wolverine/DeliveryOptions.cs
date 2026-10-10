@@ -9,6 +9,7 @@ namespace Wolverine;
 public class DeliveryOptions
 {
     private Dictionary<string, string?>? _headers;
+    private string? _referenceKey;
 
     /// <summary>
     ///     Optional metadata about this message
@@ -35,6 +36,20 @@ public class DeliveryOptions
     ///     the receiving application at or after the designated time
     /// </summary>
     public DateTimeOffset? ScheduledTime { get; set; }
+
+    /// <summary>
+    ///     Optional application-defined reference associating this message with a business entity or resource.
+    ///     This does not affect message identity, ordering, or deduplication.
+    /// </summary>
+    public string? ReferenceKey
+    {
+        get => _referenceKey;
+        set
+        {
+            if (value != null) ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            _referenceKey = value;
+        }
+    }
 
     /// <summary>
     ///     Set the DeliverBy property to have this message thrown away
@@ -99,6 +114,8 @@ public class DeliveryOptions
         {
             foreach (var header in _headers) envelope.Headers[header.Key] = header.Value;
         }
+
+        if (ReferenceKey != null) envelope.ReferenceKey = ReferenceKey;
 
         // The status should be a state machine set by the deliver by or scheduled time setters
         if (DeliverBy.HasValue)

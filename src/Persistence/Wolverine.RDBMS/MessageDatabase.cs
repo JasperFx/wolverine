@@ -396,6 +396,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public void Initialize(IWolverineRuntime runtime)
     {
+        Settings.ServiceName = runtime.Options.ServiceName;
         if (_batcher != null) return;
 
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);

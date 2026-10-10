@@ -7,7 +7,7 @@ internal static class MartenStorageExtensions
 {
     public static void StoreIncoming(this IDocumentSession session, PostgresqlMessageStore store, Envelope envelope)
     {
-        var operation = new StoreIncomingEnvelope(store.IncomingFullName, envelope);
+        var operation = new StoreIncomingEnvelope(store.IncomingFullName, envelope, store.Settings.ServiceName);
         session.QueueOperation(operation);
     }
 

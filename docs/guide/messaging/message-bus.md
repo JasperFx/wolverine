@@ -533,6 +533,67 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
 <!-- endSnippet -->
 
 
+### Finding scheduled work by business reference
+
+Attach an optional `ReferenceKey` to associate a message with a business entity or resource without
+changing its payload:
+
+```csharp
+await bus.ScheduleAsync(new RecalculateInterest(accountId), DateTimeOffset.UtcNow.AddMinutes(5),
+    new DeliveryOptions { ReferenceKey = $"bank-account/{accountId}", TenantId = tenantId });
+```
+
+Configure the message to use a durable local queue:
+
+```csharp
+opts.PublishMessage<RecalculateInterest>().ToLocalQueue("interest").UseDurableInbox();
+```
+
+With RavenDB or PostgreSQL persistence (including Marten), use the store's existing scheduled-message management interface:
+
+```csharp
+var schedules = messageStore.ScheduledMessages; // IMessageStore
+var query = new ScheduledMessageQuery
+{
+    ReferenceKey = $"bank-account/{accountId}",
+    TenantId = tenantId
+};
+var pending = await schedules.QueryAsync(query, cancellation);
+
+// Cancels all matching pending schedules, regardless of query pagination.
+await schedules.CancelAsync(query, cancellation);
+```
+
+`ScheduledMessageQuery` lives in `Wolverine.Persistence.Durability.ScheduledMessageManagement`.
+Each summary includes the envelope ID, current scheduled time, message type, tenant, and reference.
+A reference can associate different message types and local destinations; add `MessageType`,
+`MessageIds`, or execution-time bounds to narrow the selection. All supplied filters are combined.
+Time bounds are inclusive and refer to the **current** due time, including rescheduling and retries.
+
+Reference comparisons are exact and case-sensitive. Reference queries are scoped to the current
+application's `ServiceName`; keep that name stable across its hosts. `TenantId` is an optional,
+exact filter: **omitting it includes all tenants in the store**. These are management filters, not
+authorization checks. Use namespaced references such as `bank-account/123` to avoid business-key
+collisions. A supplied delivery reference cannot be empty or whitespace.
+
+Each scheduling call creates an independent message with its own ID. References do not deduplicate,
+replace payloads, enforce ordering, or prevent execution. They are not automatically inherited by
+messages sent from a handler. The same reference can be reused after cancellation or dispatch.
+
+Only committed incoming messages still in `Scheduled` status appear, including scheduled retries.
+Running, completed, and dead-lettered messages do not appear. This is not a history of work or an
+inventory of schedules held by external brokers. An application can inspect pending work inside a
+handler, but that query is advisory: matching work can be cancelled or dispatched immediately afterward.
+
+Reference filtering is supported by RavenDB and PostgreSQL, including Marten. Other built-in persistence providers throw
+`NotSupportedException` when either `ReferenceKey` or `TenantId` is supplied, including cancellation.
+Queries without these filters retain their existing behavior.
+
+See [RavenDB scheduled references](/guide/durability/ravendb#scheduled-message-references) or
+[PostgreSQL scheduled references](/guide/durability/postgresql#scheduled-message-references) for
+transaction and concurrency details. For schedules committed with Marten documents or events, see
+[the Marten outbox](/guide/durability/marten/outbox#scheduled-message-references).
+
 ## Customizing Message Delivery
 
 When you publish or send a message you can optionally pass a `DeliveryOptions` object to override how — and

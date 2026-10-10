@@ -12,6 +12,7 @@ public partial class CosmosDbMessageStore : IScheduledMessages
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        query.ThrowIfReferenceFilteringIsUnsupported();
         var conditions = new List<string> { "c.docType = @docType", "c.status = @status" };
 
         if (query.MessageIds.Length > 0)
@@ -84,6 +85,7 @@ public partial class CosmosDbMessageStore : IScheduledMessages
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        query.ThrowIfReferenceFilteringIsUnsupported();
         if (query.MessageIds.Length > 0)
         {
             foreach (var messageId in query.MessageIds)

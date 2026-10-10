@@ -281,7 +281,41 @@ model when using RavenDb with Wolverine.
 
 The RavenDb integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).
 
+## Scheduled Message References
 
+RavenDB supports `DeliveryOptions.ReferenceKey` and reference/tenant filtering through
+`IMessageStore.ScheduledMessages`. See the [usage example](/guide/messaging/message-bus#finding-scheduled-work-by-business-reference).
+The reference, tenant, and storing application's service name are persisted as queryable incoming
+message fields. RavenDB builds indexes for these queries; no payload deserialization is needed to
+filter by reference. Multiple occurrences retain independent envelope IDs.
 
+When scheduling through an enrolled RavenDB outbox or transactional handler, the metadata and
+envelope share the caller's session. Business writes and scheduling commit together. Discarding an
+uncommitted session commits neither. A committed schedule remains durable even if relay is skipped.
+Adding a reference does not change the session's transaction mode.
 
+Management queries, cancellation, and rescheduling open their **own sessions**. They do not enlist in
+the caller's business transaction and do not see its uncommitted schedules. Queries wait for non-stale
+index results; timeouts and cancellation propagate. Waiting for indexing does not ensure writes on
+other nodes have replicated, and query results are not a claim on the returned work.
 
+Cancellation combines every supplied filter, including IDs, and ignores pagination. An empty query
+retains the existing behavior of selecting all scheduled incoming messages in the store. Cancellation
+and rescheduling use optimistic concurrency: if a selected document changes before saving, RavenDB
+throws `ConcurrencyException` and aborts that session's writes. Refresh the query before deciding
+whether to retry. Scheduled promotion also checks the loaded document versions before dispatch, so
+a stale promotion cannot recreate a document deleted by cancellation on the same database node.
+It rechecks the loaded status and due time as well, because an index may still identify a document
+that has already been rescheduled or promoted.
+Already-promoted or running work cannot be stopped by this interface.
+
+These are RavenDB **single-node transaction** checks, not a cluster-wide arbitration protocol.
+They do not establish a global winner for concurrent writes on different database nodes, nor change
+the existing behavior of mixed cluster-wide enrollment and single-node durability operations. Do not
+use this feature as an atomic cancel-and-replace operation or an execution uniqueness guarantee.
+See RavenDB's [optimistic concurrency documentation](https://docs.ravendb.net/7.0/client-api/session/configuration/how-to-enable-optimistic-concurrency)
+and [cluster transaction semantics](https://docs.ravendb.net/7.0/server/clustering/cluster-transactions).
+
+Older documents remain available through existing unfiltered or envelope-ID management. They have
+no reference metadata and are not backfilled. Tenant filtering uses the newly persisted tenant field;
+older documents without it will not match a tenant filter even if their serialized body has a tenant.

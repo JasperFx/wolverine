@@ -66,6 +66,7 @@ public class envelope_pool_tests
             EndpointName = "endpoint",
             WasPersistedInOutbox = true,
             GroupId = "group",
+            ReferenceKey = "account/1",
             DeduplicationId = "dedup",
             PartitionKey = "pkey",
             RoutingInformation = "anything",

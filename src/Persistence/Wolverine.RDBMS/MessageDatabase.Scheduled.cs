@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using DbCommand = System.Data.Common.DbCommand;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Transports;
 
@@ -53,6 +54,10 @@ public abstract partial class MessageDatabase<T>
 
         var set =
             $"update {table} set execution_time = @time, status = '{EnvelopeStatus.Scheduled}', attempts = @attempts, owner_id = {TransportConstants.AnyNode}";
+        if (Settings.SupportsScheduledMessageReferences)
+        {
+            set += $", {DatabaseConstants.ReferenceKey} = @reference, {DatabaseConstants.TenantId} = @tenant, {DatabaseConstants.ServiceName} = @service";
+        }
         var identity = $"where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
         if (!Durability.EnableInboxPartitioning)
@@ -78,13 +83,25 @@ public abstract partial class MessageDatabase<T>
             $"{set} {identity} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}';";
     }
 
+    private DbCommand scheduleExecutionCommand(Envelope envelope)
+    {
+        var command = CreateCommand(_scheduleExecutionSql!);
+        if (Settings.SupportsScheduledMessageReferences)
+        {
+            command.With("reference", envelope.ReferenceKey ?? (object)DBNull.Value);
+            command.With("tenant", envelope.TenantId ?? (object)DBNull.Value);
+            command.With("service", Settings.ServiceName);
+        }
+        return command;
+    }
+
     public Task ScheduleExecutionAsync(Envelope envelope)
     {
         Logger.LogDebug("Persisting envelope {EnvelopeId} ({MessageType}) as Scheduled in database inbox at {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
 
         _scheduleExecutionSql ??= ScheduleExecutionSql();
 
-        return CreateCommand(_scheduleExecutionSql)
+        return scheduleExecutionCommand(envelope)
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
@@ -114,7 +131,7 @@ public abstract partial class MessageDatabase<T>
         // redundant copy in favour of a scheduled row that already exists -- which under
         // MessageIdentity.IdOnly can be a row at another destination, so the UPDATE itself matches nothing --
         // the retry IS parked, and inserting on top of it would be the 23505 this fix exists to prevent.
-        var rowsAffected = await CreateCommand(_scheduleExecutionSql)
+        var rowsAffected = await scheduleExecutionCommand(envelope)
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)

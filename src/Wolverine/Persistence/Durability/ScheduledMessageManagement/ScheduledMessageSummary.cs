@@ -2,6 +2,9 @@ namespace Wolverine.Persistence.Durability.ScheduledMessageManagement;
 
 public class ScheduledMessageSummary
 {
+    /// <summary>Application-defined business reference, when supplied.</summary>
+    public string? ReferenceKey { get; set; }
+
     public Guid Id { get; set; }
     public string? MessageType { get; set; }
     public DateTimeOffset? ScheduledTime { get; set; }

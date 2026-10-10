@@ -668,3 +668,34 @@ Two rules for combined Marten + Wolverine deployments:
    session must hold an open transaction, it should stay completely silent; better yet, hold long-lived
    exclusivity as a session-scoped lock on a connection with no transaction at all, the way Wolverine's
    `AdvisoryLock` does.
+
+## Scheduled Message References
+
+PostgreSQL persistence, including Marten's `IntegrateWithWolverine()`, supports
+[finding and cancelling scheduled work by business reference](/guide/messaging/message-bus#finding-scheduled-work-by-business-reference).
+Set `DeliveryOptions.ReferenceKey` when scheduling and pass that reference to
+`IMessageStore.ScheduledMessages.QueryAsync()` or `CancelAsync()` through `ScheduledMessageQuery`.
+The query can also filter by tenant, message type, envelope IDs, and current due time.
+Cancellation applies to every matching scheduled row, regardless of pagination.
+
+Wolverine stores `reference_key`, `tenant_id`, and `service_name` alongside the incoming envelope,
+with a partial index for scheduled references. Apply the generated Wolverine schema migration before
+deploying when automatic schema changes are disabled. Both regular and partitioned inboxes are supported.
+Existing rows remain accessible through unfiltered queries; migration does not backfill reference or
+tenant columns from old envelope bodies. Newly persisted messages and scheduled retries populate these columns.
+
+Queries operate on the selected message store. With separate tenant databases, obtain the store for the
+appropriate database; a query does not search all databases. Reference queries are scoped to the current
+application's `ServiceName`, which should remain stable across hosts and deployments. Omitting `TenantId`
+includes all tenants in that store.
+
+The PostgreSQL poller locks selected scheduled rows until its promotion transaction commits, and skips
+rows locked by another transaction. Cancellation and rescheduling affect only rows still in `Scheduled`
+status. Once promotion wins, cancellation or rescheduling can be a no-op; the existing `Task` return
+values do not report per-message outcomes. Cancellation cannot stop queued or running work. Querying and
+then cancelling is not a reservation, and references do not enforce uniqueness or deduplication.
+
+The management methods use their own connections. Calling `CancelAsync()` or `RescheduleAsync()` does
+not enlist that change in an application's current transaction. Creating a schedule through an
+[enrolled Marten outbox](/guide/durability/marten/outbox#scheduled-message-references) does commit the
+schedule and its reference atomically with the application's documents or events.

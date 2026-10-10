@@ -44,6 +44,8 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         Role = MessageStoreRole.Ancillary;
     }
 
+    internal string ServiceName => _options.ServiceName;
+
     public string Name => _store.Identifier;
 
     public Uri Uri => new($"{PersistenceConstants.AgentScheme}://ravendb/durability");

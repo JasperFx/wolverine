@@ -77,6 +77,27 @@ public partial class Envelope : IHasTenantId
     public bool HasHeaders => _headers is { Count: > 0 };
 
     /// <summary>
+    ///     Optional application-defined reference associating this message with a business entity or resource.
+    ///     Stored as a header so the message body is unchanged.
+    /// </summary>
+    public string? ReferenceKey
+    {
+        get => TryGetHeader(EnvelopeConstants.ReferenceKey, out var key) ? key : null;
+        set
+        {
+            if (value == null)
+            {
+                _headers?.Remove(EnvelopeConstants.ReferenceKey);
+            }
+            else
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(value);
+                Headers[EnvelopeConstants.ReferenceKey] = value;
+            }
+        }
+    }
+
+    /// <summary>
     /// Try to read a header value by key without forcing dictionary allocation.
     /// Returns true if the header exists and has a non-null value.
     /// </summary>

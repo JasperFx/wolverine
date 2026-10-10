@@ -9,6 +9,10 @@ namespace Wolverine.RDBMS;
 
 public class DatabaseSettings
 {
+    // Provider capabilities and runtime identity, not application configuration.
+    internal bool SupportsScheduledMessageReferences { get; set; }
+    internal string ServiceName { get; set; } = string.Empty;
+
     public DbDataSource? DataSource { get; set; }
 
     /// <summary>

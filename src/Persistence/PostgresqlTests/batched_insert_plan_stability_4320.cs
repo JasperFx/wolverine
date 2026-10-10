@@ -118,7 +118,7 @@ public class batched_insert_plan_stability_4320 : PostgresqlContext, IAsyncLifet
     {
         using var command = theStore.TestingOnlyBuildBatchedIncoming(incoming(count));
 
-        command.Parameters.Count.ShouldBe(9);
+        command.Parameters.Count.ShouldBe(12);
     }
 
     [Theory]

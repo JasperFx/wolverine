@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
+using Raven.Client.Documents.Session;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Runtime.Serialization;
 
@@ -13,29 +14,7 @@ public partial class RavenDbMessageStore : IScheduledMessages
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
         using var session = _store.OpenAsyncSession();
-        var queryable = session.Query<IncomingMessage>()
-            .Customize(x => x.WaitForNonStaleResults())
-            .Where(x => x.Status == EnvelopeStatus.Scheduled);
-
-        if (query.MessageIds.Length > 0)
-        {
-            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.EnvelopeId.In(query.MessageIds));
-        }
-
-        if (query.MessageType.IsNotEmpty())
-        {
-            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.MessageType == query.MessageType);
-        }
-
-        if (query.ExecutionTimeFrom.HasValue)
-        {
-            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.ExecutionTime >= query.ExecutionTimeFrom.Value);
-        }
-
-        if (query.ExecutionTimeTo.HasValue)
-        {
-            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.ExecutionTime <= query.ExecutionTimeTo.Value);
-        }
+        var queryable = scheduledMessages(session, query);
 
         var totalCount = await queryable.CountAsync(token);
 
@@ -56,6 +35,7 @@ public partial class RavenDbMessageStore : IScheduledMessages
             Messages = messages.Select(m => new ScheduledMessageSummary
             {
                 Id = m.EnvelopeId,
+                ReferenceKey = m.ReferenceKey,
                 MessageType = m.MessageType,
                 ScheduledTime = m.ExecutionTime,
                 Destination = m.ReceivedAt?.ToString(),
@@ -68,59 +48,67 @@ public partial class RavenDbMessageStore : IScheduledMessages
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
         using var session = _store.OpenAsyncSession();
-
-        if (query.MessageIds.Length > 0)
+        session.Advanced.UseOptimisticConcurrency = true;
+        var messages = await scheduledMessages(session, query).ToListAsync(token);
+        foreach (var message in messages)
         {
-            foreach (var id in query.MessageIds)
-            {
-                // Find the incoming message by envelope id
-                var messages = await session.Query<IncomingMessage>()
-                    .Customize(x => x.WaitForNonStaleResults())
-                    .Where(x => x.EnvelopeId == id && x.Status == EnvelopeStatus.Scheduled)
-                    .ToListAsync(token);
-
-                foreach (var msg in messages)
-                {
-                    session.Delete(msg.Id);
-                }
-            }
-
-            await session.SaveChangesAsync(token);
-            return;
+            session.Delete(message);
         }
 
-        // Query-based cancel
+        await session.SaveChangesAsync(token);
+    }
+
+    private IRavenQueryable<IncomingMessage> scheduledMessages(IAsyncDocumentSession session, ScheduledMessageQuery query)
+    {
         var queryable = session.Query<IncomingMessage>()
             .Customize(x => x.WaitForNonStaleResults())
             .Where(x => x.Status == EnvelopeStatus.Scheduled);
+
+        if (query.ReferenceKey != null)
+        {
+            queryable = queryable.Where(x => x.ReferenceKey == query.ReferenceKey, exact: true)
+                .Where(x => x.ServiceName == ServiceName, exact: true);
+        }
+
+        if (query.TenantId != null)
+        {
+            queryable = queryable.Where(x => x.TenantId == query.TenantId, exact: true);
+        }
+
+        if (query.MessageIds.Length > 0)
+        {
+            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.EnvelopeId.In(query.MessageIds));
+        }
 
         if (query.MessageType.IsNotEmpty())
         {
             queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.MessageType == query.MessageType);
         }
 
-        if (query.ExecutionTimeFrom.HasValue)
+        if (query.ExecutionTimeFrom.HasValue && query.ExecutionTimeTo.HasValue)
+        {
+            // Keep the two bounds together so RavenDB can use a single range predicate.
+            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x =>
+                x.ExecutionTime!.Value >= query.ExecutionTimeFrom.Value &&
+                x.ExecutionTime!.Value <= query.ExecutionTimeTo.Value);
+        }
+        else if (query.ExecutionTimeFrom.HasValue)
         {
             queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.ExecutionTime >= query.ExecutionTimeFrom.Value);
         }
 
-        if (query.ExecutionTimeTo.HasValue)
+        else if (query.ExecutionTimeTo.HasValue)
         {
             queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.ExecutionTime <= query.ExecutionTimeTo.Value);
         }
 
-        var toDelete = await queryable.ToListAsync(token);
-        foreach (var msg in toDelete)
-        {
-            session.Delete(msg.Id);
-        }
-
-        await session.SaveChangesAsync(token);
+        return queryable;
     }
 
     async Task IScheduledMessages.RescheduleAsync(Guid envelopeId, DateTimeOffset newExecutionTime, CancellationToken token)
     {
         using var session = _store.OpenAsyncSession();
+        session.Advanced.UseOptimisticConcurrency = true;
         var messages = await session.Query<IncomingMessage>()
             .Customize(x => x.WaitForNonStaleResults())
             .Where(x => x.EnvelopeId == envelopeId && x.Status == EnvelopeStatus.Scheduled)

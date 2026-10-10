@@ -124,8 +124,10 @@ public static class DatabasePersistence
         // Don't store any data if the envelope is already marked as handled
         var data = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         
+        var references = settings.Settings?.SupportsScheduledMessageReferences == true;
+        var fields = references ? DatabaseConstants.IncomingFieldsWithReferences : DatabaseConstants.IncomingFields;
         builder.Append(
-            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) values (");
+            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({fields}) values (");
         appendValue(builder, data);
         builder.Append(", ");
         appendValue(builder, envelope.Id);
@@ -143,6 +145,15 @@ public static class DatabasePersistence
         appendValue(builder, envelope.Destination?.ToString());
         builder.Append(", ");
         appendValue(builder, envelope.KeepUntil);
+        if (references)
+        {
+            builder.Append(", ");
+            appendValue(builder, envelope.ReferenceKey);
+            builder.Append(", ");
+            appendValue(builder, envelope.TenantId);
+            builder.Append(", ");
+            appendValue(builder, settings.Settings!.ServiceName);
+        }
         builder.Append(");");
     }
 

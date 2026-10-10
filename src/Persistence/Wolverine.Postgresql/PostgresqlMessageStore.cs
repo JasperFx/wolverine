@@ -119,6 +119,8 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
         ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
         settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance)
     {
+        Settings.SupportsScheduledMessageReferences = true;
+
         // The incoming table's key shape follows MessageIdentity: received_at joins the primary key only
         // under IdAndDestination (see IncomingEnvelopeTable), and EnableInboxPartitioning then adds status
         // on top. Match the identity the same way ExistsAsync does, so both statements below agree with
@@ -699,7 +701,9 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             $"select {DatabaseConstants.IncomingFields} from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
 
         builder.AppendParameter(utcNow);
-        builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize};");
+        // Hold selected rows until promotion commits. Management operations cannot cancel or
+        // move a selected schedule while this transaction is preparing its durable handoff.
+        builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize} FOR UPDATE SKIP LOCKED;");
     }
 
     public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger logger,

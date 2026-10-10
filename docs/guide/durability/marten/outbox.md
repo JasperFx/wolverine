@@ -69,6 +69,29 @@ The point here is that Wolverine is doing store and forward mechanics with the o
 
 In the section below on transactional middleware we'll see a shorthand way to simplify the code sample above and remove some repetitive ceremony.
 
+## Scheduled Message References
+
+An enrolled Marten outbox can attach a business reference to scheduled work without changing the message
+payload. The reference and schedule are persisted in the same PostgreSQL transaction as the session's
+documents and events:
+
+```csharp
+outbox.Enroll(session);
+session.Store(account);
+await outbox.ScheduleAsync(new RecalculateInterest(account.Id), DateTimeOffset.UtcNow.AddMinutes(5),
+    new DeliveryOptions { ReferenceKey = $"bank-account/{account.Id}", TenantId = tenantId });
+await session.SaveChangesAsync(cancellation);
+```
+
+Before the transaction commits, the schedule is not visible to other sessions. Rolling back leaves
+neither the business changes nor the schedule committed. After commit, Wolverine can recover the schedule
+even if the process stops before the outbox flushes.
+
+Use `IMessageStore.ScheduledMessages` with `ScheduledMessageQuery.ReferenceKey` to query or cancel related
+pending work across message types. These management operations use separate connections and do **not**
+join the enrolled Marten transaction. See [PostgreSQL scheduled references](/guide/durability/postgresql#scheduled-message-references)
+for schema migration requirements, tenant scope, and concurrency behavior.
+
 ## Outbox with ASP.Net Core
 
 The Wolverine outbox is also usable from within ASP.Net Core (really any code) controller or Minimal API handler code. Within an MVC controller, the `CreateOrder`

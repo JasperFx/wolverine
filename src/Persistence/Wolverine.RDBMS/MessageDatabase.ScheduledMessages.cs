@@ -10,14 +10,17 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<ScheduledMessageResults> QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (!Settings.SupportsScheduledMessageReferences) query.ThrowIfReferenceFilteringIsUnsupported();
         var builder = ToCommandBuilder();
 
         var topSelect = toTopClause(query);
+        var referenceColumn = Settings.SupportsScheduledMessageReferences ? $", {DatabaseConstants.ReferenceKey}" : "";
 
         // Columns: 0=id, 1=message_type, 2=execution_time, 3=received_at, 4=attempts, 5=total_rows, 6=body
-        // The body is read only for its tenant id, which the incoming table has no column for.
+        // Read the tenant from the body for compatibility with older rows and providers without a tenant column.
+        // PostgreSQL also selects reference_key at ordinal 7.
         builder.Append(
-            $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows, {DatabaseConstants.Body} from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+            $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows, {DatabaseConstants.Body}{referenceColumn} from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
         writeScheduledMessageWhereClause(query, builder);
 
@@ -65,6 +68,11 @@ public abstract partial class MessageDatabase<T>
                 summary.TenantId = EnvelopeSerializer.TryReadTenantId(await reader.GetFieldValueAsync<byte[]>(6, token));
             }
 
+            if (Settings.SupportsScheduledMessageReferences && !await reader.IsDBNullAsync(7, token))
+            {
+                summary.ReferenceKey = await reader.GetFieldValueAsync<string>(7, token);
+            }
+
             results.Messages.Add(summary);
 
             if (results.TotalCount == 0)
@@ -81,6 +89,7 @@ public abstract partial class MessageDatabase<T>
 
     public async Task CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (!Settings.SupportsScheduledMessageReferences) query.ThrowIfReferenceFilteringIsUnsupported();
         var builder = ToCommandBuilder();
 
         builder.Append(
@@ -165,6 +174,20 @@ public abstract partial class MessageDatabase<T>
 
     private void writeScheduledMessageWhereClause(ScheduledMessageQuery query, DbCommandBuilder builder)
     {
+        if (query.ReferenceKey != null)
+        {
+            builder.Append($" and {DatabaseConstants.ReferenceKey} = ");
+            builder.AppendParameter(query.ReferenceKey);
+            builder.Append($" and {DatabaseConstants.ServiceName} = ");
+            builder.AppendParameter(Settings.ServiceName);
+        }
+
+        if (query.TenantId != null)
+        {
+            builder.Append($" and {DatabaseConstants.TenantId} = ");
+            builder.AppendParameter(query.TenantId);
+        }
+
         if (query.MessageType is not null)
         {
             builder.Append($" and {DatabaseConstants.MessageType} = ");

@@ -7,8 +7,8 @@ namespace Wolverine.Postgresql;
 
 /// <summary>
 /// GH-4320. Fixed-arity batched inserts: <c>unnest</c> of one array per column, so a 100-envelope batch
-/// is 7-9 parameters rather than ~700-900. The same shape the scheduled-promotion path has used since
-/// GH-4209.
+/// originally used 7-9 parameters rather than ~700-900. Incoming batches now use 12 parameters to
+/// include scheduled reference metadata. The same shape the scheduled-promotion path has used since GH-4209.
 ///
 /// <para>
 /// <b>MEASURED at ~1.35x on the batched insert</b> (in-build A/B against the legacy shape, varying batch
@@ -52,8 +52,8 @@ internal partial class PostgresqlMessageStore
     private string batchedIncomingSql()
     {
         return _batchedIncomingSql ??=
-            $"insert into {QuotedTableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) " +
-            "select * from unnest(@bodies, @ids, @statuses, @owners, @executions, @attempts, @types, @destinations, @keeps)";
+            $"insert into {QuotedTableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFieldsWithReferences}) " +
+            "select * from unnest(@bodies, @ids, @statuses, @owners, @executions, @attempts, @types, @destinations, @keeps, @references, @tenants, @services)";
     }
 
     private string batchedOutgoingSql()
@@ -76,6 +76,9 @@ internal partial class PostgresqlMessageStore
         var types = new string[count];
         var destinations = new string?[count];
         var keeps = new DateTimeOffset?[count];
+        var references = new string?[count];
+        var tenants = new string?[count];
+        var services = new string[count];
 
         for (var i = 0; i < count; i++)
         {
@@ -94,6 +97,9 @@ internal partial class PostgresqlMessageStore
             types[i] = envelope.MessageType!;
             destinations[i] = envelope.Destination?.ToString();
             keeps[i] = envelope.KeepUntil;
+            references[i] = envelope.ReferenceKey;
+            tenants[i] = envelope.TenantId;
+            services[i] = Settings.ServiceName;
         }
 
         var command = new NpgsqlCommand(batchedIncomingSql());
@@ -106,6 +112,9 @@ internal partial class PostgresqlMessageStore
         add(command, "types", NpgsqlDbType.Array | NpgsqlDbType.Varchar, types);
         add(command, "destinations", NpgsqlDbType.Array | NpgsqlDbType.Varchar, destinations);
         add(command, "keeps", NpgsqlDbType.Array | NpgsqlDbType.TimestampTz, keeps);
+        add(command, "references", NpgsqlDbType.Array | NpgsqlDbType.Varchar, references);
+        add(command, "tenants", NpgsqlDbType.Array | NpgsqlDbType.Varchar, tenants);
+        add(command, "services", NpgsqlDbType.Array | NpgsqlDbType.Varchar, services);
 
         return command;
     }

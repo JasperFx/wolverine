@@ -24,11 +24,20 @@ public partial class RavenDbDurabilityAgent
         try
         {
             using var session = _store.OpenAsyncSession();
+            // Cancellation or rescheduling may win after selection. Do not dispatch or
+            // recreate a deleted schedule from this stale snapshot.
+            session.Advanced.UseOptimisticConcurrency = true;
+            var dueBefore = DateTimeOffset.UtcNow;
             var incoming = await session.Query<IncomingMessage>()
-                .Where(x => x.Status == EnvelopeStatus.Scheduled && x.ExecutionTime <= DateTimeOffset.UtcNow)
+                .Where(x => x.Status == EnvelopeStatus.Scheduled && x.ExecutionTime <= dueBefore)
                 .OrderBy(x => x.ExecutionTime)
                 .Take(_settings.RecoveryBatchSize)
                 .ToListAsync(_combined.Token);
+
+            // The index may still describe the old status/time even when the loaded document
+            // already contains a newer version. Version checks alone cannot detect that case.
+            incoming.RemoveAll(x => x.Status != EnvelopeStatus.Scheduled ||
+                                    !x.ExecutionTime.HasValue || x.ExecutionTime > dueBefore);
 
             if (!incoming.Any())
             {

@@ -20,6 +20,9 @@ public class IncomingMessage
         Body = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination;
+        ReferenceKey = envelope.ReferenceKey;
+        TenantId = envelope.TenantId;
+        ServiceName = store.ServiceName;
     }
 
     public Guid EnvelopeId { get; set; }
@@ -33,6 +36,9 @@ public class IncomingMessage
     public string MessageType { get; set; } = string.Empty;
     public Uri? ReceivedAt { get; set; }
     public DateTimeOffset? KeepUntil { get; set; }
+    public string? ReferenceKey { get; set; }
+    public string? TenantId { get; set; }
+    public string? ServiceName { get; set; }
 
     public Envelope Read()
     {

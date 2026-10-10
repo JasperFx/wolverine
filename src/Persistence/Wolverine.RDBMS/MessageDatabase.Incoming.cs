@@ -47,7 +47,8 @@ public abstract partial class MessageDatabase<T>
     /// </remarks>
     public async Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        foreach (var chunk in chunkByParameterLimit(envelopes, DatabaseConstants.IncomingParametersPerEnvelope))
+        foreach (var chunk in chunkByParameterLimit(envelopes, DatabaseConstants.IncomingParametersPerEnvelope +
+                     (Settings.SupportsScheduledMessageReferences ? 3 : 0)))
         {
             await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(chunk.ToArray(), this);
 

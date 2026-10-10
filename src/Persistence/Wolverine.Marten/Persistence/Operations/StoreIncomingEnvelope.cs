@@ -13,11 +13,13 @@ namespace Wolverine.Marten.Persistence.Operations;
 internal class StoreIncomingEnvelope : global::Marten.Internal.Operations.IStorageOperation, NoDataReturnedCall
 {
     private readonly string _incomingTable;
+    private readonly string _serviceName;
 
-    public StoreIncomingEnvelope(string incomingTable, Envelope envelope)
+    public StoreIncomingEnvelope(string incomingTable, Envelope envelope, string serviceName)
     {
         Envelope = envelope;
         _incomingTable = incomingTable;
+        _serviceName = serviceName;
     }
 
     public Envelope Envelope { get; }
@@ -25,7 +27,7 @@ internal class StoreIncomingEnvelope : global::Marten.Internal.Operations.IStora
     public void ConfigureCommand(Weasel.Postgresql.ICommandBuilder builder, IStorageSession session)
     {
         builder.Append(
-            $"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (");
+            $"insert into {_incomingTable} ({DatabaseConstants.IncomingFieldsWithReferences}) values (");
         builder.AppendParameter(EnvelopeSerializer.Serialize(Envelope));
         builder.Append(',');
         builder.AppendParameter(Envelope.Id);
@@ -43,6 +45,12 @@ internal class StoreIncomingEnvelope : global::Marten.Internal.Operations.IStora
         builder.AppendParameter(Envelope.Destination?.ToString());
         builder.Append(',');
         builder.AppendParameter(Envelope.KeepUntil.HasValue ? Envelope.KeepUntil.Value : DBNull.Value);
+        builder.Append(',');
+        builder.AppendParameter(Envelope.ReferenceKey ?? (object)DBNull.Value);
+        builder.Append(',');
+        builder.AppendParameter(Envelope.TenantId ?? (object)DBNull.Value);
+        builder.Append(',');
+        builder.AppendParameter(_serviceName);
         builder.Append(");");
     }
 

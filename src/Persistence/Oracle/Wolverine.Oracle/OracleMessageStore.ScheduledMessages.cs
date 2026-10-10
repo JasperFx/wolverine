@@ -11,6 +11,7 @@ internal partial class OracleMessageStore
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        query.ThrowIfReferenceFilteringIsUnsupported();
         var builder = ToOracleCommandBuilder();
 
         builder.Append(
@@ -79,6 +80,7 @@ internal partial class OracleMessageStore
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        query.ThrowIfReferenceFilteringIsUnsupported();
         var builder = ToOracleCommandBuilder();
 
         builder.Append(

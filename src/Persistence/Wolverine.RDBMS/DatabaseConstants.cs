@@ -20,6 +20,10 @@ public class DatabaseConstants
     public const string Replayable = "replayable";
 
     public const string OutgoingTable = "wolverine_outgoing_envelopes";
+    public const string ReferenceKey = "reference_key";
+    public const string TenantId = "tenant_id";
+    public const string ServiceName = "service_name";
+
     public const string IncomingTable = "wolverine_incoming_envelopes";
     public const string DeadLetterTable = "wolverine_dead_letters";
 
@@ -159,6 +163,9 @@ public class DatabaseConstants
 
     public static readonly string IncomingFields =
         $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}";
+
+    public static readonly string IncomingFieldsWithReferences =
+        $"{IncomingFields}, {ReferenceKey}, {TenantId}, {ServiceName}";
 
     public static readonly string OutgoingFields =
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";

@@ -18,6 +18,15 @@ internal class IncomingEnvelopeTable : Table
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
 
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
+        AddColumn<string>(DatabaseConstants.ReferenceKey);
+        AddColumn<string>(DatabaseConstants.TenantId);
+        AddColumn<string>(DatabaseConstants.ServiceName);
+        Indexes.Add(new IndexDefinition("idx_wolverine_incoming_scheduled_reference")
+        {
+            Columns = [DatabaseConstants.ServiceName, DatabaseConstants.ReferenceKey,
+                DatabaseConstants.TenantId, DatabaseConstants.ExecutionTime],
+            Predicate = $"{DatabaseConstants.Status} = 'Scheduled'"
+        });
 
         if (durability.MessageIdentity == MessageIdentity.IdOnly)
         {
