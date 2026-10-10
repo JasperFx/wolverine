@@ -65,6 +65,45 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             : new SubscriptionName(projectId, Server.Subscription.Name.SubscriptionId);
     }
 
+    /// <summary>
+    /// GH-4526. A listener on its OWN subscription to a topic another endpoint publishes to -- the shape
+    /// MultipleHandlerBehavior.Separated needs, one subscription per handler type on the message type's topic.
+    /// Its Uri is <c>pubsub://{projectId}/{topicName}/{subscriptionName}</c>, so it is distinct from the topic
+    /// endpoint that shares the topic, and it never publishes: the topic endpoint is the sender.
+    /// </summary>
+    internal PubsubEndpoint(string topicName, string subscriptionName, PubsubTransport transport)
+        : base(new Uri($"{transport.Protocol}://{transport.ProjectId}/{topicName}/{subscriptionName}"), EndpointRole.Application)
+    {
+        if (!PubsubTransport.NameRegex.IsMatch(topicName))
+        {
+            throw new WolverinePubsubInvalidEndpointNameException(topicName);
+        }
+
+        if (!PubsubTransport.NameRegex.IsMatch(subscriptionName))
+        {
+            throw new WolverinePubsubInvalidEndpointNameException(subscriptionName);
+        }
+
+        _transport = transport;
+        IsSubscriptionOnly = true;
+
+        Server.Topic.Name = new TopicName(transport.ProjectId, topicName);
+        Server.Subscription.Name = new SubscriptionName(transport.ProjectId, subscriptionName);
+        EndpointName = subscriptionName;
+        BrokerRole = "pubsub";
+
+        if (transport.DeadLetter.Enabled)
+        {
+            DeadLetterName = PubsubTransport.DeadLetterName;
+        }
+    }
+
+    /// <summary>
+    /// GH-4526. True for an endpoint built by the per-handler subscription constructor: it shares its topic with
+    /// the topic endpoint of the same name and only ever listens
+    /// </summary>
+    internal bool IsSubscriptionOnly { get; }
+
     public PubsubEndpoint(
         string topicName,
         PubsubTransport transport,
