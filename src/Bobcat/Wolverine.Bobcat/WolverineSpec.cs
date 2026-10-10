@@ -207,6 +207,13 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.TheAggregate{T}(string)" />
     public Task<T?> TheAggregate<T>(string key) where T : class => Scenario.TheAggregate<T>(key);
 
+    /// <inheritdoc cref="WolverineScenario.TheDcbModel{T}(JasperFx.Events.Tags.EventTagQuery)" />
+    public Task<T?> TheDcbModel<T>(JasperFx.Events.Tags.EventTagQuery query) where T : class => Scenario.TheDcbModel<T>(query);
+
+    /// <inheritdoc cref="WolverineScenario.ThenDcbModel{T}(JasperFx.Events.Tags.EventTagQuery, object)" />
+    public Task ThenDcbModel<T>(JasperFx.Events.Tags.EventTagQuery query, object expected) where T : class
+        => Scenario.ThenDcbModel<T>(query, expected);
+
     /// <inheritdoc cref="WolverineScenario.TheStartedStream{TAggregate}()" />
     public Guid TheStartedStream<TAggregate>() where TAggregate : class => Scenario.TheStartedStream<TAggregate>();
 

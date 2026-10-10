@@ -4,6 +4,7 @@ using Bobcat.Engine;
 using Bobcat.Runtime;
 using System.Globalization;
 using JasperFx.Events;
+using JasperFx.Events.Tags;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
 
@@ -265,10 +266,24 @@ public class WolverineScenario
     private static (string Text, bool Inline) describe(IReadOnlyList<object> values)
     {
         // A partial object reads as only the members it specifies: ShipmentConfirmed(TrackingNumber: 1Z999)
-        var full = values.Any(x => x is IPartialObject)
-            ? string.Join(", ", values.Select(x => x is IPartialObject partial ? PartialObjects.Describe(partial) : ScenarioValues.Describe(x)))
+        var full = values.Any(x => x is IPartialObject or TaggedValue)
+            ? string.Join(", ", values.Select(describeOne))
             : ScenarioValues.DescribeAll(values);
         return full.Length <= ScenarioValues.InlineLimit ? (full, true) : (names(values), false);
+    }
+
+    // One value as a step reads it; an event with tags says them after it (wolverine#4865)
+    private static string describeOne(object value)
+    {
+        var described = value switch
+        {
+            IPartialObject specified => PartialObjects.Describe(specified),
+            TaggedValue tagged => ScenarioValues.Describe(tagged.Value),
+            _ => ScenarioValues.Describe(value)
+        };
+
+        var tags = Tagging.ExpectedTagsOf(value);
+        return tags.Count == 0 ? described : $"{described} tagged {Tagging.Describe(tags)}";
     }
 
     /// <summary>
@@ -282,8 +297,14 @@ public class WolverineScenario
             : values;
 
     /// <summary>A partial object built, its unspecified members filled by <see cref="UnspecifiedValues" />; anything else as it is.</summary>
-    protected internal object Build(object value, string? step = null)
-        => value is IPartialObject partial ? PartialObjects.Build(partial, UnspecifiedValues, step) : value;
+    protected internal object Build(object value, string? step = null) => value switch
+    {
+        // wolverine#4865: an arranged event keeps the tags it names, so it is appended tagged
+        IPartialObject specified when specified is ITaggedExpectation { ExpectedTags.Count: > 0 } tagged
+            => Specifications.Tagged(PartialObjects.Build(specified, UnspecifiedValues, step), tagged.ExpectedTags.ToArray()),
+        IPartialObject specified => PartialObjects.Build(specified, UnspecifiedValues, step),
+        _ => value
+    };
 
     private object[] build(object[] values, string step) => values.Select(x => Build(x, step)).ToArray();
 
@@ -1134,10 +1155,37 @@ public class WolverineScenario
     /// <see cref="Expect.Value{T}" /> with members to ignore. The same rules as <see cref="ThenEvents(object[])" />.
     /// </summary>
     public void ThenMatches(object? subject, object expected)
+        => matches(null, subject, expected);
+
+    /// <summary>
+    /// wolverine#4865. <typeparamref name="T" /> projected over the events <paramref name="query" /> selects by
+    /// their tags — a Dynamic Consistency Boundary model, or a view built the same way. Null when nothing
+    /// matches the query.
+    /// </summary>
+    public Task<T?> TheDcbModel<T>(EventTagQuery query) where T : class => EventStores.AggregateByTagsAsync<T>(Store, query);
+
+    /// <summary>
+    /// wolverine#4865. <typeparamref name="T" />, projected over the events <paramref name="query" /> selects by
+    /// their tags, is <paramref name="expected" />: a whole object, an <see cref="Expect.Value{T}" /> or a partial
+    /// one, judged as <see cref="ThenMatches" /> judges.
+    /// </summary>
+    public async Task ThenDcbModel<T>(EventTagQuery query, object expected) where T : class
+    {
+        var text = $"the {typeof(T).Name} over {EventStores.Describe(query)} matches";
+        T? model;
+        using (ScenarioRecorder.Step("Given", $"{typeof(T).Name} is projected over {EventStores.Describe(query)}"))
+        {
+            model = await TheDcbModel<T>(query);
+        }
+
+        matches(text, model, expected);
+    }
+
+    private void matches(string? text, object? subject, object expected)
     {
         if (expected is IPartialObject partial)
         {
-            using var partialStep = ScenarioRecorder.Step("Then", $"the {partial.Type.Name} matches");
+            using var partialStep = ScenarioRecorder.Step("Then", text ?? $"the {partial.Type.Name} matches");
             if (subject is null)
             {
                 Verdicts.Fail($"Expected a {partial.Type.Name} but there was nothing to verify");
@@ -1155,7 +1203,7 @@ public class WolverineScenario
         }
 
         var value = unwrap(expected);
-        using var step = ScenarioRecorder.Step("Then", $"the {value.GetType().Name} matches");
+        using var step = ScenarioRecorder.Step("Then", text ?? $"the {value.GetType().Name} matches");
         compareSequence(value.GetType().Name, subject is null ? Array.Empty<object>() : new[] { subject }, new[] { expected });
     }
 

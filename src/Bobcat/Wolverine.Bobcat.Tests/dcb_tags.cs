@@ -89,17 +89,6 @@ public sealed class DcbHost : IAsyncLifetime
         await Host.StopAsync();
         Host.Dispose();
     }
-
-    // Givens that seed tagged events are still to be designed (wolverine#4865), so the screening is
-    // scheduled straight through Marten here
-    public async Task ScheduleAsync(ScreeningId screening, int seats)
-    {
-        await using var session = Host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        var scheduled = session.Events.BuildEvent(new ScreeningScheduled(screening, seats));
-        scheduled.WithTag(screening);
-        session.Events.Append(screening.Value, scheduled);
-        await session.SaveChangesAsync();
-    }
 }
 
 public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbHost>
@@ -110,7 +99,7 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
     [Fact]
     public async Task the_tags_an_event_was_appended_with_are_judged_exactly_in_any_order()
     {
-        await app.ScheduleAsync(theScreeningId, 10);
+        await GivenEvents<SeatAvailability>(theScreeningId.Value, Tagged(new ScreeningScheduled(theScreeningId, 10), theScreeningId));
 
         await WhenReceived(new ReserveSeat(theScreeningId, theCustomerId, "4C"));
 
@@ -127,7 +116,7 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
     [Fact]
     public async Task an_events_tags_read_on_its_one_row_by_the_names_the_spec_gave_them()
     {
-        await app.ScheduleAsync(theScreeningId, 10);
+        await GivenEvents<SeatAvailability>(theScreeningId.Value, Tagged(new ScreeningScheduled(theScreeningId, 10), theScreeningId));
 
         var recording = await Recordings.RecordAsync(async () =>
         {
@@ -138,5 +127,26 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
         recording.GatheredFailures().ShouldBeNull();
         var values = recording.Steps.Last().Cells.Single(x => x.Name == "values");
         values.DisplayText.ShouldBe("Seat: 4C, tags: [theScreeningId, CustomerId(CUST-104)]");
+    }
+
+    [Fact]
+    public async Task a_partial_given_keeps_its_tags_and_the_dcb_model_is_projected_over_a_tag_query()
+    {
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            // A partial arranged event names its tags as an expected one does, and is appended tagged
+            await GivenEvents<SeatAvailability>(theScreeningId.Value,
+                Specify<ScreeningScheduled>().With(x => x.Screening, theScreeningId).With(x => x.Seats, 2).Tagged(theScreeningId));
+
+            await WhenReceived(new ReserveSeat(theScreeningId, theCustomerId, "4C"));
+
+            await ThenDcbModel<SeatAvailability>(EventTagQuery.For(theScreeningId), Specify<SeatAvailability>().With(x => x.Seats, 1));
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        recording.Steps[0].Text.ShouldBe("SeatAvailability theScreeningId has already recorded ScreeningScheduled(Screening: theScreeningId, Seats: 2) tagged [theScreeningId]");
+        recording.Steps.Last().Text.ShouldBe("the SeatAvailability over events tagged theScreeningId matches");
+
+        (await TheDcbModel<SeatAvailability>(EventTagQuery.For(theScreeningId)))!.Seats.ShouldBe(1);
     }
 }
