@@ -175,9 +175,19 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     }
 
     public string Scheme => SchemeName;
-    public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
+
+    // The enumeration AllKnownAgentsAsync handed the leader for the evaluation in progress, for
+    // EvaluateAssignmentsAsync to reuse. Every enumeration rebuilds each store's usage descriptor, and for a
+    // master-table tenancy that is a database round trip per store -- paid twice per evaluation when the
+    // retirement pass asked again a few milliseconds later. Consumed once so a list can never outlive the
+    // evaluation it was taken for.
+    private IReadOnlyList<Uri>? _enumeratedForThisEvaluation;
+
+    public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
-        return SupportedAgentsAsync();
+        var agents = await SupportedAgentsAsync();
+        _enumeratedForThisEvaluation = agents;
+        return agents;
     }
 
     public async ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
@@ -280,7 +290,8 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     {
         var retired = new HashSet<Uri>();
 
-        var supported = (await SupportedAgentsAsync()).ToHashSet();
+        var enumerated = Interlocked.Exchange(ref _enumeratedForThisEvaluation, null) ?? await SupportedAgentsAsync();
+        var supported = enumerated.ToHashSet();
         var supportedTenantNeutral = supported
             .Select(TenantNeutralKeyOf)
             .Where(x => x != null)
