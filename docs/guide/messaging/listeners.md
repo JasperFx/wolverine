@@ -591,6 +591,14 @@ that recovers that endpoint's dormant inbox messages — the per-database durabi
 them alone. See [Inbox Recovery Ownership](/guide/messaging/exclusive-node-processing#inbox-recovery-ownership)
 for the details. The same applies to `ListenOnlyAtLeader()`.
 
+## Disposing Composite Listeners
+
+`CompoundListener.DisposeAsync()` and `ParallelListener.DisposeAsync()` attempt to dispose every
+child listener, even when an earlier child throws. Disposal remains sequential and awaits each
+child before proceeding. A single failure is rethrown with its original identity and stack;
+multiple failures are reported as an `AggregateException` in child order. A child whose disposal
+does not complete can still prevent later children from being reached.
+
 ## Disabling All External Listeners
 
 In some cases, you may want to disable all message processing for messages received from external
@@ -619,4 +627,3 @@ The original use case for this flag was a command line tool that needed to publi
 a system through Rabbit MQ then exit. Having that process also trying to publish messages received
 from Rabbit MQ kept the command line tool from quitting quickly as Wolverine had to "drain" ongoing
 work. For that kind of tool, we recommend this setting.
-

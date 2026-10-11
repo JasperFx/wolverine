@@ -1,4 +1,4 @@
-﻿using Wolverine.Runtime;
+using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
@@ -37,10 +37,22 @@ public class CompoundListener : IListener
 
     public async ValueTask DisposeAsync()
     {
+        var exceptions = new List<Exception>();
         foreach (var listener in Inner)
         {
-            await listener.DisposeAsync();
+            try
+            {
+                await listener.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+            }
         }
+
+        if (exceptions.Count == 1)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+        if (exceptions.Count > 1) throw new AggregateException(exceptions);
     }
 
     public Uri Address { get; }
