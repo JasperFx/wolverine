@@ -74,3 +74,21 @@ With `NamingSource.FromHandlerType`, each handler class gets its own dedicated t
 handler type. This ensures that each handler independently receives a copy of every message. Outgoing topic names
 are still derived from the message type.
 
+## Separated Handler Behavior <Badge type="tip" text="6.49" />
+
+With `MultipleHandlerBehavior.Separated`, every handler of a message type past the first is its own handler
+chain with its own listener. A Pub/Sub topic fans out to every subscription on it, so the convention gives each
+of those handlers a subscription of its own on the message type's topic, named from the handler type the way
+`NamingSource.FromHandlerType` names a handler's topic. The sender is unchanged: it publishes to the one topic.
+
+```cs
+opts.UsePubsub("your-project-id")
+    .AutoProvision()
+    .UseConventionalRouting();
+
+opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+```
+
+Each per-handler subscription is an endpoint of its own with the Uri `pubsub://{projectId}/{topic}/{subscription}`,
+so it can be configured, listed and found like any other. Because the topic does the fan-out, a publisher in another
+process reaches every subscription too.
