@@ -48,6 +48,25 @@ public class ParallelListener : IListener, IDisposable
         if (!exceptions.IsEmpty) throw new AggregateException(exceptions);
     }
 
-    public ValueTask DisposeAsync() =>
-        _listeners.MaybeDisposeAllAsync();
+    public async ValueTask DisposeAsync()
+    {
+        var exceptions = new List<Exception>();
+        foreach (var listener in _listeners)
+        {
+            if (listener is null) continue;
+
+            try
+            {
+                await listener.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+            }
+        }
+
+        if (exceptions.Count == 1)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+        if (exceptions.Count > 1) throw new AggregateException(exceptions);
+    }
 }
