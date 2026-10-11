@@ -60,7 +60,7 @@ public class FirstMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L500-L507' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L498-L505' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Of course, you can always explicitly send a message to a specific topic with this syntax:
@@ -108,7 +108,7 @@ theSender = await Host.CreateDefaultBuilder()
         opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L35-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L34-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing by Topic Rule
@@ -154,3 +154,39 @@ await host.StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L544-L563' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_topic_rules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Publishing to a Topic Exchange and to a Local Queue at the Same Time <Badge type="tip" text="6.49" />
+
+Let's say you want every message of a certain type to go out to a Rabbit MQ topic exchange with a topic computed from the message, but you
+*also* want the same message handled right here in this application through a local queue. You might reach for
+both `PublishMessagesToRabbitMqExchange<T>()` and an explicit `PublishMessage<T>().ToLocalQueue()` rule, but with the original overload the
+exchange wins and the local queue rule is never even consulted. To make the exchange routing *additive* so
+that Wolverine's other routing rules still apply, pass `additive: true`:
+
+<!-- snippet: sample_publish_to_rabbitmq_exchange_and_local_queue -->
+<a id='snippet-sample_publish_to_rabbitmq_exchange_and_local_queue'></a>
+```cs
+opts.UseRabbitMq().AutoProvision();
+
+// Every AdditiveRabbitCommand goes to the topic exchange with a topic computed from the message...
+opts.PublishMessagesToRabbitMqExchange<AdditiveRabbitCommand>(exchangeName,
+    m => $"commands.{m.Region}", additive: true);
+
+// ...and because that routing is additive, to the local "commands" queue at the same time
+opts.PublishMessage<AdditiveRabbitCommand>().ToLocalQueue("commands");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/additive_topic_exchange_routing.cs#L33-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_exchange_and_local_queue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With that configuration, a single `PublishAsync()` sends the message to the topic exchange with the `commands.{Region}` topic and also drops it into the local
+`commands` queue. You don't even need the explicit local queue rule if all you want is for a handler in this
+application to get the message, because the conventional local routing to that handler applies as well -- just
+like it would if the exchange routing weren't there at all.
+
+::: tip
+The original overload without the `additive` parameter is unchanged, and the exchange is the only route that
+explicit publishing rules or local routing will leave those messages. If you're ever unsure what Wolverine is going
+to do with a message type, `IWolverineRuntime.ExplainRoutingFor(type)` will walk you through every routing rule it
+consulted. The additive routing shows up there as `[additive, pass-through]`. See
+[message routing diagnostics](/guide/messaging/subscriptions#diagnostics) for more.
+:::
