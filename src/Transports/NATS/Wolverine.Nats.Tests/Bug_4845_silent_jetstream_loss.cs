@@ -9,6 +9,7 @@ using NATS.Net;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
+using Wolverine.Transports.Sending;
 using Xunit;
 
 namespace Wolverine.Nats.Tests;
@@ -81,7 +82,10 @@ public class Bug_4845_silent_jetstream_loss
         // The server refuses this one, and the send has to fail.
         await bus.SendAsync(new OrderPlaced(Guid.NewGuid().ToString("N")));
 
-        var exception = (await sendFailure.Task.WaitAsync(10.Seconds(), Ct)).ShouldBeOfType<NatsJSApiException>();
+        // GH-4955: the refusal reaches the sending failure policy as a SendRejectedException wrapping the
+        // JetStream error, and the policy -- not the caller -- decides what happens to the envelope
+        var exception = (await sendFailure.Task.WaitAsync(10.Seconds(), Ct)).ShouldBeOfType<SendRejectedException>()
+            .InnerException.ShouldBeOfType<NatsJSApiException>();
         _output.WriteLine($"refused: {exception.Error.Description} ({exception.Error.ErrCode})");
 
         (await CountStreamMessagesAsync(natsUrl, stream)).ShouldBe(1);
@@ -257,7 +261,7 @@ public class Bug_4845_silent_jetstream_loss
         return consumer.Info;
     }
 
-    private static async Task<long> CountStreamMessagesAsync(string natsUrl, string streamName)
+    internal static async Task<long> CountStreamMessagesAsync(string natsUrl, string streamName)
     {
         await using var connection = new NatsConnection(new NatsOpts { Url = natsUrl });
         await connection.ConnectAsync();

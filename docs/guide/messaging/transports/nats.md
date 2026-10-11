@@ -836,10 +836,13 @@ carried, so it keeps working when its NATS user may only publish responses (`all
 
 - **Rejected publishes** <Badge type="tip" text="6.47" />: a JetStream publish the server refuses — the stream is
   full under `DiscardPolicy.New`, a `Nats-Expected-Last-Sequence` (or other `Nats-Expected-*`) check fails, the
-  message is larger than the stream allows — fails the send with a `NatsJSApiException`. A durable outbox keeps the
-  message and retries it through the sending agent's circuit breaker instead of deleting it as sent. A publish the
-  stream discards as a duplicate `Nats-Msg-Id` is still a successful send, because the stream already holds that
-  message.
+  message is larger than the stream allows — fails the send with a `SendRejectedException` carrying the
+  `NatsJSApiException` as its inner exception <Badge type="tip" text="6.49" />. A durable outbox keeps the message and
+  applies its sending failure handling instead of deleting it as sent. On an endpoint configured with `SendInline()`
+  and no sending failure policy that takes the exception, the refusal is not retried — no retry can change the
+  server's answer — and `SendAsync()` throws the `SendRejectedException` to the caller rather than logging three
+  retries and discarding the message. A publish the stream discards as a duplicate `Nats-Msg-Id` is still a
+  successful send, because the stream already holds that message.
 - **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
 - **Dead Letter**: When Wolverine's error handling moves a message to the error queue — once its retries are

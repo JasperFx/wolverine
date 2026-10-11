@@ -11,6 +11,7 @@ using Shouldly;
 using Wolverine.Nats.Internal;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.Transports.Sending;
 using Xunit;
 
 namespace Wolverine.Nats.Tests;
@@ -52,8 +53,11 @@ public class NatsJetStreamPublishRejectionTests
         // Fills the stream
         await publishAsync(publisher, subject, new Envelope());
 
-        var exception = await Should.ThrowAsync<NatsJSApiException>(
+        // GH-4955: a refusal is a SendRejectedException so an inline endpoint does not retry it, with the
+        // JetStream error kept as the inner exception
+        var rejected = await Should.ThrowAsync<SendRejectedException>(
             () => publishAsync(publisher, subject, new Envelope()));
+        var exception = rejected.InnerException.ShouldBeOfType<NatsJSApiException>();
         _output.WriteLine($"{exception.Error.Code}/{exception.Error.ErrCode}: {exception.Error.Description}");
         exception.Error.Description.ShouldNotBeNull().ShouldContain("maximum messages");
 
@@ -73,8 +77,8 @@ public class NatsJetStreamPublishRejectionTests
         // The stream is empty, so its last sequence is 0, not 42
         var headers = new NatsHeaders { ["Nats-Expected-Last-Sequence"] = "42" };
 
-        var exception = await Should.ThrowAsync<NatsJSApiException>(
-            () => publishAsync(publisher, subject, new Envelope(), headers));
+        var exception = (await Should.ThrowAsync<SendRejectedException>(
+            () => publishAsync(publisher, subject, new Envelope(), headers))).InnerException.ShouldBeOfType<NatsJSApiException>();
         _output.WriteLine($"{exception.Error.Code}/{exception.Error.ErrCode}: {exception.Error.Description}");
         exception.Error.Description.ShouldNotBeNull().ShouldContain("wrong last sequence");
 
@@ -121,8 +125,9 @@ public class NatsJetStreamPublishRejectionTests
 
         // The native scheduling control message goes through the same JetStream publish
         var scheduled = new Envelope { ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5) };
-        var exception = await Should.ThrowAsync<NatsJSApiException>(() => publisher.PublishAsync(subject,
-            new byte[1024], new NatsHeaders(), null, scheduled, TestContext.Current.CancellationToken).AsTask());
+        var exception = (await Should.ThrowAsync<SendRejectedException>(() => publisher.PublishAsync(subject,
+            new byte[1024], new NatsHeaders(), null, scheduled, TestContext.Current.CancellationToken).AsTask()))
+            .InnerException.ShouldBeOfType<NatsJSApiException>();
         _output.WriteLine($"{exception.Error.Code}/{exception.Error.ErrCode}: {exception.Error.Description}");
 
         (await countAsync(js, stream)).ShouldBe(0);

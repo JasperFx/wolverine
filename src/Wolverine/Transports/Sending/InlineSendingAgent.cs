@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -42,6 +44,12 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         }
     }
 
+    // GH-4955. The rejection the sending handler met for an envelope, keyed by reference because Envelope's
+    // equality is by id. The handler swallows a rejection rather than throwing it, so NEITHER retry block
+    // retries it (the asynchronous one would retry three times at 50/100/250 ms and drop the message, the
+    // synchronous one four times), and EnqueueOutgoingAsync reads it back to throw it to the caller.
+    private readonly ConditionalWeakTable<Envelope, SendRejectedException> _rejections = new();
+
     public ISender Sender { get; }
 
     public void Dispose()
@@ -62,6 +70,15 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         setDefaults(envelope);
 
         await _sending.PostAsync(envelope);
+
+        // GH-4955: a refusal by the destination is the caller's to know about. A retry cannot succeed, so the
+        // message was not sent and will not be; SendAsync() throws rather than returning as if it had
+        if (_rejections.TryGetValue(envelope, out var rejection))
+        {
+            _rejections.Remove(envelope);
+            ExceptionDispatchInfo.Capture(rejection).Throw();
+        }
+
         LastMessageSentAt = DateTimeOffset.UtcNow;
     }
 
@@ -95,6 +112,11 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         {
             if (!await tryHandleSendingFailureAsync(e, ex))
             {
+                if (rememberRejection(e, ex))
+                {
+                    return;
+                }
+
                 throw;
             }
         }
@@ -116,9 +138,32 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         {
             if (!await tryHandleSendingFailureAsync(e, ex))
             {
+                if (rememberRejection(e, ex))
+                {
+                    return;
+                }
+
                 throw;
             }
         }
+    }
+
+    // GH-4955: only a rejection is remembered and swallowed here. Every other failure keeps the retry block's
+    // own handling, and a sending failure policy that took the exception has already decided what happens to
+    // the envelope. Logged at Warning, once: the caller is about to get the exception itself
+    private bool rememberRejection(Envelope envelope, Exception exception)
+    {
+        if (exception is not SendRejectedException rejected)
+        {
+            return false;
+        }
+
+        _logger.LogWarning(rejected,
+            "The destination {Destination} refused message {EnvelopeId} ({MessageType}); it will not be retried and the send fails",
+            Destination, envelope.Id, envelope.MessageType);
+
+        _rejections.AddOrUpdate(envelope, rejected);
+        return true;
     }
 
     // wolverine#2955: outgoing-envelope pool release. Only fires for envelopes that
