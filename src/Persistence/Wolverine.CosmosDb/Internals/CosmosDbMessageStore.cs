@@ -31,7 +31,7 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
         _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
             ? e => $"incoming|{e.Id}"
             : e =>
-                $"incoming|{e.Id}|{e.Destination?.ToString().Replace(":/", "").TrimEnd('/')}";
+                $"incoming|{e.Id}|{CosmosSafeId(e.Destination?.ToString().Replace(":/", "").TrimEnd('/'))}";
 
         _leaderLockId = $"lock|leader";
         _scheduledLockId = $"lock|scheduled";
@@ -56,6 +56,15 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
     public Uri Uri => new($"{PersistenceConstants.AgentScheme}://cosmosdb/durability");
 
     public string IdentityFor(Envelope envelope) => _identity(envelope);
+
+    // GH-4216. Cosmos DB does not allow '/', '\\', '?' or '#' in a document id: a create succeeds, but point reads,
+    // replaces and deletes by that id miss, so every update under MessageIdentity.IdAndDestination -- whose
+    // identity carried the destination's slashes -- quietly fell through to "not found". '|' is already the
+    // separator inside the identity
+    internal static string? CosmosSafeId(string? value)
+    {
+        return value?.Replace('/', '|').Replace('\\', '|').Replace('?', '|').Replace('#', '|');
+    }
 
     public ValueTask DisposeAsync()
     {
