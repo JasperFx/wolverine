@@ -52,6 +52,43 @@ public static class SqlServerConfigurationExtensions
     }
 
     /// <summary>
+    ///     Register sql server backed message persistence to a known connection string, optionally opting
+    ///     into envelope ids ordered for SQL Server
+    /// </summary>
+    /// <param name="connectionString"></param>
+    /// <param name="optimizeEnvelopeIdsForSqlServer">
+    /// GH-4902. When SQL Server is every message store in the application, Wolverine already switches to
+    /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> at startup, unless
+    /// <see cref="WolverineOptions.EnvelopeIdGeneration"/> was set explicitly. True sets it explicitly anyway,
+    /// for example alongside a message store that has no preference. False opts out of the automatic switch and
+    /// keeps the default ids -- use that when this application sends messages to services that store their
+    /// envelopes in PostgreSQL. Either way an explicit EnvelopeIdGeneration set earlier is left alone when false,
+    /// and there is no schema change.
+    /// </param>
+    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo". This has to be a single database identifier</param>
+    public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
+        bool optimizeEnvelopeIdsForSqlServer, string? schema = null, MessageStoreRole role = MessageStoreRole.Main)
+    {
+        applyEnvelopeIdChoice(options, optimizeEnvelopeIdsForSqlServer);
+
+        return options.PersistMessagesWithSqlServer(connectionString, schema, role);
+    }
+
+    // GH-4902. True forces SQL Server-ordered ids; false pins the default ids so the automatic switch does not
+    // apply, unless something was chosen explicitly already
+    private static void applyEnvelopeIdChoice(WolverineOptions options, bool optimizeEnvelopeIdsForSqlServer)
+    {
+        if (optimizeEnvelopeIdsForSqlServer)
+        {
+            options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
+        }
+        else if (!options.EnvelopeIdGenerationIsExplicit)
+        {
+            options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
+        }
+    }
+
+    /// <summary>
     /// Register SQL Server backed rate limiting storage
     /// </summary>
     public static ISqlServerBackedPersistence UseSqlServerRateLimiting(this ISqlServerBackedPersistence persistence,
@@ -102,6 +139,33 @@ public static class SqlServerConfigurationExtensions
         options.Transports.Add(transport);
 
         return new SqlServerPersistenceExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Register Sql Server backed message persistence *and* the Sql Server messaging transport, optionally
+    /// opting into envelope ids ordered for SQL Server
+    /// </summary>
+    /// <param name="connectionString"></param>
+    /// <param name="optimizeEnvelopeIdsForSqlServer">
+    /// GH-4902. When SQL Server is every message store in the application, Wolverine already switches to
+    /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> at startup, unless
+    /// <see cref="WolverineOptions.EnvelopeIdGeneration"/> was set explicitly. True sets it explicitly anyway,
+    /// for example alongside a message store that has no preference. False opts out of the automatic switch and
+    /// keeps the default ids -- use that when this application sends messages to services that store their
+    /// envelopes in PostgreSQL. Either way an explicit EnvelopeIdGeneration set earlier is left alone when false,
+    /// and there is no schema change.
+    /// </param>
+    /// <param name="schema">Schema name for the Wolverine envelope storage. A single database identifier, not a multi-part name</param>
+    public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,
+        string connectionString,
+        bool optimizeEnvelopeIdsForSqlServer,
+        string? schema = null,
+        string? transportSchema = null,
+        MessageStoreRole role = MessageStoreRole.Main)
+    {
+        applyEnvelopeIdChoice(options, optimizeEnvelopeIdsForSqlServer);
+
+        return options.UseSqlServerPersistenceAndTransport(connectionString, schema, transportSchema, role);
     }
 
     /// <summary>

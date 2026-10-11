@@ -100,6 +100,27 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         
     }
 
+    /// <summary>
+    /// GH-4902. Every distinct message store, main and ancillary, with each multi-tenanted store represented by
+    /// its main database
+    /// </summary>
+    internal IReadOnlyList<IMessageStore> AllStores()
+    {
+        return _services.Enumerate().Select(x => x.Value).ToArray();
+    }
+
+    /// <summary>
+    /// GH-4902. The envelope id generation every one of these stores prefers, or null when there are no stores,
+    /// any store has no preference, or they disagree
+    /// </summary>
+    internal static EnvelopeIdGeneration? AgreedEnvelopeIdGeneration(IReadOnlyList<IMessageStore> stores)
+    {
+        if (stores.Count == 0) return null;
+
+        var preferences = stores.Select(x => x.PreferredEnvelopeIdGeneration).Distinct().ToArray();
+        return preferences.Length == 1 ? preferences[0] : null;
+    }
+
     public bool HasAnyAncillaryStores()
     {
         return !_ancillaryStores.IsEmpty;

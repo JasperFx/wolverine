@@ -270,6 +270,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public MessageStoreRole Role { get; private set; }
 
+    /// <summary>
+    /// GH-4902. Declared here, where the relational stores implement <see cref="IMessageStore"/>, so a provider can
+    /// override it: a property declared only on a derived class would not replace the interface's default.
+    /// No preference by default.
+    /// </summary>
+    public virtual EnvelopeIdGeneration? PreferredEnvelopeIdGeneration => null;
+
     public override string ToString()
     {
         return $"{Uri} ({Name})";

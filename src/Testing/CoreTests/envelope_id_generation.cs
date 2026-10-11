@@ -111,7 +111,8 @@ public class envelope_id_generation : IDisposable
             {
                 #region sample_envelope_ids_in_sql_server_order
 
-                // Only when SQL Server stores the envelopes this application sends and receives
+                // Wolverine picks this on its own when every message store is SQL Server;
+                // setting it explicitly forces it no matter what the message stores prefer
                 opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
 
                 #endregion

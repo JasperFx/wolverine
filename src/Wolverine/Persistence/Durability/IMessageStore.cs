@@ -105,6 +105,15 @@ public interface IMessageStore : IAsyncDisposable
     ///     What is the role of this message store within the application?
     /// </summary>
     MessageStoreRole Role { get; }
+
+    /// <summary>
+    /// GH-4902. The <see cref="Wolverine.EnvelopeIdGeneration"/> this store's database keeps in index order, if it
+    /// has a preference. When the application has not set <see cref="WolverineOptions.EnvelopeIdGeneration"/>
+    /// explicitly and EVERY message store in the application reports the same preference, Wolverine switches to it
+    /// at startup. Null, the default, is "no preference", which also keeps every other store's preference from
+    /// applying.
+    /// </summary>
+    EnvelopeIdGeneration? PreferredEnvelopeIdGeneration => null;
     
     /// <summary>
     /// In the case of multi-tenancy, this would hold one or more tenant ids

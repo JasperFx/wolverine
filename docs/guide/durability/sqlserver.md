@@ -33,6 +33,95 @@ builder.Host.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L50-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Optimized Envelope IDs for SQL Server <Badge type="tip" text="6.49" />
+
+::: tip
+**If SQL Server is the only message storage in your application, Wolverine now does this for you.** At startup,
+when every message store in the application is SQL Server and you haven't set `WolverineOptions.EnvelopeIdGeneration`
+yourself, Wolverine switches to envelope ids that SQL Server keeps in order. There's nothing to configure and no
+schema change.
+:::
+
+Wolverine's SQL Server inbox, outbox, and dead letter tables are clustered on the envelope id. Wolverine's default
+envelope ids are created in an order that .NET and PostgreSQL see as sequential, but SQL Server compares a
+`uniqueidentifier` starting from its *last* six bytes, so as far as SQL Server is concerned those ids arrive in random
+order. On a busy system that means constant page splits. One user
+[measured](https://github.com/JasperFx/wolverine/issues/4902) a production inbox that was 99% fragmented with its
+pages only half full, so every scan of that table read about twice the pages it needed to.
+
+So this plain registration is all it takes:
+
+<!-- snippet: sample_sql_server_only_application_gets_sql_server_ordered_ids -->
+<a id='snippet-sample_sql_server_only_application_gets_sql_server_ordered_ids'></a>
+```cs
+// SQL Server is the only message storage, so Wolverine switches to
+// EnvelopeIdGeneration.NewIdSqlServerOrder at startup all by itself
+opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "ordered_ids");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L37-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_only_application_gets_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Under the covers, every message store tells Wolverine which envelope id layout it would like, and if they *all*
+agree, Wolverine uses it. The SQL Server message store -- which also backs the SQL Server transport, EF Core with SQL
+Server, and Polecat -- asks for `EnvelopeIdGeneration.NewIdSqlServerOrder`, which is the same NewId algorithm and
+uniqueness as the default with the timestamp moved to where SQL Server sorts on it. If any other message store in the
+application doesn't agree, say a PostgreSQL ancillary store, Wolverine keeps the default ids. You'll see a log
+message at startup when the switch happens.
+
+::: warning
+The one time you *don't* want this is when your SQL Server-only application sends messages to other Wolverine
+services that store their envelopes in PostgreSQL (Marten, for example). The envelope id travels with each message,
+and the *receiving* service uses that same id as the key in its own inbox. On PostgreSQL these SQL Server-ordered ids
+index even worse than completely random GUIDs. In that case, opt out by setting the id generation explicitly:
+
+<!-- snippet: sample_opting_out_of_sql_server_ordered_ids_explicitly -->
+<a id='snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly'></a>
+```cs
+// This application sends messages to Wolverine services that store
+// their envelopes in PostgreSQL, so keep the default ids
+opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L72-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+:::
+
+The `PersistMessagesWithSqlServer()` and `UseSqlServerPersistenceAndTransport()` registrations also have an overload
+that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to opt out:
+
+<!-- snippet: sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids -->
+<a id='snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids'></a>
+```cs
+opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
+    optimizeEnvelopeIdsForSqlServer: false, schema: "ordered_ids");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L94-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids -->
+<a id='snippet-sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids'></a>
+```cs
+opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString,
+    optimizeEnvelopeIdsForSqlServer: false, schema: "ordered_ids");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L136-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and passing `true` forces the SQL Server-ordered ids even when some other message store in your application has no
+opinion:
+
+<!-- snippet: sample_persist_messages_with_sql_server_and_sql_server_ordered_ids -->
+<a id='snippet-sample_persist_messages_with_sql_server_and_sql_server_ordered_ids'></a>
+```cs
+// Forces SQL Server-ordered ids even when another message store has no preference
+opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
+    optimizeEnvelopeIdsForSqlServer: true, schema: "ordered_ids");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L114-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An explicit `opts.EnvelopeIdGeneration` always wins over all of this. See
+[envelope ID generation](/guide/messages#envelope-id-generation) for all the options.
+
 ## Aspire Integration
 
 The recommended way to integrate Wolverine with .NET Aspire for SQL Server is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`.
@@ -126,7 +215,7 @@ that they are utilizing the transactional inbox and outbox. The Sql Server queue
 ```cs
 opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L67-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L63-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the Sql Server queues can be used for both sending or receiving with no integration
@@ -534,7 +623,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L55-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L58-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -572,7 +661,7 @@ builder.UseWolverine(opts =>
         });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L121-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlserver_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L124-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlserver_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

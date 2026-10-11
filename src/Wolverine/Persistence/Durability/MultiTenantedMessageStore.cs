@@ -28,6 +28,9 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     private bool _initialized;
 
 
+    // GH-4902. Tenant databases come from the same provider as the main one
+    public EnvelopeIdGeneration? PreferredEnvelopeIdGeneration => Main.PreferredEnvelopeIdGeneration;
+
     public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime,
         ITenantedMessageSource source)
     {

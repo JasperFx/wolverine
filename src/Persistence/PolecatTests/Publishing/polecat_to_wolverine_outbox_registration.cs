@@ -14,7 +14,7 @@ namespace PolecatTests.Publishing;
 
 /// <summary>
 ///     Registration smoke test for wolverine#2774: verify that
-///     <see cref="WolverineOptionsPolecatExtensions.IntegrateWithWolverine"/>
+///     <see cref="WolverineOptionsPolecatExtensions.IntegrateWithWolverine(PolecatConfigurationExpression, Action{PolecatIntegration})"/>
 ///     replaces Polecat's default <see cref="NulloMessageOutbox"/> on
 ///     <see cref="StoreOptions.Events"/>.<c>MessageOutbox</c> with the Wolverine
 ///     bridge (<see cref="PolecatToWolverineOutbox"/>).

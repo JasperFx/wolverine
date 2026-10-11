@@ -52,6 +52,16 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     private readonly Lazy<MetricsAccumulator> _accumulator;
     private readonly Lazy<ISagaStoreDiagnostics> _sagaStorage;
 
+    internal static Func<Guid> IdGeneratorFor(EnvelopeIdGeneration generation)
+    {
+        return generation switch
+        {
+            EnvelopeIdGeneration.GuidV7 => Guid.CreateVersion7,
+            EnvelopeIdGeneration.NewIdSqlServerOrder => MassTransit.NewId.NextGuid,
+            _ => MassTransit.NewId.NextSequentialGuid
+        };
+    }
+
     public WolverineRuntime(WolverineOptions options,
         IServiceContainer container,
         ILoggerFactory loggers)
@@ -60,12 +70,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         Options = options;
         Handlers = options.HandlerGraph;
 
-        Envelope.IdGenerator = options.EnvelopeIdGeneration switch
-        {
-            EnvelopeIdGeneration.GuidV7 => Guid.CreateVersion7,
-            EnvelopeIdGeneration.NewIdSqlServerOrder => MassTransit.NewId.NextGuid,
-            _ => MassTransit.NewId.NextSequentialGuid
-        };
+        Envelope.IdGenerator = IdGeneratorFor(options.EnvelopeIdGeneration);
 
         _accumulator = new Lazy<MetricsAccumulator>(() => new MetricsAccumulator(this));
 
