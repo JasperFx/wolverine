@@ -186,6 +186,15 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenNotEmitted(object[])" />
     public void ThenNotEmitted(params object[] events) => Scenario.ThenNotEmitted(events);
 
+    /// <inheritdoc cref="WolverineScenario.ThenEventuallyCaused(object[])" />
+    public Task ThenEventuallyCaused(params object[] events) => Scenario.ThenEventuallyCaused(events);
+
+    /// <inheritdoc cref="WolverineScenario.ThenEventuallyCaused{T}" />
+    public Task ThenEventuallyCaused<T>() => Scenario.ThenEventuallyCaused<T>();
+
+    /// <inheritdoc cref="WolverineScenario.ActCorrelationId" />
+    public string? ActCorrelationId => Scenario.ActCorrelationId;
+
     /// <inheritdoc cref="WolverineScenario.ThenNoEvents" />
     public void ThenNoEvents() => Scenario.ThenNoEvents();
 

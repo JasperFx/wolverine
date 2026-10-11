@@ -321,6 +321,28 @@ app.MapWolverineEndpoints(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L64-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_middleware_policy_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Applying the Correlation Id to Every Endpoint <Badge type="tip" text="6.49" />
+
+By default, `RequestIdMiddleware` above is only applied to endpoints that use `IMessageBus` or `IMessageContext`, and
+even then it runs *after* any Marten, Polecat or Fisher session the endpoint uses has been opened. The messages the
+endpoint sends carry the request's `X-Correlation-ID`, but the events it appends record an Activity id or a new
+`Guid` instead. If you need the caller's correlation id on those events too -- say a test is finding everything a
+request caused by its correlation id -- you can opt into this:
+
+<!-- snippet: sample_apply_correlation_id_header_to_all_endpoints -->
+<a id='snippet-sample_apply_correlation_id_header_to_all_endpoints'></a>
+```cs
+// app.MapWolverineEndpoints(opts => ...)
+// The request's X-Correlation-ID becomes the correlation id of every endpoint, applied before any
+// Marten, Polecat or Fisher session is opened, so the events an endpoint appends record it too
+opts.ApplyCorrelationIdHeaderToAllEndpoints = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Bobcat/Wolverine.Bobcat.Http.Tests/correlation_on_every_endpoint.cs#L70-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_correlation_id_header_to_all_endpoints' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With that setting on, Wolverine applies the header right where each endpoint creates its message context, before
+any event store session is opened from it. This is off by default, so nothing changes unless you ask for it.
+
 ## Required Inputs
 
 Here's a common pattern in HTTP service development. Based on a route argument, you first load some kind of entity

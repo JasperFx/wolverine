@@ -3,6 +3,7 @@ using Bobcat;
 using Bobcat.Engine;
 using Bobcat.Runtime;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Http.Runtime;
 using Wolverine.Tracking;
 
 namespace Wolverine.Bobcat.Http;
@@ -69,6 +70,12 @@ public class WolverineHttpScenario : WolverineScenario
                 LastResponse = await AlbaHost.Scenario(x =>
                 {
                     x.Post.Json(built).ToUrl(route);
+
+                    // GH-4939: the request carries the act's correlation id, which Wolverine.HTTP applies to the
+                    // endpoint's messages -- and to its event store session too, with
+                    // WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints -- so ThenEventuallyCaused finds them
+                    if (ActCorrelationId is { } correlationId)
+                        x.WithRequestHeader(RequestIdMiddleware.CorrelationIdHeaderKey, correlationId);
 
                     // The act judges the status itself: any 2xx, a 4xx as a refusal, a 5xx as a failure
                     x.IgnoreStatusCode();
