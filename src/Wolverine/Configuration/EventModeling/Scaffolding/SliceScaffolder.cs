@@ -174,8 +174,9 @@ public sealed record ScaffoldPlan(IReadOnlyList<ScaffoldFile> Files, IReadOnlyLi
 public sealed class SliceScaffoldOptions
 {
     /// <summary>
-    ///     Namespace of the scaffolded code. A slice with a domain or a chapter goes in
-    ///     <c>{RootNamespace}.{Domain}.{Chapter}</c>, in the matching folders (GH-4891).
+    ///     Namespace of the scaffolded code. A slice with a chapter goes in <c>{RootNamespace}.{Chapter}</c>,
+    ///     under <c>Features/{Chapter}/</c>; one without stays in the root namespace, under <c>Features/</c> --
+    ///     the layout <c>bobcat import-event-model</c> writes (GH-4891).
     /// </summary>
     public string RootNamespace { get; set; } = "App";
 
@@ -231,7 +232,9 @@ public sealed class SliceScaffoldOptions
 ///     </para>
 ///     <para>
 ///         <b>One file per slice</b> (GH-4891): a handler is appended to the file that declares its command
-///         when that file exists, and otherwise written in a folder (and namespace) per domain and chapter.
+///         when that file exists, and otherwise written under <c>Features/{Chapter}/</c> in
+///         <c>{RootNamespace}.{Chapter}</c>, the layout <c>bobcat import-event-model</c> writes, so a file the
+///         scaffold adds sits beside the ones Bobcat wrote. A domain is not a folder.
 ///     </para>
 ///     <para>
 ///         <b>Never overwrites a file.</b> An implemented slice is not declared-only, so re-running is a
@@ -254,6 +257,9 @@ public sealed class SliceScaffoldOptions
 /// </remarks>
 public static class SliceScaffolder
 {
+    /// <summary>The folder every scaffolded file is written under, as Bobcat's <c>ModelLayout</c> does.</summary>
+    public const string FeaturesFolder = "Features";
+
     // GH-4928: every notice carries a stable code, which is what tooling such as Stoat groups and explains by
     private static ScaffoldNotice notice(string code, ScaffoldNoticeKind kind, string subject, string message, string? path = null)
         => new(kind, subject, message, path) { Code = code };
@@ -1294,12 +1300,10 @@ public static class SliceScaffolder
             Notices.Add(notice(ScaffoldNoticeCodes.FileWritten, ScaffoldNoticeKind.Wrote, subject, "scaffolded." + note, path));
         }
 
-        // GH-4891: a folder, and a namespace, per domain and per chapter of the model
+        // GH-4891: a folder, and a namespace, per chapter of the model -- Bobcat's ModelLayout, which has
+        // no folder for a domain, so the file the scaffold adds and the ones Bobcat wrote agree
         private static string[] groupsOf(EventModelSliceDescriptor slice)
-            => new[] { slice.Domain, slice.Chapter }
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => IdentifierFor(x!))
-                .ToArray();
+            => string.IsNullOrWhiteSpace(slice.Chapter) ? [] : [IdentifierFor(slice.Chapter)];
 
         private string namespaceFor(EventModelSliceDescriptor slice) => namespaceFor(groupsOf(slice));
 
@@ -1310,7 +1314,7 @@ public static class SliceScaffolder
             => pathFor(groupsOf(slice), identifier);
 
         private static string pathFor(string[] groups, string identifier)
-            => Path.Combine(groups.Append($"{identifier}.cs").ToArray());
+            => Path.Combine(groups.Prepend(FeaturesFolder).Append($"{identifier}.cs").ToArray());
 
         // A method's opening line as a BLOCK: directive. A signature too long to read on one line puts
         // each parameter on its own line instead

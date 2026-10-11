@@ -39,11 +39,11 @@ public class event_model_scaffold_4832
     [Fact]
     public void a_declared_http_command_becomes_a_store_agnostic_endpoint()
     {
-        var result = plan(declared(m => m.InDomain("Scheduling")
+        var result = plan(declared(m => m.InChapter("Scheduling")
             .Slice("ConfirmAppointment").Pattern(SlicePattern.Command).TriggeredBy(TriggerKind.Http)
             .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()));
 
-        var file = result.Files.Single(x => x.RelativePath == Path.Combine("Scheduling", "ConfirmAppointment.cs"));
+        var file = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Scheduling", "ConfirmAppointment.cs"));
 
         file.Code.ShouldContain("namespace Clinic.Scheduling;");
         file.Code.ShouldContain("public static class ConfirmAppointmentEndpoint");
@@ -335,7 +335,7 @@ public class event_model_scaffold_4832
         var result = plan(declared(m => m.Automation("OpenCase").InDomain("Cases")
             .On("PatientReferred").StartsStream("ClinicCase").Emits("CaseOpened")));
 
-        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("Cases", "OpenCase.cs"));
+        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "OpenCase.cs"));
         handler.Code.ShouldContain("public static class OpenCaseHandler");
         handler.Code.ShouldContain("public static StartStream Handle(PatientReferred patientReferred)");
         handler.Code.ShouldContain("Storage.StartStream<ClinicCase>(id, new CaseOpened(...));");
@@ -350,7 +350,7 @@ public class event_model_scaffold_4832
         handler.Code.ShouldContain("public record CaseOpened;");
         handler.Code.ShouldNotContain("public record ClinicCase;");
 
-        var aggregate = result.Files.Single(x => x.RelativePath == Path.Combine("Cases", "ClinicCase.cs"));
+        var aggregate = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "ClinicCase.cs"));
         aggregate.Code.ShouldContain("public class ClinicCase");
         aggregate.Code.ShouldContain("public void Apply(CaseOpened e)");
     }
@@ -492,7 +492,7 @@ public class event_model_scaffold_4832
                 MultiStreamProjectionBase = "Marten.Events.Projections.MultiStreamProjection"
             });
 
-        var projection = result.Files.Single(x => x.RelativePath == "AppointmentBoardProjection.cs").Code;
+        var projection = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "AppointmentBoardProjection.cs")).Code;
         projection.ShouldContain("public class AppointmentBoardProjection : Marten.Events.Projections.MultiStreamProjection<AppointmentBoard, Guid>");
         projection.ShouldContain("//     Identity<AppointmentConfirmed>(e => e.AppointmentBoardId);");
         projection.ShouldContain("//     Identity<AppointmentReminderScheduled>(e => e.AppointmentBoardId);");
@@ -612,7 +612,7 @@ public class event_model_scaffold_4832
         var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Human)
             .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>()));
 
-        result.Files.Single(x => x.RelativePath == "ConfirmAppointment.cs").Code
+        result.Files.Single(x => x.RelativePath == Path.Combine("Features", "ConfirmAppointment.cs")).Code
             .ShouldContain("public static class ConfirmAppointmentHandler");
 
         var notice = result.Notices.Single(x => x.Subject == "ConfirmAppointment");
@@ -624,14 +624,36 @@ public class event_model_scaffold_4832
     [Fact]
     public void slices_and_their_aggregates_go_in_a_folder_and_namespace_per_chapter()
     {
-        // GH-4891
+        // GH-4891: Features/{Chapter}/ in {Root}.{Chapter}, the layout `bobcat import-event-model` writes
         var result = plan(declared(m => m.InChapter("Volunteering And Home Checks")
             .Automation("OpenCase").On("PatientReferred").StartsStream("ClinicCase").Emits("CaseOpened")));
 
-        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("VolunteeringAndHomeChecks", "OpenCase.cs"));
+        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "VolunteeringAndHomeChecks", "OpenCase.cs"));
         handler.Code.ShouldContain("namespace Clinic.VolunteeringAndHomeChecks;");
 
-        result.Files.ShouldContain(x => x.RelativePath == Path.Combine("VolunteeringAndHomeChecks", "ClinicCase.cs"));
+        result.Files.ShouldContain(x => x.RelativePath == Path.Combine("Features", "VolunteeringAndHomeChecks", "ClinicCase.cs"));
+    }
+
+    [Fact]
+    public void a_domain_is_not_a_folder_or_a_namespace()
+    {
+        // Bobcat's layout has no folder for a domain, so neither does the scaffold: the file it adds and the
+        // ones `bobcat import-event-model` wrote have to agree on where a chapter's types live
+        var result = plan(declared(m => m.InDomain("Adoption").InChapter("Volunteering")
+            .Automation("OpenCase").On("PatientReferred").StartsStream("ClinicCase").Emits("CaseOpened")));
+
+        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Volunteering", "OpenCase.cs"));
+        handler.Code.ShouldContain("namespace Clinic.Volunteering;");
+        result.Files.ShouldNotContain(x => x.RelativePath.Contains("Adoption"));
+    }
+
+    [Fact]
+    public void a_slice_without_a_chapter_goes_in_features_and_the_root_namespace()
+    {
+        var result = plan(declared(m => m.Automation("OpenCase").On("PatientReferred").StartsStream("ClinicCase").Emits("CaseOpened")));
+
+        var handler = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "OpenCase.cs"));
+        handler.Code.ShouldContain("namespace Clinic;");
     }
 
     [Fact]
@@ -714,7 +736,7 @@ public class event_model_scaffold_4832
         var result = plan(
             declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
                 .Command<ConfirmAppointmentRequest>()),
-            exists: path => path == "ConfirmAppointment.cs");
+            exists: path => path == Path.Combine("Features", "ConfirmAppointment.cs"));
 
         result.Files.ShouldBeEmpty();
         result.Notices.Single().Kind.ShouldBe(ScaffoldNoticeKind.Exists);
@@ -866,7 +888,7 @@ public class event_model_scaffold_against_a_host_4832
 
         var plan = SliceScaffolder.Plan(model, new SliceScaffoldOptions { RootNamespace = "Clinic" });
 
-        plan.Files.Select(x => x.RelativePath).ShouldBe(new[] { "ConfirmAppointment.cs" });
+        plan.Files.Select(x => x.RelativePath).ShouldBe(new[] { Path.Combine("Features", "ConfirmAppointment.cs") });
     }
 }
 
