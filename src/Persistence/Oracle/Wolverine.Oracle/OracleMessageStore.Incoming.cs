@@ -140,7 +140,7 @@ internal partial class OracleMessageStore
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
                 $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
                 $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
-                $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
+                $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
             cmd.With("id", envelope.Id);
             cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
             cmd.With("attempts", envelope.Attempts);
@@ -151,18 +151,27 @@ internal partial class OracleMessageStore
 
         if (rowsAffected == 0)
         {
-            await StoreIncomingAsync(envelope);
+            try
+            {
+                await StoreIncomingAsync(envelope);
+            }
+            catch (DuplicateIncomingEnvelopeException)
+            {
+                // GH-4216: the only row for this identity is a retained Handled one. The message already
+                // completed, so a retry booked after the fact is discarded rather than executed again
+            }
         }
     }
 
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
+        // GH-4216: a Handled row is never resurrected by a late retry booking; see MessageDatabase<T>.ScheduleExecutionSql
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
             $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
-            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
+            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
         cmd.With("id", envelope.Id);
         cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
         cmd.With("attempts", envelope.Attempts);

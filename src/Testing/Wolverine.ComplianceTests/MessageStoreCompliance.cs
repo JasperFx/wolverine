@@ -515,6 +515,94 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
 
+    /// <summary>
+    /// GH-4216, workstream 2, decided: a retry booking that lands AFTER the message was marked handled must not
+    /// resurrect it. ScheduleExecutionAsync runs from a RetryBlock in DurableReceiver, so it is free to land after
+    /// mark-as-handled for the same identity, and every store used to flip the retained Handled row straight back
+    /// to Scheduled with its body intact -- a second, fully executable copy of a message that already completed.
+    /// </summary>
+    [Fact]
+    public async Task a_late_retry_booking_does_not_resurrect_a_handled_row()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+        await thePersistence.Inbox.ScheduleExecutionAsync(envelope);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Handled.ShouldBe(1);
+        counts.Scheduled.ShouldBe(0);
+        counts.Incoming.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// The other entry point for a late retry booking. On the relational stores its "no row matched" fallback is an
+    /// insert, which collided with the retained Handled row's primary key; on the document stores the whole method
+    /// was insert-only. Either way the answer is the same: the message already completed, the retry is discarded.
+    /// </summary>
+    [Fact]
+    public async Task rescheduling_for_retry_after_the_message_was_handled_is_discarded()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+        envelope.Attempts = 2;
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Handled.ShouldBe(1);
+        counts.Scheduled.ShouldBe(0);
+        counts.Incoming.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// GH-4216. The normal case RescheduleExistingEnvelopeForRetryAsync exists for (GH-2462 / GH-2823): the row is
+    /// already in the inbox and is moved to Scheduled in place. RavenDb and CosmosDb used to throw
+    /// DuplicateIncomingEnvelopeException here, because their implementation was a bare insert.
+    /// </summary>
+    [Fact]
+    public async Task rescheduling_for_retry_moves_an_existing_incoming_row_to_scheduled()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+        envelope.Attempts = 2;
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+
+        var stored = await thePersistence.Admin.AllIncomingAsync();
+        var row = stored.Single(x => x.Id == envelope.Id);
+        row.Status.ShouldBe(EnvelopeStatus.Scheduled);
+        row.ScheduledTime.HasValue.ShouldBeTrue();
+        row.Attempts.ShouldBe(2);
+    }
+
+    /// <summary>
+    /// ...and when nothing is in the inbox yet (ProcessInline retry #1, a buffered scheduled publish), the row is
+    /// inserted as Scheduled.
+    /// </summary>
+    [Fact]
+    public async Task rescheduling_for_retry_inserts_when_no_row_exists()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+
+        var stored = await thePersistence.Admin.AllIncomingAsync();
+        stored.Single(x => x.Id == envelope.Id).Status.ShouldBe(EnvelopeStatus.Scheduled);
+    }
+
     [Fact]
     public async Task discard_and_reassign_outgoing()
     {
