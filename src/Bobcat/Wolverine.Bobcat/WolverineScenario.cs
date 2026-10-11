@@ -46,6 +46,13 @@ public sealed record ActOutcome(
 
     /// <summary>GH-4931. The streams the act itself started, with the ids its handler assigned.</summary>
     public IReadOnlyList<StreamAction> StartedStreams { get; init; } = Array.Empty<StreamAction>();
+
+    /// <summary>
+    /// GH-4940. The Dynamic Consistency Boundaries the act itself loaded, in load order: each tag query its
+    /// <c>[DcbModel]</c> was fetched over, which is the query a concurrent append is checked against when the
+    /// boundary is saved. A cascade's loads are not here.
+    /// </summary>
+    public IReadOnlyList<LoadedBoundary> Boundaries { get; init; } = Array.Empty<LoadedBoundary>();
 }
 
 /// <summary>
@@ -456,7 +463,10 @@ public class WolverineScenario
         {
             AllNewEvents = all,
             Appended = commits,
-            StartedStreams = own.SelectMany(x => x.StartedStreams).ToList()
+            StartedStreams = own.SelectMany(x => x.StartedStreams).ToList(),
+            // GH-4940: the boundaries the act's own handler loaded, by the same rule as its own commits
+            Boundaries = (session?.LoadedBoundaries ?? Array.Empty<LoadedBoundary>())
+                .Where(x => isTheActsOwn(x.Envelope, dispatched)).ToList()
         };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
@@ -478,8 +488,10 @@ public class WolverineScenario
     // GH-4931: the act's own commits are those of the sessions that handled the act itself. An HTTP endpoint
     // has no envelope; a dispatched message is its envelope's message, and a cascade's envelope carries a
     // message of its own. An act that dispatches nothing Bobcat can see -- WhenTracked -- owns everything.
-    private static bool isTheActsOwn(AppendedEvents commit, object? dispatched)
-        => dispatched is null || commit.Envelope is null || ReferenceEquals(commit.Envelope.Message, dispatched);
+    private static bool isTheActsOwn(AppendedEvents commit, object? dispatched) => isTheActsOwn(commit.Envelope, dispatched);
+
+    private static bool isTheActsOwn(Envelope? envelope, object? dispatched)
+        => dispatched is null || envelope is null || ReferenceEquals(envelope.Message, dispatched);
 
     // ---- assert: events ----------------------------------------------------------------------
 
@@ -669,6 +681,157 @@ public class WolverineScenario
 
     /// <summary>wolverine#4865. The act appended nothing that <paramref name="query" /> selects.</summary>
     public void ThenNoEventsOn(EventTagQuery query) => ThenEventsOn(query);
+
+    // ---- assert: the consistency boundary (GH-4940) --------------------------------------------
+
+    /// <summary>
+    /// GH-4940. The act loaded exactly one Dynamic Consistency Boundary, and its tag query is exactly
+    /// <paramref name="expected" />: the same conditions — each a tag, and the event type it narrows to or
+    /// none — in any order, none missing and none extra. Whatever the query selects is what a concurrent
+    /// append is checked against, so this is the step that says what the decision is consistent over.
+    /// </summary>
+    /// <remarks>
+    /// Read from what the act's own handler loaded while the tracked session ran, never from the store, and
+    /// judged whether the act succeeded or refused: a refusal decided over the same boundary. An act that
+    /// loaded several boundaries names the one it means with <see cref="ThenTheConsistencyBoundaryIs{TModel}" />.
+    /// </remarks>
+    public void ThenTheConsistencyBoundaryIs(EventTagQuery expected)
+        => verifyBoundary(null, expected);
+
+    /// <summary>
+    /// GH-4940. The Dynamic Consistency Boundary the act loaded for <typeparamref name="TModel" /> is exactly
+    /// <paramref name="expected" />, as <see cref="ThenTheConsistencyBoundaryIs(EventTagQuery)" /> judges it —
+    /// for an act that loads more than one boundary.
+    /// </summary>
+    public void ThenTheConsistencyBoundaryIs<TModel>(EventTagQuery expected)
+        => verifyBoundary(typeof(TModel), expected);
+
+    /// <summary>
+    /// GH-4940. Another writer appending <paramref name="event" />, with the tags it names, between the act's
+    /// read and its write would have made the act fail with a concurrency conflict: the event falls inside a
+    /// boundary the act loaded. Decided by matching the event's type and tags against the recorded tag
+    /// queries, deterministically — nothing is appended and nothing races.
+    /// </summary>
+    /// <param name="event">
+    /// The hypothetical event with its tags: <c>Tagged(new SeatReserved(...), theScreeningId)</c>, or
+    /// <c>Specify&lt;SeatReserved&gt;().Tagged(theScreeningId)</c>. Only its type and tags count.
+    /// </param>
+    public void ThenAConcurrentEventWouldConflict(object @event)
+        => verifyConcurrent(PartialMatching.ExpectedType(@event), Tagging.ExpectedTagsOf(@event), true);
+
+    /// <summary>
+    /// GH-4940. A concurrent <typeparamref name="TEvent" /> carrying <paramref name="tags" /> would have made
+    /// the act fail with a concurrency conflict. See <see cref="ThenAConcurrentEventWouldConflict(object)" />.
+    /// </summary>
+    public void ThenAConcurrentEventWouldConflict<TEvent>(params object[] tags)
+        => verifyConcurrent(typeof(TEvent), tags, true);
+
+    /// <summary>
+    /// GH-4940. Another writer appending <paramref name="event" />, with the tags it names, between the act's
+    /// read and its write would <b>not</b> conflict with it: the event falls outside every boundary the act
+    /// loaded. The other half of <see cref="ThenAConcurrentEventWouldConflict(object)" />, decided the same way.
+    /// </summary>
+    public void ThenAConcurrentEventWouldNotConflict(object @event)
+        => verifyConcurrent(PartialMatching.ExpectedType(@event), Tagging.ExpectedTagsOf(@event), false);
+
+    /// <summary>
+    /// GH-4940. A concurrent <typeparamref name="TEvent" /> carrying <paramref name="tags" /> would not
+    /// conflict with the act. See <see cref="ThenAConcurrentEventWouldNotConflict(object)" />.
+    /// </summary>
+    public void ThenAConcurrentEventWouldNotConflict<TEvent>(params object[] tags)
+        => verifyConcurrent(typeof(TEvent), tags, false);
+
+    private void verifyBoundary(Type? model, EventTagQuery expected)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+
+        var subject = model is null ? "the consistency boundary" : $"the {model.Name} consistency boundary";
+        using var step = ScenarioRecorder.Step("Then", $"{subject} is {EventStores.Describe(expected)}");
+
+        if (!tryOneBoundary(model, out var boundary)) return;
+
+        var expectedConditions = expected.Conditions.Distinct().ToList();
+        var actualConditions = boundary!.Conditions.Distinct().ToList();
+        var missing = expectedConditions.Where(x => !actualConditions.Contains(x)).ToList();
+        var extra = actualConditions.Where(x => !expectedConditions.Contains(x)).ToList();
+
+        Verdicts.Check("boundary", describeBoundary(actualConditions), EventStores.Describe(expected));
+
+        var problems = new List<string>();
+        if (missing.Count > 0) problems.Add($"MISSING {string.Join(", ", missing.Select(describeCondition))}");
+        if (extra.Count > 0) problems.Add($"UNEXPECTED {string.Join(", ", extra.Select(describeCondition))}");
+
+        Verdicts.Fact(problems.Count == 0,
+            $"Expected {subject} to be {EventStores.Describe(expected)}, but the act loaded {boundary.ModelType.Name} over {describeBoundary(actualConditions)}: {string.Join("; ", problems)}");
+    }
+
+    private bool tryOneBoundary(Type? model, out LoadedBoundary? boundary)
+    {
+        boundary = null;
+        var candidates = model is null
+            ? LastAct.Boundaries
+            : LastAct.Boundaries.Where(x => x.ModelType == model).ToList();
+
+        if (candidates.Count == 1)
+        {
+            boundary = candidates[0];
+            return true;
+        }
+
+        if (candidates.Count == 0)
+        {
+            var loaded = LastAct.Boundaries.Count == 0
+                ? "the act loaded no consistency boundary"
+                : $"the act loaded only {describeBoundaries(LastAct.Boundaries)}";
+            return Verdicts.Fail(model is null
+                ? $"Expected a consistency boundary, but {loaded}{failureSuffix()}"
+                : $"Expected a {model.Name} consistency boundary, but {loaded}{failureSuffix()}");
+        }
+
+        return Verdicts.Fail(model is null
+            ? $"The act loaded {candidates.Count} consistency boundaries, {describeBoundaries(candidates)}. Name the one you mean with ThenTheConsistencyBoundaryIs<TModel>(...)"
+            : $"The act loaded {candidates.Count} {model.Name} consistency boundaries, {describeBoundaries(candidates)}");
+    }
+
+    private void verifyConcurrent(Type eventType, IReadOnlyList<object> tags, bool conflicts)
+    {
+        ArgumentNullException.ThrowIfNull(tags);
+        if (tags.Count == 0)
+        {
+            // An untagged event is outside every boundary, so either answer would say nothing about the act
+            throw new ArgumentException(
+                $"Name the tags a concurrent {eventType.Name} would carry: Tagged(new {eventType.Name}(...), tag), Specify<{eventType.Name}>().Tagged(tag) or ThenAConcurrentEventWould...<{eventType.Name}>(tag)",
+                nameof(tags));
+        }
+
+        var text = $"a concurrent {eventType.Name} tagged {Tagging.Describe(tags)} would {(conflicts ? "" : "not ")}conflict";
+        using var step = ScenarioRecorder.Step("Then", text);
+
+        if (LastAct.Boundaries.Count == 0)
+        {
+            Verdicts.Fail($"The act loaded no consistency boundary, so nothing it read can conflict{failureSuffix()}");
+            return;
+        }
+
+        var inside = LastAct.Boundaries.Where(x => x.Selects(eventType, tags)).ToList();
+        Verdicts.Check("conflicts", inside.Count > 0, conflicts);
+        Verdicts.Value("inside", inside.Count == 0 ? "no boundary" : describeBoundaries(inside));
+
+        Verdicts.Fact(conflicts == inside.Count > 0, conflicts
+            ? $"Expected a concurrent {eventType.Name} tagged {Tagging.Describe(tags)} to conflict, but it is outside {describeBoundaries(LastAct.Boundaries)}"
+            : $"Expected a concurrent {eventType.Name} tagged {Tagging.Describe(tags)} not to conflict, but it is inside {describeBoundaries(inside)}");
+    }
+
+    private static string describeBoundaries(IEnumerable<LoadedBoundary> boundaries)
+        => string.Join("; ", boundaries.Select(x => $"{x.ModelType.Name} over {describeBoundary(x.Conditions)}"));
+
+    private static string describeBoundary(IEnumerable<EventTagQueryCondition> conditions)
+        => EventStores.Describe(EventTagQuery.FromConditions(conditions));
+
+    private static string describeCondition(EventTagQueryCondition condition)
+        => condition.EventType is null
+            ? $"events tagged {ScenarioValues.Format(condition.TagValue)}"
+            : $"{condition.EventType.Name} tagged {ScenarioValues.Format(condition.TagValue)}";
 
     // Whether a tag query selects an event: one of its conditions names a tag the event carries, and
     // either no event type or the event's own
