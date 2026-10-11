@@ -114,6 +114,10 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
             var loader = provider.BuildLoadBoundaryFrame(modelType);
             chain.Middleware.Add(loader);
 
+            // GH-4940: tell a tracked session which tag query this boundary was loaded over. One frame here,
+            // reading the same EventTagQuery variable as the store's load, rather than a hook in every store
+            chain.Middleware.Add(new RecordLoadedBoundaryFrame(modelType));
+
             boundary = loader.Creates.FirstOrDefault(x => x.VariableType == boundaryType)
                        ?? throw new InvalidOperationException(
                            $"The {provider.StoreName} integration's {loader.GetType().FullNameInCode()} did not create a variable of type " +

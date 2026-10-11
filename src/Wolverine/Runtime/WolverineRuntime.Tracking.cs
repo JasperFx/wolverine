@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Events;
+using JasperFx.Events.Tags;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -73,6 +74,13 @@ public sealed partial class WolverineRuntime : IMessageTracker
         if (streams.Count == 0) return;
         ActiveSession?.RecordAppendedEvents(new AppendedEvents(context.Envelope, _serviceName, streams));
     }
+
+    /// <summary>
+    ///     GH-4940. Record one Dynamic Consistency Boundary load against the active tracked session, if there is
+    ///     one, attributed to the message <paramref name="context" /> was handling.
+    /// </summary>
+    internal void RecordLoadedBoundary(MessageContext context, Type modelType, EventTagQuery query)
+        => ActiveSession?.RecordLoadedBoundary(new LoadedBoundary(context.Envelope, _serviceName, modelType, query));
 
     /// <summary>
     /// Build the metric tag set for an envelope: the standard tags (message.type + message.destination +

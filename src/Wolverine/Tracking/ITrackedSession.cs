@@ -92,6 +92,14 @@ public interface ITrackedSession
     IReadOnlyList<AppendedEvents> AppendedEvents => Array.Empty<AppendedEvents>();
 
     /// <summary>
+    ///     GH-4940. Every Dynamic Consistency Boundary a handler or HTTP endpoint loaded during the tracked
+    ///     session, in load order, each with the <see cref="JasperFx.Events.Tags.EventTagQuery" /> it was loaded
+    ///     over and the message being handled. Recorded by Wolverine's generated code for <c>[DcbModel]</c> and
+    ///     <c>[BoundaryModel]</c> parameters, on Marten, Polecat and Fisher alike.
+    /// </summary>
+    IReadOnlyList<LoadedBoundary> LoadedBoundaries => Array.Empty<LoadedBoundary>();
+
+    /// <summary>
     ///     Finds a message of type T that was either sent, received,
     ///     or executed during this session. This will throw an exception
     ///     if there is more than one message
