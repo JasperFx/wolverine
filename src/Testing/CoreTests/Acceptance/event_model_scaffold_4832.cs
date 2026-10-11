@@ -62,6 +62,20 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void an_http_stream_start_answers_with_the_id_it_assigned()
+    {
+        // GH-4927: a 201 with the new stream's id, not an empty response the caller cannot follow
+        var result = plan(declared(m => m.Slice("OpenAppointment").Pattern(SlicePattern.Command).TriggeredBy(TriggerKind.Http)
+            .Command<ProposeAppointment>().StartsStream<Appointment>().Emits<AppointmentConfirmed>()));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("[WolverinePost(\"/api/open-appointment\")]");
+        code.ShouldNotContain("[EmptyResponse]");
+        code.ShouldContain("public static (CreationResponse<Guid>, StartStream) Post(ProposeAppointment command)");
+        code.ShouldContain("//     return (new CreationResponse<Guid>($\"/api/appointment/{id}\", id), Storage.StartStream<Appointment>(id, new AppointmentConfirmed(...)));");
+    }
+
+    [Fact]
     public void an_existing_aggregate_gets_its_missing_apply_methods_inserted_into_its_own_file()
     {
         // GH-4898: the import writes aggregates as bare stubs; without these every spec fails to project
@@ -497,6 +511,43 @@ public class event_model_scaffold_4832
 
         result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("Projection.cs"));
         result.Notices.ShouldContain(x => x.Kind == ScaffoldNoticeKind.Edit && x.Message.Contains("ProjectionLifecycle.Async"));
+    }
+
+    [Fact]
+    public void every_notice_carries_a_stable_code_and_the_plan_reads_as_json()
+    {
+        // GH-4928: what Stoat parses -- files with how they are written, notices with a code each
+        var result = plan(
+            declared(m =>
+            {
+                m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
+                    .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>();
+                m.Slice("BookSlot").Command<ReserveSeat>();
+                m.Command<AcceptHomeCheckAssignment>().TriggeredBy(TriggerKind.MessageHandler)
+                    .DeciderModel<SeatAvailability>().Emits<HomeCheckAssignmentAcceptedEvent>();
+                m.View<AppointmentBoard>().From<AppointmentConfirmed>().AsMultiStream();
+            }),
+            findSource: type => $"Domain/{type.Name}.cs");
+
+        result.Notices.ShouldNotBeEmpty();
+        result.Notices.ShouldAllBe(x => x.Code != null);
+        result.Notices.Select(x => x.Code).ShouldContain(ScaffoldNoticeCodes.UnknownTrigger);
+        result.Notices.Select(x => x.Code).ShouldContain(ScaffoldNoticeCodes.DcbWithoutTagMembers);
+        result.Notices.Select(x => x.Code).ShouldContain(ScaffoldNoticeCodes.WriteMultiStreamProjection);
+
+        using var json = System.Text.Json.JsonDocument.Parse(SliceScaffolder.ToJson(result, "Clinic", "/out", dryRun: true));
+        var root = json.RootElement;
+        root.GetProperty("model").GetString().ShouldBe("Clinic");
+        root.GetProperty("dryRun").GetBoolean().ShouldBeTrue();
+
+        var files = root.GetProperty("files").EnumerateArray().ToList();
+        files.Select(x => x.GetProperty("mode").GetString()).ShouldContain("append");
+        files.Select(x => x.GetProperty("mode").GetString()).ShouldContain("insert");
+
+        var notices = root.GetProperty("notices").EnumerateArray().ToList();
+        notices.Count.ShouldBe(result.Notices.Count);
+        notices.ShouldAllBe(x => x.GetProperty("code").GetString()!.Length > 0);
+        notices.ShouldContain(x => x.GetProperty("kind").GetString() == "UnknownTrigger" && x.GetProperty("subject").GetString() == "BookSlot");
     }
 
     [Fact]

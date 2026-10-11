@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
@@ -38,6 +39,73 @@ public enum ScaffoldNoticeKind
     Warning
 }
 
+/// <summary>
+///     GH-4928. The stable codes on <see cref="ScaffoldNotice.Code" />, as <c>wolverine scaffold --json</c> writes them.
+///     Codes are only ever added, never renamed.
+/// </summary>
+public static class ScaffoldNoticeCodes
+{
+    /// <summary>A file was written.</summary>
+    public const string FileWritten = "file-written";
+
+    /// <summary>The file already exists and was left as it is.</summary>
+    public const string FileExists = "file-exists";
+
+    /// <summary>A handler class was appended to the file that declares its command.</summary>
+    public const string HandlerAppended = "handler-appended";
+
+    /// <summary>The missing Apply (or Create) methods were added to an existing aggregate or view.</summary>
+    public const string ApplyMethodsAdded = "apply-methods-added";
+
+    /// <summary>An existing aggregate or view needs Apply methods added by hand: its source file was not found.</summary>
+    public const string ApplyMethodsByHand = "apply-methods-by-hand";
+
+    /// <summary>The slice declares no pattern, command or trigger.</summary>
+    public const string NothingToScaffold = "nothing-to-scaffold";
+
+    /// <summary>A command slice declares no command type.</summary>
+    public const string NoCommandType = "no-command-type";
+
+    /// <summary>gRPC services are not scaffolded.</summary>
+    public const string GrpcNotScaffolded = "grpc-not-scaffolded";
+
+    /// <summary>Nothing says how the slice is triggered.</summary>
+    public const string UnknownTrigger = "unknown-trigger";
+
+    /// <summary>The slice's kind of trigger is not scaffolded.</summary>
+    public const string TriggerNotScaffolded = "trigger-not-scaffolded";
+
+    /// <summary>An automation reacts to no event, or to more than the one a handler handles.</summary>
+    public const string AutomationTrigger = "automation-trigger";
+
+    /// <summary>A view slice declares no read model.</summary>
+    public const string ViewWithoutReadModel = "view-without-read-model";
+
+    /// <summary>A view slice declares no events it folds.</summary>
+    public const string ViewWithoutEvents = "view-without-events";
+
+    /// <summary>A multi-stream view's projection is to be written by hand: the store is not one the scaffold knows.</summary>
+    public const string WriteMultiStreamProjection = "write-multi-stream-projection";
+
+    /// <summary>A multi-stream view's projection is to be registered with an Async lifecycle.</summary>
+    public const string RegisterMultiStreamProjection = "register-multi-stream-projection";
+
+    /// <summary>A command deciding against several streams has no {Aggregate}Id member for one of them.</summary>
+    public const string MissingStreamIdMember = "missing-stream-id-member";
+
+    /// <summary>A DCB slice's command has no strong-typed id member to tag its query with.</summary>
+    public const string DcbWithoutTagMembers = "dcb-without-tag-members";
+
+    /// <summary>A DCB slice's tag types and decider are to be registered with the event store.</summary>
+    public const string RegisterDcbTags = "register-dcb-tags";
+
+    /// <summary>A DCB slice declares a decider model the scaffold cannot resolve.</summary>
+    public const string DcbModelUnresolved = "dcb-model-unresolved";
+
+    /// <summary>The model names no aggregate the command decides against.</summary>
+    public const string NoAggregate = "no-aggregate";
+}
+
 /// <summary>One line of the scaffold report.</summary>
 /// <param name="Kind">What happened.</param>
 /// <param name="Subject">The slice, aggregate or view it is about.</param>
@@ -45,6 +113,12 @@ public enum ScaffoldNoticeKind
 /// <param name="Path">The file written, the file that exists, or the file to edit. Null when that file could not be found.</param>
 public sealed record ScaffoldNotice(ScaffoldNoticeKind Kind, string Subject, string Message, string? Path = null)
 {
+    /// <summary>
+    ///     GH-4928. What the notice is about, as a stable code from <see cref="ScaffoldNoticeCodes" /> that tooling
+    ///     can group by and explain — the message may be reworded, the code is not.
+    /// </summary>
+    public string? Code { get; init; }
+
     public override string ToString()
     {
         var label = Kind switch
@@ -180,6 +254,10 @@ public sealed class SliceScaffoldOptions
 /// </remarks>
 public static class SliceScaffolder
 {
+    // GH-4928: every notice carries a stable code, which is what tooling such as Stoat groups and explains by
+    private static ScaffoldNotice notice(string code, ScaffoldNoticeKind kind, string subject, string message, string? path = null)
+        => new(kind, subject, message, path) { Code = code };
+
     /// <summary>Is this slice declared, with nothing derived from code behind it yet?</summary>
     public static bool IsDeclaredOnly(EventModelSliceDescriptor slice)
     {
@@ -195,6 +273,52 @@ public static class SliceScaffolder
     }
 
     /// <summary>Plan the skeletons for every declared-only slice of <paramref name="model" />.</summary>
+    /// <summary>
+    ///     GH-4928. The plan as <c>wolverine scaffold --json</c> writes it, for tooling such as Stoat: every file with
+    ///     how it is written (<c>write</c>, <c>insert</c> into an existing type, or <c>append</c> to the file
+    ///     declaring a command), and every notice with its kind and stable <see cref="ScaffoldNotice.Code" />.
+    /// </summary>
+    public static string ToJson(ScaffoldPlan plan, string model, string output, bool dryRun)
+    {
+        using var buffer = new MemoryStream();
+        using (var json = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
+        {
+            json.WriteStartObject();
+            json.WriteString("model", model);
+            json.WriteString("output", output);
+            json.WriteBoolean("dryRun", dryRun);
+
+            json.WriteStartArray("files");
+            foreach (var file in plan.Files)
+            {
+                json.WriteStartObject();
+                json.WriteString("path", file.RelativePath);
+                json.WriteString("mode", file.InsertInto is not null ? "insert" : file.AppendClass is not null ? "append" : "write");
+                if ((file.InsertInto ?? file.AppendClass) is { } type) json.WriteString("type", type);
+                json.WriteEndObject();
+            }
+
+            json.WriteEndArray();
+
+            json.WriteStartArray("notices");
+            foreach (var notice in plan.Notices)
+            {
+                json.WriteStartObject();
+                json.WriteString("kind", notice.Kind.ToString());
+                if (notice.Code is not null) json.WriteString("code", notice.Code);
+                json.WriteString("subject", notice.Subject);
+                json.WriteString("message", notice.Message);
+                if (notice.Path is not null) json.WriteString("path", notice.Path);
+                json.WriteEndObject();
+            }
+
+            json.WriteEndArray();
+            json.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray());
+    }
+
     public static ScaffoldPlan Plan(EventModelDescriptor model, SliceScaffoldOptions options)
     {
         var context = new ScaffoldContext(model, options);
@@ -495,7 +619,7 @@ public static class SliceScaffolder
                     break;
 
                 default:
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
+                    Notices.Add(notice(ScaffoldNoticeCodes.NothingToScaffold, ScaffoldNoticeKind.Skipped, slice.Name,
                         pattern is null
                             ? "the slice declares no pattern, command or trigger, so there is nothing to scaffold. Declare it with Command<T>(), Automation(...).On<T>() or View<T>()."
                             : $"{pattern} slices are not scaffolded."));
@@ -507,7 +631,7 @@ public static class SliceScaffolder
         {
             if (slice.CommandType is null)
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.NoCommandType, ScaffoldNoticeKind.Skipped, slice.Name,
                     "the Command slice declares no command type. Declare it with .Command<T>() or .Command(\"Name\")."));
                 return;
             }
@@ -532,17 +656,17 @@ public static class SliceScaffolder
                     break;
 
                 case TriggerKind.Grpc:
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
+                    Notices.Add(notice(ScaffoldNoticeCodes.GrpcNotScaffolded, ScaffoldNoticeKind.Skipped, slice.Name,
                         $"gRPC services are not scaffolded. Write the RPC by hand; it forwards {slice.CommandType.Name} to the message bus."));
                     break;
 
                 case null:
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.UnknownTrigger, slice.Name,
+                    Notices.Add(notice(ScaffoldNoticeCodes.UnknownTrigger, ScaffoldNoticeKind.UnknownTrigger, slice.Name,
                         $"trigger Unknown -- no HTTP endpoint, message handler or gRPC service handles {slice.CommandType.Name} yet, and the declaration does not say which it will be. Declare .TriggeredBy(TriggerKind.Http) or .TriggeredBy(TriggerKind.MessageHandler) and run the scaffold again."));
                     break;
 
                 default:
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
+                    Notices.Add(notice(ScaffoldNoticeCodes.TriggerNotScaffolded, ScaffoldNoticeKind.Skipped, slice.Name,
                         $"{slice.TriggerKind} triggers are not scaffolded."));
                     break;
             }
@@ -556,7 +680,7 @@ public static class SliceScaffolder
 
             if (trigger is null)
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.UnknownTrigger, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.AutomationTrigger, ScaffoldNoticeKind.UnknownTrigger, slice.Name,
                     slice.ConsumedEvents.Count > 1
                         ? $"the automation reacts to {slice.ConsumedEvents.Count} events ({string.Join(", ", slice.ConsumedEvents.Select(x => x.Name))}), and a handler handles one. Split it into one automation per event."
                         : "trigger Unknown -- the automation declares no event it reacts to. Declare it with .On<T>()."));
@@ -570,7 +694,7 @@ public static class SliceScaffolder
         {
             if (slice.ReadModelTypes.Count == 0)
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.ViewWithoutReadModel, ScaffoldNoticeKind.Skipped, slice.Name,
                     "the View slice declares no read model. Declare it with View<T>() or .Produces<T>()."));
                 return;
             }
@@ -583,7 +707,7 @@ public static class SliceScaffolder
 
             if (slice.ConsumedEvents.Count == 0)
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Skipped, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.ViewWithoutEvents, ScaffoldNoticeKind.Skipped, slice.Name,
                     "the View slice declares no events it folds, so its view gets no Apply methods. Declare them with .From<T>()."));
             }
         }
@@ -598,7 +722,7 @@ public static class SliceScaffolder
 
             if (_options.MultiStreamProjectionBase is not { } baseType)
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
+                Notices.Add(notice(ScaffoldNoticeCodes.WriteMultiStreamProjection, ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
                     $"the view is a multi-stream projection. Write {name}, a multi-stream projection of {view.Name} that says which {view.Name} each event belongs to, and register it with an Async lifecycle: {registration}."));
                 return;
             }
@@ -606,7 +730,7 @@ public static class SliceScaffolder
             var path = pathFor(groupsOf(slice), name);
             if (_options.FileExists(path))
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, $"{name} (projection)",
+                Notices.Add(notice(ScaffoldNoticeCodes.FileExists, ScaffoldNoticeKind.Exists, $"{name} (projection)",
                     "the file already exists and was left exactly as it is.", path));
                 return;
             }
@@ -630,7 +754,7 @@ public static class SliceScaffolder
             writer.FinishBlock();
             add($"{name} (projection)", path, file);
 
-            Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
+            Notices.Add(notice(ScaffoldNoticeCodes.RegisterMultiStreamProjection, ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
                 $"register {name} with an Async lifecycle: {registration}.", path));
         }
 
@@ -672,7 +796,7 @@ public static class SliceScaffolder
 
             if (appendTo is null && _options.FileExists(path))
             {
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.FileExists, ScaffoldNoticeKind.Exists, slice.Name,
                     "the file already exists and was left exactly as it is.", path));
                 return;
             }
@@ -738,7 +862,7 @@ public static class SliceScaffolder
                     if (!hasMember)
                     {
                         shape.Add($"// TODO: {triggerName} needs a {idMember} member identifying the {name} stream");
-                        Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                        Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
                             $"the command decides against {aggregates.Count} streams, and {triggerName} has no {idMember} member to identify the {name} one. Add it to the command."));
                     }
 
@@ -784,7 +908,18 @@ public static class SliceScaffolder
                 returns.Add("StartStream");
                 var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
                 shape.Add("var id = Guid.CreateVersion7();");
-                shape.Add($"return Storage.StartStream<{file.Use(stream)}>(id, {events});");
+
+                if (http)
+                {
+                    // GH-4927: an HTTP caller learns the id the endpoint assigned, from a 201 and its Location
+                    returns.Insert(0, "CreationResponse<Guid>");
+                    var location = RouteFor(IdentifierFor(stream.Name));
+                    shape.Add($"return (new CreationResponse<Guid>($\"{location}/{{id}}\", id), Storage.StartStream<{file.Use(stream)}>(id, {events}));");
+                }
+                else
+                {
+                    shape.Add($"return Storage.StartStream<{file.Use(stream)}>(id, {events});");
+                }
             }
             else if (typedEvent)
             {
@@ -840,18 +975,18 @@ public static class SliceScaffolder
 
                 if (tags.Count == 0)
                 {
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                    Notices.Add(notice(ScaffoldNoticeCodes.DcbWithoutTagMembers, ScaffoldNoticeKind.Warning, slice.Name,
                         $"the slice decides through the DCB decider model {decider}, but {triggerName} has no strong-typed id member to tag the query with, so its Load method is a TODO. A DCB tag is a strong-typed identifier (GH-4883)."));
                 }
 
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.RegisterDcbTags, ScaffoldNoticeKind.Edit, slice.Name,
                     $"register each tag type{(tags.Count == 0 ? "" : $" ({string.Join(", ", tags.Select(x => x.Type).Distinct())})")} with the event store, and {decider} as a live single-stream aggregation, so [DcbModel] can fetch it by tags."));
             }
             else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel)
             {
                 // A decider model declared by a name no type answers to: nothing to take or fold
                 shape.Add("// TODO: this slice decides through a DCB decider model the scaffold cannot resolve.");
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.DcbModelUnresolved, ScaffoldNoticeKind.Warning, slice.Name,
                     "the slice declares a DCB decider model the scaffold cannot resolve, so its handler is a TODO."));
             }
             else if (slice.AggregateDeclaration == AggregateDeclaration.None && emitted.Count > 0)
@@ -874,7 +1009,7 @@ public static class SliceScaffolder
                 shape.Add("// slice -- .Against<T>(), once per stream, or .StartsStream<T>() when the slice starts one --");
                 shape.Add("// and scaffold again. Only a slice that purely starts a stream may do without one:");
                 shape.Add($"//     return Storage.StartStream(Guid.CreateVersion7(), {events});   // and return StartStream");
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Warning, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.NoAggregate, ScaffoldNoticeKind.Warning, slice.Name,
                     "the model names no aggregate this command decides against, so its handler is a TODO. Declare .Against<T>() (or .StartsStream<T>() if it only starts a stream) and scaffold again."));
             }
 
@@ -925,7 +1060,9 @@ public static class SliceScaffolder
             if (http)
             {
                 writer.WriteLine($"[WolverinePost(\"{RouteFor(identifier)}\")]");
-                if (returns.Count > 0) writer.WriteLine("[EmptyResponse]");
+                // A CreationResponse is the response; anything else returned is a side effect
+                if (returns.Count > 0 && !returns[0].StartsWith("CreationResponse", StringComparison.Ordinal))
+                    writer.WriteLine("[EmptyResponse]");
             }
 
             if (isDecider)
@@ -966,7 +1103,7 @@ public static class SliceScaffolder
                     Usings = file.Namespaces.ToArray(),
                     Namespace = namespaceOf(slice, trigger)
                 });
-                Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, slice.Name,
+                Notices.Add(notice(ScaffoldNoticeCodes.HandlerAppended, ScaffoldNoticeKind.Wrote, slice.Name,
                     $"{className} appended to the file that declares {triggerTypeFor(slice, trigger).Name}.{note}", appendTo));
                 return;
             }
@@ -1077,13 +1214,13 @@ public static class SliceScaffolder
                             InsertInto = existing.Name,
                             Usings = usings.ToArray()
                         });
-                        Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, $"{existing.FullName} ({kind})",
+                        Notices.Add(notice(ScaffoldNoticeCodes.ApplyMethodsAdded, ScaffoldNoticeKind.Wrote, $"{existing.FullName} ({kind})",
                             $"added {signatures} to the existing {kind}.", path));
                         continue;
                     }
 
                     // No source file to edit: say exactly what to add, so whoever picks this up need not guess
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, $"{existing.FullName} ({kind})",
+                    Notices.Add(notice(ScaffoldNoticeCodes.ApplyMethodsByHand, ScaffoldNoticeKind.Edit, $"{existing.FullName} ({kind})",
                         $"the {kind} already exists, so it was not rewritten. Add these methods to it by hand: {signatures}" +
                         $". Its source file was not found; search for the declaration of {existing.Name}.",
                         path));
@@ -1094,7 +1231,7 @@ public static class SliceScaffolder
                 var filePath = pathFor(state.Groups, identifier);
                 if (_options.FileExists(filePath))
                 {
-                    Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, $"{state.Type.Name} ({kind})",
+                    Notices.Add(notice(ScaffoldNoticeCodes.FileExists, ScaffoldNoticeKind.Exists, $"{state.Type.Name} ({kind})",
                         "the file already exists and was left exactly as it is.", filePath));
                     continue;
                 }
@@ -1154,7 +1291,7 @@ public static class SliceScaffolder
         private void add(string subject, string path, SliceFile file, string? note = null)
         {
             Files.Add(new ScaffoldFile(path, file.Render()));
-            Notices.Add(new ScaffoldNotice(ScaffoldNoticeKind.Wrote, subject, "scaffolded." + note, path));
+            Notices.Add(notice(ScaffoldNoticeCodes.FileWritten, ScaffoldNoticeKind.Wrote, subject, "scaffolded." + note, path));
         }
 
         // GH-4891: a folder, and a namespace, per domain and per chapter of the model

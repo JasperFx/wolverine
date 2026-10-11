@@ -26,6 +26,10 @@ public class ScaffoldInput : NetCoreInput
     [Description("Report what would be written without writing anything")]
     [FlagAlias("dry-run", 'd')]
     public bool DryRunFlag { get; set; }
+
+    [Description("Write the plan to stdout as JSON -- every file, and every notice with a stable code -- for tooling such as Stoat, instead of the text report")]
+    [FlagAlias("json")]
+    public bool JsonFlag { get; set; }
 }
 
 /// <summary>
@@ -103,6 +107,9 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
                 MultiStreamProjectionBase = multiStreamProjectionBaseOf(host.Services)
             });
 
+            // What only writing the files finds out, reported like any other notice
+            var found = new List<ScaffoldNotice>();
+
             if (!input.DryRunFlag)
             {
                 foreach (var file in plan.Files)
@@ -114,8 +121,9 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
                         var inserted = SliceScaffolder.InsertInto(await File.ReadAllTextAsync(target), file);
                         if (inserted is null)
                         {
-                            Console.WriteLine($"EDIT {file.RelativePath} -- {file.InsertInto} has no class body the scaffold can add to; add these by hand:");
-                            Console.WriteLine(file.Code);
+                            found.Add(new ScaffoldNotice(ScaffoldNoticeKind.Edit, file.InsertInto,
+                                $"{file.InsertInto} has no class body the scaffold can add to; add these by hand:{Environment.NewLine}{file.Code}",
+                                file.RelativePath) { Code = ScaffoldNoticeCodes.ApplyMethodsByHand });
                             continue;
                         }
 
@@ -131,7 +139,11 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
                         var appended = SliceScaffolder.AppendTo(await File.ReadAllTextAsync(target), file);
                         if (appended is null)
                         {
-                            Console.WriteLine($"EXISTS {file.RelativePath} -- {file.AppendClass} is already declared there; nothing appended.");
+                            found.Add(new ScaffoldNotice(ScaffoldNoticeKind.Exists, file.AppendClass,
+                                $"{file.AppendClass} is already declared there; nothing appended.", file.RelativePath)
+                            {
+                                Code = ScaffoldNoticeCodes.FileExists
+                            });
                             continue;
                         }
 
@@ -149,12 +161,20 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
                 }
             }
 
+            var report = plan with { Notices = plan.Notices.Concat(found).ToList() };
+            if (input.JsonFlag)
+            {
+                // GH-4928: nothing but the JSON on stdout, so a tool can parse it whole
+                Console.WriteLine(SliceScaffolder.ToJson(report, model.Name, output, input.DryRunFlag));
+                return true;
+            }
+
             var declaredOnly = model.Slices.Count(SliceScaffolder.IsDeclaredOnly);
             Console.WriteLine(declaredOnly == 0
                 ? $"Every slice of the Event Model '{model.Name}' already has code behind it; nothing to scaffold."
                 : $"The Event Model '{model.Name}' has {declaredOnly} declared slice(s) with no code yet. Output: {output}{(input.DryRunFlag ? " (dry run, nothing written)" : "")}");
 
-            foreach (var notice in plan.Notices) Console.WriteLine(notice);
+            foreach (var notice in report.Notices) Console.WriteLine(notice);
 
             return true;
         }
