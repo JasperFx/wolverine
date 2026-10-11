@@ -12,11 +12,11 @@ namespace Wolverine.Configuration.EventModeling.Scaffolding;
 
 public class ScaffoldInput : NetCoreInput
 {
-    [Description("Directory the skeletons are written under, one folder per domain; defaults to the current directory")]
+    [Description("Directory the skeletons are written under, in Features/<Chapter>/ as bobcat import-event-model lays them out; defaults to the current directory")]
     [FlagAlias("output", 'o')]
     public string? OutputFlag { get; set; }
 
-    [Description("Root namespace of the scaffolded code; defaults to the application assembly's name. A slice with a domain goes in <root>.<Domain>")]
+    [Description("Root namespace of the scaffolded code; defaults to the application assembly's name. A slice with a chapter goes in <root>.<Chapter>")]
     [FlagAlias("namespace", 'n')]
     public string? NamespaceFlag { get; set; }
 

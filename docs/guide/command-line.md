@@ -570,13 +570,15 @@ takes the declared model and the derived chains assembled together:
 
 ```bash
 dotnet run -- scaffold                         # write into the current directory
-dotnet run -- scaffold --output ./src/Features # somewhere else
+dotnet run -- scaffold --output ./src/MyApp    # somewhere else
 dotnet run -- scaffold --dry-run               # report only
 ```
 
-Each slice is written to its own file, in a folder per domain (`Scheduling/ConfirmAppointment.cs`), always in
-Wolverine's store-agnostic style so the same code runs on the in-memory prototyping store, Marten, Polecat or
-Fisher:
+Each slice is written to its own file, in a folder and namespace per chapter:
+`Features/Scheduling/ConfirmAppointment.cs` in `MyApp.Scheduling`, or `Features/` and the root namespace for a slice
+with no chapter. That is the layout Bobcat's `import-event-model` writes, so a handler whose command already exists is
+added to the command's file, and anything new lands beside it. Skeletons are always in Wolverine's store-agnostic
+style, so the same code runs on the in-memory prototyping store, Marten, Polecat or Fisher:
 
 | Declared slice | Skeleton |
 | --- | --- |
@@ -602,7 +604,7 @@ and a file that already exists is reported and left alone. The report is one lin
 by a person or an agent:
 
 ```
-WROTE Scheduling/ConfirmAppointment.cs -- ConfirmAppointment: scaffolded.
+WROTE Features/Scheduling/ConfirmAppointment.cs -- ConfirmAppointment: scaffolded.
 EDIT src/Domain/Appointment.cs -- MyApp.Appointment (aggregate): the aggregate already exists, so it was not rewritten. Add these methods to it by hand: public void Apply(AppointmentConfirmed e).
 UNKNOWN BookAppointment: trigger Unknown -- no HTTP endpoint, message handler or gRPC service handles BookAppointmentRequest yet, and the declaration does not say which it will be. Declare .TriggeredBy(TriggerKind.Http) or .TriggeredBy(TriggerKind.MessageHandler) and run the scaffold again.
 ```
