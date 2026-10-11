@@ -128,19 +128,53 @@ public abstract partial class MessageDatabase<T>
 
         if (rowsAffected == 0)
         {
+            // GH-4216. The update matched nothing. Either there is no row at all, or the only row for this
+            // identity is a retained Handled one -- the message already completed, and a retry booked after
+            // the fact is discarded rather than executed a second time. Asked explicitly rather than left to
+            // the insert's primary key: under inbox partitioning the key includes the status, so a Scheduled
+            // row would sit beside the Handled one without colliding, and the message would run again.
+            if (await handledRowExistsAsync(envelope))
+            {
+                Logger.LogDebug(
+                    "Discarding the retry of envelope {EnvelopeId} ({MessageType}) at {Destination}: it was already marked as handled",
+                    envelope.Id, envelope.MessageType, envelope.Destination);
+                return;
+            }
+
             try
             {
                 await StoreIncomingAsync(envelope);
             }
             catch (DuplicateIncomingEnvelopeException)
             {
-                // GH-4216. The update matched nothing because the only row for this identity is a retained
-                // Handled one, and that row is exactly where the insert collided. The message already completed;
-                // a retry booked after the fact is discarded, not executed a second time.
+                // The mark-as-handled for this identity landed between the check above and the insert
                 Logger.LogDebug(
                     "Discarding the retry of envelope {EnvelopeId} ({MessageType}) at {Destination}: it was already marked as handled",
                     envelope.Id, envelope.MessageType, envelope.Destination);
             }
         }
+    }
+
+    private string? _handledRowExistsSql;
+
+    /// <summary>
+    /// Whether a retained Handled row exists for the envelope's identity. The same identity rule the
+    /// mark-as-handled and promotion statements use: under <see cref="MessageIdentity.IdOnly"/> a copy at
+    /// another destination is the SAME identity, so the destination is not part of the match
+    /// </summary>
+    private async Task<bool> handledRowExistsAsync(Envelope envelope)
+    {
+        _handledRowExistsSql ??= Durability.MessageIdentity == MessageIdentity.IdOnly
+            ? $"select count(*) from {MarkAsHandledTableName} where id = @id and {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'"
+            : $"select count(*) from {MarkAsHandledTableName} where id = @id and {DatabaseConstants.ReceivedAt} = @uri and {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'";
+
+        var command = CreateCommand(_handledRowExistsSql).With("id", envelope.Id);
+        if (Durability.MessageIdentity != MessageIdentity.IdOnly)
+        {
+            command = command.With("uri", envelope.Destination!.ToString());
+        }
+
+        var count = await command.ExecuteScalarAsync(_cancellation);
+        return Convert.ToInt64(count) > 0;
     }
 }
