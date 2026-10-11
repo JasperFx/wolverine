@@ -725,23 +725,51 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                 }
             }
 
-            logger.LogInformation(
-                "Creating JetStream stream {Stream} for subjects {Subjects}",
-                StreamName,
-                string.Join(", ", subjects)
-            );
-
-            var defaults = JetStreamDefaults;
-            var config = new StreamConfig(StreamName, subjects)
+            StreamConfig config;
+            if (_transport.Configuration.Streams.TryGetValue(StreamName, out var declared))
             {
-                Retention = StreamConfigRetention.Workqueue,
-                Discard = StreamConfigDiscard.Old,
-                MaxAge = defaults.MaxAge ?? TimeSpan.Zero,
-                MaxMsgs = defaults.MaxMessages ?? -1,
-                MaxBytes = defaults.MaxBytes ?? -1,
-                NumReplicas = defaults.Replicas,
-                DuplicateWindow = defaults.DuplicateWindow
-            };
+                // GH-4956. The application declared this stream through DefineStream() and friends, so
+                // resource setup creates THAT stream -- the same configuration start-up provisioning builds --
+                // rather than a default-shaped work-queue stream the declaration then never gets to correct
+                // under CreateOnly, and that Verify reports as drift against the declaration. The endpoint's
+                // own subjects join it only if the declaration does not already cover them, so a declaration
+                // with a wildcard stays byte-for-byte what was declared.
+                config = JetStreamProvisioning.BuildStreamConfig(StreamName, declared, _transport.Configuration.JetStreamDefaults);
+
+                var declaredSubjects = (config.Subjects ?? []).ToList();
+                foreach (var subject in subjects.Where(s => !declaredSubjects.Any(d => SubjectCovers(d, s))))
+                {
+                    declaredSubjects.Add(subject);
+                }
+
+                config.Subjects = declaredSubjects;
+
+                logger.LogInformation(
+                    "Creating the declared JetStream stream {Stream} for subjects {Subjects}",
+                    StreamName,
+                    string.Join(", ", declaredSubjects)
+                );
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Creating JetStream stream {Stream} for subjects {Subjects}",
+                    StreamName,
+                    string.Join(", ", subjects)
+                );
+
+                var defaults = JetStreamDefaults;
+                config = new StreamConfig(StreamName, subjects)
+                {
+                    Retention = StreamConfigRetention.Workqueue,
+                    Discard = StreamConfigDiscard.Old,
+                    MaxAge = defaults.MaxAge ?? TimeSpan.Zero,
+                    MaxMsgs = defaults.MaxMessages ?? -1,
+                    MaxBytes = defaults.MaxBytes ?? -1,
+                    NumReplicas = defaults.Replicas,
+                    DuplicateWindow = defaults.DuplicateWindow
+                };
+            }
 
             await js.CreateStreamAsync(config);
             logger.LogInformation("Created JetStream stream {Stream}", StreamName);
@@ -765,5 +793,41 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                 StreamName
             );
         }
+    }
+
+    /// <summary>
+    /// GH-4956. Whether a NATS subject pattern (with <c>*</c> for one token and <c>&gt;</c> for the rest) covers a
+    /// concrete subject, the way the server matches a stream's subjects
+    /// </summary>
+    internal static bool SubjectCovers(string pattern, string subject)
+    {
+        if (pattern == subject)
+        {
+            return true;
+        }
+
+        var patternTokens = pattern.Split('.');
+        var subjectTokens = subject.Split('.');
+
+        for (var i = 0; i < patternTokens.Length; i++)
+        {
+            var token = patternTokens[i];
+            if (token == ">")
+            {
+                return subjectTokens.Length > i;
+            }
+
+            if (i >= subjectTokens.Length)
+            {
+                return false;
+            }
+
+            if (token != "*" && token != subjectTokens[i])
+            {
+                return false;
+            }
+        }
+
+        return patternTokens.Length == subjectTokens.Length;
     }
 }
