@@ -26,7 +26,7 @@ internal class CosmosDbControlListener : IListener
 
         _receivingLoop = Task.Run(async () =>
         {
-            await Task.Delay(Random.Shared.Next(100, 1000).Milliseconds());
+            await Task.Delay(Random.Shared.Next(100, 1000).Milliseconds(), _cancellation.Token);
 
             while (!_cancellation.IsCancellationRequested)
             {
@@ -34,12 +34,23 @@ internal class CosmosDbControlListener : IListener
                 {
                     await pollForMessagesAsync();
                 }
+                catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
                 catch (Exception e)
                 {
                     logger.LogError(e, "Error trying to poll for messages from the CosmosDb control queue");
                 }
 
-                await Task.Delay(1.Seconds());
+                try
+                {
+                    await Task.Delay(1.Seconds(), _cancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }, _cancellation.Token);
 
@@ -81,7 +92,16 @@ internal class CosmosDbControlListener : IListener
 #endif
         if (_receivingLoop != null)
         {
-            await _receivingLoop;
+            try
+            {
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+                await _receivingLoop;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
             _receivingLoop.Dispose();
         }
     }
