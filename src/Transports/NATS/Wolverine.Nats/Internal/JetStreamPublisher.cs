@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 using NATS.Net;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Nats.Internal;
 
@@ -157,7 +159,19 @@ internal class JetStreamPublisher : INatsPublisher
             // and a duplicate means the stream already holds the message, so it stays a success.
             if (ack.Error is { } error)
             {
-                throw new NatsJSApiException(error);
+                var apiException = new NatsJSApiException(error);
+
+                // GH-4955. The server answered the publish and said no, and no retry can change the answer,
+                // so the sending agent is told not to try. Anything else -- no JetStream answering, a store
+                // that is temporarily unable to write -- stays an ordinary failure that retries.
+                if (IsRejection(error))
+                {
+                    throw new SendRejectedException(
+                        $"JetStream refused the publish to '{publishSubject}' for message {envelope.Id}: {error.Description} (error {error.ErrCode})",
+                        apiException);
+                }
+
+                throw apiException;
             }
 
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -181,5 +195,31 @@ internal class JetStreamPublisher : INatsPublisher
                 }
             }
         }
+    }
+
+    // Stream limit refusals arrive as the generic "store failed" error (503, err_code 10077) with the limit in
+    // the description, the way nats-server words them
+    private static readonly string[] StreamLimitRefusals =
+    [
+        "maximum messages exceeded",
+        "maximum bytes exceeded",
+        "maximum messages per subject exceeded"
+    ];
+
+    /// <summary>
+    /// GH-4955. Whether a JetStream publish error is the server REFUSING the message rather than failing to take
+    /// it: every 400 (a failed Nats-Expected-* check, a message over the size limit), and a stream that is full
+    /// under DiscardPolicy.New. That last one comes back as the generic store failure, 503 / err_code 10077,
+    /// which also covers storage trouble that can clear up, so only the stream-limit descriptions count
+    /// </summary>
+    internal static bool IsRejection(ApiError error)
+    {
+        if (error.Code == 400)
+        {
+            return true;
+        }
+
+        return error.ErrCode == 10077 && error.Description is { } description &&
+               StreamLimitRefusals.Any(x => description.Contains(x, StringComparison.OrdinalIgnoreCase));
     }
 }
