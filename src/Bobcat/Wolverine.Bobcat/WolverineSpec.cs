@@ -213,6 +213,25 @@ public abstract class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenNoEventsOn(JasperFx.Events.Tags.EventTagQuery)" />
     public void ThenNoEventsOn(JasperFx.Events.Tags.EventTagQuery query) => Scenario.ThenNoEventsOn(query);
 
+    /// <inheritdoc cref="WolverineScenario.ThenTheConsistencyBoundaryIs(JasperFx.Events.Tags.EventTagQuery)" />
+    public void ThenTheConsistencyBoundaryIs(JasperFx.Events.Tags.EventTagQuery expected) => Scenario.ThenTheConsistencyBoundaryIs(expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheConsistencyBoundaryIs{TModel}(JasperFx.Events.Tags.EventTagQuery)" />
+    public void ThenTheConsistencyBoundaryIs<TModel>(JasperFx.Events.Tags.EventTagQuery expected)
+        => Scenario.ThenTheConsistencyBoundaryIs<TModel>(expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAConcurrentEventWouldConflict(object)" />
+    public void ThenAConcurrentEventWouldConflict(object @event) => Scenario.ThenAConcurrentEventWouldConflict(@event);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAConcurrentEventWouldConflict{TEvent}(object[])" />
+    public void ThenAConcurrentEventWouldConflict<TEvent>(params object[] tags) => Scenario.ThenAConcurrentEventWouldConflict<TEvent>(tags);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAConcurrentEventWouldNotConflict(object)" />
+    public void ThenAConcurrentEventWouldNotConflict(object @event) => Scenario.ThenAConcurrentEventWouldNotConflict(@event);
+
+    /// <inheritdoc cref="WolverineScenario.ThenAConcurrentEventWouldNotConflict{TEvent}(object[])" />
+    public void ThenAConcurrentEventWouldNotConflict<TEvent>(params object[] tags) => Scenario.ThenAConcurrentEventWouldNotConflict<TEvent>(tags);
+
     /// <inheritdoc cref="WolverineScenario.TheDcbModel{T}(JasperFx.Events.Tags.EventTagQuery)" />
     public Task<T?> TheDcbModel<T>(JasperFx.Events.Tags.EventTagQuery query) where T : class => Scenario.TheDcbModel<T>(query);
 

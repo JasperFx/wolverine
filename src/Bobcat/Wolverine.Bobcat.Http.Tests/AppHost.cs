@@ -22,6 +22,9 @@ public sealed class AppHost : IAsyncLifetime
                 m.DatabaseSchemaName = "bobcat_http_specs";
                 m.DisableNpgsqlLogging = true;
                 m.Projections.Snapshot<Appointment>(SnapshotLifecycle.Inline);
+
+                // GH-4940: the DCB endpoint's tag
+                m.Events.RegisterTagType<HallId>("hall").ForAggregate<HallBookings>();
             })
             .IntegrateWithWolverine();
 

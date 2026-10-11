@@ -179,3 +179,23 @@ public class the_endpoints_own_events(AppHost app) : WolverineHttpSpec(app.Host)
         ThenEvents(new AppointmentScheduled(theAppointment, "Ann"));
     }
 }
+
+// GH-4940: the consistency boundary an endpoint's DCB decision loaded
+[Collection(nameof(AppCollection))]
+public class an_endpoints_consistency_boundary(AppHost app) : WolverineHttpSpec(app.Host)
+{
+    [Fact]
+    public async Task is_the_tag_query_its_load_returned()
+    {
+        var theHall = new HallId(Guid.NewGuid());
+
+        await WhenPosted(new BookHall(theHall, "Ann"));
+
+        ThenEvents(new HallBooked(theHall, "Ann"));
+        ThenTheConsistencyBoundaryIs(JasperFx.Events.Tags.EventTagQuery.For(theHall).AndEventsOfType<HallBooked>());
+        ThenAConcurrentEventWouldConflict<HallBooked>(theHall);
+        ThenAConcurrentEventWouldNotConflict<HallBooked>(new HallId(Guid.NewGuid()));
+
+        LastAct.Boundaries.ShouldHaveSingleItem().Envelope.ShouldBeNull();
+    }
+}
