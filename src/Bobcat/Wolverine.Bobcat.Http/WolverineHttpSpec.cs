@@ -1,4 +1,6 @@
 using Alba;
+using Bobcat;
+using JasperFx.Events.EventModeling;
 
 namespace Wolverine.Bobcat.Http;
 
@@ -27,17 +29,25 @@ public abstract class WolverineHttpSpec : WolverineSpec
     public IScenarioResult? LastResponse => HttpScenario.LastResponse;
 
     /// <inheritdoc cref="WolverineHttpScenario.WhenPosted(object, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http)]
     public Task WhenPosted(object command, Action<Scenario>? configure = null) => HttpScenario.WhenPosted(command, configure);
 
     /// <inheritdoc cref="WolverineHttpScenario.WhenPosted(object, string, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
     public Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
         => HttpScenario.WhenPosted(command, route, configure);
 
     /// <inheritdoc cref="WolverineHttpScenario.WhenPosted{TResponse}(object, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http)]
     public Task<TResponse?> WhenPosted<TResponse>(object command, Action<Scenario>? configure = null)
         => HttpScenario.WhenPosted<TResponse>(command, configure);
 
     /// <inheritdoc cref="WolverineHttpScenario.WhenPosted{TResponse}(object, string, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
     public Task<TResponse?> WhenPosted<TResponse>(object command, string route, Action<Scenario>? configure = null)
         => HttpScenario.WhenPosted<TResponse>(command, route, configure);
 

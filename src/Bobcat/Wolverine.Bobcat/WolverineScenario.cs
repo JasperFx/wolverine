@@ -5,8 +5,8 @@ using Bobcat.Runtime;
 using System.Globalization;
 using JasperFx.Events;
 using JasperFx.Events.Tags;
-using JasperFx.Events.Descriptors;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
 
@@ -18,7 +18,7 @@ namespace Wolverine.Bobcat;
 /// <param name="Session">The tracked session, when the act got as far as completing one.</param>
 /// <param name="NewEvents">
 /// The events the act itself appended (GH-4931): what the sessions handling the act's own message, or its
-/// HTTP request, committed. A cascade's events are in <see cref="AllNewEvents" />, not here.
+/// HTTP request, committed. A cascade's events are in <see cref="CritterStackActOutcome.AllNewEvents" />, not here.
 /// </param>
 /// <param name="Error">The exception the act raised or a handler threw, when there was one.</param>
 /// <param name="Refusal">A refusal that is an answer rather than a failure — an HTTP endpoint's 4xx body. A bus-dispatched command refuses by throwing, which is <paramref name="Error" />.</param>
@@ -26,27 +26,16 @@ public sealed record ActOutcome(
     ITrackedSession? Session,
     IReadOnlyList<IEvent> NewEvents,
     Exception? Error,
-    string? Refusal = null)
+    string? Refusal = null) : CritterStackActOutcome(NewEvents, Error, Refusal)
 {
     /// <summary>Nothing has acted yet.</summary>
-    public static readonly ActOutcome None = new(null, Array.Empty<IEvent>(), null);
-
-    /// <summary>
-    /// GH-4920 / GH-4931. Every event appended while the act ran, on any stream, its cascades' included, in
-    /// commit order: what the tracked session heard each event-store session commit. What a stream already
-    /// held never counts, whoever arranged it, and neither does anything concurrent work appended, so
-    /// <c>ThenEventsOn</c> checks only what the act added to that stream.
-    /// </summary>
-    public IReadOnlyList<IEvent> AllNewEvents { get; init; } = Array.Empty<IEvent>();
+    public new static readonly ActOutcome None = new(null, Array.Empty<IEvent>(), null);
 
     /// <summary>
     /// GH-4931. Each event-store session that committed while the act ran, with the message it was handling,
     /// which says whose events are whose.
     /// </summary>
     public IReadOnlyList<AppendedEvents> Appended { get; init; } = Array.Empty<AppendedEvents>();
-
-    /// <summary>GH-4931. The streams the act itself started, with the ids its handler assigned.</summary>
-    public IReadOnlyList<StreamAction> StartedStreams { get; init; } = Array.Empty<StreamAction>();
 
     /// <summary>
     /// GH-4940. The Dynamic Consistency Boundaries the act itself loaded, in load order: each tag query its
@@ -69,32 +58,24 @@ public sealed record ActOutcome(
 /// </summary>
 /// <remarks>
 /// <para>
+/// <b>Built on Bobcat's store-only <see cref="CritterStackScenario" /></b> (bobcat#471), which holds every
+/// step a store can answer — the Givens, the event, aggregate, document and read-model assertions, the
+/// refusals. This class adds the acts that go through Wolverine's tracked session, the message
+/// assertions and the consistency-boundary steps, and fills the shared outcome from what the tracked
+/// session saw.
+/// </para>
+/// <para>
 /// <b>Composable on purpose.</b> <see cref="WolverineSpec" /> is the base class an xUnit or TUnit
-/// suite derives from, and it delegates every step here. A Bobcat Gherkin fixture already has a base
-/// class of its own, so it holds one of these instead — the same steps, the same act capture.
+/// suite derives from, and it delegates every step here.
 /// </para>
 /// <para>
-/// <b>Every step renders.</b> Each one records itself through <see cref="ScenarioRecorder" /> — the
-/// marker-step model a projected Bobcat spec renders from — and reports its verdict as cells. Nothing
-/// takes an <c>IStepContext</c>, which a projected test does not have. Outside a recording scenario
-/// the steps still run and a wrong is thrown; see <see cref="SpecificationFailedException" />.
-/// </para>
-/// <para>
-/// <b>Store-agnostic.</b> Events are arranged and read through the JasperFx.Events abstractions, so
-/// the same scenario runs against Marten, Polecat, Fisher or the in-memory prototyping store. An
-/// application with no event store can still use every act and the message assertions.
-/// </para>
-/// <para>
-/// <b>Works against field-less stubs.</b> Nothing here needs an event or a command to carry data;
-/// only a read model needs an identity to be loaded by.
+/// <b>Every step renders.</b> Each one records itself through <see cref="ScenarioRecorder" /> and reports
+/// its verdict as cells. Outside a recording scenario the steps still run and a wrong is thrown; see
+/// <see cref="SpecificationFailedException" />.
 /// </para>
 /// </remarks>
-public class WolverineScenario
+public class WolverineScenario : CritterStackScenario
 {
-    private readonly string? _storeName;
-    private IEventStore? _store;
-    private object? _stream;
-
     // GH-4931: the message an act dispatches -- built from a partial object, so not always the object the
     // step was given -- which is how its own events are told from its cascades'
     private object? _dispatched;
@@ -111,14 +92,9 @@ public class WolverineScenario
 
     /// <param name="host">The application under test.</param>
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
-    public WolverineScenario(IHost host, string? storeName = null)
+    public WolverineScenario(IHost host, string? storeName = null) : base(host, storeName)
     {
-        Host = host ?? throw new ArgumentNullException(nameof(host));
-        _storeName = storeName;
     }
-
-    /// <summary>The application under test.</summary>
-    public IHost Host { get; }
 
     /// <summary>How long an act's tracked session waits for everything it caused to settle. Five seconds by default.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
@@ -129,15 +105,13 @@ public class WolverineScenario
     /// </summary>
     public bool IncludeExternalTransports { get; set; } = true;
 
-    /// <summary>
-    /// What fills the members a partial object (<c>Specify&lt;T&gt;()</c> or a table row) leaves
-    /// unspecified when the scenario builds it for a Given or a When. Null takes Bobcat's default
-    /// (bobcat#421).
-    /// </summary>
-    public IUnspecifiedValues? UnspecifiedValues { get; set; }
-
     /// <summary>What the last act did.</summary>
-    public ActOutcome LastAct { get; protected set; } = ActOutcome.None;
+    public new ActOutcome LastAct
+    {
+        get => base.LastAct as ActOutcome ?? ActOutcome.None;
+        // ActOutcome.None is "nothing has acted" too, so it must not count as an act
+        protected set => base.LastAct = ReferenceEquals(value, ActOutcome.None) ? CritterStackActOutcome.None : value;
+    }
 
     /// <summary>
     /// GH-4939. The correlation id the act in progress runs under -- or the last act ran under, once it is done.
@@ -154,238 +128,26 @@ public class WolverineScenario
     /// </summary>
     public TimeSpan EventuallyTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
-    /// <summary>The application's event store. Throws, saying so, when it has none.</summary>
-    public IEventStore Store => _store ??= Host.Services.EventStore(_storeName);
+    // Whether any act has run since the scenario began or was reset: a negative step about what the act did
+    // would otherwise pass on the empty outcome, as the base's do not
+    private bool acted => !ReferenceEquals(base.LastAct, CritterStackActOutcome.None);
 
-    private bool? _hasStore;
-
-    // An application with no event store still gets every act and the message assertions
-    private bool hasStore()
-    {
-        if (_hasStore is { } known) return known;
-
-        try
-        {
-            _store ??= Host.Services.EventStore(_storeName);
-            _hasStore = true;
-        }
-        catch (Exception)
-        {
-            _hasStore = false;
-        }
-
-        return _hasStore.Value;
-    }
-
-    /// <summary>Clear the event store and forget the last act, for a suite that shares one host across scenarios.</summary>
-    public async Task ResetAsync(CancellationToken token = default)
-    {
-        if (Host.Services.EventStores().Count > 0) await Host.Services.ResetEventStoresAsync(token);
-        _stream = null;
-        LastAct = ActOutcome.None;
-    }
-
-    // ---- arrange ---------------------------------------------------------------------------
-
-    /// <summary>The stream the scenario acts against already holds exactly these events.</summary>
-    /// <summary>
-    /// <see cref="GivenEvents{TAggregate}(Guid, object[])" /> for a stream identified by a strong-typed id around a
-    /// Guid or a string (wolverine#4865), which reads by its own name.
-    /// </summary>
-    public Task GivenEvents<TAggregate>(object id, params object[] events) where TAggregate : class
-        => GivenEvents(typeof(TAggregate), id, events);
-
-    public Task GivenEvents<TAggregate>(Guid id, params object[] events) where TAggregate : class
-        => GivenEvents(typeof(TAggregate), id, events);
-
-    /// <inheritdoc cref="GivenEvents{TAggregate}(Guid, object[])" />
-    public Task GivenEvents<TAggregate>(string key, params object[] events) where TAggregate : class
-        => GivenEvents(typeof(TAggregate), key, events);
-
-    /// <summary>
-    /// The stream the scenario acts against already holds exactly these events, and has no aggregate
-    /// type. Marten, Polecat and Fisher all allow a stream without one; this is the arrange for an event
-    /// model that names none (GH-4892). Starts the stream when it does not exist, appends when it does.
-    /// </summary>
-    public Task GivenEvents(Guid id, params object[] events) => GivenEvents((Type?)null, id, events);
-
-    /// <inheritdoc cref="GivenEvents(Guid, object[])" />
-    public Task GivenEvents(string key, params object[] events) => GivenEvents((Type?)null, key, events);
-
-    /// <inheritdoc cref="GivenEvents{TAggregate}(Guid, object[])" />
-    /// <remarks>A null <paramref name="aggregate" /> arranges a stream with no aggregate type (GH-4892).</remarks>
-    public async Task GivenEvents(Type? aggregate, object id, params object[] events)
-    {
-        var stream = streamName(aggregate, id);
-        events = flatten(events);
-        var (described, inline) = describe(events);
-        var text = events.Length == 0 ? $"{stream} has no events yet" : $"{stream} has already recorded {described}";
-        using var step = ScenarioRecorder.Step("Given", text);
-
-        // wolverine#4865: a strong-typed id is the Guid or string it wraps, to the store
-        _stream = StrongTypedIds.StreamIdentity(id);
-        if (!inline) recordValues("event", events);
-        // Every store's StartStream(Type, ...) takes a null aggregate type as an untyped stream
-        if (events.Length > 0) await EventStoreAuthoring.AppendAsync(Store, aggregate!, _stream, build(events, text));
-    }
-
-    /// <summary>
-    /// The stream the scenario acts against has no events yet. Appends nothing — it says so in the
-    /// specification, and names the stream the act's events are read from.
-    /// </summary>
-    public Task GivenNoEventsFor<TAggregate>(Guid id) where TAggregate : class => GivenEvents(typeof(TAggregate), id);
-
-    /// <inheritdoc cref="GivenNoEventsFor{TAggregate}(Guid)" />
-    public Task GivenNoEventsFor<TAggregate>(object id) where TAggregate : class => GivenEvents(typeof(TAggregate), id);
-
-    /// <inheritdoc cref="GivenNoEventsFor{TAggregate}(Guid)" />
-    public Task GivenNoEventsFor<TAggregate>(string key) where TAggregate : class => GivenEvents(typeof(TAggregate), key);
-
-    /// <summary>
-    /// Arrange events on a <em>different</em> stream from the one the act runs against — a second
-    /// aggregate for a rule that spans two, or history a read model fans in from.
-    /// </summary>
-    /// <inheritdoc cref="GivenEventsOn{TAggregate}(Guid, object[])" />
-    public Task GivenEventsOn<TAggregate>(object id, params object[] events) where TAggregate : class
-        => GivenEventsOn(typeof(TAggregate), id, events);
-
-    public Task GivenEventsOn<TAggregate>(Guid id, params object[] events) where TAggregate : class
-        => GivenEventsOn(typeof(TAggregate), id, events);
-
-    /// <inheritdoc cref="GivenEventsOn{TAggregate}(Guid, object[])" />
-    public Task GivenEventsOn<TAggregate>(string key, params object[] events) where TAggregate : class
-        => GivenEventsOn(typeof(TAggregate), key, events);
-
-    /// <inheritdoc cref="GivenEventsOn{TAggregate}(Guid, object[])" />
-    public async Task GivenEventsOn(Type aggregate, object id, params object[] events)
-    {
-        events = flatten(events);
-        var (described, inline) = describe(events);
-        var text = $"{streamName(aggregate, id)} has already recorded {described}";
-        using var step = ScenarioRecorder.Step("Given", text);
-        if (!inline) recordValues("event", events);
-        if (events.Length > 0)
-            await EventStoreAuthoring.AppendAsync(Store, aggregate, StrongTypedIds.StreamIdentity(id), build(events, text));
-    }
-
-    /// <summary>
-    /// How a stream reads in a step: its id is named after the aggregate (GH-4835), so a stream
-    /// arranged once reads "the Order stream" — and a second one of the same type "Order Order2".
-    /// </summary>
-    /// <summary>
-    /// A read model already exists: <paramref name="document" /> is stored directly, as when an event
-    /// model arranges a view rather than the events that build it.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="document" /> may be a partial object, built with its unspecified members
-    /// filled by <see cref="UnspecifiedValues" />. Storing it bypasses the projection, so a spec that
-    /// is about how the view is built should arrange the events instead.
-    /// </remarks>
-    public async Task GivenReadModel<T>(object document) where T : class
-    {
-        var text = $"the {typeof(T).Name} read model is {describe([document]).Text}";
-        using var step = ScenarioRecorder.Step("Given", text);
-
-        var built = Build(document, text);
-        if (built is not T)
-            throw new SpecCriticalException(
-                $"'{text}': a {PartialMatching.ExpectedType(document).Name} cannot be stored as the {typeof(T).Name} read model.");
-
-        await DocumentStores.StoreAllAsync(Store, typeof(T), [built]);
-    }
-
-    private static string streamName(Type? aggregate, object id)
-    {
-        // A stream with no aggregate type (GH-4892) reads as "the stream", or "stream 2" for a second
-        var label = aggregate?.Name ?? "stream";
-        if (id is string key) return $"{(aggregate is null ? "stream" : aggregate.Name)} \"{key}\"";
-
-        ScenarioValues.Learn(id, label);
-        var name = ScenarioValues.Format(id);
-        return name == label ? $"the {label}{(aggregate is null ? "" : " stream")}" : $"{label} {name}";
-    }
-
-    /// <summary>
-    /// Values as a step's text shows them: each one in full — <c>Type(Property: value, …)</c> — when
-    /// they fit on the line, otherwise only their type names, and the caller shows the values as a
-    /// table under the step instead.
-    /// </summary>
-    private static (string Text, bool Inline) describe(IReadOnlyList<object> values)
-    {
-        // A partial object reads as only the members it specifies: ShipmentConfirmed(TrackingNumber: 1Z999)
-        var full = values.Any(x => x is IPartialObject or TaggedValue)
-            ? string.Join(", ", values.Select(describeOne))
-            : ScenarioValues.DescribeAll(values);
-        return full.Length <= ScenarioValues.InlineLimit ? (full, true) : (names(values), false);
-    }
-
-    // One value as a step reads it; an event with tags says them after it (wolverine#4865)
-    private static string describeOne(object value)
-    {
-        var described = value switch
-        {
-            IPartialObject specified => PartialObjects.Describe(specified),
-            TaggedValue tagged => ScenarioValues.Describe(tagged.Value),
-            _ => ScenarioValues.Describe(value)
-        };
-
-        var tags = Tagging.ExpectedTagsOf(value);
-        return tags.Count == 0 ? described : $"{described} tagged {Tagging.Describe(tags)}";
-    }
-
-    /// <summary>
-    /// The values a step was given, with each <em>list</em> of partial objects — the rows of a table
-    /// through <c>PartialObjects.FromTable</c> — spread into its items, so a table and single values
-    /// mix in one call.
-    /// </summary>
-    private static object[] flatten(object[] values)
-        => values.Any(x => x is IEnumerable<IPartialObject>)
-            ? values.SelectMany(x => x is IEnumerable<IPartialObject> rows ? rows.Cast<object>() : [x]).ToArray()
-            : values;
-
-    /// <summary>A partial object built, its unspecified members filled by <see cref="UnspecifiedValues" />; anything else as it is.</summary>
-    protected internal object Build(object value, string? step = null) => value switch
-    {
-        // wolverine#4865: an arranged event keeps the tags it names, so it is appended tagged
-        IPartialObject specified when specified is ITaggedExpectation { ExpectedTags.Count: > 0 } tagged
-            => Specifications.Tagged(PartialObjects.Build(specified, UnspecifiedValues, step), tagged.ExpectedTags.ToArray()),
-        IPartialObject specified => PartialObjects.Build(specified, UnspecifiedValues, step),
-        _ => value
-    };
-
-    private object[] build(object[] values, string step) => values.Select(x => Build(x, step)).ToArray();
-
-    /// <summary>A type alone as an expectation: any one of them, whatever its values.</summary>
-    private static object anyOf(Type type) => new TablePartialObject(type, []);
-
-    /// <summary>Values too long for the step's text, as a table under it: one row each, unjudged.</summary>
-    private static void recordValues(string noun, IReadOnlyList<object> values)
-    {
-        if (!Verdicts.Recording || values.Count == 0) return;
-
-        var run = new TableRun([noun, ObjectSetVerification.ValuesColumn]);
-        for (var i = 0; i < values.Count; i++)
-        {
-            run.Cells.Add(new CellResult(noun, ResultStatus.ok, PartialMatching.ExpectedType(values[i]).Name) { RowIndex = i });
-            run.Cells.Add(new CellResult(ObjectSetVerification.ValuesColumn, ResultStatus.ok,
-                PartialMatching.DescribeExpected(values[i])) { RowIndex = i });
-        }
-
-        run.Report(null);
-    }
+    /// <summary>A wrong outside a recording is a <see cref="SpecificationFailedException" />.</summary>
+    protected override Exception failureOf(string message) => new SpecificationFailedException(message);
 
     // ---- act -------------------------------------------------------------------------------
 
     /// <summary>
     /// <paramref name="message" /> arrives at the application: sent through Wolverine, and the scenario
     /// waits for everything it caused to settle. A handler that throws is captured, not rethrown, so a
-    /// refusal can be asserted with <see cref="ThenValidationFails" />.
+    /// refusal can be asserted with <see cref="CritterStackScenario.ThenValidationFails" />.
     /// </summary>
     /// <remarks>
     /// <paramref name="message" /> may be a partial object — <c>Specify&lt;T&gt;()</c> or a table row —
-    /// built before the act, with its unspecified members filled by <see cref="UnspecifiedValues" />.
+    /// built before the act, with its unspecified members filled by <see cref="CritterStackScenario.UnspecifiedValues" />.
     /// The step shows only the members it specifies.
     /// </remarks>
+    [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenReceived(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
     {
@@ -397,6 +159,7 @@ public class WolverineScenario
     }
 
     /// <summary><paramref name="message" /> is published through Wolverine to every subscriber, and the scenario waits for what it caused.</summary>
+    [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenPublished(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
     {
@@ -416,6 +179,86 @@ public class WolverineScenario
         => ActAsync(description,
             tracking => (configureTracking?.Invoke(tracking) ?? tracking)
                 .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => act())));
+
+    /// <summary>
+    /// The store-only acts of <see cref="CritterStackScenario" /> — <c>WhenActing</c>, <c>WhenActingOn</c> —
+    /// run inside the tracked session too, so they wait for what they caused and the outcome carries the
+    /// messages they sent.
+    /// </summary>
+    /// <remarks>
+    /// What the act appended is what the tracked session heard committed, as for every other act. When it heard
+    /// no commit at all — the act appended through a session Wolverine did not open, such as one taken straight
+    /// from the store — the act falls back to the base's read: every event appended to the store since its
+    /// high-water mark before the act, so events appended outside the tracked session still count. Those are
+    /// read back from the store, so like the base's they carry no tags and are not told apart from a cascade's.
+    /// </remarks>
+    protected override async Task<CritterStackActOutcome> runActAsync(Func<IServiceProvider, Task> act)
+    {
+        // Taken before the act, for the fallback below: one small read, and none at all without a store
+        var store = hasStore() ? Store : null;
+        var floor = store is null ? 0 : await EventStores.HighWaterSequenceAsync(store);
+
+        var outcome = await executeAsync(
+            tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
+            {
+                await using var scope = Host.Services.CreateAsyncScope();
+                await act(scope.ServiceProvider);
+            })),
+            null);
+
+        if (store is null || outcome.Appended.Count > 0) return outcome;
+
+        return await appendedOutsideTheSessionAsync(store, floor, outcome);
+    }
+
+    // The tracked session heard no commit, so read what the store gained since the act's floor instead. Read
+    // even after a failure: an act can commit and then throw, and what it committed is a fact
+    private async Task<ActOutcome> appendedOutsideTheSessionAsync(IEventStore store, long floor, ActOutcome outcome)
+    {
+        var appended = (await EventStores.QueryEventsSinceAsync(store, floor + 1)).OrderBy(x => x.Sequence).ToList();
+        if (appended.Count == 0) return outcome;
+
+        var started = new List<StreamAction>();
+        foreach (var e in appended.Where(x => x.Version == 1))
+        {
+            var action = e.StreamKey is { } key
+                ? new StreamAction(key, StreamActionType.Start)
+                : new StreamAction(e.StreamId, StreamActionType.Start);
+            action.AggregateType = await aggregateTypeOf(store, e);
+            started.Add(action);
+        }
+
+        var fallback = outcome with
+        {
+            NewEvents = appended,
+            AllNewEvents = appended,
+            StartedStreams = started,
+            // Read back from the store, which returns no tags
+            EventTagsKnown = false
+        };
+
+        recordTouched(appended.Select(x => x.Data));
+        if (SpecReport.IsRecording) SpecReport.For<AppendedEventsReport>().Add(appended);
+
+        return fallback;
+    }
+
+    // The aggregate type the store recorded for an event's stream: an event read back carries none, and without
+    // it a started stream would answer to every aggregate type. Null when the store cannot say
+    private static async Task<Type?> aggregateTypeOf(IEventStore store, IEvent @event)
+    {
+        try
+        {
+            var state = @event.StreamKey is { } key
+                ? await EventStores.FetchStreamStateAsync(store, key)
+                : await EventStores.FetchStreamStateAsync(store, @event.StreamId);
+            return state?.AggregateType;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// The act every <c>When</c> step goes through: warm the handlers, take the stream's "before",
@@ -451,9 +294,44 @@ public class WolverineScenario
             stepText = string.Format(CultureInfo.InvariantCulture, stepText, described);
         }
 
-        using var step = ScenarioRecorder.Step("When", stepText);
-        if (!inline) recordValues("message", [subject!]);
+        // The act's own exception is captured, never thrown; anything else that escapes fails the step's own line
+        await inStep(ScenarioRecorder.Step("When", stepText), async () =>
+        {
+            if (!inline) recordValues("message", [subject!]);
 
+            // The command the act dispatched was touched, whatever it then did (bobcat#465)
+            if (_dispatched is { } dispatched && !ReferenceEquals(dispatched, NoMessage)) recordTouched(dispatched.GetType());
+
+            await executeAsync(dispatch, complete);
+        });
+    }
+
+    /// <summary>
+    /// Run a step's body with its step open: an exception that escapes fails the step's own line, then carries
+    /// on to the runner. A bare <c>using var step</c> ends as a pass whatever escapes it.
+    /// </summary>
+    private static async Task inStep(IDisposable step, Func<Task> body)
+    {
+        try
+        {
+            await body();
+        }
+        catch (Exception e)
+        {
+            (step as IStepHandle)?.Fail(e);
+            throw;
+        }
+        finally
+        {
+            step.Dispose();
+        }
+    }
+
+    // Run the act in a tracked session and capture what it did into LastAct. Records no step of its own.
+    private async Task<ActOutcome> executeAsync(
+        Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
+        Func<ActOutcome, Task<ActOutcome>>? complete)
+    {
         HandlerWarmUp.WarmBeforeTracking(Host);
 
         // GH-4931: claimed before the act, so a step that throws before dispatching leaves nothing behind
@@ -493,6 +371,7 @@ public class WolverineScenario
             AllNewEvents = all,
             Appended = commits,
             StartedStreams = own.SelectMany(x => x.StartedStreams).ToList(),
+            MessagesSent = session?.Sent.AllMessages().ToList() ?? (IReadOnlyList<object>)Array.Empty<object>(),
             // GH-4940: the boundaries the act's own handler loaded, by the same rule as its own commits
             Boundaries = (session?.LoadedBoundaries ?? Array.Empty<LoadedBoundary>())
                 .Where(x => isTheActsOwn(x.Envelope, dispatched)).ToList(),
@@ -502,19 +381,18 @@ public class WolverineScenario
         LastAct = outcome;
         ActCorrelationId = outcome.CorrelationId;
 
+        // bobcat#465: what the act observably touched -- the events it appended, the messages it sent
+        recordTouched(appended.Select(x => x.Data));
+        recordTouched(outcome.MessagesSent);
+
         if (SpecReport.IsRecording)
         {
             if (session is not null) SpecReport.For<MessageActivityReport>().Add(session);
             if (appended.Count > 0) SpecReport.For<AppendedEventsReport>().Add(appended);
         }
-    }
 
-    private static Task<IReadOnlyList<IEvent>> fetchAsync(IEventStore store, object id) => id switch
-    {
-        Guid guid => EventStores.FetchStreamAsync(store, guid),
-        string key => EventStores.FetchStreamAsync(store, key),
-        _ => throw new ArgumentOutOfRangeException(nameof(id), $"A stream is identified by a Guid or a string, not a {id.GetType().Name}")
-    };
+        return outcome;
+    }
 
     // GH-4931: the act's own commits are those of the sessions that handled the act itself. An HTTP endpoint
     // has no envelope; a dispatched message is its envelope's message, and a cascade's envelope carries a
@@ -523,107 +401,6 @@ public class WolverineScenario
 
     private static bool isTheActsOwn(Envelope? envelope, object? dispatched)
         => dispatched is null || envelope is null || ReferenceEquals(envelope.Message, dispatched);
-
-    // ---- assert: events ----------------------------------------------------------------------
-
-    // wolverine#4865: the tags each event was appended with -- strong-typed ids, as the store tagged them.
-    // Read from the events the act's sessions committed, so they are there; no store reads them back.
-    private static Func<object, IReadOnlyList<object>?> tagsOf(IReadOnlyList<IEvent> events)
-    {
-        var tags = new Dictionary<object, IReadOnlyList<object>>(ReferenceEqualityComparer.Instance);
-        foreach (var e in events)
-        {
-            tags[e.Data] = e.Tags?.Select(x => x.Value).ToArray() ?? Array.Empty<object>();
-        }
-
-        return data => tags.GetValueOrDefault(data);
-    }
-
-    /// <summary>The act appended exactly these event types, in this order.</summary>
-    public void ThenEvents(params Type[] events)
-    {
-        using var step = ScenarioRecorder.Step("Then", $"{names(events)} {(events.Length == 1 ? "is" : "are")} emitted");
-        if (!actSucceeded()) return;
-
-        var actual = LastAct.NewEvents.Select(x => x.Data.GetType()).ToArray();
-        for (var i = 0; i < Math.Max(actual.Length, events.Length); i++)
-        {
-            Verdicts.Check("event", i < actual.Length ? actual[i].Name : null, i < events.Length ? events[i].Name : null, i);
-        }
-
-        Verdicts.Fact(actual.SequenceEqual(events),
-            $"Expected {describeTypes(events)} but the act appended {describeTypes(actual)}");
-    }
-
-    /// <summary>
-    /// The act appended exactly these events, in order, compared <b>structurally</b> — property by
-    /// property, nested properties and collections included, never through <c>Equals</c> (GH-4835).
-    /// Wrap one in <see cref="Expect.Value{T}" /> to show but not judge a member nobody controls.
-    /// </summary>
-    /// <remarks>
-    /// Prefer a deterministic clock to <c>Ignoring(...)</c> for a timestamp: give the host a
-    /// <see cref="TimeProvider" /> the test controls and the value becomes something to assert.
-    /// </remarks>
-    /// <remarks>
-    /// An event may also be a partial object — <c>Specify&lt;T&gt;().With(x =&gt; x.Prop, value)</c>, or the
-    /// rows of <c>PartialObjects.FromTable</c> — judged and shown on only the members it names (wolverine#4870).
-    /// </remarks>
-    public void ThenEvents(params object[] events)
-        => verifyEvents(flatten(events), SetMode.Ordered, "{0} {1} emitted");
-
-    /// <summary>
-    /// The act appended exactly these events, in <b>any</b> order — whole objects, <see cref="Expect.Value{T}" />s
-    /// or partial objects, as for <see cref="ThenEvents(object[])" />. For a handler whose events have no
-    /// order a reader should care about.
-    /// </summary>
-    public void ThenEventsInAnyOrder(params object[] events)
-        => verifyEvents(flatten(events), SetMode.AnyOrder, "{0} {1} emitted in any order");
-
-    /// <summary>The act appended exactly these event types, in any order.</summary>
-    public void ThenEventsInAnyOrder(params Type[] events)
-        => verifyEvents(events.Select(anyOf).ToArray(), SetMode.AnyOrder, "{0} {1} emitted in any order");
-
-    /// <summary>
-    /// The act appended these events among whatever else it appended — whole objects, <see cref="Expect.Value{T}" />s
-    /// or partial objects. Nothing else is judged, or shown.
-    /// </summary>
-    public void ThenEmitted(params object[] events)
-        => verifyEvents(flatten(events), SetMode.Contains, "{0} {1} emitted");
-
-    /// <summary>The act appended a <typeparamref name="T" />, whatever its values, among whatever else it appended.</summary>
-    public void ThenEmitted<T>() => verifyEvents([anyOf(typeof(T))], SetMode.Contains, "{0} {1} emitted");
-
-    /// <summary>The act appended no <typeparamref name="T" /> at all.</summary>
-    public void ThenNotEmitted<T>() => verifyAbsent([typeof(T)]);
-
-    /// <summary>
-    /// The act appended nothing matching any of these — a partial object forbids only the events that
-    /// agree on the members it names, and a whole object only an equal one.
-    /// </summary>
-    public void ThenNotEmitted(params object[] events) => verifyAbsent(flatten(events));
-
-    private void verifyEvents(object[] expected, SetMode mode, string format)
-    {
-        var text = string.Format(CultureInfo.InvariantCulture, format,
-            describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray()), expected.Length == 1 ? "is" : "are");
-        using var step = ScenarioRecorder.Step("Then", text);
-        if (!actSucceeded()) return;
-
-        verifySet("event", LastAct.NewEvents.Select(x => x.Data).ToArray(), expected, mode, tagsOf(LastAct.NewEvents));
-    }
-
-    private void verifyAbsent(object[] forbidden)
-    {
-        using var step = ScenarioRecorder.Step("Then",
-            $"{describeTypes(forbidden.Select(PartialMatching.ExpectedType).ToArray())} {(forbidden.Length == 1 ? "is" : "are")} not emitted");
-        if (!actSucceeded()) return;
-
-        var run = ObjectSetVerification.Absent(LastAct.NewEvents.Select(x => x.Data).ToArray(), forbidden, "event",
-            tagsOf(LastAct.NewEvents));
-        if (Verdicts.Recording) run.Report(null);
-
-        Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")));
-    }
 
     // ---- assert: events past an asynchronous boundary (GH-4939) ---------------------------------
 
@@ -662,7 +439,12 @@ public class WolverineScenario
     private async Task verifyEventuallyCaused(object[] expected)
     {
         var text = $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} eventually emitted";
-        using var step = ScenarioRecorder.Step("Then", text);
+        // The store reads can throw something other than what the step reports itself: that fails the step's line
+        await inStep(ScenarioRecorder.Step("Then", text), () => judgeEventuallyCaused(expected));
+    }
+
+    private async Task judgeEventuallyCaused(object[] expected)
+    {
         if (!actSucceeded()) return;
 
         if (LastAct.CorrelationId is not { } correlationId)
@@ -692,7 +474,7 @@ public class WolverineScenario
         {
             try
             {
-                await EventStores.WaitForNonStaleProjectionsAsync(Store, EventStores.DefaultProjectionTimeout);
+                await EventStores.WaitForNonStaleProjectionsAsync(Store, ProjectionTimeout);
             }
             catch (TimeoutException e)
             {
@@ -782,94 +564,6 @@ public class WolverineScenario
                "automatic schema creation or a migration adds.";
     }
 
-    /// <summary>
-    /// GH-4920. The act appended exactly these events, in order, to <typeparamref name="TAggregate" />'s stream
-    /// with this identity — for a command that decides against several streams, where <c>ThenEvents</c> can
-    /// only speak for the one the act addresses. Only what the act added counts, never what was arranged.
-    /// </summary>
-    /// <inheritdoc cref="ThenEventsOn{TAggregate}(Guid, object[])" />
-    public void ThenEventsOn<TAggregate>(object id, params object[] events) where TAggregate : class
-        => verifyEventsOn(typeof(TAggregate), id, flatten(events));
-
-    /// <inheritdoc cref="ThenNoEventsOn{TAggregate}(Guid)" />
-    public void ThenNoEventsOn<TAggregate>(object id) where TAggregate : class => verifyEventsOn(typeof(TAggregate), id, []);
-
-    public void ThenEventsOn<TAggregate>(Guid id, params object[] events) where TAggregate : class
-        => verifyEventsOn(typeof(TAggregate), id, flatten(events));
-
-    /// <inheritdoc cref="ThenEventsOn{TAggregate}(Guid, object[])" />
-    public void ThenEventsOn<TAggregate>(string key, params object[] events) where TAggregate : class
-        => verifyEventsOn(typeof(TAggregate), key, flatten(events));
-
-    /// <summary>GH-4920. The act appended nothing to <typeparamref name="TAggregate" />'s stream with this identity.</summary>
-    public void ThenNoEventsOn<TAggregate>(Guid id) where TAggregate : class => verifyEventsOn(typeof(TAggregate), id, []);
-
-    /// <inheritdoc cref="ThenNoEventsOn{TAggregate}(Guid)" />
-    public void ThenNoEventsOn<TAggregate>(string key) where TAggregate : class => verifyEventsOn(typeof(TAggregate), key, []);
-
-    private void verifyEventsOn(Type aggregate, object id, object[] expected)
-    {
-        var text = expected.Length == 0
-            ? $"no events are emitted on the {aggregate.Name} stream {ScenarioValues.Format(id)}"
-            : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on the {aggregate.Name} stream {ScenarioValues.Format(id)}";
-        using var step = ScenarioRecorder.Step("Then", text);
-        if (!actSucceeded()) return;
-
-        var stream = StrongTypedIds.StreamIdentity(id);
-        var onStream = LastAct.AllNewEvents.Where(x => isOn(x, stream)).Select(x => x.Data).ToArray();
-        if (expected.Length == 0)
-        {
-            Verdicts.Fact(onStream.Length == 0,
-                $"Expected no events on the {aggregate.Name} stream {id}, but the act appended {ScenarioValues.DescribeAll(onStream)}");
-            return;
-        }
-
-        if (onStream.Length == 0)
-        {
-            // Say where the act's events DID go, which is usually the whole answer
-            var elsewhere = LastAct.AllNewEvents
-                .GroupBy(x => (object?)x.StreamKey ?? x.StreamId)
-                .Select(x => $"{x.Key}: {ScenarioValues.DescribeAll(x.Select(e => e.Data))}")
-                .ToList();
-            Verdicts.Fact(false, elsewhere.Count == 0
-                ? $"Expected events on the {aggregate.Name} stream {id}, but the act appended no events anywhere"
-                : $"Expected events on the {aggregate.Name} stream {id}, but the act appended none there. It appended to: {string.Join("; ", elsewhere)}");
-            return;
-        }
-
-        verifySet("event", onStream, expected, SetMode.Ordered, tagsOf(LastAct.AllNewEvents));
-    }
-
-    /// <summary>
-    /// wolverine#4865. The act appended exactly these events, in order, among those <paramref name="query" />
-    /// selects by their tags — the DCB counterpart to <see cref="ThenEventsOn{TAggregate}(Guid, object[])" />,
-    /// for a decision whose consistency boundary is a tag query rather than one stream. Only what the act
-    /// added counts, its cascades' included.
-    /// </summary>
-    public void ThenEventsOn(EventTagQuery query, params object[] events)
-    {
-        var expected = flatten(events);
-        var scope = EventStores.Describe(query);
-        var text = expected.Length == 0
-            ? $"no events are emitted on {scope}"
-            : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on {scope}";
-        using var step = ScenarioRecorder.Step("Then", text);
-        if (!actSucceeded()) return;
-
-        var selected = LastAct.AllNewEvents.Where(x => selects(query, x)).ToList();
-        if (expected.Length == 0)
-        {
-            Verdicts.Fact(selected.Count == 0,
-                $"Expected no events on {scope}, but the act appended {ScenarioValues.DescribeAll(selected.Select(x => x.Data))}");
-            return;
-        }
-
-        verifySet("event", selected.Select(x => x.Data).ToArray(), expected, SetMode.Ordered, tagsOf(selected));
-    }
-
-    /// <summary>wolverine#4865. The act appended nothing that <paramref name="query" /> selects.</summary>
-    public void ThenNoEventsOn(EventTagQuery query) => ThenEventsOn(query);
-
     // ---- assert: the consistency boundary (GH-4940) --------------------------------------------
 
     /// <summary>
@@ -891,6 +585,7 @@ public class WolverineScenario
     /// <paramref name="expected" />, as <see cref="ThenTheConsistencyBoundaryIs(EventTagQuery)" /> judges it —
     /// for an act that loads more than one boundary.
     /// </summary>
+    [EventModelRole(SliceRole.Aggregate, nameof(TModel))]
     public void ThenTheConsistencyBoundaryIs<TModel>(EventTagQuery expected)
         => verifyBoundary(typeof(TModel), expected);
 
@@ -1021,500 +716,6 @@ public class WolverineScenario
             ? $"events tagged {ScenarioValues.Format(condition.TagValue)}"
             : $"{condition.EventType.Name} tagged {ScenarioValues.Format(condition.TagValue)}";
 
-    // Whether a tag query selects an event: one of its conditions names a tag the event carries, and
-    // either no event type or the event's own
-    private static bool selects(EventTagQuery query, IEvent @event)
-        => @event.Tags is { Count: > 0 } tags && query.Conditions.Any(condition =>
-            (condition.EventType is null || condition.EventType == @event.Data.GetType())
-            && tags.Any(tag => tag.TagType == condition.TagType && Equals(tag.Value, condition.TagValue)));
-
-    private static bool isOn(IEvent @event, object id) => id switch
-    {
-        Guid guid => @event.StreamId == guid,
-        string key => @event.StreamKey == key,
-        _ => false
-    };
-
-    /// <summary>The act appended nothing — the refusal half of a guard.</summary>
-    public void ThenNoEvents()
-    {
-        using var step = ScenarioRecorder.Step("Then", "no events are emitted");
-        Verdicts.Fact(LastAct.NewEvents.Count == 0,
-            $"Expected no events but the act appended {ScenarioValues.DescribeAll(LastAct.NewEvents.Select(x => x.Data))}");
-    }
-
-    /// <summary>
-    /// The one event of type <typeparamref name="T" /> the act appended, to assert on further. Not a
-    /// step: it reads the capture, and the assertion that follows is the step. Throws unless exactly
-    /// one was appended.
-    /// </summary>
-    public T TheEvent<T>()
-    {
-        var matching = LastAct.NewEvents.Select(x => x.Data).OfType<T>().ToArray();
-        if (matching.Length == 1) return matching[0];
-
-        throw new SpecificationFailedException(
-            $"Expected exactly one {typeof(T).Name} but the act appended {matching.Length}{failureSuffix()}");
-    }
-
-    /// <summary>Every event the act appended, for a test that wants to look for itself.</summary>
-    public IReadOnlyList<object> TheEvents => LastAct.NewEvents.Select(x => x.Data).ToList();
-
-    /// <summary>
-    /// The act started a <typeparamref name="TAggregate" /> stream with this identity. The identity is
-    /// usually the decision — a redelivered trigger that reuses an id collides instead of starting a
-    /// second stream — and <c>ThenEvents</c> cannot say where its events went.
-    /// </summary>
-    /// <inheritdoc cref="ThenStreamIsStarted{TAggregate}(Guid)" />
-    public Task ThenStreamIsStarted<TAggregate>(object id) where TAggregate : class => ThenStreamIsStarted(typeof(TAggregate), id);
-
-    public Task ThenStreamIsStarted<TAggregate>(Guid id) where TAggregate : class
-        => ThenStreamIsStarted(typeof(TAggregate), id);
-
-    /// <inheritdoc cref="ThenStreamIsStarted{TAggregate}(Guid)" />
-    public Task ThenStreamIsStarted<TAggregate>(string key) where TAggregate : class
-        => ThenStreamIsStarted(typeof(TAggregate), key);
-
-    /// <inheritdoc cref="ThenStreamIsStarted{TAggregate}(Guid)" />
-    public async Task ThenStreamIsStarted(Type aggregate, object id)
-    {
-        using var step = ScenarioRecorder.Step("Then", $"a {aggregate.Name} stream is started with id \"{id}\"");
-        if (!actSucceeded()) return;
-
-        var events = await fetchAsync(Store, StrongTypedIds.StreamIdentity(id));
-        Verdicts.Fact(events.Count > 0,
-            $"Expected a {aggregate.Name} stream with id {id}, but no stream exists there. The act appended its events somewhere else, or started no stream at all.");
-    }
-
-    /// <summary>
-    /// wolverine#4865. One paragraph, two sentences: "a <typeparamref name="TAggregate" /> stream is started" and
-    /// "these events are emitted on it", for a command whose handler starts the stream with an id it assigns —
-    /// read back from the act (<see cref="TheStartedStream{TAggregate}" />). Each sentence has its own verdict.
-    /// </summary>
-    public Task ThenStreamIsStartedWithEvents<TAggregate>(params object[] events) where TAggregate : class
-        => streamIsStartedWithEvents(typeof(TAggregate), flatten(events));
-
-    // A spec that knows the id already says ThenStreamIsStarted<T>(id) and ThenEventsOn<T>(id, ...); an id
-    // overload here would read a lone event as the id
-
-    private async Task streamIsStartedWithEvents(Type aggregate, object[] expected)
-    {
-        var paragraph = new Paragraph("Then");
-        object? stream;
-        using (paragraph.Sentence($"a {aggregate.Name} stream is started"))
-        {
-            if (!actSucceeded()) return;
-
-            stream = startedStreamOrNull(aggregate);
-            if (stream is null) return;
-
-            ScenarioValues.Learn(stream, aggregate.Name);
-            var events = await fetchAsync(Store, stream);
-            Verdicts.Fact(events.Count > 0,
-                $"Expected a {aggregate.Name} stream with id {ScenarioValues.Format(stream)}, but no stream exists there.");
-        }
-
-        var text = $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on it";
-        using (paragraph.Sentence(text))
-        {
-            var onStream = LastAct.AllNewEvents.Where(x => isOn(x, stream)).ToList();
-            verifySet("event", onStream.Select(x => x.Data).ToArray(), expected, SetMode.Ordered, tagsOf(onStream));
-        }
-    }
-
-    // The one stream of this type the act started, or null with the reason recorded as the step's failure
-    private object? startedStreamOrNull(Type aggregate)
-    {
-        var started = LastAct.StartedStreams.Where(x => x.AggregateType is null || x.AggregateType == aggregate).ToList();
-        if (started.Count == 1) return started[0].Key ?? (object)started[0].Id;
-
-        Verdicts.Fail(started.Count == 0
-            ? $"The act started no {aggregate.Name} stream{(LastAct.StartedStreams.Count == 0 ? "; it started no stream at all" : "")}."
-            : $"The act started {started.Count} {aggregate.Name} streams; name the one you mean with ThenStreamIsStartedWithEvents<{aggregate.Name}>(id, ...).");
-        return null;
-    }
-
-    /// <summary>The write model, folded from its stream.</summary>
-    public Task<T?> TheAggregate<T>(Guid id) where T : class => EventStores.AggregateStreamAsync<T>(Store, id);
-
-    /// <inheritdoc cref="TheAggregate{T}(Guid)" />
-    public Task<T?> TheAggregate<T>(string key) where T : class => EventStores.AggregateStreamAsync<T>(Store, key);
-
-    /// <inheritdoc cref="TheAggregate{T}(Guid)" />
-    public Task<T?> TheAggregate<T>(object id) where T : class => StrongTypedIds.StreamIdentity(id) switch
-    {
-        Guid guid => TheAggregate<T>(guid),
-        var key => TheAggregate<T>((string)key)
-    };
-
-    /// <summary>
-    /// GH-4931. The id the last act's handler assigned to the <typeparamref name="TAggregate" /> stream it
-    /// started -- for a command that starts a stream, whose id a spec cannot know before the act. Read from
-    /// what the act's own session committed, so a stream a cascade started is not it.
-    /// </summary>
-    /// <exception cref="SpecCriticalException">The act started no such stream, or more than one.</exception>
-    public Guid TheStartedStream<TAggregate>() where TAggregate : class => startedStream(typeof(TAggregate)).Id;
-
-    /// <inheritdoc cref="TheStartedStream{TAggregate}()" />
-    public string TheStartedStreamKey<TAggregate>() where TAggregate : class
-        => startedStream(typeof(TAggregate)).Key
-           ?? throw new SpecCriticalException($"The {typeof(TAggregate).Name} stream the act started is identified by a Guid, not a string key. Use TheStartedStream<{typeof(TAggregate).Name}>().");
-
-    private StreamAction startedStream(Type aggregate)
-    {
-        // A stream started with no aggregate type (Storage.StartStream with events only) can still be the one
-        var started = LastAct.StartedStreams.Where(x => x.AggregateType is null || x.AggregateType == aggregate).ToList();
-        return started.Count switch
-        {
-            1 => started[0],
-            0 => throw new SpecCriticalException(LastAct.StartedStreams.Count == 0
-                ? $"The act started no {aggregate.Name} stream; it started no stream at all."
-                : $"The act started no {aggregate.Name} stream. It started: {string.Join(", ", LastAct.StartedStreams.Select(x => x.AggregateType?.Name ?? "(no aggregate type)"))}."),
-            _ => throw new SpecCriticalException($"The act started {started.Count} {aggregate.Name} streams, so there is no one id to name.")
-        };
-    }
-
-    // ---- assert: refusals --------------------------------------------------------------------
-
-    /// <summary>
-    /// The act was refused, and the refusal says <paramref name="reason" />: an HTTP endpoint's
-    /// ProblemDetails, or the exception a bus-dispatched command's handler threw.
-    /// </summary>
-    public void ThenRefusedWith(string reason) => assertRefusal($"refused with \"{reason}\"", reason);
-
-    /// <summary>
-    /// The act was refused with <paramref name="reason" />, and the refusal names each of
-    /// <paramref name="mentioning" />: the values an event model gives a refusal, as in
-    /// <c>EmailAlreadyInUse { email: joe@example.com }</c>.
-    /// </summary>
-    /// <remarks>
-    /// Checked against the refusal's text, an HTTP endpoint's ProblemDetails or the exception a
-    /// handler threw, so it holds for both and asks nothing of how the refusal is built.
-    /// </remarks>
-    public void ThenRefusedWith(string reason, params object[] mentioning)
-    {
-        if (mentioning.Length == 0)
-        {
-            ThenRefusedWith(reason);
-            return;
-        }
-
-        var named = string.Join(", ", mentioning.Select(ScenarioValues.Format));
-        using var step = ScenarioRecorder.Step("Then", $"refused with \"{reason}\", naming {named}");
-
-        var refusal = LastAct.Refusal ?? LastAct.Error?.Message;
-        if (refusal is null)
-        {
-            Verdicts.Fail($"Expected the act to be refused with \"{reason}\", but it succeeded.");
-            return;
-        }
-
-        Verdicts.Cell("reason", refusal.Contains(reason, StringComparison.Ordinal), reason, refusal);
-        var missing = new List<string>();
-        foreach (var value in mentioning)
-        {
-            var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
-            var named_ = refusal.Contains(text, StringComparison.Ordinal);
-            Verdicts.Cell(ScenarioValues.Format(value), named_, "named", named_ ? "named" : "not named");
-            if (!named_) missing.Add(text);
-        }
-
-        Verdicts.Fact(refusal.Contains(reason, StringComparison.Ordinal) && missing.Count == 0,
-            $"Expected a refusal containing \"{reason}\" and naming {string.Join(", ", mentioning)}, but it was: {refusal}");
-    }
-
-    /// <summary>
-    /// The act was refused by throwing a <typeparamref name="TException" />, found anywhere in the
-    /// exception the act raised (an inner exception, or one of an <see cref="AggregateException" />'s),
-    /// and it matches <paramref name="expected" /> when one is given: a partial object naming the
-    /// members a spec is about, as in <c>Specify&lt;EmailAlreadyInUse&gt;().With(x =&gt; x.Email, …)</c>.
-    /// </summary>
-    /// <remarks>
-    /// The typed form of <see cref="ThenRefusedWith(string)" /> for a bus-dispatched command. An HTTP
-    /// endpoint refuses with a response rather than an exception: assert its ProblemDetails instead.
-    /// </remarks>
-    public TException? ThenRefusedWith<TException>(object? expected = null) where TException : Exception
-    {
-        if (expected is not null and not IPartialObject)
-            throw new ArgumentException(
-                $"Describe the expected {typeof(TException).Name} as a partial object, Specify<{typeof(TException).Name}>().With(...): an exception is matched on the members a spec names, never built whole.",
-                nameof(expected));
-
-        var partial = expected as IPartialObject;
-        var text = partial is null || partial.Values.Count == 0
-            ? $"refused with {typeof(TException).Name}"
-            : $"refused with {PartialObjects.Describe(partial)}";
-        using var step = ScenarioRecorder.Step("Then", text);
-
-        if (LastAct.Error is null)
-        {
-            Verdicts.Fail(LastAct.Refusal is { } refusal
-                ? $"Expected a {typeof(TException).Name} to be thrown, but the act was refused with a response: {refusal}"
-                : $"Expected a {typeof(TException).Name} to be thrown, but the act succeeded.");
-            return null;
-        }
-
-        var thrown = exceptionsIn(LastAct.Error).OfType<TException>().FirstOrDefault();
-        Verdicts.Check("exception", thrown?.GetType().Name ?? LastAct.Error.GetType().Name, typeof(TException).Name);
-        if (thrown is null)
-        {
-            Verdicts.Fact(false,
-                $"Expected a {typeof(TException).Name}, but the act threw {LastAct.Error.GetType().Name}: {LastAct.Error.Message}");
-            return null;
-        }
-
-        if (partial is not null)
-        {
-            var run = PropertyCells.Verify(thrown, partial);
-            if (!run.Succeeded && !Verdicts.Recording)
-                throw new SpecificationFailedException(
-                    $"{typeof(TException).Name} did not match: {string.Join(", ", PropertyCells.Disagreeing(run))}");
-        }
-
-        return thrown;
-    }
-
-    private static IEnumerable<Exception> exceptionsIn(Exception exception)
-    {
-        yield return exception;
-
-        IEnumerable<Exception> inner = exception switch
-        {
-            AggregateException aggregate => aggregate.InnerExceptions,
-            { InnerException: { } one } => [one],
-            _ => []
-        };
-        foreach (var child in inner)
-        foreach (var nested in exceptionsIn(child))
-            yield return nested;
-    }
-
-    /// <summary>A bus-dispatched command failed validation with <paramref name="reason" />. The same check as <see cref="ThenRefusedWith(string)" />, worded for a message.</summary>
-    public void ThenValidationFails(string reason) => assertRefusal($"validation fails with \"{reason}\"", reason);
-
-    private void assertRefusal(string text, string reason)
-    {
-        using var step = ScenarioRecorder.Step("Then", text);
-
-        var refusal = LastAct.Refusal ?? LastAct.Error?.Message;
-        if (refusal is null)
-        {
-            Verdicts.Fail($"Expected the act to be refused with \"{reason}\", but it succeeded.");
-            return;
-        }
-
-        Verdicts.Cell("reason", refusal.Contains(reason, StringComparison.Ordinal), reason, refusal);
-        Verdicts.Fact(refusal.Contains(reason, StringComparison.Ordinal),
-            $"Expected a refusal containing \"{reason}\" but it was: {refusal}");
-    }
-
-    // ---- assert: read models -----------------------------------------------------------------
-
-    /// <summary>
-    /// GH-4921. The aggregate of <typeparamref name="T" />'s stream with this identity, as the store serves it
-    /// through <c>FetchLatest&lt;T&gt;</c>: a projected snapshot where there is one, else built from the stream,
-    /// whatever the projection lifecycle. For state built from events. A plain or async-projected document
-    /// is <see cref="ThenDocument{T}(object)" />. Throws when there is no such stream.
-    /// </summary>
-    public Task<T> ThenAggregate<T>(Guid id) where T : class => thenAggregate<T>(id, null);
-
-    /// <inheritdoc cref="ThenAggregate{T}(Guid)" />
-    public Task<T> ThenAggregate<T>(object id) where T : class => thenAggregate<T>(id, null);
-
-    /// <inheritdoc cref="ThenAggregate{T}(Guid)" />
-    public Task<T> ThenAggregate<T>(string key) where T : class => thenAggregate<T>(key, null);
-
-    /// <summary>
-    /// GH-4921. The aggregate, as <see cref="ThenAggregate{T}(Guid)" />, judged against
-    /// <paramref name="expected" />: a partial object (<c>Specify&lt;T&gt;().With(...)</c>, a table, or
-    /// assertions on its members), or a whole object or <see cref="Expect.Value{T}" /> structurally.
-    /// </summary>
-    public Task<T> ThenAggregate<T>(Guid id, object expected) where T : class => thenAggregate<T>(id, expected);
-
-    /// <inheritdoc cref="ThenAggregate{T}(Guid, object)" />
-    public Task<T> ThenAggregate<T>(object id, object expected) where T : class => thenAggregate<T>(id, expected);
-
-    /// <inheritdoc cref="ThenAggregate{T}(Guid, object)" />
-    public Task<T> ThenAggregate<T>(string key, object expected) where T : class => thenAggregate<T>(key, expected);
-
-    private async Task<T> thenAggregate<T>(object id, object? expected) where T : class
-    {
-        var aggregate = StrongTypedIds.StreamIdentity(id) switch
-        {
-            Guid guid => await EventStores.FetchLatestAsync<T>(Store, guid),
-            string key => await EventStores.FetchLatestAsync<T>(Store, key),
-            _ => throw new ArgumentOutOfRangeException(nameof(id), "A stream is identified by a Guid or a string")
-        } ?? throw new SpecificationFailedException(
-            $"No {typeof(T).Name} with id {id}: FetchLatest found no stream there. The act appended to another stream, or none.");
-
-        if (expected is not null) ThenMatches(aggregate, expected);
-        return aggregate;
-    }
-
-    /// <summary>
-    /// GH-4921. The document of type <typeparamref name="T" /> with this identity, loaded with
-    /// <c>LoadAsync</c> once the projections have caught up: a plain document, or a projection stored as
-    /// one. An aggregate built from events is <see cref="ThenAggregate{T}(Guid)" />. The same as
-    /// <see cref="ThenReadModel{T}(object)" />.
-    /// </summary>
-    public Task<T> ThenDocument<T>(object id) where T : class => ThenReadModel<T>(id);
-
-    /// <summary>GH-4921. The document, as <see cref="ThenDocument{T}(object)" />, judged against <paramref name="expected" />.</summary>
-    public Task<T> ThenDocument<T>(object id, object expected) where T : class => ThenReadModel<T>(id, expected);
-
-    /// <summary>
-    /// The read model with this identity, once the projections have caught up — an async projection
-    /// read straight after the act reads a stale document. Throws when there is no such document,
-    /// because there is nothing to hand back. Loaded with <c>LoadAsync</c>, so it is the same as
-    /// <see cref="ThenDocument{T}(object)" />; for an aggregate built from events, see
-    /// <see cref="ThenAggregate{T}(Guid)" /> (GH-4921).
-    /// </summary>
-    public async Task<T> ThenReadModel<T>(object id) where T : class
-    {
-        await ThenProjectionsAreCaughtUp(typeof(T));
-
-        return await EventStoreAuthoring.LoadDocumentAsync<T>(Store, id)
-               ?? throw new SpecificationFailedException(
-                   $"No {typeof(T).Name} document with id {id}. The projections caught up, so either nothing routed to this id or its identity rule differs.");
-    }
-
-    /// <summary>
-    /// The read model with this identity, once the projections have caught up, judged against
-    /// <paramref name="expected" />: a partial object (<c>Specify&lt;T&gt;()</c>) on only the members it
-    /// names, or a whole object or <see cref="Expect.Value{T}" /> structurally. Hands the document back.
-    /// </summary>
-    public async Task<T> ThenReadModel<T>(object id, object expected) where T : class
-    {
-        var document = await ThenReadModel<T>(id);
-        ThenMatches(document, expected);
-        return document;
-    }
-
-    /// <summary>
-    /// No read model with this identity exists once the projections have caught up — a view the
-    /// events did not create, or one they deleted.
-    /// </summary>
-    public async Task ThenNoReadModel<T>(object id) where T : class
-    {
-        await ThenProjectionsAreCaughtUp(typeof(T));
-
-        using var step = ScenarioRecorder.Step("Then", $"there is no {typeof(T).Name} {ScenarioValues.Format(id)}");
-        var document = await EventStoreAuthoring.LoadDocumentAsync<T>(Store, id);
-        Verdicts.Fact(document is null,
-            $"Expected no {typeof(T).Name} document with id {id}, but there is one: {ScenarioValues.Describe(document)}");
-    }
-
-    /// <summary>
-    /// The <typeparamref name="T" /> of the stream this scenario is about — the one the act started, or else the
-    /// one the givens arranged — as the store serves it through <c>FetchLatest&lt;T&gt;</c> once the async
-    /// daemons have caught up, judged against <paramref name="expected" /> when one is given.
-    /// </summary>
-    /// <remarks>
-    /// Only for a single-stream projection, registered or self-aggregating: a multi-stream projection has no
-    /// one stream to be fetched by, so it is refused (wolverine#4865). For a document stored any other way,
-    /// <see cref="ThenSingleDocument{T}" />.
-    /// </remarks>
-    public async Task<T> ThenSingleReadModel<T>(object? expected = null) where T : class
-    {
-        var kind = await EventStores.ProjectionKindAsync(Store, typeof(T));
-        if (kind is not null && kind != SubscriptionType.SingleStreamProjection)
-            throw new SpecCriticalException(
-                $"ThenSingleReadModel<{typeof(T).Name}>() reads a single-stream projection, but {typeof(T).Name} is a {kind}. " +
-                $"Name the document instead: ThenReadModel<{typeof(T).Name}>(id, ...).");
-
-        await AfterAsyncDaemonsCatchUpAsync();
-
-        var stream = scenarioStream(typeof(T), nameof(ThenSingleReadModel));
-        var model = await theLatest<T>(stream)
-                    ?? throw new SpecificationFailedException(
-                        $"No {typeof(T).Name} for the stream {ScenarioValues.Format(stream)}: FetchLatest found nothing there.");
-
-        if (expected is not null) ThenMatches(model, expected);
-        return model;
-    }
-
-    /// <summary>
-    /// The <typeparamref name="T" /> document stored under the id of the stream this scenario is about, loaded with
-    /// <c>LoadAsync</c> once the async daemons have caught up — a projected document on Marten or Polecat — and
-    /// judged against <paramref name="expected" /> when one is given.
-    /// </summary>
-    public async Task<T> ThenSingleDocument<T>(object? expected = null) where T : class
-    {
-        await AfterAsyncDaemonsCatchUpAsync();
-
-        var stream = scenarioStream(typeof(T), nameof(ThenSingleDocument));
-        var document = await EventStoreAuthoring.LoadDocumentAsync<T>(Store, stream)
-                       ?? throw new SpecificationFailedException(
-                           $"No {typeof(T).Name} document with id {ScenarioValues.Format(stream)}. The async daemons caught up, so nothing stored one there.");
-
-        if (expected is not null) ThenMatches(document, expected);
-        return document;
-    }
-
-    private Task<T?> theLatest<T>(object stream) where T : class => stream switch
-    {
-        Guid guid => EventStores.FetchLatestAsync<T>(Store, guid),
-        _ => EventStores.FetchLatestAsync<T>(Store, (string)stream)
-    };
-
-    // The stream a spec without an id means: the one stream the act started, else the one the givens arranged
-    private object scenarioStream(Type model, string step)
-    {
-        if (LastAct.StartedStreams is [var started]) return started.Key ?? (object)started.Id;
-        return _stream ?? throw new SpecCriticalException(
-            $"{step}<{model.Name}>() reads the stream the scenario is about, but the act started none and the givens arranged none. " +
-            $"Name it: ThenReadModel<{model.Name}>(id, ...).");
-    }
-
-    /// <summary>
-    /// Wait until every asynchronous projection on every database has caught up, so a read model reflects the
-    /// act — what the <c>WaitForNonStaleResults</c>-style helpers need first.
-    /// </summary>
-    public async Task AfterAsyncDaemonsCatchUpAsync()
-    {
-        using var step = ScenarioRecorder.Step("Given", "the async daemons have caught up");
-        await EventStores.WaitForNonStaleProjectionsAsync(Store, EventStores.DefaultProjectionTimeout);
-    }
-
-    /// <summary><see cref="AfterAsyncDaemonsCatchUpAsync()" /> for one tenant's database.</summary>
-    public async Task AfterAsyncDaemonsCatchUpAsync(string tenantId)
-    {
-        using var step = ScenarioRecorder.Step("Given", $"the async daemons have caught up for tenant \"{tenantId}\"");
-        await EventStores.WaitForNonStaleProjectionsAsync(Store, tenantId, EventStores.DefaultProjectionTimeout);
-    }
-
-    /// <summary>There is no <typeparamref name="T" /> at all once the projections have caught up.</summary>
-    public async Task ThenNoReadModel<T>() where T : class
-    {
-        await ThenProjectionsAreCaughtUp(typeof(T));
-
-        using var step = ScenarioRecorder.Step("Then", $"there is no {typeof(T).Name}");
-        var documents = await allDocuments<T>();
-        Verdicts.Fact(documents.Count == 0,
-            $"Expected no {typeof(T).Name} document, but there {(documents.Count == 1 ? "is one" : $"are {documents.Count}")}: {ScenarioValues.DescribeAll(documents.Cast<object>().ToList())}");
-    }
-
-    private async Task<IReadOnlyList<T>> allDocuments<T>() where T : class
-    {
-        var session = DocumentStores.SessionFactoryFor(Store).QuerySession();
-        try
-        {
-            var queryable = ((JasperFx.Events.Documents.IDocumentReadOperations)session).Query<T>();
-            return await JasperFx.Events.Documents.DocumentQueryableExtensions.ToListAsync(queryable);
-        }
-        finally
-        {
-            if (session is IAsyncDisposable asyncDisposable) await asyncDisposable.DisposeAsync();
-            else if (session is IDisposable disposable) disposable.Dispose();
-        }
-    }
-
-    public async Task ThenProjectionsAreCaughtUp(Type readModel)
-    {
-        using var step = ScenarioRecorder.Step("Then", $"the {readModel.Name} read model has caught up");
-        await EventStores.WaitForNonStaleProjectionsAsync(Store, EventStores.DefaultProjectionTimeout);
-    }
-
     // ---- assert: cascaded messages (GH-4837) -------------------------------------------------
 
     /// <summary>
@@ -1522,6 +723,7 @@ public class WolverineScenario
     /// one is given, matched as a prefix of the destination URI (<c>"rabbitmq://queue/billing"</c>,
     /// <c>"local://"</c>).
     /// </summary>
+    [EventModelRole(SliceRole.Message, nameof(T))]
     public void ThenMessageSent<T>(string? destination = null)
     {
         using var step = ScenarioRecorder.Step("Then",
@@ -1538,9 +740,11 @@ public class WolverineScenario
     }
 
     /// <summary>The act sent a <typeparamref name="T" /> to a local queue in this application.</summary>
+    [EventModelRole(SliceRole.Message, nameof(T))]
     public void ThenMessageSentLocally<T>() => ThenMessageSent<T>("local://");
 
     /// <summary>The act sent a <typeparamref name="T" /> to an external transport — anything but a local queue.</summary>
+    [EventModelRole(SliceRole.Message, nameof(T))]
     public void ThenMessageSentExternally<T>()
     {
         using var step = ScenarioRecorder.Step("Then", $"{typeof(T).Name} is sent to an external transport");
@@ -1555,6 +759,7 @@ public class WolverineScenario
     /// The act sent or published a message structurally equal to <paramref name="expected" /> — or an
     /// <see cref="Expect.Value{T}" /> with members to ignore.
     /// </summary>
+    [EventModelRole(SliceRole.Message, nameof(expected))]
     public void ThenMessageSent(object expected)
     {
         if (expected is IPartialObject partial)
@@ -1605,6 +810,7 @@ public class WolverineScenario
     /// <see cref="ThenMessageSent{T}" /> does not see it. With <paramref name="delay" />, the message
     /// is due no sooner than that long after the act.
     /// </summary>
+    [EventModelRole(SliceRole.Message, nameof(T))]
     public void ThenMessageScheduled<T>(TimeSpan? delay = null)
     {
         using var step = ScenarioRecorder.Step("Then",
@@ -1630,6 +836,12 @@ public class WolverineScenario
     public void ThenNoMessageScheduled<T>()
     {
         using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is scheduled");
+        if (!acted)
+        {
+            Verdicts.Fail($"Expected no {typeof(T).Name} to be scheduled, but no act has run.");
+            return;
+        }
+
         var scheduled = scheduledOf(typeof(T)).ToArray();
         Verdicts.Fact(scheduled.Length == 0, $"Expected no {typeof(T).Name} to be scheduled but {scheduled.Length} were");
     }
@@ -1642,6 +854,12 @@ public class WolverineScenario
     public void ThenNoMessageSent<T>()
     {
         using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is sent");
+        if (!acted)
+        {
+            Verdicts.Fail($"Expected no {typeof(T).Name} to be sent, but no act has run.");
+            return;
+        }
+
         var sent = sentOf(typeof(T)).ToArray();
         Verdicts.Fact(sent.Length == 0,
             $"Expected no {typeof(T).Name} but {sent.Length} were sent, to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)"))}");
@@ -1667,169 +885,4 @@ public class WolverineScenario
             : string.Join(", ", sent.Select(x => $"{(x.Message is null ? x.MessageType : ScenarioValues.Describe(x.Message))} to {x.Destination}"));
     }
 
-    // ---- assert: any object (GH-4836) --------------------------------------------------------
-
-    /// <summary>
-    /// Verify selected properties of <paramref name="subject" /> as a table — Bobcat's
-    /// <c>PropertyCells</c>, one cell per column, nested paths (<c>Address.City</c>) included. Not
-    /// HTTP-specific: a response, a read model, an aggregate, anything.
-    /// </summary>
-    /// <param name="subject">What is being verified.</param>
-    /// <param name="expected">One header row naming the properties, one row of expected values: <c>"| Name | Address.City |\n| Ann | Austin |"</c>.</param>
-    public void Verify(object subject, StepTable expected)
-    {
-        using var step = ScenarioRecorder.Step("Then", $"the {subject.GetType().Name} has");
-        var run = PropertyCells.Verify(subject, expected);
-        if (!run.Succeeded && !Verdicts.Recording)
-        {
-            throw new SpecificationFailedException(
-                $"{subject.GetType().Name} did not match: {string.Join(", ", PropertyCells.Disagreeing(run))}");
-        }
-    }
-
-    /// <summary>
-    /// <paramref name="subject" /> is structurally equal to <paramref name="expected" /> — or to an
-    /// <see cref="Expect.Value{T}" /> with members to ignore. The same rules as <see cref="ThenEvents(object[])" />.
-    /// </summary>
-    public void ThenMatches(object? subject, object expected)
-        => matches(null, subject, expected);
-
-    /// <summary>
-    /// wolverine#4865. <typeparamref name="T" /> projected over the events <paramref name="query" /> selects by
-    /// their tags — a Dynamic Consistency Boundary model, or a view built the same way. Null when nothing
-    /// matches the query.
-    /// </summary>
-    public Task<T?> TheDcbModel<T>(EventTagQuery query) where T : class => EventStores.AggregateByTagsAsync<T>(Store, query);
-
-    /// <summary>
-    /// wolverine#4865. <typeparamref name="T" />, projected over the events <paramref name="query" /> selects by
-    /// their tags, is <paramref name="expected" />: a whole object, an <see cref="Expect.Value{T}" /> or a partial
-    /// one, judged as <see cref="ThenMatches" /> judges.
-    /// </summary>
-    public async Task ThenDcbModel<T>(EventTagQuery query, object expected) where T : class
-    {
-        var text = $"the {typeof(T).Name} over {EventStores.Describe(query)} matches";
-        T? model;
-        using (ScenarioRecorder.Step("Given", $"{typeof(T).Name} is projected over {EventStores.Describe(query)}"))
-        {
-            model = await TheDcbModel<T>(query);
-        }
-
-        matches(text, model, expected);
-    }
-
-    private void matches(string? text, object? subject, object expected)
-    {
-        if (expected is IPartialObject partial)
-        {
-            using var partialStep = ScenarioRecorder.Step("Then", text ?? $"the {partial.Type.Name} matches");
-            if (subject is null)
-            {
-                Verdicts.Fail($"Expected a {partial.Type.Name} but there was nothing to verify");
-                return;
-            }
-
-            var run = PropertyCells.Verify(subject, partial);
-            if (!run.Succeeded && !Verdicts.Recording)
-            {
-                throw new SpecificationFailedException(
-                    $"{partial.Type.Name} did not match: {string.Join(", ", PropertyCells.Disagreeing(run))}");
-            }
-
-            return;
-        }
-
-        var value = unwrap(expected);
-        using var step = ScenarioRecorder.Step("Then", text ?? $"the {value.GetType().Name} matches");
-        compareSequence(value.GetType().Name, subject is null ? Array.Empty<object>() : new[] { subject }, new[] { expected });
-    }
-
-    // ---- shared ------------------------------------------------------------------------------
-
-    private void compareSequence(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected)
-    {
-        var problems = new List<string>();
-
-        for (var i = 0; i < Math.Max(actual.Count, expected.Count); i++)
-        {
-            var expectedValue = i < expected.Count ? unwrap(expected[i]) : null;
-            var actualValue = i < actual.Count ? actual[i] : null;
-
-            Verdicts.Check(noun, actualValue?.GetType().Name, expectedValue?.GetType().Name, i);
-
-            if (expectedValue is null)
-            {
-                problems.Add($"[{i}] an extra {actualValue!.GetType().Name}");
-                continue;
-            }
-
-            if (actualValue is null)
-            {
-                problems.Add($"[{i}] {expectedValue.GetType().Name} is missing");
-                continue;
-            }
-
-            if (actualValue.GetType() != expectedValue.GetType())
-            {
-                problems.Add($"[{i}] expected {expectedValue.GetType().Name} but was {actualValue.GetType().Name}");
-                continue;
-            }
-
-            var leaves = ObjectComparison.Compare(actualValue, expectedValue, (expected[i] as IExpectedValue)?.IgnoredPaths);
-            if (!Verdicts.Row(leaves, i)) problems.Add($"[{i}] {expectedValue.GetType().Name}: {Verdicts.Describe(leaves)}");
-        }
-
-        Verdicts.Fact(problems.Count == 0, string.Join(Environment.NewLine, problems));
-    }
-
-    private static object unwrap(object value) => value is IExpectedValue expected ? expected.Value : value;
-
-    /// <summary>
-    /// <paramref name="actual" /> against <paramref name="expected" /> as a set verification (GH-4835):
-    /// one grid with a row per item — OK, a FAIL naming the values that disagree, MISSING, EXTRA, or
-    /// ORDER — rather than a positional comparison that reads one missing
-    /// event as every later one wrong.
-    /// </summary>
-    private void verifySet(string noun, IReadOnlyList<object> actual, IReadOnlyList<object> expected, SetMode mode,
-        Func<object, IReadOnlyList<object>?>? tags = null)
-    {
-        var run = tags is null
-            ? ObjectSetVerification.Verify(actual, expected, noun, mode)
-            : ObjectSetVerification.Verify(actual, expected, noun, mode, tags);
-
-        if (Verdicts.Recording) run.Report(null);
-
-        Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, noun)));
-    }
-
-    /// <summary>
-    /// A failure the step did not ask about is reported as the act failing, rather than as "expected 1
-    /// event, got 0" — which would send the reader to the handler's logic when the answer is in the
-    /// exception the act captured.
-    /// </summary>
-    private bool actSucceeded()
-    {
-        if (LastAct.Error is { } error)
-        {
-            return Verdicts.Fail($"The act failed: {error.GetType().Name}: {error.Message}");
-        }
-
-        if (LastAct.Refusal is { } refusal)
-        {
-            return Verdicts.Fail($"The act was refused: {refusal}");
-        }
-
-        return true;
-    }
-
-    private string failureSuffix()
-        => LastAct.Error is { } e ? $". The act failed: {e.GetType().Name}: {e.Message}"
-            : LastAct.Refusal is { } r ? $". The act was refused: {r}" : "";
-
-    private static string names(IReadOnlyList<object> values) => describeTypes(values.Select(PartialMatching.ExpectedType).ToArray());
-
-    private static string names(Type[] types) => describeTypes(types);
-
-    private static string describeTypes(IReadOnlyList<Type> types)
-        => types.Count == 0 ? "nothing" : string.Join(", ", types.Select(x => x.Name));
 }

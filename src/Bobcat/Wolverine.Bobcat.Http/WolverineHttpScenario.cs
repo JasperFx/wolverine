@@ -3,6 +3,7 @@ using Bobcat;
 using Bobcat.Engine;
 using Bobcat.Runtime;
 using Microsoft.AspNetCore.Mvc;
+using JasperFx.Events.EventModeling;
 using Wolverine.Http.Runtime;
 using Wolverine.Tracking;
 
@@ -44,6 +45,8 @@ public class WolverineHttpScenario : WolverineScenario
     /// <paramref name="command" /> may be a partial object — <c>Specify&lt;T&gt;()</c> or a table row —
     /// built before the act; the step shows only the members it specifies.
     /// </remarks>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http)]
     public Task WhenPosted(object command, Action<Scenario>? configure = null)
     {
         // Built once, so the route's parameters and the body come from the same object
@@ -52,6 +55,8 @@ public class WolverineHttpScenario : WolverineScenario
     }
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
     public Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
         => postAsync(command, Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted to \"{route}\""), route, configure);
 
@@ -113,6 +118,8 @@ public class WolverineHttpScenario : WolverineScenario
     /// POST <paramref name="command" /> to the endpoint that accepts its type and hand back the 2xx
     /// response body, deserialized — or null when the endpoint refused or failed.
     /// </summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http)]
     public async Task<TResponse?> WhenPosted<TResponse>(object command, Action<Scenario>? configure = null)
     {
         await WhenPosted(command, configure);
@@ -120,6 +127,8 @@ public class WolverineHttpScenario : WolverineScenario
     }
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" /> and hand back the 2xx response body.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
     public async Task<TResponse?> WhenPosted<TResponse>(object command, string route, Action<Scenario>? configure = null)
     {
         await WhenPosted(command, route, configure);
