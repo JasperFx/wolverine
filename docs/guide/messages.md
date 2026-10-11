@@ -479,7 +479,7 @@ serialization.
 
 ## Envelope ID Generation <Badge type="tip" text="5.26" />
 
-Every message envelope in Wolverine is assigned a unique `Guid` identifier. By default, Wolverine uses [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) algorithm which generates sequential GUIDs based on machine identity (MAC address or DNS hostname) and a timestamp. This works well for most scenarios and provides good database index performance, especially on SQL Server.
+Every message envelope in Wolverine is assigned a unique `Guid` identifier. By default, Wolverine uses [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) algorithm which generates sequential GUIDs based on machine identity (MAC address or DNS hostname) and a timestamp. Those ids sort in time order the way .NET and PostgreSQL compare GUIDs, which keeps the PostgreSQL inbox and outbox indexes compact. SQL Server is a different story, and there's a separate option for it [below](#envelope-ids-for-sql-server).
 
 However, in **cloud environments where multiple instances share network identity** — such as Kubernetes pods, Google Cloud Run, AWS Lambda, or other containerized/serverless platforms — `NewId` can produce **duplicate envelope IDs** because it relies on machine-specific properties that are identical across instances.
 
@@ -494,14 +494,44 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
-`GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces time-ordered GUIDs with cryptographically strong random bits. This guarantees uniqueness without relying on machine-specific properties, while still maintaining good database index performance due to time-ordering.
+`GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces GUIDs with a millisecond timestamp and cryptographically strong random bits. This guarantees uniqueness without relying on machine-specific properties. Just know that ids created within the same millisecond are in random order, so under a heavy message load they index about like random GUIDs, and SQL Server doesn't sort them by time at all.
 
 ::: warning
 `EnvelopeIdGeneration.GuidV7` requires **.NET 9 or later**. `Guid.CreateVersion7()` is not available on .NET 8. Attempting to use this option on .NET 8 will throw a `NotSupportedException` at startup.
 :::
 
-| Strategy | Uniqueness Source | Time-Ordered | Best For |
+| Strategy | Uniqueness Source | Sorted in time order by | Best For |
 |----------|------------------|-------------|----------|
-| `NewId` (default) | Machine identity + timestamp | Yes | Single-machine or unique-network deployments |
-| `GuidV7` | Cryptographic randomness + timestamp | Yes | Cloud, containers, serverless, greenfield apps |
+| `NewId` (default) | Machine identity + timestamp | .NET and PostgreSQL | Single-machine or unique-network deployments, and PostgreSQL message storage |
+| `GuidV7` | Cryptographic randomness + timestamp | .NET and PostgreSQL, to the millisecond | Cloud, containers, serverless, greenfield apps |
+| `NewIdSqlServerOrder` | Machine identity + timestamp | SQL Server | Applications whose envelopes are stored in SQL Server |
+
+### Envelope IDs for SQL Server <Badge type="tip" text="6.49" />
+
+SQL Server compares a `uniqueidentifier` starting from its *last* six bytes, so the default `NewId` ids -- and the
+`GuidV7` ids, for that matter -- arrive in effectively random order as far as SQL Server is concerned. Wolverine's
+SQL Server inbox, outbox, and dead letter tables are clustered on the envelope id, so a busy system keeps splitting
+pages. One user [measured](https://github.com/JasperFx/wolverine/issues/4902) a production inbox that was 99%
+fragmented with its pages half full, which means every scan of that table reads about twice the pages it should.
+
+If SQL Server stores your envelopes, you can opt into the same NewId algorithm with the timestamp laid out where SQL
+Server looks for it:
+
+<!-- snippet: sample_envelope_ids_in_sql_server_order -->
+<a id='snippet-sample_envelope_ids_in_sql_server_order'></a>
+```cs
+// Only when SQL Server stores the envelopes this application sends and receives
+opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L112-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+This is opt-in only, and Wolverine will never pick it for you. The envelope id travels with the message, and the
+*receiving* application uses that same id as the key in its own inbox. If you publish to other Wolverine services
+that store their envelopes in PostgreSQL, these ids will bloat *their* inbox indexes -- on PostgreSQL this layout
+indexes even worse than completely random GUIDs. Only use it when SQL Server stores the envelopes on both ends, or
+at least the envelopes this application cares about. Likewise, an inbox only stays in order for messages whose
+senders use this option too.
+:::
 

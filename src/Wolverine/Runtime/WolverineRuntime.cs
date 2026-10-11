@@ -63,6 +63,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         Envelope.IdGenerator = options.EnvelopeIdGeneration switch
         {
             EnvelopeIdGeneration.GuidV7 => Guid.CreateVersion7,
+            EnvelopeIdGeneration.NewIdSqlServerOrder => MassTransit.NewId.NextGuid,
             _ => MassTransit.NewId.NextSequentialGuid
         };
 

@@ -105,20 +105,33 @@ public enum InvokeTracingMode
 public enum EnvelopeIdGeneration
 {
     /// <summary>
-    /// Default. Uses MassTransit's NewId algorithm which generates sequential GUIDs
-    /// based on machine identity (MAC/DNS) and timestamp. Good for SQL Server index
-    /// performance but can produce duplicates in cloud environments where multiple
-    /// instances share network identity (containers, Cloud Run, serverless).
+    /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
+    /// GUIDs from machine identity (MAC/DNS) and a timestamp, laid out so they sort in time order the way
+    /// .NET and PostgreSQL compare GUIDs. SQL Server compares a <c>uniqueidentifier</c> starting from its
+    /// last six bytes, so these ids arrive in effectively random order there and fragment SQL Server's
+    /// clustered envelope tables; see <see cref="NewIdSqlServerOrder"/>. Can produce duplicates in cloud
+    /// environments where multiple instances share network identity (containers, Cloud Run, serverless).
     /// </summary>
     NewId,
 
     /// <summary>
-    /// Uses Guid.CreateVersion7() which produces time-ordered GUIDs with cryptographically
-    /// strong random bits per RFC 9562. Recommended for greenfield applications and
-    /// cloud environments where instances may share network identity. Guaranteed unique
-    /// without relying on machine-specific properties.
+    /// Uses Guid.CreateVersion7() which produces GUIDs with a millisecond timestamp and cryptographically
+    /// strong random bits per RFC 9562. Recommended for greenfield applications and cloud environments
+    /// where instances may share network identity. Guaranteed unique without relying on machine-specific
+    /// properties. Ids created within the same millisecond are in random order, and SQL Server does not
+    /// sort them by time at all.
     /// </summary>
-    GuidV7
+    GuidV7,
+
+    /// <summary>
+    /// GH-4902. The same NewId algorithm and uniqueness as <see cref="NewId"/>, but laid out with the
+    /// timestamp in the last six bytes (<c>NewId.NextGuid()</c>) so the ids sort in time order the way SQL
+    /// Server compares a <c>uniqueidentifier</c>. This keeps SQL Server's clustered inbox, outbox and
+    /// dead-letter tables from fragmenting. Opt-in only: the id travels with the message and becomes the
+    /// key in the RECEIVING application's inbox, and on PostgreSQL these ids index worse than random
+    /// GUIDs, so only choose this when SQL Server stores the envelopes this application sends and receives.
+    /// </summary>
+    NewIdSqlServerOrder
 }
 
 public class MetricsOptions
@@ -381,7 +394,8 @@ public sealed partial class WolverineOptions
     /// Controls how Wolverine generates unique identifiers for message envelopes.
     /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility.
     /// Use <see cref="EnvelopeIdGeneration.GuidV7"/> for greenfield applications or
-    /// cloud environments where multiple instances may share network identity.
+    /// cloud environments where multiple instances may share network identity, and
+    /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> when SQL Server stores the envelopes.
     /// </summary>
     public EnvelopeIdGeneration EnvelopeIdGeneration { get; set; } = EnvelopeIdGeneration.NewId;
 

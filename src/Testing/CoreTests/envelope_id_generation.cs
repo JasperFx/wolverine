@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data.SqlTypes;
 using MassTransit;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -100,6 +101,62 @@ public class envelope_id_generation : IDisposable
         var tracked = await host.InvokeMessageAndWaitAsync(new GuidV7TestMessage("hello"));
 
         GuidV7TestHandler.LastReceived.ShouldBe("hello");
+    }
+
+    [Fact]
+    public async Task sql_server_order_is_opt_in_and_uses_new_id_next_guid()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_envelope_ids_in_sql_server_order
+
+                // Only when SQL Server stores the envelopes this application sends and receives
+                opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
+
+                #endregion
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Envelope.IdGenerator.Method.ShouldBe(typeof(NewId).GetMethod(nameof(NewId.NextGuid), Type.EmptyTypes));
+
+        await host.InvokeMessageAndWaitAsync(new GuidV7TestMessage("sql server"));
+        GuidV7TestHandler.LastReceived.ShouldBe("sql server");
+    }
+
+    // GH-4902. SqlGuid compares the way SQL Server compares a uniqueidentifier: the last six bytes first
+    [Fact]
+    public void sql_server_order_ids_sort_in_sql_server_order()
+    {
+        Envelope.IdGenerator = NewId.NextGuid;
+
+        var ids = Enumerable.Range(0, 1000).Select(_ => new SqlGuid(new Envelope().Id)).ToArray();
+
+        for (var i = 1; i < ids.Length; i++)
+        {
+            ids[i].CompareTo(ids[i - 1]).ShouldBeGreaterThan(0, $"id {i} sorted before id {i - 1} in SQL Server order");
+        }
+    }
+
+    // GH-4902, the reason the option exists: the default ids are ordered for .NET and PostgreSQL, not SQL Server
+    [Fact]
+    public void default_ids_do_not_sort_in_sql_server_order()
+    {
+        Envelope.IdGenerator = NewId.NextSequentialGuid;
+
+        var ids = Enumerable.Range(0, 1000).Select(_ => new Envelope().Id).ToArray();
+
+        // ...in time order the way .NET compares them...
+        for (var i = 1; i < ids.Length; i++)
+        {
+            ids[i].CompareTo(ids[i - 1]).ShouldBeGreaterThan(0);
+        }
+
+        // ...but not the way SQL Server does
+        var sqlServerOrder = ids.Select(x => new SqlGuid(x)).ToArray();
+        var outOfOrder = Enumerable.Range(1, sqlServerOrder.Length - 1)
+            .Count(i => sqlServerOrder[i].CompareTo(sqlServerOrder[i - 1]) < 0);
+
+        outOfOrder.ShouldBeGreaterThan(0);
     }
 
     [Fact]
