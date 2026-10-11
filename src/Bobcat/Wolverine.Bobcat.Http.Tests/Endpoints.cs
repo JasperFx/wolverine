@@ -124,6 +124,33 @@ public static class BookAppointmentEndpoint
     }
 }
 
+// GH-4940: an HTTP endpoint deciding over a Dynamic Consistency Boundary; the tag query its Load() returns is
+// recorded for the act as a message handler's is
+public record HallId(Guid Value);
+
+public record HallBooked(HallId Hall, string Organizer);
+
+public record BookHall(HallId Hall, string Organizer);
+
+[JasperFx.Events.Aggregation.BoundaryAggregate]
+public partial class HallBookings
+{
+    public int Count { get; private set; }
+
+    public void Apply(HallBooked e) => Count++;
+}
+
+public static class BookHallEndpoint
+{
+    public static JasperFx.Events.Tags.EventTagQuery Load(BookHall command)
+        => JasperFx.Events.Tags.EventTagQuery.For(command.Hall).AndEventsOfType<HallBooked>();
+
+    [WolverinePost("/api/halls/book")]
+    [EmptyResponse]
+    public static HallBooked Post(BookHall command, [DcbModel] HallBookings? bookings)
+        => new(command.Hall, command.Organizer);
+}
+
 // GH-4939: an endpoint that uses only an event store session -- no IMessageBus, no IMessageContext -- so
 // RequestIdMiddleware leaves it alone unless WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints is on
 public record AddPatientNote(string Patient, string Note);

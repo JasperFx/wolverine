@@ -572,6 +572,7 @@ takes the declared model and the derived chains assembled together:
 dotnet run -- scaffold                         # write into the current directory
 dotnet run -- scaffold --output ./src/MyApp    # somewhere else
 dotnet run -- scaffold --dry-run               # report only
+dotnet run -- scaffold --json                  # the plan as JSON, every notice with a stable code
 ```
 
 Each slice is written to its own file, in a folder and namespace per chapter:

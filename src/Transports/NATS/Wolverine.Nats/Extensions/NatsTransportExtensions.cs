@@ -191,10 +191,33 @@ public static class NatsTransportExtensions
         Func<T, string> subjectSource
     )
     {
+        return options.PublishMessagesToNatsSubject(subjectSource, additive: false);
+    }
+
+    /// <summary>
+    /// Publish messages of type <typeparamref name="T"/> (or castable to it) to a NATS subject
+    /// computed per message by <paramref name="subjectSource"/>, choosing whether Wolverine's other
+    /// routing rules still apply to the same messages.
+    /// </summary>
+    /// <param name="subjectSource">Computes the NATS subject for each message</param>
+    /// <param name="additive">
+    /// When true, the NATS route is added to whatever else would route the message: an explicit rule
+    /// such as <c>PublishMessage&lt;T&gt;().ToLocalQueue("name")</c>, or local routing to a handler for
+    /// <typeparamref name="T"/> in this application, still applies, so one publish goes to the NATS subject
+    /// and to the local queue at the same time. When false -- the behavior of
+    /// <see cref="PublishMessagesToNatsSubject{T}(WolverineOptions, Func{T, string})"/> -- the NATS
+    /// subject is the only route those terminating rules leave the message. See GH-4930.
+    /// </param>
+    public static NatsSubscriberConfiguration PublishMessagesToNatsSubject<T>(
+        this WolverineOptions options,
+        Func<T, string> subjectSource,
+        bool additive
+    )
+    {
         var transport = options.NatsTransport();
         var endpoint = transport.NewTopicSender();
 
-        var routing = new TopicRouting<T>(subjectSource, endpoint);
+        var routing = new TopicRouting<T>(subjectSource, endpoint) { IsPassThrough = additive };
         options.PublishWithMessageRoutingSource(routing);
 
         return new NatsSubscriberConfiguration(endpoint);
