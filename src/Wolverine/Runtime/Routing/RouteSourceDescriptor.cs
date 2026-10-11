@@ -27,15 +27,22 @@ public class RouteSourceDescriptor
     public bool IsAdditive { get; set; }
 
     /// <summary>
+    /// True when the routes this source finds do not stop later route sources from routing the message, as
+    /// if this source had not matched. See <see cref="IPassThroughMessageRouteSource"/>
+    /// </summary>
+    public bool IsPassThrough { get; set; }
+
+    /// <summary>
     /// For sources that delegate to routing conventions (the conventional-routing source and
     /// broker conventions), the conventions consulted by this source.
     /// </summary>
     public RoutingConventionDescriptor[] Conventions { get; set; } = [];
 
+    internal string Kind => IsPassThrough ? "additive, pass-through" : IsAdditive ? "additive" : "terminating";
+
     public override string ToString()
     {
-        var additive = IsAdditive ? "additive" : "terminating";
-        return $"{Name} ({additive}): {Description}";
+        return $"{Name} ({Kind}): {Description}";
     }
 }
 

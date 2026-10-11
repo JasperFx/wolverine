@@ -9,7 +9,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
-public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvoker, IEndpointSource
+public class TopicRouting<T> : IPassThroughMessageRouteSource, IMessageRoute, IMessageInvoker, IEndpointSource
 {
     private readonly Func<T, string> _topicSource;
     private readonly Endpoint _topicEndpoint;
@@ -30,6 +30,24 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvok
     }
 
     public bool IsAdditive => true;
+
+    /// <summary>
+    /// GH-4930. When true, routing a message to the topic does not stop any later route source -- an explicit
+    /// publishing rule such as <c>PublishMessage&lt;T&gt;().ToLocalQueue()</c>, or local routing to a handler in
+    /// this application -- from routing the same message as well. False by default, where the topic route is
+    /// the only route the message gets from any terminating route source after it.
+    /// </summary>
+    public bool IsPassThrough { get; set; }
+
+    public RouteSourceDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = $"TopicRouting<{typeof(T).ShortNameInCode()}>",
+        Description = IsPassThrough
+            ? $"Routes messages castable to {typeof(T).FullNameInCode()} to {_topicEndpoint.Uri} with a topic computed per message. Pass-through: later route sources still route the message as if this one had not matched."
+            : $"Routes messages castable to {typeof(T).FullNameInCode()} to {_topicEndpoint.Uri} with a topic computed per message. Its routes count toward the chain, so any later terminating source ends routing here.",
+        IsAdditive = IsAdditive,
+        IsPassThrough = IsPassThrough
+    };
 
     public IEnumerable<Endpoint> ActiveEndpoints()
     {

@@ -319,6 +319,15 @@ Wolverine has a handful of built in `IMessageRouteSource` implementations in pre
 4. `LocalRouting` - if a message type has a known handler type in the system, Wolverine will route the message to any local queues for that message type
 5. `MessageRoutingConventions` - this would be any message routing conventions enabled for external transport brokers like Rabbit MQ or Azure Service Bus. This could also be a custom message routing convention.
 
+Any custom `IMessageRouteSource` you register with `WolverineOptions.PublishWithMessageRoutingSource()` is
+consulted *before* all of the built in sources above. Be aware that the built in sources other than
+`MessageRoutingConventions` are "terminating", meaning that once *any* routes have been found -- including routes
+from your own additive source -- the routing stops there. If you want your custom source's routes to simply be
+added to whatever Wolverine would have done anyway, also implement `IPassThroughMessageRouteSource` and return
+`true` from `IsPassThrough`. Wolverine then leaves those routes out when deciding whether a later source should
+end the routing. That's the mechanism behind
+[publishing to a NATS subject and to a local queue at the same time](/guide/messaging/transports/nats#publishing-to-a-nats-subject-and-to-a-local-queue-at-the-same-time). <Badge type="tip" text="6.49" />
+
 ## Rolling Your own Messaging Convention
 
 Let's say you want to use a completely different conventional routing topology than anything Wolverine provides out
