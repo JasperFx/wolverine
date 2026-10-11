@@ -92,6 +92,12 @@ public interface ITrackedSession
     IReadOnlyList<AppendedEvents> AppendedEvents => Array.Empty<AppendedEvents>();
 
     /// <summary>
+    ///     GH-4939. The correlation id the tracked work ran under, when one was given through
+    ///     <see cref="TrackedSessionConfiguration.WithCorrelationId" />. Null otherwise.
+    /// </summary>
+    string? CorrelationId => null;
+
+    /// <summary>
     ///     Finds a message of type T that was either sent, received,
     ///     or executed during this session. This will throw an exception
     ///     if there is more than one message

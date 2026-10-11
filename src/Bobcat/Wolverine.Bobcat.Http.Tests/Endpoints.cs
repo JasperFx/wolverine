@@ -123,3 +123,17 @@ public static class BookAppointmentEndpoint
         return Storage.StartStream<Appointment>(id, new AppointmentScheduled(id, command.Patient));
     }
 }
+
+// GH-4939: an endpoint that uses only an event store session -- no IMessageBus, no IMessageContext -- so
+// RequestIdMiddleware leaves it alone unless WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints is on
+public record AddPatientNote(string Patient, string Note);
+
+public record PatientNoteAdded(string Patient, string Note);
+
+public static class AddPatientNoteEndpoint
+{
+    [WolverinePost("/api/patients/notes")]
+    [EmptyResponse]
+    public static void Post(AddPatientNote command, global::Marten.IDocumentSession session)
+        => session.Events.StartStream(Guid.CreateVersion7(), new PatientNoteAdded(command.Patient, command.Note));
+}

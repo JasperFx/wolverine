@@ -6,6 +6,7 @@ using System.Globalization;
 using JasperFx.Events;
 using JasperFx.Events.Tags;
 using JasperFx.Events.Descriptors;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
 
@@ -46,6 +47,13 @@ public sealed record ActOutcome(
 
     /// <summary>GH-4931. The streams the act itself started, with the ids its handler assigned.</summary>
     public IReadOnlyList<StreamAction> StartedStreams { get; init; } = Array.Empty<StreamAction>();
+
+    /// <summary>
+    /// GH-4939. The correlation id the act ran under: every message it caused carries it, and an event store
+    /// with correlation ids enabled records it on every event those messages append, past an asynchronous
+    /// boundary too. What <c>ThenEventuallyCaused</c> queries the store by.
+    /// </summary>
+    public string? CorrelationId { get; init; }
 }
 
 /// <summary>
@@ -123,6 +131,21 @@ public class WolverineScenario
 
     /// <summary>What the last act did.</summary>
     public ActOutcome LastAct { get; protected set; } = ActOutcome.None;
+
+    /// <summary>
+    /// GH-4939. The correlation id the act in progress runs under -- or the last act ran under, once it is done.
+    /// Every act gets a new one, and the tracked session applies it to the act's own message. An act that
+    /// reaches the application some other way, such as an HTTP call made inside <see cref="WhenTracked" />,
+    /// sends it itself, as the <c>X-Correlation-ID</c> header for Wolverine.HTTP.
+    /// </summary>
+    public string? ActCorrelationId { get; private set; }
+
+    /// <summary>
+    /// GH-4939. How long <see cref="ThenEventuallyCaused(object[])" /> keeps looking for the events it expects
+    /// once the async daemons have caught up, for work that lands after them -- a message an event
+    /// subscription published, handled on a local queue. Ten seconds by default.
+    /// </summary>
+    public TimeSpan EventuallyTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>The application's event store. Throws, saying so, when it has none.</summary>
     public IEventStore Store => _store ??= Host.Services.EventStore(_storeName);
@@ -430,7 +453,13 @@ public class WolverineScenario
         var dispatched = _dispatched;
         _dispatched = null;
 
-        var tracking = Host.TrackActivity().Timeout(Timeout).DoNotAssertOnExceptionsDetected();
+        // GH-4939: every act runs under a correlation id of its own, so what it caused past an asynchronous
+        // boundary can be found in the store by it. A configureTracking that names its own still wins.
+        var correlationId = Guid.NewGuid().ToString();
+        ActCorrelationId = correlationId;
+
+        var tracking = Host.TrackActivity().Timeout(Timeout).DoNotAssertOnExceptionsDetected()
+            .WithCorrelationId(correlationId);
         if (IncludeExternalTransports) tracking = tracking.IncludeExternalTransports();
 
         ITrackedSession? session = null;
@@ -456,10 +485,12 @@ public class WolverineScenario
         {
             AllNewEvents = all,
             Appended = commits,
-            StartedStreams = own.SelectMany(x => x.StartedStreams).ToList()
+            StartedStreams = own.SelectMany(x => x.StartedStreams).ToList(),
+            CorrelationId = session?.CorrelationId ?? correlationId
         };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
+        ActCorrelationId = outcome.CorrelationId;
 
         if (SpecReport.IsRecording)
         {
@@ -580,6 +611,163 @@ public class WolverineScenario
         if (Verdicts.Recording) run.Report(null);
 
         Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")));
+    }
+
+    // ---- assert: events past an asynchronous boundary (GH-4939) ---------------------------------
+
+    /// <summary>
+    /// GH-4939. The act <em>eventually</em> caused these events, among whatever else it caused -- including those
+    /// appended past an asynchronous boundary the tracked session cannot see, such as a message an event
+    /// subscription published, or an async projection's side effect. Whole objects, <see cref="Expect.Value{T}" />s
+    /// or partial objects, judged as <see cref="ThenEmitted(object[])" /> judges.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every act runs under a correlation id of its own (<see cref="ActOutcome.CorrelationId" />). Once the async
+    /// daemons have caught up, this step queries the event store for every event recorded with that correlation
+    /// id, through <c>IEventStore.OpenReadOnlyEventStore().QueryEventsAsync</c>, and looks again until
+    /// <see cref="EventuallyTimeout" /> for work that lands after the daemons, such as a handler on a local queue.
+    /// </para>
+    /// <para>
+    /// The store must record correlation ids, which Marten, Polecat and Fisher all leave off by default. When it
+    /// does not, the step fails and says how to turn them on. The correlation only reaches an event when every
+    /// hop carries it: Wolverine's handlers do, but an event subscription or a projection's side effect that
+    /// publishes a message has to pass the event's <c>CorrelationId</c> on itself.
+    /// </para>
+    /// <para>
+    /// One database only, for now: a store that spreads its tenants across several databases is refused.
+    /// </para>
+    /// </remarks>
+    public Task ThenEventuallyCaused(params object[] events)
+        => verifyEventuallyCaused(flatten(events));
+
+    /// <summary>
+    /// GH-4939. The act eventually caused a <typeparamref name="T" />, whatever its values -- see
+    /// <see cref="ThenEventuallyCaused(object[])" />.
+    /// </summary>
+    public Task ThenEventuallyCaused<T>() => verifyEventuallyCaused([anyOf(typeof(T))]);
+
+    private async Task verifyEventuallyCaused(object[] expected)
+    {
+        var text = $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} eventually emitted";
+        using var step = ScenarioRecorder.Step("Then", text);
+        if (!actSucceeded()) return;
+
+        if (LastAct.CorrelationId is not { } correlationId)
+        {
+            Verdicts.Fail("There is no act to look for the events of: ThenEventuallyCaused follows a When step.");
+            return;
+        }
+
+        if (!hasStore())
+        {
+            Verdicts.Fail("ThenEventuallyCaused queries the event store, but the application has none.");
+            return;
+        }
+
+        // GH-4939: one database only. A tenant's database is a follow-up (the act's tenant, from the request or
+        // the entry message, and a store-agnostic lookup from a tenant to its database).
+        if (Store.DatabaseCardinality is DatabaseCardinality.StaticMultiple or DatabaseCardinality.DynamicMultiple)
+        {
+            Verdicts.Fail(
+                $"ThenEventuallyCaused reads one database, but {describeStore()} spreads its tenants across several " +
+                $"({Store.DatabaseCardinality}). Finding an act's events by correlation id in a tenant's database is not supported yet.");
+            return;
+        }
+
+        var deadline = DateTimeOffset.UtcNow + EventuallyTimeout;
+        while (true)
+        {
+            try
+            {
+                await EventStores.WaitForNonStaleProjectionsAsync(Store, EventStores.DefaultProjectionTimeout);
+            }
+            catch (TimeoutException e)
+            {
+                Verdicts.Fail($"The async daemons did not catch up, so the events the act caused could not be looked for: {e.Message}");
+                return;
+            }
+
+            IReadOnlyList<IEvent> caused;
+            try
+            {
+                caused = await eventsCorrelatedWith(correlationId);
+            }
+            catch (NotSupportedException e) when (e.Message.Contains("Correlation", StringComparison.OrdinalIgnoreCase))
+            {
+                Verdicts.Fail(correlationIdsAreOff());
+                return;
+            }
+
+            var data = caused.Select(x => x.Data).ToArray();
+            var tags = tagsOfCaused(caused);
+            var run = ObjectSetVerification.Verify(data, expected, "event", SetMode.Contains, tags);
+            if (run.Succeeded || DateTimeOffset.UtcNow >= deadline)
+            {
+                if (Verdicts.Recording) run.Report(null);
+
+                Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")) +
+                                             $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))}.");
+                return;
+            }
+
+            await Task.Delay(100);
+        }
+    }
+
+    // Every event the store recorded with this correlation id, oldest first, every page of it
+    private async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(string correlationId)
+    {
+        var store = Store.OpenReadOnlyEventStore();
+        var events = new List<IEvent>();
+        var query = new EventQuery { CorrelationId = correlationId, PageSize = 500 };
+        while (true)
+        {
+            var page = await store.QueryEventsAsync(query);
+            events.AddRange(page.Events);
+            if (page.Events.Count == 0 || events.Count >= page.TotalCount) return events;
+            query.PageNumber++;
+        }
+    }
+
+    // No store reads tags back, so an event the act's own sessions committed keeps the tags it was appended with
+    private Func<object, IReadOnlyList<object>?> tagsOfCaused(IReadOnlyList<IEvent> caused)
+    {
+        var appended = LastAct.AllNewEvents.Where(x => x.Tags is { Count: > 0 }).GroupBy(x => x.Id)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<object>)x.First().Tags!.Select(t => t.Value).ToArray());
+        var tags = new Dictionary<object, IReadOnlyList<object>>(ReferenceEqualityComparer.Instance);
+        foreach (var e in caused)
+        {
+            tags[e.Data] = appended.GetValueOrDefault(e.Id) ?? e.Tags?.Select(x => x.Value).ToArray() ?? Array.Empty<object>();
+        }
+
+        return data => tags.GetValueOrDefault(data);
+    }
+
+    // Which store this is, by the assembly that implements it, for a message that says what to change
+    private string storeKind() => Store.GetType().Assembly.GetName().Name switch
+    {
+        "Marten" => "Marten",
+        "Polecat" => "Polecat",
+        "Fisher" => "Fisher",
+        var other => other ?? Store.GetType().Name
+    };
+
+    private string describeStore() => $"the {storeKind()} event store";
+
+    private string correlationIdsAreOff()
+    {
+        var turnOn = storeKind() switch
+        {
+            "Marten" => "Turn them on in AddMarten(): opts.Events.MetadataConfig.CorrelationIdEnabled = true;",
+            "Polecat" => "Turn them on in AddPolecat(): opts.Events.EnableCorrelationId = true;",
+            "Fisher" => "Turn them on in AddFisher(): opts.Events.EnableCorrelationId = true;",
+            _ => "Turn on the store's correlation id metadata."
+        };
+
+        return $"ThenEventuallyCaused finds the act's events by its correlation id, but {describeStore()} does not record " +
+               $"correlation ids, which is the default. {turnOn} Then the store's schema needs the new column, which " +
+               "automatic schema creation or a migration adds.";
     }
 
     /// <summary>
