@@ -258,11 +258,33 @@ public static class MqttTransportExtensions
     public static MqttSubscriberConfiguration PublishMessagesToMqttTopic<T>(this WolverineOptions options,
         Func<T, string> topicSource)
     {
+        return options.PublishMessagesToMqttTopic(topicSource, additive: false);
+    }
+
+    /// <summary>
+    /// Publish messages that are of type T or could be cast to type T to an MQTT
+    /// topic using the supplied function to determine the topic for the message,
+    /// choosing whether Wolverine's other routing rules still apply to the same messages
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="topicSource"></param>
+    /// <param name="additive">
+    /// When true, the MQTT route is added to whatever else would route the message: an explicit rule
+    /// such as <c>PublishMessage&lt;T&gt;().ToLocalQueue("name")</c>, or local routing to a handler for
+    /// <typeparamref name="T"/> in this application, still applies, so one publish goes to the MQTT topic
+    /// and to the local queue at the same time. When false -- the behavior of the overload without this
+    /// parameter -- the MQTT topic is the only route those terminating rules leave the message.
+    /// </param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static MqttSubscriberConfiguration PublishMessagesToMqttTopic<T>(this WolverineOptions options,
+        Func<T, string> topicSource, bool additive)
+    {
         var transports = options.Transports;
         var transport = transports.GetOrCreate<MqttTransport>();
 
         var topic = transport.NewTopicSender();
-        var routing = new TopicRouting<T>(topicSource, topic);
+        var routing = new TopicRouting<T>(topicSource, topic) { IsPassThrough = additive };
         options.PublishWithMessageRoutingSource(routing);
 
         return new MqttSubscriberConfiguration(topic);

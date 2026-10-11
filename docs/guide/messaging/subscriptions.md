@@ -325,8 +325,10 @@ consulted *before* all of the built in sources above. Be aware that the built in
 from your own additive source -- the routing stops there. If you want your custom source's routes to simply be
 added to whatever Wolverine would have done anyway, also implement `IPassThroughMessageRouteSource` and return
 `true` from `IsPassThrough`. Wolverine then leaves those routes out when deciding whether a later source should
-end the routing. That's the mechanism behind
-[publishing to a NATS subject and to a local queue at the same time](/guide/messaging/transports/nats#publishing-to-a-nats-subject-and-to-a-local-queue-at-the-same-time). <Badge type="tip" text="6.49" />
+end the routing. That's the mechanism behind the `additive: true` option for publishing to a broker topic and to a
+local queue at the same time with [NATS](/guide/messaging/transports/nats#publishing-to-a-nats-subject-and-to-a-local-queue-at-the-same-time),
+[Rabbit MQ](/guide/messaging/transports/rabbitmq/topics#publishing-to-a-topic-exchange-and-to-a-local-queue-at-the-same-time),
+and [MQTT](/guide/messaging/transports/mqtt#publishing-to-an-mqtt-topic-and-to-a-local-queue-at-the-same-time). <Badge type="tip" text="6.49" />
 
 ## Rolling Your own Messaging Convention
 
