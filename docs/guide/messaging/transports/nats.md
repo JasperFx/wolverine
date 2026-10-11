@@ -590,6 +590,41 @@ opts.UseNats(nats =>
 });
 ```
 
+### Publishing to a NATS Subject and to a Local Queue at the Same Time <Badge type="tip" text="6.49" />
+
+Let's say you want every `DynamicLocalCommand` to go out to a NATS subject computed from the message, but you
+*also* want the same message handled right here in this application through a local queue. You might reach for
+both `PublishMessagesToNatsSubject<T>()` and an explicit `PublishMessage<T>().ToLocalQueue()` rule, but with the
+original overload the NATS subject wins and the local queue rule is never even consulted. To make the NATS
+routing *additive* so that Wolverine's other routing rules still apply, pass `additive: true`:
+
+<!-- snippet: sample_publish_to_nats_subject_and_local_queue -->
+<a id='snippet-sample_publish_to_nats_subject_and_local_queue'></a>
+```cs
+opts.UseNats(natsUrl).AutoProvision();
+
+// Every DynamicLocalCommand goes to a NATS subject computed from the message...
+opts.PublishMessagesToNatsSubject<DynamicLocalCommand>(m => $"commands.{m.ListenerName}", additive: true);
+
+// ...and because that routing is additive, to the local "commands" queue at the same time
+opts.PublishMessage<DynamicLocalCommand>().ToLocalQueue("commands");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/dynamic_subject_combined_with_local_route.cs#L44-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_nats_subject_and_local_queue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With that configuration, a single `PublishAsync()` sends the message to `commands.{ListenerName}` over NATS and
+also drops it into the local `commands` queue. You don't even need the explicit local queue rule if all you want
+is for a handler in this application to get the message, because the conventional local routing to that handler
+applies as well -- just like it would if the NATS routing weren't there at all.
+
+::: tip
+The original `PublishMessagesToNatsSubject<T>(Func<T, string>)` overload is unchanged, and the NATS subject is
+the only route that explicit publishing rules or local routing will leave those messages. If you're ever unsure
+what Wolverine is going to do with a message type, `IWolverineRuntime.ExplainRoutingFor(type)` will walk you
+through every routing rule it consulted. The additive NATS routing shows up there as `[additive, pass-through]`.
+See [message routing diagnostics](/guide/messaging/subscriptions#diagnostics) for more.
+:::
+
 ### Deduplication (JetStream `Nats-Msg-Id`)
 
 Wolverine stamps a `Nats-Msg-Id` on every JetStream publish, so the stream's duplicate window discards

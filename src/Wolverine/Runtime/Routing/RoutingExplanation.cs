@@ -58,8 +58,7 @@ public class RoutingExplanation
         }
         foreach (var step in Steps)
         {
-            var kind = step.Source.IsAdditive ? "additive" : "terminating";
-            sb.AppendLine($"  SOURCE: {step.Source.Name} [{kind}]");
+            sb.AppendLine($"  SOURCE: {step.Source.Name} [{step.Source.Kind}]");
             if (!string.IsNullOrWhiteSpace(step.Source.Description))
             {
                 sb.AppendLine($"    about: {step.Source.Description}");

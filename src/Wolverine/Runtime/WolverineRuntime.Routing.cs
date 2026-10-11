@@ -46,6 +46,23 @@ public interface IMessageRouteSource
 #endregion
 
 /// <summary>
+/// Optional interface for an <see cref="IMessageRouteSource"/> whose routes should be combined with whatever
+/// the rest of the route source chain finds, as if this source had not matched at all. Normally a terminating
+/// source (explicit publishing rules, local routing, the stub transport) ends the chain as soon as ANY routes
+/// have been found, including routes from an earlier additive source, so an additive custom source quietly
+/// switches off every terminating source after it. The routes of a pass-through source do not count toward
+/// that check: later sources still run and decide whether to route the message exactly as they would without
+/// it. See GH-4930.
+/// </summary>
+public interface IPassThroughMessageRouteSource : IMessageRouteSource
+{
+    /// <summary>
+    /// When true, the routes this source finds do not stop later route sources from routing the message
+    /// </summary>
+    bool IsPassThrough { get; }
+}
+
+/// <summary>
 /// Optional interface for IMessageRouteSource implementations to expose their
 /// target endpoints, enabling endpoint policies (like UseDurableOutboxOnAllSendingEndpoints)
 /// to discover and configure them.
@@ -280,11 +297,20 @@ public partial class WolverineRuntime
     private List<IMessageRoute> findRoutes(Type messageType)
     {
         var routes = new List<IMessageRoute>();
+
+        // GH-4930: routes from a pass-through source never end the chain, so only the others are counted
+        var blocking = 0;
         foreach (var source in Options.RouteSources())
         {
-            routes.AddRange(source.FindRoutes(messageType, this));
+            var found = source.FindRoutes(messageType, this).ToList();
+            routes.AddRange(found);
 
-            if (routes.Count != 0 && !source.IsAdditive) break;
+            if (!source.IsPassThrough())
+            {
+                blocking += found.Count;
+            }
+
+            if (blocking != 0 && !source.IsAdditive) break;
         }
 
         return routes;
@@ -302,13 +328,16 @@ public partial class WolverineRuntime
         // Mirror findRoutes() exactly so the explanation matches real routing behavior: routes
         // accumulate across sources, and a non-additive (terminating) source short-circuits the
         // chain once the accumulated set is non-empty — even if that source itself produced none.
+        // Routes from a pass-through source (GH-4930) are left out of that check.
         var accumulated = new List<IMessageRoute>();
+        var blocking = 0;
         var terminated = false;
         string? terminatingSourceName = null;
 
         foreach (var source in Options.RouteSources())
         {
             var step = new RouteSourceStep { Source = source.Describe(this) };
+            step.Source.IsPassThrough = source.IsPassThrough();
 
             if (terminated)
             {
@@ -324,7 +353,12 @@ public partial class WolverineRuntime
 
             accumulated.AddRange(produced);
 
-            if (accumulated.Count != 0 && !source.IsAdditive)
+            if (!source.IsPassThrough())
+            {
+                blocking += produced.Count;
+            }
+
+            if (blocking != 0 && !source.IsAdditive)
             {
                 terminated = true;
                 terminatingSourceName = step.Source.Name;
@@ -386,5 +420,13 @@ public partial class WolverineRuntime
     internal void ClearRoutingFor(Type messageType)
     {
         _messageTypeRouting = _messageTypeRouting.Remove(messageType);
+    }
+}
+
+internal static class MessageRouteSourceExtensions
+{
+    internal static bool IsPassThrough(this IMessageRouteSource source)
+    {
+        return source is IPassThroughMessageRouteSource { IsPassThrough: true };
     }
 }
