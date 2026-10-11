@@ -41,7 +41,7 @@ internal class DatabaseControlListener : IListener
 
         _receivingLoop = Task.Run(async () =>
         {
-            await Task.Delay(Random.Shared.Next(100, 1000).Milliseconds());
+            await Task.Delay(Random.Shared.Next(100, 1000).Milliseconds(), _cancellation.Token);
 
             while (!_cancellation.IsCancellationRequested)
             {
@@ -54,13 +54,27 @@ internal class DatabaseControlListener : IListener
                     ]);
                     await receiver.ReceivedAsync(this, new Envelope(batch));
                 }
+                catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
                 catch (Exception e)
                 {
                     logger.LogError(e, "Error trying to poll for messages from the database control queue");
                 }
 
+                // StopAsync awaits this loop, so the delay has to observe cancellation. Otherwise stopping a
+                // quiet node waits out the rest of the idle interval before the endpoints can drain.
                 var idleFor = Environment.TickCount64 - Interlocked.Read(ref _lastActivityTicks);
-                await Task.Delay(idleFor < IdleAfterMilliseconds ? ActivePollInterval : IdlePollInterval);
+                try
+                {
+                    await Task.Delay(idleFor < IdleAfterMilliseconds ? ActivePollInterval : IdlePollInterval,
+                        _cancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
         }, _cancellation.Token);
 
@@ -95,9 +109,16 @@ internal class DatabaseControlListener : IListener
         await _cancellation.CancelAsync();
         if (_receivingLoop != null)
         {
+            try
+            {
 #pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
-            await _receivingLoop;
+                await _receivingLoop;
 #pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
             _receivingLoop.Dispose();
         }
     }
