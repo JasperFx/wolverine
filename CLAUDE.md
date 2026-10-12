@@ -61,6 +61,12 @@ dotnet test src/Testing/CoreTests/
 npm install && npm run docs
 ```
 
+The four Bobcat.Xunit projects (`Wolverine.Bobcat.Tests`, `Wolverine.Bobcat.Http.Tests`,
+`IncidentService.Tests`, `ProcessManagerViaHandlers.Tests`) are on xunit.v3 4 / Microsoft.Testing.Platform 2.
+CI runs them through the Bobcat supervisor (`CIBobcat`). Locally, use `dotnet test --project …` from
+their folder (a scoped `global.json` opts in) or `dotnet run --project …`; `dotnet test` from the repo
+root does not support them. The repo-wide move to xunit.v3 4 is GH-4979.
+
 **Solutions** (new `.slnx` XML format):
 - `wolverine.slnx` - Full solution
 - `wolverine_slim.slnx` - Lightweight variant
