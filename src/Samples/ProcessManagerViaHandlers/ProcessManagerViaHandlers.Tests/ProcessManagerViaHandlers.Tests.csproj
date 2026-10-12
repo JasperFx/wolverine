@@ -11,17 +11,9 @@
         <PackageReference Include="Bobcat.Xunit" />
         <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
         <PackageReference Include="Bobcat.Generators" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Shouldly" />
-        <PackageReference Include="xunit.v3" />
-        <PackageReference Include="xunit.runner.visualstudio">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-        <PackageReference Include="coverlet.collector">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
+        <!-- Bobcat.Xunit 0.60.0 needs xunit.v3 4.x on Microsoft.Testing.Platform 2.x; the rest of the repo stays on 3.x -->
+        <PackageReference Include="xunit.v3" VersionOverride="$(XunitV3ForBobcatVersion)" />
     </ItemGroup>
 
     <ItemGroup>
