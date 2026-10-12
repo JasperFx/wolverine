@@ -38,6 +38,20 @@ public class SqlServerPersistenceExpression : BrokerExpression<SqlServerTranspor
     }
 
     /// <summary>
+    ///     Opt into deterministic ordering for messages with the same timestamp in Sql Server
+    ///     queues. This changes the ready and scheduled queue schemas of queues using the default
+    ///     storage layout; queues using <see cref="OptimizeQueueThroughput" /> already order by their
+    ///     <c>seq</c> identity and are not changed. With <c>AutoCreate.None</c>, apply the schema
+    ///     migration before starting listeners with this option enabled. Configure this before
+    ///     startup; changing it at runtime is not supported.
+    /// </summary>
+    public SqlServerPersistenceExpression EnableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
     /// Disable inbox and outbox usage on all Sql Server Transport endpoints
     /// </summary>
     /// <returns></returns>

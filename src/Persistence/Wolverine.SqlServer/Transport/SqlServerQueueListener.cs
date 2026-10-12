@@ -52,72 +52,13 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         var queueTableIdentifier = queue.QueueTable.Identifier;
         var scheduledTableIdentifier = queue.ScheduledTable.Identifier;
 
-        // When the high-throughput layout is enabled the tables are clustered on the monotonic
-        // "seq" identity, so dequeue ordering must use it; otherwise fall back to "timestamp".
-        var orderBy = queue.OptimizeThroughput ? "seq" : "timestamp";
-
-        _tryPopMessagesDirectlySql = $@"
-DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
-IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
-SET NOCOUNT ON;
-
-WITH message AS (
-    SELECT TOP(@count) {DatabaseConstants.Body}, {DatabaseConstants.KeepUntil}
-    FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    ORDER BY {queueTableIdentifier}.{orderBy})
-DELETE FROM message
-OUTPUT
-    deleted.{DatabaseConstants.Body};
-
-IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
-IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
-
-        _tryPopMessagesToInboxSql = $@"
-DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
-IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
-SET NOCOUNT ON;
-
-delete FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.ReceivedAt} = '{Address}');
--- GH-4334: a declared table variable instead of SELECT ... INTO #temp_pop. The temp table was
--- created and dropped on every poll of every queue: tempdb allocation churn plus a statement
--- recompile each time, because a SELECT INTO builds a fresh schema the optimizer has never seen.
--- The CTE + DELETE ... OUTPUT shape is the one _tryPopMessagesDirectlySql already uses.
-DECLARE @popped TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset);
-
-WITH message AS (
-    SELECT TOP(@count) id, body, message_type, keep_until
-    FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    ORDER BY {queueTableIdentifier}.{orderBy})
-DELETE FROM message
-OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until INTO @popped;
-
-INSERT INTO {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}
-(id, status, owner_id, body, message_type, received_at, keep_until)
- SELECT id, 'Incoming', @node, body, message_type, '{Address}', keep_until FROM @popped;
-select body from @popped;
-
-IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
-IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
-
-        // GH-4334: same temp-table removal as the pop above, plus a TOP bound. This move was
-        // unbounded -- every due scheduled message promoted in a single statement, which on a
-        // large backlog is one enormous transaction holding locks the receive path needs.
-        _moveScheduledToReadyQueueSql = $@"
-DECLARE @moved TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset);
-
-WITH due AS (
-    SELECT TOP({_settings.RecoveryBatchSize}) id, body, message_type, keep_until
-    FROM {scheduledTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {queueTableIdentifier})
-    ORDER BY {scheduledTableIdentifier}.{orderBy})
-DELETE FROM due
-OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until INTO @moved;
-
-INSERT INTO {queueTableIdentifier}
-(id, body, message_type, keep_until)
- SELECT id, body, message_type, keep_until FROM @moved;
-select count(*) from @moved
-";
+        // Ordering (seq under the high-throughput layout, else timestamp with the opt-in queue_order
+        // tie-breaker) and the reapplied order on the rows DELETE ... OUTPUT hands back live in
+        // SqlServerQueueSql, which the queue's own helper methods share. See GH-4862.
+        _tryPopMessagesDirectlySql = SqlServerQueueSql.TryPopDirectly(queue);
+        _tryPopMessagesToInboxSql = SqlServerQueueSql.TryPopToInbox(queue, Address);
+        _moveScheduledToReadyQueueSql =
+            SqlServerQueueSql.MoveScheduledToReadyQueue(queue, _settings.RecoveryBatchSize);
 
         _deleteExpiredSql =
             $"delete from {queueTableIdentifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET();delete from {scheduledTableIdentifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET()";
