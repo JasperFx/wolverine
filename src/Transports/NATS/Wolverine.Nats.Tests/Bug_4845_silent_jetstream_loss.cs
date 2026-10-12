@@ -216,7 +216,8 @@ public class Bug_4845_silent_jetstream_loss
             {
                 opts.UseNats(natsUrl)
                     .AutoProvision()
-                    .DefineStream(stream, s => s.WithSubjects($"dlqskip.{id}.>"));
+                    .DefineStream(stream, s => s.WithSubjects($"dlqskip.{id}.>"))
+                    .DefineStream($"{stream}_ERRORS", s => s.WithSubjects(deadLetterSubject));
 
                 opts.Policies.DisableConventionalLocalRouting();
 

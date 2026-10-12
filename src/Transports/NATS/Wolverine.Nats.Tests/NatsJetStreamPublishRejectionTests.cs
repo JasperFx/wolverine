@@ -115,7 +115,7 @@ public class NatsJetStreamPublishRejectionTests
         var js = connection.CreateJetStreamContext();
 
         // A scheduling stream cannot use DiscardNew, so let the stream refuse the control message by size
-        await js.CreateStreamAsync(new StreamConfig(stream, [subject, subject + ".scheduled"])
+        await js.CreateStreamAsync(new StreamConfig(stream, [subject, subject + ".scheduled.>"])
         {
             MaxMsgSize = 512,
             AllowMsgSchedules = true

@@ -79,6 +79,17 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal NatsProvisioning ConsumerProvisioning => _transport.Configuration.ConsumerProvisioning;
 
     /// <summary>
+    /// See <see cref="NatsTransportConfiguration.TrustTenantIdHeader"/>
+    /// </summary>
+    [IgnoreDescription]
+    internal bool TrustsTenantIdHeader => _transport.Configuration.TrustTenantIdHeader;
+
+    /// <summary>
+    /// The ids of the tenants configured on the transport
+    /// </summary>
+    internal HashSet<string> TenantIds() => _transport.Tenants.Select(x => x.TenantId).ToHashSet();
+
+    /// <summary>
     /// Normalize a per-message subject honoring the transport's
     /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
     /// </summary>
@@ -230,26 +241,35 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     }
 
     /// <summary>
-    /// Suffix appended to the destination subject to form the NATS JetStream scheduling subject for native
-    /// scheduled sends. Must keep the schedule subject covered by the stream (e.g. a <c>prefix.&gt;</c>
-    /// filter covers <c>{subject}.scheduled</c>). Defaults to <c>.scheduled</c>.
+    /// Suffix appended to the destination subject to form the NATS JetStream scheduling subjects for native
+    /// scheduled sends: each scheduled message gets its own <c>{subject}{suffix}.{envelope id}</c>. The stream
+    /// has to cover those subjects, e.g. with a <c>prefix.&gt;</c> subject, or <c>{subject}.scheduled.&gt;</c>
+    /// next to an exact subject. Defaults to <c>.scheduled</c>.
     /// </summary>
     public string ScheduleSubjectSuffix { get; set; } = ".scheduled";
 
     /// <summary>
-    /// True when native JetStream scheduling is actually in play for this endpoint's stream, which
-    /// means <c>{subject}{ScheduleSubjectSuffix}</c> carries the schedule control messages and must
-    /// stay covered by this endpoint's consumer. Mirrors the predicate CreateSender uses to decide
-    /// whether a sender supports native scheduled send
+    /// True when a send through this endpoint can hand a scheduled message to the server: JetStream, a server
+    /// with message schedules, and a declared stream that allows them and keeps them until they fire. Interest
+    /// and work-queue retention cannot promise that: an interest stream drops a control message no consumer is
+    /// interested in, and on both a consumer whose filter covers the schedule subject deletes the control message
+    /// by acknowledging it, so the schedule never fires. Such sends use Wolverine's own scheduling instead.
     /// </summary>
     [IgnoreDescription]
-    internal bool UsesNativeScheduledSend =>
+    internal bool SupportsNativeScheduledSend =>
         UseJetStream
         && _transport.Configuration.EnableJetStream
         && _transport.ServerSupportsScheduledSend
         && StreamName != null
         && _transport.Configuration.Streams.TryGetValue(StreamName, out var scheduleStreamConfig)
-        && scheduleStreamConfig.AllowMsgSchedules;
+        && scheduleStreamConfig.AllowMsgSchedules
+        && scheduleStreamConfig.Retention == StreamConfigRetention.Limits
+        && capturesScheduleSubjects(scheduleStreamConfig);
+
+    // Each schedule has a subject of its own under the suffix. A stream declared with the exact subjects of the single
+    // schedule subject used before captures none of them, and every native schedule would be published to nowhere
+    private bool capturesScheduleSubjects(StreamConfiguration stream) =>
+        stream.Subjects.Any(x => SubjectCovers(x, $"{Subject}{ScheduleSubjectSuffix}.{Guid.Empty:N}"));
 
     /// <summary>
     /// Per-endpoint override for the JetStream consumer's <c>DeliverPolicy</c>.
@@ -268,12 +288,22 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// <see cref="DeliverPolicy"/> wins over the transport-wide
     /// <see cref="Configuration.JetStreamDefaults.DeliverPolicy"/>, with
     /// <c>null</c> meaning "leave the consumer config alone and let the NATS
-    /// server default apply". Computed at access time so override mutations
-    /// performed during host bootstrap are picked up regardless of ordering
-    /// between transport / listener configuration calls.
+    /// server default apply". A shard listener on the work-queue stream
+    /// <c>UseShardedNatsSubjects()</c> declares delivers all instead of the
+    /// transport-wide default, the only policy a work-queue stream accepts.
+    /// Computed at access time so override mutations performed during host
+    /// bootstrap are picked up regardless of ordering between transport /
+    /// listener configuration calls.
     /// </summary>
     public ConsumerConfigDeliverPolicy? EffectiveDeliverPolicy =>
-        DeliverPolicy ?? _transport.Configuration.JetStreamDefaults.DeliverPolicy;
+        DeliverPolicy ?? (consumesShardStream
+            ? ConsumerConfigDeliverPolicy.All
+            : _transport.Configuration.JetStreamDefaults.DeliverPolicy);
+
+    private bool consumesShardStream =>
+        StreamName != null &&
+        _transport.Configuration.Streams.TryGetValue(StreamName, out var stream) &&
+        stream.DeclaredByShardTopology;
 
     /// <summary>
     /// The subject pattern this endpoint's listener consumes: the plain <see cref="Subject"/>, or the tenant
@@ -314,24 +344,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         }
 
         // Scope the consumer to this listener's subject. Without a filter every durable consumer sharing a
-        // stream received every message published to that stream (GH-3676).
+        // stream received every message published to that stream (GH-3676). Native scheduling's control
+        // messages stay outside the filter on purpose: the server materializes a scheduled message onto this
+        // subject at its due time, and a consumer that also took the control message handled it at once --
+        // and the materialized copy a second time.
         if (!string.IsNullOrEmpty(subscriptionPattern))
         {
-            // Native scheduling publishes its control message to {subject}{suffix} and no single
-            // NATS filter covers both that and {subject} -- '{subject}.>' excludes {subject}
-            // itself. On a work queue stream a control message no consumer covers is discarded
-            // outright, so the schedule is never registered and the send silently never arrives;
-            // a multi-filter consumer keeps the schedule subject owned by this endpoint
-            if (UsesNativeScheduledSend && !string.IsNullOrEmpty(ScheduleSubjectSuffix))
-            {
-                config.FilterSubject = null;
-                config.FilterSubjects = [subscriptionPattern, subscriptionPattern + ScheduleSubjectSuffix];
-            }
-            else
-            {
-                config.FilterSubject = subscriptionPattern;
-                config.FilterSubjects = null;
-            }
+            config.FilterSubject = subscriptionPattern;
+            config.FilterSubjects = null;
         }
 
         return config;
@@ -417,8 +437,54 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        _connection = _transport.Connection;
         _logger = runtime.LoggerFactory.CreateLogger<NatsEndpoint>();
+
+        var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
+        var supportsScheduledSend = SupportsNativeScheduledSend;
+
+        if (!supportsScheduledSend && useJetStream && _transport.ServerSupportsScheduledSend &&
+            StreamName != null &&
+            _transport.Configuration.Streams.TryGetValue(StreamName, out var streamConfig) &&
+            streamConfig.AllowMsgSchedules)
+        {
+            if (streamConfig.Retention != StreamConfigRetention.Limits)
+            {
+                _logger.LogInformation(
+                    "Stream {Stream} allows message schedules, but its {Retention} retention can delete a schedule before it fires, so messages scheduled for {Subject} use Wolverine's own scheduling",
+                    StreamName, streamConfig.Retention, Subject);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Stream {Stream} allows message schedules, but its subjects do not capture {ScheduleSubjects}, where each message scheduled for {Subject} gets a schedule subject of its own, so they use Wolverine's own scheduling. Add the subject to the stream to schedule them natively",
+                    StreamName, $"{Subject}{ScheduleSubjectSuffix}.>", Subject);
+            }
+        }
+
+        return buildSender(runtime, useJetStream, supportsScheduledSend);
+    }
+
+    /// <summary>
+    /// The sender a JetStream listener forwards its dead letters through when this endpoint is its dead-letter
+    /// subject: a JetStream publish whose PubAck is checked, whatever this endpoint is configured for otherwise,
+    /// so the listener knows the copy is stored before it lets go of the original. Built here rather than taken
+    /// from the subject's sending agent: an agent buffers (or would hand back an agent rather than an
+    /// <see cref="ISender"/>, GH-3739), and the subject's own endpoint may well be core NATS. Tenant routing is the
+    /// same as for any send to this subject; <see cref="NatsTransportConfiguration.ConfigureJetStreamPublish"/> is
+    /// not applied to the copy.
+    /// </summary>
+    internal ISender BuildDeadLetterSender(IWolverineRuntime runtime)
+    {
+        Compile(runtime);
+        _logger ??= runtime.LoggerFactory.CreateLogger<NatsEndpoint>();
+        return buildSender(runtime, useJetStream: true, supportsScheduledSend: false, deadLetters: true);
+    }
+
+    private ISender buildSender(IWolverineRuntime runtime, bool useJetStream, bool supportsScheduledSend,
+        bool deadLetters = false)
+    {
+        _connection = _transport.Connection;
+        _logger ??= runtime.LoggerFactory.CreateLogger<NatsEndpoint>();
         _mapper = new NatsEnvelopeMapper(this);
 
         if (MessageType != null)
@@ -426,13 +492,6 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             _mapper.ReceivesMessage(MessageType);
         }
 
-        var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
-        var supportsScheduledSend = useJetStream && 
-                                    _transport.ServerSupportsScheduledSend &&
-                                    StreamName != null &&
-                                    _transport.Configuration.Streams.TryGetValue(StreamName, out var streamConfig) &&
-                                    streamConfig.AllowMsgSchedules;
-        
         var jetStreamContext = useJetStream ? _transport.CreateJetStreamContext() : null;
 
         var baseSender = NatsSender.Create(
@@ -443,7 +502,10 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             _mapper,
             runtime.Cancellation,
             useJetStream,
-            supportsScheduledSend
+            supportsScheduledSend,
+            // The application's publish hook shapes its own publishes; on a dead-letter copy an expected stream or a
+            // fixed Nats-Msg-Id it sets would make the dead-letter stream refuse or drop every copy
+            applyPublishHook: !deadLetters
         );
 
         if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
@@ -486,7 +548,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                     useJetStream,
                     supportsScheduledSend,
                     subjectMapper,
-                    tenant.TenantId
+                    tenant.TenantId,
+                    applyPublishHook: !deadLetters
                 );
 
                 tenantedSender.RegisterSender(tenant.TenantId, tenantSender);
@@ -503,17 +566,34 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         IReceiver receiver
     )
     {
+        // A listener the agent framework starts after the host -- an exclusive listener, a shard -- fails without
+        // failing the host, so the transport's health check has to report it
+        try
+        {
+            var listener = await buildListenerAsync(runtime, receiver);
+            _transport.ListenerStarted(Uri);
+            return listener;
+        }
+        catch (Exception e)
+        {
+            _transport.ListenerFailedToStart(Uri, e);
+            throw;
+        }
+    }
+
+    private async ValueTask<IListener> buildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
         _connection = _transport.Connection;
         _logger = runtime.LoggerFactory.CreateLogger<NatsEndpoint>();
 
-        ISender? deadLetterSender = null;
-        if (!string.IsNullOrEmpty(DeadLetterSubject))
-        {
-            var dlqEndpoint = _transport.EndpointForSubject(DeadLetterSubject);
-            deadLetterSender = resolveDeadLetterSender(runtime, dlqEndpoint);
-        }
-
         var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
+
+        // Only a JetStream delivery can be dead lettered: a core NATS message is gone once it is delivered
+        ISender? deadLetterSender = null;
+        if (useJetStream && !string.IsNullOrEmpty(DeadLetterSubject))
+        {
+            deadLetterSender = _transport.EndpointForSubject(DeadLetterSubject).BuildDeadLetterSender(runtime);
+        }
 
         string subscriptionPattern = Subject;
         ITenantSubjectMapper? tenantMapper = null;
@@ -548,46 +628,39 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
         foreach (var tenant in dedicatedTenants)
         {
+            // The tenant's own mapper, as for sending to it: with SameSubjectTenantMapper the tenant's producers
+            // publish to the plain subject, which a JetStream consumer filtering on the transport's "*.{subject}"
+            // never took
+            var mapper = tenant.SubjectMapper ?? tenantMapper!;
             var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
-            var tenantListener = await startListenerAsync(
-                runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
-                subscriptionPattern, tenantMapper, deadLetterSender);
+
+            NatsListener tenantListener;
+            try
+            {
+                tenantListener = await startListenerAsync(
+                    runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
+                    mapper.GetSubscriptionPattern(Subject), mapper, deadLetterSender);
+            }
+            catch
+            {
+                // The listeners already running would keep consuming for a listening agent that saw the start fail
+                try
+                {
+                    await compound.DisposeAsync();
+                }
+                catch (Exception e)
+                {
+                    // The start failure is what the listening agent and the health check have to see
+                    _logger?.LogDebug(e, "Error disposing the listeners of {Uri} after a failed start", Uri);
+                }
+
+                throw;
+            }
+
             compound.Inner.Add(tenantListener);
         }
 
         return compound;
-    }
-
-    /// <summary>
-    /// Resolve the transport-level <see cref="ISender"/> for a dead-letter subject.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <see cref="IEndpointCollection.GetOrBuildSendingAgent"/> hands back an <see cref="ISendingAgent"/> —
-    /// a <c>BufferedSendingAgent</c>, <c>DurableSendingAgent</c> or <see cref="InlineSendingAgent"/> — and none
-    /// of those implement <see cref="ISender"/>. Casting the agent straight to <see cref="ISender"/> therefore
-    /// threw an <see cref="InvalidCastException"/> during listener startup for every listener with a configured
-    /// dead-letter subject (GH-3739). Reach through to the sender the agent wraps instead, the same way
-    /// <c>EndpointCollection</c> does when it resolves connection state.
-    /// </para>
-    /// <para>
-    /// The underlying sender is deliberately what we want here rather than the agent: <see cref="NatsListener.MoveToErrorsAsync"/>
-    /// publishes the poison message and only then terminates JetStream delivery, so the forward has to reach the
-    /// broker before the terminate. Enqueuing on a buffered agent would return before the message was on the wire
-    /// and a crash in between would lose it.
-    /// </para>
-    /// </remarks>
-    private ISender resolveDeadLetterSender(IWolverineRuntime runtime, NatsEndpoint dlqEndpoint)
-    {
-        var agent = runtime.Endpoints.GetOrBuildSendingAgent(dlqEndpoint.Uri);
-
-        return agent switch
-        {
-            SendingAgent sendingAgent => sendingAgent.Sender,
-            InlineSendingAgent inlineAgent => inlineAgent.Sender,
-            _ => throw new InvalidOperationException(
-                $"Unable to resolve an {nameof(ISender)} for the dead letter subject '{DeadLetterSubject}' of the NATS listener at '{Uri}'. The sending agent at '{dlqEndpoint.Uri}' was a {agent.GetType().FullName}.")
-        };
     }
 
     private async ValueTask<NatsListener> startListenerAsync(
@@ -615,10 +688,34 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             tenantMapper
         );
 
-        await listener.StartAsync();
+        try
+        {
+            await listener.StartAsync();
+        }
+        catch
+        {
+            // Nothing else owns it yet
+            await listener.DisposeAsync();
+            throw;
+        }
+
         return listener;
     }
 
+    /// <summary>
+    /// Startup, right after the transport connected: the declared streams have to be in place before any listener
+    /// starts. Resource checks and the other resource operations never get here, so they provision nothing.
+    /// </summary>
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        await _transport.ProvisionDeclaredStreamsAsync(explicitSetup: false);
+    }
+
+    /// <summary>
+    /// <c>resources check</c>: whether this endpoint's stream exists, and -- read-only -- whether a declared one
+    /// matches its declaration where startup would act on a difference. A missing stream is reported as missing;
+    /// a differing one throws with the differences, which the resource reports with the endpoint.
+    /// </summary>
     public async ValueTask<bool> CheckAsync()
     {
         _connection ??= _transport.Connection;
@@ -633,19 +730,28 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             return true;
         }
 
+        StreamConfig existing;
         try
         {
             var js = _transport.CreateJetStreamContext();
-            var stream = await js.GetStreamAsync(
-                StreamName,
-                cancellationToken: CancellationToken.None
-            );
-            return stream != null;
+            existing = (await js.GetStreamAsync(StreamName, cancellationToken: CancellationToken.None)).Info.Config;
         }
-        catch
+        catch (NatsJSApiException e) when (e.Error.Code == 404)
         {
+            // Only "stream not found" means missing. Any other failure -- no JetStream answering for the domain,
+            // missing permissions, a timeout -- propagates, so the check reports it instead of a missing stream
             return false;
         }
+
+        var deviations = _transport.DeclaredStreamDeviations(StreamName, existing);
+        if (deviations.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"JetStream stream '{StreamName}' does not match its declaration ({_transport.Configuration.StreamProvisioning}): " +
+                string.Join("; ", deviations));
+        }
+
+        return true;
     }
 
     public async ValueTask TeardownAsync(ILogger logger)
@@ -695,6 +801,10 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             throw new InvalidOperationException("NATS connection is not available or not open");
         }
 
+        // The declared streams first, from their declarations and as Provisioning says -- also those no endpoint
+        // uses, and with Verify failing the setup. Once per resource setup, whichever endpoint gets here first
+        await _transport.ProvisionDeclaredStreamsAsync(explicitSetup: true);
+
         if (!UseJetStream || string.IsNullOrEmpty(StreamName))
         {
             logger.LogInformation("Using Core NATS for subject {Subject}", Subject);
@@ -714,16 +824,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         {
             // Only a missing stream is created. Any other failure -- no JetStream answering for the domain,
             // missing permissions, a timeout -- propagates instead of being taken for "not found"
-            var subjects = new List<string> { Subject };
-
-            if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
-            {
-                var wildcardPattern = _transport.TenantSubjectMapper.GetSubscriptionPattern(Subject);
-                if (wildcardPattern != Subject)
-                {
-                    subjects.Add(wildcardPattern);
-                }
-            }
+            var subjects = StreamSubjects();
 
             StreamConfig config;
             if (_transport.Configuration.Streams.TryGetValue(StreamName, out var declared))
@@ -799,6 +900,25 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// GH-4956. Whether a NATS subject pattern (with <c>*</c> for one token and <c>&gt;</c> for the rest) covers a
     /// concrete subject, the way the server matches a stream's subjects
     /// </summary>
+    /// <summary>
+    /// The subjects a stream this endpoint uses has to capture: its own, and with tenants the tenant pattern
+    /// </summary>
+    internal List<string> StreamSubjects()
+    {
+        var subjects = new List<string> { Subject };
+
+        if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var wildcardPattern = _transport.TenantSubjectMapper.GetSubscriptionPattern(Subject);
+            if (wildcardPattern != Subject)
+            {
+                subjects.Add(wildcardPattern);
+            }
+        }
+
+        return subjects;
+    }
+
     internal static bool SubjectCovers(string pattern, string subject)
     {
         if (pattern == subject)

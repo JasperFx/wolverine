@@ -5,8 +5,10 @@ namespace Wolverine.Nats.Configuration;
 /// with the named consumer of a JetStream listener, when it already exists on the server. Set it through
 /// <c>UseNats(...).Provisioning(...)</c>. When it is not set, existing streams are left alone and named consumers
 /// are brought in line with the configuration. Only the settings Wolverine itself writes are compared or changed;
-/// everything else on an existing stream or consumer is left as the server has it. <c>resources setup</c> /
-/// <c>AddResourceSetupOnStartup()</c> is not affected by this setting.
+/// everything else on an existing stream or consumer is left as the server has it. Resource setup
+/// (<c>resources setup</c> / <c>AddResourceSetupOnStartup()</c>) treats declared streams the same way, and creates
+/// missing ones even with <c>AutoProvision</c> off; the consumers it writes for named listeners do not depend on
+/// this setting. <c>resources check</c> reports what startup would create, change or fail on, and changes nothing.
 /// </summary>
 public enum NatsProvisioning
 {

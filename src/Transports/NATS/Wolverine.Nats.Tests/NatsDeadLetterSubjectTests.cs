@@ -62,10 +62,9 @@ public class NatsDeadLetterSubjectTests
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
 
-        // ...and the sender it resolves has to be the transport-level ISender the listener needs, not the
-        // ISendingAgent wrapper. NatsListener.MoveToErrorsAsync publishes the poison message and only then
-        // terminates JetStream delivery, so the forward must reach the broker before the terminate — enqueuing
-        // on a buffered agent would return before the message was on the wire.
+        // ...and the sending agent of the dead-letter subject still wraps a NatsSender, not the other way round.
+        // The listener itself forwards through a JetStream sender of its own (NatsEndpoint.BuildDeadLetterSender),
+        // so it knows the copy is stored before it terminates the original
         var transport = runtime.Options.Transports.GetOrCreate<NatsTransport>();
         var dlqEndpoint = transport.EndpointForSubject(deadLetterSubject);
         var agent = runtime.Endpoints.GetOrBuildSendingAgent(dlqEndpoint.Uri);
@@ -85,8 +84,8 @@ public class NatsDeadLetterSubjectTests
         var stream = $"DLQFORWARD_{id}";
         var subject = $"dlqforward.{id}.incoming";
 
-        // Deliberately outside the stream's subject space so the dead-letter copy is a plain core-NATS
-        // publish that a raw subscriber can observe without JetStream getting in the way
+        // In a stream of its own: the copy is a JetStream publish the stream has to confirm, which a raw core
+        // subscriber still sees
         var deadLetterSubject = $"dlqforward-errors.{id}";
 
         PoisonMessageHandler.Reset();
@@ -100,7 +99,8 @@ public class NatsDeadLetterSubjectTests
             {
                 opts.UseNats(natsUrl)
                     .AutoProvision()
-                    .DefineStream(stream, s => s.WithSubjects($"dlqforward.{id}.>"));
+                    .DefineStream(stream, s => s.WithSubjects($"dlqforward.{id}.>"))
+                    .DefineStream($"{stream}_ERRORS", s => s.WithSubjects(deadLetterSubject));
 
                 opts.Policies.DisableConventionalLocalRouting();
 

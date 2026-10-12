@@ -99,6 +99,42 @@ public class NatsShardedStreamRetentionTests
         ShardedProcessing.AssertEveryShardWasUsed(tracked, baseName, 2);
     }
 
+    [Fact]
+    public async Task shards_of_a_base_name_with_a_dot_start()
+    {
+        // The shard listeners use unnamed consumers, which failed with 10131 on a subject with a dot
+        var baseName = $"dot.{Guid.NewGuid():N}"[..20];
+
+        using var host = await startAsync(baseName, _ => { });
+
+        var tracked = await host
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(60.Seconds())
+            .ExecuteAndWaitAsync(ShardedProcessing.PumpOutLetters);
+
+        ShardedProcessing.AssertEveryShardWasUsed(tracked, baseName, 2);
+    }
+
+    [Fact]
+    public async Task shard_listeners_start_under_a_transport_wide_deliver_policy()
+    {
+        var baseName = $"dpshards{Guid.NewGuid():N}"[..20];
+
+        // The documented "only new messages" default. A work-queue stream refuses any consumer that does not
+        // deliver all (10101), which failed the start in Solo mode
+        using var host = await startAsync(baseName,
+            nats => nats.UseJetStream(js => js.DeliverPolicy = ConsumerConfigDeliverPolicy.New));
+
+        var tracked = await host
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(60.Seconds())
+            .ExecuteAndWaitAsync(ShardedProcessing.PumpOutLetters);
+
+        ShardedProcessing.AssertEveryShardWasUsed(tracked, baseName, 2);
+    }
+
     private async Task<IHost> startAsync(string baseName, Action<NatsTransportExpression> configure)
     {
         return await Host.CreateDefaultBuilder()

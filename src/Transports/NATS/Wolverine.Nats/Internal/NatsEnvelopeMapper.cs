@@ -1,4 +1,3 @@
-using ImTools;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using Wolverine.Runtime.Serialization;
@@ -8,30 +7,26 @@ namespace Wolverine.Nats.Internal;
 
 public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
 {
-    // GH-4328: one Uri per received message was being parsed from an interpolated string, but the
-    // subject on an incoming message is the listener's own subscribed subject — a small bounded
-    // set. Reply subjects are deliberately NOT cached: request/reply uses ephemeral per-request
-    // _INBOX.* subjects and caching those would grow without bound.
-    private static ImHashMap<string, Uri> _subjectUris = ImHashMap<string, Uri>.Empty;
-
-    internal static Uri UriForIncomingSubject(string subject)
-    {
-        if (_subjectUris.TryFind(subject, out var uri))
-        {
-            return uri;
-        }
-
-        uri = new Uri($"nats://subject/{subject}");
-        _subjectUris = _subjectUris.AddOrUpdate(subject, uri);
-        return uri;
-    }
-
+    private readonly Uri _destination;
     private readonly ITenantSubjectMapper? _tenantMapper;
+    private readonly IncomingTenancy _tenancy;
     
     public NatsEnvelopeMapper(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper = null)
         : base(endpoint)
     {
+        _destination = endpoint.Uri;
         _tenantMapper = tenantMapper;
+        _tenancy = new IncomingTenancy(endpoint, tenantMapper);
+    }
+
+    /// <summary>
+    /// <see cref="EnvelopeMapper{TIncoming,TOutgoing}.MapIncomingToEnvelope"/>, and then -- unless the transport
+    /// trusts the <c>tenant-id</c> header -- the tenant id from where the message arrived
+    /// </summary>
+    internal void MapIncoming(Envelope envelope, NatsMsg<byte[]> incoming)
+    {
+        MapIncomingToEnvelope(envelope, incoming);
+        _tenancy.Apply(envelope, incoming.Subject);
     }
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
@@ -70,7 +65,12 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
     protected override void writeIncomingHeaders(NatsMsg<byte[]> incoming, Envelope envelope)
     {
         envelope.Data = incoming.Data;
-        envelope.Destination = UriForIncomingSubject(incoming.Subject);
+
+        // GH-4328: no Uri parsed per received message. The listener's own address is what the receiving
+        // pipeline stamps on the envelope anyway (Envelope.MarkReceived). A Uri per incoming subject, cached
+        // statically, grew by one entry for every distinct subject under a wildcard listener and for every reply
+        // to an InvokeAsync() answered over core NATS, whose reply subject carries a per-request token.
+        envelope.Destination = _destination;
 
         if (_tenantMapper != null)
         {
@@ -102,12 +102,26 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
 
 public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHeaders>
 {
+    private readonly Uri _destination;
     private readonly ITenantSubjectMapper? _tenantMapper;
+    private readonly IncomingTenancy _tenancy;
     
     public JetStreamEnvelopeMapper(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper = null)
         : base(endpoint)
     {
+        _destination = endpoint.Uri;
         _tenantMapper = tenantMapper;
+        _tenancy = new IncomingTenancy(endpoint, tenantMapper);
+    }
+
+    /// <summary>
+    /// <see cref="EnvelopeMapper{TIncoming,TOutgoing}.MapIncomingToEnvelope"/>, and then -- unless the transport
+    /// trusts the <c>tenant-id</c> header -- the tenant id from where the message arrived
+    /// </summary>
+    internal void MapIncoming(Envelope envelope, INatsJSMsg<byte[]> incoming)
+    {
+        MapIncomingToEnvelope(envelope, incoming);
+        _tenancy.Apply(envelope, incoming.Subject);
     }
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
@@ -146,7 +160,9 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
     protected override void writeIncomingHeaders(INatsJSMsg<byte[]> incoming, Envelope envelope)
     {
         envelope.Data = incoming.Data;
-        envelope.Destination = NatsEnvelopeMapper.UriForIncomingSubject(incoming.Subject);
+
+        // The listener's own address; see NatsEnvelopeMapper
+        envelope.Destination = _destination;
 
         if (_tenantMapper != null)
         {
@@ -204,5 +220,40 @@ internal static class NatsHeaderValues
         }
 
         return value.Replace("\r\n", "\n").Replace('\r', '\n');
+    }
+}
+
+/// <summary>
+/// <see cref="Configuration.NatsTransportConfiguration.TrustTenantIdHeader"/> = false on a tenant-aware listener: the
+/// tenant id the <c>tenant-id</c> header set gives way to the configured tenant the subject names, or to none. A
+/// listener on a tenant's own connection stamps that tenant afterwards anyway.
+/// </summary>
+internal sealed class IncomingTenancy
+{
+    private readonly ITenantSubjectMapper? _tenantMapper;
+    private readonly HashSet<string>? _tenantIds;
+
+    public IncomingTenancy(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper)
+    {
+        if (tenantMapper == null || endpoint.TrustsTenantIdHeader)
+        {
+            return;
+        }
+
+        _tenantMapper = tenantMapper;
+        _tenantIds = endpoint.TenantIds();
+    }
+
+    public void Apply(Envelope envelope, string subject)
+    {
+        if (_tenantMapper == null)
+        {
+            return;
+        }
+
+        // Only a configured tenant counts: the default mapper reads the first token of any subject with a dot, so
+        // on a plain "orders.created" it would name a tenant "orders"
+        var tenantId = _tenantMapper.ExtractTenantId(subject);
+        envelope.TenantId = tenantId != null && _tenantIds!.Contains(tenantId) ? tenantId : null;
     }
 }

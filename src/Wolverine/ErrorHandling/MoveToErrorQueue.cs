@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -49,7 +50,21 @@ internal class MoveToErrorQueue : IContinuation
             lifecycle.Envelope.MessageType ??= $"unknown/{Exception.GetType().Name}";
         }
 
-        await lifecycle.MoveToDeadLetterQueueAsync(Exception);
+        try
+        {
+            await lifecycle.MoveToDeadLetterQueueAsync(Exception);
+        }
+        catch (DeadLetterMoveFailedException e)
+        {
+            // The transport could not move the envelope and left the delivery with the broker, which delivers it
+            // again. Nothing was dead lettered, so no fault, no completion -- that would settle, and so lose, the
+            // only copy -- and no error queue record
+            runtime.Logger.LogWarning(e,
+                "Could not move envelope {EnvelopeId} to the error queue; the transport left it to be delivered again",
+                lifecycle.Envelope.Id);
+            lifecycle.CompletionTrackerFor(runtime).Requeued(lifecycle.Envelope);
+            return;
+        }
 
         // Auto-publish Fault<T> if opted in. The publish enrols in the active
         // outbox transaction when one is open on the inbound MessageContext;

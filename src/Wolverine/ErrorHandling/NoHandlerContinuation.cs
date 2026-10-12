@@ -2,6 +2,7 @@ using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.ErrorHandling;
 
@@ -34,6 +35,16 @@ internal class NoHandlerContinuation : IContinuation
             try
             {
                 await handler.HandleAsync(lifecycle, _root);
+            }
+            catch (DeadLetterMoveFailedException e)
+            {
+                // A move to the dead letter queue the transport could not make: it left the delivery with the
+                // broker, which delivers it again. Completing it would settle, and so lose, the only copy
+                runtime.Logger.LogWarning(e,
+                    "Could not move envelope {EnvelopeId} without a handler to the dead letter queue; the transport left it to be delivered again",
+                    lifecycle.Envelope.Id);
+                lifecycle.CompletionTrackerFor(runtime).Requeued(lifecycle.Envelope);
+                return;
             }
             catch (Exception? e)
             {

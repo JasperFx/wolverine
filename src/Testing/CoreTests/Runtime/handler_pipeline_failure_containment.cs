@@ -40,6 +40,23 @@ public class handler_pipeline_failure_containment
     }
 
     [Fact]
+    public async Task an_envelope_a_failed_dead_letter_move_left_with_the_broker_is_not_completed()
+    {
+        // The transport could not dead letter it and handed the delivery back to the broker for redelivery, so
+        // acking it out of the way here would lose it
+        var channel = new FakeChannel();
+        var logger = new RecordingLogger();
+        var failure = new DeadLetterMoveFailedException("no dead letter stream", null);
+
+        await HandlerPipeline.RecoverFromFailedProcessingAsync(channel, theEnvelope, failure, theTracker, logger,
+            null);
+
+        channel.CompleteCalls.ShouldBe(0);
+        theTracker.Received(1).LogException(failure, theEnvelope.Id);
+        theTracker.DidNotReceive().MessageFailed(theEnvelope, failure);
+    }
+
+    [Fact]
     public async Task contains_oom_thrown_by_complete_async()
     {
         var channel = new FakeChannel { CompleteThrows = new OutOfMemoryException("ack also OOMs") };

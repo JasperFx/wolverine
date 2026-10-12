@@ -35,14 +35,24 @@ public class NatsListenerConfiguration
         string? consumerName = null
     )
     {
-        add(endpoint =>
+        // Right away as well, not only with the rest of the endpoint's configuration: endpoint policies such as
+        // UseDurableInboxOnAllListeners() run first and ask whether the endpoint supports durable mode, which a
+        // NATS endpoint only does with JetStream
+        if (_endpoint != null)
         {
-            endpoint.UseJetStream = true;
-            endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
-            endpoint.ConsumerName = consumerName;
-        });
+            applyJetStream(_endpoint, streamName, consumerName);
+        }
+
+        add(endpoint => applyJetStream(endpoint, streamName, consumerName));
 
         return this;
+    }
+
+    private static void applyJetStream(NatsEndpoint endpoint, string? streamName, string? consumerName)
+    {
+        endpoint.UseJetStream = true;
+        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
+        endpoint.ConsumerName = consumerName;
     }
 
     /// <summary>
@@ -185,6 +195,9 @@ public class NatsListenerConfiguration
     /// <c>UseJetStream(streamName, consumerName)</c>, Wolverine keeps that
     /// consumer's existing <c>DeliverPolicy</c> and ignores this override, as
     /// JetStream does not allow changing it on an existing consumer.
+    ///
+    /// A stream with work-queue retention refuses any consumer that does not
+    /// deliver all, so on such a stream only <c>All</c> works.
     /// </summary>
     public NatsListenerConfiguration DeliverFrom(ConsumerConfigDeliverPolicy deliverPolicy)
     {

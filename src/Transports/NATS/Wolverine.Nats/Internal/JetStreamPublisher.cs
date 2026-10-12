@@ -18,6 +18,12 @@ internal class JetStreamPublisher : INatsPublisher
     /// </summary>
     internal const string NatsMsgIdHeader = "Nats-Msg-Id";
 
+    /// <summary>
+    /// Marks a native scheduling control message. The server removes it from the message it materializes at the
+    /// due time, so only the control message itself carries it.
+    /// </summary>
+    internal const string NatsScheduleHeader = "Nats-Schedule";
+
     private readonly NatsConnection _connection;
     private readonly INatsJSContext _jetStreamContext;
     private readonly ILogger<NatsEndpoint> _logger;
@@ -125,11 +131,14 @@ internal class JetStreamPublisher : INatsPublisher
                 // NATS rejects a scheduled publish whose subject equals Nats-Schedule-Target ("message
                 // schedules target is invalid", err 10190). So the target stays the real destination
                 // (where the consumer listens and the server materializes the message), and the control
-                // message goes to a derived subject that must still be covered by the same stream.
+                // message goes to a derived subject that must still be covered by the same stream. NATS keeps
+                // one schedule per subject and replaces it with the next control message on that subject, so
+                // the envelope id makes the subject unique to this schedule: without it, the second message
+                // scheduled for an endpoint silently cancelled the first.
                 var scheduledTime = envelope.ScheduledTime.Value.ToUniversalTime();
-                headers["Nats-Schedule"] = $"@at {scheduledTime:O}";
+                headers[NatsScheduleHeader] = $"@at {scheduledTime:O}";
                 headers["Nats-Schedule-Target"] = subject;
-                publishSubject = subject + _scheduleSubjectSuffix;
+                publishSubject = $"{subject}{_scheduleSubjectSuffix}.{envelope.Id:N}";
 
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
@@ -143,13 +152,29 @@ internal class JetStreamPublisher : INatsPublisher
                 }
             }
 
-            var ack = await _jetStreamContext.PublishAsync(
-                publishSubject,
-                data,
-                opts: pubOpts,
-                headers: headers,
-                cancellationToken: cancellation
-            );
+            // A deadline of its own: with every server gone, NATS.Net keeps waiting for the PubAck far beyond its
+            // request timeout -- minutes -- unless the token ends the wait, and the host's lifetime token never
+            // does. The sending agent (or a dead-letter forward) would hang for as long as the outage lasts.
+            var timeout = _connection.Opts.CommandTimeout;
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            deadline.CancelAfter(timeout);
+
+            PubAckResponse ack;
+            try
+            {
+                ack = await _jetStreamContext.PublishAsync(
+                    publishSubject,
+                    data,
+                    opts: pubOpts,
+                    headers: headers,
+                    cancellationToken: deadline.Token
+                );
+            }
+            catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"JetStream did not acknowledge the publish of message {envelope.Id} to {publishSubject} within {timeout}");
+            }
 
             // NATS.Net hands a publish the server refused -- a full DiscardNew stream, a failed
             // Nats-Expected-* check, an oversized message -- back as a PubAckResponse carrying Error

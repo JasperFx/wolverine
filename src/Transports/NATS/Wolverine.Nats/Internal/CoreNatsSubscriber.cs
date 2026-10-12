@@ -126,6 +126,19 @@ internal class CoreNatsSubscriber : INatsSubscriber
                                     continue;
                                 }
 
+                                // A native scheduling control message published to a stream subject this
+                                // wildcard covers. The server stores the message it materializes at the due
+                                // time in the stream without publishing it to core subscriptions, so there is
+                                // nothing for a core listener to handle
+                                if (msg.Headers?.ContainsKey(JetStreamPublisher.NatsScheduleHeader) == true)
+                                {
+                                    _logger.LogDebug(
+                                        "Skipping the NATS schedule control message on subject {Subject}",
+                                        msg.Subject
+                                    );
+                                    continue;
+                                }
+
                                 // Skip messages without headers or without message-type header.
                                 // These are typically NATS protocol messages (JetStream acks, etc.)
                                 // that should not be processed by Wolverine.
@@ -141,7 +154,7 @@ internal class CoreNatsSubscriber : INatsSubscriber
                                 }
 
                                 var envelope = new NatsEnvelope(msg, null);
-                                _mapper.MapIncomingToEnvelope(envelope, msg);
+                                _mapper.MapIncoming(envelope, msg);
 
                                 // A request's reply has to go to its exact wire reply subject, which is all a
                                 // responder limited to allow_responses may publish to
@@ -212,12 +225,14 @@ internal class CoreNatsSubscriber : INatsSubscriber
         // Increment attempts before republishing for requeue support
         envelope.Attempts++;
         
-        // Republish the message to the same subject for requeue support
+        // Republish the message to the subject it arrived on for requeue support. The listener's own subject would
+        // drop a tenant prefix -- and with it the tenant, when the tenant-id header is not trusted -- and can be a
+        // wildcard nothing can be published to
         var headers = new NatsHeaders();
         _mapper.MapEnvelopeToOutgoing(envelope, headers);
-        
+
         await _connection.PublishAsync(
-            _endpoint.Subject,
+            envelope.CoreMsg?.Subject ?? _endpoint.Subject,
             envelope.Data,
             headers,
             cancellationToken: cancellation

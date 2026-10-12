@@ -55,6 +55,12 @@ public class StreamConfiguration
     public Placement? Placement { get; set; }
 
     /// <summary>
+    /// True for the work-queue stream <c>UseShardedNatsSubjects()</c> declares for a shard because the application
+    /// declared no stream of that name itself
+    /// </summary>
+    internal bool DeclaredByShardTopology { get; set; }
+
+    /// <summary>
     /// Add a subject to this stream
     /// </summary>
     public StreamConfiguration WithSubject(string subject)
@@ -139,7 +145,9 @@ public class StreamConfiguration
 
     /// <summary>
     /// Enable scheduled message delivery (requires NATS Server 2.12+).
-    /// Once enabled on a stream, this cannot be disabled.
+    /// Once enabled on a stream, this cannot be disabled. Wolverine only hands scheduled sends to the server on a
+    /// stream with limits retention (the default): interest and work-queue retention can delete a schedule before
+    /// it fires, so sends to those streams use Wolverine's own scheduling.
     /// </summary>
     public StreamConfiguration EnableScheduledDelivery()
     {

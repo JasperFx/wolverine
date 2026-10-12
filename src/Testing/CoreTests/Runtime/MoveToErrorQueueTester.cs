@@ -1,6 +1,7 @@
 ﻿using NSubstitute;
 using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
+using Wolverine.Transports;
 using Xunit;
 
 namespace CoreTests.Runtime;
@@ -60,6 +61,21 @@ public class MoveToErrorQueueTester
                 .DidNotReceive()
                 .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
             ;
+    }
+
+    [Fact]
+    public async Task a_move_the_transport_could_not_make_leaves_the_envelope_unsettled()
+    {
+        // The transport left the delivery with the broker, which delivers it again. Completing it would settle,
+        // and so lose, the only copy
+        theLifecycle.MoveToDeadLetterQueueAsync(theException)
+            .Returns(Task.FromException(new DeadLetterMoveFailedException("no dead letter stream", null)));
+
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle.DidNotReceive().CompleteAsync();
+        theRuntime.MessageTracking.DidNotReceive().MovedToErrorQueue(theEnvelope, theException);
+        theRuntime.MessageTracking.Received().Requeued(theEnvelope);
     }
 
     [Fact]
