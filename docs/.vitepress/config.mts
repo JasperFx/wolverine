@@ -254,6 +254,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Unknown Messages', link: '/guide/messaging/unknown'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
+                        {text: 'Broadcast to Every Node', link: '/guide/messaging/broadcast-to-all-nodes'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
                         {text: 'Header Propagation', link: '/guide/messaging/header-propagation'},
                         {text: 'Endpoint Policies', link: '/guide/messaging/policies'},
