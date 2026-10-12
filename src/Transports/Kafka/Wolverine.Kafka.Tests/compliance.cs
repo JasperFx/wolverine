@@ -15,17 +15,26 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
     }
 
+    // GH-4982: unique per fixture instance, and TransportCompliance builds a fresh fixture for every test.
+    // With fixed names, whatever an earlier test (or an earlier run against the same broker) left
+    // uncommitted on the topic was consumed by the next test's brand new receiver.
+    private readonly string _receiverTopic = KafkaComplianceTopics.Unique("buffered.receiver");
+    private readonly string _senderTopic = KafkaComplianceTopics.Unique("buffered.sender");
+
     public async ValueTask InitializeAsync()
     {
-        var receiverTopic = "buffered.receiver";
-        var senderTopic = "buffered.sender";
+        var receiverTopic = _receiverTopic;
+        var senderTopic = _senderTopic;
 
         OutboundAddress = new Uri("kafka://topic/" + receiverTopic);
 
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka(KafkaContainerFixture.ConnectionString);
+            // A brand new topic and consumer group per test, so read from the start of the topic. The default
+            // of Latest loses any message the sender produces before the group finishes joining.
+            opts.UseKafka(KafkaContainerFixture.ConnectionString)
+                .ConfigureConsumers(x => x.AutoOffsetReset = AutoOffsetReset.Earliest);
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
 
@@ -34,7 +43,11 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         
         await SenderIs(opts =>
         {
-            opts.UseKafka(KafkaContainerFixture.ConnectionString).ConfigureConsumers(x => x.EnableAutoCommit = false);
+            opts.UseKafka(KafkaContainerFixture.ConnectionString).ConfigureConsumers(x =>
+            {
+                x.EnableAutoCommit = false;
+                x.AutoOffsetReset = AutoOffsetReset.Earliest;
+            });
 
             opts.ListenToKafkaTopic(senderTopic);
 
@@ -43,13 +56,17 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
             opts.Services.AddResourceSetupOnStartup();
         });
     }
+
+    protected override Task AfterDisposeAsync() => KafkaComplianceTopics.DeleteAsync(_receiverTopic, _senderTopic);
 }
 
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public static int Number = 0;
+    // GH-4982: see BufferedComplianceFixture. The sender's consumer group is unique for the same reason.
+    private readonly string _receiverTopic = KafkaComplianceTopics.Unique("receiver.inline");
+    private readonly string _senderTopic = KafkaComplianceTopics.Unique("sender.inline");
 
     public InlineComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
@@ -57,8 +74,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
     public async ValueTask InitializeAsync()
     {
-        var receiverTopic = "receiver.inline";
-        var senderTopic = "sender.inline";
+        var receiverTopic = _receiverTopic;
+        var senderTopic = _senderTopic;
 
         OutboundAddress = new Uri("kafka://topic/" + receiverTopic);
 
@@ -68,7 +85,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
             opts.ListenToKafkaTopic(senderTopic).UseForReplies().ConfigureConsumer(consumer =>
             {
-                consumer.GroupId = "test";
+                consumer.GroupId = senderTopic;
                 consumer.AutoOffsetReset = AutoOffsetReset.Earliest;
             });
 
@@ -79,13 +96,35 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
+            opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision()
+                .ConfigureConsumers(x => x.AutoOffsetReset = AutoOffsetReset.Earliest);
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").ProcessInline();
 
             opts.Services.AddResourceSetupOnStartup();
         });
     }
+
+    protected override Task AfterDisposeAsync() => KafkaComplianceTopics.DeleteAsync(_receiverTopic, _senderTopic);
 }
 
 public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;
+
+internal static class KafkaComplianceTopics
+{
+    public static string Unique(string prefix) => $"{prefix}.{Guid.NewGuid():N}";
+
+    public static async Task DeleteAsync(params string[] topics)
+    {
+        try
+        {
+            using var admin = new AdminClientBuilder(
+                new AdminClientConfig { BootstrapServers = KafkaContainerFixture.ConnectionString }).Build();
+            await admin.DeleteTopicsAsync(topics);
+        }
+        catch
+        {
+            // Best effort. A topic that was never created cannot leak into another test anyway
+        }
+    }
+}
