@@ -88,6 +88,18 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     /// </summary>
     public bool OptimizeQueueThroughput { get; set; }
 
+    /// <summary>
+    ///     Enables persistent identity values to break timestamp ties when dequeueing Sql Server
+    ///     queue messages. This adds a <c>queue_order</c> column and indexes to the ready and scheduled
+    ///     queue tables of every queue using the default storage layout. Queues using the
+    ///     <see cref="OptimizeQueueThroughput" /> layout already have a <c>seq</c> identity column that
+    ///     is used as the tie-breaker instead, so their schema is not changed. It applies to queues
+    ///     managed by this transport, including tenant databases, and is opt-in to avoid changing
+    ///     existing schemas automatically. Configure it before startup; changing it at runtime is not
+    ///     supported.
+    /// </summary>
+    public bool EnableDeterministicQueueOrdering { get; set; }
+
     protected override IEnumerable<SqlServerQueue> endpoints()
     {
         return Queues;

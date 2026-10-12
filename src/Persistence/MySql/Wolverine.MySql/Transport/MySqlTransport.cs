@@ -55,6 +55,15 @@ public class MySqlTransport : BrokerTransport<MySqlQueue>
 
     public LightweightCache<string, MySqlQueue> Queues { get; }
 
+    /// <summary>
+    ///     Enables persistent AUTO_INCREMENT values to break timestamp ties when dequeueing MySQL
+    ///     queue messages. This adds columns and indexes to the ready and scheduled queue tables.
+    ///     It applies to queues managed by this transport, including tenant databases, and is
+    ///     opt-in to avoid changing existing schemas automatically. Configure it before startup;
+    ///     changing it at runtime is not supported.
+    /// </summary>
+    public bool EnableDeterministicQueueOrdering { get; set; }
+
     protected override IEnumerable<MySqlQueue> endpoints()
     {
         return Queues;

@@ -82,7 +82,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<PostgresqlQueue>());
         }
-        
+
         if (Parent.Databases != null)
         {
             var mtListener = new MultiTenantedQueueListener(
@@ -106,7 +106,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         }
         else
         {
-            _sender =  new PostgresqlQueueSender(this, DataSource, null);
+            _sender = new PostgresqlQueueSender(this, DataSource, null);
         }
     }
 
@@ -329,6 +329,6 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         return _sender!.ScheduleRetryAsync(envelope, cancellation);
     }
 }
-    
+
 
 

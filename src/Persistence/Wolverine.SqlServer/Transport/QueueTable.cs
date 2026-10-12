@@ -6,6 +6,8 @@ namespace Wolverine.SqlServer.Transport;
 
 internal class QueueTable : Table
 {
+    internal const string QueueOrderColumn = "queue_order";
+
     public QueueTable(SqlServerTransport transport, string tableName, bool optimizeThroughput) : base(
         new DbObjectName(transport.TransportSchemaName, tableName))
     {
@@ -54,6 +56,26 @@ internal class QueueTable : Table
             {
                 Columns = ["timestamp"]
             });
+
+            // GH-4862: never drop what the model does not declare, so turning
+            // EnableDeterministicQueueOrdering off again keeps the queue_order column and its index.
+            // Only the default layout gets this: the high-throughput layout never adds queue_order,
+            // so there is nothing there to protect and its migrations are left exactly as they were.
+            AddOnlyMigrations = true;
+
+            // GH-4862: SYSDATETIMEOFFSET() is evaluated once per statement, so every row a promotion
+            // inserts shares one timestamp. The persistent identity is an opt-in schema change that
+            // breaks those ties in insertion order. The separate index name keeps this additive and
+            // the legacy index definition stable for applications that have not opted in.
+            if (transport.EnableDeterministicQueueOrdering)
+            {
+                AddColumn(new QueueOrderingColumn());
+
+                Indexes.Add(new IndexDefinition($"idx_{tableName}_timestamp_queue_order")
+                {
+                    Columns = ["timestamp", QueueOrderColumn]
+                });
+            }
         }
     }
 }

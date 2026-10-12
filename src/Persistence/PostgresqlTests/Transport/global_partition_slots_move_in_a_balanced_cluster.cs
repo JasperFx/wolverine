@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
 using Wolverine.Runtime;
@@ -85,7 +86,8 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
 
     // ---- cluster lifecycle -------------------------------------------------------------------------
 
-    private async Task<IHost> startNodeAsync()
+    private async Task<IHost> startNodeAsync(bool bufferedInMemory = false,
+        bool deterministicQueueOrdering = false)
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -102,9 +104,14 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
                 opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
 
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, Schema,
-                        transportSchema: $"{Schema}_queues")
-                    .AutoProvision();
+                var postgresql = opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, Schema,
+                    transportSchema: $"{Schema}_queues");
+                if (deterministicQueueOrdering)
+                {
+                    postgresql.EnableDeterministicQueueOrdering();
+                }
+
+                postgresql.AutoProvision();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ClusterStepHandler));
 
@@ -112,7 +119,15 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
 
                 opts.MessagePartitioning.GlobalPartitioned(topology =>
                 {
-                    topology.UseShardedPostgresqlQueues(BaseName, SlotCount);
+                    if (bufferedInMemory)
+                    {
+                        topology.UseShardedPostgresqlQueues(BaseName, SlotCount,
+                            t => t.ConfigureListening(listener => listener.BufferedInMemory()));
+                    }
+                    else
+                    {
+                        topology.UseShardedPostgresqlQueues(BaseName, SlotCount);
+                    }
                     topology.Message<ClusterStep>();
                 });
             }).StartAsync();
@@ -230,6 +245,24 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
     }
 
     /// <summary>
+    /// A group id whose route from this host reaches the PostgreSQL shard queue itself. This is the
+    /// non-owner path in GH-4862; a group id sent by the slot owner would take the companion shortcut.
+    /// </summary>
+    private static Guid groupIdForRemoteSlot(IHost host, Uri slot)
+    {
+        var bus = host.MessageBus();
+
+        for (var i = 0; i < 1000; i++)
+        {
+            var candidate = Guid.NewGuid();
+            if (bus.PreviewSubscriptions(new ClusterStep(candidate, 0)).Single().Destination == slot)
+                return candidate;
+        }
+
+        throw new TimeoutException($"Could not find a group id routing through the shard queue {slot}");
+    }
+
+    /// <summary>
     /// Load one slot both ways: a group published by its owner (the local shortcut, rows at the companion
     /// address) and a group sent straight to the slot endpoint (the shard queue table, rows at the slot address).
     /// Returns the (group, numbers) pairs that have to be handled.
@@ -299,6 +332,63 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
     }
 
     // ---- the tests -----------------------------------------------------------------------------------
+
+    /// <summary>
+    /// GH-4862: DELETE ... RETURNING does not preserve the selected order. When a non-owner sends a group's
+    /// messages through the shard queue, the owner must start them in send order, even when timestamps tie.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task a_remote_shard_queue_delivers_each_group_in_send_order(bool bufferedInMemory)
+    {
+        var nodeA = await startNodeAsync(bufferedInMemory, deterministicQueueOrdering: true);
+        await waitForSettledOwnershipAsync(30.Seconds());
+
+        var nodeB = await startNodeAsync(bufferedInMemory, deterministicQueueOrdering: true);
+        await waitForSettledOwnershipAsync(45.Seconds(),
+            () => slotsOwnedBy(nodeA).Length > 0 && slotsOwnedBy(nodeB).Length > 0);
+
+        var slot = slotsOwnedBy(nodeA).First();
+        var groupId = groupIdForRemoteSlot(nodeB, slot);
+        const int total = 30;
+        var queue = slotsOf(nodeA).Single(x => x.Uri == slot);
+        queue.Mode.ShouldBe(bufferedInMemory ? EndpointMode.BufferedInMemory : EndpointMode.Durable);
+
+        // Hold rows in PostgreSQL until all messages are enqueued and have the same timestamp. This makes the
+        // persistent queue sequence, rather than clock precision, decide their order in both dequeue modes.
+        queue.MaximumMessagesToReceive = 0;
+
+        var busB = nodeB.MessageBus();
+        for (var number = 1; number <= total; number++)
+        {
+            await busB.PublishAsync(new ClusterStep(groupId, number));
+        }
+
+        await waitForAsync(async () => await queue.CountAsync() == total,
+            async () => $"Expected {total} queued messages for {groupId}, found {await queue.CountAsync()}", 30.Seconds());
+
+        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
+        {
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await using var update = conn.CreateCommand();
+            update.CommandText = $"update {queue.QueueTable.Identifier} set timestamp = @timestamp";
+            update.Parameters.AddWithValue("timestamp", DateTimeOffset.UtcNow);
+            await update.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        queue.MaximumMessagesToReceive = total;
+
+        var expected = Enumerable.Range(1, total).ToArray();
+        await waitForAllHandledAsync([(groupId, expected)], 30.Seconds());
+
+        var received = ClusterStepHandler.Received.Where(x => x.GroupId == groupId).ToArray();
+        received.Length.ShouldBe(total, "every message should be handled exactly once");
+
+        var startOrder = received.OrderBy(x => x.HandledAt).Select(x => x.Number).ToArray();
+        startOrder.ShouldBe(expected,
+            "the PostgreSQL shard queue must return each batch in timestamp and persistent sequence order");
+    }
 
     /// <summary>
     /// GH-4777 as reported: a node joins, the leader hands it a slot, and the previous owner's backlog on that

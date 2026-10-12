@@ -35,8 +35,10 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         base(ToUri(name, databaseName), role)
     {
         Parent = parent;
-        _queueTableName = $"wolverine_queue_{name}";
-        _scheduledTableName = $"wolverine_queue_{name}_scheduled";
+        // MySQL refuses table names over 64 characters, which these passed for queue names over 38 (the
+        // scheduled table) or 48 characters. Shorten() leaves every name that fit unchanged.
+        _queueTableName = MySqlIdentifier.Shorten($"wolverine_queue_{name}");
+        _scheduledTableName = MySqlIdentifier.Shorten($"wolverine_queue_{name}_scheduled");
 
         Mode = EndpointMode.Durable;
         Name = name;
@@ -77,7 +79,8 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         var schema = SchemaFor(source);
         if (_queueTables.TryFind(schema, out var table)) return table;
 
-        table = new QueueTable(schema, _queueTableName);
+        // Built lazily on first use, after configuration is complete, so the final transport option applies.
+        table = new QueueTable(schema, _queueTableName, Parent.EnableDeterministicQueueOrdering);
         _queueTables = _queueTables.AddOrUpdate(schema, table);
 
         return table;
@@ -88,7 +91,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         var schema = SchemaFor(source);
         if (_scheduledTables.TryFind(schema, out var table)) return table;
 
-        table = new ScheduledMessageTable(schema, _scheduledTableName);
+        table = new ScheduledMessageTable(schema, _scheduledTableName, Parent.EnableDeterministicQueueOrdering);
         _scheduledTables = _scheduledTables.AddOrUpdate(schema, table);
 
         return table;

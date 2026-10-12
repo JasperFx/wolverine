@@ -74,6 +74,13 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
         set => _optimizeThroughput = value;
     }
 
+    /// <summary>
+    ///     GH-4862. Whether this queue's tables carry the opt-in <c>queue_order</c> tie-breaker. The
+    ///     high-throughput layout never does: its <c>seq</c> identity already orders the queue, and
+    ///     SQL Server allows only one identity column per table.
+    /// </summary>
+    internal bool UsesQueueOrderColumn => Parent.EnableDeterministicQueueOrdering && !OptimizeThroughput;
+
     internal Table QueueTable => _queueTable.Value;
 
     internal Table ScheduledTable => _scheduledTable.Value;
@@ -348,10 +355,6 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
     {
         if (_writeDirectlyToQueueTableSql != null) return;
 
-        // Mirror the dequeue ordering chosen by the listener (see SqlServerQueueListener): "seq" under
-        // the high-throughput layout, "timestamp" otherwise.
-        var orderBy = OptimizeThroughput ? "seq" : "timestamp";
-
         _writeDirectlyToQueueTableSql =
             $@"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
 
@@ -381,68 +384,15 @@ WHERE {DatabaseConstants.Id} = @id;
 DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
 ";
 
-        // GH-4334: table variable instead of a per-call #temp_move (tempdb churn + a statement
-        // recompile each time), and a TOP bound so a large due backlog is promoted in bounded
-        // batches rather than one enormous lock-holding transaction.
-        _moveScheduledToReadyQueueSql = $@"
-DECLARE @moved TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset);
-
-WITH due AS (
-    SELECT TOP({ScheduledPromotionBatchSize}) id, body, message_type, keep_until
-    FROM {ScheduledTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {QueueTable.Identifier})
-    ORDER BY {ScheduledTable.Identifier}.{orderBy})
-DELETE FROM due
-OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until INTO @moved;
-
-INSERT INTO {QueueTable.Identifier}
-(id, body, message_type, keep_until)
- SELECT id, body, message_type, keep_until FROM @moved;
-select count(*) from @moved
-";
+        // The dequeue and promotion SQL is shared with SqlServerQueueListener (GH-4862)
+        _moveScheduledToReadyQueueSql =
+            SqlServerQueueSql.MoveScheduledToReadyQueue(this, ScheduledPromotionBatchSize);
 
         _deleteExpiredSql =
             $"delete from {QueueTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET();delete from {ScheduledTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET()";
 
-        _tryPopMessagesDirectlySql = $@"
-DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
-IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
-SET NOCOUNT ON;
-
-WITH message AS (
-    SELECT TOP(@count) {DatabaseConstants.Body}, {DatabaseConstants.KeepUntil}
-    FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    ORDER BY {QueueTable.Identifier}.{orderBy})
-DELETE FROM message
-OUTPUT
-    deleted.{DatabaseConstants.Body};
-
-IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
-IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
-
-        _tryPopMessagesToInboxSql = $@"
-DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
-IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
-SET NOCOUNT ON;
-
-delete FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.ReceivedAt} = '{Uri}');
--- GH-4334: table variable + DELETE ... OUTPUT instead of SELECT ... INTO #temp_pop
-DECLARE @popped TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset);
-
-WITH message AS (
-    SELECT TOP(@count) id, body, message_type, keep_until
-    FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    ORDER BY {QueueTable.Identifier}.{orderBy})
-DELETE FROM message
-OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until INTO @popped;
-
-INSERT INTO {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}
-(id, status, owner_id, body, message_type, received_at, keep_until)
- SELECT id, 'Incoming', @node, body, message_type, '{Uri}', keep_until FROM @popped;
-select body from @popped;
-
-IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
-IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
+        _tryPopMessagesDirectlySql = SqlServerQueueSql.TryPopDirectly(this);
+        _tryPopMessagesToInboxSql = SqlServerQueueSql.TryPopToInbox(this, Uri);
     }
 
     public async Task SendAsync(Envelope envelope, CancellationToken cancellationToken)
