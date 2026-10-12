@@ -610,6 +610,48 @@ are worth knowing about from the Wolverine side:
 * **`ProjectionCatchUpTimeoutException`.** A document or read-model step that waits for the async daemons and runs out of
   time throws this (it's a `TimeoutException`), naming the shards that were behind and the identity being read.
 
+### WolverineFx.Bobcat.Http: reads and the other verbs <Badge type="tip" text="6.50" />
+
+`WolverineHttpSpec` (and `WolverineHttpScenario`, and its `In<T>()` views) can read as well as post. A read is an act
+like any other: it runs inside the tracked session, and its exchange lands in the HTTP report a failing spec writes out.
+
+```cs
+[Fact]
+public async Task a_scheduled_appointment_is_read()
+{
+    var id = Guid.NewGuid();
+    await GivenEvents<Appointment>(id, new AppointmentScheduled(id, "Ann"));
+
+    // GET the template, filled with its values in order; the 2xx body comes back as the type
+    var appointment = await WhenReading<Appointment>("/api/appointments/{id}", id);
+    appointment!.Patient.ShouldBe("Ann");
+
+    // or address the endpoint by its RouteName
+    var summary = await WhenReadingRoute<AppointmentSummary>("AppointmentSummary", id);
+}
+
+[Fact]
+public async Task a_missing_appointment_is_not_found()
+{
+    await WhenReading<Appointment>("/api/appointments/{id}", Guid.NewGuid());
+    ThenNotFound();
+}
+```
+
+* **`WhenReading<T>(route, params routeValues)`** and **`WhenReadingRoute<T>(routeName, params routeValues)`** GET the
+  endpoint and hand back the 2xx body as a `T`, or null for a 4xx. A 404 is a refusal, not a failure, so
+  `ThenNotFound()` (or `ThenResponseIs(404)`) asserts it.
+* **A read is a Query slice.** Both acts declare a GET trigger and a read model role with no command, so Bobcat puts a
+  spec whose last act is a read on the Event Model as a **Query** slice that reads `T`. The slice carries the route, and
+  for `WhenReadingRoute` the route name too. Pass the template or the route name as a constant so the generator can
+  read it.
+* **PUT, PATCH and DELETE** have the same three forms as `WhenPosted`, each a command act with its verb on the trigger:
+  `WhenPut`/`WhenPatched`/`WhenDeleted(command)` find the endpoint from the command's type,
+  `(command, route)` takes the route, and `WhenPutToRoute`/`WhenPatchedToRoute`/`WhenDeletedToRoute`/`WhenPostedToRoute(command, routeName)`
+  address the endpoint by route name. Route parameters are filled from the command's properties, and `DELETE` sends the
+  command as its JSON body.
+* **`TheResponse<T>()`** reads the last HTTP act's 2xx body, for the acts that don't hand one back.
+
 ## Dealing with Scheduled Messages  <Badge type="tip" text="4.12" />
 
 As I'm sure you can imagine, [scheduled local execution](/guide/messaging/transports/local.html#scheduling-local-execution) and [scheduled message delivery](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution)
