@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Weasel.Core;
 using Weasel.SqlServer.Tables;
 using Wolverine.RDBMS;
@@ -77,5 +78,15 @@ internal class QueueTable : Table
                 });
             }
         }
+    }
+
+    // GH-4989: an existing table on the other OptimizeQueueThroughput() layout is rebuilt, not migrated
+    // in place. See QueueTableLayoutSwitchDelta
+    public override async Task<ISchemaObjectDelta> CreateDeltaAsync(DbDataReader reader, CancellationToken ct = default)
+    {
+        var delta = await base.CreateDeltaAsync(reader, ct);
+        return delta is TableDelta tableDelta && QueueTableLayoutSwitchDelta.IsLayoutSwitch(this, tableDelta.Actual)
+            ? new QueueTableLayoutSwitchDelta(this, tableDelta.Actual!, "timestamp")
+            : delta;
     }
 }
