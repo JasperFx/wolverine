@@ -276,11 +276,41 @@ opts.ListenToPostgresqlQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
-### Dequeue Performance <Badge type="tip" text="6.16" />
+### Deterministic Queue Ordering
+
+PostgreSQL's `now()` returns the same timestamp for every row written in one transaction. By default,
+the queue listeners sort dequeued rows by timestamp, but messages with the same timestamp can still be
+returned in either order. To persist a tie-breaker for those rows, opt into deterministic queue ordering:
+
+```cs
+opts.UsePostgresqlPersistenceAndTransport(connectionString)
+    .EnableDeterministicQueueOrdering();
+```
+
+This adds an identity `queue_order` column to the ready and scheduled queue tables and composite indexes
+for timestamp and execution-time ordering. It applies to both durable and buffered listeners and keeps
+scheduled messages in sequence when they are promoted to the ready queue. Existing queue rows are retained
+and receive distinct sequence values during migration. Their original order cannot be reconstructed when
+their timestamps already tie. This gives a stable order within each queue batch; it does not define global
+transaction commit order across concurrent senders, consumers, or different queues.
+
+The option is disabled by default so existing applications do not receive an automatic queue schema
+change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option
+enabled. Configure the option consistently on every application using the same queue schema; once the
+schema has been upgraded, leaving the option disabled preserves the added columns and indexes. The legacy
+single-column indexes remain and the opt-in adds composite indexes, which require additional storage and
+write maintenance.
+
+For a safe rollout, deploy the compatible version with this option disabled to every application sharing
+the queue schema. Then apply the opt-in schema migration and enable the option on all consumers. With
+`AutoCreate.None`, apply the migration explicitly before enabled listeners start. Rolling back to a binary
+that predates this change requires suppressing its automatic queue schema migrations, because its older
+table model may remove the added column and indexes.
 
 The PostgreSQL queue tables carry a btree index on the dequeue ordering column so that the
 `ORDER BY ... LIMIT n FOR UPDATE SKIP LOCKED` pull each poll performs is an ordered index scan rather
-than a scan + sort of the whole table. This is applied automatically — no configuration is required.
+than a scan + sort of the whole table. The legacy timestamp index remains in place; opting into
+deterministic ties adds a composite index to cover the sequence ordering too.
 
 Unlike the [Sql Server transport's `OptimizeQueueThroughput()`](./sqlserver.html#optimizing-queue-throughput),
 there is no clustered-storage opt-in for PostgreSQL: PostgreSQL tables are heaps (there is no clustered

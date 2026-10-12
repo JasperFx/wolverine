@@ -30,6 +30,18 @@ public class PostgresqlPersistenceExpression : BrokerExpression<PostgresqlTransp
     }
 
     /// <summary>
+    ///     Opt into deterministic ordering for messages with the same timestamp in PostgreSQL
+    ///     queues. This changes the ready and scheduled queue schemas. With <c>AutoCreate.None</c>,
+    ///     apply the schema migration before starting listeners with this option enabled. Configure
+    ///     this before startup; changing it at runtime is not supported.
+    /// </summary>
+    public PostgresqlPersistenceExpression EnableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
     /// Disable inbox and outbox usage on all Sql Server Transport endpoints
     /// </summary>
     /// <returns></returns>

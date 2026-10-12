@@ -17,21 +17,24 @@ public class DocumentationSamples
             var connectionString = builder.Configuration.GetConnectionString("postgres");
             opts.UsePostgresqlPersistenceAndTransport(
                     connectionString!,
-                    
+
                     // This argument is the database schema for the envelope storage
                     // If separate logical services are targeting the same physical database,
                     // you should use a separate schema name for each logical application
                     // to make basically *everything* run smoother
-                    "myapp", 
-                    
+                    "myapp",
+
                     // This schema name is for the actual PostgreSQL queue tables. If using
                     // the PostgreSQL transport between two logical applications, make sure
                     // to use the same transportSchema!
-                    transportSchema:"queues")
+                    transportSchema: "queues")
 
                 // Tell Wolverine to build out all necessary queue or scheduled message
                 // tables on demand as needed
                 .AutoProvision()
+
+                // Optional: persist a sequence on queue rows so timestamp ties have a stable order.
+                .EnableDeterministicQueueOrdering()
 
                 // Optional that may be helpful in testing, but probably bad
                 // in production!
