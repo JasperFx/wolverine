@@ -51,6 +51,32 @@ public class queue_ordering_is_opt_in
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task a_long_queue_name_keeps_the_scheduled_index_names_within_the_mysql_limit(
+        bool deterministicOrdering)
+    {
+        // idx_wolverine_queue_{name}_scheduled_execution_time passed MySQL's 64 character identifier limit for
+        // queue names over 19 characters, and the host failed to start
+        const string longQueueName = "a_queue_name_of_thirty_letters";
+
+        var schema = await newSchemaAsync();
+        IHost? host = null;
+        try
+        {
+            var started = await startAsync(schema, deterministicOrdering, queueName: longQueueName);
+            host = started.Host;
+
+            started.ScheduledTable.Indexes.ShouldAllBe(x => x.Name.Length <= 64);
+            (await started.Queue.CheckAsync()).ShouldBeTrue();
+        }
+        finally
+        {
+            await stopAndDropAsync(host, schema);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ordering_can_be_enabled_through_both_public_configuration_routes(
         bool usePersistenceConfiguration)
     {
@@ -289,7 +315,7 @@ public class queue_ordering_is_opt_in
 
     private static async Task<StartedQueue> startAsync(string schema, bool deterministicOrdering,
         bool usePersistenceConfiguration = false, bool buffered = false,
-        AutoCreate autoCreate = AutoCreate.CreateOrUpdate)
+        AutoCreate autoCreate = AutoCreate.CreateOrUpdate, string queueName = QueueName)
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -304,7 +330,7 @@ public class queue_ordering_is_opt_in
 
                     // Register the queue first to verify the transport option is read when the lazily
                     // constructed queue tables are materialized during startup.
-                    var listener = opts.ListenToMySqlQueue(QueueName);
+                    var listener = opts.ListenToMySqlQueue(queueName);
                     if (buffered) listener.BufferedInMemory();
                     listener.PollingInterval(1.Hours());
 
@@ -321,7 +347,7 @@ public class queue_ordering_is_opt_in
                 {
                     var expression = opts.UseMySqlPersistenceAndTransport(Servers.MySqlConnectionString,
                         schema, transportSchema: schema);
-                    var listener = opts.ListenToMySqlQueue(QueueName);
+                    var listener = opts.ListenToMySqlQueue(queueName);
                     if (buffered) listener.BufferedInMemory();
                     listener.PollingInterval(1.Hours());
 
@@ -335,7 +361,7 @@ public class queue_ordering_is_opt_in
             }).StartAsync(ct);
 
         var runtime = host.GetRuntime();
-        var queue = runtime.Options.Transports.GetOrCreate<MySqlTransport>().Queues[QueueName];
+        var queue = runtime.Options.Transports.GetOrCreate<MySqlTransport>().Queues[queueName];
 
         // Keep the host's own listener from draining the queue underneath the assertions
         await runtime.Endpoints.StopListenerAsync(queue, ct);
