@@ -29,6 +29,7 @@ public abstract class CorrelationHost(string schema) : IAsyncLifetime
                 m.DatabaseSchemaName = schema;
                 m.DisableNpgsqlLogging = true;
                 m.Events.MetadataConfig.CorrelationIdEnabled = true;
+                ConfigureMarten(m);
             })
             .IntegrateWithWolverine();
 
@@ -44,6 +45,10 @@ public abstract class CorrelationHost(string schema) : IAsyncLifetime
     }
 
     protected virtual void ConfigureEndpoints(WolverineHttpOptions opts)
+    {
+    }
+
+    protected virtual void ConfigureMarten(StoreOptions m)
     {
     }
 
@@ -79,6 +84,38 @@ public sealed class CorrelationOnEveryEndpointHost() : CorrelationHost("bobcat_h
 }
 
 public sealed class CorrelationOnlyWhereMessagingIsUsedHost() : CorrelationHost("bobcat_http_correlation_off");
+
+// GH-4962: a conjoined store, with the tenant detected from a request header
+public sealed class TenantedCorrelationHost() : CorrelationHost("bobcat_http_tenanted")
+{
+    protected override void ConfigureMarten(StoreOptions m)
+    {
+        m.Events.TenancyStyle = JasperFx.MultiTenancy.TenancyStyle.Conjoined;
+        m.Policies.AllDocumentsAreMultiTenanted();
+    }
+
+    protected override void ConfigureEndpoints(WolverineHttpOptions opts)
+    {
+        opts.ApplyCorrelationIdHeaderToAllEndpoints = true;
+        opts.TenantId.IsRequestHeaderValue("tenant");
+    }
+}
+
+public class an_http_act_for_a_tenant(TenantedCorrelationHost app)
+    : WolverineHttpSpec(app.Host), IClassFixture<TenantedCorrelationHost>
+{
+    [Fact]
+    public async Task carries_the_tenant_the_endpoint_detected_and_finds_its_events_within_it()
+    {
+        var patient = $"Eve {Guid.NewGuid():N}";
+
+        // The tenant comes from the request, through the endpoint's own tenant detection
+        await WhenPosted(new AddPatientNote(patient, "left-handed"), x => x.WithRequestHeader("tenant", "red"));
+
+        LastAct.TenantId.ShouldBe("red");
+        await ThenEventuallyCaused(new PatientNoteAdded(patient, "left-handed"));
+    }
+}
 
 public class correlation_on_every_endpoint(CorrelationOnEveryEndpointHost app)
     : WolverineHttpSpec(app.Host), IClassFixture<CorrelationOnEveryEndpointHost>

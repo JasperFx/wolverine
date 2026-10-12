@@ -161,7 +161,8 @@ public static class EventModelReport
         facts.Add(slice.HandlerType is { } handler ? $"handled by: {handler.Name}" : "handled by: nothing yet");
         foreach (var spec in slice.Specifications) facts.Add($"spec: {spec.Identity}");
 
-        var hotspots = slice.Hotspots.Select(x => $"{x.Origin}: {x.Text}").ToList();
+        // GH-4975: a Query that writes (jasperfx#1003) is computed, never stored, so it is read apart
+        var hotspots = slice.Hotspots.Concat(slice.PatternViolations).Select(x => $"{x.Origin}: {x.Text}").ToList();
         return new SliceReport(slice.Domain is { Length: > 0 } domain ? domain : NoDomain,
             slice.Chapter is { Length: > 0 } chapter ? chapter : NoChapter, heading, facts, hotspots,
             slice.HandlerType is not null, slice.Specifications.Count > 0);

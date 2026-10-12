@@ -442,7 +442,11 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             // the trigger answers the question the handler signature could not.
             // GH-4395: unconditionally, so a [SlicePattern] on the handler behind the RPC fills no gap
             // here -- the trigger outranks a declaration, the same as an HTTP route's derived pattern does.
-            Pattern = SlicePattern.Command
+            // GH-4975: except a Query. An RPC says somebody asked, which rules out an Automation but not a
+            // read, and gRPC has no GET to tell a read from a write; a handler declared
+            // [SlicePattern(SlicePattern.Query)] is the one evidence there is. Inferring a read from "returns
+            // a reply and appends nothing" would call every imperative EF write a Query.
+            Pattern = slice.Pattern == SlicePattern.Query ? SlicePattern.Query : SlicePattern.Command
         };
 
     private static EventModelSliceDescriptor grpcTriggerOnlySlice(GrpcEndpointDescriptor endpoint, PublisherOrigin origin)

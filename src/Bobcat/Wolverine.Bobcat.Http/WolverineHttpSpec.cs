@@ -25,6 +25,12 @@ public abstract class WolverineHttpSpec : WolverineSpec
     /// <inheritdoc cref="WolverineHttpScenario.AlbaHost" />
     public IAlbaHost AlbaHost => HttpScenario.AlbaHost;
 
+    /// <inheritdoc cref="WolverineHttpScenario.In{TStore}" />
+    public new WolverineHttpScenario In<TStore>() where TStore : class => HttpScenario.In<TStore>();
+
+    /// <inheritdoc cref="WolverineHttpScenario.In(string)" />
+    public new WolverineHttpScenario In(string storeName) => HttpScenario.In(storeName);
+
     /// <inheritdoc cref="WolverineHttpScenario.LastResponse" />
     public IScenarioResult? LastResponse => HttpScenario.LastResponse;
 

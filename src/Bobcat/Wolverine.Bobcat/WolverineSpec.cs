@@ -80,24 +80,43 @@ public abstract class WolverineSpec : CritterStackSpec
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public new ActOutcome LastAct => Scenario.LastAct;
 
+    // ---- several stores (GH-4977, bobcat#504) ------------------------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.In{TStore}" />
+    public new WolverineScenario In<TStore>() where TStore : class => Scenario.In<TStore>();
+
+    /// <inheritdoc cref="WolverineScenario.In(string)" />
+    public new WolverineScenario In(string storeName) => Scenario.In(storeName);
+
     // ---- act -------------------------------------------------------------------------------
 
     /// <inheritdoc cref="WolverineScenario.WhenReceived" />
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenReceived(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => Scenario.WhenReceived(message, configureTracking);
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
+        => Scenario.WhenReceived(message, configureTracking, options);
 
     /// <inheritdoc cref="WolverineScenario.WhenPublished" />
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenPublished(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => Scenario.WhenPublished(message, configureTracking);
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
+        => Scenario.WhenPublished(message, configureTracking, options);
 
     /// <inheritdoc cref="WolverineScenario.WhenTracked" />
     public Task WhenTracked(string description, Func<Task> act,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
         => Scenario.WhenTracked(description, act, configureTracking);
+
+    // ---- a concurrent writer (GH-4940) -------------------------------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.WhileActing" />
+    [EventModelRole(SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActing(params object[] concurrently) => Scenario.WhileActing(concurrently);
+
+    /// <inheritdoc cref="WolverineScenario.ThenRetried" />
+    public void ThenRetried() => Scenario.ThenRetried();
 
     // ---- assert: events past an asynchronous boundary (GH-4939) ---------------------------------
 

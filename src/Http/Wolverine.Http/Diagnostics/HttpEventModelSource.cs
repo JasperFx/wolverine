@@ -126,7 +126,8 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
         var seed = new EventModelSliceSeed(
             (requestType == null ? null : EventModelRoles.DisplayNameFor(requestType)) ?? $"{verb} {route}",
             TriggerKind.Http,
-            new PublisherOrigin { HttpRoute = route, HttpMethod = verb, Label = $"{verb} {route}" },
+            // jasperfx PublisherOrigin.HttpRouteName: the endpoint's ASP.NET Core route name, when it has one
+            new PublisherOrigin { HttpRoute = route, HttpMethod = verb, HttpRouteName = chain.RouteName, Label = $"{verb} {route}" },
             requestType,
             chain.EndpointType)
         {

@@ -69,10 +69,16 @@ public sealed partial class WolverineRuntime : IMessageTracker
     ///     GH-4931. Record one event-store session's committed streams against the active tracked session, if
     ///     there is one, attributed to the message <paramref name="context" /> was handling.
     /// </summary>
-    internal void RecordAppendedEvents(MessageContext context, IReadOnlyList<StreamAction> streams)
+    /// <param name="store">GH-4977: the event store the session belongs to, when the integration can say.</param>
+    internal void RecordAppendedEvents(MessageContext context, IReadOnlyList<StreamAction> streams,
+        JasperFx.Events.EventStoreIdentity? store = null)
     {
         if (streams.Count == 0) return;
-        ActiveSession?.RecordAppendedEvents(new AppendedEvents(context.Envelope, _serviceName, streams));
+        ActiveSession?.RecordAppendedEvents(new AppendedEvents(context.Envelope, _serviceName, streams)
+        {
+            Store = store,
+            TenantId = context.TenantId
+        });
     }
 
     /// <summary>

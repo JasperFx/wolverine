@@ -64,7 +64,7 @@ public class event_model_roles_3988(AppFixture fixture) : IntegrationContext(fix
     }
 
     [Fact]
-    public void a_get_endpoint_reading_an_aggregate_is_a_view_slice()
+    public void a_get_endpoint_reading_an_aggregate_is_a_query_slice()
     {
         // GET /orders/latest/{id} is GetLatest(Guid id, [ReadAggregate] Order order) => order
         var chain = HttpChains.ChainFor("GET", "/orders/latest/{id}");
@@ -72,14 +72,30 @@ public class event_model_roles_3988(AppFixture fixture) : IntegrationContext(fix
 
         var slice = HttpEventModelSource.ForChain(chain);
 
-        slice.Pattern.ShouldBe(SlicePattern.View);
+        // GH-4975 (jasperfx#1003): a read-only endpoint is a Query that READS Order -- the aggregate it
+        // loads and the response it returns are the same type, so it is read once -- and produces nothing
+        slice.Pattern.ShouldBe(SlicePattern.Query);
         slice.TriggerKind.ShouldBe(TriggerKind.Http);
         slice.Name.ShouldBe("GET /orders/latest/{id}");
         slice.CommandType.ShouldBeNull();
-        slice.ReadModelTypes.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });
+        slice.ReadsFrom.Select(x => x.Name).ShouldBe(new[] { nameof(Order) });
+        slice.ReadModelTypes.ShouldBeEmpty();
+        slice.PatternViolations.ShouldBeEmpty();
         slice.EmittedEvents.ShouldBeEmpty();
         slice.PublishedMessages.ShouldBeEmpty();
         slice.AggregateTypes.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void the_trigger_origin_carries_the_endpoints_route_name()
+    {
+        // [WolverinePost("/named/route", RouteName = "NamedRoute")] -- jasperfx PublisherOrigin.HttpRouteName
+        var named = HttpEventModelSource.ForChain(HttpChains.ChainFor("POST", "/named/route")!);
+        named.TriggerOrigin!.HttpRouteName.ShouldBe("NamedRoute");
+
+        // ...and an endpoint with no route name leaves it unclaimed, so a declared one can fill it in
+        var unnamed = HttpEventModelSource.ForChain(HttpChains.ChainFor("POST", "/orders/ship3")!);
+        unnamed.TriggerOrigin!.HttpRouteName.ShouldBeNull();
     }
 
     [Fact]

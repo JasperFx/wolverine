@@ -573,6 +573,7 @@ dotnet run -- scaffold                         # write into the current director
 dotnet run -- scaffold --output ./src/MyApp    # somewhere else
 dotnet run -- scaffold --dry-run               # report only
 dotnet run -- scaffold --json                  # the plan as JSON, every notice with a stable code
+dotnet run -- scaffold --strong-typed-ids      # a strong-typed id for every aggregate
 ```
 
 Each slice is written to its own file, in a folder and namespace per chapter:
@@ -586,16 +587,20 @@ style, so the same code runs on the in-memory prototyping store, Marten, Polecat
 | `Command` triggered by `TriggerKind.Http` | a Wolverine.HTTP endpoint with an empty `Validate` and a `[WolverinePost]` method |
 | `Command` triggered by `TriggerKind.MessageHandler` | a message handler |
 | `Automation` with `On<T>()` | a message handler for `T`, returning the command it issues as `OutgoingMessages` |
+| `Query<T>()` triggered by `TriggerKind.Http` | a `[WolverineGet]` endpoint returning `T`, read with `[ReadModel]` for an aggregate or `[Entity]` for a document, at the slice's route (and route name) or `/api/{t}/{id}` |
+| `Query<T>()` triggered by `TriggerKind.MessageHandler` or gRPC | a query handler returning `T`, for the declared query message or a stub that carries the id |
 | `.Against<T>()` | a non-nullable `[WriteModel] T` parameter |
 | `.StartsStream<T>()` | a `StartStream` return built with `Storage.StartStream<T>(...)` |
 | `model.ForAggregate<T>()` default | the same as `.Against<T>()` on every command that declares no aggregate of its own |
 | `.NoAggregate()` | a `StartStream` return built with `Storage.StartStream(id, ...)`, a stream with no aggregate type, and no warning |
-| `.DeciderModel<T>()` | a TODO and a warning: the DCB handler shape is not designed yet |
+| `.DeciderModel<T>()` | a `[DcbModel] T` parameter fetched by a `Load` method returning an `EventTagQuery` over the command's strong-typed id members (a TODO when it has none), `T` getting `Apply` methods for what the slice emits, and a notice with the `opts.Events.RegisterTagType<TTag>()` lines to add |
 | `.Emits<T>()` | a `T?` return when it is the slice's only event, else an `EventsToAppend` return; no `[Emits]`, because the source generator reads the events from the body |
 | `.Reads<T>()` / `.Produces<T>()` | an `[Entity] T` parameter / an `IStorageAction<T>` return |
 | an aggregate or view declared **by name** | a class with an `Apply` method per event it folds |
 | an aggregate or view that **already exists** | the `Apply` methods it is missing, added to the end of its class |
 | any other role declared **by name** | a `public record` stub to give fields |
+| `--strong-typed-ids`, or `model.Aggregate<T>().IdentifiedBy<TId>()` | a `public readonly record struct TId(Guid Value) : IParsable<TId>` with a `System.Text.Json` converter that writes the bare Guid, threaded through the aggregate's `Id`, its commands, stream starts and queries; a declared identity wins over the flag, an aggregate class that already exists keeps its own `Id` (with a notice), and a `string` identity is a natural key the command carries |
+| a command or event declared **by name** | a command stub carries the stream it identifies as `Id`, or `{Aggregate}Id` each when it identifies several; an event carries ids only in a multi-stream or DCB slice |
 
 Method bodies describe the shape to fill in and throw `NotImplementedException`, so a slice nobody has filled in yet
 never stops the rest of the application compiling. Guard reasons live in your specifications and are not scaffolded.

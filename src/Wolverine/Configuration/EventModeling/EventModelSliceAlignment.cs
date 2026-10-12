@@ -49,7 +49,7 @@ namespace Wolverine.Configuration.EventModeling;
 ///         module's handler of a message several modules handle, GH-4829); the <b>triggering message</b> —
 ///         the event an Automation reacts to (<c>On&lt;T&gt;()</c>), else the command (<c>Command&lt;T&gt;()</c>,
 ///         <c>Automation&lt;TCommand&gt;()</c>), which is also the request type Wolverine.HTTP names its slice
-///         for; and the <b>read model</b> of a View. A stub <em>is</em> the real type, so these joins are
+///         for; the <b>read model</b> of a View; and what a Query reads (GH-4975). A stub <em>is</em> the real type, so these joins are
 ///         exact, and a declaration by name (no assembly) matches the type of that name. A slice joined on
 ///         an earlier key is never joined again on a later one.
 ///     </para>
@@ -90,10 +90,18 @@ public static class EventModelSliceAlignment
         slice => slice.Pattern == SlicePattern.View && slice.ReadModelTypes.Count == 1
             ? new JoinKey(slice.ReadModelTypes[0], "view", null)
             : null,
+        // GH-4975. A Query reads its read model rather than producing it, so it joins on what it reads --
+        // apart from the View producing the same type ("query" vs "view"): a view and the query reading it
+        // are two slices, and joining them would fold one into the other.
+        slice => slice.Pattern == SlicePattern.Query && slice.ReadsFrom.Count == 1
+            ? new JoinKey(slice.ReadsFrom[0], "query", null)
+            : null,
     };
 
     // The message that starts a slice: the one event an Automation reacts to, else its command. A View
-    // is started by nothing it handles, so it joins on its read model instead.
+    // is started by nothing it handles, so it joins on its read model instead. A Query (GH-4975) is started
+    // by its request when it has one -- a query message, an HTTP request type -- and otherwise falls through
+    // to the join on what it reads.
     private static TypeDescriptor? triggerOf(EventModelSliceDescriptor slice)
     {
         if (slice.Pattern == SlicePattern.View) return null;

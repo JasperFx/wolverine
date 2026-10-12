@@ -90,7 +90,7 @@ public class slice_pattern_attribute_4395
             {
                 IsQuery = true
             });
-        query.Pattern.ShouldBe(SlicePattern.View);
+        query.Pattern.ShouldBe(SlicePattern.Query); // GH-4975
 
         var post = EventModelRoles.Describe(chain,
             new EventModelSliceSeed("POST /tickets", TriggerKind.Http, null, null, typeof(TicketAutomationHandler)));

@@ -571,12 +571,44 @@ A few things to know:
 
 * If the event store does not record correlation ids, the step **fails** and tells you the exact setting to turn on
   for Marten, Polecat or Fisher. It does not skip, because a skipped "then" looks green.
+* The act carries its tenant (`LastAct.TenantId`): the tenant an HTTP endpoint's tenant detection found, or the entry
+  message's, which `WhenReceived(message, options: new DeliveryOptions { TenantId = "red" })` sets. On a store with
+  conjoined tenancy (one database, the tenant as a column) the step looks for the act's events within that tenant only.
 * For now, the step only works against a single database. A store that spreads its tenants across several databases
   is refused with a clear message.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
   endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
+
+### More WolverineFx.Bobcat: several stores, context, and foreign events <Badge type="tip" text="6.50" />
+
+`WolverineSpec` and `WolverineScenario` inherit everything Bobcat's `CritterStackSpec` does, and a few of those steps
+are worth knowing about from the Wolverine side:
+
+* **Several event stores.** On a host with a main store and an ancillary one, such as Marten's
+  `AddMartenStore<IInvoicingStore>()`, each Given and Then goes to the store whose registrations claim its type. When the
+  type doesn't decide it, address the store explicitly with `In<IInvoicingStore>()` or `In("name")`. The view `In()`
+  returns is still a `WolverineScenario`: an act through it is the specification's act, and the message and consistency
+  boundary steps work on it. The act itself is observed on every store, so a `[MartenStore(typeof(IInvoicingStore))]`
+  handler that reads the main store and appends to the ancillary one is specified in one test, and
+  `ITrackedSession.AppendedEvents` says which store each commit belonged to.
+* **`GivenContext<T>()`** arranges events for something the slice *reads* (its `ReadsFrom`), like a customer an
+  `[Entity]` parameter loads, without claiming it as the slice's aggregate.
+* **`ForeignEvents`.** An act that appends through a session Wolverine did not open is read back from the store, store by
+  store. Events on streams the specification never arranged or started go to `LastAct.ForeignEvents` instead of being
+  judged, and a failing whole-store step adds a "cross-talk suspected" line and, with several stores, which store each
+  event came from. To claim a stream the host seeded, address it in the specification: `WhenActingOn<T>(id, ...)`,
+  `GivenContext`, or `GivenEvents` on that stream.
+* **A concurrent writer.** `WhileActing(concurrently: Tagged(new ItemReserved(sku, 1), sku))` lands a real append
+  between the next act's read and its write, on the act's first save, so a specification can prove a Dynamic
+  Consistency Boundary: inside it the act is refused with a `DcbConcurrencyException` (`ThenRefusedWith<T>()`), or a
+  retry policy retries it and `ThenRetried()` passes; outside it, the act succeeds. The append is keyed by the act's own
+  correlation id and lands on the first save of a session Wolverine opens for the act (a handler's or an HTTP
+  endpoint's, with the store integrated with Wolverine); a session the act opens straight from the store carries no
+  correlation id, so it never fires there. The hook is only added while a tracked session runs.
+* **`ProjectionCatchUpTimeoutException`.** A document or read-model step that waits for the async daemons and runs out of
+  time throws this (it's a `TimeoutException`), naming the shards that were behind and the identity being read.
 
 ## Dealing with Scheduled Messages  <Badge type="tip" text="4.12" />
 

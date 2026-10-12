@@ -1,6 +1,13 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Bobcat 0.60.0's Bobcat.Xunit builds against xunit.v3 4.x on Microsoft.Testing.Platform 2.x, which
+         cannot share a test project with xunit.v3 3.x. Only the projects that reference Bobcat.Xunit move:
+         each one overrides its xunit.v3 PackageReference with VersionOverride="$(XunitV3ForBobcatVersion)",
+         and the rest of the repo stays on the xunit.v3 pin below. Those projects are MTP-only: CI runs
+         their test host executables through Bobcat's supervisor, never `dotnet test` (Bobcat's docs/xunit.md,
+         "Moving to xUnit v3 4.x"). -->
+    <XunitV3ForBobcatVersion>4.0.2</XunitV3ForBobcatVersion>
     <!-- CentralPackageTransitivePinningEnabled is deliberately NOT set, so every PackageVersion
          below reaches only the projects that reference the package *directly* (plus whatever they
          flow it to over a ProjectReference). A pin on its own does NOT lift a package that arrives
@@ -56,19 +63,19 @@
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
-    <PackageVersion Include="Bobcat.Supervisor" Version="0.50.0" />
+    <PackageVersion Include="Bobcat.Supervisor" Version="0.60.0" />
     <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833). -->
-    <PackageVersion Include="Bobcat" Version="0.50.0" />
-    <PackageVersion Include="Bobcat.Xunit" Version="0.50.0" />
-    <PackageVersion Include="Bobcat.Generators" Version="0.50.0" />
-    <PackageVersion Include="JasperFx" Version="2.84.1" />
-    <PackageVersion Include="JasperFx.Events" Version="2.84.1" />
-    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.84.1" />
-    <PackageVersion Include="JasperFx.Events.InMemory" Version="2.84.1" />
+    <PackageVersion Include="Bobcat" Version="0.60.0" />
+    <PackageVersion Include="Bobcat.Xunit" Version="0.60.0" />
+    <PackageVersion Include="Bobcat.Generators" Version="0.60.0" />
+    <PackageVersion Include="JasperFx" Version="2.85.0" />
+    <PackageVersion Include="JasperFx.Events" Version="2.85.0" />
+    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.85.0" />
+    <PackageVersion Include="JasperFx.Events.InMemory" Version="2.85.0" />
     <!-- RuntimeCompiler is on its own 5.x line (the Roslyn compiler package) — not the 2.1.x
          family; it stays at 5.0.0. -->
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.0" />
-    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.84.1" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.85.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
     <PackageVersion Include="Marten" Version="9.49.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.3" />

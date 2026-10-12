@@ -50,6 +50,25 @@ public sealed record ActOutcome(
     /// boundary too. What <c>ThenEventuallyCaused</c> queries the store by.
     /// </summary>
     public string? CorrelationId { get; init; }
+
+    /// <summary>
+    /// GH-4940. How many times the act's own message was executed: 1 for a message handled once, more when an error
+    /// policy retried it, 0 for an act with no message of its own (an HTTP request, <c>WhenTracked</c>).
+    /// </summary>
+    public int Attempts { get; init; }
+
+    /// <summary>
+    /// GH-4940. Whether the concurrent append armed with <c>WhileActing(concurrently: ...)</c> landed: true when it
+    /// did, false when the act saved nothing so it never could, null when none was armed.
+    /// </summary>
+    public bool? ConcurrentAppendLanded { get; init; }
+
+    /// <summary>
+    /// GH-4962. The tenant the act ran for: what its own event-store sessions committed for -- the entry message's
+    /// <see cref="Envelope.TenantId" />, or an HTTP endpoint's tenant detection -- else the entry message's envelope,
+    /// else the one tenant every message it caused carried. Null for an act with no tenant.
+    /// </summary>
+    public string? TenantId { get; init; }
 }
 
 /// <summary>
@@ -88,7 +107,15 @@ public class WolverineScenario : CritterStackScenario
     /// GH-4931. The next act reaches the application with no message of its own, such as an HTTP request:
     /// only what is committed outside any message handler is its own, and every cascade's events are not.
     /// </summary>
-    protected internal void NextActDispatchesNoMessage() => _dispatched = NoMessage;
+    protected internal void NextActDispatchesNoMessage() => root._dispatched = NoMessage;
+
+    // GH-4977: a view from In<TStore>() / In(name) shares its specification with the scenario it came from, and
+    // every act and every Wolverine setting is that scenario's
+    private readonly WolverineScenario? _origin;
+    private WolverineScenario root => _origin ?? this;
+
+    // GH-4940: the concurrent append the next act lands between its read and its write
+    private object[]? _concurrently;
 
     /// <param name="host">The application under test.</param>
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
@@ -108,17 +135,56 @@ public class WolverineScenario : CritterStackScenario
     {
     }
 
+    /// <summary>
+    /// GH-4977. A view of <paramref name="root" />'s specification pinned to <paramref name="store" /> -- what
+    /// <see cref="In{TStore}" /> and <see cref="In(string)" /> hand out. Its Givens and Thens use that store; its
+    /// acts, message steps and consistency-boundary steps are <paramref name="root" />'s.
+    /// </summary>
+    protected WolverineScenario(WolverineScenario root, IEventStore store) : base(root, store)
+    {
+        _origin = root.root;
+        _host = root._host;
+    }
+
+    /// <summary>GH-4977. A Wolverine view, so the message and DCB steps work on <c>In&lt;T&gt;()</c> too.</summary>
+    protected override CritterStackScenario createView(IEventStore store) => new WolverineScenario(this, store);
+
+    /// <summary>
+    /// GH-4977 (bobcat#504). The same vocabulary -- the Wolverine acts and steps included -- against the event
+    /// store registered under <typeparamref name="TStore" />, such as Marten's <c>AddMartenStore&lt;IInvoicingStore&gt;()</c>.
+    /// The view shares this specification: an act through it is this scenario's act.
+    /// </summary>
+    public new WolverineScenario In<TStore>() where TStore : class => (WolverineScenario)base.In<TStore>();
+
+    /// <summary>
+    /// GH-4977 (bobcat#504). The same vocabulary against the event store named <paramref name="storeName" />. See
+    /// <see cref="In{TStore}" />.
+    /// </summary>
+    public new WolverineScenario In(string storeName) => (WolverineScenario)base.In(storeName);
+
     // Null when the scenario was built from an IServiceProvider
     private readonly IHost? _host;
 
     /// <summary>How long an act's tracked session waits for everything it caused to settle. Five seconds by default.</summary>
-    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan Timeout
+    {
+        get => root._timeout;
+        set => root._timeout = value;
+    }
+
+    private TimeSpan _timeout = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Whether an act's tracked session also waits on external transports — a message cascaded to a
     /// broker and handled back in this application. On by default.
     /// </summary>
-    public bool IncludeExternalTransports { get; set; } = true;
+    public bool IncludeExternalTransports
+    {
+        get => root._includeExternalTransports;
+        set => root._includeExternalTransports = value;
+    }
+
+    private bool _includeExternalTransports = true;
 
     /// <summary>What the last act did.</summary>
     public new ActOutcome LastAct
@@ -134,14 +200,26 @@ public class WolverineScenario : CritterStackScenario
     /// reaches the application some other way, such as an HTTP call made inside <see cref="WhenTracked" />,
     /// sends it itself, as the <c>X-Correlation-ID</c> header for Wolverine.HTTP.
     /// </summary>
-    public string? ActCorrelationId { get; private set; }
+    public string? ActCorrelationId
+    {
+        get => root._actCorrelationId;
+        private set => root._actCorrelationId = value;
+    }
+
+    private string? _actCorrelationId;
 
     /// <summary>
     /// GH-4939. How long <see cref="ThenEventuallyCaused(object[])" /> keeps looking for the events it expects
     /// once the async daemons have caught up, for work that lands after them -- a message an event
     /// subscription published, handled on a local queue. Ten seconds by default.
     /// </summary>
-    public TimeSpan EventuallyTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan EventuallyTimeout
+    {
+        get => root._eventuallyTimeout;
+        set => root._eventuallyTimeout = value;
+    }
+
+    private TimeSpan _eventuallyTimeout = TimeSpan.FromSeconds(10);
 
     // Whether any act has run since the scenario began or was reset: a negative step about what the act did
     // would otherwise pass on the empty outcome, as the base's do not
@@ -149,6 +227,51 @@ public class WolverineScenario : CritterStackScenario
 
     /// <summary>A wrong outside a recording is a <see cref="SpecificationFailedException" />.</summary>
     protected override Exception failureOf(string message) => new SpecificationFailedException(message);
+
+    // ---- a concurrent writer (GH-4940) -------------------------------------------------------
+
+    /// <summary>
+    /// GH-4940. While the next act runs, another writer appends <paramref name="concurrently" /> -- between the act's
+    /// read and its write. The append lands on the act's <b>first</b> event-store save, before it commits, in a
+    /// session of its own, on a new stream. Tag the events (<c>Tagged(new ItemReserved(sku, 1), sku)</c>) to put them
+    /// inside or outside a Dynamic Consistency Boundary: inside, the act's save fails with a
+    /// <c>DcbConcurrencyException</c> (<see cref="CritterStackScenario.ThenRefusedWith{TException}" />), or an error
+    /// policy retries it and the retry succeeds (<see cref="ThenRetried" />); outside, the act is not disturbed.
+    /// </summary>
+    /// <remarks>
+    /// The append fires once, so a retry sees the new events. An act that saves nothing never gives it a moment to
+    /// land, and the act then fails saying so, rather than letting a "nothing disturbed it" pass vacuously. Needs the
+    /// store integrated with Wolverine (<c>IntegrateWithWolverine()</c>), which registers the hook.
+    /// </remarks>
+    [EventModelRole(SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActing(params object[] concurrently)
+    {
+        var events = flatten(concurrently);
+        if (events.Length == 0) throw new ArgumentException("Name the events a concurrent writer appends.", nameof(concurrently));
+
+        var (described, inline) = describe(events);
+        using var step = ScenarioRecorder.Step("Given", $"while the act runs, a concurrent writer appends {described}");
+        if (!inline) recordValues("event", events);
+        recordTouched(events.Select(PartialMatching.ExpectedType));
+
+        root._concurrently = events.Select(x => Build(x, "a concurrent writer appends")).ToArray();
+    }
+
+    /// <summary>
+    /// GH-4940. The act's own message failed at least once and an error policy retried it until it succeeded -- what
+    /// a retry policy on <c>DcbConcurrencyException</c> does after <see cref="WhileActing" /> lands inside the boundary.
+    /// </summary>
+    public void ThenRetried()
+    {
+        using var step = ScenarioRecorder.Step("Then", "the act is retried and succeeds");
+        if (!actSucceeded()) return;
+
+        Verdicts.Check("attempts", LastAct.Attempts > 1 ? "more than one" : LastAct.Attempts.ToString(CultureInfo.InvariantCulture), "more than one");
+        Verdicts.Fact(LastAct.Attempts > 1, LastAct.Attempts == 0
+            ? "Expected the act to be retried, but it dispatched no message of its own to retry."
+            : "Expected the act to be retried, but its message succeeded on the first attempt" +
+              (LastAct.ConcurrentAppendLanded == true ? ", although the concurrent append landed: is it outside the boundary?" : "."));
+    }
 
     // ---- act -------------------------------------------------------------------------------
 
@@ -162,26 +285,37 @@ public class WolverineScenario : CritterStackScenario
     /// built before the act, with its unspecified members filled by <see cref="CritterStackScenario.UnspecifiedValues" />.
     /// The step shows only the members it specifies.
     /// </remarks>
+    /// <param name="message">The message, whole or partial.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    /// <param name="options">
+    /// GH-4962. How the message is sent: <c>new DeliveryOptions { TenantId = "red" }</c> sends it for a tenant, which
+    /// the act then carries (<see cref="ActOutcome.TenantId" />).
+    /// </param>
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenReceived(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
     {
         // Built before the act, so a partial object the type cannot take fails the spec, not the act
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is received");
-        _dispatched = built;
-        return ActAsync("{0} is received", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(built));
+        root._dispatched = built;
+        return root.ActAsync("{0} is received", message,
+            tracking => ownCorrelation(configureTracking, tracking, options).SendMessageAndWaitAsync(built, options));
     }
 
     /// <summary><paramref name="message" /> is published through Wolverine to every subscriber, and the scenario waits for what it caused.</summary>
+    /// <param name="message">The message, whole or partial.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    /// <param name="options">GH-4962. How the message is published, a tenant included.</param>
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenPublished(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
     {
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is published");
-        _dispatched = built;
-        return ActAsync("{0} is published", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(built));
+        root._dispatched = built;
+        return root.ActAsync("{0} is published", message,
+            tracking => ownCorrelation(configureTracking, tracking, options).PublishMessageAndWaitAsync(built, options));
     }
 
     /// <summary>
@@ -191,9 +325,23 @@ public class WolverineScenario : CritterStackScenario
     /// <param name="description">How the step reads: <c>"the nightly sweep runs"</c>.</param>
     public Task WhenTracked(string description, Func<Task> act,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => ActAsync(description,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking)
+        => root.ActAsync(description,
+            tracking => ownCorrelation(configureTracking, tracking, null)
                 .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => act())));
+
+    // GH-4940: every act runs under a correlation id of its own, generated per act, and it wins over one a
+    // configureTracking or a DeliveryOptions names -- so no other session shares it, which is what lets a concurrent
+    // append be armed by it alone. Nothing in Wolverine or its samples supplies an act's correlation id itself
+    private TrackedSessionConfiguration ownCorrelation(
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking,
+        TrackedSessionConfiguration tracking, DeliveryOptions? options)
+    {
+        var configured = configureTracking?.Invoke(tracking) ?? tracking;
+        if (root.ActCorrelationId is not { } correlationId) return configured;
+
+        if (options is not null) options.CorrelationId = correlationId;
+        return configured.WithCorrelationId(correlationId);
+    }
 
     /// <summary>
     /// The store-only acts of <see cref="CritterStackScenario" /> — <c>WhenActing</c>, <c>WhenActingOn</c> —
@@ -201,17 +349,25 @@ public class WolverineScenario : CritterStackScenario
     /// messages they sent.
     /// </summary>
     /// <remarks>
-    /// What the act appended is what the tracked session heard committed, as for every other act. When it heard
-    /// no commit at all — the act appended through a session Wolverine did not open, such as one taken straight
-    /// from the store — the act falls back to the base's read: every event appended to the store since its
-    /// high-water mark before the act, so events appended outside the tracked session still count. Those are
-    /// read back from the store, so like the base's they carry no tags and are not told apart from a cascade's.
+    /// <para>
+    /// What the act appended is what the tracked session heard committed, as for every other act. The fallback is
+    /// decided <b>per store</b> (GH-4977, bobcat#504): a store the tracked session heard no commit on -- the act
+    /// appended through a session Wolverine did not open, such as one taken straight from the store -- is read back
+    /// from its high-water mark before the act, with Bobcat's attribution (bobcat#503), so events on streams this
+    /// specification never arranged or started are <see cref="CritterStackActOutcome.ForeignEvents" />.
+    /// </para>
+    /// <para>
+    /// Events read back carry no tags and are not told apart from a cascade's, so an outcome that includes any says
+    /// <see cref="CritterStackActOutcome.EventTagsKnown" /> is false.
+    /// </para>
     /// </remarks>
     protected override async Task<CritterStackActOutcome> runActAsync(Func<IServiceProvider, Task> act)
     {
-        // Taken before the act, for the fallback below: one small read, and none at all without a store
-        var store = hasStore() ? Store : null;
-        var floor = store is null ? 0 : await EventStores.HighWaterSequenceAsync(store);
+        // A view's act is its specification's act
+        if (_origin is not null) return await _origin.runActAsync(act);
+
+        // Taken before the act, on every store, for the fallback below: none at all without a store
+        var marks = await highWaterMarksAsync();
 
         var outcome = await executeAsync(
             tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
@@ -221,58 +377,60 @@ public class WolverineScenario : CritterStackScenario
             })),
             null);
 
-        if (store is null || outcome.Appended.Count > 0) return outcome;
+        if (marks.Count == 0) return outcome;
 
-        return await appendedOutsideTheSessionAsync(store, floor, outcome);
+        var unheard = marks.Where(mark => !outcome.Appended.Any(commit => heardOn(commit, mark.Store, marks))).ToList();
+        if (unheard.Count == 0) return outcome;
+
+        // Read even after a failure: an act can commit and then throw, and what it committed is a fact
+        return mergeReadBack(outcome, await readBackSinceAsync(unheard, outcome.Error), marks);
     }
 
-    // The tracked session heard no commit, so read what the store gained since the act's floor instead. Read
-    // even after a failure: an act can commit and then throw, and what it committed is a fact
-    private async Task<ActOutcome> appendedOutsideTheSessionAsync(IEventStore store, long floor, ActOutcome outcome)
+    // Did this commit happen on this store? A commit whose integration did not say which store goes to the default
+    // store, and on a host with one store every commit is that store's
+    private bool heardOn(AppendedEvents commit, IEventStore store, IReadOnlyList<StoreHighWaterMark> marks)
     {
-        var appended = (await EventStores.QueryEventsSinceAsync(store, floor + 1)).OrderBy(x => x.Sequence).ToList();
-        if (appended.Count == 0) return outcome;
+        if (marks.Count == 1) return true;
+        if (commit.Store is { } identity) return Equals(identity, store.Identity);
+        return hasStore() && ReferenceEquals(Store, store);
+    }
 
-        var started = new List<StreamAction>();
-        foreach (var e in appended.Where(x => x.Version == 1))
+    private ActOutcome mergeReadBack(ActOutcome outcome, CritterStackActOutcome readBack, IReadOnlyList<StoreHighWaterMark> marks)
+    {
+        if (readBack.AllNewEvents.Count == 0 && readBack.ForeignEvents.Count == 0) return outcome;
+
+        // Which store every event came from, when there was a choice: what the tracked session heard, by the
+        // store each commit names, and what was read back, by the store it was read from
+        IReadOnlyDictionary<IEvent, IEventStore> byEvent = CritterStackActOutcome.NoStores;
+        if (marks.Count > 1)
         {
-            var action = e.StreamKey is { } key
-                ? new StreamAction(key, StreamActionType.Start)
-                : new StreamAction(e.StreamId, StreamActionType.Start);
-            action.AggregateType = await aggregateTypeOf(store, e);
-            started.Add(action);
+            var map = new Dictionary<IEvent, IEventStore>(ReferenceEqualityComparer.Instance);
+            foreach (var commit in outcome.Appended)
+            {
+                var store = marks.FirstOrDefault(x => heardOn(commit, x.Store, marks))?.Store;
+                if (store is null) continue;
+                foreach (var e in commit.Events) map[e] = store;
+            }
+
+            foreach (var (e, store) in readBack.StoreByEvent) map[e] = store;
+            byEvent = map;
         }
 
-        var fallback = outcome with
+        var merged = outcome with
         {
-            NewEvents = appended,
-            AllNewEvents = appended,
-            StartedStreams = started,
+            NewEvents = outcome.NewEvents.Concat(readBack.NewEvents).ToList(),
+            AllNewEvents = outcome.AllNewEvents.Concat(readBack.AllNewEvents).ToList(),
+            ForeignEvents = readBack.ForeignEvents,
+            StartedStreams = outcome.StartedStreams.Concat(readBack.StartedStreams).ToList(),
             // Read back from the store, which returns no tags
-            EventTagsKnown = false
+            EventTagsKnown = outcome.EventTagsKnown && readBack.NewEvents.Count == 0,
+            StoreByEvent = byEvent
         };
 
-        recordTouched(appended.Select(x => x.Data));
-        if (SpecReport.IsRecording) SpecReport.For<AppendedEventsReport>().Add(appended);
+        recordTouched(readBack.NewEvents.Select(x => x.Data));
+        if (SpecReport.IsRecording && readBack.NewEvents.Count > 0) SpecReport.For<AppendedEventsReport>().Add(readBack.NewEvents);
 
-        return fallback;
-    }
-
-    // The aggregate type the store recorded for an event's stream: an event read back carries none, and without
-    // it a started stream would answer to every aggregate type. Null when the store cannot say
-    private static async Task<Type?> aggregateTypeOf(IEventStore store, IEvent @event)
-    {
-        try
-        {
-            var state = @event.StreamKey is { } key
-                ? await EventStores.FetchStreamStateAsync(store, key)
-                : await EventStores.FetchStreamStateAsync(store, @event.StreamId);
-            return state?.AggregateType;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+        return merged;
     }
 
     /// <summary>
@@ -285,7 +443,7 @@ public class WolverineScenario : CritterStackScenario
     protected internal Task ActAsync(string stepText,
         Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
         Func<ActOutcome, Task<ActOutcome>>? complete = null)
-        => actAsync(stepText, null, dispatch, complete);
+        => root.actAsync(stepText, null, dispatch, complete);
 
     /// <summary>
     /// <see cref="ActAsync(string, Func{TrackedSessionConfiguration, Task{ITrackedSession}}, Func{ActOutcome, Task{ActOutcome}}?)" />
@@ -296,7 +454,7 @@ public class WolverineScenario : CritterStackScenario
     protected internal Task ActAsync(string stepFormat, object subject,
         Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
         Func<ActOutcome, Task<ActOutcome>>? complete = null)
-        => actAsync(stepFormat, subject, dispatch, complete);
+        => root.actAsync(stepFormat, subject, dispatch, complete);
 
     private async Task actAsync(string stepText, object? subject,
         Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
@@ -362,6 +520,17 @@ public class WolverineScenario : CritterStackScenario
             .WithCorrelationId(correlationId);
         if (IncludeExternalTransports) tracking = tracking.IncludeExternalTransports();
 
+        // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
+        var concurrent = _concurrently;
+        _concurrently = null;
+        IDisposable? armed = null;
+        if (concurrent is not null)
+        {
+            var store = await storeForAsync("a concurrent writer appends", null, concurrent);
+            armed = ConcurrentAppends.Arm(correlationId, token =>
+                EventStoreAuthoring.AppendAsync(store, null!, Guid.CreateVersion7(), concurrent, token));
+        }
+
         ITrackedSession? session = null;
         Exception? error = null;
         try
@@ -372,6 +541,25 @@ public class WolverineScenario : CritterStackScenario
         catch (Exception e)
         {
             error = e;
+        }
+        finally
+        {
+            armed?.Dispose();
+        }
+
+        // GH-4940: whether the concurrent append landed is the tracked session's to say
+        bool? landed = armed is null
+            ? null
+            : session?.ConcurrentAppends.Any(x => x.CorrelationId == correlationId) ?? false;
+
+        // An act that saved nothing never let the concurrent writer in: say so, instead of a vacuous pass
+        if (landed == false && error is null)
+        {
+            error = new SpecificationFailedException(
+                "WhileActing armed a concurrent append, but no session Wolverine opened for the act saved anything, so the " +
+                "append never landed between its read and its write. It lands on the first save of a session carrying the " +
+                "act's correlation id: a handler's or an HTTP endpoint's session, with the store integrated with Wolverine " +
+                "(IntegrateWithWolverine()). A session the act opens straight from the store carries none.");
         }
 
         // GH-4931: what the act appended is what the tracked session heard each event-store session commit --
@@ -390,7 +578,14 @@ public class WolverineScenario : CritterStackScenario
             // GH-4940: the boundaries the act's own handler loaded, by the same rule as its own commits
             Boundaries = (session?.LoadedBoundaries ?? Array.Empty<LoadedBoundary>())
                 .Where(x => isTheActsOwn(x.Envelope, dispatched)).ToList(),
-            CorrelationId = session?.CorrelationId ?? correlationId
+            CorrelationId = session?.CorrelationId ?? correlationId,
+            // GH-4940: executions of the act's own message, a retry's included
+            Attempts = session?.AllRecordsInOrder(MessageEventType.ExecutionStarted)
+                .Where(x => x.Envelope is not null && dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
+                            ReferenceEquals(x.Envelope.Message, dispatched))
+                .Count() ?? 0,
+            ConcurrentAppendLanded = landed,
+            TenantId = tenantOf(session, own, dispatched)
         };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
@@ -408,6 +603,33 @@ public class WolverineScenario : CritterStackScenario
 
         return outcome;
     }
+
+    // GH-4962: the act's tenant, from the act itself. Its own commits first -- an HTTP endpoint's tenant detection
+    // lands there, and so does the entry message's tenant -- then the entry message's envelope, then the one tenant
+    // every envelope in the session carried. Several candidates answer nothing rather than guess
+    private static string? tenantOf(ITrackedSession? session, IReadOnlyList<AppendedEvents> own, object? dispatched)
+    {
+        static string? single(IEnumerable<string?> tenants)
+        {
+            var distinct = tenants.Where(x => !string.IsNullOrEmpty(x) && x != DefaultTenant).Distinct(StringComparer.Ordinal).ToList();
+            return distinct.Count == 1 ? distinct[0] : null;
+        }
+
+        if (single(own.Select(x => x.TenantId)) is { } committed) return committed;
+        if (session is null) return null;
+
+        var records = session.AllRecordsInOrder().Where(x => x.Envelope is not null).ToList();
+        if (dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
+            single(records.Where(x => ReferenceEquals(x.Envelope!.Message, dispatched)).Select(x => x.Envelope!.TenantId)) is { } entry)
+        {
+            return entry;
+        }
+
+        return single(records.Select(x => x.Envelope!.TenantId));
+    }
+
+    // The default tenant's name in the stores, which is no tenant at all to an act
+    private const string DefaultTenant = "*DEFAULT*";
 
     // GH-4931: the act's own commits are those of the sessions that handled the act itself. An HTTP endpoint
     // has no envelope; a dispatched message is its envelope's message, and a cascade's envelope carries a
@@ -455,10 +677,10 @@ public class WolverineScenario : CritterStackScenario
     {
         var text = $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} eventually emitted";
         // The store reads can throw something other than what the step reports itself: that fails the step's line
-        await inStep(ScenarioRecorder.Step("Then", text), () => judgeEventuallyCaused(expected));
+        await inStep(ScenarioRecorder.Step("Then", text), () => judgeEventuallyCaused(text, expected));
     }
 
-    private async Task judgeEventuallyCaused(object[] expected)
+    private async Task judgeEventuallyCaused(string text, object[] expected)
     {
         if (!actSucceeded()) return;
 
@@ -468,28 +690,39 @@ public class WolverineScenario : CritterStackScenario
             return;
         }
 
-        if (!hasStore())
+        if (storesToObserve().Count == 0 && !hasStore())
         {
             Verdicts.Fail("ThenEventuallyCaused queries the event store, but the application has none.");
             return;
         }
 
+        // GH-4977 (bobcat#504): the store whose registrations claim the expected events, on a host with several --
+        // or the store a view from In<T>() is pinned to
+        var store = await storeForAsync(text, null, expected);
+
         // GH-4939: one database only. A tenant's database is a follow-up (the act's tenant, from the request or
         // the entry message, and a store-agnostic lookup from a tenant to its database).
-        if (Store.DatabaseCardinality is DatabaseCardinality.StaticMultiple or DatabaseCardinality.DynamicMultiple)
+        // GH-4962 phase 1: the act's tenant, from the act. On one database (conjoined tenancy) the query is filtered
+        // by it; a store that spreads its tenants across databases is still refused, until JasperFx can look up a
+        // tenant's database on every store (phase 2)
+        var tenantId = LastAct.TenantId;
+        if (store.DatabaseCardinality is DatabaseCardinality.StaticMultiple or DatabaseCardinality.DynamicMultiple)
         {
             Verdicts.Fail(
-                $"ThenEventuallyCaused reads one database, but {describeStore()} spreads its tenants across several " +
-                $"({Store.DatabaseCardinality}). Finding an act's events by correlation id in a tenant's database is not supported yet.");
+                $"ThenEventuallyCaused reads one database, but {describeStore(store)} spreads its tenants across several " +
+                $"({store.DatabaseCardinality}). Finding an act's events by correlation id in a tenant's database " +
+                $"{(tenantId is null ? "" : $"('{tenantId}', the act's tenant) ")}is not supported yet.");
             return;
         }
+
+        var filterByTenant = tenantId is not null && store.HasMultipleTenants;
 
         var deadline = DateTimeOffset.UtcNow + EventuallyTimeout;
         while (true)
         {
             try
             {
-                await EventStores.WaitForNonStaleProjectionsAsync(Store, ProjectionTimeout);
+                await EventStores.WaitForNonStaleProjectionsAsync(store, ProjectionTimeout);
             }
             catch (TimeoutException e)
             {
@@ -500,11 +733,11 @@ public class WolverineScenario : CritterStackScenario
             IReadOnlyList<IEvent> caused;
             try
             {
-                caused = await eventsCorrelatedWith(correlationId);
+                caused = await eventsCorrelatedWith(store, correlationId, filterByTenant ? tenantId : null);
             }
             catch (NotSupportedException e) when (e.Message.Contains("Correlation", StringComparison.OrdinalIgnoreCase))
             {
-                Verdicts.Fail(correlationIdsAreOff());
+                Verdicts.Fail(correlationIdsAreOff(store));
                 return;
             }
 
@@ -516,7 +749,10 @@ public class WolverineScenario : CritterStackScenario
                 if (Verdicts.Recording) run.Report();
 
                 Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")) +
-                                             $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))}.");
+                                             $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))} in {describeStore(store)}" +
+                                             (filterByTenant ? $" for tenant '{tenantId}'." : ".") +
+                                             // GH-4977: a whole-store read, so say what else the act saw, store by store
+                                             crossTalkSuffix() + storesSuffix());
                 return;
             }
 
@@ -525,11 +761,12 @@ public class WolverineScenario : CritterStackScenario
     }
 
     // Every event the store recorded with this correlation id, oldest first, every page of it
-    private async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(string correlationId)
+    // GH-4962: scoped to the act's tenant on a conjoined store, both by the reader and by the query
+    private static async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(IEventStore eventStore, string correlationId, string? tenantId)
     {
-        var store = Store.OpenReadOnlyEventStore();
+        var store = eventStore.OpenReadOnlyEventStore(tenantId);
         var events = new List<IEvent>();
-        var query = new EventQuery { CorrelationId = correlationId, PageSize = 500 };
+        var query = new EventQuery { CorrelationId = correlationId, TenantId = tenantId, PageSize = 500 };
         while (true)
         {
             var page = await store.QueryEventsAsync(query);
@@ -554,19 +791,32 @@ public class WolverineScenario : CritterStackScenario
     }
 
     // Which store this is, by the assembly that implements it, for a message that says what to change
-    private string storeKind() => Store.GetType().Assembly.GetName().Name switch
+    private static string storeKind(IEventStore store) => store.GetType().Assembly.GetName().Name switch
     {
         "Marten" => "Marten",
         "Polecat" => "Polecat",
         "Fisher" => "Fisher",
-        var other => other ?? Store.GetType().Name
+        var other => other ?? store.GetType().Name
     };
 
-    private string describeStore() => $"the {storeKind()} event store";
-
-    private string correlationIdsAreOff()
+    private static string describeStore(IEventStore store)
     {
-        var turnOn = storeKind() switch
+        string? name = null;
+        try
+        {
+            name = store.Identity.Name;
+        }
+        catch (Exception)
+        {
+            // an identity is a nicety in a message, never a reason for the step to fail
+        }
+
+        return name is null ? $"the {storeKind(store)} event store" : $"the {storeKind(store)} event store '{name}'";
+    }
+
+    private static string correlationIdsAreOff(IEventStore store)
+    {
+        var turnOn = storeKind(store) switch
         {
             "Marten" => "Turn them on in AddMarten(): opts.Events.MetadataConfig.CorrelationIdEnabled = true;",
             "Polecat" => "Turn them on in AddPolecat(): opts.Events.EnableCorrelationId = true;",
@@ -574,7 +824,7 @@ public class WolverineScenario : CritterStackScenario
             _ => "Turn on the store's correlation id metadata."
         };
 
-        return $"ThenEventuallyCaused finds the act's events by its correlation id, but {describeStore()} does not record " +
+        return $"ThenEventuallyCaused finds the act's events by its correlation id, but {describeStore(store)} does not record " +
                $"correlation ids, which is the default. {turnOn} Then the store's schema needs the new column, which " +
                "automatic schema creation or a migration adds.";
     }

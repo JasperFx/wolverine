@@ -21,9 +21,13 @@ internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
     private readonly MessageContext _context;
     private IReadOnlyList<StreamAction> _pending = Array.Empty<StreamAction>();
 
-    public NotifyObserverOfAppendedEvents(MessageContext context)
+    private readonly EventStoreIdentity? _store;
+
+    /// <param name="store">GH-4977: the event store the session belongs to, when the factory knows it.</param>
+    public NotifyObserverOfAppendedEvents(MessageContext context, EventStoreIdentity? store = null)
     {
         _context = context;
+        _store = store;
     }
 
     public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
@@ -49,7 +53,8 @@ internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
 
         if (_context.Runtime is WolverineRuntime runtime)
         {
-            runtime.RecordAppendedEvents(_context, committed);
+            // GH-4977: which store, so an act on a host with ancillary stores knows which ones it heard from
+            runtime.RecordAppendedEvents(_context, committed, _store);
         }
 
         return Task.CompletedTask;
