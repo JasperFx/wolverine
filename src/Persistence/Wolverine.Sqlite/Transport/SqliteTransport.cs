@@ -65,6 +65,16 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public LightweightCache<string, SqliteQueue> Queues { get; }
 
+    /// <summary>
+    ///     Uses SQLite's implicit rowid to break timestamp ties when dequeueing SQLite queue
+    ///     messages, and promotes scheduled messages in execution time order with the same
+    ///     tie-breaker. No column is added, but this adds an index to each of the ready and
+    ///     scheduled queue tables. It applies to queues managed by this transport, including
+    ///     tenant databases, and is opt-in to avoid changing existing schemas automatically.
+    ///     Configure it before startup; changing it at runtime is not supported.
+    /// </summary>
+    public bool EnableDeterministicQueueOrdering { get; set; }
+
     protected override IEnumerable<SqliteQueue> endpoints()
     {
         return Queues;

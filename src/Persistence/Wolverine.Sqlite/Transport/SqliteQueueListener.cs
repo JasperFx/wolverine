@@ -30,6 +30,8 @@ internal class SqliteQueueListener : IListener
     private readonly SqliteMessageStore? _store;
     private readonly string _incomingTableName;
     private readonly string _selectReadySql;
+    private readonly string _moveScheduledToReadySql;
+    private readonly bool _deterministicQueueOrdering;
 
     public SqliteQueueListener(SqliteQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         DbDataSource dataSource, string? databaseName)
@@ -57,12 +59,32 @@ internal class SqliteQueueListener : IListener
         _incomingTableName = _store?.TableNameFor(DatabaseConstants.IncomingTable)
                              ?? DatabaseConstants.IncomingTable;
 
+        // GH-4862: rows are read back in this order and handed to the receiver in it. The timestamp
+        // default is datetime('now'), which only has one-second precision, so ties are the normal case;
+        // the rowid tie-breaker is only used when the application opted in (it comes with an index).
+        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
+        var queueOrderInOrderBy = _deterministicQueueOrdering ? $", {QueueTable.QueueOrderColumn}" : string.Empty;
         _selectReadySql = $@"
                         SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}
                         FROM {_queueTableName}
-                        ORDER BY timestamp
+                        ORDER BY timestamp{queueOrderInOrderBy}
                         LIMIT {_queue.MaximumMessagesToReceive}
                     ";
+
+        // GH-4862: INSERT ... SELECT assigns the new ready rows their rowids in the SELECT's order, so
+        // ordering the SELECT is what carries execution order into the ready table. All the promoted
+        // rows get the same timestamp, so with the opt-in rowid tie-breaker they pop in this order too.
+        var promotionOrder = _deterministicQueueOrdering
+            ? $"{DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+            : DatabaseConstants.ExecutionTime;
+        _moveScheduledToReadySql = $@"
+                INSERT INTO {_queueTableName} (id, body, message_type)
+                SELECT id, body, message_type
+                FROM {_scheduledTableName}
+                WHERE julianday(execution_time) <= julianday('now')
+                AND id NOT IN (SELECT id FROM {_queueTableName})
+                ORDER BY {promotionOrder}
+            ";
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -149,13 +171,7 @@ internal class SqliteQueueListener : IListener
             // Move scheduled messages that are ready
             await using var moveCommand = conn.CreateCommand();
             moveCommand.Transaction = tx;
-            moveCommand.CommandText = $@"
-                INSERT INTO {_queueTableName} (id, body, message_type)
-                SELECT id, body, message_type
-                FROM {_scheduledTableName}
-                WHERE julianday(execution_time) <= julianday('now')
-                AND id NOT IN (SELECT id FROM {_queueTableName})
-            ";
+            moveCommand.CommandText = _moveScheduledToReadySql;
 
             await moveCommand.ExecuteNonQueryAsync(cancellationToken);
 
