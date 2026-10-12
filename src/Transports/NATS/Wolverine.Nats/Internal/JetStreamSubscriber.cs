@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -68,9 +70,8 @@ internal class JetStreamSubscriber : INatsSubscriber
             _endpoint.Subject
         );
 
-        // Explicit acks, AckWait, MaxDeliver, the subject filter (GH-3676, and the schedule subject under
-        // native scheduled send) and -- GH-4053 -- the MaxAckPending NativeAck needs. The same set resource
-        // setup writes, so the two never disagree on an existing consumer
+        // Explicit acks, AckWait, MaxDeliver, the subject filter (GH-3676) and -- GH-4053 -- the MaxAckPending
+        // NativeAck needs. The same set resource setup writes, so the two never disagree on an existing consumer
         var config = _endpoint.ApplyManagedConsumerSettings(new ConsumerConfig(), _subscriptionPattern);
 
         // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
@@ -97,13 +98,20 @@ internal class JetStreamSubscriber : INatsSubscriber
         }
         else
         {
+            // NATS.Net sends a create request without a name to $JS.API.CONSUMER.CREATE.{stream}.{filter}
+            // (nats-io/nats.net#448), and the server takes the token after the stream for the consumer's name: a
+            // single-token subject quietly named the consumer after itself, and a subject with a dot failed every
+            // start with 10131. So the ephemeral consumer is named on purpose, after the subject it filters on
+            config.Name = EphemeralConsumerName(_subscriptionPattern);
+
             _consumer = await _jetStreamContext.CreateOrUpdateConsumerAsync(
                 _endpoint.StreamName!,
                 config,
                 cancellation
             );
             _logger.LogInformation(
-                "Created ephemeral consumer for subject {Subject}",
+                "Created ephemeral consumer {Consumer} for subject {Subject}",
+                config.Name,
                 _endpoint.Subject
             );
         }
@@ -161,6 +169,19 @@ internal class JetStreamSubscriber : INatsSubscriber
                             continue;
                         }
 
+                        // A native scheduling control message, seen by a consumer whose filter is a wildcard
+                        // that also covers the schedule subjects. The server delivers the message itself to the
+                        // target subject at its due time; handling the control message would run it early
+                        if (msg.Headers?.ContainsKey(JetStreamPublisher.NatsScheduleHeader) == true)
+                        {
+                            _logger.LogDebug(
+                                "Skipping the NATS schedule control message on subject {Subject}",
+                                msg.Subject
+                            );
+                            await msg.AckAsync(cancellationToken: cancellation);
+                            continue;
+                        }
+
                         // Skip messages without headers or without message-type header.
                         // These are typically NATS protocol messages that should not be processed by Wolverine.
                         if (_endpoint.MessageType == null && (msg.Headers == null || !msg.Headers.ContainsKey("message-type")))
@@ -175,7 +196,7 @@ internal class JetStreamSubscriber : INatsSubscriber
                             continue;
                         }
                         var envelope = new NatsEnvelope(null, msg);
-                        _mapper.MapIncomingToEnvelope(envelope, msg);
+                        _mapper.MapIncoming(envelope, msg);
 
                         if (_batching != null)
                         {
@@ -198,6 +219,23 @@ internal class JetStreamSubscriber : INatsSubscriber
             },
             cancellation
         );
+    }
+
+    /// <summary>
+    /// The name of the ephemeral consumer of a listener without a consumer name: the subject itself when it is a
+    /// single token, which is what the server named such a consumer before, otherwise the subject with its dots
+    /// and wildcards spelled out, plus a short hash so two subjects cannot end up with the same name.
+    /// </summary>
+    internal static string EphemeralConsumerName(string subject)
+    {
+        if (subject.IndexOfAny(['.', '*', '>']) < 0)
+        {
+            return subject;
+        }
+
+        var readable = subject.Replace('.', '_').Replace("*", "any").Replace(">", "all");
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject)))[..8].ToLowerInvariant();
+        return $"{readable}_{hash}";
     }
 
     /// <summary>

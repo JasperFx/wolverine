@@ -113,10 +113,10 @@ public class Gh4956_setup_creates_the_declared_stream
     }
 
     /// <summary>
-    /// Start-up provisioning (ConnectAsync) creates every declared stream before any endpoint is set up, so to
-    /// reach the endpoint's own missing-stream branch -- the one `resources setup` and a JetStream endpoint whose
-    /// stream vanished rely on -- the stream is deleted after the host started and the endpoint's SetupAsync is
-    /// run by itself, the way the resource setup runs it
+    /// Start-up provisioning (NatsEndpoint.InitializeAsync) creates every declared stream before any endpoint is
+    /// set up, so to reach the endpoint's own missing-stream branch -- the one a JetStream endpoint whose stream
+    /// vanished relies on -- the stream is deleted after the host started and the endpoint's SetupAsync is run by
+    /// itself
     /// </summary>
     private async Task<StreamConfig> setUpTheMissingStreamAsync(IHost host, string subject, string stream)
     {

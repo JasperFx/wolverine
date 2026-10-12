@@ -125,7 +125,8 @@ public class NatsEarlyDeadLetterTests
                 opts.ServiceName = "EarlyDeadLetter";
                 opts.UseNats(_fixture.ConnectionString)
                     .AutoProvision()
-                    .DefineStream(stream, s => s.WithSubjects($"earlydlq.{id}.>"));
+                    .DefineStream(stream, s => s.WithSubjects($"earlydlq.{id}.>"))
+                    .DefineStream($"{stream}_ERRORS", s => s.WithSubjects(deadLetterSubject));
 
                 opts.Policies.DisableConventionalLocalRouting();
 

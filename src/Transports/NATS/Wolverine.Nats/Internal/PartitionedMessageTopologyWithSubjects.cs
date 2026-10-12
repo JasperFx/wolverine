@@ -34,12 +34,15 @@ public class PartitionedMessageTopologyWithSubjects : PartitionedMessageTopology
         // a message until it is acknowledged even while no consumer is bound -- at startup, or while the
         // shard moves to another node. Set directly: AsWorkQueue() means interest retention, which drops
         // a message nobody is interested in on arrival. An explicitly declared stream of the same name wins.
+        // A work-queue stream only accepts consumers that deliver all, so the shard listener ignores a
+        // transport-wide DeliverPolicy on this stream (NatsEndpoint.EffectiveDeliverPolicy).
         if (!transport.Configuration.Streams.ContainsKey(endpoint.StreamName))
         {
             var stream = new StreamConfiguration
             {
                 Name = endpoint.StreamName,
-                Retention = StreamConfigRetention.Workqueue
+                Retention = StreamConfigRetention.Workqueue,
+                DeclaredByShardTopology = true
             };
             stream.WithSubjects(name);
             transport.Configuration.Streams[endpoint.StreamName] = stream;
