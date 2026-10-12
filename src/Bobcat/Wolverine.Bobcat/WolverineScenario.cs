@@ -94,7 +94,22 @@ public class WolverineScenario : CritterStackScenario
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
     public WolverineScenario(IHost host, string? storeName = null) : base(host, storeName)
     {
+        _host = host;
     }
+
+    /// <summary>
+    /// A scenario over an application's services alone, for a test that has a container but no
+    /// <see cref="IHost" /> -- a host's <c>Services</c> handed on, say. The acts track the Wolverine
+    /// runtime resolved from <paramref name="services" />; <c>Host</c> throws on a scenario built this way.
+    /// </summary>
+    /// <param name="services">The application's services. Its Wolverine runtime and event store are resolved from them.</param>
+    /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
+    public WolverineScenario(IServiceProvider services, string? storeName = null) : base(services, storeName)
+    {
+    }
+
+    // Null when the scenario was built from an IServiceProvider
+    private readonly IHost? _host;
 
     /// <summary>How long an act's tracked session waits for everything it caused to settle. Five seconds by default.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
@@ -201,7 +216,7 @@ public class WolverineScenario : CritterStackScenario
         var outcome = await executeAsync(
             tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
-                await using var scope = Host.Services.CreateAsyncScope();
+                await using var scope = Services.CreateAsyncScope();
                 await act(scope.ServiceProvider);
             })),
             null);
@@ -343,7 +358,7 @@ public class WolverineScenario : CritterStackScenario
         var correlationId = Guid.NewGuid().ToString();
         ActCorrelationId = correlationId;
 
-        var tracking = Host.TrackActivity().Timeout(Timeout).DoNotAssertOnExceptionsDetected()
+        var tracking = (_host is null ? Services.TrackActivity() : _host.TrackActivity()).Timeout(Timeout).DoNotAssertOnExceptionsDetected()
             .WithCorrelationId(correlationId);
         if (IncludeExternalTransports) tracking = tracking.IncludeExternalTransports();
 

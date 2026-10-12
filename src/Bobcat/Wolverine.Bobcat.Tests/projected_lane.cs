@@ -56,3 +56,35 @@ public class without_an_event_store : IAsyncLifetime
         scenario.LastAct.Error.ShouldBeNull();
     }
 }
+
+// A spec built from the application's services alone, with no IHost handed over: the acts track the
+// Wolverine runtime resolved from the container, and the store comes from it too
+[BobcatFeature("Confirming appointments from the container")]
+[Collection(nameof(AppointmentsCollection))]
+public class projected_lane_over_services(AppointmentsHost app) : WolverineSpec(app.Host.Services)
+{
+    [Fact]
+    public async Task a_scheduled_appointment_is_confirmed_with_no_host_in_hand()
+    {
+        var id = Guid.NewGuid();
+
+        await GivenEvents<Appointment>(id, new AppointmentScheduled(id, new Patient("Ann", new Address("Austin")), []));
+        await WhenReceived(new ConfirmAppointment(id));
+        ThenEvents(typeof(AppointmentConfirmed));
+        ThenMessageSent<SendConfirmationEmail>();
+
+        Should.Throw<InvalidOperationException>(() => Host);
+    }
+
+    [Fact]
+    public void the_tracking_knobs_are_on_the_spec_itself()
+    {
+        Timeout = TimeSpan.FromSeconds(7);
+        EventuallyTimeout = TimeSpan.FromSeconds(3);
+        IncludeExternalTransports = false;
+
+        Scenario.Timeout.ShouldBe(TimeSpan.FromSeconds(7));
+        Scenario.EventuallyTimeout.ShouldBe(TimeSpan.FromSeconds(3));
+        Scenario.IncludeExternalTransports.ShouldBeFalse();
+    }
+}
