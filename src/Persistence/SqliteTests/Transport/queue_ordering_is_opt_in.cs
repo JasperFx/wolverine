@@ -236,6 +236,50 @@ public class queue_ordering_is_opt_in : SqliteContext
     }
 
     [Fact]
+    public async Task a_message_that_comes_due_during_promotion_is_not_deleted_unpromoted()
+    {
+        // The promotion INSERT and DELETE used to evaluate julianday('now') separately, so a message that came due
+        // between the two statements was deleted from the scheduled table without reaching the ready queue. A
+        // cutoff 30 seconds in the past stands in for the INSERT's 'now'; the message due 10 seconds ago came
+        // due "between" the statements
+        using var database = Servers.CreateDatabase(nameof(queue_ordering_is_opt_in));
+        var started = await startAsync(database, deterministicOrdering: false);
+        try
+        {
+            var queue = started.Queue;
+            var sender = new SqliteQueueSender(queue);
+
+            var dueBeforeCutoff = ObjectMother.Envelope();
+            dueBeforeCutoff.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(-1);
+            await sender.ScheduleMessageAsync(dueBeforeCutoff, ct);
+
+            var dueAfterCutoff = ObjectMother.Envelope();
+            dueAfterCutoff.ScheduledTime = DateTimeOffset.UtcNow.AddSeconds(-10);
+            await sender.ScheduleMessageAsync(dueAfterCutoff, ct);
+
+            await using var conn = await openAsync(database);
+            var cutoffCommand = conn.CreateCommand();
+            cutoffCommand.CommandText = "SELECT julianday('now', '-30 seconds')";
+            var cutoff = Convert.ToDouble(await cutoffCommand.ExecuteScalarAsync(ct));
+
+            await using var listener = buildListener(started, 100);
+            (await listener.MoveScheduledToReadyQueueAsync(cutoff, ct)).ShouldBe(1);
+
+            (await queue.CountAsync()).ShouldBe(1);
+            (await queue.ScheduledCountAsync()).ShouldBe(1);
+
+            // ...and the next promotion picks it up
+            (await listener.MoveScheduledToReadyQueueAsync(ct)).ShouldBe(1);
+            (await queue.CountAsync()).ShouldBe(2);
+            (await queue.ScheduledCountAsync()).ShouldBe(0);
+        }
+        finally
+        {
+            await stopAsync(started.Host);
+        }
+    }
+
+    [Fact]
     public async Task disabling_after_upgrade_preserves_the_opted_in_schema_and_still_dequeues()
     {
         using var database = Servers.CreateDatabase(nameof(queue_ordering_is_opt_in));
