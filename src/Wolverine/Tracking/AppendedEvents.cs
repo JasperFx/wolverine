@@ -29,6 +29,12 @@ public sealed class AppendedEvents
     /// </summary>
     public EventStoreIdentity? Store { get; internal init; }
 
+    /// <summary>
+    ///     GH-4962. The tenant the session committed for -- the message's, or what an HTTP endpoint's tenant
+    ///     detection found -- or null for work with no tenant.
+    /// </summary>
+    public string? TenantId { get; internal init; }
+
     /// <summary>The service that committed the session.</summary>
     public string? ServiceName { get; }
 

@@ -62,6 +62,13 @@ public sealed record ActOutcome(
     /// did, false when the act saved nothing so it never could, null when none was armed.
     /// </summary>
     public bool? ConcurrentAppendLanded { get; init; }
+
+    /// <summary>
+    /// GH-4962. The tenant the act ran for: what its own event-store sessions committed for -- the entry message's
+    /// <see cref="Envelope.TenantId" />, or an HTTP endpoint's tenant detection -- else the entry message's envelope,
+    /// else the one tenant every message it caused carried. Null for an act with no tenant.
+    /// </summary>
+    public string? TenantId { get; init; }
 }
 
 /// <summary>
@@ -278,26 +285,37 @@ public class WolverineScenario : CritterStackScenario
     /// built before the act, with its unspecified members filled by <see cref="CritterStackScenario.UnspecifiedValues" />.
     /// The step shows only the members it specifies.
     /// </remarks>
+    /// <param name="message">The message, whole or partial.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    /// <param name="options">
+    /// GH-4962. How the message is sent: <c>new DeliveryOptions { TenantId = "red" }</c> sends it for a tenant, which
+    /// the act then carries (<see cref="ActOutcome.TenantId" />).
+    /// </param>
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenReceived(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
     {
         // Built before the act, so a partial object the type cannot take fails the spec, not the act
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is received");
         root._dispatched = built;
         return root.ActAsync("{0} is received", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(built));
+            tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(built, options));
     }
 
     /// <summary><paramref name="message" /> is published through Wolverine to every subscriber, and the scenario waits for what it caused.</summary>
+    /// <param name="message">The message, whole or partial.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    /// <param name="options">GH-4962. How the message is published, a tenant included.</param>
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenPublished(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
     {
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is published");
         root._dispatched = built;
         return root.ActAsync("{0} is published", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(built));
+            tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(built, options));
     }
 
     /// <summary>
@@ -546,7 +564,8 @@ public class WolverineScenario : CritterStackScenario
                 .Where(x => x.Envelope is not null && dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
                             ReferenceEquals(x.Envelope.Message, dispatched))
                 .Count() ?? 0,
-            ConcurrentAppendLanded = armed?.Fired
+            ConcurrentAppendLanded = armed?.Fired,
+            TenantId = tenantOf(session, own, dispatched)
         };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
@@ -564,6 +583,33 @@ public class WolverineScenario : CritterStackScenario
 
         return outcome;
     }
+
+    // GH-4962: the act's tenant, from the act itself. Its own commits first -- an HTTP endpoint's tenant detection
+    // lands there, and so does the entry message's tenant -- then the entry message's envelope, then the one tenant
+    // every envelope in the session carried. Several candidates answer nothing rather than guess
+    private static string? tenantOf(ITrackedSession? session, IReadOnlyList<AppendedEvents> own, object? dispatched)
+    {
+        static string? single(IEnumerable<string?> tenants)
+        {
+            var distinct = tenants.Where(x => !string.IsNullOrEmpty(x) && x != DefaultTenant).Distinct(StringComparer.Ordinal).ToList();
+            return distinct.Count == 1 ? distinct[0] : null;
+        }
+
+        if (single(own.Select(x => x.TenantId)) is { } committed) return committed;
+        if (session is null) return null;
+
+        var records = session.AllRecordsInOrder().Where(x => x.Envelope is not null).ToList();
+        if (dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
+            single(records.Where(x => ReferenceEquals(x.Envelope!.Message, dispatched)).Select(x => x.Envelope!.TenantId)) is { } entry)
+        {
+            return entry;
+        }
+
+        return single(records.Select(x => x.Envelope!.TenantId));
+    }
+
+    // The default tenant's name in the stores, which is no tenant at all to an act
+    private const string DefaultTenant = "*DEFAULT*";
 
     // GH-4931: the act's own commits are those of the sessions that handled the act itself. An HTTP endpoint
     // has no envelope; a dispatched message is its envelope's message, and a cascade's envelope carries a
@@ -636,13 +682,20 @@ public class WolverineScenario : CritterStackScenario
 
         // GH-4939: one database only. A tenant's database is a follow-up (the act's tenant, from the request or
         // the entry message, and a store-agnostic lookup from a tenant to its database).
+        // GH-4962 phase 1: the act's tenant, from the act. On one database (conjoined tenancy) the query is filtered
+        // by it; a store that spreads its tenants across databases is still refused, until JasperFx can look up a
+        // tenant's database on every store (phase 2)
+        var tenantId = LastAct.TenantId;
         if (store.DatabaseCardinality is DatabaseCardinality.StaticMultiple or DatabaseCardinality.DynamicMultiple)
         {
             Verdicts.Fail(
                 $"ThenEventuallyCaused reads one database, but {describeStore(store)} spreads its tenants across several " +
-                $"({store.DatabaseCardinality}). Finding an act's events by correlation id in a tenant's database is not supported yet.");
+                $"({store.DatabaseCardinality}). Finding an act's events by correlation id in a tenant's database " +
+                $"{(tenantId is null ? "" : $"('{tenantId}', the act's tenant) ")}is not supported yet.");
             return;
         }
+
+        var filterByTenant = tenantId is not null && store.HasMultipleTenants;
 
         var deadline = DateTimeOffset.UtcNow + EventuallyTimeout;
         while (true)
@@ -660,7 +713,7 @@ public class WolverineScenario : CritterStackScenario
             IReadOnlyList<IEvent> caused;
             try
             {
-                caused = await eventsCorrelatedWith(store, correlationId);
+                caused = await eventsCorrelatedWith(store, correlationId, filterByTenant ? tenantId : null);
             }
             catch (NotSupportedException e) when (e.Message.Contains("Correlation", StringComparison.OrdinalIgnoreCase))
             {
@@ -676,7 +729,8 @@ public class WolverineScenario : CritterStackScenario
                 if (Verdicts.Recording) run.Report();
 
                 Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")) +
-                                             $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))} in {describeStore(store)}." +
+                                             $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))} in {describeStore(store)}" +
+                                             (filterByTenant ? $" for tenant '{tenantId}'." : ".") +
                                              // GH-4977: a whole-store read, so say what else the act saw, store by store
                                              crossTalkSuffix() + storesSuffix());
                 return;
@@ -687,11 +741,12 @@ public class WolverineScenario : CritterStackScenario
     }
 
     // Every event the store recorded with this correlation id, oldest first, every page of it
-    private static async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(IEventStore eventStore, string correlationId)
+    // GH-4962: scoped to the act's tenant on a conjoined store, both by the reader and by the query
+    private static async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(IEventStore eventStore, string correlationId, string? tenantId)
     {
-        var store = eventStore.OpenReadOnlyEventStore();
+        var store = eventStore.OpenReadOnlyEventStore(tenantId);
         var events = new List<IEvent>();
-        var query = new EventQuery { CorrelationId = correlationId, PageSize = 500 };
+        var query = new EventQuery { CorrelationId = correlationId, TenantId = tenantId, PageSize = 500 };
         while (true)
         {
             var page = await store.QueryEventsAsync(query);

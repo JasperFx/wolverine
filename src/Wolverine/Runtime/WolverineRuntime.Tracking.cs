@@ -74,7 +74,11 @@ public sealed partial class WolverineRuntime : IMessageTracker
         JasperFx.Events.EventStoreIdentity? store = null)
     {
         if (streams.Count == 0) return;
-        ActiveSession?.RecordAppendedEvents(new AppendedEvents(context.Envelope, _serviceName, streams) { Store = store });
+        ActiveSession?.RecordAppendedEvents(new AppendedEvents(context.Envelope, _serviceName, streams)
+        {
+            Store = store,
+            TenantId = context.TenantId
+        });
     }
 
     /// <summary>

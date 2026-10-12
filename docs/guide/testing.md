@@ -571,6 +571,9 @@ A few things to know:
 
 * If the event store does not record correlation ids, the step **fails** and tells you the exact setting to turn on
   for Marten, Polecat or Fisher. It does not skip, because a skipped "then" looks green.
+* The act carries its tenant (`LastAct.TenantId`): the tenant an HTTP endpoint's tenant detection found, or the entry
+  message's, which `WhenReceived(message, options: new DeliveryOptions { TenantId = "red" })` sets. On a store with
+  conjoined tenancy (one database, the tenant as a column) the step looks for the act's events within that tenant only.
 * For now, the step only works against a single database. A store that spreads its tenants across several databases
   is refused with a clear message.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an

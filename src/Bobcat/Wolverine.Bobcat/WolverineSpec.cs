@@ -93,14 +93,16 @@ public abstract class WolverineSpec : CritterStackSpec
     /// <inheritdoc cref="WolverineScenario.WhenReceived" />
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenReceived(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => Scenario.WhenReceived(message, configureTracking);
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
+        => Scenario.WhenReceived(message, configureTracking, options);
 
     /// <inheritdoc cref="WolverineScenario.WhenPublished" />
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenPublished(object message,
-        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
-        => Scenario.WhenPublished(message, configureTracking);
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
+        => Scenario.WhenPublished(message, configureTracking, options);
 
     /// <inheritdoc cref="WolverineScenario.WhenTracked" />
     public Task WhenTracked(string description, Func<Task> act,
