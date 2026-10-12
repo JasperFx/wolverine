@@ -43,9 +43,10 @@
 
     <!-- Every xUnit v3 test project doubles as a Microsoft.Testing.Platform host, so Bobcat's
          supervisor (see build/SupervisedTests.cs) can drive it as a worker process. This changes
-         only the built executable's entry point: `dotnet test`, VSTest filters, TRX and coverlet
-         all keep working, and xUnit v2 projects ignore the property entirely. Set here rather
-         than per-job so a build can never silently produce a non-supervisable executable. -->
+         only the built executable's entry point. Since GH-4979 (xunit.v3 4.x on platform 2.x) the
+         root global.json also puts `dotnet test` in the platform's own mode, so `dotnet test`
+         runs these same hosts; VSTest is not involved anywhere on the command line. Set here
+         rather than per-job so a build can never silently produce a non-supervisable executable. -->
     <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     </PropertyGroup>

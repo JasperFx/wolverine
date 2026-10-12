@@ -53,19 +53,35 @@ build.ps1               # Windows
 # Start test infrastructure
 docker compose up -d    # PostgreSQL, SQL Server, RabbitMQ, Kafka, etc.
 
-# Run tests
-dotnet test             # All tests
-dotnet test src/Testing/CoreTests/
+# Run tests: dotnet test names the project or solution with an option, never positionally
+dotnet test --solution wolverine.slnx
+dotnet test --project src/Testing/CoreTests -f net9.0
+dotnet test --project src/Testing/CoreTests -f net9.0 --filter-class "*Acceptance.wolverine_as_command_bus*"
+dotnet test --project src/Testing/CoreTests -f net9.0 --filter "FullyQualifiedName~batching"
 
 # Documentation
 npm install && npm run docs
 ```
 
-The four Bobcat.Xunit projects (`Wolverine.Bobcat.Tests`, `Wolverine.Bobcat.Http.Tests`,
-`IncidentService.Tests`, `ProcessManagerViaHandlers.Tests`) are on xunit.v3 4 / Microsoft.Testing.Platform 2.
-CI runs them through the Bobcat supervisor (`CIBobcat`). Locally, use `dotnet test --project …` from
-their folder (a scoped `global.json` opts in) or `dotnet run --project …`; `dotnet test` from the repo
-root does not support them. The repo-wide move to xunit.v3 4 is GH-4979.
+**Test stack:** every test project is xUnit v3 **4.x** on **Microsoft.Testing.Platform 2.x** (GH-4979).
+The root `global.json` sets `"test": {"runner": "Microsoft.Testing.Platform"}`, which platform 2.x needs on
+the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
+
+- Name the target with `--project` or `--solution`. The positional form (`dotnet test src/Testing/CoreTests`)
+  is refused.
+- Test-host options go straight on the command line, with no `--` separator. An option the host does not
+  know exits 5 ("Zero tests ran") before anything runs; `--nologo` is one such option.
+- Filters: xUnit's `--filter-class`, `--filter-method`, `--filter-namespace`, `--filter-trait`,
+  `--filter-not-*` and `--filter-query`. xUnit 4 also takes the old VSTest grammar via `--filter`
+  (`"FullyQualifiedName~X"`, `"Category!=Flaky"`).
+- Running the built executable directly works too, with the same options:
+  `src/Testing/CoreTests/bin/Release/net9.0/CoreTests --filter-class "*Acceptance*"`.
+- CI does not use `dotnet test` except in `fsharp.yml`. The Nuke targets run each test host through
+  Bobcat's supervisor (`build/SupervisedTests.cs`) with C# filter predicates, so a CI target is
+  `./build.sh CoreTests --framework net9.0` locally.
+- `[assembly: CollectionBehavior(DisableTestParallelization = true)]` no longer compiles; use
+  `[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]`. A helper library that
+  references the platform but is not a test host needs `IsTestingPlatformApplication=false`; none does today.
 
 **Solutions** (new `.slnx` XML format):
 - `wolverine.slnx` - Full solution

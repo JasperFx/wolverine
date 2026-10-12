@@ -40,11 +40,11 @@ The emulator config lives at `docker/asb/Config.json` and defines a single names
 
 ```bash
 # Single target framework for faster runs
-dotnet test src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj \
+dotnet test --project src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj \
   --framework net9.0
 
 # Run a specific test class
-dotnet test src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj \
+dotnet test --project src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj \
   --framework net9.0 \
   --filter "FullyQualifiedName~end_to_end"
 ```

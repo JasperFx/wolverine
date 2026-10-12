@@ -13,7 +13,7 @@ namespace SqlServerTests.Transport;
 //   B) clustered GUID PK + nonclustered index on timestamp                    (index-only)
 //   C) nonclustered GUID PK + clustered bigint IDENTITY, dequeue by seq       (redesign)
 // Run:
-//   BENCH_SQLSERVER="Server=localhost,1443;..." dotnet test --filter "FullyQualifiedName~transport_perf_benchmark"
+//   BENCH_SQLSERVER="Server=localhost,1443;..." dotnet test --project src/Persistence/SqlServerTests -f net9.0 --filter-class "*transport_perf_benchmark"
 [Trait("Category", "Benchmark")]
 public class transport_perf_benchmark
 {

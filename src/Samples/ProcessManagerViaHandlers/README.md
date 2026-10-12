@@ -39,8 +39,7 @@ The remaining steps (`PaymentConfirmed`, `ItemsReserved`, `ShipmentConfirmed`, `
 ## Running the tests
 
 ```bash
-cd src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests
-dotnet test
+dotnet test --project src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests
 ```
 
 All tests passing is the definition of "working as intended." The suite covers:
