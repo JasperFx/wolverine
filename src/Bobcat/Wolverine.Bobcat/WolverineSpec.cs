@@ -40,12 +40,42 @@ public abstract class WolverineSpec : CritterStackSpec
     {
     }
 
+    /// <summary>
+    /// A spec over an application's services alone, with no <see cref="IHost" />; <c>Host</c> throws. The acts
+    /// track the Wolverine runtime resolved from <paramref name="services" />.
+    /// </summary>
+    protected WolverineSpec(IServiceProvider services, string? storeName = null)
+        : this(new WolverineScenario(services, storeName))
+    {
+    }
+
     protected WolverineSpec(WolverineScenario scenario) : base(scenario)
     {
     }
 
     /// <summary>The scenario every step delegates to.</summary>
     public new WolverineScenario Scenario => (WolverineScenario)base.Scenario;
+
+    /// <inheritdoc cref="WolverineScenario.Timeout" />
+    public TimeSpan Timeout
+    {
+        get => Scenario.Timeout;
+        set => Scenario.Timeout = value;
+    }
+
+    /// <inheritdoc cref="WolverineScenario.EventuallyTimeout" />
+    public TimeSpan EventuallyTimeout
+    {
+        get => Scenario.EventuallyTimeout;
+        set => Scenario.EventuallyTimeout = value;
+    }
+
+    /// <inheritdoc cref="WolverineScenario.IncludeExternalTransports" />
+    public bool IncludeExternalTransports
+    {
+        get => Scenario.IncludeExternalTransports;
+        set => Scenario.IncludeExternalTransports = value;
+    }
 
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public new ActOutcome LastAct => Scenario.LastAct;

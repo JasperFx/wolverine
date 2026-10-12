@@ -518,7 +518,7 @@ Polecat there is nothing to pass along yet. Marten does.
 If you're writing specifications with WolverineFx.Bobcat, every act already runs under a correlation id of its own,
 and the `ThenEventuallyCaused()` step does the waiting and the querying for you. It waits for the async daemons to
 catch up, queries the event store for every event recorded with the act's correlation id, and keeps looking for a
-little while (`EventuallyTimeout`, ten seconds by default) for work that lands after the daemons, like a handler on a
+little while (`EventuallyTimeout` on the spec or its scenario, ten seconds by default) for work that lands after the daemons, like a handler on a
 local queue. Using this Marten configuration:
 
 <!-- snippet: sample_bobcat_events_past_an_async_boundary_marten -->

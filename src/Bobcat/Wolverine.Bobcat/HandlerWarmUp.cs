@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Bobcat.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
@@ -77,9 +76,8 @@ public sealed class HandlerWarmUpException : Exception
 /// against the 5s default — reported as a downstream <c>Then</c> failure, not as a warm-up.
 /// </para>
 /// <para>
-/// <b>Automatic, once per host, priming by default.</b> Every Bobcat step-context helper that opens
-/// a tracked session (<see cref="WolverineStepContextExtensions"/>, and so every shipped Critter
-/// Stack act) warms the host first, before the session is configured. The default,
+/// <b>Automatic, once per host, priming by default.</b> Every tracked act a
+/// <see cref="WolverineScenario"/> opens warms the host first, before the session is configured. The default,
 /// <see cref="AutomaticWarmUp.PrimeCompiler"/>, compiles a single chain: starting the compiler is
 /// the bulk of the cold cost and is paid once, whereas compiling every chain costs extra for each
 /// handler the application has — including handlers the suite never reaches — and on a large
@@ -88,9 +86,9 @@ public sealed class HandlerWarmUpException : Exception
 /// <see cref="IWolverineRuntime"/>, so a restarted host is warmed again.
 /// </para>
 /// <para>
-/// <b>To pay it before any scenario,</b> register <see cref="WarmUpWolverineHandlers"/> as a global
-/// action (or call <see cref="WarmUpHandlers"/>): it compiles every chain after the resources start
-/// and before the first feature, so no scenario's timings include codegen.
+/// <b>To pay it before any scenario,</b> call <see cref="WarmUpHandlers"/> on the host (or start a
+/// <see cref="WarmUpWolverineHandlers"/>) once it has started: it compiles every chain before the
+/// first scenario, so no scenario's timings include codegen.
 /// </para>
 /// <para>
 /// <b>Failures are not swallowed.</b> A chain that cannot compile is a handler Wolverine would have
@@ -149,11 +147,11 @@ public static class HandlerWarmUp
     /// when <see cref="Automatic"/> is off, when the host runs no Wolverine, or once the host is
     /// warm.
     /// </summary>
-    internal static void WarmBeforeTracking(IHost host)
+    internal static void WarmBeforeTracking(IServiceProvider services)
     {
         if (Automatic == AutomaticWarmUp.Off) return;
 
-        var runtime = host.Services.GetService<IWolverineRuntime>();
+        var runtime = services.GetService<IWolverineRuntime>();
         if (runtime != null) ensureWarm(runtime, Automatic == AutomaticWarmUp.AllHandlers);
     }
 
@@ -227,25 +225,25 @@ public static class HandlerWarmUp
 }
 
 /// <summary>
-/// A hosted service that compiles every Wolverine handler on a host, so no scenario's act — and no
-/// scenario's timings — include codegen (bobcat#287). Optional: without it the first tracked act
+/// A hosted service that compiles every Wolverine handler on a host, so no scenario's act -- and no
+/// scenario's timings -- include codegen (bobcat#287). Optional: without it the first tracked act
 /// primes the compiler itself.
 /// </summary>
 /// <remarks>
-/// Register it AFTER the resource whose host it warms — one registration order now spans resources
-/// and plain hosted services, so "after" is literal:
+/// Start it after the Wolverine host it warms has started -- for example from a shared test
+/// fixture, once the host is up:
 /// <code>
-/// runner.Resources.Add(resource);
-/// runner.Resources.Add(new WarmUpWolverineHandlers(resource));
+/// await new WarmUpWolverineHandlers(host).StartAsync(CancellationToken.None);
 /// </code>
+/// Calling <see cref="HandlerWarmUp.WarmUpHandlers"/> on the host does the same thing.
 /// </remarks>
 public sealed class WarmUpWolverineHandlers : IHostedService
 {
-    private readonly IHostResource _resource;
+    private readonly IHost _host;
 
-    public WarmUpWolverineHandlers(IHostResource resource)
+    public WarmUpWolverineHandlers(IHost host)
     {
-        _resource = resource;
+        _host = host;
     }
 
     /// <summary>What the warm-up did, once it has run.</summary>
@@ -253,7 +251,7 @@ public sealed class WarmUpWolverineHandlers : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        Report = _resource.Host.WarmUpHandlers();
+        Report = _host.WarmUpHandlers();
         return Task.CompletedTask;
     }
 
