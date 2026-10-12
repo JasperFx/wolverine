@@ -245,6 +245,72 @@ If you want to scope by correlation id, write that predicate yourself —
 because that would be a promise that a correlation id survives every transport, HTTP endpoint and interop
 mapping, and any gap would surface as a session that silently stops waiting rather than as an error.
 
+### Ignoring traffic in every session on a host <Badge type="tip" text="6.50" />
+
+Some hosts always have an envelope in flight. An embedded CritterWatch console (`opts.AddCritterWatchEmbedded()`)
+polls, raises alerts and pushes batches to its browser clients for the life of the host, and any library with
+background messaging of its own does the same. A tracked session waits for every envelope it saw to finish, so on a
+host like that it never finishes, and every test that uses one times out, including every WolverineFx.Bobcat act.
+
+Rather than filtering each session, write the rules once on `WolverineOptions.Tracking`, and every tracked session
+against that host applies them:
+
+```cs
+builder.Host.UseWolverine(opts =>
+{
+    // Everything whose message type is declared in these assemblies, a batch of them included
+    opts.Tracking.IgnoreMessagesFromAssembly(typeof(SomeEmbeddedToolMessage).Assembly);
+
+    // Any envelope sent to, or received by, this endpoint
+    opts.Tracking.IgnoreEndpoint(new Uri("local://embedded-tool"));
+
+    // And the same type and envelope rules a single session has
+    opts.Tracking.IgnoreMessageType<HeartbeatTick>();
+    opts.Tracking.IgnoreMessagesMatchingType(t => t.Namespace == "SomeTool.Messages");
+    opts.Tracking.IgnoreEnvelopes(e => e.Headers.ContainsKey("x-background"));
+});
+```
+
+In a test project, the same rules go into the test host's configuration, for example
+`services.ConfigureWolverine(opts => opts.Tracking.IgnoreMessagesFromAssembly(...))` in an Alba or
+WolverineFx.Bobcat fixture. `WolverineScenario` opens its tracked sessions from the host, so the acts honor the rules
+with nothing to configure on the specification.
+
+An ignored envelope is never recorded:
+
+* it does not hold the session open, so the session completes on the application's own messages;
+* it does not appear in the session's history (`AllRecordsInOrder()`, `Sent`, `Executed` and the rest). When a
+  session times out, the activity grid says how many envelope events the rules dropped;
+* an exception it throws is not the session's: `AllExceptions()` leaves it out and `AssertNoExceptionsWereThrown()`
+  does not fail on it;
+* events it appends, and consistency boundaries it loads, are not reported to `AppendedEvents` or `LoadedBoundaries`.
+
+A batch is an array of the batched message type, so every rule that tests a message type, the default ignoring of
+`ISystemCommand` included, also matches a batch of that type. Acknowledgements are never ignored.
+
+A single session can add rules of its own with `IgnoreMessagesFromAssembly()` and `IgnoreEndpoint()` on
+`TrackActivity()`, and a test that asserts on the traffic the host ignores, such as an extension's own tests,
+opts back in with `IncludeHostIgnoredTraffic()`:
+
+```cs
+var session = await host.TrackActivity()
+    .IncludeHostIgnoredTraffic()
+    .InvokeMessageAndWaitAsync(new SomeEmbeddedToolMessage());
+```
+
+An extension that knows its own traffic is background noise can add the rule itself, from an `IWolverineExtension`
+or its `WolverineOptions` registration method, so the applications that use it don't have to:
+
+```cs
+public class MyToolExtension : IWolverineExtension
+{
+    public void Configure(WolverineOptions options)
+    {
+        options.Tracking.IgnoreMessagesFromAssembly(typeof(MyToolExtension).Assembly);
+    }
+}
+```
+
 ### Timeouts govern the whole session
 
 `Timeout()` bounds the *entire* tracked session, including any stage it runs — so a stage that does
