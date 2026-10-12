@@ -45,7 +45,8 @@ public sealed record EventModelSliceSeed(
 
     /// <summary>
     ///     True for a read-only trigger — an HTTP <c>GET</c> / <c>HEAD</c>. A query chain that writes
-    ///     nothing is a <see cref="SlicePattern.View" /> slice reading its response type as a read model.
+    ///     nothing is a <see cref="SlicePattern.Query" /> slice reading its response type
+    ///     (<see cref="EventModelSliceDescriptor.ReadsFrom" />) — GH-4975.
     /// </summary>
     public bool IsQuery { get; init; }
 }
@@ -191,10 +192,14 @@ public static class EventModelRoles
         if (seed.IsQuery && !roles.AppendsEvents && roles.EmittedEvents.Count == 0 &&
             roles.PublishedMessages.Count == 0)
         {
-            pattern = SlicePattern.View;
+            // GH-4975 (jasperfx#1003). A read-only trigger is a Query slice, not a View: it READS its
+            // response's read model, aggregate or document, it does not produce it. The View that does
+            // produce it -- usually a projection -- stays its own slice, and the read on ReadsFrom is what
+            // links the two (EventModelLinkKind.ReadModelRead).
+            pattern = SlicePattern.Query;
             if (seed.ResponseType is { } response && response != typeof(void))
             {
-                roles.ReadModels.Add(readModelOf(response));
+                roles.ReadsFrom.Add(readModelOf(response));
             }
         }
         else if (seed.TriggerKind == TriggerKind.JobScheduler)
@@ -225,6 +230,16 @@ public static class EventModelRoles
             // say". Only here, where nothing else answers: every branch above derives the pattern from
             // the trigger, and a declaration does not contradict what the code does know.
             pattern = declaredPattern(chain);
+
+            // GH-4975. A handler declared [SlicePattern(SlicePattern.Query)] answers InvokeAsync<T>: what it
+            // returns is the reply, which it READS, not a message it cascades. Only when the handler writes
+            // nothing -- a "query" that appends events keeps them, and upstream flags it as a
+            // PatternViolation hotspot rather than this reader hiding it.
+            if (pattern == SlicePattern.Query && !roles.AppendsEvents && roles.EmittedEvents.Count == 0)
+            {
+                foreach (var reply in roles.PublishedMessages) roles.ReadsFrom.Add(readModelOf(reply));
+                roles.PublishedMessages.Clear();
+            }
         }
 
         // GH-4181. TriggerLabel is deliberately NOT claimed here. Every structural fact a derived
@@ -456,7 +471,7 @@ public static class EventModelRoles
     }
 
     /// <summary>
-    ///     The read model behind a <see cref="SlicePattern.View" /> slice's response. A response that is a
+    ///     The read model behind a <see cref="SlicePattern.Query" /> slice's response. A response that is a
     ///     <em>collection</em> of a type is a view over that type -- "a list of Account" reads the same
     ///     Account read model the sibling single-document routes name -- so the element type is what the
     ///     slice reports, and the slice folds onto the canvas node that already exists rather than minting
@@ -624,7 +639,7 @@ public static class EventModelRoles
         /// <summary>
         /// GH-4419: the types this chain READS — <c>[ReadModel]</c> and <c>[Entity]</c> parameters — kept
         /// apart from <see cref="ReadModels" />, which is what the chain <em>produces</em> (an
-        /// <c>IStorageAction&lt;T&gt;</c> return, a query's response body). Upstream models the two as
+        /// <c>IStorageAction&lt;T&gt;</c> return). A query's response body is READ (GH-4975). Upstream models the two as
         /// different roles, and the Automation input edge — Event → Read Model → ⚙ Command — can only be
         /// drawn from the read side, because a link needs a producer at one end and a reader at the other.
         /// </summary>
@@ -672,6 +687,8 @@ public static class EventModelRoles
         private readonly List<Type> _types = new();
 
         public int Count => _types.Count;
+
+        public void Clear() => _types.Clear();
 
         public void Add(Type type)
         {

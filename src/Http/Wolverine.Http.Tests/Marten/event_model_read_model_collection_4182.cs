@@ -5,7 +5,7 @@ using WolverineWebApi.Marten;
 
 namespace Wolverine.Http.Tests.Marten;
 
-// GH-4182. A query endpoint that returns a COLLECTION of a read model is a view over that read model.
+// GH-4182. A query endpoint that returns a COLLECTION of a read model reads that read model.
 // Before this, EventModelRoles.Describe took the response type verbatim, so the slice's read model
 // rendered as the closed generic's assembly-qualified CLR string --
 // "System.Collections.Generic.IReadOnlyList`1[[WolverineWebApi.Marten.Order, WolverineWebApi, Version=..."
@@ -21,8 +21,10 @@ public class event_model_read_model_collection_4182(AppFixture fixture) : Integr
 
         var slice = HttpEventModelSource.ForChain(chain);
 
-        slice.Pattern.ShouldBe(SlicePattern.View);
-        slice.ReadModelTypes.Select(x => x.Name).ShouldBe([nameof(Order)]);
+        // GH-4975: a Query that reads Order, rather than a View claiming to produce it
+        slice.Pattern.ShouldBe(SlicePattern.Query);
+        slice.ReadsFrom.Select(x => x.Name).ShouldBe([nameof(Order)]);
+        slice.ReadModelTypes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -34,10 +36,10 @@ public class event_model_read_model_collection_4182(AppFixture fixture) : Integr
         var list = HttpEventModelSource.ForChain(HttpChains.ChainFor("GET", "/api/orders/list")!);
         var single = HttpEventModelSource.ForChain(HttpChains.ChainFor("GET", "/orders/latest/{id}")!);
 
-        list.ReadModelTypes.Single().FullName
-            .ShouldBe(single.ReadModelTypes.Single().FullName);
+        list.ReadsFrom.Single().FullName
+            .ShouldBe(single.ReadsFrom.Single().FullName);
 
-        list.ReadModelTypes.Single().FullName.ShouldBe(typeof(Order).FullName);
+        list.ReadsFrom.Single().FullName.ShouldBe(typeof(Order).FullName);
     }
 
     [Fact]
@@ -51,7 +53,9 @@ public class event_model_read_model_collection_4182(AppFixture fixture) : Integr
 
         var slice = HttpEventModelSource.ForChain(chain);
 
-        slice.Pattern.ShouldBe(SlicePattern.View);
-        slice.ReadModelTypes.Select(x => x.Name).ShouldBe([nameof(Order)]);
+        // GH-4975: a Query that reads Order, rather than a View claiming to produce it
+        slice.Pattern.ShouldBe(SlicePattern.Query);
+        slice.ReadsFrom.Select(x => x.Name).ShouldBe([nameof(Order)]);
+        slice.ReadModelTypes.ShouldBeEmpty();
     }
 }
