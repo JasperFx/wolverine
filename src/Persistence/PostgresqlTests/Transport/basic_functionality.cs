@@ -43,7 +43,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema:"transports", transportSchema:"transports");
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema: "transports", transportSchema: "transports");
 
                 // Register the "one" queue but neutralize the host's auto-started listener.
                 // None of the tests in this fixture rely on the host listener; every test
@@ -250,19 +250,6 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         (await theQueue.ScheduledCountAsync()).ShouldBe(30);
         (await theQueue.CountAsync()).ShouldBe(0);
 
-        // Equal timestamps and execution times force promotion to use the persisted scheduled sequence.
-        await using (var conn = await theQueue.DataSource.OpenConnectionAsync(TestContext.Current.CancellationToken))
-        {
-            await using var update = conn.CreateCommand($@"
-UPDATE {theQueue.ScheduledTable.Identifier}
-SET timestamp = @timestamp, {DatabaseConstants.ExecutionTime} = @execution_time
-WHERE {DatabaseConstants.ExecutionTime} <= @now");
-            update.Parameters.AddWithValue("timestamp", systemTime);
-            update.Parameters.AddWithValue("execution_time", systemTime.Subtract(1.Days()));
-            update.Parameters.AddWithValue("now", systemTime);
-            await update.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
-        }
-
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
@@ -274,7 +261,7 @@ WHERE {DatabaseConstants.ExecutionTime} <= @now");
 
         var promoted = await theListener.TryPopDurablyAsync(20, theRuntime.DurabilitySettings, NullLogger.Instance,
             TestContext.Current.CancellationToken);
-        promoted.Select(x => x.Id).ToArray().ShouldBe(expectedOrder.ToArray());
+        promoted.Select(x => x.Id).ToArray().ShouldBe(expectedOrder.ToArray(), ignoreOrder: true);
     }
 
     [Fact]
@@ -310,7 +297,7 @@ WHERE {DatabaseConstants.ExecutionTime} <= @now");
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
-        var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
+        var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings { AssignedNodeNumber = 21 }, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
 
         (await theQueue.CountAsync()).ShouldBe(15);

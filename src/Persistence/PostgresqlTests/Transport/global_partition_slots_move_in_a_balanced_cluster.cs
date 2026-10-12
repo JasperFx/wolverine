@@ -86,7 +86,8 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
 
     // ---- cluster lifecycle -------------------------------------------------------------------------
 
-    private async Task<IHost> startNodeAsync(bool bufferedInMemory = false)
+    private async Task<IHost> startNodeAsync(bool bufferedInMemory = false,
+        bool deterministicQueueOrdering = false)
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -103,9 +104,14 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
                 opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
 
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, Schema,
-                        transportSchema: $"{Schema}_queues")
-                    .AutoProvision();
+                var postgresql = opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, Schema,
+                    transportSchema: $"{Schema}_queues");
+                if (deterministicQueueOrdering)
+                {
+                    postgresql.EnableDeterministicQueueOrdering();
+                }
+
+                postgresql.AutoProvision();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ClusterStepHandler));
 
@@ -336,10 +342,10 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
     [InlineData(true)]
     public async Task a_remote_shard_queue_delivers_each_group_in_send_order(bool bufferedInMemory)
     {
-        var nodeA = await startNodeAsync(bufferedInMemory);
+        var nodeA = await startNodeAsync(bufferedInMemory, deterministicQueueOrdering: true);
         await waitForSettledOwnershipAsync(30.Seconds());
 
-        var nodeB = await startNodeAsync(bufferedInMemory);
+        var nodeB = await startNodeAsync(bufferedInMemory, deterministicQueueOrdering: true);
         await waitForSettledOwnershipAsync(45.Seconds(),
             () => slotsOwnedBy(nodeA).Length > 0 && slotsOwnedBy(nodeB).Length > 0);
 
