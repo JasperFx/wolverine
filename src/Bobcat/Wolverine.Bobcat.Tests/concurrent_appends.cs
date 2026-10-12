@@ -277,6 +277,37 @@ public abstract class concurrent_appends<THost>(THost app) : WolverineSpec(app.H
     }
 
     [Fact]
+    public async Task the_acts_own_correlation_id_wins_over_one_the_caller_names()
+    {
+        WhileActing(concurrently: Tagged(new ItemReserved(theSku, 1), theSku));
+
+        await WhenReceived(new ReserveItem(theSku, 2), tracking => tracking.WithCorrelationId("the-callers-own"));
+
+        LastAct.CorrelationId.ShouldNotBe("the-callers-own");
+        ThenRefusedWith<DcbConcurrencyException>();
+        LastAct.ConcurrentAppendLanded.ShouldBe(true);
+    }
+
+    [Fact]
+    public async Task outside_a_tracked_session_an_armed_append_never_fires()
+    {
+        // The hook is only on sessions Wolverine opens while a tracked session runs, so production pays nothing
+        var correlationId = Guid.NewGuid().ToString();
+        var fired = false;
+        using (Wolverine.Tracking.ConcurrentAppends.Arm(correlationId, _ =>
+               {
+                   fired = true;
+                   return Task.CompletedTask;
+               }))
+        {
+            await Scenario.Services.GetRequiredService<IMessageBus>()
+                .InvokeAsync(new ReserveItem(theSku, 1), new DeliveryOptions { CorrelationId = correlationId }, TestContext.Current.CancellationToken);
+        }
+
+        fired.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task an_act_that_saves_nothing_never_lets_the_concurrent_writer_in_and_says_so()
     {
         WhileActing(concurrently: Tagged(new ItemReserved(theSku, 1), theSku));
@@ -284,7 +315,7 @@ public abstract class concurrent_appends<THost>(THost app) : WolverineSpec(app.H
         await WhenTracked("nothing is saved", () => Task.CompletedTask);
 
         LastAct.ConcurrentAppendLanded.ShouldBe(false);
-        LastAct.Error!.Message.ShouldContain("saved nothing");
+        LastAct.Error!.Message.ShouldContain("the append never landed");
     }
 }
 

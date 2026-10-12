@@ -598,12 +598,15 @@ are worth knowing about from the Wolverine side:
 * **`ForeignEvents`.** An act that appends through a session Wolverine did not open is read back from the store, store by
   store. Events on streams the specification never arranged or started go to `LastAct.ForeignEvents` instead of being
   judged, and a failing whole-store step adds a "cross-talk suspected" line and, with several stores, which store each
-  event came from.
+  event came from. To claim a stream the host seeded, address it in the specification: `WhenActingOn<T>(id, ...)`,
+  `GivenContext`, or `GivenEvents` on that stream.
 * **A concurrent writer.** `WhileActing(concurrently: Tagged(new ItemReserved(sku, 1), sku))` lands a real append
   between the next act's read and its write, on the act's first save, so a specification can prove a Dynamic
   Consistency Boundary: inside it the act is refused with a `DcbConcurrencyException` (`ThenRefusedWith<T>()`), or a
-  retry policy retries it and `ThenRetried()` passes; outside it, the act succeeds. It needs the store integrated with
-  Wolverine, which registers the hook (`ConcurrentAppends`) on Marten, Polecat and Fisher.
+  retry policy retries it and `ThenRetried()` passes; outside it, the act succeeds. The append is keyed by the act's own
+  correlation id and lands on the first save of a session Wolverine opens for the act (a handler's or an HTTP
+  endpoint's, with the store integrated with Wolverine); a session the act opens straight from the store carries no
+  correlation id, so it never fires there. The hook is only added while a tracked session runs.
 * **`ProjectionCatchUpTimeoutException`.** A document or read-model step that waits for the async daemons and runs out of
   time throws this (it's a `TimeoutException`), naming the shards that were behind and the identity being read.
 
