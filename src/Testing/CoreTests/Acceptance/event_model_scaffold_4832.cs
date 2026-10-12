@@ -769,6 +769,49 @@ public class event_model_scaffold_4832
         plan(merged).Files.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void a_human_triggered_slice_merged_with_its_handler_is_not_scaffolded_again()
+    {
+        // jasperfx#1007: the merge keeps the code's MessageHandler on TriggerKind and moves the board's Human
+        // to TriggeredBy -- running the scaffold again over the merged model must leave the slice alone
+        var model = declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Human)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().Emits<AppointmentConfirmed>());
+
+        var implemented = EventModelSliceDescriptor.Named("ConfirmAppointment") with
+        {
+            HandlerType = TypeDescriptor.For(typeof(Appointment)),
+            HandlerMethod = "Handle",
+            TriggerKind = TriggerKind.MessageHandler
+        };
+
+        var merged = EventModelDescriptor.Merge("Clinic", new[]
+        {
+            model, new EventModelDescriptor("Clinic", new[] { implemented }).WithProvenance(EventModelProvenance.Derived)
+        });
+
+        var slice = merged.Slices.Single();
+        slice.TriggerKind.ShouldBe(TriggerKind.MessageHandler);
+        slice.TriggeredBy.ShouldBe(TriggerKind.Human);
+        slice.Hotspots.ShouldNotContain(x => x.Origin == HotspotOrigin.SourceDisagreement);
+
+        SliceScaffolder.IsDeclaredOnly(slice).ShouldBeFalse();
+        var result = plan(merged);
+        result.Files.ShouldBeEmpty();
+        result.Notices.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_declared_only_human_slice_still_carries_human_on_its_trigger_kind()
+    {
+        // nothing has been merged in yet, so the board's Human is still the only trigger there is
+        var slice = declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.Human)
+            .Command<ConfirmAppointmentRequest>()).Slices.Single();
+
+        slice.TriggerKind.ShouldBe(TriggerKind.Human);
+        slice.TriggeredBy.ShouldBeNull();
+        SliceScaffolder.IsDeclaredOnly(slice).ShouldBeTrue();
+    }
+
 
     // ---------------------------------------------------------------------------------------------------
     // GH-4975: Query slices (jasperfx#1003)

@@ -64,7 +64,10 @@ public class event_model_per_rpc_4000 : IAsyncLifetime
 
         slice.Name.ShouldBe(nameof(CancelOrder));
         slice.CommandType!.Name.ShouldBe(nameof(CancelOrder));
-        slice.HandlerType.ShouldBeNull();
+        // jasperfx#1007: the RPC is the only code there is, so the slice names the user's service type and
+        // the RPC method on it -- never the generated wrapper
+        slice.HandlerType!.Name.ShouldBe(nameof(PlaceOrderHandler));
+        slice.HandlerMethod.ShouldBe("Cancel");
         slice.Pattern.ShouldBe(SlicePattern.Command);
         slice.TriggerKind.ShouldBe(TriggerKind.Grpc);
 
@@ -83,7 +86,9 @@ public class event_model_per_rpc_4000 : IAsyncLifetime
         var slice = WolverineEventModelSource.ForGrpcEndpoint(rpc<PlaceOrder>("Place"), null);
 
         slice.Name.ShouldBe(nameof(PlaceOrder));
-        slice.HandlerType.ShouldBeNull();
+        // no handler graph to find PlaceOrderHandler.Handle in, so the RPC's own service and method
+        slice.HandlerType!.Name.ShouldBe(nameof(PlaceOrderHandler));
+        slice.HandlerMethod.ShouldBe("Place");
         slice.TriggerKind.ShouldBe(TriggerKind.Grpc);
     }
 

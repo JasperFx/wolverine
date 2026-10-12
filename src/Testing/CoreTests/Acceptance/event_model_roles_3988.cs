@@ -165,7 +165,9 @@ public class event_model_roles_on_chains_3988
         var cancel = applied.Slices.Single(x => x.Name == nameof(CancelOrder));
         cancel.TriggerKind.ShouldBe(TriggerKind.Grpc);
         cancel.CommandType!.Name.ShouldBe(nameof(CancelOrder));
-        cancel.HandlerType.ShouldBeNull();
+        // jasperfx#1007: the RPC's service type and method, the only code behind this slice
+        cancel.HandlerType!.Name.ShouldBe(nameof(PlaceOrderHandler));
+        cancel.HandlerMethod.ShouldBe("Cancel");
     }
 
     private sealed class StubGrpcManifest(params GrpcEndpointDescriptor[] endpoints) : IGrpcEndpointManifest

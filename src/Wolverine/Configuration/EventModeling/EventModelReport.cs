@@ -125,7 +125,12 @@ public static class EventModelReport
     {
         var heading = slice.Name;
         if (slice.Pattern is { } pattern) heading += $"  [{pattern}]";
-        var trigger = string.Join(" ", new[] { slice.TriggerKind?.ToString(), slice.TriggerLabel is { Length: > 0 } label ? $"\"{label}\"" : null }
+        // jasperfx#1007: a merged slice keeps WHO triggers it (a declared Human) apart from HOW the code
+        // receives it (Http, MessageHandler, Grpc), so say both: "Human via Http"
+        var kind = slice.TriggeredBy is { } who && who != slice.TriggerKind && slice.TriggerKind is { } how
+            ? $"{who} via {how}"
+            : (slice.TriggerKind ?? slice.TriggeredBy)?.ToString();
+        var trigger = string.Join(" ", new[] { kind, slice.TriggerLabel is { Length: > 0 } label ? $"\"{label}\"" : null }
             .OfType<string>());
         if (trigger.Length > 0) heading += $"  <- {trigger}";
         if (slice.Provenance is { } provenance) heading += $"  ({provenance.ToString().ToLowerInvariant()})";
@@ -158,7 +163,10 @@ public static class EventModelReport
         if (slice.ReadModelTypes.Count > 0) facts.Add($"produces: {names(slice.ReadModelTypes)}");
         foreach (var external in slice.ExternalSystems) facts.Add($"external: {external.Name} ({external.Direction})");
 
-        facts.Add(slice.HandlerType is { } handler ? $"handled by: {handler.Name}" : "handled by: nothing yet");
+        // The user's class and method, so the reader can go straight to the code
+        facts.Add(slice.HandlerType is { } handler
+            ? $"handled by: {handler.Name}{(slice.HandlerMethod is { Length: > 0 } method ? "." + method : "")}"
+            : "handled by: nothing yet");
         foreach (var spec in slice.Specifications) facts.Add($"spec: {spec.Identity}");
 
         // GH-4975: a Query that writes (jasperfx#1003) is computed, never stored, so it is read apart
