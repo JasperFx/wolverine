@@ -35,11 +35,8 @@ internal class MoveToErrorQueue : IContinuation
         // EnableAutomaticFailureAcks even gets a chance to short-circuit. The envelope itself is
         // always present (the block below already relies on it); only Destination can be null. GH-3013.
         var scheme = lifecycle.Envelope!.Destination?.Scheme;
-        if (scheme is not null && runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
-        {
-            await lifecycle.SendFailureAcknowledgementAsync(
-                $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");
-        }
+        var sendFailureAck = scheme is not null && runtime.Options.EnableAutomaticFailureAcks &&
+                             scheme != TransportConstants.Local && scheme != "external-table";
 
         if (lifecycle.Envelope.Message != null)
         {
@@ -58,13 +55,23 @@ internal class MoveToErrorQueue : IContinuation
         {
             // The transport could not move the envelope and left the delivery with the broker, which delivers it
             // again. Nothing was dead lettered, so no fault, no completion -- that would settle, and so lose, the
-            // only copy -- and no error queue record
+            // only copy -- and no error queue record. No failure ack either: the redelivery arrives as a new
+            // envelope that the latch on this one cannot see, so the sender would get one per redelivery
             runtime.Logger.LogWarning(e,
                 "Could not move envelope {EnvelopeId} to the error queue; the transport left it to be delivered again",
                 lifecycle.Envelope.Id);
             lifecycle.CompletionTrackerFor(runtime).Requeued(lifecycle.Envelope);
             return;
         }
+        catch (Exception)
+        {
+            // Any other failure of the move ends this envelope's processing all the same, so the sender still
+            // hears about it
+            if (sendFailureAck) await sendFailureAckAsync(lifecycle);
+            throw;
+        }
+
+        if (sendFailureAck) await sendFailureAckAsync(lifecycle);
 
         // Auto-publish Fault<T> if opted in. The publish enrols in the active
         // outbox transaction when one is open on the inbound MessageContext;
@@ -82,6 +89,13 @@ internal class MoveToErrorQueue : IContinuation
         // both that sweep and the guarantee that the ending record is present. Its dead-letter counter,
         // effective time and failure wire tap now live in MovedToErrorQueue, so no metric is lost.
         lifecycle.CompletionTrackerFor(runtime).MovedToErrorQueue(lifecycle.Envelope, Exception);
+    }
+
+    // Sent after the move rather than before it, so a move the transport hands back for redelivery sends none
+    private ValueTask sendFailureAckAsync(IEnvelopeLifecycle lifecycle)
+    {
+        return lifecycle.SendFailureAcknowledgementAsync(
+            $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");
     }
 
     public override string ToString()
