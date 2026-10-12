@@ -29,6 +29,9 @@ internal class OracleQueueListener : IListener
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly bool _deterministicQueueOrdering;
+    private readonly string _queueOrderBy;
+    private readonly string _scheduledOrderBy;
 
     public OracleQueueListener(OracleQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         OracleDataSource dataSource, string? databaseName)
@@ -47,10 +50,23 @@ internal class OracleQueueListener : IListener
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _schemaName = _queue.Parent.MessageStorageSchemaName;
+        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
 
+        // The identity tie-breaker is only referenced when its schema is enabled
+        _queueOrderBy = _deterministicQueueOrdering
+            ? $"timestamp, {QueueTable.QueueOrderColumn}"
+            : "timestamp";
+        _scheduledOrderBy = _deterministicQueueOrdering
+            ? $"{DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+            : DatabaseConstants.ExecutionTime;
+
+        // Oracle refuses ORDER BY + FETCH FIRST + FOR UPDATE (ORA-02014), so the batch size is
+        // enforced by reading at most :count rows instead. With SKIP LOCKED, Oracle locks rows
+        // as they are fetched rather than when the cursor opens, so this still only claims the
+        // rows the batch takes (plus at most one prefetch buffer, released at commit).
         _tryPopMessagesDirectlySql =
             $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM {_queueTableName} " +
-            "ORDER BY timestamp FETCH FIRST :count ROWS ONLY FOR UPDATE SKIP LOCKED";
+            $"ORDER BY {_queueOrderBy} FOR UPDATE SKIP LOCKED";
 
         _queueName = _queue.Name;
     }
@@ -141,11 +157,13 @@ internal class OracleQueueListener : IListener
                 return cmd;
             }
 
-            // Select scheduled messages that are ready and lock them
+            // Select scheduled messages that are ready and lock them. The rows are inserted into the
+            // ready queue one at a time in this order, so their timestamps (and the identity
+            // tie-breaker when it is enabled) preserve the scheduled order.
             await using var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_scheduledTableName} " +
                 $"WHERE {DatabaseConstants.ExecutionTime} <= SYSTIMESTAMP AT TIME ZONE 'UTC' " +
-                "FOR UPDATE SKIP LOCKED");
+                $"ORDER BY {_scheduledOrderBy} FOR UPDATE SKIP LOCKED");
 
             var idsToMove = new List<Guid>();
             var bodies = new List<byte[]>();
@@ -275,11 +293,11 @@ internal class OracleQueueListener : IListener
             dedupCmd.With("receivedAt", Address.ToString());
             await dedupCmd.ExecuteNonQueryAsync(cancellationToken);
 
-            // Select messages to process with lock
+            // Select messages to process with lock. See the constructor for why this reads at most
+            // `count` rows rather than using FETCH FIRST
             await using var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_queueTableName} " +
-                "ORDER BY timestamp FETCH FIRST :count ROWS ONLY FOR UPDATE SKIP LOCKED");
-            selectCmd.With("count", count);
+                $"ORDER BY {_queueOrderBy} FOR UPDATE SKIP LOCKED");
 
             var ids = new List<Guid>();
             var bodyList = new List<byte[]>();
@@ -288,7 +306,8 @@ internal class OracleQueueListener : IListener
 
             await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
             {
-                while (await reader.ReadAsync(cancellationToken))
+                limitPrefetch(reader, count);
+                while (ids.Count < count && await reader.ReadAsync(cancellationToken))
                 {
                     ids.Add(await OracleEnvelopeReader.ReadGuidAsync(reader, 0, cancellationToken));
                     bodyList.Add((byte[])reader.GetValue(1));
@@ -367,10 +386,10 @@ internal class OracleQueueListener : IListener
             var list = new List<Envelope>();
 
             await using var selectCmd = CreateCmd(_tryPopMessagesDirectlySql);
-            selectCmd.With("count", count);
             await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
             {
-                while (await reader.ReadAsync(cancellationToken))
+                limitPrefetch(reader, count);
+                while (idsToDelete.Count < count && await reader.ReadAsync(cancellationToken))
                 {
                     var id = await OracleEnvelopeReader.ReadGuidAsync(reader, 0, cancellationToken);
                     var data = (byte[])reader.GetValue(1);
@@ -406,6 +425,17 @@ internal class OracleQueueListener : IListener
         finally
         {
             await conn.CloseAsync();
+        }
+    }
+
+    // FOR UPDATE SKIP LOCKED locks rows as the client fetches them, and ODP.NET prefetches by
+    // bytes. Size the prefetch to the batch so a pop does not lock (and hide from other pollers)
+    // many more rows than it is going to take.
+    private static void limitPrefetch(System.Data.Common.DbDataReader reader, int count)
+    {
+        if (reader is OracleDataReader oracleReader && oracleReader.RowSize > 0)
+        {
+            oracleReader.FetchSize = oracleReader.RowSize * Math.Max(count, 1);
         }
     }
 
