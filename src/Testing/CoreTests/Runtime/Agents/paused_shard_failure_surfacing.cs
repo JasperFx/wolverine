@@ -452,6 +452,93 @@ public class paused_shard_failure_surfacing
             agent.StartCount.ShouldBe(3);
         }
 
+        // A transient failure (ShardFailureCategory.Other: a pool timeout, a failover) pauses the shard
+        // and disposes it, so nothing in the daemon resumes it. Marten's own ProjectionCoordinator
+        // restarts a paused shard once it has been paused for a health-check interval; under
+        // Wolverine-managed distribution that coordinator does not run, and the sweep used to report
+        // the failure as unrecoverable and leave the shard paused until the process restarted.
+
+        private static ShardFailure TransientFailure(TimeSpan age)
+        {
+            return FailureOf(ShardFailureCategory.Other, sequence: null) with
+            {
+                OccurredAt = DateTimeOffset.UtcNow.Subtract(age)
+            };
+        }
+
+        [Theory]
+        [InlineData(AgentStatus.Paused)]
+        [InlineData(AgentStatus.Stopped)]
+        public async Task restarts_a_shard_that_failed_on_a_transient_fault(AgentStatus status)
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            agent.SimulateFailure(status, TransientFailure(1.Minutes()));
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(2);
+            agent.Status.ShouldBe(AgentStatus.Running);
+        }
+
+        [Fact]
+        public async Task waits_a_health_check_interval_before_restarting_it()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            // The daemon has just given up on its own retries. Restarting on the same tick would hammer
+            // whatever is down; the pause is the backoff.
+            agent.SimulateFailure(AgentStatus.Paused, TransientFailure(TimeSpan.Zero));
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(1);
+            await _observer.Received(1).AgentPaused(uri, Arg.Any<ShardFailure?>());
+        }
+
+        [Fact]
+        public async Task restarts_it_again_when_it_fails_again_after_recovering()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            agent.SimulateFailure(AgentStatus.Paused, TransientFailure(1.Minutes()));
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.SimulateFailure(AgentStatus.Paused, TransientFailure(1.Minutes()));
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(3);
+        }
+
+        [Fact]
+        public async Task leaves_a_shard_paused_on_a_failure_that_will_recur()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            agent.SimulateFailure(AgentStatus.Paused,
+                FailureOf(ShardFailureCategory.ApplyEvent) with { OccurredAt = DateTimeOffset.UtcNow.Subtract(1.Minutes()) });
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(1);
+        }
+
         [Fact]
         public async Task leaves_a_paused_shard_with_no_reported_reason_to_its_own_owner()
         {

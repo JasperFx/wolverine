@@ -355,17 +355,7 @@ public partial class NodeAgentController
                 "Agent {AgentUri} is still registered on node {NodeNumber} but its shard is stopped; restarting it",
                 agentUri, _runtime.Options.Durability.AssignedNodeNumber);
 
-            // GH-4407: marked before the registration disappears, so the sweep never sees a gap
-            _startingAgents[agentUri] = default;
-            Agents.TryRemove(agentUri, out _);
-            try
-            {
-                await existing.StopAsync(_cancellation.Token);
-            }
-            catch (Exception e)
-            {
-                _logger.LogDebug(e, "Error stopping wedged agent {AgentUri} before restarting it", agentUri);
-            }
+            await evictForRestartAsync(agentUri, existing);
         }
 
         _startingAgents[agentUri] = default;
@@ -408,6 +398,23 @@ public partial class NodeAgentController
         _failedStarts.TryRemove(agentUri, out _);
 
         await upsertAssignmentAsync(agentUri);
+    }
+
+    // Drop a dead registration -- stopping it first to release any lingering daemon-side shard state -- so
+    // that the start which follows re-drives the agent rather than finding it registered and returning.
+    private async Task evictForRestartAsync(Uri agentUri, IAgent existing)
+    {
+        // GH-4407: marked before the registration disappears, so the sweep never sees a gap
+        _startingAgents[agentUri] = default;
+        Agents.TryRemove(agentUri, out _);
+        try
+        {
+            await existing.StopAsync(_cancellation.Token);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error stopping wedged agent {AgentUri} before restarting it", agentUri);
+        }
     }
 
     /// <summary>
@@ -678,11 +685,21 @@ public partial class NodeAgentController
             return;
         }
 
-        _logger.LogError(
-            "Agent {AgentUri} on node {NodeNumber} is not running because of a failure it cannot recover from by restarting: {Failure}. It will be left alone until the underlying problem is resolved.{Detail}",
-            agentUri, _runtime.Options.Durability.AssignedNodeNumber,
-            failure?.ToString() ?? "no reason reported",
-            failure == null ? string.Empty : Environment.NewLine + failure.Detail);
+        if (failure != null && canSelfHeal(failure))
+        {
+            _logger.LogWarning(
+                "Agent {AgentUri} on node {NodeNumber} is not running because of a transient failure: {Failure}. It will be restarted once it has been paused for {Interval}.{Detail}",
+                agentUri, _runtime.Options.Durability.AssignedNodeNumber, failure,
+                _runtime.Options.Durability.HealthCheckPollingTime, Environment.NewLine + failure.Detail);
+        }
+        else
+        {
+            _logger.LogError(
+                "Agent {AgentUri} on node {NodeNumber} is not running because of a failure it cannot recover from by restarting: {Failure}. It will be left alone until the underlying problem is resolved.{Detail}",
+                agentUri, _runtime.Options.Durability.AssignedNodeNumber,
+                failure?.ToString() ?? "no reason reported",
+                failure == null ? string.Empty : Environment.NewLine + failure.Detail);
+        }
 
         try
         {
@@ -732,6 +749,38 @@ public partial class NodeAgentController
             // A failed start is already counted and escalated by _failedStarts / the release path; the
             // sweep must not be taken down by one agent.
             _logger.LogError(e, "Error restarting wedged agent {AgentUri}", agentUri);
+        }
+    }
+
+    /// <summary>
+    /// Restart a locally-owned shard the daemon paused or stopped on a transient failure
+    /// (<see cref="ShardFailureCategory.Other" />: a pool timeout, a failover). The daemon disposes such a
+    /// shard and never resumes it; Marten's own ProjectionCoordinator restarts it once it has been paused
+    /// for a health-check interval, but under Wolverine-managed distribution that coordinator does not run,
+    /// so without this the shard stays paused until the process restarts. The same interval is the backoff
+    /// here: the daemon has only just exhausted its own retries when it pauses.
+    /// </summary>
+    private async Task restartAfterTransientFailureAsync(Uri agentUri, IAgent agent, ShardFailure failure)
+    {
+        if (TimeProvider.GetUtcNow() - failure.OccurredAt < _runtime.Options.Durability.HealthCheckPollingTime)
+        {
+            return;
+        }
+
+        _logger.LogWarning(
+            "Agent {AgentUri} on node {NodeNumber} is {Status} on a transient {Category} failure; restarting it",
+            agentUri, _runtime.Options.Durability.AssignedNodeNumber, agent.Status, failure.Category);
+
+        await evictForRestartAsync(agentUri, agent);
+
+        try
+        {
+            await StartAgentAsync(agentUri);
+        }
+        catch (Exception e)
+        {
+            // Counted in _failedStarts by StartAgentAsync, which is what the GH-3970 release path acts on.
+            _logger.LogError(e, "Error restarting agent {AgentUri} after a transient failure", agentUri);
         }
     }
 
@@ -808,6 +857,11 @@ public partial class NodeAgentController
             }
 
             await reportAgentPausedAsync(entry.Key, failure);
+
+            if (canSelfHeal(failure))
+            {
+                await restartAfterTransientFailureAsync(entry.Key, entry.Value, failure);
+            }
         }
 
         // GH-3970: the other half of the sweep. These agents are NOT in Agents -- the start threw before
