@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <Description>Wolverine.HTTP acts for WolverineFx.Bobcat specifications through Alba: WhenPosted with the route resolved from the request type, any 2xx accepted, Scenario overrides, typed responses.</Description>
+        <Description>Wolverine.HTTP acts for WolverineFx.Bobcat specifications through Alba: WhenPosted, WhenPut, WhenPatched and WhenDeleted with the route resolved from the request type, a template or a route name; WhenReading GET acts that make a Query slice; any 2xx accepted, Scenario overrides, typed responses.</Description>
         <PackageId>WolverineFx.Bobcat.Http</PackageId>
         <!-- Ships as a prerelease while the API settles: Wolverine's version, then -alpha.N -->
         <Version>$(Version)-alpha.3</Version>

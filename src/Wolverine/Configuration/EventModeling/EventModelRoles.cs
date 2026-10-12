@@ -30,6 +30,14 @@ public sealed record EventModelSliceSeed(
     Type? HandlerType)
 {
     /// <summary>
+    ///     The method on <see cref="HandlerType" /> that handles the command -- the user's <c>Handle</c> /
+    ///     <c>Consume</c> / endpoint method, never the generated <c>MessageHandler</c> / <c>HttpHandler</c>
+    ///     override. Its name becomes <see cref="EventModelSliceDescriptor.HandlerMethod" />, so a viewer can
+    ///     navigate from a slice to the code that implements it.
+    /// </summary>
+    public MethodInfo? HandlerMethod { get; init; }
+
+    /// <summary>
     ///     The chain's response type, when it has one an HTTP resource, a gRPC response. A response is
     ///     never an emitted event or a published message, so it is excluded from the return values
     ///     <see cref="EventModelRoles.Describe" /> classifies. Null for chains that have no response concept.
@@ -108,14 +116,18 @@ public static class EventModelRoles
             ? TriggerKind.JobScheduler
             : TriggerKind.MessageHandler;
 
-        var handlerType = chain.Handlers.FirstOrDefault()?.HandlerType;
+        // The user's handler class and method -- never the generated MessageHandler subclass
+        var handler = chain.Handlers.FirstOrDefault();
 
         return Describe(chain, new EventModelSliceSeed(
             DisplayNameFor(chain.MessageType),
             triggerKind,
             null,
             chain.MessageType,
-            handlerType));
+            handler?.HandlerType)
+        {
+            HandlerMethod = handler?.Method
+        });
     }
 
     /// <summary>
@@ -262,6 +274,7 @@ public static class EventModelRoles
             roles.ReadModels.Select(TypeDescriptor.For).ToList())
         {
             Pattern = pattern,
+            HandlerMethod = seed.HandlerMethod?.Name,
             TriggerKind = seed.TriggerKind,
             TriggerOrigin = seed.TriggerOrigin,
             AggregateTypes = roles.Aggregates.Select(TypeDescriptor.For).ToList(),

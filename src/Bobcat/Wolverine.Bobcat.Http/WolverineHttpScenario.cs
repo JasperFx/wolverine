@@ -77,19 +77,143 @@ public class WolverineHttpScenario : WolverineScenario
     [EventModelRole(SliceRole.Command, nameof(command))]
     [EventModelTrigger(TriggerKind.Http)]
     public Task WhenPosted(object command, Action<Scenario>? configure = null)
-    {
-        // Built once, so the route's parameters and the body come from the same object
-        var built = Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted");
-        return httpRoot.postAsync(command, built, HttpRoutes.For(Host, built), configure);
-    }
+        => commandAsync("POST", command, null, null, configure);
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
     [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
     public Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
-        => httpRoot.postAsync(command, Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted to \"{route}\""), route, configure);
+        => commandAsync("POST", command, route, null, configure);
 
-    private async Task postAsync(object command, object built, string route, Action<Scenario>? configure)
+    /// <summary>
+    /// POST <paramref name="command" /> to the endpoint whose ASP.NET Core route name is <paramref name="routeName" />
+    /// — <c>[WolverinePost("/api/orders", RouteName = "PlaceOrder")]</c> — with route parameters filled from the
+    /// command's properties of the same name. A constant route name reaches the Event Model as that endpoint's route.
+    /// </summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "POST")]
+    public Task WhenPostedToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => commandAsync("POST", command, null, routeName, configure);
+
+    /// <summary>PUT <paramref name="command" /> to the Wolverine.HTTP endpoint that accepts its type on PUT.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, HttpMethod = "PUT")]
+    public Task WhenPut(object command, Action<Scenario>? configure = null)
+        => commandAsync("PUT", command, null, null, configure);
+
+    /// <summary>PUT <paramref name="command" /> to <paramref name="route" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PUT")]
+    public Task WhenPut(object command, string route, Action<Scenario>? configure = null)
+        => commandAsync("PUT", command, route, null, configure);
+
+    /// <summary>PUT <paramref name="command" /> to the endpoint named <paramref name="routeName" />, as for <see cref="WhenPostedToRoute" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "PUT")]
+    public Task WhenPutToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => commandAsync("PUT", command, null, routeName, configure);
+
+    /// <summary>PATCH <paramref name="command" /> to the Wolverine.HTTP endpoint that accepts its type on PATCH.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, HttpMethod = "PATCH")]
+    public Task WhenPatched(object command, Action<Scenario>? configure = null)
+        => commandAsync("PATCH", command, null, null, configure);
+
+    /// <summary>PATCH <paramref name="command" /> to <paramref name="route" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PATCH")]
+    public Task WhenPatched(object command, string route, Action<Scenario>? configure = null)
+        => commandAsync("PATCH", command, route, null, configure);
+
+    /// <summary>PATCH <paramref name="command" /> to the endpoint named <paramref name="routeName" />, as for <see cref="WhenPostedToRoute" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "PATCH")]
+    public Task WhenPatchedToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => commandAsync("PATCH", command, null, routeName, configure);
+
+    /// <summary>
+    /// Send <paramref name="command" /> as the JSON body of a DELETE to the Wolverine.HTTP endpoint that accepts its
+    /// type on DELETE, route parameters filled from its properties.
+    /// </summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, HttpMethod = "DELETE")]
+    public Task WhenDeleted(object command, Action<Scenario>? configure = null)
+        => commandAsync("DELETE", command, null, null, configure);
+
+    /// <summary>Send <paramref name="command" /> as the JSON body of a DELETE to <paramref name="route" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "DELETE")]
+    public Task WhenDeleted(object command, string route, Action<Scenario>? configure = null)
+        => commandAsync("DELETE", command, route, null, configure);
+
+    /// <summary>DELETE to the endpoint named <paramref name="routeName" /> with <paramref name="command" /> as the body, as for <see cref="WhenPostedToRoute" />.</summary>
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "DELETE")]
+    public Task WhenDeletedToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => commandAsync("DELETE", command, null, routeName, configure);
+
+    /// <summary>
+    /// GET <paramref name="route" />, written as the endpoint's template — <c>"/api/appointments/{id}"</c> — with its
+    /// values after it, in order, and hand back the 2xx body read as <typeparamref name="T" />: or null when the
+    /// endpoint answered a 4xx (a 404 included, for <see cref="ThenNotFound" />) or failed.
+    /// </summary>
+    /// <remarks>
+    /// A GET trigger beside a read role and no command makes this a <b>read act</b> (bobcat#501): a spec whose last act
+    /// it is describes a <b>Query</b> slice that reads <typeparamref name="T" />, with the template as its route. Streams
+    /// the spec arranged with <c>GivenEvents</c> are setup and stamp nothing. Write the template as a constant, so the
+    /// generator can read it.
+    /// </remarks>
+    [EventModelRole(SliceRole.ReadModel, nameof(T))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "GET")]
+    public Task<T?> WhenReading<T>(string route, params object[] routeValues)
+        => httpRoot.readAsync<T>(route, HttpRoutes.Fill(route, routeValues));
+
+    /// <summary>
+    /// GET the endpoint whose ASP.NET Core route name is <paramref name="routeName" /> —
+    /// <c>[WolverineGet("/api/appointments/{id}", RouteName = "GetAppointment")]</c> — its template filled with
+    /// <paramref name="routeValues" /> in order, as for <see cref="WhenReading{T}" />. The generator resolves a constant
+    /// route name to the endpoint's template, so the Query slice carries both the route and the route name.
+    /// </summary>
+    [EventModelRole(SliceRole.ReadModel, nameof(T))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "GET")]
+    public Task<T?> WhenReadingRoute<T>(string routeName, params object[] routeValues)
+    {
+        var template = HttpRoutes.Named(Host, routeName, "GET");
+        return httpRoot.readAsync<T>(template, HttpRoutes.Fill(template, routeValues));
+    }
+
+    private async Task<T?> readAsync<T>(string template, string url)
+    {
+        // The step reads as the template, which says which endpoint; the filled URL is in the HTTP exchange report
+        await sendAsync("GET", null, null, url, $"{typeof(T).Name} is read from \"{template}\"", null);
+        return await readResponseAsync<T>();
+    }
+
+    // POST / PUT / PATCH / DELETE a command: built once, so the route's parameters and the body come from the same object
+    private Task commandAsync(string verb, object command, string? route, string? routeName, Action<Scenario>? configure)
+    {
+        var name = PartialMatching.ExpectedType(command).Name;
+        var phrase = verb switch
+        {
+            "POST" => "is posted to",
+            "PUT" => "is put to",
+            "PATCH" => "is patched to",
+            _ => "is sent as a DELETE to"
+        };
+
+        var built = Build(command, route is null ? $"{name} {phrase}" : $"{name} {phrase} \"{route}\"");
+        var url = route
+                  ?? (routeName is null
+                      ? HttpRoutes.For(Host, built, verb)
+                      : HttpRoutes.FillFrom(HttpRoutes.Named(Host, routeName, verb), built));
+
+        // {0} is the command, described in full when it fits; the route is escaped out of the format
+        return httpRoot.sendAsync(verb, command, built, url,
+            $"{{0}} {phrase} \"{url.Replace("{", "{{").Replace("}", "}}")}\"", configure);
+    }
+
+    private async Task sendAsync(string verb, object? command, object? built, string route, string step,
+        Action<Scenario>? configure)
     {
         LastResponse = null;
         string? responseBody = null;
@@ -97,13 +221,19 @@ public class WolverineHttpScenario : WolverineScenario
         // GH-4931: the endpoint's own commits have no envelope; anything it cascades does
         NextActDispatchesNoMessage();
 
-        // {0} is the command, described in full when it fits; the route is escaped out of the format
-        await ActAsync($"{{0}} is posted to \"{route.Replace("{", "{{").Replace("}", "}}")}\"", command,
-            tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
+        Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch = tracking => tracking.ExecuteAndWaitAsync(
+            (Func<IMessageContext, Task>)(async _ =>
             {
                 LastResponse = await AlbaHost.Scenario(x =>
                 {
-                    x.Post.Json(built).ToUrl(route);
+                    switch (verb)
+                    {
+                        case "GET": x.Get.Url(route); break;
+                        case "PUT": x.Put.Json(built!).ToUrl(route); break;
+                        case "PATCH": x.Patch.Json(built!).ToUrl(route); break;
+                        case "DELETE": x.Delete.Json(built!).ToUrl(route); break;
+                        default: x.Post.Json(built!).ToUrl(route); break;
+                    }
 
                     // The act judges the status itself: any 2xx, a 4xx as a refusal, a 5xx as a failure
                     x.IgnoreStatusCode();
@@ -116,32 +246,36 @@ public class WolverineHttpScenario : WolverineScenario
                     if (ActCorrelationId is { } correlationId)
                         x.WithRequestHeader(RequestIdMiddleware.CorrelationIdHeaderKey, correlationId);
                 });
-            })),
-            async outcome =>
+            }));
+
+        Func<ActOutcome, Task<ActOutcome>> complete = async outcome =>
+        {
+            if (LastResponse is null) return outcome;
+
+            var status = LastResponse.Context.Response.StatusCode;
+            responseBody = await LastResponse.ReadAsTextAsync();
+            httpRoot._lastResponseBody = responseBody;
+
+            Verdicts.Value("status", status);
+            if (SpecReport.IsRecording)
             {
-                if (LastResponse is null) return outcome;
+                SpecReport.For<HttpExchangeReport>().Add(verb, route, status,
+                    built is null ? null : System.Text.Json.JsonSerializer.Serialize(built, built.GetType()), responseBody);
+            }
 
-                var status = LastResponse.Context.Response.StatusCode;
-                responseBody = await LastResponse.ReadAsTextAsync();
-                httpRoot._lastResponseBody = responseBody;
-
-                Verdicts.Value("status", status);
-                if (SpecReport.IsRecording)
+            return status switch
+            {
+                >= 200 and < 300 => outcome,
+                >= 400 and < 500 => outcome with { Refusal = $"{status}: {responseBody}" },
+                _ => outcome with
                 {
-                    SpecReport.For<HttpExchangeReport>().Add("POST", route, status,
-                        System.Text.Json.JsonSerializer.Serialize(built, built.GetType()), responseBody);
+                    Error = outcome.Error ?? new SpecificationFailedException($"{verb} {route} answered {status}: {responseBody}")
                 }
+            };
+        };
 
-                return status switch
-                {
-                    >= 200 and < 300 => outcome,
-                    >= 400 and < 500 => outcome with { Refusal = $"{status}: {responseBody}" },
-                    _ => outcome with
-                    {
-                        Error = outcome.Error ?? new SpecificationFailedException($"POST {route} answered {status}: {responseBody}")
-                    }
-                };
-            });
+        if (command is null) await ActAsync(step, dispatch, complete);
+        else await ActAsync(step, command, dispatch, complete);
     }
 
     /// <summary>
@@ -163,6 +297,18 @@ public class WolverineHttpScenario : WolverineScenario
     {
         await WhenPosted(command, route, configure);
         return await readResponseAsync<TResponse>();
+    }
+
+    /// <summary>
+    /// The last HTTP act's 2xx response body, read as <typeparamref name="T" /> — or null when it answered a 4xx or
+    /// failed. Not a step: the assertion that follows it is. For an act whose overload hands back nothing, such as
+    /// <c>WhenPut</c>.
+    /// </summary>
+    public Task<T?> TheResponse<T>()
+    {
+        if (LastResponse is null)
+            throw new InvalidOperationException("No HTTP response was captured: the last act was not an HTTP call.");
+        return readResponseAsync<T>();
     }
 
     private async Task<TResponse?> readResponseAsync<TResponse>()
@@ -239,9 +385,17 @@ public class WolverineHttpScenario : WolverineScenario
     }
 
     /// <summary>The last HTTP act answered <paramref name="status" />.</summary>
-    public void ThenResponseIs(int status)
+    public void ThenResponseIs(int status) => checkStatus($"the response is {status}", status);
+
+    /// <summary>
+    /// The last HTTP act answered 404: a read of something that does not exist, as Wolverine.HTTP answers for a missing
+    /// <c>[Document]</c>, <c>[Entity]</c> or <c>[ReadAggregate]</c>.
+    /// </summary>
+    public void ThenNotFound() => checkStatus("nothing is found (404)", 404);
+
+    private void checkStatus(string stepText, int status)
     {
-        using var step = ScenarioRecorder.Step("Then", $"the response is {status}");
+        using var step = ScenarioRecorder.Step("Then", stepText);
 
         if (LastResponse is null)
         {

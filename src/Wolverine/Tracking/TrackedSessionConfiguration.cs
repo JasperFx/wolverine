@@ -121,6 +121,41 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    /// Do not track any message whose type is declared in <paramref name="assembly" />, a batch of them
+    /// included. The per-session twin of <see cref="TrackingOptions.IgnoreMessagesFromAssembly" />, which
+    /// applies to every tracked session against the host.
+    /// </summary>
+    public TrackedSessionConfiguration IgnoreMessagesFromAssembly(System.Reflection.Assembly assembly)
+    {
+        Session.IgnoreMessageTypes(TrackingIgnoreRules.FromAssembly(assembly));
+        return this;
+    }
+
+    /// <summary>
+    /// Do not track traffic to or through the endpoint at <paramref name="endpointUri" />: any envelope whose
+    /// destination is that endpoint, sent there or received by its listener. The per-session twin of
+    /// <see cref="TrackingOptions.IgnoreEndpoint" />.
+    /// </summary>
+    public TrackedSessionConfiguration IgnoreEndpoint(Uri endpointUri)
+    {
+        Session.IgnoreEnvelopes(TrackingIgnoreRules.ForEndpoint(endpointUri));
+        return this;
+    }
+
+    /// <summary>
+    /// Track, for this session only, the traffic that the host-wide ignore rules configured through
+    /// <see cref="WolverineOptions.Tracking" /> (<see cref="TrackingOptions.IgnoreMessagesFromAssembly" />,
+    /// <see cref="TrackingOptions.IgnoreEndpoint" /> and their siblings) would otherwise ignore. Use it for a
+    /// test that asserts on that traffic, such as an extension's own tests of the messages it marks
+    /// ignored. This session's own ignore rules, and the default ignoring of system commands, still apply.
+    /// </summary>
+    public TrackedSessionConfiguration IncludeHostIgnoredTraffic()
+    {
+        Session.IncludeHostIgnoredTraffic();
+        return this;
+    }
+
+    /// <summary>
     /// Track — and allow assertions on — messages marked <see cref="ISystemCommand"/>, which a tracked
     /// session ignores by default. Use this when the traffic under test IS the system/monitoring traffic
     /// (e.g. asserting a monitoring host received a telemetry message). A never-ending system feed can

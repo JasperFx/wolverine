@@ -131,6 +131,8 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
             requestType,
             chain.EndpointType)
         {
+            // the user's endpoint method, never the generated HttpHandler's Handle override
+            HandlerMethod = chain.Method.Method,
             ResponseType = resourceType,
             // Wolverine.HTTP's convention: the first return value is the response body unless the
             // endpoint is [EmptyResponse] / NoContent, in which case every return value is a message

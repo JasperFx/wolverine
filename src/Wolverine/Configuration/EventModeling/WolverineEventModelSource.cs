@@ -458,12 +458,16 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             null,
             null,
             JasperFx.Descriptors.TypeDescriptor.For(endpoint.RequestType),
-            null,
+            // The user's proto-first stub or code-first contract type, and the RPC method on it -- never the
+            // generated service wrapper. Nothing in this process handles the forwarded message, so the RPC is
+            // the only code there is to navigate to.
+            JasperFx.Descriptors.TypeDescriptor.For(endpoint.HandlerType),
             Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
             Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
             Array.Empty<JasperFx.Descriptors.TypeDescriptor>())
         {
             Pattern = SlicePattern.Command,
+            HandlerMethod = endpoint.MethodName,
             TriggerKind = TriggerKind.Grpc,
             TriggerOrigin = origin
         };

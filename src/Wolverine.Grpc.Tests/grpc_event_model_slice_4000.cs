@@ -64,6 +64,8 @@ public class grpc_event_model_slice_4000 : IClassFixture<GrpcCapabilitiesFixture
         slice.Name.ShouldBe(nameof(HelloRequest));
         slice.CommandType!.FullName.ShouldBe(typeof(HelloRequest).FullName);
         slice.HandlerType!.FullName.ShouldBe(typeof(ProtoGreeterHandler).FullName);
+        // jasperfx#1007: the user's handler method, not the generated wrapper or MessageHandler
+        slice.HandlerMethod.ShouldBe(nameof(ProtoGreeterHandler.Handle));
         slice.TriggerOrigin!.Label.ShouldBe("Greeter/SayHello");
     }
 
@@ -77,7 +79,10 @@ public class grpc_event_model_slice_4000 : IClassFixture<GrpcCapabilitiesFixture
 
         slice.Name.ShouldBe(nameof(GreetRequest));
         slice.CommandType!.FullName.ShouldBe(typeof(GreetRequest).FullName);
-        slice.HandlerType.ShouldBeNull();
+        // jasperfx#1007: nothing handles the forwarded message, so the slice names the code-first service
+        // contract and the RPC method on it -- the user's code, never the generated wrapper
+        slice.HandlerType!.FullName.ShouldBe(typeof(IGreeterCodeFirstService).FullName);
+        slice.HandlerMethod.ShouldBe("Greet");
         slice.Pattern.ShouldBe(SlicePattern.Command);
         slice.TriggerOrigin!.Label.ShouldBe("GreeterCodeFirstService/Greet");
     }
