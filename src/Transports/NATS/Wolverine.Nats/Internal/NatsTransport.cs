@@ -423,6 +423,19 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         }
     }
 
+    private readonly ConcurrentDictionary<Uri, string> _failedListenerStarts = new();
+
+    /// <summary>
+    /// The listeners whose last start failed, with the reason, until a later start of the same listener succeeds.
+    /// A snapshot: ConcurrentDictionary.ToArray() takes it atomically, unlike enumerating the dictionary while a
+    /// listener start records a failure
+    /// </summary>
+    internal KeyValuePair<Uri, string>[] FailedListenerStarts() => _failedListenerStarts.ToArray();
+
+    internal void ListenerStarted(Uri uri) => _failedListenerStarts.TryRemove(uri, out _);
+
+    internal void ListenerFailedToStart(Uri uri, Exception exception) => _failedListenerStarts[uri] = exception.Message;
+
     // GH-4956: a declared stream resource setup creates also takes the subjects of the endpoints using it that the
     // declaration does not cover, as NatsEndpoint.SetupAsync does for a declared stream it finds missing. A mirror
     // has no subjects of its own

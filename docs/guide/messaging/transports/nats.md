@@ -1063,6 +1063,18 @@ arrives.
 - **Retry**: Message is republished to the subject
 - **Dead Letter**: Handled by Wolverine's error handling policies
 
+## Health Check
+
+The NATS transport health check reports:
+
+- **Unhealthy** while a NATS listener's last start failed, with the endpoint and the reason, until a later start of
+  that listener succeeds. A listener that starts with the host fails the host instead, but one the agent framework
+  starts afterwards — an exclusive listener, a shard of a global partitioned topology — can fail on its own, for
+  example when its stream or its named consumer under `Provisioning(NatsProvisioning.Verify)` is missing. The
+  record belongs to the node: when the agent framework gives the listener to another node after the failure, this
+  node stays unhealthy until it restarts, so keep this check out of a liveness probe that restarts on it.
+- **Degraded** while the transport is not connected yet.
+
 ## Auto-Provisioning
 
 Enable automatic creation of streams and consumers:

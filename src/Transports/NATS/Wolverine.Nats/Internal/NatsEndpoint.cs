@@ -566,6 +566,23 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         IReceiver receiver
     )
     {
+        // A listener the agent framework starts after the host -- an exclusive listener, a shard -- fails without
+        // failing the host, so the transport's health check has to report it
+        try
+        {
+            var listener = await buildListenerAsync(runtime, receiver);
+            _transport.ListenerStarted(Uri);
+            return listener;
+        }
+        catch (Exception e)
+        {
+            _transport.ListenerFailedToStart(Uri, e);
+            throw;
+        }
+    }
+
+    private async ValueTask<IListener> buildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
         _connection = _transport.Connection;
         _logger = runtime.LoggerFactory.CreateLogger<NatsEndpoint>();
 
@@ -616,9 +633,30 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             // never took
             var mapper = tenant.SubjectMapper ?? tenantMapper!;
             var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
-            var tenantListener = await startListenerAsync(
-                runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
-                mapper.GetSubscriptionPattern(Subject), mapper, deadLetterSender);
+
+            NatsListener tenantListener;
+            try
+            {
+                tenantListener = await startListenerAsync(
+                    runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
+                    mapper.GetSubscriptionPattern(Subject), mapper, deadLetterSender);
+            }
+            catch
+            {
+                // The listeners already running would keep consuming for a listening agent that saw the start fail
+                try
+                {
+                    await compound.DisposeAsync();
+                }
+                catch (Exception e)
+                {
+                    // The start failure is what the listening agent and the health check have to see
+                    _logger?.LogDebug(e, "Error disposing the listeners of {Uri} after a failed start", Uri);
+                }
+
+                throw;
+            }
+
             compound.Inner.Add(tenantListener);
         }
 
@@ -650,7 +688,17 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             tenantMapper
         );
 
-        await listener.StartAsync();
+        try
+        {
+            await listener.StartAsync();
+        }
+        catch
+        {
+            // Nothing else owns it yet
+            await listener.DisposeAsync();
+            throw;
+        }
+
         return listener;
     }
 
