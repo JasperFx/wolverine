@@ -66,8 +66,8 @@ internal class MySqlQueueListener : IListener
         // have new names because a pooled connection keeps the temporary tables of an earlier session,
         // and CREATE TEMPORARY TABLE IF NOT EXISTS would silently reuse the older temp_pop_* /
         // temp_move_* shape that has no ordering columns.
-        _tempPopTable = $"temp_pop_ordered_{_queueName}";
-        _tempMoveTable = $"temp_move_ordered_{_queueName}";
+        _tempPopTable = MySqlIdentifier.Shorten($"temp_pop_ordered_{_queueName}");
+        _tempMoveTable = MySqlIdentifier.Shorten($"temp_move_ordered_{_queueName}");
 
         // MySQL doesn't have CTID, so we use a different approach:
         // Select rows with FOR UPDATE SKIP LOCKED, delete them, and return the bodies

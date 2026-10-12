@@ -32,9 +32,9 @@ internal class ScheduledMessageTable : Table
         AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(UTC_TIMESTAMP(6))");
 
         // MySQL refuses identifiers over 64 characters, which this name passed for queue names over 19
-        // characters and failed host startup. IndexName() leaves every name that fit unchanged, so no
+        // characters and failed host startup. Shorten() leaves every name that fit unchanged, so no
         // existing index is renamed.
-        Indexes.Add(new IndexDefinition(QueueOrdering.IndexName($"idx_{tableName}_execution_time"))
+        Indexes.Add(new IndexDefinition(MySqlIdentifier.Shorten($"idx_{tableName}_execution_time"))
         {
             Columns = [DatabaseConstants.ExecutionTime]
         });

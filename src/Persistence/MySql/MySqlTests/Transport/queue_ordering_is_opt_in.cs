@@ -49,24 +49,44 @@ public class queue_ordering_is_opt_in
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task a_long_queue_name_keeps_the_scheduled_index_names_within_the_mysql_limit(
-        bool deterministicOrdering)
+    [InlineData(false, "a_queue_name_of_thirty_letters")]
+    [InlineData(true, "a_queue_name_of_thirty_letters")]
+    [InlineData(false, "a_queue_name_that_is_sixty_characters_long_for_mysql_limits")]
+    [InlineData(true, "a_queue_name_that_is_sixty_characters_long_for_mysql_limits")]
+    public async Task a_long_queue_name_keeps_every_identifier_within_the_mysql_limit(bool deterministicOrdering,
+        string queueName)
     {
-        // idx_wolverine_queue_{name}_scheduled_execution_time passed MySQL's 64 character identifier limit for
-        // queue names over 19 characters, and the host failed to start
-        const string longQueueName = "a_queue_name_of_thirty_letters";
-
+        // MySQL refuses identifiers over 64 characters. The scheduled table's execution_time index passed it for
+        // queue names over 19 characters, the scheduled table itself over 38 and the ready table over 48, and the
+        // host failed to start
         var schema = await newSchemaAsync();
         IHost? host = null;
         try
         {
-            var started = await startAsync(schema, deterministicOrdering, queueName: longQueueName);
+            var started = await startAsync(schema, deterministicOrdering, queueName: queueName);
             host = started.Host;
 
+            started.QueueTable.Identifier.Name.Length.ShouldBeLessThanOrEqualTo(64);
+            started.ScheduledTable.Identifier.Name.Length.ShouldBeLessThanOrEqualTo(64);
+            started.QueueTable.Indexes.ShouldAllBe(x => x.Name.Length <= 64);
             started.ScheduledTable.Indexes.ShouldAllBe(x => x.Name.Length <= 64);
             (await started.Queue.CheckAsync()).ShouldBeTrue();
+
+            // The shortened tables and the listener's temporary tables work end to end
+            var runtime = host.GetRuntime();
+            var queue = started.Queue;
+            var sent = await sendAsync(queue, 2, descendingIds: false);
+
+            var scheduled = ObjectMother.Envelope();
+            scheduled.ScheduledTime = DateTimeOffset.UtcNow.AddSeconds(-1);
+            await new MySqlQueueSender(queue).ScheduleMessageAsync(scheduled, ct);
+
+            var receiver = new DurableReceiver(queue, runtime, Substitute.For<IHandlerPipeline>());
+            await using var listener = new MySqlQueueListener(queue, runtime, receiver, queue.DataSource, null);
+            (await listener.MoveScheduledToReadyQueueAsync(ct)).ShouldBe(1);
+
+            var received = await listener.TryPopDurablyAsync(3, runtime.DurabilitySettings, NullLogger.Instance, ct);
+            received.Select(x => x.Id).ShouldBe(sent.Select(x => x.Id).Append(scheduled.Id), ignoreOrder: true);
         }
         finally
         {

@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using JasperFx.Core;
 using Weasel.Core;
 using Weasel.MySql;
@@ -15,8 +13,6 @@ namespace Wolverine.MySql.Transport;
 internal static class QueueOrdering
 {
     internal const string QueueOrderColumn = "queue_order";
-
-    private const int MaxIdentifierLength = 64;
 
     /// <summary>
     ///     Adds the tie-breaker column, its unique key and the composite ordering index to
@@ -34,25 +30,14 @@ internal static class QueueOrdering
             IsUnique = true
         });
 
-        table.Indexes.Add(new IndexDefinition(IndexName($"idx_{tableName}_{orderingColumn}_{QueueOrderColumn}"))
+        table.Indexes.Add(new IndexDefinition(MySqlIdentifier.Shorten($"idx_{tableName}_{orderingColumn}_{QueueOrderColumn}"))
         {
             Columns = [orderingColumn, QueueOrderColumn]
         });
     }
 
-    internal static string UniqueKeyName(string tableName) => IndexName($"uq_{tableName}_{QueueOrderColumn}");
-
-    /// <summary>
-    ///     MySQL refuses identifiers longer than 64 characters. Long names are truncated with a
-    ///     deterministic hash suffix so the model always matches what MySQL stores.
-    /// </summary>
-    internal static string IndexName(string name)
-    {
-        if (name.Length <= MaxIdentifierLength) return name;
-
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name)))[..8].ToLowerInvariant();
-        return $"{name[..(MaxIdentifierLength - hash.Length - 1)]}_{hash}";
-    }
+    internal static string UniqueKeyName(string tableName) =>
+        MySqlIdentifier.Shorten($"uq_{tableName}_{QueueOrderColumn}");
 }
 
 /// <summary>

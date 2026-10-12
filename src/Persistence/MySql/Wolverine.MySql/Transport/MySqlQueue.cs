@@ -35,8 +35,10 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         base(ToUri(name, databaseName), role)
     {
         Parent = parent;
-        _queueTableName = $"wolverine_queue_{name}";
-        _scheduledTableName = $"wolverine_queue_{name}_scheduled";
+        // MySQL refuses table names over 64 characters, which these passed for queue names over 38 (the
+        // scheduled table) or 48 characters. Shorten() leaves every name that fit unchanged.
+        _queueTableName = MySqlIdentifier.Shorten($"wolverine_queue_{name}");
+        _scheduledTableName = MySqlIdentifier.Shorten($"wolverine_queue_{name}_scheduled");
 
         Mode = EndpointMode.Durable;
         Name = name;
