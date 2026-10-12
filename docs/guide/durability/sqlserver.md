@@ -260,11 +260,14 @@ and turned worst-case deep-queue dequeue latency from hundreds of milliseconds i
 milliseconds.
 
 ::: warning
-This setting changes the physical schema of the queue tables. Enabling it on an **existing** database
-causes a one-time table rebuild the next time the schema is applied (drop the clustered primary key,
-add the `seq` identity column, and build the new clustered/unique indexes). Queue tables are normally
-transient, so this is usually cheap, but you should enable it during a maintenance window — ideally
-with the queues drained. New applications can simply turn it on from the start.
+This setting changes the physical schema of the queue tables. Turning it on or off for an **existing**
+database rebuilds the ready and scheduled queue tables the next time the schema is applied: in one
+transaction, Wolverine copies the rows out, recreates the table in the new layout and inserts the rows
+back in queue order, so messages already waiting keep their order and the new `seq` (or `queue_order`)
+identity follows it. The table is locked for the duration. Queue tables are normally transient, so this
+is usually cheap, but you should switch during a maintenance window — ideally with the queues drained —
+and on every application that shares the queue tables. New applications can simply turn it on from the
+start.
 
 This applies to Wolverine's native Sql Server queue tables only. The NServiceBus interoperability
 transport already uses the equivalent clustered layout (it must match the NServiceBus on-disk schema),
