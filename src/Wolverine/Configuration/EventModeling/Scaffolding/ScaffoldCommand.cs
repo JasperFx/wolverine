@@ -30,6 +30,10 @@ public class ScaffoldInput : NetCoreInput
     [Description("Write the plan to stdout as JSON -- every file, and every notice with a stable code -- for tooling such as Stoat, instead of the text report")]
     [FlagAlias("json")]
     public bool JsonFlag { get; set; }
+
+    [Description("Give every aggregate a strong-typed identity -- public readonly record struct OrderId(Guid Value) -- unless the Event Model declares its identity with IdentifiedBy<TId>() or the aggregate class already has one")]
+    [FlagAlias("strong-typed-ids")]
+    public bool StrongTypedIdsFlag { get; set; }
 }
 
 /// <summary>
@@ -104,7 +108,9 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
                 ResolveType = TypeResolver.For(options, model),
                 FileExists = path => File.Exists(Path.Combine(output, path)),
                 FindSourceFile = SourceFiles.Finder(Directory.GetCurrentDirectory()),
-                MultiStreamProjectionBase = multiStreamProjectionBaseOf(host.Services)
+                MultiStreamProjectionBase = multiStreamProjectionBaseOf(host.Services),
+                WolverineHttp = await mapsWolverineHttpEndpointsAsync(host.Services),
+                StrongTypedIds = input.StrongTypedIdsFlag
             });
 
             // What only writing the files finds out, reported like any other notice
@@ -342,6 +348,26 @@ public class ScaffoldCommand : JasperFxAsyncCommand<ScaffoldInput>
             }
 
             return directory;
+        }
+    }
+
+    // GH-4975: Wolverine.Http registers its Event Model source in AddWolverineHttp(), and the source only
+    // describes anything once MapWolverineEndpoints() has built the endpoint graph -- which a host built for
+    // a command has done, because Program.cs maps its endpoints before it hands over to the command line
+    private static async Task<bool> mapsWolverineHttpEndpointsAsync(IServiceProvider services)
+    {
+        var http = services.GetServices<IEventModelDefinitionSource>()
+            .FirstOrDefault(x => x.Subject.Scheme == WolverineEventModelSource.Scheme && x.Subject.Host == "wolverine-http");
+        if (http is null) return false;
+
+        try
+        {
+            return await http.TryCreateAsync(services, CancellationToken.None) is not null;
+        }
+        catch (Exception)
+        {
+            // The endpoint graph is there, it just could not be described; it is still mapped
+            return true;
         }
     }
 

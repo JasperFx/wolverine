@@ -59,7 +59,11 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
     }
 
     private static readonly Type[] Endpoints =
-        [typeof(OpenScaffoldLedgerEndpoint), typeof(NoteScaffoldLedgerEndpoint), typeof(NoteScaffoldBothEndpoint)];
+    [
+        typeof(OpenScaffoldLedgerEndpoint), typeof(NoteScaffoldLedgerEndpoint), typeof(NoteScaffoldBothEndpoint),
+        typeof(GetScaffoldLedgerEndpoint), typeof(GetScaffoldLedgerCardEndpoint),
+        typeof(OpenScaffoldTicketEndpoint), typeof(CloseScaffoldTicketEndpoint), typeof(GetScaffoldTicketEndpoint)
+    ];
 
     [Fact]
     public async Task a_stream_start_answers_201_with_the_id_it_assigned()
@@ -122,6 +126,80 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
 
         (await eventsOn(ledger)).Last().ShouldBeOfType<ScaffoldLedgerNoted>();
         (await eventsOn(journal)).Last().ShouldBeOfType<ScaffoldJournalNoted>();
+    }
+
+    [Fact]
+    public async Task a_query_follows_the_location_of_a_stream_start_to_the_aggregate()
+    {
+        // GH-4975: the scaffolded GET sits at the route a scaffolded stream start's Location points at
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new OpenScaffoldLedger("petty cash")).ToUrl("/api/scaffold-shapes/open-scaffold-ledger");
+            x.StatusCodeShouldBe(201);
+        });
+        var location = result.Context.Response.Headers.Location.ToString();
+        var id = (await result.ReadAsJsonAsync<CreationResponse<Guid>>())!.Value;
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new NoteScaffoldLedger(id, "receipts")).ToUrl("/api/scaffold-shapes/note-scaffold-ledger");
+            x.StatusCodeShouldBe(204);
+        });
+
+        var ledger = await theHost.GetAsJson<ScaffoldLedger>(location);
+        ledger!.Notes.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_query_of_something_that_does_not_exist_is_a_404()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Get.Url($"/api/scaffold-ledger/{Guid.NewGuid()}");
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task a_query_of_a_document_loads_it_by_the_route_parameter_that_names_it()
+    {
+        var card = new ScaffoldLedgerCard { Id = Guid.CreateVersion7(), Title = "petty cash" };
+        await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
+        {
+            session.Store(card);
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var loaded = await theHost.GetAsJson<ScaffoldLedgerCard>($"/api/scaffold-cards/{card.Id}");
+        loaded!.Title.ShouldBe("petty cash");
+    }
+
+    [Fact]
+    public async Task strong_typed_ids_run_through_a_stream_start_a_command_and_a_query()
+    {
+        // GH-4883: --strong-typed-ids -- a plain record struct, which Marten stores as the Guid it wraps
+        var started = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new OpenScaffoldTicket("printer jam")).ToUrl("/api/scaffold-shapes/open-scaffold-ticket");
+            x.StatusCodeShouldBe(201);
+        });
+        var id = (await started.ReadAsJsonAsync<CreationResponse<ScaffoldTicketId>>())!.Value;
+        id.Value.ShouldNotBe(Guid.Empty);
+
+        var location = started.Context.Response.Headers.Location.ToString();
+        location.ShouldBe($"/api/scaffold-ticket/{id.Value}");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new CloseScaffoldTicket(id)).ToUrl("/api/scaffold-shapes/close-scaffold-ticket");
+            x.StatusCodeShouldBe(204);
+        });
+
+        var ticket = await theHost.GetAsJson<ScaffoldTicket>(location);
+        ticket!.Id.ShouldBe(id);
+        ticket.Closed.ShouldBeTrue();
+
+        (await eventsOn(id.Value)).Select(x => x.GetType()).ShouldBe([typeof(ScaffoldTicketOpened), typeof(ScaffoldTicketClosed)]);
     }
 
     private async Task<Guid> open()
@@ -222,5 +300,93 @@ public static class NoteScaffoldBothEndpoint
     {
         scaffoldLedgerStream.AppendOne(new ScaffoldLedgerNoted(command.Note));
         scaffoldJournalStream.AppendOne(new ScaffoldJournalNoted(command.Note));
+    }
+}
+
+// GH-4975: a Query over HTTP -- a GET reading an aggregate by its events ([ReadModel], no lock), at the route a
+// scaffolded stream start's Location points at
+[WolverineIgnore]
+public static class GetScaffoldLedgerEndpoint
+{
+    [WolverineGet("/api/scaffold-ledger/{id}")]
+    public static ScaffoldLedger Get([ReadModel] ScaffoldLedger scaffoldLedger)
+    {
+        return scaffoldLedger;
+    }
+}
+
+public class ScaffoldLedgerCard
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = "";
+}
+
+// ...and a GET reading a document ([Entity]) by the route parameter of the slice's declared route
+[WolverineIgnore]
+public static class GetScaffoldLedgerCardEndpoint
+{
+    [WolverineGet("/api/scaffold-cards/{cardId}", RouteName = "ScaffoldCard")]
+    public static ScaffoldLedgerCard Get([Entity("cardId")] ScaffoldLedgerCard scaffoldLedgerCard)
+    {
+        return scaffoldLedgerCard;
+    }
+}
+
+// GH-4883: what --strong-typed-ids writes for the identity, the aggregate, its messages and its endpoints
+public readonly record struct ScaffoldTicketId(Guid Value)
+{
+    // Wolverine.Http binds a route or query string value to it through this TryParse
+    public static bool TryParse(string? text, IFormatProvider? provider, out ScaffoldTicketId id)
+    {
+        var parsed = Guid.TryParse(text, provider, out var value);
+        id = new ScaffoldTicketId(value);
+        return parsed;
+    }
+}
+
+public record OpenScaffoldTicket(string Title);
+public record CloseScaffoldTicket(ScaffoldTicketId ScaffoldTicketId);
+public record ScaffoldTicketOpened(ScaffoldTicketId ScaffoldTicketId);
+public record ScaffoldTicketClosed(ScaffoldTicketId ScaffoldTicketId);
+
+public class ScaffoldTicket
+{
+    public ScaffoldTicketId Id { get; set; }
+    public bool Closed { get; set; }
+    public void Apply(ScaffoldTicketOpened e) { }
+    public void Apply(ScaffoldTicketClosed e) => Closed = true;
+}
+
+[WolverineIgnore]
+public static class OpenScaffoldTicketEndpoint
+{
+    [WolverinePost("/api/scaffold-shapes/open-scaffold-ticket")]
+    public static (CreationResponse<ScaffoldTicketId>, StartStream) Post(OpenScaffoldTicket command)
+    {
+        var id = new ScaffoldTicketId(Guid.CreateVersion7());
+        return (new CreationResponse<ScaffoldTicketId>($"/api/scaffold-ticket/{id.Value}", id),
+            Storage.StartStream<ScaffoldTicket>(id.Value, new ScaffoldTicketOpened(id)));
+    }
+}
+
+[WolverineIgnore]
+public static class CloseScaffoldTicketEndpoint
+{
+    public static ProblemDetails Validate(CloseScaffoldTicket command, ScaffoldTicket scaffoldTicket)
+        => WolverineContinue.NoProblems;
+
+    [WolverinePost("/api/scaffold-shapes/close-scaffold-ticket")]
+    [EmptyResponse]
+    public static ScaffoldTicketClosed? Post(CloseScaffoldTicket command, [WriteModel] ScaffoldTicket scaffoldTicket)
+        => new(command.ScaffoldTicketId);
+}
+
+[WolverineIgnore]
+public static class GetScaffoldTicketEndpoint
+{
+    [WolverineGet("/api/scaffold-ticket/{id}")]
+    public static ScaffoldTicket Get([ReadModel] ScaffoldTicket scaffoldTicket)
+    {
+        return scaffoldTicket;
     }
 }

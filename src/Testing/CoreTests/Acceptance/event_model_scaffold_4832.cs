@@ -27,14 +27,18 @@ public class event_model_scaffold_4832
             .FirstOrDefault(x => x.Namespace == typeof(event_model_scaffold_4832).Namespace && x.Name == descriptor.Name);
 
     private static ScaffoldPlan plan(EventModelDescriptor model, Func<string, bool>? exists = null,
-        Func<Type, string?>? findSource = null)
-        => SliceScaffolder.Plan(model, new SliceScaffoldOptions
+        Func<Type, string?>? findSource = null, Action<SliceScaffoldOptions>? configure = null)
+    {
+        var options = new SliceScaffoldOptions
         {
             RootNamespace = "Clinic",
             ResolveType = resolve,
             FileExists = exists ?? (_ => false),
             FindSourceFile = findSource ?? (_ => null)
-        });
+        };
+        configure?.Invoke(options);
+        return SliceScaffolder.Plan(model, options);
+    }
 
     [Fact]
     public void a_declared_http_command_becomes_a_store_agnostic_endpoint()
@@ -475,6 +479,9 @@ public class event_model_scaffold_4832
 
         var register = result.Notices.Single(x => x.Kind == ScaffoldNoticeKind.Edit && x.Subject == "ReserveSeat");
         register.Message.ShouldContain("(ScreeningTag, CustomerTag)");
+
+        // GH-4883: the registration itself, the same call on Marten, Polecat and Fisher
+        register.Message.ShouldContain("opts.Events.RegisterTagType<ScreeningTag>(); opts.Events.RegisterTagType<CustomerTag>();");
         result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
     }
 
@@ -762,6 +769,281 @@ public class event_model_scaffold_4832
         plan(merged).Files.ShouldBeEmpty();
     }
 
+
+    // ---------------------------------------------------------------------------------------------------
+    // GH-4975: Query slices (jasperfx#1003)
+    // ---------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void an_http_query_of_an_aggregate_becomes_a_get_endpoint_that_reads_it()
+    {
+        // The default route is the one a scaffolded stream start's Location points at, so a 201 can be followed
+        var result = plan(declared(m =>
+        {
+            m.Query<Appointment>().TriggeredBy(TriggerKind.Http);
+            m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.MessageHandler).Against<Appointment>()
+                .Emits<AppointmentConfirmed>();
+        }));
+
+        var code = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "GetAppointment.cs")).Code;
+        code.ShouldContain("public static class GetAppointmentEndpoint");
+        code.ShouldContain("[WolverineGet(\"/api/appointment/{id}\")]");
+        code.ShouldContain("public static Appointment Get([ReadModel] Appointment appointment)");
+        code.ShouldContain("return appointment;");
+        code.ShouldContain("using Wolverine.Http;");
+        code.ShouldContain("using Wolverine.Persistence.EventSourcing;");
+
+        // store-agnostic, like every other shape
+        code.ShouldNotContain("ReadAggregate");
+        code.ShouldNotContain("Marten");
+    }
+
+    [Fact]
+    public void an_http_query_uses_the_slices_route_and_route_name_and_loads_a_document_with_entity()
+    {
+        var model = declared(m => m.Query<AppointmentBoard>("Board").TriggeredBy(TriggerKind.Http));
+        var slice = model.Slices.Single() with
+        {
+            TriggerOrigin = new PublisherOrigin
+            {
+                HttpMethod = "GET", HttpRoute = "/api/boards/{boardId}", HttpRouteName = "BoardById",
+                Label = "GET /api/boards/{boardId}"
+            }
+        };
+
+        var code = plan(model with { Slices = [slice] }).Files.Single().Code;
+
+        code.ShouldContain("[WolverineGet(\"/api/boards/{boardId}\", RouteName = \"BoardById\")]");
+        // AppointmentBoard is no aggregate, so it is a document loaded by the route parameter that names it
+        code.ShouldContain("public static AppointmentBoard Get([Entity(\"boardId\")] AppointmentBoard appointmentBoard)");
+        code.ShouldContain("using Wolverine.Persistence;");
+    }
+
+    [Fact]
+    public void a_message_handler_query_answers_a_query_message_carrying_the_identity()
+    {
+        var result = plan(declared(m => m.Query<Appointment>().TriggeredBy(TriggerKind.MessageHandler)));
+        var code = result.Files.Single().Code;
+
+        code.ShouldContain("public record GetAppointment(Guid Id);");
+        code.ShouldContain("public static class GetAppointmentHandler");
+        code.ShouldContain("public static Appointment Handle(GetAppointment query, [Entity] Appointment appointment)");
+
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_declared_query_message_is_the_one_the_handler_answers()
+    {
+        var result = plan(declared(m => m.Query<Appointment>("LookUpAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command("FindAppointment").Against<Appointment>()));
+        var code = result.Files.Single(x => x.InsertInto is null).Code;
+
+        code.ShouldContain("public record FindAppointment(Guid Id);");
+        code.ShouldContain("public static Appointment Handle(FindAppointment query, [ReadModel] Appointment appointment)");
+    }
+
+    [Fact]
+    public void a_grpc_query_is_scaffolded_as_the_handler_behind_the_rpc()
+    {
+        var result = plan(declared(m => m.Query<Appointment>().TriggeredBy(TriggerKind.Grpc)));
+
+        result.Files.Single().Code.ShouldContain("public static Appointment Handle(GetAppointment query, [Entity] Appointment appointment)");
+        result.Notices.Single(x => x.Code == ScaffoldNoticeCodes.FileWritten).Message.ShouldContain("Triggered by gRPC");
+    }
+
+    [Fact]
+    public void a_query_that_reads_nothing_or_has_no_trigger_is_reported()
+    {
+        var result = plan(declared(m =>
+        {
+            m.Query("Dashboard").TriggeredBy(TriggerKind.Http);
+            m.Query<Appointment>();
+        }));
+
+        result.Files.ShouldBeEmpty();
+        result.Notices.Single(x => x.Subject == "Dashboard").Code.ShouldBe(ScaffoldNoticeCodes.QueryWithoutReadModel);
+
+        var unknown = result.Notices.Single(x => x.Subject == "GetAppointment");
+        unknown.Code.ShouldBe(ScaffoldNoticeCodes.QueryWithoutTrigger);
+        unknown.Kind.ShouldBe(ScaffoldNoticeKind.UnknownTrigger);
+
+        using var json = System.Text.Json.JsonDocument.Parse(SliceScaffolder.ToJson(result, "Clinic", "/out", dryRun: true));
+        json.RootElement.GetProperty("notices").EnumerateArray().Select(x => x.GetProperty("code").GetString())
+            .ShouldBe(new[] { ScaffoldNoticeCodes.QueryWithoutReadModel, ScaffoldNoticeCodes.QueryWithoutTrigger }, ignoreOrder: true);
+    }
+
+    [Fact]
+    public void an_http_slice_in_an_application_without_wolverine_http_is_reported_not_written()
+    {
+        var result = plan(declared(m =>
+        {
+            m.Query<Appointment>().TriggeredBy(TriggerKind.Http);
+            m.Command<ConfirmAppointmentRequest>().TriggeredBy(TriggerKind.Http).Against<Appointment>().Emits<AppointmentConfirmed>();
+        }), configure: o => o.WolverineHttp = false);
+
+        result.Files.ShouldNotContain(x => x.Code.Contains("Wolverine.Http"));
+        result.Notices.Where(x => x.Code == ScaffoldNoticeCodes.HttpEndpointsUnavailable).Select(x => x.Subject)
+            .ShouldBe(new[] { nameof(ConfirmAppointmentRequest), "GetAppointment" }, ignoreOrder: true);
+    }
+
+    [Fact]
+    public void the_scaffolded_query_handlers_compile()
+    {
+        var result = plan(declared(m =>
+        {
+            m.Query<Appointment>().TriggeredBy(TriggerKind.MessageHandler);
+            m.Query<AppointmentBoard>("Board").TriggeredBy(TriggerKind.Human);
+            m.Query("Visit").TriggeredBy(TriggerKind.MessageHandler).Reads("VisitRecord").Reads<Appointment>();
+        }));
+
+        result.Files.Count.ShouldBe(3);
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // GH-4883: strong-typed identifiers
+    // ---------------------------------------------------------------------------------------------------
+
+    private static EventModelDescriptor ticketing(Action<EventModelBuilder>? more = null) => declared(m =>
+    {
+        more?.Invoke(m);
+        m.Slice("OpenTicket").TriggeredBy(TriggerKind.MessageHandler).Command("OpenTicketRequest")
+            .StartsStream("Ticket").Emits("TicketOpened");
+        m.Slice("CloseTicket").TriggeredBy(TriggerKind.MessageHandler).Command("CloseTicketRequest")
+            .Against("Ticket").Emits("TicketClosed");
+        m.Query("GetTicket").TriggeredBy(TriggerKind.MessageHandler).Reads("Ticket");
+    });
+
+    [Fact]
+    public void without_the_flag_an_aggregate_is_identified_by_a_guid()
+    {
+        var result = plan(ticketing());
+
+        result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("TicketId.cs"));
+        result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code.ShouldContain("public Guid Id { get; set; }");
+        result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code.ShouldContain("public record CloseTicketRequest;");
+    }
+
+    [Fact]
+    public void the_flag_gives_every_aggregate_a_strong_typed_id_threaded_through_every_shape()
+    {
+        var result = plan(ticketing(), configure: o => o.StrongTypedIds = true);
+
+        // The id: a plain record struct over a Guid, bindable from a route
+        var id = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "TicketId.cs")).Code;
+        id.ShouldContain("namespace Clinic;");
+        id.ShouldContain("public readonly record struct TicketId(Guid Value)");
+        id.ShouldContain("public static bool TryParse(string? text, IFormatProvider? provider, out TicketId id)");
+
+        // The aggregate
+        result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code
+            .ShouldContain("public TicketId Id { get; set; }");
+
+        // A stream start mints it, and hands the store the Guid it wraps; the command carries no id
+        var open = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
+        open.ShouldContain("public record OpenTicketRequest;");
+        open.ShouldContain("public record TicketOpened(TicketId TicketId);");
+        open.ShouldContain("//     var id = new TicketId(Guid.CreateVersion7());");
+        open.ShouldContain("//     return Storage.StartStream<Ticket>(id.Value, new TicketOpened(...));");
+
+        // A command against it carries it, and so do its events
+        var close = result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code;
+        close.ShouldContain("public record CloseTicketRequest(TicketId TicketId);");
+        close.ShouldContain("public record TicketClosed(TicketId TicketId);");
+        close.ShouldContain("public static TicketClosed? Handle(CloseTicketRequest command, [WriteModel] Ticket ticket)");
+
+        // A query of it is asked by it
+        result.Files.Single(x => x.RelativePath.EndsWith("GetTicket.cs")).Code
+            .ShouldContain("public record GetTicket(TicketId Id);");
+
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void an_http_stream_start_answers_with_the_strong_typed_id()
+    {
+        var result = plan(declared(m => m.Slice("OpenTicket").TriggeredBy(TriggerKind.Http).Command("OpenTicketRequest")
+            .StartsStream("Ticket").Emits("TicketOpened")), configure: o => o.StrongTypedIds = true);
+        var code = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
+
+        code.ShouldContain("public static (CreationResponse<TicketId>, StartStream) Post(OpenTicketRequest command)");
+        code.ShouldContain("//     return (new CreationResponse<TicketId>($\"/api/ticket/{id.Value}\", id), Storage.StartStream<Ticket>(id.Value, new TicketOpened(...)));");
+    }
+
+    [Fact]
+    public void a_declared_identity_wins_over_the_flag()
+    {
+        // IdentifiedBy<string>(): a natural key, which the handler cannot make up -- the command carries it
+        var result = plan(ticketing(m => m.Aggregate("Ticket").IdentifiedBy<string>()), configure: o => o.StrongTypedIds = true);
+
+        result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("TicketId.cs"));
+        result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code.ShouldContain("public string Id { get; set; }");
+
+        var open = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
+        open.ShouldContain("public record OpenTicketRequest(string TicketId);");
+        open.ShouldContain("//     var id = command.TicketId;");
+        open.ShouldContain("//     return Storage.StartStream<Ticket>(id, new TicketOpened(...));");
+        open.ShouldNotContain("CreateVersion7");
+
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_declared_strong_typed_natural_key_unwraps_its_value()
+    {
+        var result = plan(declared(m =>
+        {
+            m.Aggregate("Ticket").IdentifiedBy<TicketCode>();
+            m.Slice("OpenTicket").TriggeredBy(TriggerKind.MessageHandler).Command("OpenTicketRequest")
+                .StartsStream("Ticket").Emits("TicketOpened");
+        }));
+
+        var open = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
+        open.ShouldContain("public record OpenTicketRequest(TicketCode TicketId);");
+        open.ShouldContain("//     return Storage.StartStream<Ticket>(id.Value, new TicketOpened(...));");
+        result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code.ShouldContain("public TicketCode Id { get; set; }");
+    }
+
+    [Fact]
+    public void a_declared_identity_by_name_is_written_even_without_the_flag()
+    {
+        var result = plan(ticketing(m => m.Aggregate("Ticket").IdentifiedBy("TicketNumber")));
+
+        result.Files.Single(x => x.RelativePath == Path.Combine("Features", "TicketNumber.cs")).Code
+            .ShouldContain("public readonly record struct TicketNumber(Guid Value)");
+        result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code
+            .ShouldContain("public record CloseTicketRequest(TicketNumber TicketId);");
+    }
+
+    [Fact]
+    public void an_existing_aggregate_keeps_the_identity_it_has()
+    {
+        // Appointment exists with a Guid Id: the flag does not contradict the code
+        var result = plan(declared(m => m.Slice("CancelAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command("CancelAppointmentRequest").Against<Appointment>().Emits("AppointmentCancelled")),
+            configure: o => o.StrongTypedIds = true);
+
+        result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("AppointmentId.cs"));
+        result.Files.Single(x => x.InsertInto is null).Code.ShouldContain("public record CancelAppointmentRequest;");
+    }
+
+    [Fact]
+    public void a_command_against_two_strong_typed_aggregates_carries_both_ids()
+    {
+        var result = plan(declared(m => m.Slice("Transfer").TriggeredBy(TriggerKind.MessageHandler)
+            .Command("TransferRequest").Against("Wallet").Against("Vault").Emits("Transferred")),
+            configure: o => o.StrongTypedIds = true);
+
+        var code = result.Files.Single(x => x.RelativePath.EndsWith("Transfer.cs")).Code;
+        code.ShouldContain("public record TransferRequest(WalletId WalletId, VaultId VaultId);");
+        code.ShouldContain("[WriteModel(nameof(TransferRequest.WalletId))] IEventStream<Wallet> walletStream");
+        result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.MissingStreamIdMember);
+
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
     [Fact]
     public void the_scaffolded_handlers_compile()
     {
@@ -843,6 +1125,9 @@ public record CustomerTag(string Value);
 public record ReserveSeat(ScreeningTag Screening, CustomerTag Customer, string Seat);
 
 public record SeatReserved;
+
+// GH-4883: a strong-typed natural key
+public readonly record struct TicketCode(string Value);
 
 public class SeatAvailability
 {

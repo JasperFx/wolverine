@@ -104,6 +104,18 @@ public static class ScaffoldNoticeCodes
 
     /// <summary>The model names no aggregate the command decides against.</summary>
     public const string NoAggregate = "no-aggregate";
+
+    /// <summary>GH-4975. A Query slice declares nothing it reads -- no read model, aggregate or document.</summary>
+    public const string QueryWithoutReadModel = "query-without-read-model";
+
+    /// <summary>GH-4975. Nothing says whether a Query slice is an HTTP GET or a message the application sends.</summary>
+    public const string QueryWithoutTrigger = "query-without-trigger";
+
+    /// <summary>
+    ///     GH-4975. The slice is triggered by HTTP, but the application does not map Wolverine.Http endpoints,
+    ///     so no endpoint was written: it would not compile.
+    /// </summary>
+    public const string HttpEndpointsUnavailable = "http-endpoints-unavailable";
 }
 
 /// <summary>One line of the scaffold report.</summary>
@@ -196,6 +208,20 @@ public sealed class SliceScaffoldOptions
     ///     write and register.
     /// </summary>
     public string? MultiStreamProjectionBase { get; set; }
+
+    /// <summary>
+    ///     GH-4975. Does the application map Wolverine.Http endpoints -- <c>WolverineFx.Http</c> referenced and
+    ///     <c>MapWolverineEndpoints()</c> called? When it does not, an HTTP-triggered slice is reported rather
+    ///     than written as an endpoint that would not compile. Defaults to true.
+    /// </summary>
+    public bool WolverineHttp { get; set; } = true;
+
+    /// <summary>
+    ///     GH-4883. Give every aggregate a strong-typed identity -- <c>public readonly record struct OrderId(Guid Value)</c>
+    ///     -- unless its <see cref="AggregateDescriptor.IdentityType" /> or an existing aggregate class says otherwise.
+    ///     <c>wolverine scaffold --strong-typed-ids</c>.
+    /// </summary>
+    public bool StrongTypedIds { get; set; }
 }
 
 /// <summary>
@@ -335,6 +361,7 @@ public static class SliceScaffolder
         }
 
         context.ScaffoldStateTypes();
+        context.ScaffoldIdentityTypes();
 
         return new ScaffoldPlan(context.Files, context.Notices);
     }
@@ -573,9 +600,12 @@ public static class SliceScaffolder
         // Aggregates and views get a class of their own, so they are never stubbed as a record
         private readonly HashSet<string> _stateTypeNames = new(StringComparer.Ordinal);
 
+        private readonly EventModelDescriptor _model;
+
         public ScaffoldContext(EventModelDescriptor model, SliceScaffoldOptions options)
         {
             _options = options;
+            _model = model;
 
             foreach (var slice in model.Slices.Where(IsDeclaredOnly))
             {
@@ -593,6 +623,10 @@ public static class SliceScaffolder
             {
                 if (slice.StartsStream is not null) _startingEvents.AddRange(slice.EmittedEvents);
             }
+
+            // GH-4883: a name-only command or event of an aggregate with a non-Guid identity is stubbed with
+            // the member that carries it, so [WriteModel] can find the stream and the shapes compile
+            foreach (var slice in model.Slices.Where(IsDeclaredOnly)) planIdentityMembers(slice);
         }
 
         // The events that start a stream: Apply methods for them come first, and a record builds itself
@@ -624,10 +658,14 @@ public static class SliceScaffolder
                     scaffoldCommand(slice);
                     break;
 
+                case SlicePattern.Query:
+                    scaffoldQuery(slice);
+                    break;
+
                 default:
                     Notices.Add(notice(ScaffoldNoticeCodes.NothingToScaffold, ScaffoldNoticeKind.Skipped, slice.Name,
                         pattern is null
-                            ? "the slice declares no pattern, command or trigger, so there is nothing to scaffold. Declare it with Command<T>(), Automation(...).On<T>() or View<T>()."
+                            ? "the slice declares no pattern, command or trigger, so there is nothing to scaffold. Declare it with Command<T>(), Automation(...).On<T>(), View<T>() or Query<T>()."
                             : $"{pattern} slices are not scaffolded."));
                     break;
             }
@@ -644,6 +682,10 @@ public static class SliceScaffolder
 
             switch (slice.TriggerKind)
             {
+                case TriggerKind.Http when !_options.WolverineHttp:
+                    httpUnavailable(slice);
+                    break;
+
                 case TriggerKind.Http:
                     writeSlice(slice, slice.CommandType, http: true);
                     break;
@@ -676,6 +718,175 @@ public static class SliceScaffolder
                         $"{slice.TriggerKind} triggers are not scaffolded."));
                     break;
             }
+        }
+
+        // GH-4975: an HTTP slice in an application that maps no Wolverine.Http endpoints would not compile
+        private void httpUnavailable(EventModelSliceDescriptor slice)
+            => Notices.Add(notice(ScaffoldNoticeCodes.HttpEndpointsUnavailable, ScaffoldNoticeKind.Skipped, slice.Name,
+                "the slice is triggered by HTTP, but this application does not map Wolverine.Http endpoints, so no endpoint was written. " +
+                "Reference WolverineFx.Http, call AddWolverineHttp() and MapWolverineEndpoints(), and scaffold again -- or declare .TriggeredBy(TriggerKind.MessageHandler)."));
+
+        // GH-4975 (jasperfx#1003): a Query reads a read model, aggregate or document and changes no state
+        private void scaffoldQuery(EventModelSliceDescriptor slice)
+        {
+            if (slice.ReadsFrom.Count == 0)
+            {
+                Notices.Add(notice(ScaffoldNoticeCodes.QueryWithoutReadModel, ScaffoldNoticeKind.Skipped, slice.Name,
+                    "the Query slice declares nothing it reads. Declare it with Query<T>() or .Reads<T>()."));
+                return;
+            }
+
+            switch (slice.TriggerKind)
+            {
+                case TriggerKind.Http when !_options.WolverineHttp:
+                    httpUnavailable(slice);
+                    break;
+
+                case TriggerKind.Http:
+                    writeQuery(slice, http: true);
+                    break;
+
+                case TriggerKind.MessageHandler:
+                case TriggerKind.JobScheduler:
+                    writeQuery(slice, http: false);
+                    break;
+
+                case TriggerKind.Human:
+                    writeQuery(slice, http: false,
+                        note: " Triggered by a person (TriggerKind.Human), so it is scaffolded as a query handler the UI invokes; declare .TriggeredBy(TriggerKind.Http) instead for a GET endpoint.");
+                    break;
+
+                case TriggerKind.Grpc:
+                    // The RPC's generated wrapper forwards its request to the bus, so the handler is what to write
+                    writeQuery(slice, http: false,
+                        note: " Triggered by gRPC: the RPC forwards its request to the message bus, so this is the query handler behind it; the RPC itself is not scaffolded.");
+                    break;
+
+                case null:
+                    Notices.Add(notice(ScaffoldNoticeCodes.QueryWithoutTrigger, ScaffoldNoticeKind.UnknownTrigger, slice.Name,
+                        "trigger Unknown -- nothing says whether the query is an HTTP GET or a message the application sends. Declare .TriggeredBy(TriggerKind.Http) or .TriggeredBy(TriggerKind.MessageHandler) and run the scaffold again."));
+                    break;
+
+                default:
+                    Notices.Add(notice(ScaffoldNoticeCodes.TriggerNotScaffolded, ScaffoldNoticeKind.Skipped, slice.Name,
+                        $"{slice.TriggerKind} triggers are not scaffolded."));
+                    break;
+            }
+        }
+
+        private void writeQuery(EventModelSliceDescriptor slice, bool http, string? note = null)
+        {
+            var identifier = IdentifierFor(slice.Name);
+            var className = identifier + (http ? "Endpoint" : "Handler");
+            var reads = slice.ReadsFrom.ToList();
+
+            // The message a query handler answers: the declared query type, else one named for the slice. A
+            // stub of it carries the identity of what it reads, so [ReadModel] / [Entity] can find it
+            TypeDescriptor? query = null;
+            if (!http)
+            {
+                query = slice.CommandType;
+                if (query is null)
+                {
+                    var name = reads.Any(x => x.Name == identifier) ? "Get" + identifier : identifier;
+                    query = new TypeDescriptor(name, name, string.Empty);
+                }
+
+                foreach (var read in reads)
+                {
+                    stubMember(query.Name, readIdentity(read), reads.Count == 1 ? "Id" : read.Name + "Id");
+                }
+            }
+
+            var appendTo = query is null ? null : appendTargetFor(slice, query);
+            var path = appendTo ?? pathFor(slice, identifier);
+            if (appendTo is null && _options.FileExists(path))
+            {
+                Notices.Add(notice(ScaffoldNoticeCodes.FileExists, ScaffoldNoticeKind.Exists, slice.Name,
+                    "the file already exists and was left exactly as it is.", path));
+                return;
+            }
+
+            var file = new SliceFile(this, appendTo is null ? namespaceFor(slice) : null);
+            var writer = file.Body;
+            var parameters = new List<string>();
+            if (query is not null) parameters.Add($"{file.Use(query)} query");
+
+            // The slice's own route when one is declared, else the one a scaffolded stream start's Location
+            // points at -- /api/{read-model}/{id} -- so a 201 can be followed straight to this GET
+            var route = !http ? null
+                : slice.TriggerOrigin?.HttpRoute is { Length: > 0 } declaredRoute ? declaredRoute
+                : RouteFor(IdentifierFor(reads[0].Name)) + "/{id}";
+            var routeParameters = route is null
+                ? new List<string>()
+                : Regex.Matches(route, @"\{\*{0,2}([A-Za-z_]\w*)").Select(x => x.Groups[1].Value).ToList();
+
+            string? response = null;
+            string? responseArgument = null;
+            foreach (var read in reads)
+            {
+                var name = file.Use(read);
+                var argument = argumentFor(name);
+                var aggregate = isAggregate(read);
+                file.Namespaces.Add(aggregate ? "Wolverine.Persistence.EventSourcing" : "Wolverine.Persistence");
+
+                // An aggregate is fetched by its events ([ReadModel], no lock); anything else is a document
+                // loaded by id ([Entity]). Both find "{Type}Id" or "Id" by themselves; any other route
+                // parameter is named
+                string? source = null;
+                if (http)
+                {
+                    var parameter = routeParameters.FirstOrDefault(x => x.Equals(read.Name + "Id", StringComparison.OrdinalIgnoreCase))
+                                    ?? (reads.Count == 1 && routeParameters.Count == 1 ? routeParameters[0] : null);
+                    if (parameter is not null && !parameter.Equals("id", StringComparison.OrdinalIgnoreCase) &&
+                        !parameter.Equals(read.Name + "Id", StringComparison.Ordinal))
+                    {
+                        source = $"\"{parameter}\"";
+                    }
+                }
+                else if (reads.Count > 1)
+                {
+                    source = $"\"{read.Name}Id\"";
+                }
+
+                var attribute = aggregate ? "ReadModel" : "Entity";
+                parameters.Add(source is null ? $"[{attribute}] {name} {argument}" : $"[{attribute}({source})] {name} {argument}");
+                response ??= name;
+                responseArgument ??= argument;
+            }
+
+            writer.WriteLine($"// Scaffolded by `wolverine scaffold` from the declared Event Model slice '{slice.Name}'.");
+            writer.WriteLine("// It is yours now: the scaffold never writes to this class again.");
+            writer.Write($"BLOCK:public static class {className}");
+
+            if (http)
+            {
+                file.Namespaces.Add("Wolverine.Http");
+                writer.WriteLine(slice.TriggerOrigin?.HttpRouteName is { Length: > 0 } routeName
+                    ? $"[WolverineGet(\"{route}\", RouteName = \"{routeName}\")]"
+                    : $"[WolverineGet(\"{route}\")]");
+            }
+
+            writer.Write(signature($"public static {response} {(http ? "Get" : "Handle")}", parameters));
+            writer.WriteLine("// A query changes no state. Shape the response here if it is not what was read");
+            writer.WriteLine($"return {responseArgument};");
+            writer.FinishBlock();
+            writer.FinishBlock();
+
+            if (appendTo is not null)
+            {
+                Files.Add(new ScaffoldFile(appendTo, file.RenderBody())
+                {
+                    AppendClass = className,
+                    Usings = file.Namespaces.ToArray(),
+                    Namespace = _options.ResolveType(query!)?.Namespace
+                });
+                Notices.Add(notice(ScaffoldNoticeCodes.HandlerAppended, ScaffoldNoticeKind.Wrote, slice.Name,
+                    $"{className} appended to the file that declares {query!.Name}.{note}", appendTo));
+                return;
+            }
+
+            add(slice.Name, path, file, note);
         }
 
         private void scaffoldAutomation(EventModelSliceDescriptor slice)
@@ -762,6 +973,188 @@ public static class SliceScaffolder
 
             Notices.Add(notice(ScaffoldNoticeCodes.RegisterMultiStreamProjection, ScaffoldNoticeKind.Edit, $"{view.Name} (view)",
                 $"register {name} with an Async lifecycle: {registration}.", path));
+        }
+
+        // GH-4883: the identity of each aggregate, decided once, and the strong-typed ids the scaffold writes
+        private readonly Dictionary<string, Identity> _identities = new(StringComparer.Ordinal);
+        private readonly SortedDictionary<string, List<string>> _writtenIdentities = new(StringComparer.Ordinal);
+
+        // GH-4883: the members a name-only type is stubbed with -- the id of the aggregate it belongs to
+        private readonly Dictionary<string, List<(string Member, Identity Identity)>> _stubMembers = new(StringComparer.Ordinal);
+
+        /// <summary>
+        ///     The identity of an aggregate's stream (GH-4883), in order of precedence: the
+        ///     <see cref="AggregateDescriptor.IdentityType" /> the model carries -- declared with
+        ///     <c>IdentifiedBy&lt;TId&gt;()</c>, or derived from its single-stream projection -- then the <c>Id</c> of an
+        ///     aggregate class that already exists, then <see cref="SliceScaffoldOptions.StrongTypedIds" />, then Guid.
+        /// </summary>
+        private Identity identityOf(TypeDescriptor aggregate)
+        {
+            if (_identities.TryGetValue(aggregate.Name, out var known)) return known;
+
+            Identity identity;
+            if (_model.Aggregates.FirstOrDefault(x => EventModelSliceDescriptor.SameType(x.Type, aggregate))?.IdentityType is { } declared)
+            {
+                identity = identityFrom(declared, aggregate);
+            }
+            else if (_options.ResolveType(aggregate) is { } existing && idPropertyOf(existing) is { } idType)
+            {
+                identity = identityFrom(idType);
+            }
+            else if (_options.StrongTypedIds)
+            {
+                identity = written(aggregate.Name + "Id", aggregate);
+            }
+            else
+            {
+                identity = Identity.Default;
+            }
+
+            _identities[aggregate.Name] = identity;
+            return identity;
+        }
+
+        private Identity identityFrom(TypeDescriptor declared, TypeDescriptor aggregate)
+        {
+            // The raw identity types by name, whatever a resolver makes of the BCL
+            var raw = declared.FullName switch
+            {
+                "System.Guid" => typeof(Guid),
+                "System.String" => typeof(string),
+                "System.Int32" => typeof(int),
+                "System.Int64" => typeof(long),
+                _ => null
+            };
+
+            return (raw ?? _options.ResolveType(declared)) is { } type ? identityFrom(type) : written(declared.Name, aggregate);
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static Identity identityFrom(Type type)
+        {
+            if (type == typeof(Guid)) return Identity.Default;
+            if (type == typeof(string)) return new Identity("string", null, Strong: false, Minted: false);
+
+            if (isStrongTypedId(type))
+            {
+                var inner = type.GetProperty("Value", BindingFlags.Public | BindingFlags.Instance)!.PropertyType;
+                return new Identity(type.ShortNameInCode(), type.Namespace, Strong: true, Minted: inner == typeof(Guid));
+            }
+
+            return new Identity(type == typeof(int) ? "int" : type == typeof(long) ? "long" : type.ShortNameInCode(),
+                type.IsPrimitive ? null : type.Namespace, Strong: false, Minted: false);
+        }
+
+        // A strong-typed id the scaffold writes: public readonly record struct {name}(Guid Value)
+        private Identity written(string name, TypeDescriptor aggregate)
+        {
+            if (!_writtenIdentities.TryGetValue(name, out var owners)) _writtenIdentities[name] = owners = new List<string>();
+            if (!owners.Contains(aggregate.Name)) owners.Add(aggregate.Name);
+            return new Identity(name, _options.RootNamespace, Strong: true, Minted: true);
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "CLI scaffold path, run against a built-but-not-started host; never dispatch.")]
+        private static Type? idPropertyOf(Type type)
+            => type.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.PropertyType;
+
+        // What a Query reads is identified like an aggregate when it is one, else like the document it is
+        private Identity readIdentity(TypeDescriptor read)
+        {
+            if (isAggregate(read)) return identityOf(read);
+            return _options.ResolveType(read) is { } type && idPropertyOf(type) is { } id ? identityFrom(id) : Identity.Default;
+        }
+
+        private bool isAggregate(TypeDescriptor type)
+            => _model.Aggregates.Any(x => EventModelSliceDescriptor.SameType(x.Type, type)) ||
+               _model.Slices.Any(x => x.AggregateTypes.Any(a => EventModelSliceDescriptor.SameType(a, type)) ||
+                                      (x.StartsStream is { } started && EventModelSliceDescriptor.SameType(started, type)));
+
+        private void stubMember(string typeName, Identity identity, string member)
+        {
+            if (!_stubMembers.TryGetValue(typeName, out var members)) _stubMembers[typeName] = members = new();
+            if (members.All(x => x.Member != member)) members.Add((member, identity));
+        }
+
+        private bool stubHasMember(string typeName, string member)
+            => _stubMembers.TryGetValue(typeName, out var members) && members.Any(x => x.Member == member);
+
+        // GH-4883: the message that carries an aggregate's id -- the command, or the event an automation
+        // reacts to -- gets an {Aggregate}Id member, unless the slice starts the stream with an id it mints.
+        // An event of a slice with one aggregate carries its id too.
+        private void planIdentityMembers(EventModelSliceDescriptor slice)
+        {
+            var aggregates = slice.AggregateTypes.ToList();
+            if (slice.StartsStream is { } started && !aggregates.Any(x => EventModelSliceDescriptor.SameType(x, started)))
+            {
+                aggregates.Add(started);
+            }
+
+            var carrier = slice.ConsumedEvents.Count == 1 ? slice.ConsumedEvents[0] : slice.CommandType;
+
+            foreach (var aggregate in aggregates)
+            {
+                var identity = identityOf(aggregate);
+                if (identity.IsDefault) continue;
+
+                var starts = slice.StartsStream is { } stream && EventModelSliceDescriptor.SameType(stream, aggregate);
+                if (carrier is not null && !(starts && identity.Minted)) stubMember(carrier.Name, identity, aggregate.Name + "Id");
+
+                if (aggregates.Count != 1) continue;
+                foreach (var e in slice.EmittedEvents) stubMember(e.Name, identity, aggregate.Name + "Id");
+            }
+        }
+
+        /// <summary>The strong-typed ids the scaffolded code names and nothing declares yet (GH-4883).</summary>
+        public void ScaffoldIdentityTypes()
+        {
+            foreach (var (name, owners) in _writtenIdentities)
+            {
+                var subject = $"{name} (identity)";
+                var path = pathFor(Array.Empty<string>(), name);
+                if (_options.FileExists(path))
+                {
+                    Notices.Add(notice(ScaffoldNoticeCodes.FileExists, ScaffoldNoticeKind.Exists, subject,
+                        "the file already exists and was left exactly as it is.", path));
+                    continue;
+                }
+
+                // In the root namespace, so every chapter's namespace sees it
+                var file = new SliceFile(this, _options.RootNamespace);
+                var writer = file.Body;
+                writer.WriteLine($"// Scaffolded by `wolverine scaffold`: the strong-typed identity of {string.Join(", ", owners)}.");
+                writer.WriteLine("// Marten, Polecat and Fisher store it as the Guid it wraps, with nothing to register.");
+                writer.Write($"BLOCK:public readonly record struct {name}(Guid Value)");
+                writer.WriteLine("// Wolverine.Http binds a route or query string value to it through this TryParse");
+                writer.Write($"BLOCK:public static bool TryParse(string? text, IFormatProvider? provider, out {name} id)");
+                writer.WriteLine("var parsed = Guid.TryParse(text, provider, out var value);");
+                writer.WriteLine($"id = new {name}(value);");
+                writer.WriteLine("return parsed;");
+                writer.FinishBlock();
+                writer.FinishBlock();
+                add(subject, path, file);
+            }
+        }
+
+        /// <summary>An aggregate's stream identity, as the scaffolded code spells it (GH-4883).</summary>
+        /// <param name="TypeName">The type to write: <c>Guid</c>, <c>string</c> or a strong-typed id such as <c>OrderId</c>.</param>
+        /// <param name="Namespace">The namespace that type is declared in, when a file needs a using for it.</param>
+        /// <param name="Strong">A wrapper whose <c>Value</c> is the raw stream id.</param>
+        /// <param name="Minted">
+        ///     A new stream's id is a sequential Guid the handler mints (GH-4888). Otherwise it is a natural key
+        ///     the command has to carry.
+        /// </param>
+        private sealed record Identity(string TypeName, string? Namespace, bool Strong, bool Minted)
+        {
+            public static readonly Identity Default = new("Guid", "System", Strong: false, Minted: true);
+
+            public bool IsDefault => this == Default;
+
+            public string Mint => Strong ? $"new {TypeName}(Guid.CreateVersion7())" : "Guid.CreateVersion7()";
+
+            /// <summary>The raw Guid or string a store's StartStream takes.</summary>
+            public string Raw(string expression) => Strong ? expression + ".Value" : expression;
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2070",
@@ -863,7 +1256,8 @@ public static class SliceScaffolder
                     var name = file.Use(aggregate);
                     var argument = argumentFor(name) + "Stream";
                     var idMember = aggregate.Name + "Id";
-                    var hasMember = commandHasMember(commandType, idMember);
+                    var hasMember = commandHasMember(commandType, idMember) ||
+                                    (commandType is null && stubHasMember(triggerTypeFor(slice, trigger).Name, idMember));
                     var source = hasMember ? $"nameof({triggerName}.{idMember})" : $"\"{idMember}\"";
                     if (!hasMember)
                     {
@@ -908,23 +1302,45 @@ public static class SliceScaffolder
 
             if (slice.StartsStream is { } stream)
             {
-                // GH-4888: a sequential (version 7) Guid, never Guid.NewGuid() -- a random stream id
-                // fragments the event store's indexes
                 file.Namespaces.Add("Wolverine.Persistence");
                 returns.Add("StartStream");
                 var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
-                shape.Add("var id = Guid.CreateVersion7();");
 
-                if (http)
+                // GH-4883: the stream's identity -- Guid, a natural key, or a strong-typed id wrapping either
+                var identity = identityOf(stream);
+                var idType = file.Use(identity);
+                if (identity.Minted)
                 {
-                    // GH-4927: an HTTP caller learns the id the endpoint assigned, from a 201 and its Location
-                    returns.Insert(0, "CreationResponse<Guid>");
-                    var location = RouteFor(IdentifierFor(stream.Name));
-                    shape.Add($"return (new CreationResponse<Guid>($\"{location}/{{id}}\", id), Storage.StartStream<{file.Use(stream)}>(id, {events}));");
+                    // GH-4888: a sequential (version 7) Guid, never Guid.NewGuid() -- a random stream id
+                    // fragments the event store's indexes
+                    shape.Add($"var id = {identity.Mint};");
                 }
                 else
                 {
-                    shape.Add($"return Storage.StartStream<{file.Use(stream)}>(id, {events});");
+                    // A natural key cannot be made up in the handler: the message has to carry it
+                    var member = stream.Name + "Id";
+                    var carrierType = _options.ResolveType(trigger);
+                    if (!(carrierType is null ? stubHasMember(trigger.Name, member) : commandHasMember(carrierType, member)))
+                    {
+                        shape.Add($"// TODO: {triggerName} needs a {member} member carrying the {stream.Name}'s natural key");
+                        Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
+                            $"the {stream.Name} stream is identified by a natural key ({idType}), which the handler cannot make up, and {triggerName} has no {member} member to carry it. Add it to the message."));
+                    }
+
+                    shape.Add($"var id = {triggerArgument}.{member};");
+                }
+
+                var raw = identity.Raw("id");
+                if (http)
+                {
+                    // GH-4927: an HTTP caller learns the id the endpoint assigned, from a 201 and its Location
+                    returns.Insert(0, $"CreationResponse<{idType}>");
+                    var location = RouteFor(IdentifierFor(stream.Name));
+                    shape.Add($"return (new CreationResponse<{idType}>($\"{location}/{{{raw}}}\", id), Storage.StartStream<{file.Use(stream)}>({raw}, {events}));");
+                }
+                else
+                {
+                    shape.Add($"return Storage.StartStream<{file.Use(stream)}>({raw}, {events});");
                 }
             }
             else if (typedEvent)
@@ -986,7 +1402,10 @@ public static class SliceScaffolder
                 }
 
                 Notices.Add(notice(ScaffoldNoticeCodes.RegisterDcbTags, ScaffoldNoticeKind.Edit, slice.Name,
-                    $"register each tag type{(tags.Count == 0 ? "" : $" ({string.Join(", ", tags.Select(x => x.Type).Distinct())})")} with the event store, and {decider} as a live single-stream aggregation, so [DcbModel] can fetch it by tags."));
+                    $"register each tag type{(tags.Count == 0 ? "" : $" ({string.Join(", ", tags.Select(x => x.Type).Distinct())})")} with the event store, and {decider} as a live single-stream aggregation, so [DcbModel] can fetch it by tags." +
+                    // GH-4883: the registration itself, the same call on Marten, Polecat and Fisher
+                    (tags.Count == 0 ? "" : " In the store's configuration: " +
+                        string.Join(" ", tags.Select(x => x.Type).Distinct().Select(x => $"opts.Events.RegisterTagType<{x}>();")))));
             }
             else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel)
             {
@@ -1248,7 +1667,8 @@ public static class SliceScaffolder
 
                 writer.WriteLine($"// Scaffolded by `wolverine scaffold` for the declared {kind} '{state.Type.Name}'.");
                 writer.Write($"BLOCK:public class {identifier}");
-                writer.WriteLine("public Guid Id { get; set; }");
+                // GH-4883: an aggregate is identified as its stream is; a view keeps a Guid
+                writer.WriteLine($"public {(state.IsView ? "Guid" : file.Use(identityOf(state.Type)))} Id {{ get; set; }}");
 
                 foreach (var e in events)
                 {
@@ -1399,8 +1819,25 @@ public static class SliceScaffolder
                     return real.ShortNameInCode();
                 }
 
-                if (!_context._stateTypeNames.Contains(type.Name) && _context._stubbed.Add(type.Name)) _stubs.Add(type.Name);
+                if (!_context._stateTypeNames.Contains(type.Name) && _context._stubbed.Add(type.Name))
+                {
+                    _stubs.Add(type.Name);
+
+                    // GH-4883: a stub carries the id of the aggregate it belongs to
+                    if (_context._stubMembers.TryGetValue(type.Name, out var members))
+                    {
+                        foreach (var member in members) Use(member.Identity);
+                    }
+                }
+
                 return type.Name;
+            }
+
+            /// <summary>The name to write for an aggregate's identity, with a using for it when it needs one (GH-4883).</summary>
+            public string Use(Identity identity)
+            {
+                if (identity.Namespace is { } ns && ns != _namespace) Namespaces.Add(ns);
+                return identity.TypeName;
             }
 
             public string Render()
@@ -1428,7 +1865,9 @@ public static class SliceScaffolder
                 foreach (var stub in _stubs)
                 {
                     writer.WriteLine("// TODO: declared by name only -- give it its fields");
-                    writer.WriteLine($"public record {stub};");
+                    writer.WriteLine(_context._stubMembers.TryGetValue(stub, out var members) && members.Count > 0
+                        ? $"public record {stub}({string.Join(", ", members.Select(x => $"{x.Identity.TypeName} {x.Member}"))});"
+                        : $"public record {stub};");
                     writer.BlankLine();
                 }
 

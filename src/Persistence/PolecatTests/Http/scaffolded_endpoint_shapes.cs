@@ -50,7 +50,11 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
     }
 
     private static readonly Type[] Endpoints =
-        [typeof(OpenScaffoldLedgerEndpoint), typeof(NoteScaffoldLedgerEndpoint), typeof(NoteScaffoldBothEndpoint)];
+    [
+        typeof(OpenScaffoldLedgerEndpoint), typeof(NoteScaffoldLedgerEndpoint), typeof(NoteScaffoldBothEndpoint),
+        typeof(GetScaffoldLedgerEndpoint), typeof(OpenScaffoldTicketEndpoint), typeof(CloseScaffoldTicketEndpoint),
+        typeof(GetScaffoldTicketEndpoint)
+    ];
 
     [Fact]
     public async Task a_stream_start_answers_201_with_the_id_it_assigned()
@@ -113,6 +117,43 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
 
         (await eventsOn(ledger)).Last().ShouldBeOfType<ScaffoldLedgerNoted>();
         (await eventsOn(journal)).Last().ShouldBeOfType<ScaffoldJournalNoted>();
+    }
+
+    [Fact]
+    public async Task a_query_reads_the_aggregate_at_the_location_of_its_stream_start()
+    {
+        // GH-4975: the scaffolded GET sits at the route a scaffolded stream start's Location points at
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new OpenScaffoldLedger("petty cash")).ToUrl("/api/scaffold-shapes/open-scaffold-ledger");
+            x.StatusCodeShouldBe(201);
+        });
+
+        var ledger = await theHost.GetAsJson<ScaffoldLedger>(result.Context.Response.Headers.Location.ToString());
+        ledger!.Notes.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task strong_typed_ids_run_through_a_stream_start_a_command_and_a_query()
+    {
+        // GH-4883: --strong-typed-ids writes a plain record struct, which the store keeps as the Guid it wraps
+        var started = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new OpenScaffoldTicket("printer jam")).ToUrl("/api/scaffold-shapes/open-scaffold-ticket");
+            x.StatusCodeShouldBe(201);
+        });
+        var id = (await started.ReadAsJsonAsync<CreationResponse<ScaffoldTicketId>>())!.Value;
+        id.Value.ShouldNotBe(Guid.Empty);
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new CloseScaffoldTicket(id)).ToUrl("/api/scaffold-shapes/close-scaffold-ticket");
+            x.StatusCodeShouldBe(204);
+        });
+
+        var ticket = await theHost.GetAsJson<ScaffoldTicket>(started.Context.Response.Headers.Location.ToString());
+        ticket!.Id.ShouldBe(id);
+        ticket.Closed.ShouldBeTrue();
     }
 
     private async Task<Guid> open()
@@ -209,5 +250,71 @@ public static class NoteScaffoldBothEndpoint
     {
         scaffoldLedgerStream.AppendOne(new ScaffoldLedgerNoted(command.Note));
         scaffoldJournalStream.AppendOne(new ScaffoldJournalNoted(command.Note));
+    }
+}
+
+// GH-4975: a Query over HTTP -- a GET reading an aggregate by its events ([ReadModel], no lock)
+public static class GetScaffoldLedgerEndpoint
+{
+    [WolverineGet("/api/scaffold-ledger/{id}")]
+    public static ScaffoldLedger Get([ReadModel] ScaffoldLedger scaffoldLedger)
+    {
+        return scaffoldLedger;
+    }
+}
+
+// GH-4883: what --strong-typed-ids writes for the identity, the aggregate, its messages and its endpoints
+public readonly record struct ScaffoldTicketId(Guid Value)
+{
+    // Wolverine.Http binds a route or query string value to it through this TryParse
+    public static bool TryParse(string? text, IFormatProvider? provider, out ScaffoldTicketId id)
+    {
+        var parsed = Guid.TryParse(text, provider, out var value);
+        id = new ScaffoldTicketId(value);
+        return parsed;
+    }
+}
+
+public record OpenScaffoldTicket(string Title);
+public record CloseScaffoldTicket(ScaffoldTicketId ScaffoldTicketId);
+public record ScaffoldTicketOpened(ScaffoldTicketId ScaffoldTicketId);
+public record ScaffoldTicketClosed(ScaffoldTicketId ScaffoldTicketId);
+
+public class ScaffoldTicket
+{
+    public ScaffoldTicketId Id { get; set; }
+    public bool Closed { get; set; }
+    public void Apply(ScaffoldTicketOpened e) { }
+    public void Apply(ScaffoldTicketClosed e) => Closed = true;
+}
+
+public static class OpenScaffoldTicketEndpoint
+{
+    [WolverinePost("/api/scaffold-shapes/open-scaffold-ticket")]
+    public static (CreationResponse<ScaffoldTicketId>, StartStream) Post(OpenScaffoldTicket command)
+    {
+        var id = new ScaffoldTicketId(Guid.CreateVersion7());
+        return (new CreationResponse<ScaffoldTicketId>($"/api/scaffold-ticket/{id.Value}", id),
+            Storage.StartStream<ScaffoldTicket>(id.Value, new ScaffoldTicketOpened(id)));
+    }
+}
+
+public static class CloseScaffoldTicketEndpoint
+{
+    public static ProblemDetails Validate(CloseScaffoldTicket command, ScaffoldTicket scaffoldTicket)
+        => WolverineContinue.NoProblems;
+
+    [WolverinePost("/api/scaffold-shapes/close-scaffold-ticket")]
+    [EmptyResponse]
+    public static ScaffoldTicketClosed? Post(CloseScaffoldTicket command, [WriteModel] ScaffoldTicket scaffoldTicket)
+        => new(command.ScaffoldTicketId);
+}
+
+public static class GetScaffoldTicketEndpoint
+{
+    [WolverineGet("/api/scaffold-ticket/{id}")]
+    public static ScaffoldTicket Get([ReadModel] ScaffoldTicket scaffoldTicket)
+    {
+        return scaffoldTicket;
     }
 }
