@@ -233,6 +233,21 @@ public class WolverineHttpOptions
     }
 
     /// <summary>
+    ///     When true, the request's <c>X-Correlation-ID</c> header becomes the correlation id of <b>every</b>
+    ///     Wolverine.HTTP endpoint, applied where the endpoint's message context is created -- before any Marten,
+    ///     Polecat or Fisher session is opened from it -- so the events the endpoint appends record it too.
+    ///     <para>
+    ///     By default the header is applied by <c>RequestIdMiddleware</c>, and only to an endpoint that uses
+    ///     <c>IMessageBus</c> or <c>IMessageContext</c>. The messages such an endpoint sends carry it, but its event
+    ///     store session is opened before that middleware runs, and an endpoint that only uses a session never gets
+    ///     the middleware at all, so the events record an Activity id or a new Guid instead of the request's.
+    ///     </para>
+    ///     Turn this on when a caller's correlation id has to reach the events an endpoint appends, as when a test
+    ///     finds what a request caused by its correlation id. Off by default. See GH-4939.
+    /// </summary>
+    public bool ApplyCorrelationIdHeaderToAllEndpoints { get; set; }
+
+    /// <summary>
     /// Potentially control how the Wolverine HTTP routes are "warmed up" at runtime
     /// to alleviate concurrent access problems
     /// </summary>

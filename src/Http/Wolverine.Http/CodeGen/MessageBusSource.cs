@@ -12,11 +12,13 @@ namespace Wolverine.Http.CodeGen;
 internal class MessageBusSource : IVariableSource
 {
     private readonly bool _relayUserName;
+    private readonly bool _applyCorrelationId;
     private CreateMessageContextWithMaybeTenantFrame? _frame;
 
-    public MessageBusSource(bool relayUserName)
+    public MessageBusSource(bool relayUserName, bool applyCorrelationId = false)
     {
         _relayUserName = relayUserName;
+        _applyCorrelationId = applyCorrelationId;
     }
 
     public bool Matches(Type type)
@@ -42,7 +44,7 @@ internal class MessageBusSource : IVariableSource
         // through the interface. Pre-fix behavior was equivalent because each Create
         // call produced a fresh CreateMessageContextWithMaybeTenantFrame whose .Variable
         // was the only thing ever handed out from this source.
-        _frame ??= new CreateMessageContextWithMaybeTenantFrame(_relayUserName);
+        _frame ??= new CreateMessageContextWithMaybeTenantFrame(_relayUserName, _applyCorrelationId);
         return _frame.Variable;
     }
 }
@@ -50,6 +52,7 @@ internal class MessageBusSource : IVariableSource
 internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
 {
     private readonly bool _relayUserName;
+    private readonly bool _applyCorrelationId;
     private Variable? _tenantId;
     private Variable? _runtime;
     private Variable? _httpContext;
@@ -60,9 +63,15 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
     /// GH-4741. Relay the authenticated user at creation, so an outboxed session opened from this context
     /// sees it whatever the frame order.
     /// </param>
-    public CreateMessageContextWithMaybeTenantFrame(bool relayUserName)
+    /// <param name="applyCorrelationId">
+    /// GH-4939. Apply the request's X-Correlation-ID at creation, for the same reason: an outboxed event store
+    /// session opened from this context records it whatever the frame order. Set by
+    /// <see cref="WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints" />.
+    /// </param>
+    public CreateMessageContextWithMaybeTenantFrame(bool relayUserName, bool applyCorrelationId = false)
     {
         _relayUserName = relayUserName;
+        _applyCorrelationId = applyCorrelationId;
 
         Variable = new Variable(typeof(MessageContext), this);
         IMessageContextVariable = new CastVariable(Variable, typeof(IMessageContext));
@@ -87,6 +96,12 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
                 $"{typeof(UserNameMiddleware).FullNameInCode()}.{nameof(UserNameMiddleware.Apply)}({_httpContext!.Usage}, {Variable.Usage});");
         }
 
+        if (_applyCorrelationId)
+        {
+            writer.Write(
+                $"{typeof(RequestIdMiddleware).FullNameInCode()}.{nameof(RequestIdMiddleware.Apply)}({_httpContext!.Usage}, {Variable.Usage});");
+        }
+
         Next?.GenerateCode(method, writer);
     }
 
@@ -104,6 +119,12 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
                 $"{typeof(UserNameMiddleware).FSharpName()}.{nameof(UserNameMiddleware.Apply)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage})");
         }
 
+        if (_applyCorrelationId)
+        {
+            writer.Write(
+                $"{typeof(RequestIdMiddleware).FSharpName()}.{nameof(RequestIdMiddleware.Apply)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage})");
+        }
+
         Next?.GenerateFSharpCode(method, writer);
     }
 
@@ -117,7 +138,7 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
             yield return _tenantId;
         }
 
-        if (_relayUserName)
+        if (_relayUserName || _applyCorrelationId)
         {
             _httpContext = chain.FindVariable(typeof(HttpContext));
             yield return _httpContext;

@@ -465,6 +465,119 @@ public class When_message_is_sent : IAsyncLifetime
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
 
+### Finding events caused past an asynchronous boundary <Badge type="tip" text="6.49" />
+
+A tracked session can only wait on what it can see. Let's say your handler appends an event, and an event
+subscription running in the async daemon picks that event up later and publishes a message whose handler
+appends more events. The tracked session is long done by the time that happens, so `AppendedEvents` will never
+show you those downstream events.
+
+What *can* follow the work across that boundary is the correlation id. If you run the tracked work under a known
+correlation id, every message it causes carries that id, and an event store with correlation ids enabled records
+it on every event those messages append:
+
+```csharp
+var session = await host.TrackActivity()
+    .WithCorrelationId("the-trip-test")
+    .InvokeMessageAndWaitAsync(new CompleteTrip(tripId));
+```
+
+From there you can query the event store by that correlation id once the async daemons have caught up.
+
+::: warning
+Correlation ids are **off by default** in Marten, Polecat and Fisher. You'll need
+`opts.Events.MetadataConfig.CorrelationIdEnabled = true` in `AddMarten()`, or
+`opts.Events.EnableCorrelationId = true` in `AddPolecat()` or `AddFisher()`, and the new column in your schema.
+:::
+
+The correlation id only reaches an event if every hop carries it. Wolverine's own handlers do that for you, but an
+event subscription or a projection's side effect that publishes a message has to pass the event's correlation id
+along itself:
+
+<!-- snippet: sample_bobcat_pass_the_correlation_id_on -->
+<a id='snippet-sample_bobcat_pass_the_correlation_id_on'></a>
+```cs
+public static class ParcelSubscription
+{
+    // The subscription passes the event's correlation id on to the message it publishes, so the events that
+    // message's handler appends are recorded with the act's correlation id too
+    public static ValueTask Relay(IEvent<ParcelShipped> e, IMessageBus bus)
+        => bus.PublishAsync(new NotifyRecipient(e.StreamId), new DeliveryOptions { CorrelationId = e.CorrelationId });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Bobcat/Wolverine.Bobcat.Tests/events_the_act_eventually_caused.cs#L72-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bobcat_pass_the_correlation_id_on' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+Polecat's async daemon does not currently load the correlation id onto the events it hands to a subscription, so on
+Polecat there is nothing to pass along yet. Marten does.
+:::
+
+#### With WolverineFx.Bobcat
+
+If you're writing specifications with WolverineFx.Bobcat, every act already runs under a correlation id of its own,
+and the `ThenEventuallyCaused()` step does the waiting and the querying for you. It waits for the async daemons to
+catch up, queries the event store for every event recorded with the act's correlation id, and keeps looking for a
+little while (`EventuallyTimeout`, ten seconds by default) for work that lands after the daemons, like a handler on a
+local queue. Using this Marten configuration:
+
+<!-- snippet: sample_bobcat_events_past_an_async_boundary_marten -->
+<a id='snippet-sample_bobcat_events_past_an_async_boundary_marten'></a>
+```cs
+public sealed class MartenParcelHost : ParcelHost
+{
+    public override string? WhyNoAsyncBoundary => null;
+
+    protected override void ConfigureStore(WolverineOptions opts)
+        => opts.Services.AddMarten(m =>
+            {
+                m.Connection(Servers.PostgresConnectionString);
+                m.DatabaseSchemaName = "bobcat_eventually_caused";
+                m.DisableNpgsqlLogging = true;
+
+                // ThenEventuallyCaused queries the store by the act's correlation id, which Marten only
+                // records when this is on
+                m.Events.MetadataConfig.CorrelationIdEnabled = true;
+            })
+            .IntegrateWithWolverine()
+            .AddAsyncDaemon(DaemonMode.Solo)
+            .PublishEventsToWolverine("parcels", relay => relay.PublishEvent<ParcelShipped>(ParcelSubscription.Relay));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Bobcat/Wolverine.Bobcat.Tests/events_the_act_eventually_caused.cs#L121-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bobcat_events_past_an_async_boundary_marten' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+the specification reads like this:
+
+<!-- snippet: sample_bobcat_then_eventually_caused -->
+<a id='snippet-sample_bobcat_then_eventually_caused'></a>
+```cs
+var theParcel = await aBookedParcel();
+
+await WhenReceived(new ShipParcel(theParcel));
+
+// RecipientNotified is appended by the handler of a message an event subscription published, after the
+// tracked session is over: found in the store by the act's correlation id
+await ThenEventuallyCaused(new RecipientNotified(theParcel));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Bobcat/Wolverine.Bobcat.Tests/events_the_act_eventually_caused.cs#L253-L263' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bobcat_then_eventually_caused' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`ThenEventuallyCaused()` checks the events you name are *among* the ones the act caused, the same way `ThenEmitted()`
+does, because the act's own events and its cascades' carry the correlation id too. Whole objects, `Expect.Value()`
+and partial `Specify<T>()` objects all work.
+
+A few things to know:
+
+* If the event store does not record correlation ids, the step **fails** and tells you the exact setting to turn on
+  for Marten, Polecat or Fisher. It does not skip, because a skipped "then" looks green.
+* For now, the step only works against a single database. A store that spreads its tenants across several databases
+  is refused with a clear message.
+* For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
+  endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
+  [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
+  If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
+
 ## Dealing with Scheduled Messages  <Badge type="tip" text="4.12" />
 
 As I'm sure you can imagine, [scheduled local execution](/guide/messaging/transports/local.html#scheduling-local-execution) and [scheduled message delivery](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution)
