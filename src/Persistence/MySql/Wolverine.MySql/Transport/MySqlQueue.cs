@@ -77,7 +77,8 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         var schema = SchemaFor(source);
         if (_queueTables.TryFind(schema, out var table)) return table;
 
-        table = new QueueTable(schema, _queueTableName);
+        // Built lazily on first use, after configuration is complete, so the final transport option applies.
+        table = new QueueTable(schema, _queueTableName, Parent.EnableDeterministicQueueOrdering);
         _queueTables = _queueTables.AddOrUpdate(schema, table);
 
         return table;
@@ -88,7 +89,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         var schema = SchemaFor(source);
         if (_scheduledTables.TryFind(schema, out var table)) return table;
 
-        table = new ScheduledMessageTable(schema, _scheduledTableName);
+        table = new ScheduledMessageTable(schema, _scheduledTableName, Parent.EnableDeterministicQueueOrdering);
         _scheduledTables = _scheduledTables.AddOrUpdate(schema, table);
 
         return table;

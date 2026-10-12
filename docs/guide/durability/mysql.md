@@ -176,6 +176,46 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+### Deterministic Queue Ordering
+
+The queue tables store the time a message was enqueued in a `timestamp` column, and the listeners pull and hand over
+each batch in `timestamp` order. That column is a plain `DATETIME`, so it only has whole second precision: every message
+sent within the same second has the same timestamp, and so does every scheduled message promoted to the ready queue
+together. By default, messages with the same timestamp can be returned in any order. To persist a tie-breaker for those
+rows, opt into deterministic queue ordering:
+
+```cs
+opts.UseMySqlPersistenceAndTransport(connectionString)
+    .EnableDeterministicQueueOrdering();
+```
+
+or, if you configure the transport through the persistence registration:
+
+```cs
+opts.PersistMessagesWithMySql(connectionString)
+    .EnableMessageTransport(transport => transport.EnableDeterministicQueueOrdering());
+```
+
+This adds a `queue_order BIGINT NOT NULL AUTO_INCREMENT` column to the ready and scheduled queue tables, the unique key
+MySQL requires for an `AUTO_INCREMENT` column, and composite indexes on `(timestamp, queue_order)` and
+`(execution_time, queue_order)`. Dequeueing then orders by `timestamp, queue_order` for both durable and buffered
+listeners, and scheduled messages that come due together are moved to the ready queue in
+`execution_time, queue_order` order, so they keep their sequence. On an existing table the column and its unique key are
+added in a single `ALTER TABLE`, which keeps the existing rows and gives each of them a distinct value. Their original
+order cannot be reconstructed when their timestamps already tie. This gives a stable order within each queue; it does not
+define a global commit order across concurrent senders, consumers, or different queues.
+
+The option is disabled by default so existing applications do not receive an automatic queue schema change. With
+`AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled. Configure the option
+consistently on every application using the same queue tables; once the schema has been upgraded, leaving the option
+disabled preserves the added column and indexes. The new indexes require additional storage and write maintenance, and
+the `ALTER TABLE` rebuilds the table, so expect it to take a while on a large backlog.
+
+For a safe rollout, deploy the compatible version with this option disabled to every application sharing the queue
+tables. Then apply the opt-in schema migration and enable the option on all consumers. Rolling back to a binary that
+predates this change requires suppressing its automatic queue schema migrations, because its older table model may try
+to remove the added column and indexes.
+
 
 ### Resetting in Tests
 
@@ -327,7 +367,7 @@ The MySQL persistence uses the following data type mappings:
 |---------|------------|
 | Message body | `LONGBLOB` |
 | Saga state | `JSON` |
-| Timestamps | `DATETIME(6)` |
+| Timestamps | `DATETIME` (whole second precision) |
 | GUIDs | `CHAR(36)` |
 
 ### Compatibility

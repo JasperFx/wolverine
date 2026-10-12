@@ -33,6 +33,18 @@ public class MySqlPersistenceExpression : BrokerExpression<MySqlTransport, MySql
     }
 
     /// <summary>
+    ///     Opt into deterministic ordering for messages with the same timestamp in MySQL
+    ///     queues. This changes the ready and scheduled queue schemas. With <c>AutoCreate.None</c>,
+    ///     apply the schema migration before starting listeners with this option enabled. Configure
+    ///     this before startup; changing it at runtime is not supported.
+    /// </summary>
+    public MySqlPersistenceExpression EnableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
     /// Disable inbox and outbox usage on all MySQL Transport endpoints
     /// </summary>
     /// <returns></returns>
