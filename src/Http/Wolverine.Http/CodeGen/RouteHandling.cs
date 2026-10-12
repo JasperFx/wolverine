@@ -72,7 +72,8 @@ internal class RouteParameterStrategy : IParameterStrategy
         // Edge case from GH-1941
         if (argType == typeof(IPAddress)) return false;
         
-        return TypeOutputs.ContainsKey(argType) || argType.IsEnum || argType.GetMethods().Any( x=> x.Name == "TryParse");
+        return TypeOutputs.ContainsKey(argType) || argType.IsEnum || argType.GetMethods().Any( x=> x.Name == "TryParse")
+               || SingleValueWrapper.TryFind(argType, out _);
     }
 
     public static void TryApplyRouteVariables(HttpChain chain, MethodCall call)

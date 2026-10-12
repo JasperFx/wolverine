@@ -83,20 +83,16 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     // type.TryParse(raw value, out {assignedExpression})
     private string tryParseExpression(string assignedExpression)
     {
-        var typeName = _rawType.FullNameInCode();
         var rawValue = $"{Variable.Usage}_rawValue";
+        var parse = ParsingCode.TryParse(_rawType, rawValue, assignedExpression);
 
-        if (_rawType.IsEnum)
+        // Enum, bool and single-value wrapper parsing all accept a null raw value
+        if (_rawType.IsEnum || _rawType.IsBoolean() || SingleValueWrapper.TryFind(_rawType, out _))
         {
-            return $"{typeName}.TryParse<{_rawType.FullNameInCode()}>({rawValue}, true, out {assignedExpression})";
+            return parse;
         }
 
-        if (_rawType.IsBoolean())
-        {
-            return $"{typeName}.TryParse({rawValue}, out {assignedExpression})";
-        }
-        
-        return $"{rawValue} != null && {typeName}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture, out {assignedExpression})";
+        return $"{rawValue} != null && {parse}";
     }
     
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -231,6 +227,11 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         if (_rawType.IsBoolean())
         {
             return $"System.Boolean.TryParse({raw})";
+        }
+
+        if (SingleValueWrapper.TryFind(_rawType, out var wrapper))
+        {
+            return wrapper.FSharpTryParseCode(raw);
         }
 
         return $"{_rawType.FullName}.TryParse({raw}, System.Globalization.CultureInfo.InvariantCulture)";
