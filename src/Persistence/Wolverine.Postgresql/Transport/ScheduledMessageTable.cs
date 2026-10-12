@@ -17,6 +17,10 @@ internal class ScheduledMessageTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
         AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()");
 
+        // A single promotion statement can move many rows with the same transaction timestamp. Preserve
+        // their enqueue order so the ready queue can assign its own sequence in the same order.
+        AddColumn<long>(QueueTable.QueueOrderColumn).BigAutoIncrement().NotNull();
+
         // Definitely want to index the execution time. Far more reads than writes. We think.
         //
         // GH-2942: the constructed index name `idx_{tableName}_execution_time` can exceed
@@ -27,7 +31,7 @@ internal class ScheduledMessageTable : Table
         var indexName = PostgresqlIdentifier.Shorten($"idx_{tableName}_execution_time");
         Indexes.Add(new IndexDefinition(indexName)
         {
-            Columns = [DatabaseConstants.ExecutionTime]
+            Columns = [DatabaseConstants.ExecutionTime, QueueTable.QueueOrderColumn]
         });
     }
 }

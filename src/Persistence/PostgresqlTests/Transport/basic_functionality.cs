@@ -11,6 +11,7 @@ using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Tracking;
@@ -226,11 +227,13 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     public async Task move_from_scheduled_to_queue()
     {
         var systemTime = await theTransport.SystemTimeAsync();
+        var expectedOrder = new List<Guid>();
 
         // Should be moved
         for (int i = 0; i < 20; i++)
         {
             var envelope = ObjectMother.Envelope();
+            expectedOrder.Add(envelope.Id);
             envelope.ScheduledTime = systemTime.Subtract(1.Days());
             await new PostgresqlQueueSender(theQueue).ScheduleMessageAsync(envelope, CancellationToken.None);
         }
@@ -247,6 +250,19 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         (await theQueue.ScheduledCountAsync()).ShouldBe(30);
         (await theQueue.CountAsync()).ShouldBe(0);
 
+        // Equal timestamps and execution times force promotion to use the persisted scheduled sequence.
+        await using (var conn = await theQueue.DataSource.OpenConnectionAsync(TestContext.Current.CancellationToken))
+        {
+            await using var update = conn.CreateCommand($@"
+UPDATE {theQueue.ScheduledTable.Identifier}
+SET timestamp = @timestamp, {DatabaseConstants.ExecutionTime} = @execution_time
+WHERE {DatabaseConstants.ExecutionTime} <= @now");
+            update.Parameters.AddWithValue("timestamp", systemTime);
+            update.Parameters.AddWithValue("execution_time", systemTime.Subtract(1.Days()));
+            update.Parameters.AddWithValue("now", systemTime);
+            await update.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
@@ -255,6 +271,10 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
 
         (await theQueue.ScheduledCountAsync()).ShouldBe(10);
         (await theQueue.CountAsync()).ShouldBe(20);
+
+        var promoted = await theListener.TryPopDurablyAsync(20, theRuntime.DurabilitySettings, NullLogger.Instance,
+            TestContext.Current.CancellationToken);
+        promoted.Select(x => x.Id).ToArray().ShouldBe(expectedOrder.ToArray());
     }
 
     [Fact]

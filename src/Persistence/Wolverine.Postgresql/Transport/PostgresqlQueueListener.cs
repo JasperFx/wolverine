@@ -50,13 +50,20 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
 
+        // DELETE ... RETURNING does not preserve the ordering of the selected rows. Reapply the
+        // timestamp and persistent queue sequence order before deserializing the returned batch.
         _tryPopMessagesDirectlySql = $@"
 WITH message AS (
-               DELETE 
-               FROM {_queueTableName} WHERE CTID IN (SELECT ctid from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit :COUNT FOR UPDATE SKIP LOCKED)        
-               RETURNING {DatabaseConstants.Body}
+               DELETE
+               FROM {_queueTableName}
+               WHERE CTID IN (
+                   SELECT ctid FROM {_queueTableName}
+                   ORDER BY {_queueTableName}.timestamp, {_queueTableName}.{QueueTable.QueueOrderColumn}
+                   LIMIT :COUNT FOR UPDATE SKIP LOCKED
+               )
+               RETURNING {DatabaseConstants.Body}, timestamp, {QueueTable.QueueOrderColumn}
 )
-SELECT message.{DatabaseConstants.Body} from message;
+SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp, message.{QueueTable.QueueOrderColumn};
 ";
         _queueName = _queue.Name;
     }
@@ -162,13 +169,14 @@ WITH moved AS (
         SELECT ctid FROM {_scheduledTableName}
         WHERE {DatabaseConstants.ExecutionTime} <= now()
           AND id NOT IN (SELECT id FROM {_queueTableName})
-        ORDER BY {DatabaseConstants.ExecutionTime}
+        ORDER BY {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}
         LIMIT ? FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, body, message_type, keep_until
+    RETURNING id, body, message_type, keep_until, {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}
 ), promoted AS (
     INSERT INTO {_queueTableName} (id, body, message_type, keep_until)
     SELECT id, body, message_type, keep_until FROM moved
+    ORDER BY {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}
 )
 SELECT count(*) FROM moved");
 
@@ -230,18 +238,24 @@ SELECT count(*) FROM moved");
         // pg_attribute insert-and-delete per poll (catalog churn), and a fresh relation each time
         // means the plan is never reused. This is the same DELETE ... RETURNING shape the
         // non-durable pop above already uses, extended with the inbox insert as a second CTE.
+        // The ORDER BY in the row selection only chooses the batch; DELETE ... RETURNING does not
+        // keep that order. The sequence breaks ties because PostgreSQL now() can assign the same
+        // timestamp to every row promoted by one statement.
         var parameters = builder.AppendWithParameters($@"
 WITH popped AS (
-    DELETE FROM {_queueTableName} WHERE CTID IN (
-        SELECT ctid FROM {_queueTableName} ORDER BY {_queueTableName}.timestamp LIMIT ? FOR UPDATE SKIP LOCKED
+    DELETE FROM {_queueTableName}
+    WHERE CTID IN (
+        SELECT ctid FROM {_queueTableName}
+        ORDER BY {_queueTableName}.timestamp, {_queueTableName}.{QueueTable.QueueOrderColumn}
+        LIMIT ? FOR UPDATE SKIP LOCKED
     )
-    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}
+    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, timestamp, {QueueTable.QueueOrderColumn}
 ), inserted AS (
     INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
 )
-SELECT {DatabaseConstants.Body} FROM popped");
+SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp, popped.{QueueTable.QueueOrderColumn}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
