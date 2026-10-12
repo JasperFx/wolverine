@@ -105,20 +105,35 @@ public enum InvokeTracingMode
 public enum EnvelopeIdGeneration
 {
     /// <summary>
-    /// Default. Uses MassTransit's NewId algorithm which generates sequential GUIDs
-    /// based on machine identity (MAC/DNS) and timestamp. Good for SQL Server index
-    /// performance but can produce duplicates in cloud environments where multiple
-    /// instances share network identity (containers, Cloud Run, serverless).
+    /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
+    /// GUIDs from machine identity (MAC/DNS) and a timestamp, laid out so they sort in time order the way
+    /// .NET and PostgreSQL compare GUIDs. SQL Server compares a <c>uniqueidentifier</c> starting from its
+    /// last six bytes, so these ids arrive in effectively random order there and fragment SQL Server's
+    /// clustered envelope tables; see <see cref="NewIdSqlServerOrder"/>. Can produce duplicates in cloud
+    /// environments where multiple instances share network identity (containers, Cloud Run, serverless).
     /// </summary>
     NewId,
 
     /// <summary>
-    /// Uses Guid.CreateVersion7() which produces time-ordered GUIDs with cryptographically
-    /// strong random bits per RFC 9562. Recommended for greenfield applications and
-    /// cloud environments where instances may share network identity. Guaranteed unique
-    /// without relying on machine-specific properties.
+    /// Uses Guid.CreateVersion7() which produces GUIDs with a millisecond timestamp and cryptographically
+    /// strong random bits per RFC 9562. Recommended for greenfield applications and cloud environments
+    /// where instances may share network identity. Guaranteed unique without relying on machine-specific
+    /// properties. Ids created within the same millisecond are in random order, and SQL Server does not
+    /// sort them by time at all.
     /// </summary>
-    GuidV7
+    GuidV7,
+
+    /// <summary>
+    /// GH-4902. The same NewId algorithm and uniqueness as <see cref="NewId"/>, but laid out with the
+    /// timestamp in the last six bytes (<c>NewId.NextGuid()</c>) so the ids sort in time order the way SQL
+    /// Server compares a <c>uniqueidentifier</c>. This keeps SQL Server's clustered inbox, outbox and
+    /// dead-letter tables from fragmenting. Wolverine switches to this automatically when every message store
+    /// in the application is SQL Server and nothing was set explicitly. The id travels with the message and
+    /// becomes the key in the RECEIVING application's inbox, and on PostgreSQL these ids index worse than
+    /// random GUIDs, so set <see cref="WolverineOptions.EnvelopeIdGeneration"/> explicitly to
+    /// <see cref="NewId"/> if a SQL Server-only application sends to services that store envelopes in PostgreSQL.
+    /// </summary>
+    NewIdSqlServerOrder
 }
 
 public class MetricsOptions
@@ -379,11 +394,32 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Controls how Wolverine generates unique identifiers for message envelopes.
-    /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility.
+    /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility, except that when this is
+    /// not set explicitly and every message store in the application prefers the same value -- for example
+    /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> when SQL Server is the only message storage --
+    /// Wolverine switches to that value at startup. Setting this explicitly, even to
+    /// <see cref="EnvelopeIdGeneration.NewId"/>, turns that automatic switch off.
     /// Use <see cref="EnvelopeIdGeneration.GuidV7"/> for greenfield applications or
     /// cloud environments where multiple instances may share network identity.
     /// </summary>
-    public EnvelopeIdGeneration EnvelopeIdGeneration { get; set; } = EnvelopeIdGeneration.NewId;
+    public EnvelopeIdGeneration EnvelopeIdGeneration
+    {
+        get => _envelopeIdGeneration ?? _storePreferredEnvelopeIdGeneration ?? EnvelopeIdGeneration.NewId;
+        set => _envelopeIdGeneration = value;
+    }
+
+    // GH-4902. Set only by an explicit assignment, which always wins over what the message stores prefer
+    private EnvelopeIdGeneration? _envelopeIdGeneration;
+
+    // GH-4902. What every message store agreed on at startup, used only when nothing was set explicitly
+    private EnvelopeIdGeneration? _storePreferredEnvelopeIdGeneration;
+
+    internal bool EnvelopeIdGenerationIsExplicit => _envelopeIdGeneration.HasValue;
+
+    internal void UseStorePreferredEnvelopeIdGeneration(EnvelopeIdGeneration generation)
+    {
+        _storePreferredEnvelopeIdGeneration = generation;
+    }
 
     /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within

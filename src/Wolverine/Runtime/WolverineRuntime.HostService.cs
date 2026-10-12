@@ -66,6 +66,23 @@ public partial class WolverineRuntime
         Options.LightweightMode = true;
     }
 
+    // GH-4902. When nothing was set explicitly and every message store prefers the same envelope id layout --
+    // SQL Server-ordered ids when SQL Server is the only message storage -- use it
+    private void applyStorePreferredEnvelopeIdGeneration()
+    {
+        if (Options.EnvelopeIdGenerationIsExplicit) return;
+
+        var agreed = MessageStoreCollection.AgreedEnvelopeIdGeneration(_stores.Value.AllStores());
+        if (agreed is not { } generation || generation == Options.EnvelopeIdGeneration) return;
+
+        Options.UseStorePreferredEnvelopeIdGeneration(generation);
+        Envelope.IdGenerator = IdGeneratorFor(generation);
+
+        Logger.LogInformation(
+            "Every message store in this application prefers EnvelopeIdGeneration.{Generation}, so Wolverine is using it for envelope ids. Set WolverineOptions.EnvelopeIdGeneration explicitly to choose otherwise",
+            generation);
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
@@ -101,6 +118,9 @@ public partial class WolverineRuntime
             WireProtocol.MaxFrameSize = Options.MaxIncomingTcpFrameSize;
 
             await _stores.Value.InitializeAsync();
+
+            // GH-4902. Before any listener or agent can create an envelope
+            applyStorePreferredEnvelopeIdGeneration();
 
             // AlwaysMakeScheduledMessagesDurable opts every non-durable scheduled send onto
             // the message store inbox; if no store is configured, we silently fall through

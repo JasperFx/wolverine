@@ -35,6 +35,13 @@ namespace Wolverine.SqlServer.Persistence;
 public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe, ISagaStorageCodeSource
 {
     /// <summary>
+    /// GH-4902. SQL Server compares a uniqueidentifier from its last six bytes, and the envelope tables are
+    /// clustered on the id, so SQL Server-ordered ids keep them from fragmenting. Used automatically when every
+    /// message store in the application agrees and nothing was set explicitly.
+    /// </summary>
+    public override EnvelopeIdGeneration? PreferredEnvelopeIdGeneration => EnvelopeIdGeneration.NewIdSqlServerOrder;
+
+    /// <summary>
     ///     GH-4805. Lets generated saga code construct <c>DatabaseSagaSchema<TId, TSaga></c> itself, which is the only way the
     ///     saga path runs in a native image — <c>SagaSchemaFor</c> is an abstract generic method, and ILC
     ///     cannot dispatch one.

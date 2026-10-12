@@ -9,7 +9,7 @@ namespace Wolverine.Polecat.Publishing;
 ///     <see cref="IMessageOutbox"/> implementation that bridges Polecat's projection
 ///     daemon to Wolverine's outgoing-message machinery. Registered as
 ///     <see cref="Polecat.StoreOptions.MessageOutbox"/> when
-///     <see cref="WolverineOptionsPolecatExtensions.IntegrateWithWolverine"/> runs;
+///     <see cref="WolverineOptionsPolecatExtensions.IntegrateWithWolverine(PolecatConfigurationExpression, Action{PolecatIntegration})"/> runs;
 ///     replaces Polecat's default <see cref="NulloMessageOutbox"/> (which drops
 ///     every published message).
 /// </summary>

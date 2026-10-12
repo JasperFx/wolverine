@@ -32,8 +32,49 @@ internal class MapEventTypeMessages : IWolverineExtension
     }
 }
 
+// GH-4902. Polecat's integration only reaches the service collection, so the envelope id choice is applied
+// through an extension, which Wolverine runs after the UseWolverine() configuration and before startup.
+// True forces SQL Server-ordered ids; false pins the default ids so the automatic switch does not apply,
+// unless something was chosen explicitly already
+internal class PolecatEnvelopeIdChoice(bool optimizeEnvelopeIdsForSqlServer) : IWolverineExtension
+{
+    public void Configure(WolverineOptions options)
+    {
+        if (optimizeEnvelopeIdsForSqlServer)
+        {
+            options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
+        }
+        else if (!options.EnvelopeIdGenerationIsExplicit)
+        {
+            options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
+        }
+    }
+}
+
 public static class WolverineOptionsPolecatExtensions
 {
+    /// <summary>
+    ///     Integrate Polecat with Wolverine's persistent outbox and add Polecat-specific middleware
+    ///     to Wolverine, optionally opting into envelope ids ordered for SQL Server
+    /// </summary>
+    /// <param name="optimizeEnvelopeIdsForSqlServer">
+    /// GH-4902. Polecat keeps Wolverine's envelopes in SQL Server, so when it is every message store in the
+    /// application Wolverine already switches to <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> at
+    /// startup, unless <see cref="WolverineOptions.EnvelopeIdGeneration"/> was set explicitly. True sets it
+    /// explicitly anyway. False opts out of the automatic switch and keeps the default ids -- use that when this
+    /// application sends messages to services that store their envelopes in PostgreSQL. An explicit
+    /// EnvelopeIdGeneration is left alone when false, and there is no schema change either way.
+    /// </param>
+    public static PolecatConfigurationExpression IntegrateWithWolverine(
+        this PolecatConfigurationExpression expression,
+        bool optimizeEnvelopeIdsForSqlServer,
+        Action<PolecatIntegration>? configure = null)
+    {
+        expression.Services.AddSingleton<IWolverineExtension>(new PolecatEnvelopeIdChoice(optimizeEnvelopeIdsForSqlServer));
+
+        return expression.IntegrateWithWolverine(configure);
+    }
+
     /// <summary>
     ///     Integrate Polecat with Wolverine's persistent outbox and add Polecat-specific middleware
     ///     to Wolverine
