@@ -26,6 +26,7 @@ internal partial class TrackedSession : ITrackedSession
 
     // GH-4931: committed from handler threads too, so locked like _statuses
     private readonly List<AppendedEvents> _appended = new();
+    private readonly List<ConcurrentAppendRecord> _concurrentAppends = new();
 
     // GH-4940: loaded from handler threads too, so locked the same way
     private readonly List<LoadedBoundary> _boundaries = new();
@@ -703,6 +704,25 @@ internal partial class TrackedSession : ITrackedSession
             {
                 return _appended.ToArray();
             }
+        }
+    }
+
+    public IReadOnlyList<ConcurrentAppendRecord> ConcurrentAppends
+    {
+        get
+        {
+            lock (_concurrentAppends)
+            {
+                return _concurrentAppends.ToArray();
+            }
+        }
+    }
+
+    internal void RecordConcurrentAppend(ConcurrentAppendRecord record)
+    {
+        lock (_concurrentAppends)
+        {
+            _concurrentAppends.Add(record);
         }
     }
 

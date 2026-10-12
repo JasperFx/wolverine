@@ -206,6 +206,12 @@ public class OutboxedSessionFactory
             session.Listeners.Add(new NotifyObserverOfAppendedEvents(context));
         }
 
+        // GH-4940: the concurrent-append test hook, only while a tracked session is running
+        if (_runtime is WolverineRuntime { ActiveSession: not null })
+        {
+            session.Listeners.Add(new FireConcurrentAppendBeforeSave(context));
+        }
+
         session.Listeners.Add(new FlushOutgoingMessagesOnCommit(context, transaction.Store));
     }
 

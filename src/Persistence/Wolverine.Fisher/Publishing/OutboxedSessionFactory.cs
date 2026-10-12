@@ -123,6 +123,12 @@ public class OutboxedSessionFactory
             options.Listeners.Add(new NotifyObserverOfAppendedEvents(context, (_store as JasperFx.Events.IEventStore)?.Identity));
         }
 
+        // GH-4940: the concurrent-append test hook, only while a tracked session is running
+        if (_runtime is WolverineRuntime { ActiveSession: not null })
+        {
+            options.Listeners.Add(new FireConcurrentAppendBeforeSave(context));
+        }
+
         // The FlushOutgoingMessagesOnCommit listener needs the SQLite
         // message store so it can mark the incoming envelope as Handled in
         // the same transaction as the document changes. The factory's

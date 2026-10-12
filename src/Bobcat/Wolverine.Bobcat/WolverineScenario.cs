@@ -300,7 +300,7 @@ public class WolverineScenario : CritterStackScenario
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is received");
         root._dispatched = built;
         return root.ActAsync("{0} is received", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).SendMessageAndWaitAsync(built, options));
+            tracking => ownCorrelation(configureTracking, tracking, options).SendMessageAndWaitAsync(built, options));
     }
 
     /// <summary><paramref name="message" /> is published through Wolverine to every subscriber, and the scenario waits for what it caused.</summary>
@@ -315,7 +315,7 @@ public class WolverineScenario : CritterStackScenario
         var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is published");
         root._dispatched = built;
         return root.ActAsync("{0} is published", message,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking).PublishMessageAndWaitAsync(built, options));
+            tracking => ownCorrelation(configureTracking, tracking, options).PublishMessageAndWaitAsync(built, options));
     }
 
     /// <summary>
@@ -326,8 +326,22 @@ public class WolverineScenario : CritterStackScenario
     public Task WhenTracked(string description, Func<Task> act,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
         => root.ActAsync(description,
-            tracking => (configureTracking?.Invoke(tracking) ?? tracking)
+            tracking => ownCorrelation(configureTracking, tracking, null)
                 .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => act())));
+
+    // GH-4940: every act runs under a correlation id of its own, generated per act, and it wins over one a
+    // configureTracking or a DeliveryOptions names -- so no other session shares it, which is what lets a concurrent
+    // append be armed by it alone. Nothing in Wolverine or its samples supplies an act's correlation id itself
+    private TrackedSessionConfiguration ownCorrelation(
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking,
+        TrackedSessionConfiguration tracking, DeliveryOptions? options)
+    {
+        var configured = configureTracking?.Invoke(tracking) ?? tracking;
+        if (root.ActCorrelationId is not { } correlationId) return configured;
+
+        if (options is not null) options.CorrelationId = correlationId;
+        return configured.WithCorrelationId(correlationId);
+    }
 
     /// <summary>
     /// The store-only acts of <see cref="CritterStackScenario" /> — <c>WhenActing</c>, <c>WhenActingOn</c> —
@@ -509,7 +523,7 @@ public class WolverineScenario : CritterStackScenario
         // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
         var concurrent = _concurrently;
         _concurrently = null;
-        ArmedConcurrentAppend? armed = null;
+        IDisposable? armed = null;
         if (concurrent is not null)
         {
             var store = await storeForAsync("a concurrent writer appends", null, concurrent);
@@ -533,13 +547,19 @@ public class WolverineScenario : CritterStackScenario
             armed?.Dispose();
         }
 
+        // GH-4940: whether the concurrent append landed is the tracked session's to say
+        bool? landed = armed is null
+            ? null
+            : session?.ConcurrentAppends.Any(x => x.CorrelationId == correlationId) ?? false;
+
         // An act that saved nothing never let the concurrent writer in: say so, instead of a vacuous pass
-        if (armed is { Fired: false } && error is null)
+        if (landed == false && error is null)
         {
             error = new SpecificationFailedException(
-                "WhileActing armed a concurrent append, but the act saved nothing to the event store, so the append never " +
-                "landed between its read and its write. Is the act's handler the one that decides over the boundary, and is " +
-                "the store integrated with Wolverine (IntegrateWithWolverine())?");
+                "WhileActing armed a concurrent append, but no session Wolverine opened for the act saved anything, so the " +
+                "append never landed between its read and its write. It lands on the first save of a session carrying the " +
+                "act's correlation id: a handler's or an HTTP endpoint's session, with the store integrated with Wolverine " +
+                "(IntegrateWithWolverine()). A session the act opens straight from the store carries none.");
         }
 
         // GH-4931: what the act appended is what the tracked session heard each event-store session commit --
@@ -564,7 +584,7 @@ public class WolverineScenario : CritterStackScenario
                 .Where(x => x.Envelope is not null && dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
                             ReferenceEquals(x.Envelope.Message, dispatched))
                 .Count() ?? 0,
-            ConcurrentAppendLanded = armed?.Fired,
+            ConcurrentAppendLanded = landed,
             TenantId = tenantOf(session, own, dispatched)
         };
         if (complete is not null) outcome = await complete(outcome);

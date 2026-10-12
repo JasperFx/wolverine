@@ -100,6 +100,12 @@ public interface ITrackedSession
     IReadOnlyList<LoadedBoundary> LoadedBoundaries => Array.Empty<LoadedBoundary>();
 
     /// <summary>
+    ///     GH-4940. Every concurrent append <see cref="Tracking.ConcurrentAppends" /> landed during the tracked session:
+    ///     an append armed under an act's correlation id, run on the first save of a session carrying it.
+    /// </summary>
+    IReadOnlyList<ConcurrentAppendRecord> ConcurrentAppends => Array.Empty<ConcurrentAppendRecord>();
+
+    /// <summary>
     ///     GH-4939. The correlation id the tracked work ran under, when one was given through
     ///     <see cref="TrackedSessionConfiguration.WithCorrelationId" />. Null otherwise.
     /// </summary>

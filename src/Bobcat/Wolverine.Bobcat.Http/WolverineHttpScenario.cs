@@ -105,15 +105,16 @@ public class WolverineHttpScenario : WolverineScenario
                 {
                     x.Post.Json(built).ToUrl(route);
 
-                    // GH-4939: the request carries the act's correlation id, which Wolverine.HTTP applies to the
-                    // endpoint's messages -- and to its event store session too, with
-                    // WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints -- so ThenEventuallyCaused finds them
-                    if (ActCorrelationId is { } correlationId)
-                        x.WithRequestHeader(RequestIdMiddleware.CorrelationIdHeaderKey, correlationId);
-
                     // The act judges the status itself: any 2xx, a 4xx as a refusal, a 5xx as a failure
                     x.IgnoreStatusCode();
                     configure?.Invoke(x);
+
+                    // GH-4939: the request carries the act's correlation id, which Wolverine.HTTP applies to the
+                    // endpoint's messages -- and to its event store session too, with
+                    // WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints -- so ThenEventuallyCaused finds them.
+                    // GH-4940: set after configure, so the act's own id wins over one the caller names
+                    if (ActCorrelationId is { } correlationId)
+                        x.WithRequestHeader(RequestIdMiddleware.CorrelationIdHeaderKey, correlationId);
                 });
             })),
             async outcome =>

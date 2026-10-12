@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using Alba;
 using IntegrationTests;
 using JasperFx.Events;
@@ -156,6 +159,48 @@ public class scaffolded_endpoint_shapes : IAsyncLifetime
         ticket.Closed.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task a_strong_typed_id_is_a_bare_guid_in_every_json_body_and_round_trips_through_the_store()
+    {
+        // GH-4883: the 201's body carries the bare Guid
+        var started = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new OpenScaffoldTicket("jammed tray")).ToUrl("/api/scaffold-shapes/open-scaffold-ticket");
+            x.StatusCodeShouldBe(201);
+        });
+        var body = await started.ReadAsTextAsync();
+        var id = (await started.ReadAsJsonAsync<CreationResponse<ScaffoldTicketId>>())!.Value;
+        body.ShouldContain($"\"value\":\"{id.Value}\"");
+
+        // A request body written by hand with the bare Guid binds to the lone Id
+        await theHost.Scenario(x =>
+        {
+            x.Post.Text($"{{\"id\":\"{id.Value}\"}}").ToUrl("/api/scaffold-shapes/close-scaffold-ticket").ContentType("application/json");
+            x.StatusCodeShouldBe(204);
+        });
+
+        // The response body of the GET carries it bare too, routed by the id's TryParse
+        var read = await theHost.Scenario(x => x.Get.Url($"/api/scaffold-ticket/{id}"));
+        (await read.ReadAsTextAsync()).ShouldContain($"\"id\":\"{id.Value}\"");
+
+        // An event member round-trips through the store
+        var opened = (await eventsOn(id.Value)).OfType<ScaffoldTicketOpened>().Single();
+        opened.ScaffoldTicketId.ShouldBe(id);
+
+        // ...and so does a document identified by it
+        var store = theHost.Services.GetRequiredService<IDocumentStore>();
+        await using (var session = store.LightweightSession())
+        {
+            session.Store(new ScaffoldTicketNote { Id = id, Text = "toner" });
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using (var query = store.QuerySession())
+        {
+            (await query.LoadAsync<ScaffoldTicketNote>(id, TestContext.Current.CancellationToken))!.Text.ShouldBe("toner");
+        }
+    }
+
     private async Task<Guid> open()
     {
         var result = await theHost.Scenario(x =>
@@ -264,19 +309,49 @@ public static class GetScaffoldLedgerEndpoint
 }
 
 // GH-4883: what --strong-typed-ids writes for the identity, the aggregate, its messages and its endpoints
-public readonly record struct ScaffoldTicketId(Guid Value)
+// GH-4883: exactly what --strong-typed-ids writes for an identity
+[JsonConverter(typeof(ScaffoldTicketId.ScaffoldTicketIdJsonConverter))]
+public readonly record struct ScaffoldTicketId(Guid Value) : IParsable<ScaffoldTicketId>
 {
-    // Wolverine.Http binds a route or query string value to it through this TryParse
-    public static bool TryParse(string? text, IFormatProvider? provider, out ScaffoldTicketId id)
+    public static ScaffoldTicketId Parse(string s, IFormatProvider? provider) => new(Guid.Parse(s, provider));
+
+    // The overload Wolverine.Http's generated code binds a route or query string value with
+    public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, out ScaffoldTicketId result)
     {
-        var parsed = Guid.TryParse(text, provider, out var value);
-        id = new ScaffoldTicketId(value);
+        var parsed = Guid.TryParse(s, provider, out var value);
+        result = new ScaffoldTicketId(value);
         return parsed;
+    }
+
+    public override string ToString() => Value.ToString();
+
+    // The bare Guid in System.Text.Json -- bodies, messages, documents, events -- and as a dictionary key
+    public sealed class ScaffoldTicketIdJsonConverter : JsonConverter<ScaffoldTicketId>
+    {
+        public override ScaffoldTicketId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new(reader.GetGuid());
+
+        public override void Write(Utf8JsonWriter writer, ScaffoldTicketId value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value.Value);
+
+        public override ScaffoldTicketId ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new(Guid.Parse(reader.GetString()!));
+
+        public override void WriteAsPropertyName(Utf8JsonWriter writer, ScaffoldTicketId value, JsonSerializerOptions options)
+            => writer.WritePropertyName(value.Value.ToString());
     }
 }
 
+// A document identified by the same strong-typed id
+public class ScaffoldTicketNote
+{
+    public ScaffoldTicketId Id { get; set; }
+    public string Text { get; set; } = "";
+}
+
 public record OpenScaffoldTicket(string Title);
-public record CloseScaffoldTicket(ScaffoldTicketId ScaffoldTicketId);
+// GH-4883: a stub command names the one stream it identifies Id
+public record CloseScaffoldTicket(ScaffoldTicketId Id);
 public record ScaffoldTicketOpened(ScaffoldTicketId ScaffoldTicketId);
 public record ScaffoldTicketClosed(ScaffoldTicketId ScaffoldTicketId);
 
@@ -307,7 +382,7 @@ public static class CloseScaffoldTicketEndpoint
     [WolverinePost("/api/scaffold-shapes/close-scaffold-ticket")]
     [EmptyResponse]
     public static ScaffoldTicketClosed? Post(CloseScaffoldTicket command, [WriteModel] ScaffoldTicket scaffoldTicket)
-        => new(command.ScaffoldTicketId);
+        => new(command.Id);
 }
 
 public static class GetScaffoldTicketEndpoint

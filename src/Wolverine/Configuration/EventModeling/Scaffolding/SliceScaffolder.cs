@@ -116,6 +116,12 @@ public static class ScaffoldNoticeCodes
     ///     so no endpoint was written: it would not compile.
     /// </summary>
     public const string HttpEndpointsUnavailable = "http-endpoints-unavailable";
+
+    /// <summary>
+    ///     GH-4883. <c>--strong-typed-ids</c> is on, but an aggregate class that already exists has a Guid (or other
+    ///     non-strong) <c>Id</c>, so it keeps that identity.
+    /// </summary>
+    public const string ExistingAggregateKeepsIdentity = "existing-aggregate-keeps-identity";
 }
 
 /// <summary>One line of the scaffold report.</summary>
@@ -611,6 +617,8 @@ public static class SliceScaffolder
             {
                 foreach (var aggregate in slice.AggregateTypes) _stateTypeNames.Add(aggregate.Name);
                 if (slice.StartsStream is { } stream) _stateTypeNames.Add(stream.Name);
+                // A DCB decider model gets its Apply methods like an aggregate, so it is never stubbed as a record
+                if (slice.DeciderModel is { } decider) _stateTypeNames.Add(decider.Name);
                 if (slice.Pattern == SlicePattern.View)
                 {
                     foreach (var view in slice.ReadModelTypes) _stateTypeNames.Add(view.Name);
@@ -1000,6 +1008,14 @@ public static class SliceScaffolder
             else if (_options.ResolveType(aggregate) is { } existing && idPropertyOf(existing) is { } idType)
             {
                 identity = identityFrom(idType);
+
+                // GH-4883: the flag never contradicts a class that already exists, but it says so
+                if (_options.StrongTypedIds && !identity.Strong)
+                {
+                    Notices.Add(notice(ScaffoldNoticeCodes.ExistingAggregateKeepsIdentity, ScaffoldNoticeKind.Warning, $"{existing.Name} (aggregate)",
+                        $"{existing.Name} keeps {identity.TypeName} Id because the class already exists; declare " +
+                        $"IdentifiedBy<{existing.Name}Id>() on the aggregate or change the class to switch to a strong-typed id."));
+                }
             }
             else if (_options.StrongTypedIds)
             {
@@ -1080,9 +1096,11 @@ public static class SliceScaffolder
         private bool stubHasMember(string typeName, string member)
             => _stubMembers.TryGetValue(typeName, out var members) && members.Any(x => x.Member == member);
 
-        // GH-4883: the message that carries an aggregate's id -- the command, or the event an automation
-        // reacts to -- gets an {Aggregate}Id member, unless the slice starts the stream with an id it mints.
-        // An event of a slice with one aggregate carries its id too.
+        // GH-4883: what a name-only stub carries. The message that carries the slice's identifiers -- the command,
+        // or the event an automation reacts to -- gets one member per stream it identifies, in Guid and strong-typed
+        // mode alike: a lone "Id", which [WriteModel] / [ReadModel] find by convention, or "{Aggregate}Id" each when
+        // it identifies several. A stream the slice starts with an id it mints is not carried. Events carry an id
+        // only where they must: a multi-stream slice's carry each stream's, a DCB slice's carry its tag
         private void planIdentityMembers(EventModelSliceDescriptor slice)
         {
             var aggregates = slice.AggregateTypes.ToList();
@@ -1093,18 +1111,43 @@ public static class SliceScaffolder
 
             var carrier = slice.ConsumedEvents.Count == 1 ? slice.ConsumedEvents[0] : slice.CommandType;
 
-            foreach (var aggregate in aggregates)
+            bool mintedHere(TypeDescriptor aggregate)
+                => slice.StartsStream is { } stream && EventModelSliceDescriptor.SameType(stream, aggregate) && identityOf(aggregate).Minted;
+
+            var carried = aggregates.Where(x => !mintedHere(x)).ToList();
+            if (carrier is not null)
             {
-                var identity = identityOf(aggregate);
-                if (identity.IsDefault) continue;
+                foreach (var aggregate in carried) stubMember(carrier.Name, identityOf(aggregate), IdMemberFor(carried.Count, aggregate));
+            }
 
-                var starts = slice.StartsStream is { } stream && EventModelSliceDescriptor.SameType(stream, aggregate);
-                if (carrier is not null && !(starts && identity.Minted)) stubMember(carrier.Name, identity, aggregate.Name + "Id");
+            if (aggregates.Count > 1)
+            {
+                foreach (var e in slice.EmittedEvents)
+                {
+                    foreach (var aggregate in aggregates) stubMember(e.Name, identityOf(aggregate), aggregate.Name + "Id");
+                }
+            }
 
-                if (aggregates.Count != 1) continue;
-                foreach (var e in slice.EmittedEvents) stubMember(e.Name, identity, aggregate.Name + "Id");
+            // A DCB tag is a strong-typed id: the decider model's, declared with IdentifiedBy<TId>() or from the flag.
+            // Only for a stub command; a real one names its own tag members
+            if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is { } model &&
+                carrier is not null && _options.ResolveType(carrier) is null)
+            {
+                var tag = identityOf(model);
+                if (tag.Strong)
+                {
+                    _dcbTags[slice.Name] = tag;
+                    stubMember(carrier.Name, tag, "Id");
+                    foreach (var e in slice.EmittedEvents) stubMember(e.Name, tag, "Id");
+                }
             }
         }
+
+        // GH-4883: the DCB tag a stub command of each slice carries as its Id
+        private readonly Dictionary<string, Identity> _dcbTags = new(StringComparer.Ordinal);
+
+        /// <summary>GH-4883. The member a stub names an identifier by: <c>Id</c> when it carries one, else <c>{Aggregate}Id</c>.</summary>
+        private static string IdMemberFor(int identifiers, TypeDescriptor aggregate) => identifiers == 1 ? "Id" : aggregate.Name + "Id";
 
         /// <summary>The strong-typed ids the scaffolded code names and nothing declares yet (GH-4883).</summary>
         public void ScaffoldIdentityTypes()
@@ -1123,14 +1166,38 @@ public static class SliceScaffolder
                 // In the root namespace, so every chapter's namespace sees it
                 var file = new SliceFile(this, _options.RootNamespace);
                 var writer = file.Body;
+                file.Namespaces.Add("System.Diagnostics.CodeAnalysis");
+                file.Namespaces.Add("System.Text.Json");
+                file.Namespaces.Add("System.Text.Json.Serialization");
+                var converter = name + "JsonConverter";
                 writer.WriteLine($"// Scaffolded by `wolverine scaffold`: the strong-typed identity of {string.Join(", ", owners)}.");
-                writer.WriteLine("// Marten, Polecat and Fisher store it as the Guid it wraps, with nothing to register.");
-                writer.Write($"BLOCK:public readonly record struct {name}(Guid Value)");
-                writer.WriteLine("// Wolverine.Http binds a route or query string value to it through this TryParse");
-                writer.Write($"BLOCK:public static bool TryParse(string? text, IFormatProvider? provider, out {name} id)");
-                writer.WriteLine("var parsed = Guid.TryParse(text, provider, out var value);");
-                writer.WriteLine($"id = new {name}(value);");
+                writer.WriteLine("// Marten, Polecat and Fisher store it as the Guid it wraps, and JSON carries it as that bare Guid.");
+                writer.WriteLine($"[JsonConverter(typeof({name}.{converter}))]");
+                writer.Write($"BLOCK:public readonly record struct {name}(Guid Value) : IParsable<{name}>");
+                writer.WriteLine($"public static {name} Parse(string s, IFormatProvider? provider) => new(Guid.Parse(s, provider));");
+                writer.BlankLine();
+                writer.WriteLine("// The overload Wolverine.Http's generated code binds a route or query string value with");
+                writer.Write($"BLOCK:public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, out {name} result)");
+                writer.WriteLine("var parsed = Guid.TryParse(s, provider, out var value);");
+                writer.WriteLine($"result = new {name}(value);");
                 writer.WriteLine("return parsed;");
+                writer.FinishBlock();
+                writer.BlankLine();
+                writer.WriteLine("public override string ToString() => Value.ToString();");
+                writer.BlankLine();
+                writer.WriteLine("// The bare Guid in System.Text.Json -- bodies, messages, documents, events -- and as a dictionary key");
+                writer.Write($"BLOCK:public sealed class {converter} : JsonConverter<{name}>");
+                writer.WriteLine($"public override {name} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+                writer.WriteLine("    => new(reader.GetGuid());");
+                writer.BlankLine();
+                writer.WriteLine($"public override void Write(Utf8JsonWriter writer, {name} value, JsonSerializerOptions options)");
+                writer.WriteLine("    => writer.WriteStringValue(value.Value);");
+                writer.BlankLine();
+                writer.WriteLine($"public override {name} ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+                writer.WriteLine("    => new(Guid.Parse(reader.GetString()!));");
+                writer.BlankLine();
+                writer.WriteLine($"public override void WriteAsPropertyName(Utf8JsonWriter writer, {name} value, JsonSerializerOptions options)");
+                writer.WriteLine("    => writer.WritePropertyName(value.Value.ToString());");
                 writer.FinishBlock();
                 writer.FinishBlock();
                 add(subject, path, file);
@@ -1317,10 +1384,12 @@ public static class SliceScaffolder
                 }
                 else
                 {
-                    // A natural key cannot be made up in the handler: the message has to carry it
-                    var member = stream.Name + "Id";
+                    // A natural key cannot be made up in the handler: the message has to carry it, as {Aggregate}Id or a
+                    // lone Id (what a stub carries when it identifies one stream)
                     var carrierType = _options.ResolveType(trigger);
-                    if (!(carrierType is null ? stubHasMember(trigger.Name, member) : commandHasMember(carrierType, member)))
+                    bool carries(string candidate) => carrierType is null ? stubHasMember(trigger.Name, candidate) : commandHasMember(carrierType, candidate);
+                    var member = new[] { stream.Name + "Id", "Id" }.FirstOrDefault(carries) ?? stream.Name + "Id";
+                    if (!carries(member))
                     {
                         shape.Add($"// TODO: {triggerName} needs a {member} member carrying the {stream.Name}'s natural key");
                         Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
@@ -1389,7 +1458,11 @@ public static class SliceScaffolder
 
                 // The tags the decision reads are the command's strong-typed ids, each a tag
                 var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
-                var tags = commandType is null ? [] : strongTypedIdMembers(commandType);
+                var tags = commandType is not null ? strongTypedIdMembers(commandType)
+                    // GH-4883: a stub command carries the decider model's tag as its Id
+                    : _dcbTags.TryGetValue(slice.Name, out var tag) && stubHasMember(triggerTypeFor(slice, trigger).Name, "Id")
+                        ? [("Id", tag.TypeName)]
+                        : (IReadOnlyList<(string Member, string Type)>)[];
                 deciderLoad = tags.Count == 0
                     ? null
                     : $"return EventTagQuery.For({triggerArgument}.{tags[0].Member})" +

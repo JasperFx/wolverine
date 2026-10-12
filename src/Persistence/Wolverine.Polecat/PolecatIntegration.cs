@@ -202,10 +202,6 @@ internal class PolecatOverrides : IConfigurePolecat
 {
     public void Configure(IServiceProvider services, StoreOptions options)
     {
-        // GH-4940: one store-wide listener for ConcurrentAppends, the test hook that lands a concurrent append
-        // between an act's read and its write. A single volatile read per save while nothing is armed
-        if (!options.Listeners.Contains(FireConcurrentAppendBeforeSave.Instance))
-            options.Listeners.Add(FireConcurrentAppendBeforeSave.Instance);
         // Polecat's DocumentMapping automatically detects IRevisioned types
         // and enables numeric revisions. Wolverine's Saga type uses Version property
         // which is handled by the saga persistence framework.
