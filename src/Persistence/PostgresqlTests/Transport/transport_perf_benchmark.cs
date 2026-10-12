@@ -14,7 +14,7 @@ namespace PostgresqlTests.Transport;
 //   C) + bigint identity "seq" with a btree index, dequeue by seq           (monotonic ordering)
 // Run:
 //   BENCH_PG="Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres" \
-//     dotnet test --filter "FullyQualifiedName~transport_perf_benchmark"
+//     dotnet test --project src/Persistence/PostgresqlTests -f net9.0 --filter-class "*transport_perf_benchmark"
 [Trait("Category", "Benchmark")]
 public class transport_perf_benchmark
 {

@@ -57,27 +57,32 @@ jobs:
       - name: Build the F# solution
         run: dotnet build wolverine_fsharp.slnx -c "$config" --nologo
 
-      # Run the two surface gates SEQUENTIALLY (not `dotnet test wolverine_fsharp.slnx`, which runs the
-      # test assemblies in parallel). Each gate shells a nested `dotnet build` of its F# fixture, and
+      # `dotnet test --project X`, never a positional path, and no `--nologo`: the root global.json puts
+      # `dotnet test` in Microsoft.Testing.Platform's own mode (xunit.v3 4.x, GH-4979), which refuses the
+      # positional form and hands options it does not own straight to the test host. An option the host
+      # does not know (`--nologo` was one) exits 5 before a single test runs.
+      #
+      # Run the two surface gates SEQUENTIALLY (not `dotnet test --solution wolverine_fsharp.slnx`, which
+      # runs the test assemblies in parallel). Each gate shells a nested `dotnet build` of its F# fixture, and
       # both fixtures transitively build Debug Wolverine.dll — concurrent nested builds race on
       # obj/Debug/.../refint/Wolverine.dll (IOException "used by another process"). Serializing avoids it.
       - name: Compile-gate + fsharp-coverage (Core surface)
-        run: dotnet test src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj -c "$config"
 
       - name: Compile-gate + fsharp-coverage (Http surface)
-        run: dotnet test src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj -c "$config"
 
       - name: Compile-gate (EF Core surface)
-        run: dotnet test src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj -c "$config"
 
       - name: Compile-gate (Marten document surface)
-        run: dotnet test src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj -c "$config"
 
       - name: Compile-gate (Marten aggregate surface)
-        run: dotnet test src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj -c "$config"
 
       - name: Compile-gate (FluentValidation + CosmosDB surface)
-        run: dotnet test src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj -c "$config"
 
       # Run-verified: boots a host in TypeLoadMode.Static against the pre-generated F# adapter and
       # asserts the handler actually executes (not just compiles). Also exercises the
@@ -85,4 +90,4 @@ jobs:
       # exits 0 (every chain — including Wolverine's internal HandlerRegistry — emits F#) and that the
       # generated adapter matches the committed, run-verified Generated.fs.
       - name: Behavioural run-step + codegen write --language fsharp (TypeLoadMode.Static)
-        run: dotnet test src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test --project src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj -c "$config"
