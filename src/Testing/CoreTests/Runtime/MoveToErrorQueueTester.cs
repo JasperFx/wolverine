@@ -1,4 +1,5 @@
 ﻿using NSubstitute;
+using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
 using Wolverine.Transports;
@@ -76,6 +77,50 @@ public class MoveToErrorQueueTester
         await theLifecycle.DidNotReceive().CompleteAsync();
         theRuntime.MessageTracking.DidNotReceive().MovedToErrorQueue(theEnvelope, theException);
         theRuntime.MessageTracking.Received().Requeued(theEnvelope);
+    }
+
+    [Fact]
+    public async Task a_move_handed_back_for_redelivery_sends_no_failure_ack()
+    {
+        // The redelivery is a new envelope that comes back through here, so an ack now would be one per redelivery
+        theRuntime.Options.EnableAutomaticFailureAcks = true;
+        theEnvelope.Destination = new Uri("tcp://localhost:9000");
+        theLifecycle.MoveToDeadLetterQueueAsync(theException)
+            .Returns(Task.FromException(new DeadLetterMoveFailedException("no dead letter stream", null)));
+
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle.DidNotReceive().SendFailureAcknowledgementAsync(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task the_failure_ack_is_sent_after_the_move()
+    {
+        theRuntime.Options.EnableAutomaticFailureAcks = true;
+        theEnvelope.Destination = new Uri("tcp://localhost:9000");
+
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        Received.InOrder(() =>
+        {
+            _ = theLifecycle.MoveToDeadLetterQueueAsync(theException);
+            _ = theLifecycle.SendFailureAcknowledgementAsync(Arg.Any<string>());
+        });
+    }
+
+    [Fact]
+    public async Task any_other_failure_of_the_move_still_sends_the_failure_ack()
+    {
+        theRuntime.Options.EnableAutomaticFailureAcks = true;
+        theEnvelope.Destination = new Uri("tcp://localhost:9000");
+        var moveFailure = new InvalidOperationException("the database is down");
+        theLifecycle.MoveToDeadLetterQueueAsync(theException).Returns(Task.FromException(moveFailure));
+
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(() =>
+            theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null).AsTask());
+
+        thrown.ShouldBeSameAs(moveFailure);
+        await theLifecycle.Received(1).SendFailureAcknowledgementAsync(Arg.Any<string>());
     }
 
     [Fact]

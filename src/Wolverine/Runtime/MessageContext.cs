@@ -545,10 +545,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     public async ValueTask SendFailureAcknowledgementAsync(string failureDescription)
     {
-        if (Envelope!.ReplyUri == null)
+        if (Envelope!.ReplyUri == null || Envelope.HasSentFailureAcknowledgement)
         {
             return;
         }
+
+        // Latched before the send, so a send that fails is not tried again either
+        Envelope.HasSentFailureAcknowledgement = true;
 
         var acknowledgement = new FailureAcknowledgement
         {

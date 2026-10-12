@@ -142,14 +142,6 @@ public class HandlerPipeline : IHandlerPipeline
     {
         try
         {
-            // A dead letter move the transport could not make, which left the delivery with the broker for
-            // redelivery: acking it out of the way would lose the only copy
-            if (exception is DeadLetterMoveFailedException)
-            {
-                tracker.LogException(exception, envelope.Id);
-                return;
-            }
-
             // Gotta get the message out of here because it's something that
             // could never be handled
             await channel.CompleteAsync(envelope).ConfigureAwait(false);

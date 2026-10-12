@@ -174,6 +174,13 @@ public partial class Envelope
     internal bool HasBeenAcked { get; set; }
 
     /// <summary>
+    /// Latches the failure acknowledgement so the sender gets at most one per envelope, however many
+    /// error handling paths try to send it
+    /// </summary>
+    [JsonIgnore]
+    internal bool HasSentFailureAcknowledgement { get; set; }
+
+    /// <summary>
     /// GH-4012. Counts real attempts to settle (ack/nack) this delivery with its broker, shared by
     /// every retry layer on the completion path so their budgets add rather than multiply. See
     /// <see cref="DurabilitySettings.MaximumAckAttempts"/>.
@@ -646,6 +653,7 @@ public partial class Envelope
         BatchPendingSettled = false;
         BatchPipelineCounted = false;
         HasBeenAcked = false;
+        HasSentFailureAcknowledgement = false;
         AckAttempts = 0;
         WireTap = null;
         Store = null;
