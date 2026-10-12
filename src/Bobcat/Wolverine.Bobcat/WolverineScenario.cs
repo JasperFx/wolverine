@@ -332,7 +332,7 @@ public class WolverineScenario : CritterStackScenario
         Func<TrackedSessionConfiguration, Task<ITrackedSession>> dispatch,
         Func<ActOutcome, Task<ActOutcome>>? complete)
     {
-        HandlerWarmUp.WarmBeforeTracking(Host);
+        HandlerWarmUp.WarmBeforeTracking(Services);
 
         // GH-4931: claimed before the act, so a step that throws before dispatching leaves nothing behind
         var dispatched = _dispatched;
@@ -498,7 +498,7 @@ public class WolverineScenario : CritterStackScenario
             var run = ObjectSetVerification.Verify(data, expected, "event", SetMode.Contains, tags);
             if (run.Succeeded || DateTimeOffset.UtcNow >= deadline)
             {
-                if (Verdicts.Recording) run.Report(null);
+                if (Verdicts.Recording) run.Report();
 
                 Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")) +
                                              $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))}.");

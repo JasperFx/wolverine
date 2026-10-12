@@ -20,7 +20,7 @@ public sealed class SpecificationFailedException(string message) : Exception(mes
 /// verdict at the end.
 /// </para>
 /// <para>
-/// <b>Outside one</b> — a plain test, or a Gherkin fixture, neither of which opens a
+/// <b>Outside one</b> — a plain test that opens no
 /// <see cref="ScenarioRecorder" /> recording — <see cref="SpecAssert" /> is silent by design, which
 /// here would turn a red test green. So the wrong is thrown instead.
 /// </para>
