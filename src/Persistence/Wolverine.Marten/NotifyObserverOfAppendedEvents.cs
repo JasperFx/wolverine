@@ -33,7 +33,9 @@ internal class NotifyObserverOfAppendedEvents : DocumentSessionListenerBase
 
         if (_context.Runtime is WolverineRuntime runtime)
         {
-            runtime.RecordAppendedEvents(_context, commit.GetStreams().ToList());
+            // GH-4977: which store, so an act on a host with ancillary stores knows which ones it heard from
+            runtime.RecordAppendedEvents(_context, commit.GetStreams().ToList(),
+                (session.DocumentStore as JasperFx.Events.IEventStore)?.Identity);
         }
 
         return Task.CompletedTask;

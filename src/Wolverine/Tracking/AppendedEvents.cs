@@ -23,6 +23,12 @@ public sealed class AppendedEvents
     /// </summary>
     public Envelope? Envelope { get; }
 
+    /// <summary>
+    ///     GH-4977. The event store the session belongs to -- the main store or an ancillary one, such as Marten's
+    ///     <c>AddMartenStore&lt;IInvoicingStore&gt;()</c> -- when the store integration says. Null when it does not.
+    /// </summary>
+    public EventStoreIdentity? Store { get; internal init; }
+
     /// <summary>The service that committed the session.</summary>
     public string? ServiceName { get; }
 

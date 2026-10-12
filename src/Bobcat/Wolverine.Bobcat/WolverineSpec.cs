@@ -80,6 +80,14 @@ public abstract class WolverineSpec : CritterStackSpec
     /// <inheritdoc cref="WolverineScenario.LastAct" />
     public new ActOutcome LastAct => Scenario.LastAct;
 
+    // ---- several stores (GH-4977, bobcat#504) ------------------------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.In{TStore}" />
+    public new WolverineScenario In<TStore>() where TStore : class => Scenario.In<TStore>();
+
+    /// <inheritdoc cref="WolverineScenario.In(string)" />
+    public new WolverineScenario In(string storeName) => Scenario.In(storeName);
+
     // ---- act -------------------------------------------------------------------------------
 
     /// <inheritdoc cref="WolverineScenario.WhenReceived" />

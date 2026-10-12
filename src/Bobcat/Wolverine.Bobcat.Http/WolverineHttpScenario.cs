@@ -34,11 +34,40 @@ public class WolverineHttpScenario : WolverineScenario
         AlbaHost = host;
     }
 
+    /// <summary>
+    /// GH-4977. A view of <paramref name="root" />'s specification pinned to <paramref name="store" />, from
+    /// <see cref="In{TStore}" />: its HTTP acts are <paramref name="root" />'s, and so is the last response.
+    /// </summary>
+    protected WolverineHttpScenario(WolverineHttpScenario root, JasperFx.Events.IEventStore store) : base(root, store)
+    {
+        _httpOrigin = root.httpRoot;
+        AlbaHost = root.AlbaHost;
+    }
+
+    private readonly WolverineHttpScenario? _httpOrigin;
+    private WolverineHttpScenario httpRoot => _httpOrigin ?? this;
+
+    /// <summary>GH-4977. An HTTP view, so <c>WhenPosted</c> and the response steps work on <c>In&lt;T&gt;()</c> too.</summary>
+    protected override global::Bobcat.CritterStack.CritterStackScenario createView(JasperFx.Events.IEventStore store)
+        => new WolverineHttpScenario(this, store);
+
+    /// <inheritdoc cref="WolverineScenario.In{TStore}" />
+    public new WolverineHttpScenario In<TStore>() where TStore : class => (WolverineHttpScenario)base.In<TStore>();
+
+    /// <inheritdoc cref="WolverineScenario.In(string)" />
+    public new WolverineHttpScenario In(string storeName) => (WolverineHttpScenario)base.In(storeName);
+
     /// <summary>The Alba host the HTTP acts go through.</summary>
     public IAlbaHost AlbaHost { get; }
 
     /// <summary>The last HTTP act's response, or null when the last act was not an HTTP call.</summary>
-    public IScenarioResult? LastResponse { get; private set; }
+    public IScenarioResult? LastResponse
+    {
+        get => httpRoot._lastResponse;
+        private set => httpRoot._lastResponse = value;
+    }
+
+    private IScenarioResult? _lastResponse;
 
     /// <summary>POST <paramref name="command" /> to the Wolverine.HTTP endpoint that accepts its type.</summary>
     /// <remarks>
@@ -51,14 +80,14 @@ public class WolverineHttpScenario : WolverineScenario
     {
         // Built once, so the route's parameters and the body come from the same object
         var built = Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted");
-        return postAsync(command, built, HttpRoutes.For(Host, built), configure);
+        return httpRoot.postAsync(command, built, HttpRoutes.For(Host, built), configure);
     }
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
     [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
     public Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
-        => postAsync(command, Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted to \"{route}\""), route, configure);
+        => httpRoot.postAsync(command, Build(command, $"{PartialMatching.ExpectedType(command).Name} is posted to \"{route}\""), route, configure);
 
     private async Task postAsync(object command, object built, string route, Action<Scenario>? configure)
     {
@@ -93,7 +122,7 @@ public class WolverineHttpScenario : WolverineScenario
 
                 var status = LastResponse.Context.Response.StatusCode;
                 responseBody = await LastResponse.ReadAsTextAsync();
-                _lastResponseBody = responseBody;
+                httpRoot._lastResponseBody = responseBody;
 
                 Verdicts.Value("status", status);
                 if (SpecReport.IsRecording)
@@ -176,14 +205,14 @@ public class WolverineHttpScenario : WolverineScenario
         Verdicts.Check("status", status is >= 400 and < 500 ? "4xx" : status.ToString(), "4xx");
         if (status is < 400 or >= 500)
         {
-            Verdicts.Fact(false, $"Expected the endpoint to refuse with a 4xx ProblemDetails, but it answered {status}: {_lastResponseBody}");
+            Verdicts.Fact(false, $"Expected the endpoint to refuse with a 4xx ProblemDetails, but it answered {status}: {httpRoot._lastResponseBody}");
             return null;
         }
 
         ProblemDetails? problem;
         try
         {
-            problem = System.Text.Json.JsonSerializer.Deserialize<ProblemDetails>(_lastResponseBody ?? "",
+            problem = System.Text.Json.JsonSerializer.Deserialize<ProblemDetails>(httpRoot._lastResponseBody ?? "",
                 new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         }
         catch (System.Text.Json.JsonException)
@@ -193,7 +222,7 @@ public class WolverineHttpScenario : WolverineScenario
 
         if (problem is null)
         {
-            Verdicts.Fact(false, $"Expected a ProblemDetails body with the {status}, but it was: {_lastResponseBody}");
+            Verdicts.Fact(false, $"Expected a ProblemDetails body with the {status}, but it was: {httpRoot._lastResponseBody}");
             return null;
         }
 

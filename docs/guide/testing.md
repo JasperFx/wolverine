@@ -578,6 +578,27 @@ A few things to know:
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
 
+### More WolverineFx.Bobcat: several stores, context, and foreign events <Badge type="tip" text="6.50" />
+
+`WolverineSpec` and `WolverineScenario` inherit everything Bobcat's `CritterStackSpec` does, and a few of those steps
+are worth knowing about from the Wolverine side:
+
+* **Several event stores.** On a host with a main store and an ancillary one, such as Marten's
+  `AddMartenStore<IInvoicingStore>()`, each Given and Then goes to the store whose registrations claim its type. When the
+  type doesn't decide it, address the store explicitly with `In<IInvoicingStore>()` or `In("name")`. The view `In()`
+  returns is still a `WolverineScenario`: an act through it is the specification's act, and the message and consistency
+  boundary steps work on it. The act itself is observed on every store, so a `[MartenStore(typeof(IInvoicingStore))]`
+  handler that reads the main store and appends to the ancillary one is specified in one test, and
+  `ITrackedSession.AppendedEvents` says which store each commit belonged to.
+* **`GivenContext<T>()`** arranges events for something the slice *reads* (its `ReadsFrom`), like a customer an
+  `[Entity]` parameter loads, without claiming it as the slice's aggregate.
+* **`ForeignEvents`.** An act that appends through a session Wolverine did not open is read back from the store, store by
+  store. Events on streams the specification never arranged or started go to `LastAct.ForeignEvents` instead of being
+  judged, and a failing whole-store step adds a "cross-talk suspected" line and, with several stores, which store each
+  event came from.
+* **`ProjectionCatchUpTimeoutException`.** A document or read-model step that waits for the async daemons and runs out of
+  time throws this (it's a `TimeoutException`), naming the shards that were behind and the identity being read.
+
 ## Dealing with Scheduled Messages  <Badge type="tip" text="4.12" />
 
 As I'm sure you can imagine, [scheduled local execution](/guide/messaging/transports/local.html#scheduling-local-execution) and [scheduled message delivery](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution)
