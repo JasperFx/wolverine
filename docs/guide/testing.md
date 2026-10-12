@@ -596,6 +596,11 @@ are worth knowing about from the Wolverine side:
   store. Events on streams the specification never arranged or started go to `LastAct.ForeignEvents` instead of being
   judged, and a failing whole-store step adds a "cross-talk suspected" line and, with several stores, which store each
   event came from.
+* **A concurrent writer.** `WhileActing(concurrently: Tagged(new ItemReserved(sku, 1), sku))` lands a real append
+  between the next act's read and its write, on the act's first save, so a specification can prove a Dynamic
+  Consistency Boundary: inside it the act is refused with a `DcbConcurrencyException` (`ThenRefusedWith<T>()`), or a
+  retry policy retries it and `ThenRetried()` passes; outside it, the act succeeds. It needs the store integrated with
+  Wolverine, which registers the hook (`ConcurrentAppends`) on Marten, Polecat and Fisher.
 * **`ProjectionCatchUpTimeoutException`.** A document or read-model step that waits for the async daemons and runs out of
   time throws this (it's a `TimeoutException`), naming the shards that were behind and the identity being read.
 

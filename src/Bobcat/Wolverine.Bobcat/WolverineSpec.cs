@@ -107,6 +107,15 @@ public abstract class WolverineSpec : CritterStackSpec
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
         => Scenario.WhenTracked(description, act, configureTracking);
 
+    // ---- a concurrent writer (GH-4940) -------------------------------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.WhileActing" />
+    [EventModelRole(SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActing(params object[] concurrently) => Scenario.WhileActing(concurrently);
+
+    /// <inheritdoc cref="WolverineScenario.ThenRetried" />
+    public void ThenRetried() => Scenario.ThenRetried();
+
     // ---- assert: events past an asynchronous boundary (GH-4939) ---------------------------------
 
     /// <inheritdoc cref="WolverineScenario.ThenEventuallyCaused(object[])" />

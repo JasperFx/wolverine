@@ -50,6 +50,18 @@ public sealed record ActOutcome(
     /// boundary too. What <c>ThenEventuallyCaused</c> queries the store by.
     /// </summary>
     public string? CorrelationId { get; init; }
+
+    /// <summary>
+    /// GH-4940. How many times the act's own message was executed: 1 for a message handled once, more when an error
+    /// policy retried it, 0 for an act with no message of its own (an HTTP request, <c>WhenTracked</c>).
+    /// </summary>
+    public int Attempts { get; init; }
+
+    /// <summary>
+    /// GH-4940. Whether the concurrent append armed with <c>WhileActing(concurrently: ...)</c> landed: true when it
+    /// did, false when the act saved nothing so it never could, null when none was armed.
+    /// </summary>
+    public bool? ConcurrentAppendLanded { get; init; }
 }
 
 /// <summary>
@@ -94,6 +106,9 @@ public class WolverineScenario : CritterStackScenario
     // every act and every Wolverine setting is that scenario's
     private readonly WolverineScenario? _origin;
     private WolverineScenario root => _origin ?? this;
+
+    // GH-4940: the concurrent append the next act lands between its read and its write
+    private object[]? _concurrently;
 
     /// <param name="host">The application under test.</param>
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
@@ -205,6 +220,51 @@ public class WolverineScenario : CritterStackScenario
 
     /// <summary>A wrong outside a recording is a <see cref="SpecificationFailedException" />.</summary>
     protected override Exception failureOf(string message) => new SpecificationFailedException(message);
+
+    // ---- a concurrent writer (GH-4940) -------------------------------------------------------
+
+    /// <summary>
+    /// GH-4940. While the next act runs, another writer appends <paramref name="concurrently" /> -- between the act's
+    /// read and its write. The append lands on the act's <b>first</b> event-store save, before it commits, in a
+    /// session of its own, on a new stream. Tag the events (<c>Tagged(new ItemReserved(sku, 1), sku)</c>) to put them
+    /// inside or outside a Dynamic Consistency Boundary: inside, the act's save fails with a
+    /// <c>DcbConcurrencyException</c> (<see cref="CritterStackScenario.ThenRefusedWith{TException}" />), or an error
+    /// policy retries it and the retry succeeds (<see cref="ThenRetried" />); outside, the act is not disturbed.
+    /// </summary>
+    /// <remarks>
+    /// The append fires once, so a retry sees the new events. An act that saves nothing never gives it a moment to
+    /// land, and the act then fails saying so, rather than letting a "nothing disturbed it" pass vacuously. Needs the
+    /// store integrated with Wolverine (<c>IntegrateWithWolverine()</c>), which registers the hook.
+    /// </remarks>
+    [EventModelRole(SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActing(params object[] concurrently)
+    {
+        var events = flatten(concurrently);
+        if (events.Length == 0) throw new ArgumentException("Name the events a concurrent writer appends.", nameof(concurrently));
+
+        var (described, inline) = describe(events);
+        using var step = ScenarioRecorder.Step("Given", $"while the act runs, a concurrent writer appends {described}");
+        if (!inline) recordValues("event", events);
+        recordTouched(events.Select(PartialMatching.ExpectedType));
+
+        root._concurrently = events.Select(x => Build(x, "a concurrent writer appends")).ToArray();
+    }
+
+    /// <summary>
+    /// GH-4940. The act's own message failed at least once and an error policy retried it until it succeeded -- what
+    /// a retry policy on <c>DcbConcurrencyException</c> does after <see cref="WhileActing" /> lands inside the boundary.
+    /// </summary>
+    public void ThenRetried()
+    {
+        using var step = ScenarioRecorder.Step("Then", "the act is retried and succeeds");
+        if (!actSucceeded()) return;
+
+        Verdicts.Check("attempts", LastAct.Attempts > 1 ? "more than one" : LastAct.Attempts.ToString(CultureInfo.InvariantCulture), "more than one");
+        Verdicts.Fact(LastAct.Attempts > 1, LastAct.Attempts == 0
+            ? "Expected the act to be retried, but it dispatched no message of its own to retry."
+            : "Expected the act to be retried, but its message succeeded on the first attempt" +
+              (LastAct.ConcurrentAppendLanded == true ? ", although the concurrent append landed: is it outside the boundary?" : "."));
+    }
 
     // ---- act -------------------------------------------------------------------------------
 
@@ -428,6 +488,17 @@ public class WolverineScenario : CritterStackScenario
             .WithCorrelationId(correlationId);
         if (IncludeExternalTransports) tracking = tracking.IncludeExternalTransports();
 
+        // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
+        var concurrent = _concurrently;
+        _concurrently = null;
+        ArmedConcurrentAppend? armed = null;
+        if (concurrent is not null)
+        {
+            var store = await storeForAsync("a concurrent writer appends", null, concurrent);
+            armed = ConcurrentAppends.Arm(correlationId, token =>
+                EventStoreAuthoring.AppendAsync(store, null!, Guid.CreateVersion7(), concurrent, token));
+        }
+
         ITrackedSession? session = null;
         Exception? error = null;
         try
@@ -438,6 +509,19 @@ public class WolverineScenario : CritterStackScenario
         catch (Exception e)
         {
             error = e;
+        }
+        finally
+        {
+            armed?.Dispose();
+        }
+
+        // An act that saved nothing never let the concurrent writer in: say so, instead of a vacuous pass
+        if (armed is { Fired: false } && error is null)
+        {
+            error = new SpecificationFailedException(
+                "WhileActing armed a concurrent append, but the act saved nothing to the event store, so the append never " +
+                "landed between its read and its write. Is the act's handler the one that decides over the boundary, and is " +
+                "the store integrated with Wolverine (IntegrateWithWolverine())?");
         }
 
         // GH-4931: what the act appended is what the tracked session heard each event-store session commit --
@@ -456,7 +540,13 @@ public class WolverineScenario : CritterStackScenario
             // GH-4940: the boundaries the act's own handler loaded, by the same rule as its own commits
             Boundaries = (session?.LoadedBoundaries ?? Array.Empty<LoadedBoundary>())
                 .Where(x => isTheActsOwn(x.Envelope, dispatched)).ToList(),
-            CorrelationId = session?.CorrelationId ?? correlationId
+            CorrelationId = session?.CorrelationId ?? correlationId,
+            // GH-4940: executions of the act's own message, a retry's included
+            Attempts = session?.AllRecordsInOrder(MessageEventType.ExecutionStarted)
+                .Where(x => x.Envelope is not null && dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
+                            ReferenceEquals(x.Envelope.Message, dispatched))
+                .Count() ?? 0,
+            ConcurrentAppendLanded = armed?.Fired
         };
         if (complete is not null) outcome = await complete(outcome);
         LastAct = outcome;
