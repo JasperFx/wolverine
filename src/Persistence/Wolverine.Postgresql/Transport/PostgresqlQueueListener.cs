@@ -31,6 +31,7 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly string _quotedSchemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly bool _deterministicQueueOrdering;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -43,6 +44,7 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _logger = runtime.LoggerFactory.CreateLogger<PostgresqlQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
 
         _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName);
 
@@ -50,20 +52,23 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
 
-        // DELETE ... RETURNING does not preserve the ordering of the selected rows. Reapply the
-        // timestamp and persistent queue sequence order before deserializing the returned batch.
+        // DELETE ... RETURNING does not preserve the ordering of the selected rows. Always reapply
+        // timestamp order; the sequence tie-breaker is only referenced when its schema is enabled.
+        var queueOrderInOrderBy = _deterministicQueueOrdering ? $", {_queueTableName}.{QueueTable.QueueOrderColumn}" : string.Empty;
+        var queueOrderInReturning = _deterministicQueueOrdering ? $", {QueueTable.QueueOrderColumn}" : string.Empty;
+        var queueOrderInResultOrderBy = _deterministicQueueOrdering ? $", message.{QueueTable.QueueOrderColumn}" : string.Empty;
         _tryPopMessagesDirectlySql = $@"
 WITH message AS (
                DELETE
                FROM {_queueTableName}
                WHERE CTID IN (
                    SELECT ctid FROM {_queueTableName}
-                   ORDER BY {_queueTableName}.timestamp, {_queueTableName}.{QueueTable.QueueOrderColumn}
+                   ORDER BY {_queueTableName}.timestamp{queueOrderInOrderBy}
                    LIMIT :COUNT FOR UPDATE SKIP LOCKED
                )
-               RETURNING {DatabaseConstants.Body}, timestamp, {QueueTable.QueueOrderColumn}
+               RETURNING {DatabaseConstants.Body}, timestamp{queueOrderInReturning}
 )
-SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp, message.{QueueTable.QueueOrderColumn};
+SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{queueOrderInResultOrderBy};
 ";
         _queueName = _queue.Name;
     }
@@ -163,20 +168,29 @@ SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp,
             // backlog is one enormous transaction holding locks the receive path needs. Capped at
             // RecoveryBatchSize per cycle; the poller runs again immediately after a full batch.
             var builder = new BatchBuilder();
+            var scheduledOrder = _deterministicQueueOrdering
+                ? $", {QueueTable.QueueOrderColumn}"
+                : string.Empty;
+            var scheduledReturning = _deterministicQueueOrdering
+                ? $", {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+                : string.Empty;
+            var promotionOrder = _deterministicQueueOrdering
+                ? $"ORDER BY {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+                : string.Empty;
             var parameters = builder.AppendWithParameters($@"
 WITH moved AS (
     DELETE FROM {_scheduledTableName} WHERE CTID IN (
         SELECT ctid FROM {_scheduledTableName}
         WHERE {DatabaseConstants.ExecutionTime} <= now()
           AND id NOT IN (SELECT id FROM {_queueTableName})
-        ORDER BY {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}
+        ORDER BY {DatabaseConstants.ExecutionTime}{scheduledOrder}
         LIMIT ? FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, body, message_type, keep_until, {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}
+    RETURNING id, body, message_type, keep_until{scheduledReturning}
 ), promoted AS (
     INSERT INTO {_queueTableName} (id, body, message_type, keep_until)
     SELECT id, body, message_type, keep_until FROM moved
-    ORDER BY {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}
+    {promotionOrder}
 )
 SELECT count(*) FROM moved");
 
@@ -239,23 +253,31 @@ SELECT count(*) FROM moved");
         // means the plan is never reused. This is the same DELETE ... RETURNING shape the
         // non-durable pop above already uses, extended with the inbox insert as a second CTE.
         // The ORDER BY in the row selection only chooses the batch; DELETE ... RETURNING does not
-        // keep that order. The sequence breaks ties because PostgreSQL now() can assign the same
-        // timestamp to every row promoted by one statement.
+        // keep that order. The persistent sequence is included only for installations that opted in.
+        var queueOrderInOrderBy = _deterministicQueueOrdering
+            ? $", {_queueTableName}.{QueueTable.QueueOrderColumn}"
+            : string.Empty;
+        var queueOrderInReturning = _deterministicQueueOrdering
+            ? $", {QueueTable.QueueOrderColumn}"
+            : string.Empty;
+        var queueOrderInResultOrderBy = _deterministicQueueOrdering
+            ? $", popped.{QueueTable.QueueOrderColumn}"
+            : string.Empty;
         var parameters = builder.AppendWithParameters($@"
 WITH popped AS (
     DELETE FROM {_queueTableName}
     WHERE CTID IN (
         SELECT ctid FROM {_queueTableName}
-        ORDER BY {_queueTableName}.timestamp, {_queueTableName}.{QueueTable.QueueOrderColumn}
+        ORDER BY {_queueTableName}.timestamp{queueOrderInOrderBy}
         LIMIT ? FOR UPDATE SKIP LOCKED
     )
-    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, timestamp, {QueueTable.QueueOrderColumn}
+    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, timestamp{queueOrderInReturning}
 ), inserted AS (
     INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
 )
-SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp, popped.{QueueTable.QueueOrderColumn}");
+SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
@@ -355,7 +377,7 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp, popped.{Q
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
-        
+
         _loop = new BackgroundReceiveLoop(Address, _logger, pollOnceAsync, _cancellation.Token, _pollingInterval);
         _loop.Start();
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);

@@ -10,6 +10,8 @@ internal class ScheduledMessageTable : Table
     public ScheduledMessageTable(PostgresqlTransport settings, string tableName) : base(
         new DbObjectName(settings.TransportSchemaName, tableName))
     {
+        AddOnlyMigrations = true;
+
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
@@ -17,9 +19,11 @@ internal class ScheduledMessageTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
         AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()");
 
-        // A single promotion statement can move many rows with the same transaction timestamp. Preserve
-        // their enqueue order so the ready queue can assign its own sequence in the same order.
-        AddColumn<long>(QueueTable.QueueOrderColumn).BigAutoIncrement().NotNull();
+        if (settings.EnableDeterministicQueueOrdering)
+        {
+            // Preserve a deterministic order when multiple scheduled rows are promoted together.
+            AddColumn(new QueueOrderingColumn());
+        }
 
         // Definitely want to index the execution time. Far more reads than writes. We think.
         //
@@ -29,9 +33,15 @@ internal class ScheduledMessageTable : Table
         // deterministic hash suffix so the in-memory model matches what PostgreSQL stores; that
         // keeps the schema-diff clean rather than failing with "Missing known broker resources".
         var indexName = PostgresqlIdentifier.Shorten($"idx_{tableName}_execution_time");
-        Indexes.Add(new IndexDefinition(indexName)
+        Indexes.Add(new IndexDefinition(indexName) { Columns = [DatabaseConstants.ExecutionTime] });
+
+        if (settings.EnableDeterministicQueueOrdering)
         {
-            Columns = [DatabaseConstants.ExecutionTime, QueueTable.QueueOrderColumn]
-        });
+            var orderedIndexName = PostgresqlIdentifier.Shorten($"idx_{tableName}_execution_time_queue_order");
+            Indexes.Add(new IndexDefinition(orderedIndexName)
+            {
+                Columns = [DatabaseConstants.ExecutionTime, QueueTable.QueueOrderColumn]
+            });
+        }
     }
 }
