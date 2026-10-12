@@ -32,6 +32,18 @@ public class OraclePersistenceExpression : BrokerExpression<OracleTransport, Ora
     }
 
     /// <summary>
+    ///     Opt into deterministic ordering for messages with the same timestamp in Oracle
+    ///     queues. This changes the ready and scheduled queue schemas. With <c>AutoCreate.None</c>,
+    ///     apply the schema migration before starting listeners with this option enabled. Configure
+    ///     this before startup; changing it at runtime is not supported.
+    /// </summary>
+    public OraclePersistenceExpression EnableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
     /// Disable inbox and outbox usage on all Oracle Transport endpoints
     /// </summary>
     public OraclePersistenceExpression DisableInboxAndOutboxOnAll()
