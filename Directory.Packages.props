@@ -1,13 +1,6 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Bobcat 0.60.0's Bobcat.Xunit builds against xunit.v3 4.x on Microsoft.Testing.Platform 2.x, which
-         cannot share a test project with xunit.v3 3.x. Only the projects that reference Bobcat.Xunit move:
-         each one overrides its xunit.v3 PackageReference with VersionOverride="$(XunitV3ForBobcatVersion)",
-         and the rest of the repo stays on the xunit.v3 pin below. Those projects are MTP-only: CI runs
-         their test host executables through Bobcat's supervisor, never `dotnet test` (Bobcat's docs/xunit.md,
-         "Moving to xUnit v3 4.x"). -->
-    <XunitV3ForBobcatVersion>4.0.2</XunitV3ForBobcatVersion>
     <!-- CentralPackageTransitivePinningEnabled is deliberately NOT set, so every PackageVersion
          below reaches only the projects that reference the package *directly* (plus whatever they
          flow it to over a ProjectReference). A pin on its own does NOT lift a package that arrives
@@ -220,15 +213,25 @@
          reference it directly so the pin actually wins; without transitive pinning a PackageVersion
          on its own would be inert here, since nothing else references it. -->
     <PackageVersion Include="Weasel.Storage" Version="9.43.0" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.
          Shared/base-class libraries that are referenced by test projects (notably
          Wolverine.ComplianceTests) use xunit.v3.extensibility.core instead so they stay
-         plain netstandard2.0 libraries. See XUNIT3-MIGRATION-PLAN.md. -->
-    <PackageVersion Include="xunit.v3" Version="3.2.2" />
-    <PackageVersion Include="xunit.v3.assert" Version="3.2.2" />
-    <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
+         plain netstandard2.0 libraries. See XUNIT3-MIGRATION-PLAN.md.
+
+         GH-4979: the whole repo is on xunit.v3 4.x, which runs on Microsoft.Testing.Platform 2.x
+         (xunit.v3 4.0.2 brings platform 2.5.1, the same line Bobcat.Xunit 0.60.0 builds against).
+         The two move TOGETHER: a 3.x xunit.v3 beside platform 2.x fails at run time, which is why
+         every project moved at once rather than only the Bobcat.Xunit ones. Platform 2.x refuses
+         the VSTest bridge on the .NET 10 SDK, so the root global.json puts `dotnet test` in the
+         platform's own mode, where the project or solution is named with an option and never as a
+         positional path (CLAUDE.md, Build & Test, has the commands).
+         Microsoft.NET.Test.Sdk and xunit.runner.visualstudio stay on the test projects for IDE
+         discovery only (Rider, Visual Studio Test Explorer); CI runs the test host executables
+         through Bobcat's supervisor (build/SupervisedTests.cs). -->
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
   </ItemGroup>
   <!-- TFM-conditional Microsoft.Extensions.* for Wolverine core (version ranges for NuGet compatibility) -->
   <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
