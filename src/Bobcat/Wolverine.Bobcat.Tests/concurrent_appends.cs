@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Events;
@@ -63,6 +66,58 @@ public static class ReserveItemWithRetryHandler
             : new ItemReserved(command.Sku, command.Quantity);
 }
 
+// GH-4883: a DCB tag of exactly the shape --strong-typed-ids writes, and a stub-shaped command naming it Id
+[JsonConverter(typeof(ShelfId.ShelfIdJsonConverter))]
+public readonly record struct ShelfId(Guid Value) : IParsable<ShelfId>
+{
+    public static ShelfId Parse(string s, IFormatProvider? provider) => new(Guid.Parse(s, provider));
+
+    public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, out ShelfId result)
+    {
+        var parsed = Guid.TryParse(s, provider, out var value);
+        result = new ShelfId(value);
+        return parsed;
+    }
+
+    public override string ToString() => Value.ToString();
+
+    public sealed class ShelfIdJsonConverter : JsonConverter<ShelfId>
+    {
+        public override ShelfId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new(reader.GetGuid());
+
+        public override void Write(Utf8JsonWriter writer, ShelfId value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value.Value);
+
+        public override ShelfId ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new(Guid.Parse(reader.GetString()!));
+
+        public override void WriteAsPropertyName(Utf8JsonWriter writer, ShelfId value, JsonSerializerOptions options)
+            => writer.WritePropertyName(value.Value.ToString());
+    }
+}
+
+public record StockShelf(ShelfId Id, int Quantity);
+
+public record ShelfStocked(ShelfId Id, int Quantity);
+
+[BoundaryAggregate]
+public partial class ShelfLedger
+{
+    public int Stocked { get; private set; }
+
+    public void Apply(ShelfStocked e) => Stocked += e.Quantity;
+}
+
+public static class StockShelfHandler
+{
+    public static EventTagQuery Load(StockShelf command)
+        => EventTagQuery.For(command.Id).AndEventsOfType<ShelfStocked>();
+
+    public static ShelfStocked Handle(StockShelf command, [DcbModel] ShelfLedger? ledger)
+        => new(command.Id, command.Quantity);
+}
+
 public abstract class StockHost : IAsyncLifetime
 {
     public IHost Host { get; private set; } = null!;
@@ -83,7 +138,8 @@ public abstract class StockHost : IAsyncLifetime
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(ReserveItemHandler))
-                    .IncludeType(typeof(ReserveItemWithRetryHandler));
+                    .IncludeType(typeof(ReserveItemWithRetryHandler))
+                    .IncludeType(typeof(StockShelfHandler));
                 ConfigureStore(opts);
             })
             .StartAsync();
@@ -118,6 +174,7 @@ public sealed class MartenStockHost : StockHost
                 m.DatabaseSchemaName = "bobcat_concurrent_appends";
                 m.DisableNpgsqlLogging = true;
                 m.Events.RegisterTagType<Sku>("sku").ForAggregate<StockLedger>();
+                m.Events.RegisterTagType<ShelfId>("shelf").ForAggregate<ShelfLedger>();
             })
             .UseLightweightSessions()
             .IntegrateWithWolverine();
@@ -134,6 +191,7 @@ public sealed class PolecatStockHost : StockHost
                 m.ConnectionString = Servers.SqlServerConnectionString;
                 m.DatabaseSchemaName = "bobcat_concurrent_dcb";
                 m.Events.RegisterTagType<Sku>("sku").ForAggregate<StockLedger>();
+                m.Events.RegisterTagType<ShelfId>("shelf").ForAggregate<ShelfLedger>();
             })
             .UseLightweightSessions()
             .IntegrateWithWolverine();
@@ -152,6 +210,7 @@ public sealed class FisherStockHost : StockHost
                 o.Connection($"Data Source={_file}");
                 o.AutoCreateSchemaObjects = AutoCreate.All;
                 o.Events.RegisterTagType<Sku>("sku").ForAggregate<StockLedger>();
+                o.Events.RegisterTagType<ShelfId>("shelf").ForAggregate<ShelfLedger>();
             })
             .ApplyAllDatabaseChangesOnStartup()
             .IntegrateWithWolverine();
@@ -161,6 +220,19 @@ public abstract class concurrent_appends<THost>(THost app) : WolverineSpec(app.H
 {
     private readonly Sku theSku = new(Guid.NewGuid());
     private readonly Sku anotherSku = new(Guid.NewGuid());
+
+    [Fact]
+    public async Task a_generated_strong_typed_id_is_a_dcb_tag_on_every_store()
+    {
+        // GH-4883: the shape the scaffold writes, as a tag: appended with the event, queried by the boundary
+        var theShelf = new ShelfId(Guid.NewGuid());
+
+        await WhenReceived(new StockShelf(theShelf, 2));
+        ThenEvents(Tagged(new ShelfStocked(theShelf, 2), theShelf));
+
+        await WhenReceived(new StockShelf(theShelf, 3));
+        (await TheDcbModel<ShelfLedger>(EventTagQuery.For(theShelf).AndEventsOfType<ShelfStocked>()))!.Stocked.ShouldBe(5);
+    }
 
     [Fact]
     public async Task a_concurrent_append_inside_the_boundary_refuses_the_act()

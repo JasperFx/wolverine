@@ -922,7 +922,10 @@ public class event_model_scaffold_4832
 
         result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("TicketId.cs"));
         result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code.ShouldContain("public Guid Id { get; set; }");
-        result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code.ShouldContain("public record CloseTicketRequest;");
+        // A stub command carries the stream it identifies as a lone Id, in Guid mode too
+        result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code.ShouldContain("public record CloseTicketRequest(Guid Id);");
+        result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code.ShouldContain("public record TicketClosed;");
+        result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code.ShouldContain("public record OpenTicketRequest;");
     }
 
     [Fact]
@@ -933,8 +936,13 @@ public class event_model_scaffold_4832
         // The id: a plain record struct over a Guid, bindable from a route
         var id = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "TicketId.cs")).Code;
         id.ShouldContain("namespace Clinic;");
-        id.ShouldContain("public readonly record struct TicketId(Guid Value)");
-        id.ShouldContain("public static bool TryParse(string? text, IFormatProvider? provider, out TicketId id)");
+        id.ShouldContain("[JsonConverter(typeof(TicketId.TicketIdJsonConverter))]");
+        id.ShouldContain("public readonly record struct TicketId(Guid Value) : IParsable<TicketId>");
+        id.ShouldContain("public static TicketId Parse(string s, IFormatProvider? provider) => new(Guid.Parse(s, provider));");
+        id.ShouldContain("public static bool TryParse([NotNullWhen(true)] string? s, IFormatProvider? provider, out TicketId result)");
+        id.ShouldContain("public override string ToString() => Value.ToString();");
+        id.ShouldContain("public sealed class TicketIdJsonConverter : JsonConverter<TicketId>");
+        id.ShouldContain("public override TicketId ReadAsPropertyName(");
 
         // The aggregate
         result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code
@@ -943,14 +951,14 @@ public class event_model_scaffold_4832
         // A stream start mints it, and hands the store the Guid it wraps; the command carries no id
         var open = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
         open.ShouldContain("public record OpenTicketRequest;");
-        open.ShouldContain("public record TicketOpened(TicketId TicketId);");
+        open.ShouldContain("public record TicketOpened;");
         open.ShouldContain("//     var id = new TicketId(Guid.CreateVersion7());");
         open.ShouldContain("//     return Storage.StartStream<Ticket>(id.Value, new TicketOpened(...));");
 
-        // A command against it carries it, and so do its events
+        // A command against it carries it as a lone Id; a single-stream slice's events need not
         var close = result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code;
-        close.ShouldContain("public record CloseTicketRequest(TicketId TicketId);");
-        close.ShouldContain("public record TicketClosed(TicketId TicketId);");
+        close.ShouldContain("public record CloseTicketRequest(TicketId Id);");
+        close.ShouldContain("public record TicketClosed;");
         close.ShouldContain("public static TicketClosed? Handle(CloseTicketRequest command, [WriteModel] Ticket ticket)");
 
         // A query of it is asked by it
@@ -982,8 +990,8 @@ public class event_model_scaffold_4832
         result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code.ShouldContain("public string Id { get; set; }");
 
         var open = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
-        open.ShouldContain("public record OpenTicketRequest(string TicketId);");
-        open.ShouldContain("//     var id = command.TicketId;");
+        open.ShouldContain("public record OpenTicketRequest(string Id);");
+        open.ShouldContain("//     var id = command.Id;");
         open.ShouldContain("//     return Storage.StartStream<Ticket>(id, new TicketOpened(...));");
         open.ShouldNotContain("CreateVersion7");
 
@@ -1001,7 +1009,7 @@ public class event_model_scaffold_4832
         }));
 
         var open = result.Files.Single(x => x.RelativePath.EndsWith("OpenTicket.cs")).Code;
-        open.ShouldContain("public record OpenTicketRequest(TicketCode TicketId);");
+        open.ShouldContain("public record OpenTicketRequest(TicketCode Id);");
         open.ShouldContain("//     return Storage.StartStream<Ticket>(id.Value, new TicketOpened(...));");
         result.Files.Single(x => x.RelativePath == Path.Combine("Features", "Ticket.cs")).Code.ShouldContain("public TicketCode Id { get; set; }");
     }
@@ -1014,7 +1022,7 @@ public class event_model_scaffold_4832
         result.Files.Single(x => x.RelativePath == Path.Combine("Features", "TicketNumber.cs")).Code
             .ShouldContain("public readonly record struct TicketNumber(Guid Value)");
         result.Files.Single(x => x.RelativePath.EndsWith("CloseTicket.cs")).Code
-            .ShouldContain("public record CloseTicketRequest(TicketNumber TicketId);");
+            .ShouldContain("public record CloseTicketRequest(TicketNumber Id);");
     }
 
     [Fact]
@@ -1026,7 +1034,105 @@ public class event_model_scaffold_4832
             configure: o => o.StrongTypedIds = true);
 
         result.Files.ShouldNotContain(x => x.RelativePath.EndsWith("AppointmentId.cs"));
-        result.Files.Single(x => x.InsertInto is null).Code.ShouldContain("public record CancelAppointmentRequest;");
+        result.Files.Single(x => x.InsertInto is null).Code.ShouldContain("public record CancelAppointmentRequest(Guid Id);");
+
+        // ...and says so, once
+        var kept = result.Notices.Single(x => x.Code == ScaffoldNoticeCodes.ExistingAggregateKeepsIdentity);
+        kept.Message.ShouldContain("Appointment keeps Guid Id because the class already exists");
+        kept.Message.ShouldContain("IdentifiedBy<AppointmentId>()");
+
+        using var json = System.Text.Json.JsonDocument.Parse(SliceScaffolder.ToJson(result, "Clinic", "/out", dryRun: true));
+        json.RootElement.GetProperty("notices").EnumerateArray()
+            .ShouldContain(x => x.GetProperty("code").GetString() == ScaffoldNoticeCodes.ExistingAggregateKeepsIdentity);
+    }
+
+    [Fact]
+    public void without_the_flag_an_existing_aggregate_says_nothing_about_its_identity()
+    {
+        var result = plan(declared(m => m.Slice("CancelAppointment").TriggeredBy(TriggerKind.MessageHandler)
+            .Command("CancelAppointmentRequest").Against<Appointment>().Emits("AppointmentCancelled")));
+
+        result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.ExistingAggregateKeepsIdentity);
+    }
+
+    [Fact]
+    public void a_guid_command_against_two_aggregates_carries_an_id_per_stream_and_so_do_its_events()
+    {
+        var result = plan(declared(m => m.Slice("Transfer").TriggeredBy(TriggerKind.MessageHandler)
+            .Command("TransferRequest").Against("Wallet").Against("Vault").Emits("Transferred")));
+
+        var code = result.Files.Single(x => x.RelativePath.EndsWith("Transfer.cs")).Code;
+        code.ShouldContain("public record TransferRequest(Guid WalletId, Guid VaultId);");
+        code.ShouldContain("public record Transferred(Guid WalletId, Guid VaultId);");
+        code.ShouldContain("[WriteModel(nameof(TransferRequest.WalletId))] IEventStream<Wallet> walletStream");
+
+        // The stub carries the member, so there is nothing to warn about
+        result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.MissingStreamIdMember);
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void a_dcb_stub_carries_the_decider_models_strong_typed_tag_and_queries_by_it()
+    {
+        var result = plan(declared(m => m.Command("ReserveSlot").TriggeredBy(TriggerKind.MessageHandler)
+            .DeciderModel("SlotLedger").Emits("SlotReserved")), configure: o => o.StrongTypedIds = true);
+
+        var code = result.Files.Single(x => x.RelativePath.EndsWith("ReserveSlot.cs")).Code;
+        code.ShouldContain("public record ReserveSlot(SlotLedgerId Id);");
+        code.ShouldContain("public record SlotReserved(SlotLedgerId Id);");
+        code.ShouldContain("return EventTagQuery.For(command.Id);");
+
+        result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.DcbWithoutTagMembers);
+        result.Notices.Single(x => x.Code == ScaffoldNoticeCodes.RegisterDcbTags).Message
+            .ShouldContain("opts.Events.RegisterTagType<SlotLedgerId>();");
+        ScaffoldCompilation.Errors(result.Files).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void the_generated_strong_typed_id_is_parsable_and_a_bare_guid_in_json()
+    {
+        var result = plan(ticketing(), configure: o => o.StrongTypedIds = true);
+        var assembly = ScaffoldCompilation.Load(result.Files);
+        var idType = assembly.GetType("Clinic.TicketId")!;
+
+        var guid = Guid.NewGuid();
+        var id = Activator.CreateInstance(idType, guid)!;
+
+        // ToString is the Guid, for routes and Location headers
+        id.ToString().ShouldBe(guid.ToString());
+
+        // IParsable<T>: what Wolverine.Http's binding calls
+        idType.GetInterfaces().ShouldContain(typeof(IParsable<>).MakeGenericType(idType));
+        var tryParse = idType.GetMethod("TryParse", [typeof(string), typeof(IFormatProvider), idType.MakeByRefType()])!;
+        var arguments = new object?[] { guid.ToString(), System.Globalization.CultureInfo.InvariantCulture, null };
+        ((bool)tryParse.Invoke(null, arguments)!).ShouldBeTrue();
+        arguments[2].ShouldBe(id);
+        ((bool)tryParse.Invoke(null, new object?[] { "not a guid", null, null })!).ShouldBeFalse();
+
+        // System.Text.Json: the bare Guid, both ways, also as a dictionary key and inside a message
+        var json = System.Text.Json.JsonSerializer.Serialize(id, idType);
+        json.ShouldBe($"\"{guid}\"");
+        System.Text.Json.JsonSerializer.Deserialize(json, idType).ShouldBe(id);
+
+        var dictionaryType = typeof(Dictionary<,>).MakeGenericType(idType, typeof(int));
+        var dictionary = (System.Collections.IDictionary)Activator.CreateInstance(dictionaryType)!;
+        dictionary[id] = 3;
+        var keyed = System.Text.Json.JsonSerializer.Serialize(dictionary, dictionaryType);
+        keyed.ShouldBe($"{{\"{guid}\":3}}");
+        ((System.Collections.IDictionary)System.Text.Json.JsonSerializer.Deserialize(keyed, dictionaryType)!)[id].ShouldBe(3);
+
+        var command = Activator.CreateInstance(assembly.GetType("Clinic.CloseTicketRequest")!, id)!;
+        System.Text.Json.JsonSerializer.Serialize(command, command.GetType(),
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))
+            .ShouldBe($"{{\"id\":\"{guid}\"}}");
+
+        // ...and through Wolverine's own message serializer
+        var serializer = new Wolverine.Runtime.Serialization.SystemTextJsonSerializer(
+            Wolverine.Runtime.Serialization.SystemTextJsonSerializer.DefaultOptions());
+        var bytes = serializer.WriteMessage(command);
+        System.Text.Encoding.UTF8.GetString(bytes).ShouldContain($"\"{guid}\"");
+        System.Text.Encoding.UTF8.GetString(bytes).ShouldNotContain("\"value\"", Case.Insensitive);
+        serializer.ReadFromData(command.GetType(), new Wolverine.Envelope { Data = bytes }).ShouldBe(command);
     }
 
     [Fact]
@@ -1038,6 +1144,7 @@ public class event_model_scaffold_4832
 
         var code = result.Files.Single(x => x.RelativePath.EndsWith("Transfer.cs")).Code;
         code.ShouldContain("public record TransferRequest(WalletId WalletId, VaultId VaultId);");
+        code.ShouldContain("public record Transferred(WalletId WalletId, VaultId VaultId);");
         code.ShouldContain("[WriteModel(nameof(TransferRequest.WalletId))] IEventStream<Wallet> walletStream");
         result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.MissingStreamIdMember);
 
@@ -1094,6 +1201,24 @@ public static class ScaffoldCompilation
             .Where(x => x.Severity == DiagnosticSeverity.Error)
             .Select(x => x.ToString())
             .ToArray();
+    }
+
+    /// <summary>Compile the scaffolded files into an assembly and load it, to exercise what the scaffold wrote.</summary>
+    public static System.Reflection.Assembly Load(IEnumerable<ScaffoldFile> files)
+    {
+        var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(x => !x.IsDynamic && !string.IsNullOrEmpty(x.Location))
+            .Select(x => MetadataReference.CreateFromFile(x.Location));
+
+        var compilation = CSharpCompilation.Create($"Scaffolded{Guid.NewGuid():N}",
+            files.Select(x => CSharpSyntaxTree.ParseText(x.Code, path: x.RelativePath)),
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        using var stream = new MemoryStream();
+        var emitted = compilation.Emit(stream, cancellationToken: TestContext.Current.CancellationToken);
+        emitted.Success.ShouldBeTrue(string.Join(Environment.NewLine, emitted.Diagnostics.Where(x => x.Severity == DiagnosticSeverity.Error)));
+        return System.Reflection.Assembly.Load(stream.ToArray());
     }
 }
 
