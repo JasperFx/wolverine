@@ -87,6 +87,18 @@ public class event_model_roles_3988(AppFixture fixture) : IntegrationContext(fix
     }
 
     [Fact]
+    public void the_trigger_origin_carries_the_endpoints_route_name()
+    {
+        // [WolverinePost("/named/route", RouteName = "NamedRoute")] -- jasperfx PublisherOrigin.HttpRouteName
+        var named = HttpEventModelSource.ForChain(HttpChains.ChainFor("POST", "/named/route")!);
+        named.TriggerOrigin!.HttpRouteName.ShouldBe("NamedRoute");
+
+        // ...and an endpoint with no route name leaves it unclaimed, so a declared one can fill it in
+        var unnamed = HttpEventModelSource.ForChain(HttpChains.ChainFor("POST", "/orders/ship3")!);
+        unnamed.TriggerOrigin!.HttpRouteName.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task the_http_slices_reach_discovery_and_the_capabilities_snapshot()
     {
         var assembled = await EventModelDiscovery.AssembleAsync(Host.Services, TestContext.Current.CancellationToken);
