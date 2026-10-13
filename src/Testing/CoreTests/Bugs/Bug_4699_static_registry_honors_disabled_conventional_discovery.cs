@@ -79,4 +79,52 @@ public class Bug_4699_static_registry_honors_disabled_conventional_discovery
         ex.Message.ShouldContain(nameof(Gh4699IncludedMessage));
         ex.Message.ShouldNotContain(nameof(Gh4699ExcludedMessage));
     }
+
+    [Fact]
+    public async Task registry_handler_types_selected_by_custom_discovery_rules_survive()
+    {
+        // GH-4984. Disabling the conventions only drops Wolverine's BUILT-IN rules. The scanning path still
+        // applies the application's own CustomizeHandlerDiscovery() rules, so the registry path has to as
+        // well -- it used to discard the whole registry, and Static mode lost handlers Dynamic mode found.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ApplicationAssembly = TheAssemblyHoldingTheRegistry;
+                opts.UseStaticRegistries();
+
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.WithNameSuffix("IncludedWorker"));
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        var handlers = host.GetRuntime().Handlers;
+
+        // Selected by the custom rule, with no IncludeType()
+        handlers.ChainFor<Gh4699IncludedMessage>()!.Handlers.Single().HandlerType.ShouldBe(typeof(Gh4699IncludedWorker));
+
+        // Still in the registry, but no current rule selects it
+        handlers.CanHandle(typeof(Gh4699ExcludedMessage)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task custom_discovery_exclusions_still_apply_to_the_registry()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ApplicationAssembly = TheAssemblyHoldingTheRegistry;
+                opts.UseStaticRegistries();
+
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Discovery.CustomizeHandlerDiscovery(types =>
+                {
+                    types.Includes.WithNameSuffix("Worker");
+                    types.Excludes.WithNameSuffix("ExcludedWorker");
+                });
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        var handlers = host.GetRuntime().Handlers;
+
+        handlers.CanHandle(typeof(Gh4699IncludedMessage)).ShouldBeTrue();
+        handlers.CanHandle(typeof(Gh4699ExcludedMessage)).ShouldBeFalse();
+    }
 }
