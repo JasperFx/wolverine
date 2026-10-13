@@ -105,4 +105,52 @@ public class blue_only_partitions_do_not_ping_pong_between_blue_nodes
         blueOnlyMoves.Skip(1).ShouldAllBe(moves => moves == 0,
             $"blue-only agents moved per evaluation: {string.Join(", ", blueOnlyMoves)}");
     }
+
+    private static Uri[] database(string db, int tenants) => Enumerable.Range(1, tenants)
+        .Select(t => new Uri($"{Scheme}://marten/main/{db}/invoices/All/v1/{db}_t{t}"))
+        .ToArray();
+
+    /// <summary>
+    /// When a partition that fits nowhere does move, it goes to the accepting node carrying the FEWEST agents,
+    /// not to the lighter node in the lowest load band. Band order sent it to a node that was lighter than the
+    /// incumbent but still heavier than another one, so the next evaluation moved it a second time.
+    /// </summary>
+    [Fact]
+    public void an_overflow_partition_moves_once_straight_to_the_lightest_accepting_node()
+    {
+        // 27 agents over 3 nodes puts the ceiling at 9. db1, db2 and db3 each keep their node; "overflow" then
+        // fits under the ceiling nowhere and its incumbent is the heaviest node.
+        var db1 = database("db1", 9);
+        var db2 = database("db2", 7);
+        var db3 = database("db3", 6);
+        var overflow = database("overflow", 5);
+
+        var placement = new Dictionary<Uri, int>();
+        foreach (var uri in db1.Concat(overflow)) placement[uri] = 1;
+        foreach (var uri in db2) placement[uri] = 2;
+        foreach (var uri in db3) placement[uri] = 3;
+
+        var hosts = new List<int>();
+        for (var evaluation = 0; evaluation < 3; evaluation++)
+        {
+            var grid = new AssignmentGrid();
+
+            // Node 2 sits in the lowest load band but carries more agents than node 3.
+            double[] loads = [40, 20, 60];
+            foreach (var id in new[] { 1, 2, 3 })
+            {
+                var node = grid.WithNode(id, Guid.NewGuid());
+                node.LoadFactor = loads[id - 1];
+                node.Running(placement.Where(x => x.Value == id).Select(x => x.Key).ToArray());
+            }
+
+            grid.DistributeByGroupAffinity(Scheme, EventSubscriptionAgentFamily.DatabaseKeyOf);
+
+            placement = grid.AllAgents.ToDictionary(a => a.Uri, a => a.AssignedNode!.AssignedId);
+            overflow.Select(uri => placement[uri]).Distinct().Count().ShouldBe(1, "the partition stays whole");
+            hosts.Add(placement[overflow[0]]);
+        }
+
+        hosts.ShouldBe([3, 3, 3], $"overflow partition host per evaluation: {string.Join(", ", hosts)}");
+    }
 }

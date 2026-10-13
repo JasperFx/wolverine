@@ -250,16 +250,9 @@ with the transactional inbox or outbox. This is a little more performant, but le
 lost if held in memory when the application shuts down unexpectedly. 
 
 ### Polling
-PostgreSQL queue listeners poll on a configured interval by default. You can opt into PostgreSQL `LISTEN/NOTIFY` wakeups to reduce idle-queue delivery latency while keeping polling as the recovery path:
-
-```cs
-opts.UsePostgresqlPersistenceAndTransport(connectionString)
-    .EnableQueueNotifications();
-```
-
-The transport shares one dedicated, long-lived PostgreSQL connection across its queue listeners for each active `NpgsqlDataSource` (typically one per queue database). This connection is held from the data source's pool, so leave pool capacity for the notification session and normal dequeue queries; a pool with `Maximum Pool Size=1` cannot supply both. This adds one server connection per active data source per application process, so tenant-heavy deployments should account for that before enabling it. Notifications require a non-multiplexed Npgsql data source; Wolverine rejects `Multiplexing=true` when a listener starts with notifications enabled. Notifications only tell listeners to check the queue. A dropped notification connection or a sender that does not publish notifications falls back to polling.
-
-All applications sending to and listening on a queue should enable this option to get the latency benefit consistently. Applications that write directly to the queue tables must also publish the queue wakeup; otherwise their messages are found by polling. With PgBouncer, use session pooling for the notification connection because transaction pooling does not support `LISTEN`.
+PostgreSQL queue listeners poll their queue tables on a configured interval. You can optionally have Wolverine wake up
+idle listeners as soon as a message lands by using PostgreSQL's `LISTEN/NOTIFY` feature, but read the trade offs in
+[Queue Notifications with LISTEN/NOTIFY](#queue-notifications-with-listen-notify) before you turn that on.
 
 The default polling interval is set in the `DurabilitySettings` class and can be configured at runtime as below:
 
@@ -285,6 +278,114 @@ opts.ListenToPostgresqlQueue("inbound").PollingInterval(2.Seconds());
 ```
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
+
+### Queue Notifications with LISTEN/NOTIFY <Badge type="tip" text="6.50" />
+
+Out of the box, a PostgreSQL queue listener only finds out about new messages when it polls. When a queue is busy, that
+doesn't matter much because the listener goes right back for more as soon as it finishes a batch. When a queue is
+*idle* though, a new message sits in the table until the next poll, so your delivery latency is basically your polling
+interval. You can make the polling interval smaller, but then every listener is hitting the database more often
+whether or not there's anything there.
+
+As an alternative, you can opt into PostgreSQL `LISTEN/NOTIFY` wake ups for the queue listeners like this:
+
+<!-- snippet: sample_enabling_postgresql_queue_notifications -->
+<a id='snippet-sample_enabling_postgresql_queue_notifications'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("postgres");
+    opts.UsePostgresqlPersistenceAndTransport(connectionString!, "myapp", transportSchema: "queues")
+        .AutoProvision()
+
+        // Wake up idle queue listeners with PostgreSQL LISTEN/NOTIFY instead of
+        // waiting for the next poll. This holds one extra, long-lived database
+        // connection per database per running process!
+        .EnableQueueNotifications();
+
+    opts.PublishAllMessages().ToPostgresqlQueue("outbound");
+    opts.ListenToPostgresqlQueue("inbound");
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L72-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_postgresql_queue_notifications' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With that turned on, every time Wolverine puts a message into a PostgreSQL queue table -- a direct send, a move from
+the outbox, or a scheduled message coming due -- it also issues a `pg_notify()` for that queue. The listeners for that
+queue get woken up and immediately poll. The notification is *only* a wake up call. It doesn't carry the message, and
+polling still runs on its normal schedule as a safety net, so a lost notification just means that message gets picked
+up by the next regular poll like it would have been anyway.
+
+This feature is completely off by default, and honestly, it should stay off unless you know you need it.
+
+#### The Advantages
+
+* **Much lower latency on idle queues.** In local benchmarking with a 750ms polling interval, the median time from
+  sending to handling a message on an idle queue dropped from about 650ms to under 3ms.
+* **You can poll less often.** Since new messages wake the listeners up anyway, you can afford a longer
+  `PollingInterval()` on your queues, which means less chatter against your database when things are quiet.
+* **It's safe to turn on and off.** There's no schema change, and polling remains the actual delivery mechanism. If the
+  notification connection drops, Wolverine logs a warning, keeps polling, and reconnects in the background.
+
+#### The Downsides
+
+::: warning
+The biggest cost of this feature is **database connections**. Wolverine holds one dedicated, long-lived connection
+open for `LISTEN` for *every* PostgreSQL database that has active queue listeners, in *every* running process of your
+application. That connection is never returned to the pool while the application is running.
+:::
+
+Do the math for your own system before you enable this:
+
+* A single application running 4 nodes against one database uses 4 extra connections. That's probably fine.
+* A multi-tenanted application with a database per tenant gets one notification connection per tenant database per
+  node. 50 tenant databases across 6 nodes is **300 additional connections** that are open all the time, whether or
+  not any messages are moving.
+
+Those connections count against PostgreSQL's `max_connections` and against whatever connection limit your managed
+PostgreSQL provider puts on you, and that's often a much tighter limit than you'd think on the smaller cloud tiers.
+The notification connection is also taken out of the same Npgsql connection pool that Wolverine uses for everything
+else, so it permanently reduces the connections available for actual message handling by one. A data source with
+`Maximum Pool Size=1` simply cannot work with this feature.
+
+::: tip
+The notification connections show up in `pg_stat_activity` with an `application_name` of
+`wolverine_qnotify_{transport schema}`, so you can easily count how many you're really using:
+
+```sql
+select count(*) from pg_stat_activity where application_name like 'wolverine_qnotify_%';
+```
+:::
+
+A few more things to be aware of:
+
+* **Sending gets a little slower.** Every message written to a queue table costs an extra `pg_notify()` round trip to
+  the database. That was measured at about 8.6% lower send throughput in a local, single sender benchmark. Your
+  mileage will vary.
+* **NOTIFY doesn't scale forever.** PostgreSQL serializes the commits of every transaction that issues a `NOTIFY`
+  across the whole database server with a global lock. With a lot of processes sending messages at a high rate, that
+  lock can become a real bottleneck. And for what it's worth, a queue that busy is already being polled constantly, so
+  it gets very little benefit from notifications in the first place.
+* **Connection poolers.** `LISTEN` requires a dedicated session, so PgBouncer, RDS Proxy, or anything else running in
+  *transaction* pooling mode won't deliver notifications. You'll need session pooling (or a direct connection) for
+  the notification connection, and that pins a server connection for its whole lifetime.
+* **No Npgsql multiplexing.** Wolverine refuses to start a listener with notifications enabled on a data source using
+  `Multiplexing=true`, because `LISTEN` can't work on a multiplexed connection.
+* **Everybody has to opt in.** Notifications are published by the *sender*. If one application sends to the queue with
+  this option turned on and another sends without it, the second application's messages are only found by polling.
+  Likewise, anything outside of Wolverine that writes directly into the queue tables needs to call
+  `pg_notify('wolverine_queue_wakeup', '{transport schema}.{queue table name}')` itself to get the faster delivery.
+
+#### When Should You Use This?
+
+My advice is to reach for this when you've got a small number of databases, queues that sit idle a lot of the time,
+and a real need for low latency on those queues -- think of request/reply style workflows or user facing operations
+running through a PostgreSQL queue. If you're running a lot of tenant databases, are tight on database connections,
+or your queues are busy all the time anyway, leave this off and tune `PollingInterval()` instead.
 
 ### Deterministic Queue Ordering
 

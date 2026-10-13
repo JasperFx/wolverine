@@ -36,10 +36,6 @@ public class DocumentationSamples
                 // Optional: persist a sequence on queue rows so timestamp ties have a stable order.
                 .EnableDeterministicQueueOrdering()
 
-                // Optional: use PostgreSQL notifications to wake idle queue listeners. This holds
-                // one connection per active Npgsql data source for this application process.
-                .EnableQueueNotifications()
-
                 // Optional that may be helpful in testing, but probably bad
                 // in production!
                 .AutoPurgeOnStartup();
@@ -68,6 +64,30 @@ public class DocumentationSamples
         using var host = builder.Build();
         await host.StartAsync();
 
+        #endregion
+    }
+
+    public static async Task EnablingQueueNotifications()
+    {
+        #region sample_enabling_postgresql_queue_notifications
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("postgres");
+            opts.UsePostgresqlPersistenceAndTransport(connectionString!, "myapp", transportSchema: "queues")
+                .AutoProvision()
+
+                // Wake up idle queue listeners with PostgreSQL LISTEN/NOTIFY instead of
+                // waiting for the next poll. This holds one extra, long-lived database
+                // connection per database per running process!
+                .EnableQueueNotifications();
+
+            opts.PublishAllMessages().ToPostgresqlQueue("outbound");
+            opts.ListenToPostgresqlQueue("inbound");
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
         #endregion
     }
 }
