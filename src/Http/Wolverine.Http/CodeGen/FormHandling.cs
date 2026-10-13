@@ -43,18 +43,8 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
         {
             writer.Write($"BLOCK:foreach (var {Variable.Name}Value in httpContext.Request.Form[\"{Variable.Name}\"])");
 
-            if (_collectionElementType.IsEnum)
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Name}Value, true, out var {Variable.Name}ValueParsed))");
-            }
-            else if (_collectionElementType.IsBoolean())
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Name}Value, out var {Variable.Name}ValueParsed))");
-            }
-            else
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Name}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Name}ValueParsed))");
-            }
+            // Enums parse case-insensitively, matching the scalar binder
+            writer.Write($"BLOCK:if ({ParsingCode.TryParse(_collectionElementType!, $"{Variable.Name}Value", $"var {Variable.Name}ValueParsed")})");
 
             writer.Write($"{Variable.Usage}.Add({Variable.Name}ValueParsed);");
             writer.FinishBlock(); // parsing block
@@ -144,20 +134,8 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
             
             writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Form[\"{Variable.Usage}\"])");
 
-            if (elementType!.IsEnum)
-            {
-                // Case-insensitive for the same reason as ParsedArrayQueryStringValue -- the scalar
-                // and List<TEnum> form binders already pass ignoreCase.
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, true, out var {Variable.Usage}ValueParsed))");
-            }
-            else if (elementType.IsBoolean())
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
-            }
-            else
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}ValueParsed))");
-            }
+            // Enums parse case-insensitively, matching the scalar binder
+            writer.Write($"BLOCK:if ({ParsingCode.TryParse(elementType!, $"{Variable.Usage}Value", $"var {Variable.Usage}ValueParsed")})");
 
             writer.Write($"{Variable.Usage}_List.Add({Variable.Usage}ValueParsed);");
             writer.FinishBlock(); // parsing block

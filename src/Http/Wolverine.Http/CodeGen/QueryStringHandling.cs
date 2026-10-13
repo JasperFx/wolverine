@@ -90,18 +90,8 @@ internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
         {
             writer.Write($"BLOCK:foreach (var {Variable.Name}Value in httpContext.Request.Query[\"{Variable.Name}\"])");
 
-            if (_collectionElementType.IsEnum)
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Name}Value, true, out var {Variable.Name}ValueParsed))");
-            }
-            else if (_collectionElementType.IsBoolean())
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Name}Value, out var {Variable.Name}ValueParsed))");
-            }
-            else
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Name}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Name}ValueParsed))");
-            }
+            // Enums parse case-insensitively, matching the scalar binder
+            writer.Write($"BLOCK:if ({ParsingCode.TryParse(_collectionElementType!, $"{Variable.Name}Value", $"var {Variable.Name}ValueParsed")})");
 
             writer.Write($"{Variable.Usage}.Add({Variable.Name}ValueParsed);");
             writer.FinishBlock(); // parsing block

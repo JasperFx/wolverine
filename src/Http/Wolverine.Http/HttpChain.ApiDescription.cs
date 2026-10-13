@@ -405,7 +405,7 @@ public partial class HttpChain
     {
         foreach (var headerGroup in _headerVariables.GroupBy(x => x.Name))
         {
-            var variableType = headerGroup.First().VariableType;
+            var variableType = describedParameterType(headerGroup.First().VariableType);
             var parameterDescription = new ApiParameterDescription
             {
                 Name = headerGroup.Key,
@@ -423,12 +423,13 @@ public partial class HttpChain
     {
         foreach (var querystringVariable in _querystringVariables)
         {
+            var variableType = describedParameterType(querystringVariable.VariableType);
             var parameterDescription = new ApiParameterDescription
             {
                 Name = querystringVariable.Name,
-                ModelMetadata = new EndpointModelMetadata(querystringVariable.VariableType),
+                ModelMetadata = new EndpointModelMetadata(variableType),
                 Source = BindingSource.Query,
-                Type = querystringVariable.VariableType,
+                Type = variableType,
                 IsRequired = false
             };
 
@@ -440,17 +441,18 @@ public partial class HttpChain
     {
         foreach (var formVariable in _formValueVariables)
         {
+            var variableType = describedParameterType(formVariable.VariableType);
             var parameterDescription = new ApiParameterDescription
             {
                 Name = formVariable.Name,
-                ModelMetadata = new EndpointModelMetadata(formVariable.VariableType),
+                ModelMetadata = new EndpointModelMetadata(variableType),
                 Source = BindingSource.Form,
                 ParameterDescriptor = new ParameterDescriptor
                 {
                     Name = formVariable.Name,
-                    ParameterType = formVariable.VariableType
+                    ParameterType = variableType
                 },
-                Type = formVariable.VariableType,
+                Type = variableType,
                 IsRequired = false
             };
 
@@ -503,11 +505,11 @@ public partial class HttpChain
         // aggregate's identity type for an unconstrained {id}, which is domain knowledge Wolverine.Http
         // cannot infer from the method signatures. Then, finally, string. See GH-3380 and GH-3420.
         // Both OpenAPI stacks schematize from .Type.
-        var parameterType = variable?.VariableType
+        var parameterType = describedParameterType(variable?.VariableType
                             ?? typeFromBindingChain(routeParameter.Name)
                             ?? TypeFromRouteConstraint(routeParameter)
                             ?? declaredRouteParameterType(routeParameter.Name)
-                            ?? typeof(string);
+                            ?? typeof(string));
 
         var parameter = new ApiParameterDescription
         {
@@ -607,6 +609,35 @@ public partial class HttpChain
         var boundName = attribute?.Name.IsNotEmpty() == true ? attribute.Name : memberName;
 
         return boundName != null && boundName.EqualsIgnoreCase(routeName);
+    }
+
+    // GH-4978: a single-value wrapper like record struct OrderId(Guid Value) binds from its inner value, so that
+    // is what the parameter is on the wire. Keeps the nullable or array shape around it.
+    private static Type describedParameterType(Type type)
+    {
+        if (type.IsArray && type.GetElementType() is { } elementType)
+        {
+            var describedElement = describedParameterType(elementType);
+            return describedElement == elementType ? type : describedElement.MakeArrayType();
+        }
+
+        if (type.IsNullable())
+        {
+            var inner = type.GetInnerTypeFromNullable();
+            var describedInner = describedParameterType(inner);
+            if (describedInner == inner) return type;
+
+            return describedInner.IsValueType ? typeof(Nullable<>).MakeGenericType(describedInner) : describedInner;
+        }
+
+        if (type.IsGenericType && type.GetGenericArguments() is [var collectionElement] &&
+            typeof(IEnumerable<>).MakeGenericType(collectionElement).IsAssignableFrom(type))
+        {
+            var describedElement = describedParameterType(collectionElement);
+            return describedElement == collectionElement ? type : describedElement.MakeArrayType();
+        }
+
+        return CodeGen.SingleValueWrapper.TryFind(type, out var wrapper) ? wrapper.InnerType : type;
     }
 
     private static bool isBindableRouteType(Type type)
