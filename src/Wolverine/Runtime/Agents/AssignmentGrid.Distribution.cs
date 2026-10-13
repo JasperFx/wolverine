@@ -498,6 +498,9 @@ public partial class AssignmentGrid
         // heartbeats, so a partition that fits nowhere -- the previous version on the blue nodes once the shared
         // agents push them past a ceiling computed over the whole fleet -- moved on every evaluation without
         // ever fitting. A move now always lands somewhere lighter than it left, so this settles.
+        // The lighter nodes are ranked by count FIRST, not by load band as InCapacityOrder would: band order
+        // could pick a lighter node that still carries more than another accepting one, and the next
+        // evaluation would then move the partition again. Going straight to the lightest settles in one move.
         Node? overflowHost(Node? incumbent, List<Node> placeable)
         {
             if (incumbent == null || !placeable.Contains(incumbent))
@@ -505,7 +508,12 @@ public partial class AssignmentGrid
                 return null;
             }
 
-            return InCapacityOrder(placeable.Where(n => n.IsAcceptingAgents && load[n] < load[incumbent]), n => load[n])
+            return placeable
+                .Where(n => n.IsAcceptingAgents && load[n] < load[incumbent])
+                .OrderBy(n => load[n])
+                .ThenBy(LoadBandOf)
+                .ThenBy(n => n.IsLeader)
+                .ThenBy(n => n.AssignedId)
                 .FirstOrDefault() ?? incumbent;
         }
 
