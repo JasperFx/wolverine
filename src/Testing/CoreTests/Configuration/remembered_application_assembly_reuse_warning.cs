@@ -63,6 +63,29 @@ public class remembered_application_assembly_reuse_warning
     }
 
     [Fact]
+    public async Task the_first_host_built_by_a_helper_in_another_assembly_pins_the_assembly_that_registered_it()
+    {
+        // The order-dependent half of the test above, made deterministic. UseWolverine() defers into a callback
+        // that runs during Build(), and that is where JasperFx's AddJasperFx() pins the process-wide application
+        // assembly from its own stack walk. Built by a helper in Module1, that walk resolved Module1 -- so when
+        // this was the FIRST host in the process, every later host scanned Module1 for handlers and 209 CoreTests
+        // failed, but only in checkouts whose test order put it first.
+        using var pin = ProcessWideApplicationAssemblyPin.AsFirstHost();
+
+        var builder = Host.CreateDefaultBuilder().UseWolverine();
+        using var host = HostBuiltFromAnotherAssembly.Build(builder);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+
+        JasperFxOptions.RememberedApplicationAssembly!.GetName().Name.ShouldBe(ThisTestAssembly.GetName().Name);
+        options.ApplicationAssembly!.GetName().Name.ShouldBe(ThisTestAssembly.GetName().Name);
+        options.ApplicationAssemblyReuseWarning.ShouldBeNull();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public void warns_when_the_adopted_assembly_diverges_from_where_the_host_registered()
     {
         var options = new WolverineOptions();
