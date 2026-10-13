@@ -1,7 +1,39 @@
+using JasperFx.Core.Reflection;
+using Wolverine.Runtime;
+
 namespace Wolverine;
 
 public static class MessageBusExtensions
 {
+    /// <summary>
+    ///     Send a copy of this message to every node in the running Wolverine cluster, where each
+    ///     node, this one included, handles it once with its own handler for the message type.
+    ///     Peers receive it on their node control endpoint. This node handles it on a local queue,
+    ///     and never forwards it to any other endpoint the message type is routed to. Outside of
+    ///     <see cref="DurabilityMode.Balanced"/> mode there is no cluster, so only this node handles it.
+    ///     Delivery to other nodes is not durable, and a node with no handler for the message type
+    ///     discards it.
+    /// </summary>
+    /// <param name="bus"></param>
+    /// <param name="message"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <exception cref="NotSupportedException">The <see cref="IMessageBus"/> is not one of Wolverine's own implementations</exception>
+    public static ValueTask BroadcastToAllNodesAsync<T>(this IMessageBus bus, T message,
+        DeliveryOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(bus);
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (bus is IBroadcastToAllNodes broadcaster)
+        {
+            return broadcaster.BroadcastToAllNodesAsync(message, options);
+        }
+
+        throw new NotSupportedException(
+            $"{nameof(BroadcastToAllNodesAsync)}() requires one of Wolverine's own message bus implementations, and {bus.GetType().FullNameInCode()} is not one. Use {nameof(TestMessageContext)} as the test double for unit tests.");
+    }
+
     /// <summary>
     ///     Publish a sequence of messages to all known subscribers in the order in which
     ///     the messages are enumerated. Messages without known subscribers are ignored.
