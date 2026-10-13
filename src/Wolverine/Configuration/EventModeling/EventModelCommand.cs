@@ -92,6 +92,72 @@ public static class WolverineEventModelExport
         return EventModelSetDescriptor.For(name, aligned);
     }
 
+    /// <summary>
+    ///     GH-5004 (jasperfx#997): read the specification manifest out of each spec assembly handed to
+    ///     <c>--specs</c>. A path that does not exist throws <see cref="FileNotFoundException" /> naming it; an
+    ///     assembly that carries no manifest is only reported through <paramref name="warn" />, since a spec
+    ///     project built before its generator wrote one is ordinary rather than a mistake.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "CLI / diagnostic path, not dispatch; loading the spec assembly and reading its generated manifest is reflection by design.")]
+    public static IReadOnlyList<SpecificationBindingDescriptor> LoadSpecifications(IEnumerable<string> specAssemblyPaths,
+        Action<string>? warn = null)
+    {
+        var bindings = new List<SpecificationBindingDescriptor>();
+        foreach (var path in specAssemblyPaths)
+        {
+            var loaded = SpecificationManifest.Load(path);
+            if (loaded.Count == 0)
+            {
+                warn?.Invoke($"The assembly at '{Path.GetFullPath(path)}' carries no specification manifest, so it links no specifications.");
+            }
+
+            bindings.AddRange(loaded);
+        }
+
+        return bindings;
+    }
+
+    /// <summary>
+    ///     GH-5004: join <paramref name="specifications" /> onto every model in the set with
+    ///     <see cref="EventModelSpecifications.Link" />, or onto only the one named <paramref name="modelName" />
+    ///     when the caller selected one. Run before the set is collapsed or a model chosen, so what is rendered
+    ///     or exported is what was linked.
+    /// </summary>
+    public static EventModelSetDescriptor LinkSpecifications(EventModelSetDescriptor set,
+        IReadOnlyList<SpecificationBindingDescriptor> specifications, string? modelName = null)
+    {
+        if (specifications.Count == 0) return set;
+
+        return set with
+        {
+            Models = set.Models
+                .Select(x => modelName.IsEmpty() || x.Name == modelName ? EventModelSpecifications.Link(x, specifications) : x)
+                .ToList()
+        };
+    }
+
+    /// <summary>
+    ///     The <c>--specs</c> step both model commands share: load and link, or say why not and fail.
+    /// </summary>
+    internal static bool TryLinkSpecifications(ref EventModelSetDescriptor set, IReadOnlyList<string>? specAssemblyPaths,
+        string? modelName)
+    {
+        if (specAssemblyPaths is not { Count: > 0 }) return true;
+
+        try
+        {
+            var specifications = LoadSpecifications(specAssemblyPaths, Console.WriteLine);
+            set = LinkSpecifications(set, specifications, modelName);
+            return true;
+        }
+        catch (FileNotFoundException e)
+        {
+            Console.WriteLine(e.Message);
+            return false;
+        }
+    }
+
     /// <summary>Serialize a model with <see cref="SerializerOptions" />.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "CLI / diagnostic path, not dispatch; the descriptor tree is bounded and reflection-serialised like ServiceCapabilities.")]
@@ -136,6 +202,14 @@ public class EventModelInput : NetCoreInput
     [Description("URL of a monitor to PUT the assembled Event Model to; composes with --json")]
     [FlagAlias("url", 'u')]
     public string? UrlFlag { get; set; }
+
+    /// <summary>
+    ///     GH-5004: link slices to their specifications from each spec assembly's manifest. Several spec
+    ///     projects go after one flag: <c>--specs a.dll b.dll</c>.
+    /// </summary>
+    [Description("Paths to specification assemblies whose manifests link slices to their specifications")]
+    [FlagAlias("specs", true)]
+    public List<string> SpecsFlag { get; set; } = new();
 
     /// <summary>Where the Event Model goes when neither <c>--json</c> nor <c>--url</c> is supplied.</summary>
     public const string DefaultJsonFile = "event-model.json";
@@ -217,6 +291,10 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
             _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
             var set = await WolverineEventModelExport.AssembleSetAsync(host.Services);
+            if (!WolverineEventModelExport.TryLinkSpecifications(ref set, input.SpecsFlag, input.NameFlag))
+            {
+                return false;
+            }
 
             // GH-4424. --name SELECTS which model to export rather than renaming a fold of all of them,
             // and an unnamed export of a host with several no longer picks a survivor in silence.

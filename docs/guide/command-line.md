@@ -345,6 +345,22 @@ dotnet run -- event-model --json ./docs/orders.json
 dotnet run -- event-model --json ./out.json --name Orders
 ```
 
+### Linking slices to their specifications
+
+`--specs` on either command (GH-5004) hands it one or more built specification assemblies. Each carries a
+manifest Bobcat's source generator wrote at compile time, listing every specification and the command it sends,
+and each slice handling that command is linked to those specifications before the model is rendered or
+exported. A command several slices handle is not guessed at: it shows up as an `UnresolvedSpecification`
+hotspot. With `--model` (or `--name` on `event-model`) only the selected model is linked.
+
+```bash
+dotnet run -- describe-event-model --specs ../Orders.Specs/bin/Debug/net10.0/Orders.Specs.dll
+dotnet run -- event-model --specs ../Orders.Specs/bin/Debug/net10.0/Orders.Specs.dll ../Billing.Specs/bin/Debug/net10.0/Billing.Specs.dll
+```
+
+Several spec assemblies go after a single `--specs`. A path that does not exist fails the command; an assembly
+with no manifest is reported and skipped.
+
 ### Publishing to a monitor
 
 `--url` PUTs the assembled descriptor to a monitor instead of writing it to a file, which collapses the
