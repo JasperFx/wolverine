@@ -54,6 +54,15 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
     }
 
+    /// <summary>
+    ///     Enables PostgreSQL LISTEN/NOTIFY wakeups for native queues. This holds one dedicated
+    ///     PostgreSQL connection per active Npgsql data source (typically one per queue database) and
+    ///     application process. Queue polling remains enabled as a recovery path. Configure before startup.
+    /// </summary>
+    public bool EnableQueueNotifications { get; set; }
+
+    internal PostgresqlQueueNotificationManager QueueNotificationManager { get; } = new();
+
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
         // This is important, let the Postgres queues get built automatically

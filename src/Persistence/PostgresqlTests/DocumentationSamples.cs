@@ -36,6 +36,10 @@ public class DocumentationSamples
                 // Optional: persist a sequence on queue rows so timestamp ties have a stable order.
                 .EnableDeterministicQueueOrdering()
 
+                // Optional: use PostgreSQL notifications to wake idle queue listeners. This holds
+                // one connection per active Npgsql data source for this application process.
+                .EnableQueueNotifications()
+
                 // Optional that may be helpful in testing, but probably bad
                 // in production!
                 .AutoPurgeOnStartup();

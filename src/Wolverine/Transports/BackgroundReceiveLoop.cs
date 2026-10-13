@@ -20,6 +20,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     private readonly ILogger _logger;
     private readonly Uri _uri;
     private readonly CancellationTokenSource _cancellation;
+    private readonly SemaphoreSlim _wakeSignal = new(0, 1);
 
     private Task? _task;
     private volatile int _consecutiveFailures;
@@ -62,6 +63,26 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     public CancellationToken Token => _cancellation.Token;
 
     public int ConsecutiveFailures => _consecutiveFailures;
+
+    /// <summary>
+    ///     Wake an idle polling loop so it can check for work immediately. Multiple wakeups are
+    ///     coalesced because the signal only means "check the queue", not that one message exists.
+    /// </summary>
+    public void Wake()
+    {
+        try
+        {
+            _wakeSignal.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // There is already a pending wakeup.
+        }
+        catch (ObjectDisposedException)
+        {
+            // A late notification raced with listener teardown.
+        }
+    }
 
     public ReceiveLoopStatus ReceiveLoopStatus => _status;
 
@@ -128,7 +149,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
 
                     if (!didWork)
                     {
-                        await Task.Delay(_idleDelay, _cancellation.Token).ConfigureAwait(false);
+                        await _wakeSignal.WaitAsync(_idleDelay, _cancellation.Token).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
@@ -271,6 +292,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
             }
         }
 
+        _wakeSignal.Dispose();
         _cancellation.Dispose();
     }
 }

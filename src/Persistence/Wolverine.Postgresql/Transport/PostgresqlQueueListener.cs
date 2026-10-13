@@ -32,6 +32,8 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
     private readonly bool _deterministicQueueOrdering;
+    private readonly string _queueNotificationKey;
+    private IAsyncDisposable? _notificationRegistration;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -46,11 +48,12 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
         _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
 
-        _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName);
+        _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName, _logger);
 
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
+        _queueNotificationKey = PostgresqlQueueNotification.Key(queue);
 
         // DELETE ... RETURNING does not preserve the ordering of the selected rows. Always reapply
         // timestamp order; the sequence tie-breaker is only referenced when its schema is enabled.
@@ -92,6 +95,7 @@ SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{
     public async ValueTask DisposeAsync()
     {
         await _cancellation.CancelAsync();
+        await releaseNotificationRegistrationAsync();
         if (_loop != null)
         {
             await _loop.DisposeAsync();
@@ -104,6 +108,7 @@ SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{
     public async ValueTask StopAsync()
     {
         await _cancellation.CancelAsync();
+        await releaseNotificationRegistrationAsync();
 
         if (_loop != null)
         {
@@ -202,6 +207,12 @@ SELECT count(*) FROM moved");
 
             count = (long)(await batch
                 .ExecuteScalarAsync(cancellationToken))!;
+
+            if (count > 0 && _queue.Parent.EnableQueueNotifications)
+            {
+                await PostgresqlQueueNotification.PublishAsync(conn, _queueNotificationKey, _logger,
+                    cancellationToken);
+            }
         }
         finally
         {
@@ -378,8 +389,24 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
 
+        if (_queue.Parent.EnableQueueNotifications)
+        {
+            _notificationRegistration = await _queue.Parent.QueueNotificationManager.RegisterAsync(
+                _dataSource, _databaseName ?? "default", _queueNotificationKey, () => _loop?.Wake(), _logger,
+                _cancellation.Token);
+        }
+
         _loop = new BackgroundReceiveLoop(Address, _logger, pollOnceAsync, _cancellation.Token, _pollingInterval);
         _loop.Start();
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);
+    }
+
+    private async ValueTask releaseNotificationRegistrationAsync()
+    {
+        var registration = Interlocked.Exchange(ref _notificationRegistration, null);
+        if (registration != null)
+        {
+            await registration.DisposeAsync();
+        }
     }
 }
