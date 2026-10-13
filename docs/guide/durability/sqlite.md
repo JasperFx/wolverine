@@ -259,8 +259,18 @@ other than `main` produced SQL against a database that was never attached and fa
 [GH-3943](https://github.com/JasperFx/wolverine/issues/3943).
 :::
 
-The SQLite transport's queue tables are named `wolverine_queue_<name>` and take no prefix — they are named by
-the transport rather than by the message store.
+The SQLite transport's queue tables are named `wolverine_queue_<name>` by default. When using the Fisher
+integration, explicitly setting `FisherIntegration.TransportSchemaName` prefixes both the ready and scheduled
+queue tables. For example, `"reporting"` gives `reporting_wolverine_queue_orders` and
+`reporting_wolverine_queue_orders_scheduled`. Leaving the setting alone or setting it to SQLite's built-in
+`main` schema preserves the legacy names.
+
+This prefix lets separate Wolverine transport table sets share one SQLite file. It only affects native SQLite
+queue table names and does not change SQLite's single-writer limit; use `MessageStorageSchemaName` to prefix
+Wolverine's durability tables as well. If you previously
+set `TransportSchemaName` while it was inert, upgrading makes that setting take effect and starts using new
+queue table names. Move any pending messages from the old tables before upgrading; Wolverine does not migrate
+queue contents between names automatically. All senders and listeners for a queue must use the same prefix.
 
 `UseSqlitePersistenceAndTransport()` is intentionally connection-string only:
 

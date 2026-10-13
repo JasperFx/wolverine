@@ -42,9 +42,8 @@ internal class SqliteQueueSender : ISqliteQueueSender
         Destination = SqliteQueue.ToUri(queue.Name, databaseName);
 
         // GH-3943: the durability tables this sender drains carry the message store's schema name as
-        // a prefix on SQLite. The queue tables themselves are named by the transport and take no
-        // prefix, which is why they come off the queue rather than through this. A null Store means
-        // no SQLite persistence is registered at all, in which case the unprefixed default is right.
+        // a prefix on SQLite. Queue table names are resolved by the queue from the transport's
+        // optional prefix. A null Store means there are no prefixed durability tables to drain.
         _outgoingTable = queue.Parent.Store?.TableNameFor(DatabaseConstants.OutgoingTable)
                             ?? DatabaseConstants.OutgoingTable;
         var incomingTable = queue.Parent.Store?.TableNameFor(DatabaseConstants.IncomingTable)

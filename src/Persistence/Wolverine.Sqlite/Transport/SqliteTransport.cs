@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Spectre.Console;
 using Weasel.Core;
 using Wolverine.Configuration;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -15,6 +16,8 @@ namespace Wolverine.Sqlite.Transport;
 public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfiguresRuntime
 {
     public const string ProtocolName = "sqlite";
+
+    private string? _queueTablePrefix;
 
     public SqliteTransport() : base(ProtocolName, "SQLite Transport", ["sqlite"])
     {
@@ -74,6 +77,27 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
     ///     Configure it before startup; changing it at runtime is not supported.
     /// </summary>
     public bool EnableDeterministicQueueOrdering { get; set; }
+
+    /// <summary>
+    ///     An optional prefix for the native SQLite queue and scheduled-message tables. The
+    ///     default is no prefix, which preserves the historical table names. The built-in SQLite
+    ///     schema name <c>main</c> also means no prefix. Configure this before startup; changing it
+    ///     after queue tables have been materialized is not supported.
+    /// </summary>
+    public string? QueueTablePrefix
+    {
+        get => _queueTablePrefix;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(QueueTablePrefix));
+            _queueTablePrefix = value?.ToLowerInvariant();
+        }
+    }
+
+    internal string QueueTableNameFor(string tableName)
+    {
+        return TablePrefixing.Apply(QueueTablePrefix, tableName);
+    }
 
     protected override IEnumerable<SqliteQueue> endpoints()
     {

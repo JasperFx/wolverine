@@ -105,14 +105,17 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
-        // GH-3884's transport schema stamping has no Fisher equivalent, and deliberately so:
-        // SQLite has no schemas. Wolverine.Sqlite's transport places its queue tables in the one
-        // database file, so there is nothing here for TransportSchemaName to align — it is inert on
-        // Fisher and kept only for source parity with the Marten and Polecat integrations.
-        // MessageStorageSchemaName does steer where the SqliteMessageStore's tables go, and GH-3943
-        // made it the naming prefix this comment always claimed it was: it reached the store as a
-        // `schema.table` qualifier instead, so any value other than "main" named a database nothing
-        // had ATTACHed and the host died on the first envelope write with "no such table".
+        // GH-3947: SQLite has no schemas, so an explicitly configured transport schema name is
+        // applied as a prefix to native SQLite queue table names. Do not stamp the transport with
+        // the integration's default value: leaving the setting alone must preserve the historical
+        // unprefixed table names.
+        if (_transportSchemaNameIsExplicit)
+        {
+            foreach (var transport in options.Transports.OfType<SqliteTransport>())
+            {
+                transport.QueueTablePrefix = TransportSchemaName;
+            }
+        }
 
         options.Policies.Add<FisherOpPolicy>();
 
@@ -131,18 +134,19 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
     internal FisherEventRouter EventRouter { get; } = new();
 
     private string _transportSchemaName = "wolverine_queues";
+    private bool _transportSchemaNameIsExplicit;
 
     /// <summary>
-    /// Present for source parity with the Marten and Polecat integrations. <b>It has no effect on a
-    /// Fisher host</b>: a Fisher store is a single SQLite file and SQLite has no schemas, so the
-    /// SQLite transport names its queue tables <c>wolverine_queue_&lt;name&gt;</c> in that one file
-    /// and there is no schema for this to steer. Nothing reads it.
+    ///     Prefixes native SQLite transport queue tables when explicitly set. SQLite has no
+    ///     schemas, so <c>"reporting"</c> gives queue tables names such as
+    ///     <c>reporting_wolverine_queue_orders</c>. Leaving this setting alone, or setting it to
+    ///     SQLite's built-in <c>main</c> schema name, preserves the historical unprefixed queue names.
     /// </summary>
     /// <remarks>
-    /// GH-3884 removed the equivalent setters from <c>SqlitePersistenceExpression</c> for the same
-    /// reason. See also GH-3943, where setting this alongside
-    /// <see cref="MessageStorageSchemaName"/> is how the reporter arrived at the message storage bug
-    /// — this half was simply inert.
+    ///     This affects the native SQLite transport only when it is configured. If you previously
+    ///     set this property while it was inert, enabling it changes which queue tables Wolverine
+    ///     uses; coordinate the prefix across queue senders and listeners, and move any pending
+    ///     messages from the old tables before upgrading.
     /// </remarks>
     public string TransportSchemaName
     {
@@ -151,6 +155,7 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
         {
             SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
             _transportSchemaName = value.ToLowerInvariant();
+            _transportSchemaNameIsExplicit = true;
         }
     }
 
