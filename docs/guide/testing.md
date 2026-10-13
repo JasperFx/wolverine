@@ -640,8 +640,10 @@ A few things to know:
 * The act carries its tenant (`LastAct.TenantId`): the tenant an HTTP endpoint's tenant detection found, or the entry
   message's, which `WhenReceived(message, options: new DeliveryOptions { TenantId = "red" })` sets. On a store with
   conjoined tenancy (one database, the tenant as a column) the step looks for the act's events within that tenant only.
-* For now, the step only works against a single database. A store that spreads its tenants across several databases
-  is refused with a clear message.
+* On a store that gives each tenant its own database, the step waits on and reads the act's tenant's database. It
+  asks the store which database that is through `IEventStore.FindDatabaseForTenantAsync()`, and if the store can't
+  say yet, it just waits on every database before reading through the tenant. An act that carried no tenant at all is
+  looked for in every database. That's still exact, because a correlation id only ever belongs to one act.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
   endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).

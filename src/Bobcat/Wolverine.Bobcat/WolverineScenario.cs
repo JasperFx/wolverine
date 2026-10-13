@@ -661,7 +661,9 @@ public class WolverineScenario : CritterStackScenario
     /// publishes a message has to pass the event's <c>CorrelationId</c> on itself.
     /// </para>
     /// <para>
-    /// One database only, for now: a store that spreads its tenants across several databases is refused.
+    /// The act's tenant -- the entry message's <see cref="Envelope.TenantId" /> or an HTTP endpoint's tenant detection --
+    /// scopes the search: within one database on a conjoined store, and to the tenant's own database on a store that
+    /// spreads its tenants across several. An act with no tenant on such a store is looked for in every database.
     /// </para>
     /// </remarks>
     public Task ThenEventuallyCaused(params object[] events)
@@ -700,29 +702,29 @@ public class WolverineScenario : CritterStackScenario
         // or the store a view from In<T>() is pinned to
         var store = await storeForAsync(text, null, expected);
 
-        // GH-4939: one database only. A tenant's database is a follow-up (the act's tenant, from the request or
-        // the entry message, and a store-agnostic lookup from a tenant to its database).
-        // GH-4962 phase 1: the act's tenant, from the act. On one database (conjoined tenancy) the query is filtered
-        // by it; a store that spreads its tenants across databases is still refused, until JasperFx can look up a
-        // tenant's database on every store (phase 2)
+        // GH-4962: the act's tenant, from the act -- the entry message's envelope or an HTTP endpoint's tenant
+        // detection. On one database (conjoined tenancy) the query is filtered by it (phase 1). On a store that spreads
+        // its tenants across databases it picks the database (phase 2): the wait asks the store which database that
+        // is and waits on every database when it cannot say, and the read opens the tenant's own database. An act
+        // with no tenant on such a store is looked for in every database, which is still exact because a
+        // correlation id belongs to one act
         var tenantId = LastAct.TenantId;
-        if (store.DatabaseCardinality is DatabaseCardinality.StaticMultiple or DatabaseCardinality.DynamicMultiple)
-        {
-            Verdicts.Fail(
-                $"ThenEventuallyCaused reads one database, but {describeStore(store)} spreads its tenants across several " +
-                $"({store.DatabaseCardinality}). Finding an act's events by correlation id in a tenant's database " +
-                $"{(tenantId is null ? "" : $"('{tenantId}', the act's tenant) ")}is not supported yet.");
-            return;
-        }
-
-        var filterByTenant = tenantId is not null && store.HasMultipleTenants;
+        var severalDatabases = store.DatabaseCardinality is DatabaseCardinality.StaticMultiple or DatabaseCardinality.DynamicMultiple;
+        var filterByTenant = tenantId is not null && store.HasMultipleTenants && !severalDatabases;
 
         var deadline = DateTimeOffset.UtcNow + EventuallyTimeout;
         while (true)
         {
             try
             {
-                await EventStores.WaitForNonStaleProjectionsAsync(store, ProjectionTimeout);
+                if (severalDatabases && tenantId is not null)
+                {
+                    await EventStores.WaitForNonStaleProjectionsAsync(store, tenantId, ProjectionTimeout);
+                }
+                else
+                {
+                    await EventStores.WaitForNonStaleProjectionsAsync(store, ProjectionTimeout);
+                }
             }
             catch (TimeoutException e)
             {
@@ -731,9 +733,16 @@ public class WolverineScenario : CritterStackScenario
             }
 
             IReadOnlyList<IEvent> caused;
+            string where;
             try
             {
-                caused = await eventsCorrelatedWith(store, correlationId, filterByTenant ? tenantId : null);
+                (caused, where) = severalDatabases
+                    ? tenantId is not null
+                        ? (await eventsCorrelatedWith(store, correlationId, tenantId, filterByTenant: false),
+                            $" in tenant '{tenantId}''s database")
+                        : await eventsCorrelatedInEveryDatabase(store, correlationId)
+                    : (await eventsCorrelatedWith(store, correlationId, tenantId, filterByTenant),
+                        filterByTenant ? $" for tenant '{tenantId}'" : "");
             }
             catch (NotSupportedException e) when (e.Message.Contains("Correlation", StringComparison.OrdinalIgnoreCase))
             {
@@ -750,7 +759,7 @@ public class WolverineScenario : CritterStackScenario
 
                 Verdicts.Fact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "event")) +
                                              $"{Environment.NewLine}The act's correlation id {correlationId} found {(data.Length == 0 ? "no events" : ScenarioValues.DescribeAll(data))} in {describeStore(store)}" +
-                                             (filterByTenant ? $" for tenant '{tenantId}'." : ".") +
+                                             where + "." +
                                              // GH-4977: a whole-store read, so say what else the act saw, store by store
                                              crossTalkSuffix() + storesSuffix());
                 return;
@@ -761,12 +770,14 @@ public class WolverineScenario : CritterStackScenario
     }
 
     // Every event the store recorded with this correlation id, oldest first, every page of it
-    // GH-4962: scoped to the act's tenant on a conjoined store, both by the reader and by the query
-    private static async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(IEventStore eventStore, string correlationId, string? tenantId)
+    // GH-4962: read through the act's tenant -- a tenant within the database on a conjoined store, where the query is
+    // filtered by it too, and the tenant's own database on a store that spreads its tenants across several
+    private static async Task<IReadOnlyList<IEvent>> eventsCorrelatedWith(IEventStore eventStore, string correlationId,
+        string? tenantId, bool filterByTenant)
     {
         var store = eventStore.OpenReadOnlyEventStore(tenantId);
         var events = new List<IEvent>();
-        var query = new EventQuery { CorrelationId = correlationId, TenantId = tenantId, PageSize = 500 };
+        var query = new EventQuery { CorrelationId = correlationId, TenantId = filterByTenant ? tenantId : null, PageSize = 500 };
         while (true)
         {
             var page = await store.QueryEventsAsync(query);
@@ -774,6 +785,36 @@ public class WolverineScenario : CritterStackScenario
             if (page.Events.Count == 0 || events.Count >= page.TotalCount) return events;
             query.PageNumber++;
         }
+    }
+
+    // GH-4962: an act with no tenant on a store that spreads its tenants across databases. Each database is read through
+    // one of the tenants the store says lives in it, since a reader is opened by tenant; a database the store names no
+    // tenant for cannot be read this way, and the message says how many were
+    private static async Task<(IReadOnlyList<IEvent> Events, string Where)> eventsCorrelatedInEveryDatabase(
+        IEventStore eventStore, string correlationId)
+    {
+        var usage = await eventStore.TryCreateUsage(CancellationToken.None);
+        var databases = usage?.Database is null
+            ? []
+            : usage.Database.Databases.Append(usage.Database.MainDatabase).OfType<DatabaseDescriptor>()
+                .DistinctBy(x => (x.ServerName, x.DatabaseName)).ToList();
+
+        var events = new List<IEvent>();
+        var unreadable = 0;
+        foreach (var database in databases)
+        {
+            if (database.TenantIds.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) is not { } tenant)
+            {
+                unreadable++;
+                continue;
+            }
+
+            events.AddRange(await eventsCorrelatedWith(eventStore, correlationId, tenant, filterByTenant: false));
+        }
+
+        var where = $" across its {databases.Count - unreadable} tenant database{(databases.Count - unreadable == 1 ? "" : "s")} (the act carried no tenant)" +
+                    (unreadable == 0 ? "" : $"; {unreadable} database{(unreadable == 1 ? "" : "s")} with no known tenant could not be read");
+        return (events, where);
     }
 
     // No store reads tags back, so an event the act's own sessions committed keeps the tags it was appended with
