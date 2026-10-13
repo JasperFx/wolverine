@@ -431,6 +431,7 @@ public partial class AssignmentGrid
                     .FirstOrDefault()
                     ?? InCapacityOrder(placeable.Where(n => load[n] + members.Count <= maximum), n => load[n])
                         .FirstOrDefault()
+                    ?? overflowHost(incumbent, placeable)
                     ?? InCapacityOrder(placeable, n => load[n]).First();
 
                 place(node, members, siblingHosts);
@@ -490,6 +491,22 @@ public partial class AssignmentGrid
                 .ThenBy(g => g.Key.AssignedId)
                 .Select(g => g.Key)
                 .FirstOrDefault();
+        }
+
+        // GH-4999: when no candidate has room under the ceiling, the incumbent keeps its partition unless an
+        // accepting node carries strictly less. Picking afresh followed the load bands, which shift between
+        // heartbeats, so a partition that fits nowhere -- the previous version on the blue nodes once the shared
+        // agents push them past a ceiling computed over the whole fleet -- moved on every evaluation without
+        // ever fitting. A move now always lands somewhere lighter than it left, so this settles.
+        Node? overflowHost(Node? incumbent, List<Node> placeable)
+        {
+            if (incumbent == null || !placeable.Contains(incumbent))
+            {
+                return null;
+            }
+
+            return InCapacityOrder(placeable.Where(n => n.IsAcceptingAgents && load[n] < load[incumbent]), n => load[n])
+                .FirstOrDefault() ?? incumbent;
         }
 
         static void remember(List<Node> hosts, Node node)
