@@ -24,6 +24,11 @@ public class DescribeEventModelInput : NetCoreInput
     [Description("Only the slices with an open question (a hotspot) on them")]
     [FlagAlias("hotspots-only", true)]
     public bool HotspotsOnlyFlag { get; set; }
+
+    /// <summary>GH-5004: as <c>event-model --specs</c>; several spec projects go after one flag.</summary>
+    [Description("Paths to specification assemblies whose manifests link slices to their specifications")]
+    [FlagAlias("specs", true)]
+    public List<string> SpecsFlag { get; set; } = new();
 }
 
 /// <summary>
@@ -51,6 +56,10 @@ public class DescribeEventModelCommand : JasperFxAsyncCommand<DescribeEventModel
             _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
             var set = await WolverineEventModelExport.AssembleSetAsync(host.Services);
+            if (!WolverineEventModelExport.TryLinkSpecifications(ref set, input.SpecsFlag, input.ModelFlag))
+            {
+                return false;
+            }
 
             EventModelDescriptor model;
             if (input.ModelFlag.IsNotEmpty())
