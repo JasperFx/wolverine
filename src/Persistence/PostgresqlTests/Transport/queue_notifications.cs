@@ -9,6 +9,7 @@ using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 using Wolverine.Tracking;
 
@@ -61,6 +62,44 @@ public class queue_notifications : PostgresqlContext
 
             session.Received.RecordsInOrder().Any(x => x.Message is QueueNotificationProbe).ShouldBeTrue();
             (await notificationConnectionCountAsync(schema)).ShouldBe(0);
+        }
+        finally
+        {
+            await stopAndCleanAsync(publisher, receiver, schema);
+        }
+    }
+
+    [Fact]
+    public async Task polling_delivers_after_notification_connection_drops_and_listener_reconnects()
+    {
+        var schema = $"qnotify_{Guid.NewGuid():N}"[..16];
+        var (publisher, receiver) = await startHostsAsync(schema, true, TimeSpan.FromMilliseconds(250));
+
+        try
+        {
+            (await notificationConnectionCountAsync(schema)).ShouldBe(1);
+            await terminateNotificationConnectionAsync(schema);
+
+            var runtime = receiver.GetRuntime();
+            var queue = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>().Queues["messages"];
+            var serializer = runtime.Options.DefaultSerializer!;
+            var id = Guid.NewGuid();
+            var envelope = new Envelope(new QueueNotificationProbe(id))
+            {
+                Id = id,
+                Destination = queue.Uri,
+                SentAt = DateTimeOffset.UtcNow,
+                ContentType = serializer.ContentType,
+                MessageType = typeof(QueueNotificationProbe).ToMessageTypeName()
+            };
+            envelope.Data = serializer.Write(envelope);
+
+            var received = QueueNotificationProbeHandler.WaitForAsync(id, 5.Seconds());
+            await insertQueueRowWithoutNotificationAsync(queue, envelope);
+            await received;
+            await waitForNotificationConnectionAsync(schema, 5.Seconds());
+
+            (await notificationConnectionCountAsync(schema)).ShouldBe(1);
         }
         finally
         {
@@ -183,6 +222,41 @@ public class queue_notifications : PostgresqlContext
             "select count(*) from pg_stat_activity where datname = current_database() and application_name = @name");
         command.Parameters.AddWithValue("name", PostgresqlQueueNotification.ApplicationName(schema));
         return Convert.ToInt32(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+    }
+
+    private static async Task terminateNotificationConnectionAsync(string schema)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = conn.CreateCommand(
+            "select pg_terminate_backend(pid) from pg_stat_activity where datname = current_database() and application_name = @name");
+        command.Parameters.AddWithValue("name", PostgresqlQueueNotification.ApplicationName(schema));
+        (await command.ExecuteScalarAsync(TestContext.Current.CancellationToken)).ShouldBe(true);
+    }
+
+    private static async Task insertQueueRowWithoutNotificationAsync(PostgresqlQueue queue, Envelope envelope)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = conn.CreateCommand();
+        command.CommandText =
+            $"insert into {queue.QueueTable.Identifier} (id, body, message_type) values (@id, @body, @type)";
+        command.Parameters.AddWithValue("id", envelope.Id);
+        command.Parameters.AddWithValue("body", EnvelopeSerializer.Serialize(envelope));
+        command.Parameters.AddWithValue("type", envelope.MessageType!);
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+    }
+
+    private static async Task waitForNotificationConnectionAsync(string schema, TimeSpan timeout)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < timeout)
+        {
+            if (await notificationConnectionCountAsync(schema) == 1) return;
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        (await notificationConnectionCountAsync(schema)).ShouldBe(1);
     }
 
     private static async Task stopAndCleanAsync(IHost publisher, IHost receiver, string schema)
