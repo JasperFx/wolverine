@@ -766,6 +766,15 @@ public partial class NodeAgentController
                 continue;
             }
 
+            // GH-5003: a shard whose projection is being rebuilt reads Stopped -- the rebuild hard-stopped it
+            // and left its old failure in place -- for the whole replay. Restarting it here would put a
+            // continuous agent on the same progression row as the rebuild. The rebuild hands continuous
+            // execution back when it finishes, so leave it alone until then.
+            if (subscription.IsRebuilding)
+            {
+                continue;
+            }
+
             // GH-3888: an agent that burned through its local auto-restart budget without ever
             // advancing is asking to be placed somewhere else. Checked BEFORE the Running
             // short-circuit below — a stalled shard still reads Running.

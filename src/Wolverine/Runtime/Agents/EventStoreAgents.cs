@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -13,6 +14,11 @@ public class EventStoreAgents : IAsyncDisposable
     private readonly IEventStore _store;
     private readonly IObserver<ShardState>[] _observers;
     private readonly SemaphoreSlim _daemonLock = new(1);
+
+    // GH-5003: every wrapper this store has built, so a rebuild that runs outside a wrapper can hand
+    // continuous execution back to the ones it stopped. A wrapper that has since been stopped stays in
+    // here until its URI is built again, but reads Stopped and is skipped.
+    private readonly ConcurrentDictionary<Uri, EventSubscriptionAgent> _builtAgents = new();
     private ImHashMap<DatabaseId, IProjectionDaemon> _daemons = ImHashMap<DatabaseId, IProjectionDaemon>.Empty;
 
     // The observer subscriptions taken out against each database's daemon Tracker, so they can be
@@ -291,11 +297,14 @@ public class EventStoreAgents : IAsyncDisposable
 
         var daemon = await FindDaemonAsync(databaseId);
 
-        return new EventSubscriptionAgent(uri, shardName, daemon)
+        var agent = new EventSubscriptionAgent(uri, shardName, daemon)
         {
             OnStarted = () => agentStartedAsync(databaseId),
             OnStopped = () => agentStoppedAsync(databaseId)
         };
+
+        _builtAgents[uri] = agent;
+        return agent;
     }
 
     /// <summary>
@@ -381,8 +390,41 @@ public class EventStoreAgents : IAsyncDisposable
         // tenantId flows to the daemon's tenant overload to rebuild just that partition, leaving the other
         // tenants untouched. For a store-global projection the tenant is a no-op. RebuildProjectionAsync
         // builds a rebuild-mode agent, replays to the high-water mark, then stops it.
-        await daemon.RebuildProjectionAsync(match.Subscription.Name, tenantId, cancellation);
+        try
+        {
+            await daemon.RebuildProjectionAsync(match.Subscription.Name, tenantId, cancellation);
+        }
+        finally
+        {
+            // GH-5003: the daemon's rebuild hard-stops this node's continuous agents for the projection and
+            // never restarts them, whether it succeeds or throws. Hand them back here rather than leaving
+            // NodeAgentController's sweep to notice -- it never does for an agent whose pre-rebuild failure
+            // was an Other one, and it can only restart the rest by stopping and starting them again.
+            if (!cancellation.IsCancellationRequested)
+            {
+                await resumeAgentsStoppedByRebuildAsync(daemon, match.Subscription.Name, tenantId);
+            }
+        }
+
         return true;
+    }
+
+    private async Task resumeAgentsStoppedByRebuildAsync(IProjectionDaemon daemon, string projectionName,
+        string? tenantId)
+    {
+        // Only this daemon's agents were stopped, and a per-tenant rebuild only stops that tenant's
+        // partition -- or the whole projection, when the projection isn't partitioned per tenant and the
+        // tenant argument is a no-op, which is what a shard with no tenant of its own means.
+        var stopped = _builtAgents.Values.Where(agent =>
+            ReferenceEquals(agent.Daemon, daemon)
+            && agent.ShardName.Name == projectionName
+            && (tenantId == null || agent.ShardName.TenantId == null
+                || string.Equals(agent.ShardName.TenantId, tenantId, StringComparison.OrdinalIgnoreCase)));
+
+        foreach (var agent in stopped)
+        {
+            await agent.TryResumeAfterRebuildAsync();
+        }
     }
 
     private static DatabaseId? ResolveDefaultDatabaseId(EventStoreUsage usage)
