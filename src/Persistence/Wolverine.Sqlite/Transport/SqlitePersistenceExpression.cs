@@ -47,6 +47,19 @@ public class SqlitePersistenceExpression
     }
 
     /// <summary>
+    ///     GH-3947: prefix the names of the SQLite queue and scheduled-message tables. SQLite has no
+    ///     schemas, so <c>PrefixName("reporting")</c> names the tables for an <c>orders</c> queue
+    ///     <c>reporting_wolverine_queue_orders</c> and <c>reporting_wolverine_queue_orders_scheduled</c>.
+    ///     Without this, or with <c>"main"</c>, the tables keep their historical, unprefixed names.
+    ///     Every application sending to or listening on a queue must use the same prefix.
+    /// </summary>
+    public SqlitePersistenceExpression PrefixName(string prefixName)
+    {
+        _transport.PrefixName = prefixName;
+        return this;
+    }
+
+    /// <summary>
     /// Disable all inbox or outbox behavior across all SQLite messaging endpoints
     /// </summary>
     /// <returns></returns>

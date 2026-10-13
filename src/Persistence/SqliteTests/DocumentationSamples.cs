@@ -102,6 +102,23 @@ public class DocumentationSamples
             }).Build();
     }
 
+    public static void SqliteQueueTablePrefix()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_sqlite_queue_table_prefix
+                opts.UseSqlitePersistenceAndTransport("Data Source=shared.db")
+
+                    // The "orders" queue now lives in reporting_wolverine_queue_orders
+                    // and reporting_wolverine_queue_orders_scheduled
+                    .PrefixName("reporting");
+
+                opts.ListenToSqliteQueue("orders");
+                #endregion
+            }).Build();
+    }
+
     public static void SqliteStaticTenantConfiguration()
     {
         using var host = Host.CreateDefaultBuilder()

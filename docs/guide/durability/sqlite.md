@@ -200,6 +200,44 @@ enabled. Configure the option consistently on every application using the same S
 schema has been upgraded, leaving the option disabled keeps the added indexes. Rolling back to a version
 that predates this option may drop the indexes again, which loses no messages.
 
+### Prefixing the Queue Tables <Badge type="tip" text="6.50" />
+
+By default, the SQLite transport names the tables for a queue called `orders` `wolverine_queue_orders` and
+`wolverine_queue_orders_scheduled`. That's fine right up until you want two logically separate applications,
+or two separate sets of queues, to share one SQLite database file and they both happen to use a queue named
+`orders`. Since SQLite doesn't have schemas, Wolverine can't separate those tables the way it would with
+PostgreSQL or SQL Server. Instead, you can opt into a prefix on the queue table names:
+
+<!-- snippet: sample_sqlite_queue_table_prefix -->
+<a id='snippet-sample_sqlite_queue_table_prefix'></a>
+```cs
+opts.UseSqlitePersistenceAndTransport("Data Source=shared.db")
+
+    // The "orders" queue now lives in reporting_wolverine_queue_orders
+    // and reporting_wolverine_queue_orders_scheduled
+    .PrefixName("reporting");
+
+opts.ListenToSqliteQueue("orders");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L110-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_queue_table_prefix' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The same option is available from `PersistMessagesWithSqlite(connectionString).EnableMessageTransport(x => x.PrefixName("reporting"))`,
+and from `FisherIntegration.PrefixName` if you're using [Fisher](/guide/durability/fisher/#prefixing-native-sqlite-queue-tables).
+
+A few things to know about this:
+
+* **It's completely opt in.** If you never call `PrefixName()`, or you pass SQLite's built-in `"main"`, the
+  queue tables keep the exact names they've always had, so existing applications don't lose track of the
+  messages already sitting in those tables.
+* **It only applies to the queue tables.** To prefix Wolverine's own inbox, outbox and node tables too, use the
+  schema name argument to `PersistMessagesWithSqlite()` as described in [Schema Names](#schema-names).
+* **Every application on a queue has to agree.** A sender and a listener using different prefixes are talking
+  to different tables, and the messages will just sit there.
+* **Changing the prefix later points at new, empty tables.** Wolverine does not copy messages from the old
+  tables to the new ones, so drain the queues first or move the rows yourself.
+* **SQLite still allows only one writer per file.** The prefix separates table names; it doesn't change how
+  SQLite handles concurrent writes.
 
 ### Resetting in Tests
 
@@ -259,8 +297,9 @@ other than `main` produced SQL against a database that was never attached and fa
 [GH-3943](https://github.com/JasperFx/wolverine/issues/3943).
 :::
 
-The SQLite transport's queue tables are named `wolverine_queue_<name>` and take no prefix — they are named by
-the transport rather than by the message store.
+The SQLite transport's queue tables are named by the transport rather than by the message store, so this
+prefix does not apply to them. To prefix the queue tables as well, see
+[Prefixing the Queue Tables](#prefixing-the-queue-tables).
 
 `UseSqlitePersistenceAndTransport()` is intentionally connection-string only:
 

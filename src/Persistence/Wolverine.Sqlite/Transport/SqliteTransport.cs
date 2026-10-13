@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Spectre.Console;
 using Weasel.Core;
 using Wolverine.Configuration;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -15,6 +16,8 @@ namespace Wolverine.Sqlite.Transport;
 public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfiguresRuntime
 {
     public const string ProtocolName = "sqlite";
+
+    private string? _prefixName;
 
     public SqliteTransport() : base(ProtocolName, "SQLite Transport", ["sqlite"])
     {
@@ -74,6 +77,30 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
     ///     Configure it before startup; changing it at runtime is not supported.
     /// </summary>
     public bool EnableDeterministicQueueOrdering { get; set; }
+
+    /// <summary>
+    ///     GH-3947: an optional prefix for the native SQLite queue and scheduled-message tables.
+    ///     SQLite has no schemas, so <c>"reporting"</c> names the tables for an <c>orders</c> queue
+    ///     <c>reporting_wolverine_queue_orders</c> and <c>reporting_wolverine_queue_orders_scheduled</c>,
+    ///     which lets separate sets of Wolverine queue tables share one database file. The default is
+    ///     no prefix, which keeps the historical table names, and SQLite's built-in schema name
+    ///     <c>main</c> also means no prefix. Configure this before startup; changing it later points
+    ///     the queues at new, empty tables, and nothing copies messages across.
+    /// </summary>
+    public string? PrefixName
+    {
+        get => _prefixName;
+        set
+        {
+            SchemaNameValidation.AssertValid(value, nameof(PrefixName));
+            _prefixName = value?.ToLowerInvariant();
+        }
+    }
+
+    internal string QueueTableNameFor(string tableName)
+    {
+        return TablePrefixing.Apply(PrefixName, tableName);
+    }
 
     protected override IEnumerable<SqliteQueue> endpoints()
     {
