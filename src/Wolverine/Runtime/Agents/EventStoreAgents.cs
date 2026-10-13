@@ -200,13 +200,14 @@ public class EventStoreAgents : IAsyncDisposable
     public async ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync(CancellationToken cancellation)
     {
         var list = new List<Uri>();
-        var usage = await _store.TryCreateUsage(cancellation);
-        if (usage == null) return list;
 
-        var asyncShards = usage.Subscriptions
-            .Where(x => x.Lifecycle == ProjectionLifecycle.Async)
-            .SelectMany(x => x.ShardNames)
-            .ToArray();
+        // GH-5002: this runs on every leader heartbeat for every store. It used to build the store's whole usage
+        // descriptor -- the highest event sequence and every projection, subscription, event type and tag type --
+        // for the async shard names and the database topology alone
+        var databases = await _store.TryDescribeDatabasesAsync(cancellation);
+        if (databases == null) return list;
+
+        var asyncShards = await asyncShardNamesAsync(cancellation);
 
         // wolverine#3280: under sharded databases + per-tenant event partitioning, multiple tenants are
         // co-located in one shard database and each draws its own event sequence, so a single store-global
@@ -237,7 +238,7 @@ public class EventStoreAgents : IAsyncDisposable
 
         // Using this to keep from double dipping
         var databaseIds = new List<DatabaseId>();
-        foreach (var database in usage.Database.Databases)
+        foreach (var database in databases.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             databaseIds.Add(id);
@@ -248,9 +249,9 @@ public class EventStoreAgents : IAsyncDisposable
             }
         }
 
-        if (usage.Database.MainDatabase != null)
+        if (databases.MainDatabase != null)
         {
-            var database = usage.Database.MainDatabase;
+            var database = databases.MainDatabase;
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             if (!databaseIds.Contains(id))
             {
@@ -264,6 +265,26 @@ public class EventStoreAgents : IAsyncDisposable
         return list;
     }
 
+    // GH-5002: the store's async shards -- async projections and every subscription -- from its in-memory registry,
+    // with no database work. A store that does not implement RegisteredShardNames still answers through the usage
+    private async ValueTask<IReadOnlyList<ShardName>> asyncShardNamesAsync(CancellationToken cancellation)
+    {
+        try
+        {
+            return _store.RegisteredShardNames();
+        }
+        catch (NotSupportedException)
+        {
+            var usage = await _store.TryCreateUsage(cancellation);
+            return usage == null
+                ? []
+                : usage.Subscriptions
+                    .Where(x => x.Lifecycle == ProjectionLifecycle.Async)
+                    .SelectMany(x => x.ShardNames)
+                    .ToArray();
+        }
+    }
+
     /// <summary>
     /// Resolve the <see cref="DatabaseId" /> backing <paramref name="tenantId" /> under database-per-tenant
     /// multi-tenancy, using the store-agnostic tenant→database mapping carried on the usage descriptor.
@@ -271,16 +292,16 @@ public class EventStoreAgents : IAsyncDisposable
     /// </summary>
     public async ValueTask<DatabaseId?> TryResolveTenantDatabaseIdAsync(string tenantId, CancellationToken cancellation)
     {
-        var usage = await _store.TryCreateUsage(cancellation);
-        if (usage?.Database == null)
+        var databases = await _store.TryDescribeDatabasesAsync(cancellation);
+        if (databases == null)
         {
             return null;
         }
 
-        var candidates = usage.Database.Databases.ToList();
-        if (usage.Database.MainDatabase != null)
+        var candidates = databases.Databases.ToList();
+        if (databases.MainDatabase != null)
         {
-            candidates.Add(usage.Database.MainDatabase);
+            candidates.Add(databases.MainDatabase);
         }
 
         var match = candidates.FirstOrDefault(db => db.TenantIds.Contains(tenantId, StringComparer.OrdinalIgnoreCase));
@@ -440,13 +461,14 @@ public class EventStoreAgents : IAsyncDisposable
 
     public async Task StartAllAsync(CancellationToken cancellationToken)
     {
-        var usage = await _store.TryCreateUsage(cancellationToken);
-        if (usage == null)
+        // GH-5002: the database topology is all this needs
+        var databases = await _store.TryDescribeDatabasesAsync(cancellationToken);
+        if (databases == null)
         {
             return;
         }
 
-        foreach (var database in usage.Database.Databases)
+        foreach (var database in databases.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             var daemon = await FindDaemonAsync(id);
@@ -454,9 +476,9 @@ public class EventStoreAgents : IAsyncDisposable
             await daemon.StartAllAsync();
         }
 
-        if (usage.Database.MainDatabase != null)
+        if (databases.MainDatabase != null)
         {
-            var id = new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+            var id = new DatabaseId(databases.MainDatabase.ServerName, databases.MainDatabase.DatabaseName);
             var daemon = await FindDaemonAsync(id);
 
             await daemon.StartAllAsync();
@@ -474,15 +496,16 @@ public class EventStoreAgents : IAsyncDisposable
     
     public async ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
     {
-        var usage = await _store.TryCreateUsage(CancellationToken.None);
-        if (usage == null)
+        // GH-5002: the database topology is all this needs
+        var databases = await _store.TryDescribeDatabasesAsync(CancellationToken.None);
+        if (databases == null)
         {
             return [];
         }
 
         var list = new List<IProjectionDaemon>();
         
-        foreach (var database in usage.Database.Databases)
+        foreach (var database in databases.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             var daemon = await FindDaemonAsync(id);
@@ -490,9 +513,9 @@ public class EventStoreAgents : IAsyncDisposable
             list.Add(daemon);
         }
 
-        if (usage.Database.MainDatabase != null && usage.Database.Cardinality == DatabaseCardinality.Single)
+        if (databases.MainDatabase != null && databases.Cardinality == DatabaseCardinality.Single)
         {
-            var id = new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+            var id = new DatabaseId(databases.MainDatabase.ServerName, databases.MainDatabase.DatabaseName);
             var daemon = await FindDaemonAsync(id);
 
             list.Add(daemon);

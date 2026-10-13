@@ -131,7 +131,7 @@ public class failed_rebuild_resumes_continuous_execution
 
             var store = Substitute.For<IEventStore>();
             store.Identity.Returns(new EventStoreIdentity("main", "marten"));
-            store.TryCreateUsage(Arg.Any<CancellationToken>()).Returns(Task.FromResult<EventStoreUsage?>(usage));
+            store.StubUsage(usage);
             store.BuildProjectionDaemonAsync(Arg.Any<DatabaseId>())
                 .Returns(new ValueTask<IProjectionDaemon>(theDaemon));
 
