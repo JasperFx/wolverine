@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
@@ -12,21 +13,23 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
     private readonly PostgresqlQueue _queue;
     private readonly PostgresqlQueueSender _master;
     private readonly MultiTenantedMessageStore _stores;
+    private readonly ILogger? _logger;
     private ImHashMap<string, IPostgresqlQueueSender> _byDatabase = ImHashMap<string, IPostgresqlQueueSender>.Empty;
     private readonly SemaphoreSlim _lock = new(1);
     private readonly CancellationTokenSource _cancellation = new();
 
-    public MultiTenantedQueueSender(PostgresqlQueue queue, MultiTenantedMessageStore stores)
+    public MultiTenantedQueueSender(PostgresqlQueue queue, MultiTenantedMessageStore stores, ILogger? logger = null)
     {
         _queue = queue;
-        _master = new PostgresqlQueueSender(queue);
+        _master = new PostgresqlQueueSender(queue, queue.DataSource, null, logger);
         _stores = stores;
+        _logger = logger;
 
         Destination = _queue.Uri;
     }
 
     public bool SupportsNativeScheduledSend => true;
-    public Uri Destination { get;  }
+    public Uri Destination { get; }
     public Task<bool> PingAsync()
     {
         return _master.PingAsync();
@@ -69,7 +72,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
             else
             {
                 var npgsqlDataSource = (NpgsqlDataSource)database.DataSource;
-                sender = new PostgresqlQueueSender(_queue, npgsqlDataSource, database.Name);
+                sender = new PostgresqlQueueSender(_queue, npgsqlDataSource, database.Name, _logger);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
 
                 if (_queue.Parent.AutoProvision)

@@ -250,7 +250,17 @@ with the transactional inbox or outbox. This is a little more performant, but le
 lost if held in memory when the application shuts down unexpectedly. 
 
 ### Polling
-Wolverine has a number of internal polling operations, and any PostgreSQL queues will be polled on a configured interval as Wolverine does not use the PostgreSQL `LISTEN/NOTIFY` feature at this time.   
+PostgreSQL queue listeners poll on a configured interval by default. You can opt into PostgreSQL `LISTEN/NOTIFY` wakeups to reduce idle-queue delivery latency while keeping polling as the recovery path:
+
+```cs
+opts.UsePostgresqlPersistenceAndTransport(connectionString)
+    .EnableQueueNotifications();
+```
+
+The transport shares one dedicated, long-lived PostgreSQL connection across its queue listeners for each active `NpgsqlDataSource` (typically one per queue database). This connection is held from the data source's pool, so leave pool capacity for the notification session and normal dequeue queries; a pool with `Maximum Pool Size=1` cannot supply both. This adds one server connection per active data source per application process, so tenant-heavy deployments should account for that before enabling it. Notifications require a non-multiplexed Npgsql data source; Wolverine rejects `Multiplexing=true` when a listener starts with notifications enabled. Notifications only tell listeners to check the queue. A dropped notification connection or a sender that does not publish notifications falls back to polling.
+
+All applications sending to and listening on a queue should enable this option to get the latency benefit consistently. Applications that write directly to the queue tables must also publish the queue wakeup; otherwise their messages are found by polling. With PgBouncer, use session pooling for the notification connection because transaction pooling does not support `LISTEN`.
+
 The default polling interval is set in the `DurabilitySettings` class and can be configured at runtime as below:
 
 ```cs

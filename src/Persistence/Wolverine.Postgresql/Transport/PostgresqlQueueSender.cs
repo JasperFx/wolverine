@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core;
 using Weasel.Postgresql;
@@ -25,6 +26,8 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
     private readonly string _writeDirectlyToTheScheduledTable;
     private readonly string _schemaName;
     private readonly string _quotedStorageSchemaName;
+    private readonly ILogger? _logger;
+    private readonly string _queueNotificationKey;
 
     // Strictly for testing
     public PostgresqlQueueSender(PostgresqlQueue queue) : this(queue, queue.DataSource, null)
@@ -32,10 +35,13 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
         Destination = queue.Uri;
     }
 
-    public PostgresqlQueueSender(PostgresqlQueue queue, NpgsqlDataSource dataSource, string? databaseName)
+    public PostgresqlQueueSender(PostgresqlQueue queue, NpgsqlDataSource dataSource, string? databaseName,
+        ILogger? logger = null)
     {
         _queue = queue;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        _logger = logger;
+        _queueNotificationKey = PostgresqlQueueNotification.Key(queue);
 
         Destination = PostgresqlQueue.ToUri(queue.Name, databaseName);
 
@@ -155,6 +161,8 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                 .ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+
+            await publishQueueNotificationAsync(conn, cancellationToken);
         }
         catch (NpgsqlException e)
         {
@@ -223,6 +231,8 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                         .With("type", envelope.MessageType!)
                         .With("expires", envelope.DeliverBy!)
                         .ExecuteNonQueryAsync(cancellationToken);
+
+                    await publishQueueNotificationAsync(conn, cancellationToken);
                 }
                 catch (NpgsqlException e)
                 {
@@ -247,5 +257,12 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             .With("expires", envelope.DeliverBy!)
             .With("time", envelope.ScheduledTime!)
             .ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private Task publishQueueNotificationAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        return _queue.Parent.EnableQueueNotifications
+            ? PostgresqlQueueNotification.PublishAsync(connection, _queueNotificationKey, _logger, cancellationToken)
+            : Task.CompletedTask;
     }
 }
