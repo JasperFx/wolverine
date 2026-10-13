@@ -26,9 +26,16 @@ namespace CoreTests.Bugs;
 /// TypeLoadMode.Auto really is the working configuration for this layout, and Static really must fail loudly.
 /// The fix for an application in this shape is the one the exception message already gives.</para>
 /// </summary>
-public class Bug_4156_static_mode_with_a_class_library_composition_root
+public class Bug_4156_static_mode_with_a_class_library_composition_root : IDisposable
 {
     private static readonly Assembly TheClassLibrary = typeof(CompositionRootInAClassLibrary).Assembly;
+
+    // Every test here registers Wolverine from Module1, so whichever one is the first host in the process pins
+    // Module1 as the application assembly for the whole process -- even with an explicit ApplicationAssembly. Put
+    // the pins back after each test, or the rest of CoreTests scans Module1 for handlers depending on test order.
+    private readonly CoreTests.Configuration.ProcessWideApplicationAssemblyPin _pin = new();
+
+    public void Dispose() => _pin.Dispose();
 
     [Fact]
     public async Task the_class_library_is_what_registers_wolverine()
