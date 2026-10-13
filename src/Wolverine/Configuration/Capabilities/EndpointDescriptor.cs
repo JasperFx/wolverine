@@ -40,21 +40,30 @@ public class EndpointDescriptor : OptionsDescription
                         || endpoint.Uri?.Scheme.Equals("local", StringComparison.OrdinalIgnoreCase) == true;
         EndpointRole = endpoint.Role;
         BrokerRole = endpoint.BrokerRole;
+        EndpointName = endpoint.EndpointName;
         Mode = endpoint.Mode;
         IsListener = endpoint.IsListener;
         DeadLetterStorage = endpoint.DeadLetterStorage;
         ExternalSystem = endpoint.ExternalSystemName;
 
         // Mode and IsListener are now first-class typed fields (GH-3009); DeadLetterStorage is
-        // likewise a typed field (GH-3104). Drop the generic OptionsDescription rows the base ctor
-        // reflected off the Endpoint so we don't ship them twice — CritterWatch reads the typed
-        // fields at the service-overview level, and Properties is becoming lazy-fetchable downstream.
+        // likewise a typed field (GH-3104), and so is EndpointName (GH-4887). Drop the generic
+        // OptionsDescription rows the base ctor reflected off the Endpoint so we don't ship them twice —
+        // CritterWatch reads the typed fields at the service-overview level, and Properties is
+        // becoming lazy-fetchable downstream.
         Properties.RemoveAll(x =>
             x.Name is nameof(Endpoint.Mode) or nameof(Endpoint.IsListener) or nameof(Endpoint.DeadLetterStorage)
-                or nameof(Endpoint.ExternalSystemName));
+                or nameof(Endpoint.ExternalSystemName) or nameof(Endpoint.EndpointName));
     }
 
     public Uri Uri { get; set; } = null!;
+
+    /// <summary>
+    /// Descriptive name of this endpoint, <see cref="Endpoint.EndpointName"/>, which is the URI string when no
+    /// name was set. Lifted into a first-class typed field (GH-4887) so monitoring UIs like CritterWatch can label
+    /// endpoints at the service-overview level without walking <see cref="OptionsDescription.Properties"/>.
+    /// </summary>
+    public string? EndpointName { get; init; }
 
     /// <summary>
     /// The name of the external system on the other end of this endpoint — "Stripe", "Legacy ERP" —
