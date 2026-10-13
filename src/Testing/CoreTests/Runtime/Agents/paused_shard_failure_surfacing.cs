@@ -415,6 +415,56 @@ public class paused_shard_failure_surfacing
             agent.StartCount.ShouldBe(2);
         }
 
+        // GH-5003. A rebuild hard-stops the continuous agent and leaves its old failure in place, so for
+        // the whole replay the shard reads exactly like the stopped shards the sweep restarts. Restarting
+        // it would put a continuous agent on the same progression row as the rebuild.
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task leaves_a_shard_alone_while_its_projection_is_being_rebuilt(bool hadTransientFailure)
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            agent.IsRebuilding = true;
+            agent.SimulateFailure(AgentStatus.Stopped, hadTransientFailure
+                ? FailureOf(ShardFailureCategory.Other, sequence: null) with
+                {
+                    OccurredAt = DateTimeOffset.UtcNow.Subtract(1.Minutes())
+                }
+                : null);
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(1);
+            agent.StopCount.ShouldBe(0);
+            await _observer.DidNotReceive().AgentPaused(Arg.Any<Uri>(), Arg.Any<ShardFailure?>());
+        }
+
+        [Fact]
+        public async Task picks_a_stopped_shard_back_up_once_its_rebuild_is_over()
+        {
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var agent = new FakeSubscriptionAgent(uri);
+            var controller = controllerFor(agent);
+
+            await controller.StartAgentAsync(uri);
+
+            agent.IsRebuilding = true;
+            agent.SimulateFailure(AgentStatus.Stopped, null);
+            await controller.ReportFailedLocalAgentsAsync();
+            agent.StartCount.ShouldBe(1);
+
+            // The rebuild ended without handing the shard back; the ordinary GH-4193 recovery applies again
+            agent.IsRebuilding = false;
+            await controller.ReportFailedLocalAgentsAsync();
+            agent.StartCount.ShouldBe(2);
+        }
+
         [Fact]
         public async Task restarts_it_once_per_transition_not_once_per_tick()
         {
@@ -523,6 +573,9 @@ public class paused_shard_failure_surfacing
         // attempt, which is the only way to observe the sweep's once-per-transition guard -- otherwise
         // the very next sweep sees Running, clears the ledger, and re-arms.
         public bool StaysStoppedAfterStart { get; set; }
+
+        // GH-5003: the daemon is replaying this shard's projection right now
+        public bool IsRebuilding { get; set; }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {

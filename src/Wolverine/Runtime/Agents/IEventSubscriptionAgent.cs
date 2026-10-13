@@ -45,6 +45,15 @@ public interface IEventSubscriptionAgent : IAgent
     ShardFailure? Failure => null;
 
     /// <summary>
+    /// GH-5003: whether this agent's projection is being rebuilt right now. A rebuild hard-stops the
+    /// continuous agent and leaves its old failure in place, so for the whole replay the agent reads as a
+    /// stopped shard -- which is exactly what <see cref="NodeAgentController.ReportFailedLocalAgentsAsync" />
+    /// restarts. It checks this first and leaves the shard to the rebuild. Default false so existing
+    /// implementations are unaffected.
+    /// </summary>
+    bool IsRebuilding => false;
+
+    /// <summary>
     /// GH-3888: whether this agent has burned through its budget of node-local auto-restarts without
     /// its sequence advancing. The auto-restart in <see cref="EventSubscriptionAgent" /> is node-local
     /// — nothing about a stop/start moves the shard anywhere — so when the fault is a property of the
