@@ -105,15 +105,15 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
-        // GH-3947: SQLite has no schemas, so an explicitly configured transport schema name is
-        // applied as a prefix to native SQLite queue table names. Do not stamp the transport with
-        // the integration's default value: leaving the setting alone must preserve the historical
-        // unprefixed table names.
-        if (_transportSchemaNameIsExplicit)
+        // GH-3947: SQLite has no schemas, so the queue tables take PrefixName as a table name prefix.
+        // Opt in only: nothing is stamped unless PrefixName (or the obsolete TransportSchemaName that
+        // forwards to it) was set explicitly, so an application that never set it keeps the historical
+        // unprefixed queue table names and the messages already sitting in them.
+        if (PrefixName != null)
         {
             foreach (var transport in options.Transports.OfType<SqliteTransport>())
             {
-                transport.QueueTablePrefix = TransportSchemaName;
+                transport.PrefixName = PrefixName;
             }
         }
 
@@ -133,30 +133,39 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
 
     internal FisherEventRouter EventRouter { get; } = new();
 
-    private string _transportSchemaName = "wolverine_queues";
-    private bool _transportSchemaNameIsExplicit;
+    private string? _prefixName;
 
     /// <summary>
-    ///     Prefixes native SQLite transport queue tables when explicitly set. SQLite has no
-    ///     schemas, so <c>"reporting"</c> gives queue tables names such as
-    ///     <c>reporting_wolverine_queue_orders</c>. Leaving this setting alone, or setting it to
-    ///     SQLite's built-in <c>main</c> schema name, preserves the historical unprefixed queue names.
+    ///     GH-3947: an optional prefix for the native SQLite transport's queue and scheduled-message
+    ///     tables. SQLite has no schemas, so <c>"reporting"</c> names the tables for an <c>orders</c>
+    ///     queue <c>reporting_wolverine_queue_orders</c> and <c>reporting_wolverine_queue_orders_scheduled</c>,
+    ///     which lets separate sets of Wolverine queue tables share one Fisher database file.
     /// </summary>
     /// <remarks>
-    ///     This affects the native SQLite transport only when it is configured. If you previously
-    ///     set this property while it was inert, enabling it changes which queue tables Wolverine
-    ///     uses; coordinate the prefix across queue senders and listeners, and move any pending
-    ///     messages from the old tables before upgrading.
+    ///     Opt in: the default of <c>null</c> keeps the historical, unprefixed queue table names, and
+    ///     so does SQLite's built-in schema name <c>main</c>. Every application sending to or
+    ///     listening on a queue must use the same prefix. Use <see cref="MessageStorageSchemaName"/>
+    ///     to prefix Wolverine's inbox and outbox tables as well.
     /// </remarks>
-    public string TransportSchemaName
+    public string? PrefixName
     {
-        get => _transportSchemaName;
+        get => _prefixName;
         set
         {
-            SchemaNameValidation.AssertValid(value, nameof(TransportSchemaName));
-            _transportSchemaName = value.ToLowerInvariant();
-            _transportSchemaNameIsExplicit = true;
+            SchemaNameValidation.AssertValid(value, nameof(PrefixName));
+            _prefixName = value?.ToLowerInvariant();
         }
+    }
+
+    /// <summary>
+    ///     Obsolete. SQLite has no schemas, so this never named a schema; setting it now sets
+    ///     <see cref="PrefixName"/>, which prefixes the SQLite queue table names.
+    /// </summary>
+    [Obsolete("SQLite has no schemas. Use PrefixName, which this property now sets, to prefix the SQLite queue table names. See GH-3947.")]
+    public string TransportSchemaName
+    {
+        get => PrefixName ?? "wolverine_queues";
+        set => PrefixName = value;
     }
 
     private string? _messageStorageSchemaName;

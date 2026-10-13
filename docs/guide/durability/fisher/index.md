@@ -72,37 +72,50 @@ builder.Host.UseWolverine(opts =>
 * Make Fisher the active [saga storage](/guide/durability/sagas) for Wolverine
 * Add transactional middleware using Fisher to your Wolverine application
 
-## Prefixing native SQLite queue tables
+## Prefixing native SQLite queue tables <Badge type="tip" text="6.50" />
 
-SQLite has no schemas, so explicitly setting `TransportSchemaName` uses the value as a prefix for native
-SQLite ready and scheduled queue tables. This is useful when separate Wolverine table sets share one file.
-Set `MessageStorageSchemaName` separately if you also want to prefix Wolverine's inbox and outbox tables:
+SQLite doesn't have schemas, so when you want separate sets of Wolverine tables living in the same Fisher
+database file, Wolverine uses a prefix on the table names instead. `MessageStorageSchemaName` has always
+prefixed Wolverine's inbox, outbox and node tables. To prefix the tables behind the native SQLite queues
+too, opt in with `PrefixName`:
 
+<!-- snippet: sample_fisher_prefix_name_for_sqlite_queue_tables -->
+<a id='snippet-sample_fisher_prefix_name_for_sqlite_queue_tables'></a>
 ```cs
-builder.Services.AddFisher(opts =>
+var builder = Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
     {
-        opts.Connection("Data Source=app.db");
-    })
-    .ApplyAllDatabaseChangesOnStartup()
-    .IntegrateWithWolverine(w =>
-    {
-        w.MessageStorageSchemaName = "reporting";
-        w.TransportSchemaName = "reporting";
+        opts.Durability.Mode = DurabilityMode.Solo;
+        opts.PublishAllMessages().ToSqliteQueue("orders");
+
+        opts.Services.AddFisher(m => m.Connection(connectionString))
+            .ApplyAllDatabaseChangesOnStartup()
+            .IntegrateWithWolverine(w =>
+            {
+                // Prefixes the SQLite queue tables, so the "orders" queue lives in
+                // reporting_wolverine_queue_orders and reporting_wolverine_queue_orders_scheduled
+                w.PrefixName = "reporting";
+
+                // Prefixes Wolverine's own inbox, outbox and node tables
+                w.MessageStorageSchemaName = "reporting";
+            });
     });
-
-builder.Host.UseWolverine(opts =>
-{
-    opts.Durability.Mode = DurabilityMode.Solo;
-    opts.PublishAllMessages().ToSqliteQueue("orders");
-});
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/Bug_3947_prefix_name_for_sqlite_queue_tables.cs#L132-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fisher_prefix_name_for_sqlite_queue_tables' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
-The queue tables are named `reporting_wolverine_queue_orders` and
-`reporting_wolverine_queue_orders_scheduled`. Leaving `TransportSchemaName` unset keeps the historical
-unprefixed queue names; explicitly setting it to SQLite's built-in `main` name does the same. Prefixes
-separate table names only; SQLite still allows one writer per file. If you previously set this property while
-it was inert, move any pending messages from the old queue tables before upgrading; Wolverine does not copy
-queue contents automatically. All senders and listeners for a queue must use the same prefix.
+This is completely opt in. If you never set `PrefixName`, or you set it to SQLite's built-in `"main"`, the
+queue tables keep the exact names they've always had. Every application sending to or listening on a queue
+has to use the same prefix, and changing the prefix later points the queues at new, empty tables without
+copying any messages over. See [Prefixing the Queue Tables](/guide/durability/sqlite#prefixing-the-queue-tables)
+in the SQLite guide for the rest of the details.
+
+::: warning
+`FisherIntegration.TransportSchemaName` is now obsolete. It never did anything on Fisher, because there's no
+schema for it to name. Setting it now sets `PrefixName` instead, so if you had set it before, your queue
+tables will pick up that value as a prefix when you upgrade. Either switch to `PrefixName` deliberately, or
+remove the `TransportSchemaName` setting to keep your existing queue table names.
+:::
 
 ## Event Sourcing
 
@@ -247,17 +260,10 @@ release. The following are tracked as follow-up work rather than shipped-but-bro
 |---|---|
 | Multi-tenancy | Fisher's tenancy is a **file per tenant**, so Wolverine's durability tables cannot follow a tenant across files without a second writer per file |
 | Cluster durability modes | One file, one node — see above |
-| Schema-qualified transport tables | SQLite has no schemas; an explicit transport name is applied as a table prefix instead |
+| Schema-qualified transport tables | SQLite has no schemas; use `PrefixName` to prefix the queue tables instead |
 
 ::: tip
-SQLite has no schemas. Wolverine uses table-name prefixes to keep table sets separate inside a shared file.
-`MessageStorageSchemaName` prefixes the inbox and outbox tables; explicitly setting
-`TransportSchemaName` prefixes the native SQLite ready and scheduled queue tables. For example,
-`"reporting"` gives `reporting_wolverine_queue_orders` and
-`reporting_wolverine_queue_orders_scheduled`. Leaving `TransportSchemaName` unset keeps the historical
-unprefixed queue names; explicitly setting it to SQLite's built-in `main` name does the same.
-
-If an application previously set `TransportSchemaName` while it was inert, the setting now changes which
-queue tables Wolverine uses. Move pending messages from the old tables before upgrading; queue contents are
-not copied automatically.
+SQLite has no schemas, so Wolverine uses table name prefixes to keep separate sets of tables apart inside a
+shared file. `MessageStorageSchemaName` prefixes the inbox, outbox and node tables, and `PrefixName` prefixes
+the native SQLite queue tables. See [Prefixing native SQLite queue tables](#prefixing-native-sqlite-queue-tables).
 :::
