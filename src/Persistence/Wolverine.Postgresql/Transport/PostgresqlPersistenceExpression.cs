@@ -45,7 +45,7 @@ public class PostgresqlPersistenceExpression : BrokerExpression<PostgresqlTransp
     ///     Opt into PostgreSQL LISTEN/NOTIFY wakeups for native queues. This holds one dedicated
     ///     connection per active Npgsql data source (typically one per queue database) and application
     ///     process; polling remains enabled as a fallback. Configure this before startup. With PgBouncer,
-    ///     LISTEN requires session pooling.
+    ///     LISTEN requires session pooling. Multiplexed Npgsql data sources are not supported.
     /// </summary>
     public PostgresqlPersistenceExpression EnableQueueNotifications()
     {

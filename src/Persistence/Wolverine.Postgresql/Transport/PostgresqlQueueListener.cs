@@ -239,8 +239,8 @@ SELECT count(*) FROM moved");
 
         await _receiver.ReceivedAsync(this, messages.ToArray());
 
-        // Preserve the original post-process pacing between polls.
-        await Task.Delay(
+        // Preserve the original post-process pacing, but let a queue notification start the next poll immediately.
+        await _loop!.WaitForWakeupOrTimeoutAsync(
             messages.Count > _queue.MaximumMessagesToReceive ? 250.Milliseconds() : _pollingInterval, token);
 
         return true;

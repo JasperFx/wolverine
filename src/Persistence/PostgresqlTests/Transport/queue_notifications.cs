@@ -3,6 +3,7 @@ using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
 using Weasel.Postgresql;
@@ -70,6 +71,36 @@ public class queue_notifications : PostgresqlContext
     }
 
     [Fact]
+    public async Task notifications_reject_multiplexed_data_sources()
+    {
+        var connectionString = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString)
+        {
+            Multiplexing = true
+        };
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        var manager = new PostgresqlQueueNotificationManager();
+        IAsyncDisposable? registration = null;
+
+        try
+        {
+            var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            {
+                registration = await manager.RegisterAsync(dataSource, "default", "queue_schema.messages",
+                    static () => { }, NullLogger.Instance, TestContext.Current.CancellationToken);
+            });
+
+            exception.Message.ShouldContain("Multiplexing=false");
+        }
+        finally
+        {
+            if (registration != null)
+            {
+                await registration.DisposeAsync();
+            }
+        }
+    }
+
+    [Fact]
     public async Task polling_delivers_after_notification_connection_drops_and_listener_reconnects()
     {
         var schema = $"qnotify_{Guid.NewGuid():N}"[..16];
@@ -112,26 +143,34 @@ public class queue_notifications : PostgresqlContext
     {
         var schema = $"qnotify_{Guid.NewGuid():N}"[..16];
         var (publisher, receiver) = await startHostsAsync(schema, true, TimeSpan.FromHours(1));
-        var id = Guid.NewGuid();
 
         try
         {
             var runtime = publisher.GetRuntime();
             var queue = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>().Queues["messages"];
             var serializer = runtime.Options.DefaultSerializer!;
-            var envelope = new Envelope(new QueueNotificationProbe(id))
-            {
-                Id = id,
-                Destination = queue.Uri,
-                SentAt = DateTimeOffset.UtcNow,
-                ContentType = serializer.ContentType,
-                MessageType = typeof(QueueNotificationProbe).ToMessageTypeName()
-            };
-            envelope.Data = serializer.Write(envelope);
+            var sender = new PostgresqlQueueSender(queue);
 
-            var received = QueueNotificationProbeHandler.WaitForAsync(id, 5.Seconds());
-            await new PostgresqlQueueSender(queue).SendAsync(envelope, TestContext.Current.CancellationToken);
-            await received;
+            for (var i = 0; i < 2; i++)
+            {
+                var id = Guid.NewGuid();
+                var envelope = new Envelope(new QueueNotificationProbe(id))
+                {
+                    Id = id,
+                    Destination = queue.Uri,
+                    SentAt = DateTimeOffset.UtcNow,
+                    ContentType = serializer.ContentType,
+                    MessageType = typeof(QueueNotificationProbe).ToMessageTypeName()
+                };
+                envelope.Data = serializer.Write(envelope);
+
+                var received = QueueNotificationProbeHandler.WaitForAsync(id, 5.Seconds());
+                var stopwatch = Stopwatch.StartNew();
+                await sender.SendAsync(envelope, TestContext.Current.CancellationToken);
+                await received;
+                stopwatch.Stop();
+                stopwatch.Elapsed.ShouldBeLessThan(5.Seconds());
+            }
         }
         finally
         {

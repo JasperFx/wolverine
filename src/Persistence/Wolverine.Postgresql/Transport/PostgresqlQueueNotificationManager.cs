@@ -25,6 +25,12 @@ internal sealed class PostgresqlQueueNotificationManager
         {
             if (!_listeners.TryGetValue(dataSource, out listener!))
             {
+                if (new NpgsqlConnectionStringBuilder(dataSource.ConnectionString).Multiplexing)
+                {
+                    throw new InvalidOperationException(
+                        "PostgreSQL queue notifications require a non-multiplexed NpgsqlDataSource because LISTEN needs a dedicated session. Set Multiplexing=false or disable queue notifications.");
+                }
+
                 var schemaName = queueKey.Split('.', 2)[0];
                 listener = new DatabaseListener(dataSource, databaseName,
                     PostgresqlQueueNotification.ApplicationName(schemaName), logger);

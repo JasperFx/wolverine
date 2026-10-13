@@ -72,7 +72,10 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     {
         try
         {
-            _wakeSignal.Release();
+            if (_wakeSignal.CurrentCount == 0)
+            {
+                _wakeSignal.Release();
+            }
         }
         catch (SemaphoreFullException)
         {
@@ -82,6 +85,16 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         {
             // A late notification raced with listener teardown.
         }
+    }
+
+    /// <summary>
+    /// Wait for a wakeup signal or the specified delay, whichever comes first. A wakeup is consumed
+    /// by this call, so the receive loop can use the same signal to interrupt work pacing.
+    /// </summary>
+    /// <returns><see langword="true"/> if a wakeup was consumed; otherwise, <see langword="false"/>.</returns>
+    public Task<bool> WaitForWakeupOrTimeoutAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        return _wakeSignal.WaitAsync(delay, cancellationToken);
     }
 
     public ReceiveLoopStatus ReceiveLoopStatus => _status;
@@ -149,7 +162,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
 
                     if (!didWork)
                     {
-                        await _wakeSignal.WaitAsync(_idleDelay, _cancellation.Token).ConfigureAwait(false);
+                        await WaitForWakeupOrTimeoutAsync(_idleDelay, _cancellation.Token).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
