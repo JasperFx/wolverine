@@ -55,7 +55,7 @@ public class event_store_agents_per_tenant_distribution
         var store = Substitute.For<IEventStore>();
         store.Identity.Returns(new EventStoreIdentity("main", "marten"));
         store.DistributesAgentsPerTenant.Returns(distributesPerTenant);
-        store.TryCreateUsage(Arg.Any<CancellationToken>()).Returns(Task.FromResult<EventStoreUsage?>(usage));
+        store.StubUsage(usage);
         return new EventStoreAgents(store, Array.Empty<IObserver<ShardState>>());
     }
 
