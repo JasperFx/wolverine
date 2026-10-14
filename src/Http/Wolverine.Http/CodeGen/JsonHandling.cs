@@ -112,7 +112,8 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             // dependency, not an inferred JSON body. Keep [FromBody] as the explicit override for
             // applications that intentionally register a request body type as a service.
             // HasRegistrationFor() also includes concrete types JasperFx can construct on demand,
-            // so inspect explicit, unkeyed registrations to preserve normal DTO inference.
+            // so inspect explicit registrations. Only unkeyed registrations suppress body
+            // inference; a keyed-only registration leaves an unannotated parameter as a body.
             if (!parameter.HasAttribute<FromBodyAttribute>() &&
                 container.FindMatchingServices(type => type == parameter.ParameterType)
                     .Any(x => !x.IsKeyedService))

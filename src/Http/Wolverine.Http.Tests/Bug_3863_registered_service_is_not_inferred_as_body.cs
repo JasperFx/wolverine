@@ -67,6 +67,20 @@ public class Bug_3863_registered_service_is_not_inferred_as_body
     }
 
     [Fact]
+    public async Task KeyedOnlyServiceRegistrationDoesNotSuppressBodyInference()
+    {
+        await using var host = await startHostAsync();
+
+        var response = await host.Scenario(x =>
+        {
+            x.Post.Json(new Gh3863KeyedPayload("from-body")).ToUrl("/gh3863/keyed-body");
+            x.StatusCodeShouldBeOk();
+        });
+
+        (await response.ReadAsTextAsync()).ShouldBe("from-body");
+    }
+
+    [Fact]
     public async Task UnregisteredConcreteParameterStillBindsAsBody()
     {
         await using var host = await startHostAsync();
@@ -102,6 +116,7 @@ public class Bug_3863_registered_service_is_not_inferred_as_body
         {
             opts.Services.AddSingleton<Gh3863Resolver>();
             opts.Services.AddSingleton(new Gh3863RegisteredPayload("from-di"));
+            opts.Services.AddKeyedSingleton<Gh3863KeyedPayload>("service-key", new Gh3863KeyedPayload("from-di"));
             opts.Durability.Mode = DurabilityMode.MediatorOnly;
             opts.ApplicationAssembly = typeof(Bug_3863_registered_service_is_not_inferred_as_body).Assembly;
             opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(Gh3863Endpoints));
@@ -124,6 +139,8 @@ public record Gh3863Payload(string Value);
 
 public record Gh3863RegisteredPayload(string Value);
 
+public record Gh3863KeyedPayload(string Value);
+
 public static class Gh3863Endpoints
 {
     [WolverinePost("/gh3863/service/{id}")]
@@ -140,6 +157,9 @@ public static class Gh3863Endpoints
 
     [WolverinePost("/gh3863/registered-body")]
     public static string RegisteredBody([FromBody] Gh3863RegisteredPayload payload) => payload.Value;
+
+    [WolverinePost("/gh3863/keyed-body")]
+    public static string KeyedBody(Gh3863KeyedPayload payload) => payload.Value;
 
     [WolverinePost("/gh3863/body")]
     public static string Body(Gh3863Payload payload) => payload.Value;
