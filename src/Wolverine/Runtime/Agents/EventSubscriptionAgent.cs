@@ -110,11 +110,22 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     // EventStoreAgents counts one logical agent per node for the observer-subscription lifecycle, and a
     // rebuild/rewind is transparent to that count (the wrapper never observed a matching stop), so
     // re-counting here would leak the database's tracker subscriptions. See GH-3520.
+    //
+    // GH-4569: on a warm-up node every start -- the first one, a resume after a rebuild, an auto-restart -- is a
+    // Rebuild-mode start that follows the store and resumes from the shard's own progress, so the new release's
+    // projections publish no side effects until the node is cut over and restarted as a serving node.
     private async Task resumeContinuousAsync(CancellationToken cancellationToken)
     {
-        _innerAgent = await _daemon.StartAgentAsync(_shardName, cancellationToken);
+        _innerAgent = StartsInRebuildMode
+            ? await _daemon.StartAgentInRebuildModeAsync(_shardName, cancellationToken)
+            : await _daemon.StartAgentAsync(_shardName, cancellationToken);
         Status = AgentStatus.Running;
     }
+
+    /// <summary>
+    ///     GH-4569: set on a <see cref="NodeRole.Warmup" /> node, where the shard runs in the daemon's rebuild mode
+    /// </summary>
+    internal bool StartsInRebuildMode { get; init; }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {

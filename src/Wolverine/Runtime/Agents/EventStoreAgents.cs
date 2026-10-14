@@ -350,6 +350,7 @@ public class EventStoreAgents : IAsyncDisposable
 
         var agent = new EventSubscriptionAgent(uri, shardName, daemon)
         {
+            StartsInRebuildMode = ProjectionsOnly,
             OnStarted = () => agentStartedAsync(databaseId),
             OnStopped = () => agentStoppedAsync(databaseId)
         };
