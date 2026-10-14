@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -288,7 +289,7 @@ WITH popped AS (
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
 )
-SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
@@ -298,16 +299,28 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
         await using var batch = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        var batchIds = new List<Guid>();
+        var list = new List<Envelope>();
+        var resultWasMaterialized = false;
+        Exception? failureAfterMaterialization = null;
 
         try
         {
+            // Keep the queue delete and inbox insert uncommitted until the client has read and
+            // materialized the complete result. With an implicit transaction, PostgreSQL can commit
+            // the pop before the client receives the response; a read timeout then strands inbox rows
+            // under this live node because the listener never received the envelopes to process. If
+            // the later COMMIT reply is lost, the batch is released to owner_id = 0 for inbox recovery.
+            await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
             batch.Connection = conn;
+            batch.Transaction = transaction;
             await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
-            var list = new List<Envelope>();
 
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
+                var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+                batchIds.Add(id);
+                var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
                 try
                 {
                     var e = EnvelopeSerializer.Deserialize(data);
@@ -322,8 +335,72 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
             }
 
             await reader.CloseAsync();
+            resultWasMaterialized = true;
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception e) when (resultWasMaterialized)
+        {
+            // The server may have committed even when the client did not receive COMMIT's reply. The
+            // transaction is disposed before this catch; the finally block closes the connection before
+            // reconciliation inspects the committed state on a fresh connection.
+            failureAfterMaterialization = e;
+        }
+        finally
+        {
+            try
+            {
+                await conn.CloseAsync();
+            }
+            catch (Exception e) when (resultWasMaterialized)
+            {
+                failureAfterMaterialization ??= e;
+            }
+        }
 
-            return list;
+        if (failureAfterMaterialization != null)
+        {
+            try
+            {
+                await releaseCommittedBatchForRecoveryAsync(batchIds, settings.AssignedNodeNumber, logger);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e,
+                    "Error releasing PostgreSQL queue batch {Queue} for recovery after a pop commit failure",
+                    _queueName);
+            }
+
+            ExceptionDispatchInfo.Capture(failureAfterMaterialization).Throw();
+        }
+
+        return list;
+    }
+
+    private async Task releaseCommittedBatchForRecoveryAsync(IReadOnlyList<Guid> ids, int ownerId, ILogger logger)
+    {
+        if (ids.Count == 0) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None);
+        try
+        {
+            var released = await conn.CreateCommand($@"
+UPDATE {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
+SET {DatabaseConstants.OwnerId} = 0
+WHERE {DatabaseConstants.Id} = ANY(@ids)
+  AND {DatabaseConstants.Status} = 'Incoming'
+  AND {DatabaseConstants.OwnerId} = @owner
+  AND {DatabaseConstants.ReceivedAt} = @address")
+                .With("ids", ids.ToArray())
+                .With("owner", ownerId)
+                .With("address", Address.ToString())
+                .ExecuteNonQueryAsync(CancellationToken.None);
+
+            if (released > 0)
+            {
+                logger.LogWarning(
+                    "Released {Count} committed messages from PostgreSQL queue {Queue} for inbox recovery after a post-read commit failure",
+                    released, _queueName);
+            }
         }
         finally
         {
