@@ -176,6 +176,10 @@ public static class TodoCreationEndpoint
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L80-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_endpoint_for_create_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+For non-GET endpoints, a concrete parameter registered in the service container is resolved as a service
+instead of being inferred as the JSON request body. If a registered type is intended to be request content,
+mark it with `[FromBody]` to make that binding explicit.
+
 The code above will actually generate the exact same OpenAPI documentation as the MVC Controller or Minimal API samples 
 earlier in this post, but there's significantly less boilerplate code needed to expose that information. Instead, Wolverine.Http
 relies on type signatures to "know" what the OpenAPI metadata for an endpoint should be. In conjunction with Wolverine's [Marten

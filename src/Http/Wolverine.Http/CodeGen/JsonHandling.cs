@@ -84,12 +84,13 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             return false;
         }
 
-        if(parameter.HasAttribute<FromFormAttribute>())
+        if (parameter.HasAttribute<FromFormAttribute>())
         {
             return false;
         }
 
-        if(parameter.HasAttribute<AsParametersAttribute>()){
+        if (parameter.HasAttribute<AsParametersAttribute>())
+        {
             return false;
         }
 
@@ -107,6 +108,19 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
+            // GH-3863: a concrete type registered with the application container is a service
+            // dependency, not an inferred JSON body. Keep [FromBody] as the explicit override for
+            // applications that intentionally register a request body type as a service.
+            // HasRegistrationFor() also includes concrete types JasperFx can construct on demand,
+            // so inspect explicit registrations. Only unkeyed registrations suppress body
+            // inference; a keyed-only registration leaves an unannotated parameter as a body.
+            if (!parameter.HasAttribute<FromBodyAttribute>() &&
+                container.FindMatchingServices(type => type == parameter.ParameterType)
+                    .Any(x => !x.IsKeyedService))
+            {
+                return false;
+            }
+
             // GH-4935 (question 2): a NULLABLE body parameter is an optional body, as it is in minimal
             // APIs -- a request with no body binds null and the endpoint runs, and OpenAPI reports the
             // request body as not required. This used to be true only of a nullable [FromBody] member
@@ -116,7 +130,7 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
                 ? new ReadJsonBody(parameter) { Optional = chain.RequestBodyIsOptional }.Variable
-                : RequireNewtonsoftCodeGen().CreateReadJsonBodyVariable(parameter);
+                : requireNewtonsoftCodeGen().CreateReadJsonBodyVariable(parameter);
 
             variable = chain.RequestBodyVariable;
 
@@ -162,7 +176,7 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
                 ? new ReadJsonBody(chain.RequestType!) { Optional = chain.RequestBodyIsOptional }.Variable
-                : RequireNewtonsoftCodeGen().CreateReadJsonBodyVariable(chain.RequestType!);
+                : requireNewtonsoftCodeGen().CreateReadJsonBodyVariable(chain.RequestType!);
 
             variable = chain.RequestBodyVariable;
 
@@ -173,7 +187,7 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         return false;
     }
 
-    private INewtonsoftHttpCodeGen RequireNewtonsoftCodeGen()
+    private INewtonsoftHttpCodeGen requireNewtonsoftCodeGen()
     {
         if (NewtonsoftCodeGen is null)
         {
