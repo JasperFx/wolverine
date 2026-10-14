@@ -154,7 +154,6 @@ Idempotency protections will help keep your system from having inconsistent stat
 times, but it's always best to not make your system work so hard.
 :::
 
-<!-- JEREMY: draft for GH-5022, please rewrite or approve -->
 The inbox clock starts over whenever a node claims a message -- when it's received, when a different node recovers
 it, or when a scheduled retry comes due -- and Wolverine only bumps messages that are waiting to run, never scheduled
 ones. That means a message bouncing through durable retries isn't going to get replayed underneath itself anymore,
