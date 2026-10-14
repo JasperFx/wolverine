@@ -308,66 +308,72 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
 
         await using var batch = builder.Compile();
 
-        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         var batchIds = new List<Guid>();
         var list = new List<Envelope>();
-        var resultWasMaterialized = false;
-        Exception? failureAfterMaterialization = null;
+        Exception? commitFailure = null;
 
+        var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             // Keep the queue delete and inbox insert uncommitted until the client has read and
             // materialized the complete result. With an implicit transaction, PostgreSQL can commit
             // the pop before the client receives the response; a read timeout then strands inbox rows
-            // under this live node because the listener never received the envelopes to process. If
-            // the later COMMIT reply is lost, the batch is released to owner_id = 0 for inbox recovery.
+            // under this live node because the listener never received the envelopes to process. A
+            // failure before the COMMIT rolls the pop back, and the rows stay in the queue.
             await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
             batch.Connection = conn;
             batch.Transaction = transaction;
-            await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
 
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            await using (var reader = await batch.ExecuteReaderAsync(cancellationToken))
             {
-                var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
-                batchIds.Add(id);
-                var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
-                try
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    var e = EnvelopeSerializer.Deserialize(data);
-                    list.Add(e);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
-                    var ping = Envelope.ForPing(Address); // just a stand in
-                    list.Add(ping);
+                    var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+                    batchIds.Add(id);
+                    var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
+                    try
+                    {
+                        var e = EnvelopeSerializer.Deserialize(data);
+                        list.Add(e);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
+                        var ping = Envelope.ForPing(Address); // just a stand in
+                        list.Add(ping);
+                    }
                 }
             }
 
-            await reader.CloseAsync();
-            resultWasMaterialized = true;
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (Exception e) when (resultWasMaterialized)
-        {
-            // The server may have committed even when the client did not receive COMMIT's reply. The
-            // transaction is disposed before this catch; the finally block closes the connection before
-            // reconciliation inspects the committed state on a fresh connection.
-            failureAfterMaterialization = e;
+            try
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // The server may have committed even though the client did not receive COMMIT's reply.
+                // The batch is released after the transaction and connection are disposed below: the
+                // release waits on this transaction's row locks, so it must not run while we still hold it.
+                commitFailure = e;
+            }
         }
         finally
         {
+            // Closing never decides the outcome. A close failure after a confirmed COMMIT must not
+            // discard a batch this node now owns, and one after an earlier failure must not replace
+            // the exception that explains it.
             try
             {
-                await conn.CloseAsync();
+                await conn.DisposeAsync();
             }
-            catch (Exception e) when (resultWasMaterialized)
+            catch (Exception e)
             {
-                failureAfterMaterialization ??= e;
+                logger.LogWarning(e, "Error closing the connection after a durable pop from PostgreSQL queue {Queue}",
+                    _queueName);
             }
         }
 
-        if (failureAfterMaterialization != null)
+        if (commitFailure != null)
         {
             if (batchIds.Count > 0)
             {
@@ -386,7 +392,7 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
                 }
             }
 
-            ExceptionDispatchInfo.Capture(failureAfterMaterialization).Throw();
+            ExceptionDispatchInfo.Capture(commitFailure).Throw();
         }
 
         return list;
