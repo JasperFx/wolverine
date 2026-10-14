@@ -301,7 +301,13 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
 
         try
         {
+            // Keep the queue delete and inbox insert uncommitted until the client has read and
+            // materialized the complete result. With an implicit transaction, PostgreSQL can commit
+            // the pop before the client receives the response; a read timeout then strands inbox rows
+            // under this live node because the listener never received the envelopes to process.
+            await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
             batch.Connection = conn;
+            batch.Transaction = transaction;
             await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
             var list = new List<Envelope>();
 
@@ -322,6 +328,7 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
             }
 
             await reader.CloseAsync();
+            await transaction.CommitAsync(cancellationToken);
 
             return list;
         }
