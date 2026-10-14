@@ -27,6 +27,9 @@ public class DeadLetterQueueReplayer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // GH-4569: replaying a dead letter re-runs a production message, which a warm-up node never does
+        if (_runtime.Options.Durability.NodeRole == NodeRole.Warmup) return;
+
         var options = new PredicateSubscriptionCreationOptions()
         {
             ArchivedDataProcessingBehavior = ArchivedDataProcessingBehavior.ExcludeArchived,

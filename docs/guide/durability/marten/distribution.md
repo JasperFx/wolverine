@@ -283,6 +283,85 @@ whatever assignments the leader gives it. It simply never contends for the leade
 if the setting changed underneath an existing lease. At least one node of the cluster must be eligible, or
 nothing is ever assigned.
 
+## Warming Up a New Release on Its Own Nodes <Badge type="tip" text="6.51" />
+
+Let's say your next release bumps the version of a big async projection, and rebuilding that projection from
+scratch takes hours. You don't want your users looking at a half built read model in the meantime, so the
+natural thing to do is to stand up the new release ("green") next to the release that's currently serving
+traffic ("blue"), let green catch the new projection versions up off to the side, and only then cut over.
+
+The catch is that green has to be part of the same Wolverine cluster to get those projection agents assigned to
+it at all -- and a normal Wolverine node in that cluster will also happily pick up messages from its listeners,
+recover persisted envelopes, and run scheduled messages with the *new* code. If that new code appends an event
+type the blue release doesn't know about yet, every async projection on blue that reads that event type stops
+with an `UnknownEventTypeException`. Ask us how we know.
+
+Instead, start the green nodes as warm-up nodes:
+
+```csharp
+// Only on the green nodes, and only until you cut over to them
+opts.Durability.NodeRole = NodeRole.Warmup;  // default: NodeRole.Serving
+```
+
+A warm-up node takes part in the agent cluster through its control queue, and otherwise stays out of the way:
+
+* It never becomes the leader (it implies `LeadershipEligible = false` from above)
+* It is only ever assigned the projection agents that *no* serving node declares -- in other words, the new
+  versions of your bumped projections. The shared, un-bumped projections stay put on blue, so green joining or
+  leaving the cluster doesn't shuffle them around
+* It never runs event subscriptions, only projections. A subscription is a side effect by definition, and blue
+  keeps running all of them until the cut over
+* It runs its projection agents in the daemon's *rebuild* mode, so `RaiseSideEffects()` never fires and no
+  messages are published from those projections. Unlike a real rebuild, the agent keeps following the event
+  store, and a restarted warm-up node picks up where it left off instead of starting over
+* It listens to its own control endpoint and nothing else. No application listeners, no inbox or outbox
+  recovery, no durability agents, no polling for scheduled messages, no recurring schedules, no exclusive or
+  leader-pinned listeners
+
+To cut over, restart the green nodes as `NodeRole.Serving` -- usually that's just flipping a configuration value
+in your deployment. The projection agents then carry on in normal continuous mode from the same progress, and
+regular blue/green behavior takes over from there.
+
+::: warning
+Upgrade your *serving* nodes to a Wolverine version that understands node roles before you roll out a warm-up
+node. The role travels to the leader as a marker in the node's capabilities, so there's no database schema
+change involved, but the leader is always one of your serving nodes, and an older leader will simply ignore the
+marker and assign agents to green like it always has.
+:::
+
+::: tip
+If every serving node goes away while green is still warming up, nothing gets reassigned at all: a warm-up node
+never leads, so there's no leader to do the assignment. Green keeps exactly what it was running. That's on
+purpose -- a crash during a warm-up should never quietly turn the new release into production.
+:::
+
+### What Wolverine can't turn off for you
+
+Wolverine can only enforce the role inside its own runtime. The rest of your application is still running on a
+warm-up node, so you'll want to walk through this checklist yourself:
+
+* **Your own hosted services.** Any `BackgroundService` or `IHostedService` that polls for work (file imports,
+  say) will happily run on green. Check the role and bail out early:
+
+  ```csharp
+  public class FileImportPoller(IWolverineRuntime runtime) : BackgroundService
+  {
+      protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+      {
+          if (runtime.Options.Durability.NodeRole == NodeRole.Warmup) return;
+
+          // poll for files...
+      }
+  }
+  ```
+
+* **HTTP traffic.** Keep the green pods out of your load balancer, i.e. the Kubernetes `Service` selector, until
+  you cut over. Your health check endpoints still need to answer of course.
+* **Calling `IMessageBus.InvokeAsync()` from your own code.** That runs the handler inline on whatever node calls
+  it, warm-up node or not.
+* **Inline side effects in an `EventProjection`.** Rebuild mode stops `RaiseSideEffects()`, but anything your own
+  projection code does directly inside an `Apply()` method runs regardless of the mode.
+
 ## Agent Start Retries <Badge type="tip" text="6.x" />
 
 An agent's very first assignment can race the subsystems it depends on coming up — an event-subscription
