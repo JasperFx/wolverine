@@ -25,4 +25,11 @@
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
     </ItemGroup>
 
+    <!-- GHSA-846f-f764-76mx / CVE-2026-84008: a vulnerable System.Security.Cryptography.Pkcs
+         arrives transitively through Microsoft.EntityFrameworkCore.SqlServer. Referenced directly so
+         the patched version wins; see the note in Directory.Packages.props. -->
+    <ItemGroup>
+        <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    </ItemGroup>
+
 </Project>

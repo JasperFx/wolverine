@@ -81,8 +81,11 @@
     <PackageVersion Include="MessagePack" Version="3.1.7" />
     <PackageVersion Include="Meziantou.Extensions.Logging.Xunit" Version="1.0.15" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.14" />
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR" Version="1.2.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.8" />
+    <!-- GHSA-334f-vvp4-7g6p / CVE-2026-70159 (HIGH, NU1903): SignalR.Client 9.0.8 brings
+         Microsoft.AspNetCore.SignalR.Common 9.0.8, patched in 9.0.21 and 10.0.13. Each TFM takes
+         its own servicing line. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.21" Condition="'$(TargetFramework)' != 'net10.0'" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" Condition="'$(TargetFramework)' == 'net10.0'" />
     <PackageVersion Include="Microsoft.Azure.SignalR" Version="1.32.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
@@ -182,6 +185,15 @@
     <PackageVersion Include="System.Formats.Asn1" Version="9.0.0" />
     <!-- 10.0.7 carries a known HIGH severity advisory (NU1903). -->
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
+    <!-- GHSA-846f-f764-76mx / CVE-2026-84008 (HIGH, NU1903: .NET denial of service) covers
+         System.Security.Cryptography.Pkcs 8.0.0-8.0.1, 9.0.0-9.0.20 and 10.0.0-10.0.12. It arrives
+         transitively through Microsoft.Data.SqlClient, Oracle.ManagedDataAccess.Core and Polecat
+         (8.0.0, 9.0.4, 9.0.13) on BOTH target frameworks - nothing prunes it on net10.0. So
+         Wolverine.SqlServer, Wolverine.Oracle and Wolverine.ClaimCheck.SqlServer reference it
+         directly, and everything downstream of them gets the patched version. Each TFM takes its
+         own servicing line. Transitive pinning stays off (see the top of this file). -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="9.0.21" Condition="'$(TargetFramework)' != 'net10.0'" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" Condition="'$(TargetFramework)' == 'net10.0'" />
     <!-- Testcontainers pulls SSH.NET [2025.1.0, ); everything through 2025.1.0 carries
          GHSA-q939-rpr3-3284. The test projects that use Testcontainers reference this directly so
          the patched version wins. -->
