@@ -25,7 +25,7 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     private Task? _scheduledTask;
     private readonly SqlServerQueueSender _sender;
     private readonly string _tryPopMessagesDirectlySql;
-    private readonly string _tryPopMessagesToInboxSql;
+    private readonly SqlServerDurablePop _durablePop;
     private readonly string _moveScheduledToReadyQueueSql;
     private readonly string _deleteExpiredSql;
     private readonly TimeSpan _pollingInterval;
@@ -56,7 +56,7 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         // tie-breaker) and the reapplied order on the rows DELETE ... OUTPUT hands back live in
         // SqlServerQueueSql, which the queue's own helper methods share. See GH-4862.
         _tryPopMessagesDirectlySql = SqlServerQueueSql.TryPopDirectly(queue);
-        _tryPopMessagesToInboxSql = SqlServerQueueSql.TryPopToInbox(queue, Address);
+        _durablePop = new SqlServerDurablePop(queue, _connectionString, Address);
         _moveScheduledToReadyQueueSql =
             SqlServerQueueSql.MoveScheduledToReadyQueue(queue, _settings.RecoveryBatchSize);
 
@@ -186,6 +186,9 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     // idle delay) — exactly the previous "process, else wait the polling interval" pacing.
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
+        // GH-5015: a pop whose COMMIT outcome was unknown, and whose envelopes could not be released then
+        await _durablePop.ReleaseUnconfirmedPopAsync(token);
+
         var messages = _queue.Mode == EndpointMode.Durable
             ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger, token)
             : await TryPopAsync(_queue.MaximumMessagesToReceive, _logger, token);
@@ -225,30 +228,11 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
             }, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
+    public Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
         ILogger logger, CancellationToken cancellationToken)
     {
-        await using var conn = new SqlConnection(_connectionString);
-        await conn.OpenAsync(cancellationToken);
-
-        return await conn
-            .CreateCommand(_tryPopMessagesToInboxSql)
-            .With("count", count)
-            .With("node", settings.AssignedNodeNumber)
-            .FetchListAsync<Envelope>(async reader =>
-            {
-                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
-                try
-                {
-                    return EnvelopeSerializer.Deserialize(data);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e,
-                        "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding",
-                        _queue.Name);
-                    return Envelope.ForPing(Address); // just a stand in
-                }
-            }, cancellationToken);
+        return _durablePop.TryPopAsync(count, settings.AssignedNodeNumber, logger, cancellationToken);
     }
+
+    internal SqlServerDurablePop DurablePop => _durablePop;
 }

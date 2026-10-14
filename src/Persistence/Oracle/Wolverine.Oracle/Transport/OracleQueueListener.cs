@@ -11,6 +11,8 @@ using Wolverine.Transports;
 
 namespace Wolverine.Oracle.Transport;
 
+internal record UnconfirmedPop(Guid[] Ids, int NodeNumber);
+
 internal class OracleQueueListener : IListener
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -32,6 +34,9 @@ internal class OracleQueueListener : IListener
     private readonly bool _deterministicQueueOrdering;
     private readonly string _queueOrderBy;
     private readonly string _scheduledOrderBy;
+
+    // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public OracleQueueListener(OracleQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         OracleDataSource dataSource, string? databaseName)
@@ -226,6 +231,11 @@ internal class OracleQueueListener : IListener
         {
             try
             {
+                if (_unconfirmedPop != null)
+                {
+                    await ReleaseUnconfirmedPopAsync(_cancellation.Token);
+                }
+
                 var messages = _queue.Mode == EndpointMode.Durable
                     ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger,
                         _cancellation.Token)
@@ -356,7 +366,19 @@ internal class OracleQueueListener : IListener
                 }
             }
 
-            await transaction.CommitAsync(cancellationToken);
+            try
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // GH-5015: a COMMIT that fails on the wire may still have committed, leaving the envelopes in the
+                // inbox owned by this live node and in no listener's memory -- recovery only reclaims
+                // owner_id = 0. Nothing is handed to the receiver (if the move rolled back, the rows are back in
+                // the queue and would run twice), so release whatever did commit to recovery instead.
+                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                throw;
+            }
 
             return list;
         }
@@ -365,6 +387,84 @@ internal class OracleQueueListener : IListener
             await conn.CloseAsync();
         }
     }
+
+    private async Task releaseAfterFailedCommitAsync(List<Guid> ids, int nodeNumber, Exception commitFailure,
+        ILogger logger)
+    {
+        if (ids.Count == 0) return;
+
+        logger.LogError(commitFailure,
+            "The commit of a durable pop of {Count} envelope(s) from Oracle queue {Queue} failed with an unknown outcome. Releasing them to recovery",
+            ids.Count, _queueName);
+
+        _unconfirmedPop = new UnconfirmedPop(ids.ToArray(), nodeNumber);
+        try
+        {
+            await ReleaseUnconfirmedPopAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e,
+                "Unable to release {Count} envelope(s) of an unconfirmed durable pop from Oracle queue {Queue}. Retrying on the next poll",
+                ids.Count, _queueName);
+        }
+    }
+
+    /// <summary>
+    /// GH-5015: hand the envelopes of a pop whose COMMIT outcome is unknown to recovery (owner_id = 0). The
+    /// SELECT ... FOR UPDATE locks the popped ids in the queue table, which waits out the original transaction
+    /// if it is somehow still in flight; once that returns, the move has either committed (the update releases
+    /// the inbox rows) or rolled back (the rows are back in the queue and the update matches nothing).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(CancellationToken cancellationToken)
+    {
+        if (_unconfirmedPop is not { } pop) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
+
+            var idParameters = pop.Ids.Select((_, i) => ":id" + i).ToArray();
+            var ids = string.Join(", ", idParameters);
+
+            OracleCommand createCmd(string sql)
+            {
+                var cmd = conn.CreateCommand(sql);
+                cmd.Transaction = (OracleTransaction)transaction;
+                for (var i = 0; i < pop.Ids.Length; i++)
+                {
+                    cmd.With("id" + i, pop.Ids[i]);
+                }
+
+                return cmd;
+            }
+
+            await using (var lockCmd = createCmd($"SELECT id FROM {_queueTableName} WHERE id IN ({ids}) FOR UPDATE"))
+            {
+                await using var reader = await lockCmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                }
+            }
+
+            await using (var releaseCmd = createCmd(
+                             $"UPDATE {_schemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE id IN ({ids}) AND {DatabaseConstants.OwnerId} = :node AND {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'"))
+            {
+                releaseCmd.With("node", pop.NodeNumber);
+                await releaseCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            _unconfirmedPop = null;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 
     public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, ILogger logger,
         CancellationToken cancellationToken)

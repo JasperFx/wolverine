@@ -13,6 +13,8 @@ using Wolverine.Transports;
 
 namespace Wolverine.Postgresql.Transport;
 
+internal record UnconfirmedPop(Guid[] Ids, int NodeNumber);
+
 internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -35,6 +37,9 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly bool _deterministicQueueOrdering;
     private readonly string _queueNotificationKey;
     private IAsyncDisposable? _notificationRegistration;
+
+    // GH-5015: a pop whose COMMIT outcome was unknown and whose release could not run yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -229,6 +234,11 @@ SELECT count(*) FROM moved");
     // applies its idle delay = _pollingInterval).
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
+        if (_unconfirmedPop != null)
+        {
+            await ReleaseUnconfirmedPopAsync(_logger, token);
+        }
+
         var messages = _queue.Mode == EndpointMode.Durable
             ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger, token)
             : await TryPopAsync(_queue.MaximumMessagesToReceive, _logger, token);
@@ -298,102 +308,142 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
 
         await using var batch = builder.Compile();
 
-        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         var batchIds = new List<Guid>();
         var list = new List<Envelope>();
-        var resultWasMaterialized = false;
-        Exception? failureAfterMaterialization = null;
+        Exception? commitFailure = null;
 
+        var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             // Keep the queue delete and inbox insert uncommitted until the client has read and
             // materialized the complete result. With an implicit transaction, PostgreSQL can commit
             // the pop before the client receives the response; a read timeout then strands inbox rows
-            // under this live node because the listener never received the envelopes to process. If
-            // the later COMMIT reply is lost, the batch is released to owner_id = 0 for inbox recovery.
+            // under this live node because the listener never received the envelopes to process. A
+            // failure before the COMMIT rolls the pop back, and the rows stay in the queue.
             await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
             batch.Connection = conn;
             batch.Transaction = transaction;
-            await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
 
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            await using (var reader = await batch.ExecuteReaderAsync(cancellationToken))
             {
-                var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
-                batchIds.Add(id);
-                var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
-                try
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    var e = EnvelopeSerializer.Deserialize(data);
-                    list.Add(e);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
-                    var ping = Envelope.ForPing(Address); // just a stand in
-                    list.Add(ping);
+                    var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+                    batchIds.Add(id);
+                    var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
+                    try
+                    {
+                        var e = EnvelopeSerializer.Deserialize(data);
+                        list.Add(e);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
+                        var ping = Envelope.ForPing(Address); // just a stand in
+                        list.Add(ping);
+                    }
                 }
             }
 
-            await reader.CloseAsync();
-            resultWasMaterialized = true;
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (Exception e) when (resultWasMaterialized)
-        {
-            // The server may have committed even when the client did not receive COMMIT's reply. The
-            // transaction is disposed before this catch; the finally block closes the connection before
-            // reconciliation inspects the committed state on a fresh connection.
-            failureAfterMaterialization = e;
-        }
-        finally
-        {
             try
             {
-                await conn.CloseAsync();
-            }
-            catch (Exception e) when (resultWasMaterialized)
-            {
-                failureAfterMaterialization ??= e;
-            }
-        }
-
-        if (failureAfterMaterialization != null)
-        {
-            try
-            {
-                await releaseCommittedBatchForRecoveryAsync(batchIds, settings.AssignedNodeNumber, logger);
+                await transaction.CommitAsync(cancellationToken);
             }
             catch (Exception e)
             {
-                logger.LogError(e,
-                    "Error releasing PostgreSQL queue batch {Queue} for recovery after a pop commit failure",
+                // The server may have committed even though the client did not receive COMMIT's reply.
+                // The batch is released after the transaction and connection are disposed below: the
+                // release waits on this transaction's row locks, so it must not run while we still hold it.
+                commitFailure = e;
+            }
+        }
+        finally
+        {
+            // Closing never decides the outcome. A close failure after a confirmed COMMIT must not
+            // discard a batch this node now owns, and one after an earlier failure must not replace
+            // the exception that explains it.
+            try
+            {
+                await conn.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Error closing the connection after a durable pop from PostgreSQL queue {Queue}",
                     _queueName);
             }
+        }
 
-            ExceptionDispatchInfo.Capture(failureAfterMaterialization).Throw();
+        if (commitFailure != null)
+        {
+            if (batchIds.Count > 0)
+            {
+                _unconfirmedPop = new UnconfirmedPop(batchIds.ToArray(), settings.AssignedNodeNumber);
+                try
+                {
+                    await ReleaseUnconfirmedPopAsync(logger, CancellationToken.None);
+                }
+                catch (Exception e)
+                {
+                    // Kept in _unconfirmedPop: the receive loop tries again before its next poll, so a
+                    // database that is still unreachable here does not strand the batch
+                    logger.LogError(e,
+                        "Error releasing PostgreSQL queue batch {Queue} for recovery after a pop commit failure. Retrying before the next poll",
+                        _queueName);
+                }
+            }
+
+            ExceptionDispatchInfo.Capture(commitFailure).Throw();
         }
 
         return list;
     }
 
-    private async Task releaseCommittedBatchForRecoveryAsync(IReadOnlyList<Guid> ids, int ownerId, ILogger logger)
+    /// <summary>
+    /// Release the batch of a pop whose COMMIT outcome is unknown to inbox recovery (owner_id = 0). The
+    /// first statement locks the batch's ids in the queue table. That waits out the pop's transaction if
+    /// the server is still committing it -- a slow commit is exactly the disk stall that loses the reply,
+    /// and an UPDATE on the inbox alone would not see the uncommitted rows, match nothing, and leave them
+    /// stranded once the commit landed. Once the lock returns the move has either committed (the update
+    /// releases the inbox rows) or rolled back (the rows are back in the queue and nothing matches).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(ILogger logger, CancellationToken cancellationToken)
     {
-        if (ids.Count == 0) return;
+        if (_unconfirmedPop is not { } pop) return;
 
-        await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None);
-        try
-        {
-            var released = await conn.CreateCommand($@"
+        var builder = new BatchBuilder();
+        var lockParameters = builder.AppendWithParameters($"SELECT id FROM {_queueTableName} WHERE id = ANY(?) FOR UPDATE");
+        lockParameters[0].Value = pop.Ids;
+        lockParameters[0].NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+        builder.StartNewCommand();
+        var releaseParameters = builder.AppendWithParameters($@"
 UPDATE {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
 SET {DatabaseConstants.OwnerId} = 0
-WHERE {DatabaseConstants.Id} = ANY(@ids)
+WHERE {DatabaseConstants.Id} = ANY(?)
   AND {DatabaseConstants.Status} = 'Incoming'
-  AND {DatabaseConstants.OwnerId} = @owner
-  AND {DatabaseConstants.ReceivedAt} = @address")
-                .With("ids", ids.ToArray())
-                .With("owner", ownerId)
-                .With("address", Address.ToString())
-                .ExecuteNonQueryAsync(CancellationToken.None);
+  AND {DatabaseConstants.OwnerId} = ?
+  AND {DatabaseConstants.ReceivedAt} = ?");
+        releaseParameters[0].Value = pop.Ids;
+        releaseParameters[0].NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+        releaseParameters[1].Value = pop.NodeNumber;
+        releaseParameters[1].NpgsqlDbType = NpgsqlDbType.Integer;
+        releaseParameters[2].Value = Address.ToString();
+        releaseParameters[2].NpgsqlDbType = NpgsqlDbType.Varchar;
+
+        await using var batch = builder.Compile();
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            batch.Connection = conn;
+            await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                // the locked queue rows of a pop that rolled back
+            }
+
+            await reader.CloseAsync();
+            var released = batch.BatchCommands[1].RecordsAffected;
+
+            _unconfirmedPop = null;
 
             if (released > 0)
             {
@@ -407,6 +457,8 @@ WHERE {DatabaseConstants.Id} = ANY(@ids)
             await conn.CloseAsync();
         }
     }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 
     public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, ILogger logger,
         CancellationToken cancellationToken)

@@ -10,6 +10,9 @@ using Wolverine.Transports;
 
 namespace Wolverine.MySql.Transport;
 
+// The ids are kept as read back, whatever type the connector's GuidFormat maps CHAR(36) to
+internal record UnconfirmedPop(object[] Ids, int NodeNumber);
+
 internal class MySqlQueueListener : IListener
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -33,6 +36,9 @@ internal class MySqlQueueListener : IListener
     private readonly string _scheduledOrderBy;
     private readonly string _tempPopTable;
     private readonly string _tempMoveTable;
+
+    // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public MySqlQueueListener(MySqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         MySqlDataSource dataSource, string? databaseName)
@@ -183,7 +189,10 @@ CREATE TEMPORARY TABLE IF NOT EXISTS {_tempMoveTable} (
             await createTempCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Clear any existing data
-            await using var truncateCmd = CreateCmd($"TRUNCATE TABLE {_tempMoveTable}");
+            // GH-5015: DELETE, not TRUNCATE. TRUNCATE causes an implicit commit, which ended the transaction
+            // opened above, so every statement after it auto-committed on its own and the move was durable
+            // before the client had read it back.
+            await using var truncateCmd = CreateCmd($"DELETE FROM {_tempMoveTable}");
             await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select scheduled messages that are ready
@@ -234,6 +243,11 @@ WHERE id IN (SELECT id FROM {_tempMoveTable})");
         {
             try
             {
+                if (_unconfirmedPop != null)
+                {
+                    await ReleaseUnconfirmedPopAsync(_cancellation.Token);
+                }
+
                 var messages = _queue.Mode == EndpointMode.Durable
                     ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger,
                         _cancellation.Token)
@@ -316,7 +330,10 @@ CREATE TEMPORARY TABLE IF NOT EXISTS {_tempPopTable} (
             await createTempCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Clear temp table
-            await using var truncateCmd = CreateCmd($"TRUNCATE TABLE {_tempPopTable}");
+            // GH-5015: DELETE, not TRUNCATE. TRUNCATE causes an implicit commit, which ended the transaction
+            // opened above, so every statement after it auto-committed on its own and the move was durable
+            // before the client had read it back.
+            await using var truncateCmd = CreateCmd($"DELETE FROM {_tempPopTable}");
             await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select messages to process with lock
@@ -345,13 +362,15 @@ FROM {_tempPopTable}");
 
             // Read the bodies. GH-4862: without the ORDER BY these came back in the temporary table's
             // primary key (message id) order, not the order they were selected in.
+            var ids = new List<object>();
             var list = new List<Envelope>();
-            await using var readCmd = CreateCmd($"SELECT body FROM {_tempPopTable} ORDER BY {_queueOrderBy}");
+            await using var readCmd = CreateCmd($"SELECT id, body FROM {_tempPopTable} ORDER BY {_queueOrderBy}");
             await using var reader = await readCmd.ExecuteReaderAsync(cancellationToken);
 
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                var data = (byte[])reader.GetValue(0);
+                ids.Add(reader.GetValue(0));
+                var data = (byte[])reader.GetValue(1);
                 try
                 {
                     var e = EnvelopeSerializer.Deserialize(data);
@@ -366,7 +385,20 @@ FROM {_tempPopTable}");
             }
 
             await reader.CloseAsync();
-            await transaction.CommitAsync(cancellationToken);
+
+            try
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // GH-5015: a COMMIT that fails on the wire may still have committed, leaving the envelopes in the
+                // inbox owned by this live node and in no listener's memory -- recovery only reclaims
+                // owner_id = 0. Nothing is handed to the receiver (if the move rolled back, the rows are back in
+                // the queue and would run twice), so release whatever did commit to recovery instead.
+                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                throw;
+            }
 
             return list;
         }
@@ -375,6 +407,65 @@ FROM {_tempPopTable}");
             await conn.CloseAsync();
         }
     }
+
+    private async Task releaseAfterFailedCommitAsync(List<object> ids, int nodeNumber, Exception commitFailure,
+        ILogger logger)
+    {
+        if (ids.Count == 0) return;
+
+        logger.LogError(commitFailure,
+            "The commit of a durable pop of {Count} envelope(s) from MySQL queue {Queue} failed with an unknown outcome. Releasing them to recovery",
+            ids.Count, _queueName);
+
+        _unconfirmedPop = new UnconfirmedPop(ids.ToArray(), nodeNumber);
+        try
+        {
+            await ReleaseUnconfirmedPopAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e,
+                "Unable to release {Count} envelope(s) of an unconfirmed durable pop from MySQL queue {Queue}. Retrying on the next poll",
+                ids.Count, _queueName);
+        }
+    }
+
+    /// <summary>
+    /// GH-5015: hand the envelopes of a pop whose COMMIT outcome is unknown to recovery (owner_id = 0). An InnoDB
+    /// UPDATE is a locking read, so it waits on the inbox rows the original transaction inserted if that
+    /// transaction is somehow still in flight; once it runs, the move has either committed (the rows are
+    /// released) or rolled back (the rows are back in the queue and nothing matches).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(CancellationToken cancellationToken)
+    {
+        if (_unconfirmedPop is not { } pop) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var cmd = conn.CreateCommand();
+
+            var idParameters = new string[pop.Ids.Length];
+            for (var i = 0; i < pop.Ids.Length; i++)
+            {
+                idParameters[i] = "@id" + i;
+                cmd.Parameters.AddWithValue(idParameters[i], pop.Ids[i]);
+            }
+
+            cmd.Parameters.AddWithValue("@node", pop.NodeNumber);
+            cmd.CommandText =
+                $"UPDATE {_schemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE id IN ({string.Join(", ", idParameters)}) AND {DatabaseConstants.OwnerId} = @node AND {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'";
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            _unconfirmedPop = null;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 
     public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, ILogger logger,
         CancellationToken cancellationToken)

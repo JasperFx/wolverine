@@ -372,7 +372,12 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
                     {
                         if (message.Type == (byte)'C')
                         {
-                            if (message.CommandTag == "SELECT 1") popCommandCompleteSeen = true;
+                            // Any pop that moved rows: "SELECT n" for n > 0, not only a one-message batch
+                            if (message.CommandTag is { } tag && tag.StartsWith("SELECT ") &&
+                                int.TryParse(tag.AsSpan(7), out var rows) && rows > 0)
+                            {
+                                popCommandCompleteSeen = true;
+                            }
                             if (message.CommandTag == "COMMIT") commitCommandCompleteSeen = true;
                         }
 

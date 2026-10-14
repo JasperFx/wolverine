@@ -349,7 +349,7 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
     private string? _moveScheduledToReadyQueueSql;
     private string? _deleteExpiredSql;
     private string? _tryPopMessagesDirectlySql;
-    private string? _tryPopMessagesToInboxSql;
+    private SqlServerDurablePop? _durablePop;
 
     private void buildTestSqlIfMissing()
     {
@@ -392,7 +392,7 @@ DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
             $"delete from {QueueTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET();delete from {ScheduledTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET()";
 
         _tryPopMessagesDirectlySql = SqlServerQueueSql.TryPopDirectly(this);
-        _tryPopMessagesToInboxSql = SqlServerQueueSql.TryPopToInbox(this, Uri);
+        _durablePop = new SqlServerDurablePop(this, Parent.Settings.ConnectionString!, Uri);
     }
 
     public async Task SendAsync(Envelope envelope, CancellationToken cancellationToken)
@@ -557,31 +557,11 @@ DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
             }, cancellation: cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
+    public Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
         ILogger logger, CancellationToken cancellationToken)
     {
         buildTestSqlIfMissing();
-        await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
-        await conn.OpenAsync(cancellationToken);
-
-        return await conn
-            .CreateCommand(_tryPopMessagesToInboxSql!)
-            .With("count", count)
-            .With("node", settings.AssignedNodeNumber)
-            .FetchListAsync<Envelope>(async reader =>
-            {
-                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
-                try
-                {
-                    return EnvelopeSerializer.Deserialize(data);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e,
-                        "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", Name);
-                    return Envelope.ForPing(Uri); // just a stand in
-                }
-            }, cancellation: cancellationToken);
+        return _durablePop!.TryPopAsync(count, settings.AssignedNodeNumber, logger, cancellationToken);
     }
 
     #endregion
