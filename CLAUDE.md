@@ -79,6 +79,9 @@ the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
 - CI does not use `dotnet test` except in `fsharp.yml`. The Nuke targets run each test host through
   Bobcat's supervisor (`build/SupervisedTests.cs`) with C# filter predicates, so a CI target is
   `./build.sh CoreTests --framework net9.0` locally.
+- **Gating a Stoat plan on a suite:** run its target with `BOBCAT_RUN_TAG={plan}/{node}` set exactly as the
+  plan gave it. Every supervised run publishes to the Bobcat monitor when one answers. The command per
+  suite, the Docker services each needs and what can run side by side are in `.claude/docs/test_gates.md`.
 - `[assembly: CollectionBehavior(DisableTestParallelization = true)]` no longer compiles; use
   `[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]`. A helper library that
   references the platform but is not a test host needs `IsTestingPlatformApplication=false`; none does today.
@@ -245,6 +248,7 @@ When working on specific areas, consult these files:
 |-------|------|
 | Architectural patterns & conventions | `.claude/docs/architectural_patterns.md` |
 | AOT suppression audit (GH-4810) | `.claude/docs/aot_suppression_audit.md` |
+| Test suites as Stoat gates: commands, Docker services, parallelism (GH-5019) | `.claude/docs/test_gates.md` |
 
 ## Version
 
