@@ -136,6 +136,7 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
             var runtime = host.GetRuntime();
             var queue = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>().Queues["pop_timeout"];
             await runtime.Endpoints.StopListenerAsync(queue, cancellationToken);
+            runtime.DurabilitySettings.AssignedNodeNumber.ShouldNotBe(0);
             queue.MaximumMessagesToReceive = 1;
 
             var envelope = ObjectMother.Envelope();
