@@ -15,6 +15,7 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Tracking;
@@ -24,6 +25,14 @@ namespace PostgresqlTests.Transport;
 
 public class Bug5015DurablePopResponseLoss : PostgresqlContext
 {
+    private enum ResponseDropPoint
+    {
+        PopResult,
+        Commit
+    }
+
+    private readonly record struct BackendMessage(byte Type, string? CommandTag, int EndOffset, int MessageLength);
+
     [Fact]
     public async Task LostPopResponseDoesNotStrandMessagesOnTheLiveOwner()
     {
@@ -45,16 +54,18 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
 
             var runtime = host.GetRuntime();
             var queue = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>().Queues["pop_timeout"];
+            await runtime.Endpoints.StopListenerAsync(queue, cancellationToken);
             queue.MaximumMessagesToReceive = 1;
 
             var envelope = ObjectMother.Envelope();
             await queue.SendAsync(envelope);
             (await queue.CountAsync()).ShouldBe(1);
 
+            var postgresConnection = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
             await using var proxy = await PostgresqlReplyDropProxy.StartAsync(
-                "127.0.0.1", new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString).Port);
+                postgresConnection.Host ?? "localhost", postgresConnection.Port, ResponseDropPoint.PopResult);
 
-            var proxiedConnectionString = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString)
+            var proxiedConnectionString = new NpgsqlConnectionStringBuilder(postgresConnection.ConnectionString)
             {
                 Host = "127.0.0.1",
                 Port = proxy.Port,
@@ -103,10 +114,88 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
         }
     }
 
+    [Fact]
+    public async Task LostCommitReplyReleasesCommittedRowsForRecovery()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var schema = $"bug_5015_{Guid.NewGuid():N}";
+        IHost? host = null;
+
+        try
+        {
+            host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema,
+                        transportSchema: schema);
+                    opts.ListenToPostgresqlQueue("pop_timeout").PollingInterval(1.Hours());
+                    opts.Durability.ScheduledJobFirstExecution = 1.Hours();
+                    opts.Durability.ScheduledJobPollingTime = 1.Hours();
+                }).StartAsync(cancellationToken);
+
+            var runtime = host.GetRuntime();
+            var queue = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>().Queues["pop_timeout"];
+            await runtime.Endpoints.StopListenerAsync(queue, cancellationToken);
+            queue.MaximumMessagesToReceive = 1;
+
+            var envelope = ObjectMother.Envelope();
+            await queue.SendAsync(envelope);
+            (await queue.CountAsync()).ShouldBe(1);
+
+            var postgresConnection = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
+            await using var proxy = await PostgresqlReplyDropProxy.StartAsync(
+                postgresConnection.Host ?? "localhost", postgresConnection.Port, ResponseDropPoint.Commit);
+
+            var proxiedConnectionString = new NpgsqlConnectionStringBuilder(postgresConnection.ConnectionString)
+            {
+                Host = "127.0.0.1",
+                Port = proxy.Port,
+                SslMode = SslMode.Disable,
+                Timeout = 5,
+                CommandTimeout = 2
+            };
+
+            await using var proxiedDataSource = NpgsqlDataSource.Create(proxiedConnectionString.ConnectionString);
+            var receiver = new DurableReceiver(queue, runtime, Substitute.For<IHandlerPipeline>());
+
+            await using (var faultedListener = new PostgresqlQueueListener(queue, runtime, receiver,
+                             proxiedDataSource, null))
+            {
+                var failure = await Record.ExceptionAsync(() => faultedListener.TryPopDurablyAsync(1,
+                    runtime.DurabilitySettings, NullLogger.Instance, cancellationToken));
+
+                failure.ShouldNotBeNull("the proxy intentionally drops the COMMIT response");
+                await proxy.ResponseDropped.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+
+            (await queue.CountAsync()).ShouldBe(0);
+
+            await using var connection = new NpgsqlConnection(Servers.PostgresConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            await using var command = connection.CreateCommand(
+                $"select owner_id from {schema}.{DatabaseConstants.IncomingTable} where id = @id");
+            command.Parameters.AddWithValue("id", envelope.Id);
+            var owner = await command.ExecuteScalarAsync(cancellationToken);
+
+            ((int)owner!).ShouldBe(0);
+        }
+        finally
+        {
+            if (host != null)
+            {
+                await host.StopAsync(cancellationToken);
+                host.Dispose();
+            }
+
+            await using var connection = new NpgsqlConnection(Servers.PostgresConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            await connection.DropSchemaAsync(schema, ct: cancellationToken);
+        }
+    }
+
     /// <summary>
-    /// Forwards a PostgreSQL connection and drops the complete backend response for the first durable queue pop.
-    /// Waiting for ReadyForQuery ensures PostgreSQL has finished the command before the client loses the reply;
-    /// on the old implicit-transaction path this also means the pop has already committed.
+    /// Forwards PostgreSQL traffic and can drop either the durable pop result or its COMMIT response. The pop
+    /// result is recognized by its SELECT command tag, so an earlier BEGIN response cannot trigger the fault.
     /// </summary>
     private sealed class PostgresqlReplyDropProxy : IAsyncDisposable
     {
@@ -114,17 +203,20 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
         private readonly TcpListener _listener;
         private readonly string _upstreamHost;
         private readonly int _upstreamPort;
+        private readonly ResponseDropPoint _dropPoint;
         private readonly ConcurrentBag<Task> _connectionTasks = new();
         private readonly CancellationTokenSource _cancellation = new();
         private readonly TaskCompletionSource _responseDropped = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _acceptTask;
         private int _targetQuerySeen;
         private int _responseWasDropped;
+        private int _popResponseWasForwarded;
 
-        private PostgresqlReplyDropProxy(string upstreamHost, int upstreamPort)
+        private PostgresqlReplyDropProxy(string upstreamHost, int upstreamPort, ResponseDropPoint dropPoint)
         {
             _upstreamHost = upstreamHost;
             _upstreamPort = upstreamPort;
+            _dropPoint = dropPoint;
             _listener = new TcpListener(IPAddress.Loopback, 0);
         }
 
@@ -132,9 +224,10 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
 
         public Task ResponseDropped => _responseDropped.Task;
 
-        public static Task<PostgresqlReplyDropProxy> StartAsync(string upstreamHost, int upstreamPort)
+        public static Task<PostgresqlReplyDropProxy> StartAsync(string upstreamHost, int upstreamPort,
+            ResponseDropPoint dropPoint)
         {
-            var proxy = new PostgresqlReplyDropProxy(upstreamHost, upstreamPort);
+            var proxy = new PostgresqlReplyDropProxy(upstreamHost, upstreamPort, dropPoint);
             proxy._listener.Start();
             proxy._acceptTask = proxy.acceptConnectionsAsync();
             return Task.FromResult(proxy);
@@ -258,6 +351,8 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
         {
             var buffer = new byte[8192];
             using var pendingResponse = new MemoryStream();
+            var popCommandCompleteSeen = false;
+            var commitCommandCompleteSeen = false;
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -267,14 +362,52 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
                 if (Volatile.Read(ref _targetQuerySeen) != 0 && Volatile.Read(ref _responseWasDropped) == 0)
                 {
                     await pendingResponse.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    if (containsReadyForQuery(pendingResponse.GetBuffer().AsSpan(0, (int)pendingResponse.Length)))
+
+                    var response = pendingResponse.GetBuffer();
+                    var responseLength = (int)pendingResponse.Length;
+                    var forwardedThrough = 0;
+
+                    foreach (var message in parseBackendMessages(response, responseLength))
                     {
-                        if (Interlocked.Exchange(ref _responseWasDropped, 1) == 0)
+                        if (message.Type == (byte)'C')
                         {
-                            _responseDropped.TrySetResult();
-                            client.Dispose(); // on the old implicit-transaction path, the pop is already committed
-                            return;
+                            if (message.CommandTag == "SELECT 1") popCommandCompleteSeen = true;
+                            if (message.CommandTag == "COMMIT") commitCommandCompleteSeen = true;
                         }
+
+                        if (message.Type == (byte)'Z' && message.MessageLength == 5)
+                        {
+                            var shouldDrop = _dropPoint == ResponseDropPoint.PopResult
+                                ? popCommandCompleteSeen
+                                : Volatile.Read(ref _popResponseWasForwarded) != 0 && commitCommandCompleteSeen;
+
+                            if (shouldDrop && Interlocked.Exchange(ref _responseWasDropped, 1) == 0)
+                            {
+                                _responseDropped.TrySetResult();
+                                client.Dispose();
+                                return;
+                            }
+
+                            if (popCommandCompleteSeen)
+                            {
+                                Interlocked.Exchange(ref _popResponseWasForwarded, 1);
+                            }
+
+                            await client.GetStream().WriteAsync(
+                                response.AsMemory(forwardedThrough, message.EndOffset - forwardedThrough),
+                                cancellationToken);
+                            forwardedThrough = message.EndOffset;
+                            popCommandCompleteSeen = false;
+                            commitCommandCompleteSeen = false;
+                        }
+                    }
+
+                    if (forwardedThrough > 0)
+                    {
+                        var remaining = responseLength - forwardedThrough;
+                        Buffer.BlockCopy(response, forwardedThrough, response, 0, remaining);
+                        pendingResponse.SetLength(remaining);
+                        pendingResponse.Position = remaining;
                     }
                 }
                 else
@@ -284,22 +417,29 @@ public class Bug5015DurablePopResponseLoss : PostgresqlContext
             }
         }
 
-        private static bool containsReadyForQuery(ReadOnlySpan<byte> response)
+        private static List<BackendMessage> parseBackendMessages(byte[] response, int responseLength)
         {
+            var messages = new List<BackendMessage>();
             var offset = 0;
-            while (response.Length - offset >= 5)
+            while (responseLength - offset >= 5)
             {
-                var messageLength = BinaryPrimitives.ReadInt32BigEndian(response.Slice(offset + 1, 4));
-                if (messageLength < 4) return false;
+                var messageLength = BinaryPrimitives.ReadInt32BigEndian(response.AsSpan(offset + 1, 4));
+                if (messageLength < 4) throw new InvalidDataException("Invalid PostgreSQL backend message length");
 
                 var totalLength = messageLength + 1;
-                if (response.Length - offset < totalLength) return false;
+                if (responseLength - offset < totalLength) break;
 
-                if (response[offset] == (byte)'Z' && messageLength == 5) return true;
+                string? commandTag = null;
+                if (response[offset] == (byte)'C')
+                {
+                    commandTag = Encoding.ASCII.GetString(response, offset + 5, messageLength - 4).TrimEnd('\0');
+                }
+
                 offset += totalLength;
+                messages.Add(new BackendMessage(response[offset - totalLength], commandTag, offset, messageLength));
             }
 
-            return false;
+            return messages;
         }
     }
 }
