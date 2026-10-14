@@ -96,7 +96,7 @@ OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until, {colu
 INSERT INTO {incoming}
 (id, status, owner_id, body, message_type, received_at, keep_until)
  SELECT id, 'Incoming', @node, body, message_type, '{receivedAt}', keep_until FROM @popped;
-select body from @popped ORDER BY {columns(ordering)};
+select id, body from @popped ORDER BY {columns(ordering)};
 
 IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
 IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";

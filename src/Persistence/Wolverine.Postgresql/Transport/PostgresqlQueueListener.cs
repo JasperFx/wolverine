@@ -12,6 +12,8 @@ using Wolverine.Transports;
 
 namespace Wolverine.Postgresql.Transport;
 
+internal record UnconfirmedPop(Guid[] Ids, int NodeNumber);
+
 internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -34,6 +36,9 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly bool _deterministicQueueOrdering;
     private readonly string _queueNotificationKey;
     private IAsyncDisposable? _notificationRegistration;
+
+    // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -228,6 +233,11 @@ SELECT count(*) FROM moved");
     // applies its idle delay = _pollingInterval).
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
+        if (_unconfirmedPop != null)
+        {
+            await ReleaseUnconfirmedPopAsync(token);
+        }
+
         var messages = _queue.Mode == EndpointMode.Durable
             ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger, token)
             : await TryPopAsync(_queue.MaximumMessagesToReceive, _logger, token);
@@ -288,7 +298,7 @@ WITH popped AS (
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
 )
-SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
@@ -301,29 +311,109 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
 
         try
         {
+            // GH-5015: an explicit transaction, committed only after every moved row has been read. In the
+            // implicit transaction the server committed the move before the client read the reply, so a read
+            // failure (a timeout during a disk stall) left the rows in the inbox owned by this live node and
+            // in no listener's memory -- and recovery only reclaims owner_id = 0. Now a failed read rolls the
+            // move back and the rows stay in the queue.
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
             batch.Connection = conn;
-            await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
+            batch.Transaction = tx;
+
+            var ids = new List<Guid>();
             var list = new List<Envelope>();
 
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            await using (var reader = await batch.ExecuteReaderAsync(cancellationToken))
             {
-                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
-                try
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    var e = EnvelopeSerializer.Deserialize(data);
-                    list.Add(e);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
-                    var ping = Envelope.ForPing(Address); // just a stand in
-                    list.Add(ping);
+                    ids.Add(await reader.GetFieldValueAsync<Guid>(0, cancellationToken));
+                    var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
+                    try
+                    {
+                        var e = EnvelopeSerializer.Deserialize(data);
+                        list.Add(e);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
+                        var ping = Envelope.ForPing(Address); // just a stand in
+                        list.Add(ping);
+                    }
                 }
             }
 
-            await reader.CloseAsync();
+            try
+            {
+                await tx.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // A COMMIT that fails on the wire may still have committed. Nothing is handed to the receiver
+                // -- if the move rolled back, the rows are back in the queue and would run twice -- so release
+                // whatever did commit to recovery instead.
+                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                throw;
+            }
 
             return list;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    private async Task releaseAfterFailedCommitAsync(List<Guid> ids, int nodeNumber, Exception commitFailure,
+        ILogger logger)
+    {
+        if (ids.Count == 0) return;
+
+        logger.LogError(commitFailure,
+            "The commit of a durable pop of {Count} envelope(s) from PostgreSQL queue {Queue} failed with an unknown outcome. Releasing them to recovery",
+            ids.Count, _queueName);
+
+        _unconfirmedPop = new UnconfirmedPop(ids.ToArray(), nodeNumber);
+        try
+        {
+            await ReleaseUnconfirmedPopAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e,
+                "Unable to release {Count} envelope(s) of an unconfirmed durable pop from PostgreSQL queue {Queue}. Retrying on the next poll",
+                ids.Count, _queueName);
+        }
+    }
+
+    /// <summary>
+    /// GH-5015: hand the envelopes of a pop whose COMMIT outcome is unknown to recovery (owner_id = 0). The
+    /// first statement locks the popped ids in the queue table, which waits out the original transaction if
+    /// it is somehow still in flight; once that returns, the move has either committed (the update releases
+    /// the inbox rows) or rolled back (the rows are back in the queue and the update matches nothing).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(CancellationToken cancellationToken)
+    {
+        if (_unconfirmedPop is not { } pop) return;
+
+        var builder = new BatchBuilder();
+        var lockParameters = builder.AppendWithParameters($"select id from {_queueTableName} where id = any(?) for update");
+        lockParameters[0].Value = pop.Ids;
+        lockParameters[0].NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+        builder.StartNewCommand();
+        var releaseParameters = builder.AppendWithParameters($"update {_quotedSchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.OwnerId} = 0 where id = any(?) and {DatabaseConstants.OwnerId} = ? and {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
+        releaseParameters[0].Value = pop.Ids;
+        releaseParameters[0].NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+        releaseParameters[1].Value = pop.NodeNumber;
+        releaseParameters[1].NpgsqlDbType = NpgsqlDbType.Integer;
+
+        await using var batch = builder.Compile();
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            batch.Connection = conn;
+            await batch.ExecuteNonQueryAsync(cancellationToken);
+            _unconfirmedPop = null;
         }
         finally
         {
@@ -409,4 +499,6 @@ SELECT {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrder
             await registration.DisposeAsync();
         }
     }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 }
