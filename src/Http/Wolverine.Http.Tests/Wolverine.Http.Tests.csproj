@@ -47,6 +47,9 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <!-- GHSA-846f-f764-76mx: Microsoft.EntityFrameworkCore.SqlServer brings a vulnerable
+             System.Security.Cryptography.Pkcs; see the note in Directory.Packages.props. -->
+        <PackageReference Include="System.Security.Cryptography.Pkcs" />
     </ItemGroup>
 
 </Project>
