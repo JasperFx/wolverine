@@ -393,6 +393,9 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISagaStorag
     /// Mirrors <c>PostgresqlMessageStore._reassignIncomingSql</c>, which does the same job through
     /// <c>unnest(@ids, @uris)</c>. See GH-4209 for the incident that first exposed the shape.
     /// </summary>
+    // GH-5022: the same clock as the inbox timestamp column default
+    protected override string currentTimestampSql => "UTC_TIMESTAMP(6)";
+
     private string writePromotionSql(DbCommand command, IReadOnlyList<Envelope> envelopes)
     {
         var matchesById = Durability.MessageIdentity == MessageIdentity.IdOnly;
@@ -419,7 +422,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISagaStorag
             clauses.Add($"(id = @id_{i} AND {DatabaseConstants.ReceivedAt} = @uri_{i})");
         }
 
-        return $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+        return $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET owner_id = @owner, status = '{EnvelopeStatus.Incoming}'{restartIncomingStaleClock} " +
                $"WHERE status = '{EnvelopeStatus.Scheduled}' AND ({string.Join(" OR ", clauses)})";
     }
 

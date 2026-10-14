@@ -154,6 +154,13 @@ Idempotency protections will help keep your system from having inconsistent stat
 times, but it's always best to not make your system work so hard.
 :::
 
+<!-- JEREMY: draft for GH-5022, please rewrite or approve -->
+The inbox clock starts over whenever a node claims a message -- when it's received, when a different node recovers
+it, or when a scheduled retry comes due -- and Wolverine only bumps messages that are waiting to run, never scheduled
+ones. That means a message bouncing through durable retries isn't going to get replayed underneath itself anymore,
+but Wolverine still doesn't touch a message while its handler is actually running, so a handler that runs longer
+than `InboxStaleTime` can still get a second copy started.
+
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
 an imperfect world. If you are using one of the relational backed message stores for Wolverine (PostgreSQL, SQL Server, MySQL, SQLite, or Oracle),

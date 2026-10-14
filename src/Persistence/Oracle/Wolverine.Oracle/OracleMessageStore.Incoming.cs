@@ -368,13 +368,16 @@ internal partial class OracleMessageStore
     {
         if (incoming.Count == 0) return;
 
+        // GH-5022: a node claiming rows restarts their stale clock; releasing them to any node does not need to
+        var restartClock = ownerId == TransportConstants.AnyNode ? string.Empty : restartIncomingStaleClock;
+
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
         foreach (var envelope in incoming)
         {
             await using var cmd = conn.CreateCommand(
-                $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = :owner " +
+                $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = :owner{restartClock} " +
                 "WHERE id = :id");
             cmd.Transaction = tx;
             cmd.With("owner", ownerId);

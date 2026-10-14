@@ -123,6 +123,15 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     public OracleDataSource OracleDataSource => _dataSource;
     public DurabilitySettings Durability => _durability;
 
+    /// <summary>
+    /// GH-5022. The SET fragment that restarts an inbox row's InboxStaleTime clock when a node claims it --
+    /// recovery reassignment, or promotion of a due scheduled envelope -- on the same clock as the column's
+    /// default. Empty unless InboxStaleTime is set, because the column only exists then.
+    /// </summary>
+    private string restartIncomingStaleClock => _durability.InboxStaleTime.HasValue
+        ? $", {DatabaseConstants.Timestamp} = SYSTIMESTAMP AT TIME ZONE 'UTC'"
+        : string.Empty;
+
     // IMessageStore
     public MessageStoreRole Role { get; set; }
     public List<string> TenantIds { get; } = new();

@@ -520,6 +520,9 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>, ISagaStor
     /// Mirrors <c>PostgresqlMessageStore._reassignIncomingSql</c>, which does the same job through
     /// <c>unnest(@ids, @uris)</c>. See GH-4209 for the incident that first exposed the shape.
     /// </summary>
+    // GH-5022: the same clock as the inbox timestamp column default
+    protected override string currentTimestampSql => "datetime('now')";
+
     private string writePromotionSql(DbCommand command, string tableName, IReadOnlyList<Envelope> envelopes)
     {
         var matchesById = Durability.MessageIdentity == MessageIdentity.IdOnly;
@@ -541,7 +544,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>, ISagaStor
             clauses.Add($"({idMatch} and {DatabaseConstants.ReceivedAt} = @uri{i})");
         }
 
-        return $"update {tableName} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+        return $"update {tableName} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}'{restartIncomingStaleClock} " +
                $"where status = '{EnvelopeStatus.Scheduled}' and ({string.Join(" or ", clauses)})";
     }
 

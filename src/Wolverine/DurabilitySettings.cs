@@ -231,6 +231,11 @@ public class DurabilitySettings : IDescribeMyself
     /// than the configured time even if the message is marked as owned by an active node. Should NOT ever
     /// be necessary, but it's an imperfect world. Enable this if you see "stuck" envelopes
     /// </summary>
+    /// <remarks>
+    /// The age is measured from when a node last claimed the message -- on receipt, on recovery, or when a
+    /// scheduled retry came due -- and only messages waiting to run are released, not scheduled ones (GH-5022).
+    /// A message is not touched while its handler runs, so this must be longer than the longest handler.
+    /// </remarks>
     public TimeSpan? InboxStaleTime { get; set; }
 
     /// <summary>

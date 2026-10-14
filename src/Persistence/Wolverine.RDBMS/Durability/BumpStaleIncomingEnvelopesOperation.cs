@@ -23,8 +23,10 @@ internal class BumpStaleIncomingEnvelopesOperation : IDatabaseOperation, IDoNotR
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
+        // GH-5022: Incoming rows only. A row waiting to run is the only kind that can be stuck; a Scheduled row
+        // is not due yet, and the scheduled-job poll claims it -- restarting its clock -- when it is.
         builder.Append(
-            $"update {_incomingTable} set {DatabaseConstants.OwnerId} = 0 where {DatabaseConstants.OwnerId} != 0 and {DatabaseConstants.Timestamp} <= ");
+            $"update {_incomingTable} set {DatabaseConstants.OwnerId} = 0 where {DatabaseConstants.OwnerId} != 0 and {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.Timestamp} <= ");
         builder.AppendParameter(_timestamp);
         builder.Append(';');
     }
