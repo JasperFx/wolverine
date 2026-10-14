@@ -19,11 +19,15 @@ public abstract partial class MessageDatabase<T>
         if (incoming.Count == 0)
             return Task.CompletedTask;
 
+        // GH-5022: a node claiming rows restarts their stale clock; releasing them to any node does not need to
+        var restartClock = ownerId == TransportConstants.AnyNode ? string.Empty : restartIncomingStaleClock;
+
         var builder = ToCommandBuilder();
         foreach (var envelope in incoming)
         {
             builder.Append($"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = ");
             builder.AppendParameter(ownerId);
+            builder.Append(restartClock);
             builder.Append($" where {DatabaseConstants.Id} = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");

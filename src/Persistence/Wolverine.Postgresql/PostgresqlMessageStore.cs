@@ -72,7 +72,8 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
-    private readonly string _reassignIncomingSql;
+    private readonly string _reassignIncomingSqlPrefix;
+    private readonly string _reassignIncomingSqlSuffix;
     private readonly string _discardSupersededScheduledSql;
     private DatabaseServerId? _serverId;
 
@@ -90,6 +91,9 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
     /// is shared, including the partition-aware form that inbox partitioning requires.
     /// </summary>
     protected override string MarkAsHandledTableName => $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
+
+    // GH-5022: the same clock as the inbox timestamp column default
+    protected override string currentTimestampSql => "now()";
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
@@ -129,10 +133,13 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
 
         // With partitioning the same identity can also hold a Handled row, which the identity match on its
         // own would sweep into the incoming partition alongside the scheduled row.
-        _reassignIncomingSql =
+        // Built around the GH-5022 stale-clock restart, which is added per poll: InboxStaleTime is not
+        // reliably settled at construction (GH-4216)
+        _reassignIncomingSqlPrefix =
             $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} target " +
-            $"set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
-            $"from unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
+            $"set owner_id = @owner, status = '{EnvelopeStatus.Incoming}'";
+        _reassignIncomingSqlSuffix =
+            $" from unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
             $"where {identityMatchClause("target", "due")} " +
             $"and target.status = '{EnvelopeStatus.Scheduled}'";
 
@@ -752,7 +759,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
 
                 var (promotableIds, promotableUris) = toIdAndUriArrays(envelopes);
 
-                await using var reassign = conn.CreateCommand(_reassignIncomingSql);
+                await using var reassign = conn.CreateCommand(_reassignIncomingSqlPrefix + restartIncomingStaleClock + _reassignIncomingSqlSuffix);
                 reassign.Transaction = tx;
                 await reassign
                     .With("owner", durabilitySettings.AssignedNodeNumber)

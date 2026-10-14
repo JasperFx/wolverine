@@ -318,6 +318,22 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public DurabilitySettings Durability { get; }
 
+    /// <summary>
+    /// GH-5022. The SET fragment that restarts an inbox row's <see cref="DurabilitySettings.InboxStaleTime" />
+    /// clock when a node claims it: recovery reassignment, or promotion of a due scheduled envelope. The stale
+    /// sweep releases owned rows by <c>timestamp</c>, which was only ever the insert default, so a claimed row
+    /// kept the age of its first write and was released again at once. Empty unless InboxStaleTime is set,
+    /// because the column only exists then; read per statement, never baked into a constructor (GH-4216).
+    /// </summary>
+    protected string restartIncomingStaleClock => Durability.InboxStaleTime.HasValue
+        ? $", {DatabaseConstants.Timestamp} = {currentTimestampSql}"
+        : string.Empty;
+
+    /// <summary>
+    /// The database's current time, as this provider's <c>timestamp</c> column default writes it
+    /// </summary>
+    protected virtual string currentTimestampSql => "CURRENT_TIMESTAMP";
+
     public string Name { get; set; } = TransportConstants.Default;
     public void PromoteToMain(IWolverineRuntime runtime)
     {
