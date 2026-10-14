@@ -1,7 +1,5 @@
 # Broadcast Messages to Every Node <Badge type="tip" text="6.50" />
 
-<!-- DRAFT (GH-4988): prose drafted for Jeremy's review -- not final wording -->
-
 Most of the time, Wolverine messaging is all about *competing consumers* -- you send a message, and exactly
 one running node in your cluster picks it up and handles it. Every so often though, you'll have a message that
 *every* node in the cluster needs to handle. Maybe you need to throw away an in-memory cache on every node
