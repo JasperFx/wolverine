@@ -310,8 +310,14 @@ public partial class WolverineRuntime
                 case DurabilityMode.Serverless:
                     Options.Transports.RemoveLocal();
                     Options.Policies.DisableConventionalLocalRouting();
-                    var inlinePolicy = new ServerlessEndpointsMustBeInlinePolicy();
-                    Options.Policies.Add(inlinePolicy);
+                    // Normally already registered by the WolverineRuntime constructor, ahead of resource setup
+                    var inlinePolicy = Options.Transports.EndpointPolicies.OfType<ServerlessEndpointsMustBeInlinePolicy>()
+                        .FirstOrDefault();
+                    if (inlinePolicy == null)
+                    {
+                        inlinePolicy = new ServerlessEndpointsMustBeInlinePolicy();
+                        Options.Policies.Add(inlinePolicy);
+                    }
 
                     await startMessagingTransportsAsync();
 
