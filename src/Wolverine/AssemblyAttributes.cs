@@ -35,6 +35,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("PostgresqlTests")]
 [assembly: InternalsVisibleTo("SqlServerTests")]
 [assembly: InternalsVisibleTo("MySqlTests")]
+[assembly: InternalsVisibleTo("OracleTests")]
 [assembly: InternalsVisibleTo("ScheduledJobTests")]
 [assembly: InternalsVisibleTo("Wolverine.RDBMS")]
 [assembly: InternalsVisibleTo("Wolverine.SqlServer")]
