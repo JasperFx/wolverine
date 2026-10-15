@@ -148,6 +148,33 @@ public class durability_pass_5016 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task keeps_calling_a_step_that_excluded_its_failures_so_it_reaches_the_rows_behind_them()
+    {
+        // A full batch at the head of the outbox that all failed used to end the step for the whole pass, so every
+        // pass retried the same failing rows and the healthy rows behind them were never tried
+        var outgoing = new RecordingStep("outgoing",
+            new DurabilityPassStepResult { OutgoingFailed = 25, NewlyExcluded = 25, Remaining = 10 },
+            new DurabilityPassStepResult { OutgoingSent = 10, Remaining = 0 });
+        var store = new FakePassStore("main", MessageStoreRole.Main, outgoing);
+
+        var report = await runAsync([store]);
+
+        outgoing.Calls.Count.ShouldBe(2);
+        report.OutgoingSent.ShouldBe(10);
+    }
+
+    [Fact]
+    public async Task stops_calling_a_step_that_neither_processed_nor_excluded_anything()
+    {
+        var outgoing = new RecordingStep("outgoing", new DurabilityPassStepResult { Remaining = 10 });
+        var store = new FakePassStore("main", MessageStoreRole.Main, outgoing);
+
+        await runAsync([store]);
+
+        outgoing.Calls.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task the_container_steps_run_once_with_the_main_store_not_with_every_store()
     {
         var main = new FakePassStore("main", MessageStoreRole.Main);
