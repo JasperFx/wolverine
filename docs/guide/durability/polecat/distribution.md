@@ -81,6 +81,13 @@ Other requirements:
 * In `Balanced` mode you cannot disable external transports with `StubAllExternalTransports()`, because the nodes
   need the control queue to communicate
 
+## Warming Up a New Release on Its Own Nodes <Badge type="tip" text="6.51" />
+
+The blue/green warm-up node role, `opts.Durability.NodeRole = NodeRole.Warmup`, works exactly the same way with
+Polecat. See [Warming Up a New Release on Its Own Nodes](/guide/durability/marten/distribution#warming-up-a-new-release-on-its-own-nodes)
+on the Marten page for what a warm-up node does and doesn't do, and the checklist of what you still have to
+turn off yourself.
+
 ## When a Projection Fails <Badge type="tip" text="6.x" />
 
 The failure handling for a paused projection or subscription shard — the classified `ShardFailure` on

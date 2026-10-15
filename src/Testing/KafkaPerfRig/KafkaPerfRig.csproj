@@ -21,6 +21,8 @@
         <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
         <!-- GH-4369: the outbox-store lane A/Bs StoreOutgoingAsync per store -->
         <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+        <!-- GH-5015: the db-queue-pop lane also times the MySQL durable pop -->
+        <ProjectReference Include="..\..\Persistence\MySql\Wolverine.MySql\Wolverine.MySql.csproj" />
         <ProjectReference Include="..\..\Persistence\Oracle\Wolverine.Oracle\Wolverine.Oracle.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.RavenDb\Wolverine.RavenDb.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />

@@ -43,6 +43,14 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
     {
         try
         {
+            // GH-5030. Persistence extensions can register system/control endpoints whose transports pin them to
+            // a non-Inline mode. Preserve their transport-defined mode; only application endpoints must support
+            // Inline in Serverless mode. Checked first, so an endpoint left alone is never reported as downgraded
+            if (endpoint.Role == EndpointRole.System && !endpoint.SupportsMode(EndpointMode.Inline))
+            {
+                return;
+            }
+
             if (endpoint.Mode == EndpointMode.Durable)
             {
                 lock (_downgradedDurableEndpoints)

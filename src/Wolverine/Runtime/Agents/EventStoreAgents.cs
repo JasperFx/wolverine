@@ -36,7 +36,15 @@ public class EventStoreAgents : IAsyncDisposable
     // ImHashMap so the enumeration writes and the BuildAgentAsync reads are lock-free across threads. See
     // GH-3216.
     private ImHashMap<string, ShardName> _shardNames = ImHashMap<string, ShardName>.Empty;
-    
+
+    private IReadOnlyList<ShardName>? _projectionShardNames;
+
+    /// <summary>
+    ///     GH-4569: on a <see cref="NodeRole.Warmup" /> node only async projection shards are enumerated, so the
+    ///     node neither advertises a subscription nor resolves one it is asked to build.
+    /// </summary>
+    internal bool ProjectionsOnly { get; set; }
+
     public EventStoreAgents(IEventStore store, IObserver<ShardState>[] observers)
     {
         _store = store;
@@ -269,6 +277,11 @@ public class EventStoreAgents : IAsyncDisposable
     // with no database work. A store that does not implement RegisteredShardNames still answers through the usage
     private async ValueTask<IReadOnlyList<ShardName>> asyncShardNamesAsync(CancellationToken cancellation)
     {
+        if (ProjectionsOnly)
+        {
+            return _projectionShardNames ??= await asyncProjectionShardNamesAsync(cancellation);
+        }
+
         try
         {
             return _store.RegisteredShardNames();
@@ -283,6 +296,21 @@ public class EventStoreAgents : IAsyncDisposable
                     .SelectMany(x => x.ShardNames)
                     .ToArray();
         }
+    }
+
+    // GH-4569: RegisteredShardNames() does not carry the shard's role, so a warm-up node reads the usage
+    // descriptor instead. That is the cost GH-5002 took off the heartbeat path, but only a warm-up node pays it,
+    // once -- the registered projections never change for the life of the process -- and a warm-up node is never
+    // the leader that enumerates on every evaluation.
+    private async ValueTask<IReadOnlyList<ShardName>> asyncProjectionShardNamesAsync(CancellationToken cancellation)
+    {
+        var usage = await _store.TryCreateUsage(cancellation);
+        return usage == null
+            ? []
+            : usage.Subscriptions
+                .Where(x => x.Lifecycle == ProjectionLifecycle.Async && x.SubscriptionType != SubscriptionType.Subscription)
+                .SelectMany(x => x.ShardNames)
+                .ToArray();
     }
 
     /// <summary>
@@ -313,13 +341,16 @@ public class EventStoreAgents : IAsyncDisposable
         var shardName = await ResolveShardNameAsync(shardPath, CancellationToken.None);
         if (shardName == null)
         {
-            throw new ArgumentOutOfRangeException(nameof(shardPath), $"Unable to find a shard with path '{shardPath}'");
+            throw new ArgumentOutOfRangeException(nameof(shardPath), ProjectionsOnly
+                ? $"Unable to find a projection shard with path '{shardPath}'. This is a warm-up node (Durability.NodeRole is Warmup), which runs async projections only, never subscriptions"
+                : $"Unable to find a shard with path '{shardPath}'");
         }
 
         var daemon = await FindDaemonAsync(databaseId);
 
         var agent = new EventSubscriptionAgent(uri, shardName, daemon)
         {
+            StartsInRebuildMode = ProjectionsOnly,
             OnStarted = () => agentStartedAsync(databaseId),
             OnStopped = () => agentStoppedAsync(databaseId)
         };

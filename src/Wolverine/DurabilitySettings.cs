@@ -46,6 +46,26 @@ public enum DurabilityMode
 }
 
 /// <summary>
+/// GH-4569. The part a node plays in a Balanced cluster during a blue/green rollout
+/// </summary>
+public enum NodeRole
+{
+    /// <summary>
+    /// The default. The node handles messages and runs whatever agents the leader assigns it
+    /// </summary>
+    Serving,
+
+    /// <summary>
+    /// The node only warms up the projections of a new release before it is cut over to. It takes part in
+    /// the agent cluster through the control queue, but never leads, never handles application messages,
+    /// never recovers or schedules persisted envelopes, and only runs the projection agents that no
+    /// serving node declares -- in rebuild mode, so their side effects are not published. Restart the
+    /// node as <see cref="Serving"/> to cut over to it
+    /// </summary>
+    Warmup
+}
+
+/// <summary>
 /// Controls how Wolverine chooses to identify received message uniqueness in message storage
 /// </summary>
 public enum MessageIdentity
@@ -588,6 +608,17 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan HealthCheckPollingTime { get; set; } = 10.Seconds();
 
     /// <summary>
+    /// GH-4986. The longest a locally owned event subscription shard waits before it is restarted after the
+    /// daemon paused it on a transient failure (<see cref="JasperFx.Events.Daemon.ShardFailure.IsTransient" />:
+    /// a connection pool exhausted during a large rebuild, a timeout, a failover). The first restart comes
+    /// <see cref="HealthCheckPollingTime" /> after the failure, and every further one for the same shard
+    /// doubles that, up to this ceiling, so a shard failing on a starved pool does not keep adding load to
+    /// exactly that pool. The shard's count starts over once it has run longer than this ceiling without
+    /// failing again. Default five minutes.
+    /// </summary>
+    public TimeSpan TransientFailureRestartMaxBackoff { get; set; } = 5.Minutes();
+
+    /// <summary>
     /// Age of health check data before a node is considered to be "stale" or dormant and
     /// will be recovered by the durability agent
     /// </summary>
@@ -714,6 +745,22 @@ public class DurabilitySettings : IDescribeMyself
     ///     leadership lock. At least one node of the cluster must be eligible, or nothing is ever assigned.
     /// </summary>
     public bool LeadershipEligible { get; set; } = true;
+
+    /// <summary>
+    ///     GH-4569. The part this node plays in a blue/green rollout. The default is <see cref="Wolverine.NodeRole.Serving"/>.
+    ///     A <see cref="Wolverine.NodeRole.Warmup"/> node warms up the new release's projections in the same cluster as
+    ///     the serving nodes without doing any of their messaging, and is never eligible for leadership. The
+    ///     role travels to the leader as a marker in the node's capabilities, so it needs no change to any
+    ///     node table, but the serving nodes -- the leader among them -- must run a Wolverine version that
+    ///     understands it before a warm-up node uses it.
+    /// </summary>
+    public NodeRole NodeRole { get; set; } = NodeRole.Serving;
+
+    /// <summary>
+    ///     Whether this node may contend for leadership: <see cref="LeadershipEligible"/>, and never on a
+    ///     <see cref="Wolverine.NodeRole.Warmup"/> node.
+    /// </summary>
+    internal bool CanLead => LeadershipEligible && NodeRole == NodeRole.Serving;
 
     /// <summary>
     ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
@@ -1103,6 +1150,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(MetricsCollectionSamplingInterval), MetricsCollectionSamplingInterval);
         desc.AddValue(nameof(ScheduledJobPollingTime), ScheduledJobPollingTime);
         desc.AddValue(nameof(HealthCheckPollingTime), HealthCheckPollingTime);
+        desc.AddValue(nameof(TransientFailureRestartMaxBackoff), TransientFailureRestartMaxBackoff);
         desc.AddValue(nameof(StaleNodeTimeout), StaleNodeTimeout);
         desc.AddValue(nameof(CheckAssignmentPeriod), CheckAssignmentPeriod);
         desc.AddValue(nameof(AssignmentSettlePeriod), AssignmentSettlePeriod);

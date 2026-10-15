@@ -23,7 +23,16 @@ public partial class NodeAgentController
         // Keyed on the setting rather than on _agentFamilies[_runtime.Stores.Scheme], which is the same
         // condition -- the constructor registers the family if and only if this flag is set -- but reaches
         // through Stores, and that is null on a runtime with no message store.
-        if (options.Durability.DurabilityAgentEnabled)
+        //
+        // GH-4569: a warm-up node never recovers or schedules envelopes, so it never advertises the durability
+        // marker -- which keeps durability agents off it even under a leader that predates node roles -- and
+        // advertises its role instead. The role rides on the capability list rather than a column of its own
+        // so no store's node table changes; see NodeAgentController.WarmupRoleUri.
+        if (options.Durability.NodeRole == NodeRole.Warmup)
+        {
+            current.Capabilities.Add(WarmupRoleUri);
+        }
+        else if (options.Durability.DurabilityAgentEnabled)
         {
             current.Capabilities.Add(MessageStoreCollection.DurabilityCapabilityUri);
         }
