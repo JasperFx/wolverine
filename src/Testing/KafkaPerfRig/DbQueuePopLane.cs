@@ -6,6 +6,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine;
+using Wolverine.MySql;
+using Wolverine.MySql.Transport;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
 using Wolverine.Runtime;
@@ -39,7 +41,7 @@ namespace KafkaPerfRig;
 /// </list>
 /// </para>
 ///
-/// <para><c>RIG_STORE</c>: postgresql (default) | sqlserver.</para>
+/// <para><c>RIG_STORE</c>: postgresql (default) | sqlserver | mysql.</para>
 /// </summary>
 public static class DbQueuePopLane
 {
@@ -62,7 +64,13 @@ public static class DbQueuePopLane
                 opts.ApplicationAssembly = typeof(LocalRigHandlers).Assembly;
 
                 // Declare the queue without a listener: the lane pops it directly
-                if (store == "sqlserver")
+                if (store == "mysql")
+                {
+                    opts.UseMySqlPersistenceAndTransport(Servers.MySqlConnectionString, schema,
+                        transportSchema: schema);
+                    opts.PublishMessage<PopProbe>().ToMySqlQueue(QueueName);
+                }
+                else if (store == "sqlserver")
                 {
                     opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, schema)
                         .AutoProvision();
@@ -77,7 +85,12 @@ public static class DbQueuePopLane
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var popper = store == "sqlserver" ? sqlServerPopper(runtime) : postgresqlPopper(runtime);
+        var popper = store switch
+        {
+            "sqlserver" => sqlServerPopper(runtime),
+            "mysql" => mySqlPopper(runtime),
+            _ => postgresqlPopper(runtime)
+        };
         var batchSize = popper.BatchSize;
 
         Console.WriteLine(
@@ -172,40 +185,54 @@ public static class DbQueuePopLane
             });
     }
 
-    /// <summary>
-    /// The PostgreSQL pop lives only on the internal listener, so it is built and called through reflection.
-    /// Its constructor -- queue, runtime, receiver, data source, database name -- is the same on both sides of
-    /// the change, and the receiver is only stored, never called by a pop.
-    /// </summary>
     private static Popper postgresqlPopper(IWolverineRuntime runtime)
     {
-        var transport = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>();
-        var queue = transport.Queues[QueueName];
+        var queue = runtime.Options.Transports.GetOrCreate<PostgresqlTransport>().Queues[QueueName];
+        return listenerPopper(runtime, queue, "Wolverine.Postgresql.Transport.PostgresqlQueueListener",
+            queue.MaximumMessagesToReceive, envelope => queue.SendAsync(envelope),
+            () => queue.PurgeAsync(NullLogger.Instance));
+    }
+
+    private static Popper mySqlPopper(IWolverineRuntime runtime)
+    {
+        var queue = runtime.Options.Transports.GetOrCreate<MySqlTransport>().Queues[QueueName];
+        return listenerPopper(runtime, queue, "Wolverine.MySql.Transport.MySqlQueueListener",
+            queue.MaximumMessagesToReceive, envelope => queue.SendAsync(envelope),
+            () => queue.PurgeAsync(NullLogger.Instance));
+    }
+
+    /// <summary>
+    /// The PostgreSQL and MySQL pops live only on their internal listeners, so the listener is built and
+    /// called through reflection. Its constructor -- queue, runtime, receiver, data source, database name --
+    /// is the same on both sides of the change, and the receiver is only stored, never called by a pop.
+    /// </summary>
+    private static Popper listenerPopper(IWolverineRuntime runtime, object queue, string listenerTypeName,
+        int batchSize, Func<Envelope, ValueTask> send, Func<ValueTask> purge)
+    {
         var store = runtime.Storage;
 
-        var dataSource = typeof(PostgresqlQueue)
-            .GetProperty("DataSource", BindingFlags.Instance | BindingFlags.NonPublic)!
+        var dataSource = queue.GetType()
+            .GetProperty("DataSource", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
             .GetValue(queue)!;
 
-        var listenerType = typeof(PostgresqlQueue).Assembly
-            .GetType("Wolverine.Postgresql.Transport.PostgresqlQueueListener", throwOnError: true)!;
+        var listenerType = queue.GetType().Assembly.GetType(listenerTypeName, throwOnError: true)!;
         var listener = Activator.CreateInstance(listenerType,
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
             [queue, runtime, DispatchProxy.Create<IReceiver, InertProxy>(), dataSource, null], null)!;
         var pop = listenerType.GetMethod("TryPopDurablyAsync")!;
 
         return new Popper(
-            queue.MaximumMessagesToReceive,
+            batchSize,
             async count =>
             {
                 var task = (Task<IReadOnlyList<Envelope>>)pop.Invoke(listener,
                     [count, runtime.DurabilitySettings, NullLogger.Instance, CancellationToken.None])!;
                 return (await task).Count;
             },
-            count => fillAsync(count, envelope => queue.SendAsync(envelope)),
+            count => fillAsync(count, send),
             async () =>
             {
-                await queue.PurgeAsync(NullLogger.Instance);
+                await purge();
                 await store.Admin.ClearAllAsync();
             });
     }

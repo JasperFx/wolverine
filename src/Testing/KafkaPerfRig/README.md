@@ -224,7 +224,7 @@ the wiring; `UseAzureServiceBus(amqp)` alone fails at startup with an HTTP conne
 
 ### Database queue durable pop (GH-5015 / #5020 / #5021) — measured 2026-10-14: a cost, change kept
 
-Role `db-queue-pop`, selected with `RIG_STORE` (postgresql | sqlserver). #5020 and #5021 moved the
+Role `db-queue-pop`, selected with `RIG_STORE` (postgresql | sqlserver | mysql). #5020 and #5021 moved the
 durable pop of the database queue transports into an explicit transaction that commits only after
 the batch is read -- the fix for popped envelopes stranded on a live node when the reply was lost.
 That is one more round trip per poll. Not an end-to-end cell, for the same reason as the outbox-store
@@ -260,6 +260,39 @@ SqlClient's `BeginTransaction` is a round trip of its own.
 
 The SQL Server cells need `dotnet build -c Release -p:InvariantGlobalization=false`: the rig builds
 with invariant globalization, and SqlClient refuses to open a connection under it.
+
+**MySQL**, added afterwards with the same two worktrees and three interleaved pairs. Its pop already
+ran in an explicit transaction; what #5021 changed was the `TRUNCATE` of the pop's temp table, which
+is an implicit commit -- it ended the transaction, so every statement after it auto-committed -- and
+became a `DELETE`.
+
+| MySQL (p50) | before | after | change |
+|---|---|---|---|
+| empty pop | 1.70-1.88ms | 1.60-2.22ms | none measurable |
+| full-batch pop | 3.70-4.20ms | 2.83-3.63ms | **about 20% faster** (median 3.88 -> 3.12ms) |
+| drain | 2,570-3,360 msg/s | 3,010-3,410 msg/s | none measurable |
+
+Noisier than the other two stores, but the direction is clear enough: the fix cost MySQL nothing, and
+the full-batch pop probably got faster. That fits `TRUNCATE` being DDL that recreates the table and
+commits on every poll, where `DELETE` on a 20-row temp table is cheap.
+
+**Tried and not shipped: opening the SQL Server transaction inside the pop's own batch.** Since
+`BeginTransaction` is a round trip of its own in SqlClient, the obvious saving is a `BEGIN TRANSACTION`
+at the top of the pop's SQL, leaving the `COMMIT` as the only added round trip. Two things got in the
+way. A parameterized command runs inside `sp_executesql`, and a transaction begun in that scope does
+not outlive it, so the pop had to become a parameterless batch. And under MARS, SQL Server rolls back
+a transaction a batch opened as soon as that batch ends, so it only works with MARS off -- which most
+connection strings, Wolverine's own test strings among them, do not have. Measured with MARS off on
+both sides, `SqlTransaction` against the inline `BEGIN`, three interleaved pairs:
+
+| SQL Server, MARS off (p50) | `SqlTransaction` | inline `BEGIN` |
+|---|---|---|
+| empty pop | 3.43-4.08ms (median 3.93) | 3.01-3.51ms (median 3.44) |
+| full-batch pop | 11.9-12.2ms | 11.9-12.2ms |
+| drain | 1,790-2,020 msg/s | 1,840-1,980 msg/s |
+
+At most half a millisecond on an empty pop, with overlapping ranges, nothing on the other two cells,
+and only for the minority without MARS -- not worth a second transaction path to keep correct.
 
 Measured findings and the experiment ledgers live in the deep-dive issues (GH-3490/3492/3493/
 3494, all closed with their ledgers) and the `*-PERF-DEEP-DIVE-PLAN.md` documents at the repo
