@@ -237,8 +237,10 @@ public class paused_shard_failure_surfacing
 
             await controller.StartAgentAsync(uri);
 
-            // A database outage or a timeout is exactly what restart-on-failure exists for.
-            agent.SimulateFailure(AgentStatus.Stopped, FailureOf(ShardFailureCategory.Other, sequence: null));
+            // A database outage or a timeout is exactly what restart-on-failure exists for. GH-4986: classified from
+            // the exception by ShardFailure.IsTransient, not by the category alone.
+            agent.SimulateFailure(AgentStatus.Stopped,
+                FailureOf(ShardFailureCategory.Other, sequence: null) with { IsTransient = true });
 
             await controller.StartAgentAsync(uri);
 
@@ -502,32 +504,55 @@ public class paused_shard_failure_surfacing
             agent.StartCount.ShouldBe(3);
         }
 
-        // A transient failure (ShardFailureCategory.Other: a pool timeout, a failover) pauses the shard
-        // and disposes it, so nothing in the daemon resumes it. Marten's own ProjectionCoordinator
-        // restarts a paused shard once it has been paused for a health-check interval; under
-        // Wolverine-managed distribution that coordinator does not run, and the sweep used to report
-        // the failure as unrecoverable and leave the shard paused until the process restarted.
+        // GH-4986. A transient failure (ShardFailure.IsTransient: a pool exhausted during a large rebuild, a timeout,
+        // a failover) pauses the shard and disposes it, so nothing in the daemon resumes it. Marten's own
+        // ProjectionCoordinator restarts a paused shard once it has been paused for a health-check interval; under
+        // Wolverine-managed distribution that coordinator does not run, and the sweep used to report the failure as
+        // unrecoverable and leave the shard paused until the process restarted. Every timing fact here runs on the
+        // controller's own clock.
 
-        private static ShardFailure TransientFailure(TimeSpan age)
+        private sealed class ManualClock(DateTimeOffset start) : TimeProvider
         {
-            return FailureOf(ShardFailureCategory.Other, sequence: null) with
+            public DateTimeOffset Now { get; set; } = start;
+            public override DateTimeOffset GetUtcNow() => Now;
+            public void Advance(TimeSpan by) => Now = Now.Add(by);
+        }
+
+        private readonly ManualClock _clock = new(new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero));
+
+        private NodeAgentController clockedControllerFor(params FakeSubscriptionAgent[] agents)
+        {
+            var controller = controllerFor(agents);
+            controller.TimeProvider = _clock;
+            return controller;
+        }
+
+        // A failure the daemon reported just now, as JasperFx classifies a pool timeout
+        private ShardFailure transientFailure(ShardFailureCategory category = ShardFailureCategory.Other)
+        {
+            return FailureOf(category, sequence: category == ShardFailureCategory.Other ? null : 42) with
             {
-                OccurredAt = DateTimeOffset.UtcNow.Subtract(age)
+                OccurredAt = _clock.GetUtcNow(),
+                IsTransient = true
             };
         }
 
-        [Theory]
-        [InlineData(AgentStatus.Paused)]
-        [InlineData(AgentStatus.Stopped)]
-        public async Task restarts_a_shard_that_failed_on_a_transient_fault(AgentStatus status)
+        private async Task<(FakeSubscriptionAgent agent, NodeAgentController controller)> runningAgentAsync()
         {
             var uri = new Uri("event-subscriptions://marten/incident/all");
             var agent = new FakeSubscriptionAgent(uri);
-            var controller = controllerFor(agent);
-
+            var controller = clockedControllerFor(agent);
             await controller.StartAgentAsync(uri);
+            return (agent, controller);
+        }
 
-            agent.SimulateFailure(status, TransientFailure(1.Minutes()));
+        [Fact]
+        public async Task restarts_a_paused_shard_that_failed_on_a_transient_fault()
+        {
+            var (agent, controller) = await runningAgentAsync();
+
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure());
+            _clock.Advance(_options.Durability.HealthCheckPollingTime);
 
             await controller.ReportFailedLocalAgentsAsync();
 
@@ -538,55 +563,230 @@ public class paused_shard_failure_surfacing
         [Fact]
         public async Task waits_a_health_check_interval_before_restarting_it()
         {
-            var uri = new Uri("event-subscriptions://marten/incident/all");
-            var agent = new FakeSubscriptionAgent(uri);
-            var controller = controllerFor(agent);
+            var (agent, controller) = await runningAgentAsync();
 
-            await controller.StartAgentAsync(uri);
+            // The daemon has just given up on its own retries. Restarting on the same tick would hammer whatever
+            // is down; the first wait is the health-check interval.
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure());
 
-            // The daemon has just given up on its own retries. Restarting on the same tick would hammer
-            // whatever is down; the pause is the backoff.
-            agent.SimulateFailure(AgentStatus.Paused, TransientFailure(TimeSpan.Zero));
+            _clock.Advance(_options.Durability.HealthCheckPollingTime - 1.Milliseconds());
+            await controller.ReportFailedLocalAgentsAsync();
+            agent.StartCount.ShouldBe(1);
+
+            _clock.Advance(1.Milliseconds());
+            await controller.ReportFailedLocalAgentsAsync();
+            agent.StartCount.ShouldBe(2);
+
+            await _observer.Received(1).AgentPaused(agent.Uri, Arg.Any<ShardFailure?>());
+        }
+
+        [Fact]
+        public async Task the_wait_doubles_for_every_restart_until_the_ceiling()
+        {
+            var (agent, controller) = await runningAgentAsync();
+            var interval = _options.Durability.HealthCheckPollingTime;
+            _options.Durability.TransientFailureRestartMaxBackoff = interval * 4;
+
+            // A shard on a starved pool: it comes back up, then pauses again straight away
+            async Task failAndWaitAsync(TimeSpan expectedWait, int expectedStarts)
+            {
+                agent.SimulateFailure(AgentStatus.Paused, transientFailure());
+
+                _clock.Advance(expectedWait - 1.Milliseconds());
+                await controller.ReportFailedLocalAgentsAsync();
+                agent.StartCount.ShouldBe(expectedStarts - 1, $"restarted before {expectedWait}");
+
+                _clock.Advance(1.Milliseconds());
+                await controller.ReportFailedLocalAgentsAsync();
+                agent.StartCount.ShouldBe(expectedStarts, $"not restarted after {expectedWait}");
+
+                // Seen Running for a tick, which is not running cleanly for long
+                await controller.ReportFailedLocalAgentsAsync();
+            }
+
+            await failAndWaitAsync(interval, 2);
+            await failAndWaitAsync(interval * 2, 3);
+            await failAndWaitAsync(interval * 4, 4);
+
+            // Capped
+            await failAndWaitAsync(interval * 4, 5);
+        }
+
+        [Fact]
+        public async Task the_wait_starts_over_once_the_shard_has_run_cleanly_for_longer_than_the_ceiling()
+        {
+            var (agent, controller) = await runningAgentAsync();
+            var interval = _options.Durability.HealthCheckPollingTime;
+
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure());
+            _clock.Advance(interval);
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure());
+            _clock.Advance(interval * 2);
+            await controller.ReportFailedLocalAgentsAsync();
+            agent.StartCount.ShouldBe(3);
+
+            // Runs cleanly past the ceiling
+            _clock.Advance(_options.Durability.TransientFailureRestartMaxBackoff);
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure());
+            _clock.Advance(interval);
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(4);
+        }
+
+        [Fact]
+        public async Task never_restarts_a_stopped_shard_even_with_a_transient_failure()
+        {
+            // A rebuild hard-stops a shard and leaves its old failure in place, so Stopped plus a failure can be a
+            // rebuild in flight, and a restart would put a continuous agent on the rebuild's progression row
+            var (agent, controller) = await runningAgentAsync();
+
+            agent.SimulateFailure(AgentStatus.Stopped, transientFailure());
+            _clock.Advance(1.Hours());
 
             await controller.ReportFailedLocalAgentsAsync();
 
             agent.StartCount.ShouldBe(1);
-            await _observer.Received(1).AgentPaused(uri, Arg.Any<ShardFailure?>());
         }
 
         [Fact]
-        public async Task restarts_it_again_when_it_fails_again_after_recovering()
+        public async Task leaves_a_shard_paused_on_a_permanent_failure_that_is_still_category_other()
         {
-            var uri = new Uri("event-subscriptions://marten/incident/all");
-            var agent = new FakeSubscriptionAgent(uri);
-            var controller = controllerFor(agent);
+            // The case the old category check got wrong: a missing column is Other too, and restarting it every
+            // health-check interval would loop forever
+            var (agent, controller) = await runningAgentAsync();
 
-            await controller.StartAgentAsync(uri);
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure() with { IsTransient = false });
+            _clock.Advance(1.Hours());
 
-            agent.SimulateFailure(AgentStatus.Paused, TransientFailure(1.Minutes()));
             await controller.ReportFailedLocalAgentsAsync();
 
-            agent.SimulateFailure(AgentStatus.Paused, TransientFailure(1.Minutes()));
-            await controller.ReportFailedLocalAgentsAsync();
-
-            agent.StartCount.ShouldBe(3);
+            agent.StartCount.ShouldBe(1);
         }
 
         [Fact]
         public async Task leaves_a_shard_paused_on_a_failure_that_will_recur()
         {
-            var uri = new Uri("event-subscriptions://marten/incident/all");
-            var agent = new FakeSubscriptionAgent(uri);
-            var controller = controllerFor(agent);
-
-            await controller.StartAgentAsync(uri);
+            var (agent, controller) = await runningAgentAsync();
 
             agent.SimulateFailure(AgentStatus.Paused,
-                FailureOf(ShardFailureCategory.ApplyEvent) with { OccurredAt = DateTimeOffset.UtcNow.Subtract(1.Minutes()) });
+                FailureOf(ShardFailureCategory.ApplyEvent) with { OccurredAt = _clock.GetUtcNow() });
+            _clock.Advance(1.Hours());
 
             await controller.ReportFailedLocalAgentsAsync();
 
             agent.StartCount.ShouldBe(1);
+        }
+
+        [Fact]
+        public async Task restarts_a_transient_fault_inside_a_single_events_apply()
+        {
+            // A timeout in the projection's own lookup is still pinned to one event, and still worth a retry
+            var (agent, controller) = await runningAgentAsync();
+
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure(ShardFailureCategory.ApplyEvent));
+            _clock.Advance(_options.Durability.HealthCheckPollingTime);
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(2);
+        }
+
+        [Fact]
+        public async Task never_restarts_a_progression_conflict_whatever_the_exception_says()
+        {
+            // Two processes on one shard; a restart adds a third
+            var (agent, controller) = await runningAgentAsync();
+
+            agent.SimulateFailure(AgentStatus.Paused, transientFailure(ShardFailureCategory.ProgressionOutOfOrder));
+            _clock.Advance(1.Hours());
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            agent.StartCount.ShouldBe(1);
+        }
+
+        private sealed class SingleAgentFamily(IAgent agent) : IAgentFamily
+        {
+            public string Scheme => agent.Uri.Scheme;
+            public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync() => ValueTask.FromResult<IReadOnlyList<Uri>>([agent.Uri]);
+            public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime) => ValueTask.FromResult(agent);
+            public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync() => ValueTask.FromResult<IReadOnlyList<Uri>>([agent.Uri]);
+            public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments) => ValueTask.CompletedTask;
+        }
+
+        [Fact]
+        public async Task tells_observers_about_the_restart()
+        {
+            // The stall-restart path raises OnRestarted; this one used to restart silently, so CritterWatch showed
+            // the Critical "paused" alert until the shard happened to read Running again
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var shard = new ShardName("Incident");
+
+            var inner = Substitute.For<JasperFxSubscriptionAgent>();
+            inner.Status.Returns(AgentStatus.Running);
+
+            var daemon = Substitute.For<IProjectionDaemon>();
+            daemon.StartAgentAsync(Arg.Any<ShardName>(), Arg.Any<CancellationToken>()).Returns(inner);
+
+            var agent = new EventSubscriptionAgent(uri, shard, daemon);
+            var restarts = new List<string>();
+            agent.OnRestarted = (_, reason, _) => restarts.Add(reason);
+
+            var controller = new NodeAgentController(_runtime, Substitute.For<INodeAgentPersistence>(),
+                [new SingleAgentFamily(agent)], NullLogger<NodeAgentController>.Instance, _cancellation.Token)
+            {
+                TimeProvider = _clock
+            };
+
+            await controller.StartAgentAsync(uri);
+
+            inner.Status.Returns(AgentStatus.Paused);
+            inner.Failure.Returns(transientFailure());
+            _clock.Advance(_options.Durability.HealthCheckPollingTime);
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            await daemon.Received(2).StartAgentAsync(shard, Arg.Any<CancellationToken>());
+            restarts.ShouldHaveSingleItem().ShouldContain("transient");
+        }
+
+        [Fact]
+        public async Task on_a_warmup_node_the_restart_comes_back_in_rebuild_mode()
+        {
+            // GH-4569: a warm-up shard paused on a pool timeout during its long rebuild comes back through
+            // StartAgentInRebuildModeAsync, which resumes from its committed progress (JasperFx 2.88.0)
+            var uri = new Uri("event-subscriptions://marten/incident/all");
+            var shard = new ShardName("Incident");
+
+            var inner = Substitute.For<JasperFxSubscriptionAgent>();
+            inner.Status.Returns(AgentStatus.Running);
+
+            var daemon = Substitute.For<IProjectionDaemon>();
+            daemon.StartAgentInRebuildModeAsync(Arg.Any<ShardName>(), Arg.Any<CancellationToken>()).Returns(inner);
+
+            var agent = new EventSubscriptionAgent(uri, shard, daemon) { StartsInRebuildMode = true };
+
+            var controller = new NodeAgentController(_runtime, Substitute.For<INodeAgentPersistence>(),
+                [new SingleAgentFamily(agent)], NullLogger<NodeAgentController>.Instance, _cancellation.Token)
+            {
+                TimeProvider = _clock
+            };
+
+            await controller.StartAgentAsync(uri);
+
+            inner.Status.Returns(AgentStatus.Paused);
+            inner.Failure.Returns(transientFailure());
+            _clock.Advance(_options.Durability.HealthCheckPollingTime);
+
+            await controller.ReportFailedLocalAgentsAsync();
+
+            await daemon.Received(2).StartAgentInRebuildModeAsync(shard, Arg.Any<CancellationToken>());
+            await daemon.DidNotReceive().StartAgentAsync(Arg.Any<ShardName>(), Arg.Any<CancellationToken>());
         }
 
         [Fact]

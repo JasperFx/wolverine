@@ -557,6 +557,17 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan HealthCheckPollingTime { get; set; } = 10.Seconds();
 
     /// <summary>
+    /// GH-4986. The longest a locally owned event subscription shard waits before it is restarted after the
+    /// daemon paused it on a transient failure (<see cref="JasperFx.Events.Daemon.ShardFailure.IsTransient" />:
+    /// a connection pool exhausted during a large rebuild, a timeout, a failover). The first restart comes
+    /// <see cref="HealthCheckPollingTime" /> after the failure, and every further one for the same shard
+    /// doubles that, up to this ceiling, so a shard failing on a starved pool does not keep adding load to
+    /// exactly that pool. The shard's count starts over once it has run longer than this ceiling without
+    /// failing again. Default five minutes.
+    /// </summary>
+    public TimeSpan TransientFailureRestartMaxBackoff { get; set; } = 5.Minutes();
+
+    /// <summary>
     /// Age of health check data before a node is considered to be "stale" or dormant and
     /// will be recovered by the durability agent
     /// </summary>
@@ -1088,6 +1099,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(MetricsCollectionSamplingInterval), MetricsCollectionSamplingInterval);
         desc.AddValue(nameof(ScheduledJobPollingTime), ScheduledJobPollingTime);
         desc.AddValue(nameof(HealthCheckPollingTime), HealthCheckPollingTime);
+        desc.AddValue(nameof(TransientFailureRestartMaxBackoff), TransientFailureRestartMaxBackoff);
         desc.AddValue(nameof(StaleNodeTimeout), StaleNodeTimeout);
         desc.AddValue(nameof(CheckAssignmentPeriod), CheckAssignmentPeriod);
         desc.AddValue(nameof(AssignmentSettlePeriod), AssignmentSettlePeriod);

@@ -221,6 +221,44 @@ Only `Other` is treated as potentially self-healing, so it is the only category 
 will auto-restart. The rest are left alone until you resolve the underlying problem, at which point
 restarting or rewinding the agent picks it back up.
 
+### Shards paused on a transient failure come back on their own <Badge type="tip" text="6.51" />
+
+The category alone can't tell you whether waiting will fix things. A connection pool that ran dry during a big
+rebuild and a missing column both come out as `Other`. So the daemon also classifies every failure as
+*transient* or not, from the exception itself, on `ShardFailure.IsTransient`. Timeouts, dropped connections,
+failovers, deadlocks and exhausted connection pools are transient. A missing column or a bug in your projection
+is not.
+
+When the daemon pauses a shard on a transient failure, Wolverine restarts it for you after a while, so you don't
+have to bounce the pod once the database recovers:
+
+* The first restart comes `HealthCheckPollingTime` after the failure. Every further restart of the same shard
+  doubles that wait, up to a ceiling, so a shard failing on a starved connection pool doesn't keep adding load to
+  exactly that pool. The count starts over once the shard has run cleanly for longer than the ceiling.
+* Only a *paused* shard is restarted. A projection rebuild stops shards and leaves their old failure in place, so
+  Wolverine leaves a stopped shard alone, and never touches a shard whose projection is being rebuilt.
+* `ProgressionOutOfOrder` is never restarted, whatever the exception says. It means two processes are running
+  the same shard, and a restart would add a third.
+* CritterWatch (or anything else wired to `OnRestarted`) is told about the restart, so the "paused" alert
+  doesn't just sit there until the shard happens to read healthy again.
+
+```csharp
+// The longest wait between restarts of one shard. Default: 5 minutes
+opts.Durability.TransientFailureRestartMaxBackoff = 2.Minutes();
+```
+
+::: tip
+On a [warm-up node](#warming-up-a-new-release-on-its-own-nodes), the restarted shard comes back in rebuild mode
+and picks up from its committed progress, so a warm-up that hits a pool timeout halfway through its replay
+carries on from where it was rather than starting over.
+:::
+
+::: info
+How good the transient classification is depends on your database driver. Npgsql gets this right out of the
+box. Polecat and Fisher register their own rules for SQL Server and SQLite errors, because neither
+`Microsoft.Data.SqlClient` nor `Microsoft.Data.Sqlite` reports transient errors on its own.
+:::
+
 ## Waiting for the Node Set to Settle <Badge type="tip" text="6.x" />
 
 A rolling deploy brings pods up one at a time. The leader assigns agents against whatever nodes exist at
