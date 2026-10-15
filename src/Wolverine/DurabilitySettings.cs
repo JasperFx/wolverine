@@ -294,7 +294,10 @@ public class DurabilitySettings : IDescribeMyself
     /// <remarks>
     /// The age is measured from when a node last claimed the message -- on receipt, on recovery, or when a
     /// scheduled retry came due -- and only messages waiting to run are released, not scheduled ones (GH-5022).
-    /// A message is not touched while its handler runs, so this must be longer than the longest handler.
+    /// While a node holds a message in memory -- queued in a durable receiver, or running in a handler -- its
+    /// clock is restarted three times per InboxStaleTime, so a long handler or a long local backlog is not
+    /// released underneath itself. That needs a store implementing
+    /// <see cref="Wolverine.Persistence.Durability.IMessageInboxHeartbeat" />, which every relational store does.
     /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 5 minutes, so a durability pass
     /// recovers the inbox rows of a process that died before its handler finished (GH-5037). A value set
     /// explicitly always wins.
