@@ -156,9 +156,14 @@ times, but it's always best to not make your system work so hard.
 
 The inbox clock starts over whenever a node claims a message -- when it's received, when a different node recovers
 it, or when a scheduled retry comes due -- and Wolverine only bumps messages that are waiting to run, never scheduled
-ones. That means a message bouncing through durable retries isn't going to get replayed underneath itself anymore,
-but Wolverine still doesn't touch a message while its handler is actually running, so a handler that runs longer
-than `InboxStaleTime` can still get a second copy started.
+ones. That means a message bouncing through durable retries isn't going to get replayed underneath itself anymore.
+
+<!-- JEREMY: draft for the InboxStaleTime heartbeat, please rewrite or approve -->
+Wolverine also keeps the clock running for any message a node is still holding onto, whether it's sitting in a durable
+listener's local queue or its handler is actually running. A few times per `InboxStaleTime` window, each durable
+listener tells the database "I've still got these," so a handler that legitimately takes longer than `InboxStaleTime`
+or a big local backlog isn't going to get a second copy started out from under it. A message a node has genuinely lost
+track of gets no such heartbeat, and that's exactly the kind of stuck message this setting exists to bump.
 
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 

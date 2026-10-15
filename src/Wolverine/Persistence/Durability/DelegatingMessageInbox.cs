@@ -4,7 +4,7 @@ namespace Wolverine.Persistence.Durability;
 /// This is necessary when the Wolverine system has "ancillary" message
 /// stores that are in separate databases
 /// </summary>
-internal class DelegatingMessageInbox : IMessageInbox
+internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
 {
     private readonly IMessageInbox _inner;
     private readonly MessageStoreCollection _stores;
@@ -13,6 +13,21 @@ internal class DelegatingMessageInbox : IMessageInbox
     {
         _inner = inner;
         _stores = stores;
+    }
+
+    /// <summary>
+    /// Each envelope's row lives in the store it came from, so the heartbeat goes to each store with its own
+    /// envelopes. A store without the capability is skipped.
+    /// </summary>
+    public async Task RestartStaleClockAsync(int ownerId, IReadOnlyList<Envelope> envelopes)
+    {
+        foreach (var group in envelopes.GroupBy(x => x.Store?.Inbox ?? _inner))
+        {
+            if (group.Key is IMessageInboxHeartbeat heartbeat)
+            {
+                await heartbeat.RestartStaleClockAsync(ownerId, group.ToArray()).ConfigureAwait(false);
+            }
+        }
     }
 
     public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
