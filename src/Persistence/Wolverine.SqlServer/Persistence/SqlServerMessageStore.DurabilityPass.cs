@@ -35,7 +35,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
         {
             await conn.OpenAsync(token);
 
-            if (await conn.TryGetGlobalLock(DurabilityPassLockId, cancellation: token))
+            if (await conn.TryGetGlobalLock(DurabilityPassLockId, cancellation: token, lockTimeoutMs: 0))
             {
                 return new DurabilityPassLock(conn, DurabilityPassLockId);
             }
