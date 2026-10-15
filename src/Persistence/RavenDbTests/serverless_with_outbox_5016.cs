@@ -86,11 +86,11 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
 
     // Persisted through the RavenDb session's outbox but never sent, as when the request died after the
     // commit and before the inline send
-    private async Task<Envelope> persistUnsentEnvelopeAsync()
+    private async Task<Envelope> persistUnsentEnvelopeAsync(string destination = "stub://serverless-raven")
     {
         var envelope = new Envelope(new ServerlessRavenCascaded(Guid.NewGuid().ToString()))
         {
-            Destination = "stub://serverless-raven".ToUri(),
+            Destination = destination.ToUri(),
             ContentType = "application/json"
         };
         envelope.Data = theHost.GetRuntime().Options.DefaultSerializer.Write(envelope);
@@ -204,6 +204,28 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
         var report = await theHost.RunDurabilityPassAsync(30.Seconds(), Token);
         report.OutgoingSent.ShouldBe(1);
         sent().Single().Id.ShouldBe(envelope.Id);
+    }
+
+    [Fact]
+    public async Task a_failed_send_restarts_the_documents_stale_clock()
+    {
+        await startHostAsync();
+
+        // Nothing can be sent there, so the pass fails to send it
+        var envelope = await persistUnsentEnvelopeAsync("nowhere://down");
+        await makeStaleAsync(envelope);
+
+        var first = await theHost.RunDurabilityPassAsync(30.Seconds(), Token);
+        first.OutgoingFailed.ShouldBe(1);
+
+        // GH-5050. Back of the stale order, and not tried again until OutboxStaleTime has gone by
+        var restarted = (await outboxDocumentsAsync()).Single();
+        restarted.Timestamp.ShouldNotBeNull();
+        restarted.Timestamp.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.Subtract(1.Minutes()));
+
+        var second = await theHost.RunDurabilityPassAsync(30.Seconds(), Token);
+        second.OutgoingFailed.ShouldBe(0);
+        second.HasMoreWork.ShouldBeFalse();
     }
 }
 

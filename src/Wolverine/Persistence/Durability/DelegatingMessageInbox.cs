@@ -117,4 +117,11 @@ internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
     {
         return _inner.ExistsAsync(envelope, cancellation);
     }
+
+    // GH-5049. Forwarded explicitly: the default implementation would answer from ExistsAsync instead
+    public Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var inbox = envelope.Store?.Inbox ?? _inner;
+        return inbox.IsHandledAsync(envelope, cancellation);
+    }
 }

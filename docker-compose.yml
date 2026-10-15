@@ -162,6 +162,9 @@ services:
 
   mysql:
     image: "mysql:8.0"
+    # max_connections raised from the MySQL default of 151, as for Postgres (#2810). The full MySqlTests suite
+    # peaks above 151 connections across its parallel lanes and then fails with "Too many connections"
+    command: ["--max-connections=500"]
     ports:
       - "3306:3306"
     environment:

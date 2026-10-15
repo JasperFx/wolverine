@@ -133,7 +133,8 @@ public class Bug_4663_timestamp_default_is_a_true_utc_instant : IAsyncLifetime
             }).StartAsync(TestContext.Current.CancellationToken);
 
         (await currentDefaultAsync(DatabaseConstants.IncomingTable)).ShouldBe("now()");
-        (await currentDefaultAsync(DatabaseConstants.OutgoingTable)).ShouldBe("now()");
+        // GH-5056: the outgoing table is repaired to clock_timestamp(), the time the row is written
+        (await currentDefaultAsync(DatabaseConstants.OutgoingTable)).ShouldBe("clock_timestamp()");
 
         await next.StopAsync(TestContext.Current.CancellationToken);
     }

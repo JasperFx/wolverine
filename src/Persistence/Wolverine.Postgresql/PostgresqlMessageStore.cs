@@ -354,22 +354,34 @@ select {owner} from owners where {owner} is not null";
     /// stale-time sweeps read. The transport queue tables carry the same column, but their cutoffs compare
     /// <c>execution_time</c> and <c>keep_until</c>, both written from .NET parameters rather than a default.
     /// </para>
+    ///
+    /// <para>
+    /// GH-5056. The outgoing table's default is clock_timestamp() rather than now() (see
+    /// <see cref="OutgoingEnvelopeTable.TimestampDefault" />), so a table created with now() is repaired the same
+    /// way. A SET DEFAULT only changes the catalog: no table rewrite, and existing rows keep their values.
+    /// </para>
     /// </summary>
     protected override async Task repairLegacyColumnDefaultsAsync(DbConnection conn)
     {
         if (Durability.InboxStaleTime.HasValue)
         {
-            await repairTimestampDefaultAsync(conn, DatabaseConstants.IncomingTable);
+            await repairTimestampDefaultAsync(conn, DatabaseConstants.IncomingTable, "now()", false);
         }
 
         if (Durability.OutboxStaleTime.HasValue)
         {
-            await repairTimestampDefaultAsync(conn, DatabaseConstants.OutgoingTable);
+            await repairTimestampDefaultAsync(conn, DatabaseConstants.OutgoingTable, OutgoingEnvelopeTable.TimestampDefault,
+                true);
         }
     }
 
-    private async Task repairTimestampDefaultAsync(DbConnection conn, string tableName)
+    private async Task repairTimestampDefaultAsync(DbConnection conn, string tableName, string expected,
+        bool replaceNow)
     {
+        // GH-5056: on the outgoing table any default other than clock_timestamp() is replaced too, the plain now()
+        // included. The incoming table keeps now()
+        var orNotClockTimestamp = replaceNow ? " or lower(existing) not like '%clock_timestamp%'" : "";
+
         // Reads the catalog first and only ALTERs a default that is actually the old one, so a healthy
         // database does not take an ACCESS EXCLUSIVE lock on its inbox table on every single startup.
         //
@@ -390,8 +402,8 @@ select {owner} from owners where {owner} is not null";
                        and a.attname = '{DatabaseConstants.Timestamp}';
 
                      if existing is not null
-                        and (lower(existing) like '%at time zone%' or lower(existing) like '%timezone(%') then
-                         execute 'alter table {SchemaName}.{tableName} alter column "{DatabaseConstants.Timestamp}" set default now()';
+                        and (lower(existing) like '%at time zone%' or lower(existing) like '%timezone(%'{orNotClockTimestamp}) then
+                         execute 'alter table {SchemaName}.{tableName} alter column "{DatabaseConstants.Timestamp}" set default {expected}';
                      end if;
                  end $$;
                  """)

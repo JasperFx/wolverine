@@ -170,6 +170,15 @@ public partial class RavenDbMessageStore : IMessageInbox
         return (await session.LoadAsync<IncomingMessage>(identity, cancellation)) != null;
     }
 
+    // GH-5049. Same identity as ExistsAsync, but only a document the inbox has finished with counts
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        using var session = _store.OpenAsyncSession();
+        var identity = IdentityFor(envelope);
+        var message = await session.LoadAsync<IncomingMessage>(identity, cancellation);
+        return message?.Status == EnvelopeStatus.Handled;
+    }
+
     public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;

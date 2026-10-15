@@ -7,6 +7,15 @@ namespace Wolverine.Postgresql.Schema;
 
 internal class OutgoingEnvelopeTable : Table
 {
+    /// <summary>
+    ///     GH-5056. now() is the start of the transaction, not when the row was written. A stale-time recovery (the
+    ///     <see cref="DurabilityMode.ServerlessWithOutbox" /> durability pass, or the stale outgoing release in the
+    ///     other modes) takes a row once its timestamp is older than OutboxStaleTime, so a transaction that ran longer
+    ///     than that before writing its outbox row handed the row over the moment it committed, while it was still
+    ///     being sent. clock_timestamp() is the time the row is written, like SQL Server's GETUTCDATE()
+    /// </summary>
+    internal const string TimestampDefault = "clock_timestamp()";
+
     public OutgoingEnvelopeTable(DurabilitySettings durability, string schemaName) : base(
         new DbObjectName(schemaName, DatabaseConstants.OutgoingTable))
     {
@@ -22,7 +31,8 @@ internal class OutgoingEnvelopeTable : Table
 
         if (durability.OutboxStaleTime.HasValue)
         {
-            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("now()");
+            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
+                .DefaultValueByExpression(TimestampDefault);
 
             // GH-5016: opt-in, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
             // (`owner_id = 0 and timestamp <= @stale`). Partial on unowned rows, which are all it ever reads

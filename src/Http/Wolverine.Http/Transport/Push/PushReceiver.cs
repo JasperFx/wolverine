@@ -65,10 +65,18 @@ public class PushReceiver : IHandlerPipeline
     public Uri Address { get; }
 
     /// <summary>
-    ///     Skip a message whose id the durable inbox already holds, and record each acked message there as handled
-    ///     so a later redelivery of it is skipped. The rows expire after
+    ///     Claim each message id in the durable inbox before handling it, so a redelivery that arrives while it is
+    ///     still running is answered with the retry status rather than run again, and a redelivery of a message
+    ///     that was already acked is acked without running it. The handled rows expire after
     ///     <see cref="DurabilitySettings.KeepAfterMessageHandling" />
     /// </summary>
+    /// <remarks>
+    ///     GH-5049. The claim is an <see cref="EnvelopeStatus.Incoming" /> inbox row owned by this node, so a
+    ///     <see cref="DurabilityMode.ServerlessWithOutbox" /> durability pass leaves it alone until
+    ///     <see cref="DurabilitySettings.InboxStaleTime" /> runs out, and only then recovers a message whose process
+    ///     died while handling it. It is marked handled when the message is acked, and deleted when the broker is
+    ///     asked to redeliver, so that redelivery can claim it again
+    /// </remarks>
     public bool DeduplicateWithInbox { get; }
 
     /// <summary>
@@ -84,19 +92,29 @@ public class PushReceiver : IHandlerPipeline
             envelope.Serializer = _runtime.Options.DetermineSerializer(envelope);
         }
 
-        if (DeduplicateWithInbox && await _runtime.Storage.Inbox.ExistsAsync(envelope, cancellation).ConfigureAwait(false))
+        if (DeduplicateWithInbox && await tryClaimAsync(envelope, cancellation).ConfigureAwait(false) is { } refused)
         {
-            _logger.LogInformation("Skipping pushed message {EnvelopeId} ({MessageType}) received at {Address} because the inbox has already handled it",
-                envelope.Id, envelope.MessageType, Address);
-            return PushReceiveOutcome.Duplicate;
+            return refused;
         }
 
         var channel = new PushChannelCallback(this);
-        await invokeAsync(envelope, channel, cancellation).ConfigureAwait(false);
-
-        if (channel.Outcome == PushReceiveOutcome.Acknowledged && DeduplicateWithInbox)
+        try
         {
-            await recordHandledAsync(envelope).ConfigureAwait(false);
+            await invokeAsync(envelope, channel, cancellation).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (DeduplicateWithInbox)
+            {
+                if (channel.Outcome == PushReceiveOutcome.Acknowledged)
+                {
+                    await recordHandledAsync(envelope, channel.Succeeded).ConfigureAwait(false);
+                }
+                else
+                {
+                    await releaseClaimAsync(envelope).ConfigureAwait(false);
+                }
+            }
         }
 
         return channel.Outcome;
@@ -131,21 +149,112 @@ public class PushReceiver : IHandlerPipeline
         return outcome;
     }
 
-    private async Task recordHandledAsync(Envelope envelope)
+    /// <summary>
+    ///     GH-5049. Claim the message id in the inbox before running the handler, with an Incoming row owned by this
+    ///     node. Null when this delivery holds the claim, otherwise what the broker should be told
+    /// </summary>
+    /// <remarks>
+    ///     Owned by this node rather than by any node: a <see cref="DurabilityMode.ServerlessWithOutbox" />
+    ///     durability pass recovers an Incoming row owned by any node at once, which would run the message a second
+    ///     time while this request is still handling it. A row this node owns is only recovered once
+    ///     <see cref="DurabilitySettings.InboxStaleTime" /> runs out, which in that mode has to be longer than the
+    ///     longest handler anyway, so the pass only takes the claim of a process that died mid-request. An Incoming
+    ///     row rather than a Handled one, so that recovered message still runs, and its body is stored for that
+    /// </remarks>
+    private async Task<PushReceiveOutcome?> tryClaimAsync(Envelope envelope, CancellationToken cancellation)
     {
-        var handled = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, _runtime.Options.Durability);
+        var inbox = _runtime.Storage.Inbox;
+
         try
         {
-            await _runtime.Storage.Inbox.StoreIncomingAsync(handled).ConfigureAwait(false);
+            // Checked first because with inbox partitioning a Handled row does not collide with a new Incoming one.
+            // A store that cannot tell a handled row from a claim treats any row as handled, as before GH-5049
+            if (await inbox.IsHandledAsync(envelope, cancellation).ConfigureAwait(false))
+            {
+                logDuplicate(envelope);
+                return PushReceiveOutcome.Duplicate;
+            }
+
+            // A message mapped with no body yet is serialized into the row
+            envelope.Serializer ??= _runtime.Options.DetermineSerializer(envelope);
+            envelope.Status = EnvelopeStatus.Incoming;
+            envelope.OwnerId = _runtime.Options.Durability.AssignedNodeNumber;
+
+            await inbox.StoreIncomingAsync(envelope).ConfigureAwait(false);
+            return null;
         }
         catch (DuplicateIncomingEnvelopeException)
         {
-            // A concurrent redelivery of the same message got there first. It is recorded either way
+            // Another delivery of the same message holds the claim, or finished with it since the check above
         }
         catch (Exception e)
         {
-            // The message itself was handled and must still be acked, so this costs at most a duplicate later
-            _logger.LogError(e, "Unable to record pushed message {EnvelopeId} as handled in the inbox. A redelivery of it would be handled again",
+            _logger.LogError(e, "Unable to claim pushed message {EnvelopeId} ({MessageType}) received at {Address} in the inbox. Asking the broker to redeliver it",
+                envelope.Id, envelope.MessageType, Address);
+            return PushReceiveOutcome.Retry;
+        }
+
+        try
+        {
+            if (await inbox.IsHandledAsync(envelope, cancellation).ConfigureAwait(false))
+            {
+                logDuplicate(envelope);
+                return PushReceiveOutcome.Duplicate;
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to read the inbox row of pushed message {EnvelopeId}", envelope.Id);
+        }
+
+        // Still running elsewhere. Acking this delivery would lose the message if that run then asks for a retry
+        _logger.LogInformation(
+            "Pushed message {EnvelopeId} ({MessageType}) received at {Address} is already being handled by another delivery. Asking the broker to redeliver it later",
+            envelope.Id, envelope.MessageType, Address);
+        return PushReceiveOutcome.Retry;
+    }
+
+    private void logDuplicate(Envelope envelope)
+    {
+        _logger.LogInformation("Skipping pushed message {EnvelopeId} ({MessageType}) received at {Address} because the inbox has already handled it",
+            envelope.Id, envelope.MessageType, Address);
+    }
+
+    private async Task recordHandledAsync(Envelope envelope, bool succeeded)
+    {
+        var inbox = _runtime.Storage.Inbox;
+        try
+        {
+            await inbox.MarkIncomingEnvelopeAsHandledAsync(envelope).ConfigureAwait(false);
+            if (succeeded) return;
+
+            // Moving the message to dead letter storage deleted the claim, so record it as handled as well
+            var handled = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, _runtime.Options.Durability);
+            await inbox.StoreIncomingAsync(handled).ConfigureAwait(false);
+        }
+        catch (DuplicateIncomingEnvelopeException)
+        {
+            // The claim was marked handled above. It is recorded either way
+        }
+        catch (Exception e)
+        {
+            // The message itself was handled and must still be acked. The claim stays Incoming and owned by this
+            // node, so redeliveries get the retry status until the stale clock runs out and it is recovered
+            _logger.LogError(e, "Unable to record pushed message {EnvelopeId} as handled in the inbox",
+                envelope.Id);
+        }
+    }
+
+    private async Task releaseClaimAsync(Envelope envelope)
+    {
+        try
+        {
+            await _runtime.Storage.Inbox.DeleteIncomingEnvelopeAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // Redeliveries get the retry status until the claim's stale clock runs out and it is recovered
+            _logger.LogError(e, "Unable to release the inbox claim of pushed message {EnvelopeId} for the broker's redelivery",
                 envelope.Id);
         }
     }
@@ -181,6 +290,7 @@ public class PushReceiver : IHandlerPipeline
             {
                 // The success path's flush is the inline one, before the ack
                 await context.SendAllOutgoingMessagesInlineAsync().ConfigureAwait(false);
+                channel.Succeeded = true;
                 await context.CompleteAsync().ConfigureAwait(false);
                 context.CompletionTrackerFor(_runtime).MessageSucceeded(envelope);
                 activity?.SetStatus(ActivityStatusCode.Ok);
@@ -251,6 +361,9 @@ internal class PushChannelCallback : IChannelCallback, ISupportNativeScheduling
 
     // Nothing settled it, which only happens when processing was cut short, so let the broker try again
     public PushReceiveOutcome Outcome => _outcome ?? PushReceiveOutcome.Retry;
+
+    // Acked because the handler succeeded, rather than because the error handling discarded or dead lettered it
+    public bool Succeeded { get; set; }
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

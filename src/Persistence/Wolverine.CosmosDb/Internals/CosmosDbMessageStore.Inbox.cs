@@ -150,6 +150,23 @@ public partial class CosmosDbMessageStore : IMessageInbox
         }
     }
 
+    // GH-5049. Same identity as ExistsAsync, but only a document the inbox has finished with counts
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var id = IdentityFor(envelope);
+        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
+        try
+        {
+            var response = await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey),
+                cancellationToken: cancellation);
+            return response.Resource.Status == EnvelopeStatus.Handled;
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+    }
+
     public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;

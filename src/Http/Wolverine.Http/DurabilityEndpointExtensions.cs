@@ -18,6 +18,7 @@ public class DurabilityPassResponse
     public bool HasMoreWork { get; set; }
     public int OutgoingSent { get; set; }
     public int OutgoingFailed { get; set; }
+    public int OutgoingDeadLettered { get; set; }
     public int ScheduledReleased { get; set; }
     public int IncomingRecovered { get; set; }
     public int ExpiredDeleted { get; set; }
@@ -37,6 +38,7 @@ public class DurabilityPassResponse
             HasMoreWork = report.HasMoreWork,
             OutgoingSent = report.OutgoingSent,
             OutgoingFailed = report.OutgoingFailed,
+            OutgoingDeadLettered = report.OutgoingDeadLettered,
             ScheduledReleased = report.ScheduledReleased,
             IncomingRecovered = report.IncomingRecovered,
             ExpiredDeleted = report.ExpiredDeleted,

@@ -15,7 +15,9 @@ public interface IPushEnvelopeMapper
     ///     batched them into one broker message, as Wolverine's own batching senders do. For each envelope set either
     ///     <see cref="Envelope.Message" />, or <see cref="Envelope.Data" /> with <see cref="Envelope.MessageType" /> and
     ///     <see cref="Envelope.ContentType" /> for Wolverine to deserialize. Set <see cref="Envelope.Id" /> from the
-    ///     broker's message id when it has one, so the optional inbox deduplication recognizes a redelivery. Return an
+    ///     broker's message id when it has one, so the optional inbox deduplication recognizes a redelivery, and set
+    ///     <see cref="Envelope.Attempts" /> to the broker's delivery count minus one when it has one, so error policies
+    ///     that count attempts escalate across redeliveries (GH-5048). Return an
     ///     empty list when the request does not carry a message, and the receiver answers 400 without handling anything
     /// </summary>
     ValueTask<IReadOnlyList<Envelope>> MapAsync(HttpContext context, CancellationToken cancellation);

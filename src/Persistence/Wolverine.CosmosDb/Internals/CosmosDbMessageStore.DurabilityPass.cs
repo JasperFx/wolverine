@@ -143,6 +143,29 @@ public partial class CosmosDbMessageStore : IMessageStoreWithDurabilityPass, ISt
         return Math.Max(0, count - excluded.Length);
     }
 
+    public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
+    {
+        if (HasDisposed || envelopes.Count == 0) return;
+
+        // The application's clock, the same one OutgoingMessage stamps a new document with
+        var now = DateTimeOffset.UtcNow;
+        var options = new PatchItemRequestOptions { EnableContentResponseOnWrite = false };
+
+        foreach (var envelope in envelopes)
+        {
+            try
+            {
+                await _container.PatchItemAsync<OutgoingMessage>($"outgoing|{envelope.Id}",
+                    new PartitionKey(envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition),
+                    [PatchOperation.Set("/timestamp", now)], options, token);
+            }
+            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+            {
+                // Already gone
+            }
+        }
+    }
+
     private static QueryDefinition staleOutgoingQuery(string queryText, DateTimeOffset? staleBefore)
     {
         var query = new QueryDefinition(queryText)
