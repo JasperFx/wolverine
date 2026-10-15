@@ -288,12 +288,16 @@ For each request, the push receiver:
    storage gets a 200. If the error policies asked for a retry, or an exception escaped the policies altogether, the receiver answers with a 500 so the broker
    redelivers the message with its own backoff
 
+<!-- DRAFT (GH-5048, for Jeremy to word): every push redelivery arrives as a new envelope, so error policies that count attempts (Requeue(n), ScheduleRetry(delays...), RetryTimes(n) followed by MoveToErrorQueue, MaximumAttempts) can only escalate when the broker tells Wolverine which delivery this is. The push mapper sets Envelope.Attempts from the broker's delivery count when the request carries one: for Pub/Sub that is the top-level deliveryAttempt, which Pub/Sub only sends when the push subscription has a dead-letter policy. Without it every redelivery is attempt 1, the policy keeps answering with the retry status, and a poison message is redelivered until the broker gives up on its own (or forever). Recommend configuring a dead-letter policy (dead-letter topic + max delivery attempts) on every push subscription: it is what makes deliveryAttempt appear, and it is the backstop if Wolverine never acks. Note the interplay: the broker's max delivery attempts should be higher than the attempts the Wolverine policy uses, or the broker dead-letters the message before Wolverine's own dead letter storage does. A custom IPushEnvelopeMapper should set Envelope.Attempts = brokerDeliveryCount - 1 the same way when its broker carries a count. -->
+
 Just like the durability endpoint, mapping a push receiver requires an authorization decision through its `PushReceiverOptions`, either
 `opts.RequireAuthorization("policy")` or an explicit `opts.AllowAnonymous()`, or the mapping throws an exception.
 
 Both status codes can be changed through the `PushReceiverOptions` configuration as well. Since push delivery is at-least-once, you can also set
 `DeduplicateWithInbox` to `true` to have the push receiver skip any message id that is already in the durable inbox, and record every message it acks
 as handled.
+
+<!-- DRAFT (GH-5049, for Jeremy to word): DeduplicateWithInbox now claims the message id in the inbox BEFORE the handler runs, so the paragraph above needs rewording. Points to cover: (1) a redelivery that arrives while the first delivery is still running -- the usual cause is a handler slower than the push subscription's ack deadline, since the broker redelivers at each deadline and a late 200 does not ack -- is answered with the retry status instead of running the handler a second time; a redelivery of a message that was already acked is still acked without running it. (2) Push handlers should still finish well inside the ack deadline: each concurrent redelivery costs a request and a 500, and with a dead-letter policy each one counts as a delivery attempt. (3) The claim is an Incoming inbox row owned by the node that received it: a ServerlessWithOutbox durability pass leaves it alone until InboxStaleTime (5 minutes by default in that mode) runs out, so InboxStaleTime must be longer than the longest push handler, and if the process dies mid-request a later pass recovers and runs the message, after which redeliveries are acked as duplicates. (4) A retry outcome deletes the claim so the broker's redelivery runs it. (5) Costs up to three inbox round trips per message (handled check, claim, mark handled) instead of two. -->
 
 <!-- DRAFT (PR #5044 review, for Jeremy to word): WolverineEnvelopePushMapper now also reads the binary/wolverine-envelopes batch form, and one disallowed message type rejects the whole batch with a 400. -->
 Wolverine ships a `WolverineEnvelopePushMapper` out of the box that reads a whole binary Wolverine envelope out of the request body. Since the caller
@@ -336,6 +340,8 @@ settings, or `DefaultIncomingMessage<T>()` that you've configured on that endpoi
 Pub/Sub messages without a Wolverine message id get a stable id derived from the subscription and the Pub/Sub message id, so the inbox
 deduplication still recognizes a redelivery.
 
+<!-- DRAFT (GH-5054, for Jeremy to word): say plainly that Wolverine does not create push subscriptions. The push subscription the push receiver needs (push endpoint = this route's public URL, OIDC token/audience for the authorization policy, ack deadline, retry policy, and the dead-letter policy recommended under GH-5048) has to be provisioned outside Wolverine -- Terraform, gcloud, Pulumi, etc. Also warn that calling AutoProvision() on a push-receiving ServerlessWithOutbox host creates every ListenToPubsubTopic(...) subscription as a PULL subscription (no push config, 10 s to 600 s retry policy), in the default project and in every tenant project, and nothing ever pulls them in this mode: either create the push subscription first under the same name (worth verifying what AutoProvision then does with an existing push subscription before recommending this) or don't AutoProvision the listener subscriptions on the push host. A later change could let the push receiver mapping supply the push endpoint for provisioning; until then this is documentation only. -->
+
 ## Pre-Generate All Types
 
 The runtime code generation that Wolverine does comes with a potentially non-trivial "cold start" problem with its first
@@ -348,5 +354,6 @@ Just so you know going in, neither `Serverless` nor `ServerlessWithOutbox` suppo
 
 * Local queues. Use `InvokeAsync()` for in-process work instead, or send messages to an external broker
 * Listeners on external brokers. See [Receiving Messages by Push](#receiving-messages-by-push) instead
+<!-- DRAFT (GH-5054, for Jeremy to word): maybe add here that resource provisioning of a broker's listener side (e.g. AutoProvision() of Pub/Sub subscriptions) still runs and creates pull subscriptions that nothing reads; the push subscriptions are provisioned outside Wolverine. See the GH-5054 note under Google Pub/Sub Push Subscriptions. -->
 * Recurring scheduled messages. Use your cloud provider's scheduler to call an HTTP endpoint instead
 * Anything that depends on leader election or agent assignment, like the [Marten async daemon in distributed mode](/guide/durability/marten/distribution)

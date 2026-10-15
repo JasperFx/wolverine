@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageDatabase<T> : IMessageInboxHandledCheck
 {
     public abstract void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
 
@@ -162,7 +162,22 @@ public abstract partial class MessageDatabase<T>
     /// mark-as-handled and promotion statements use: under <see cref="MessageIdentity.IdOnly"/> a copy at
     /// another destination is the SAME identity, so the destination is not part of the match
     /// </summary>
-    private async Task<bool> handledRowExistsAsync(Envelope envelope)
+    private Task<bool> handledRowExistsAsync(Envelope envelope)
+    {
+        return handledRowExistsAsync(envelope, _cancellation);
+    }
+
+    /// <summary>
+    /// GH-5049. Whether a retained Handled row exists for the envelope's identity, so the push receiver can tell a
+    /// finished message from one another delivery is still running
+    /// </summary>
+    public Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (HasDisposed) return Task.FromResult(false);
+        return handledRowExistsAsync(envelope, cancellation);
+    }
+
+    private async Task<bool> handledRowExistsAsync(Envelope envelope, CancellationToken cancellation)
     {
         _handledRowExistsSql ??= Durability.MessageIdentity == MessageIdentity.IdOnly
             ? $"select count(*) from {MarkAsHandledTableName} where id = @id and {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'"
@@ -174,7 +189,7 @@ public abstract partial class MessageDatabase<T>
             command = command.With("uri", envelope.Destination!.ToString());
         }
 
-        var count = await command.ExecuteScalarAsync(_cancellation);
+        var count = await command.ExecuteScalarAsync(cancellation);
         return Convert.ToInt64(count) > 0;
     }
 }

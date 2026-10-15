@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.CosmosDb.Internals;
 
-public partial class CosmosDbMessageStore : IMessageInbox
+public partial class CosmosDbMessageStore : IMessageInbox, IMessageInboxHandledCheck
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
@@ -143,6 +143,23 @@ public partial class CosmosDbMessageStore : IMessageInbox
             await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey),
                 cancellationToken: cancellation);
             return true;
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+    }
+
+    // GH-5049. Same identity as ExistsAsync, but only a document the inbox has finished with counts
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var id = IdentityFor(envelope);
+        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
+        try
+        {
+            var response = await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey),
+                cancellationToken: cancellation);
+            return response.Resource.Status == EnvelopeStatus.Handled;
         }
         catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
         {

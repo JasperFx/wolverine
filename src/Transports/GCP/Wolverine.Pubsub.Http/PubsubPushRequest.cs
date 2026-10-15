@@ -7,14 +7,15 @@ namespace Wolverine.Pubsub.Http;
 
 /// <summary>
 ///     GH-5016. The body of a wrapped Pub/Sub push request:
-///     <c>{ "message": { "data", "attributes", "messageId", "publishTime", "orderingKey" }, "subscription" }</c>
+///     <c>{ "message": { "data", "attributes", "messageId", "publishTime", "orderingKey" }, "subscription", "deliveryAttempt" }</c>
 /// </summary>
 internal class PubsubPushRequest
 {
-    private PubsubPushRequest(PubsubMessage message, string subscription)
+    private PubsubPushRequest(PubsubMessage message, string subscription, int? deliveryAttempt)
     {
         Message = message;
         Subscription = subscription;
+        DeliveryAttempt = deliveryAttempt;
     }
 
     public PubsubMessage Message { get; }
@@ -23,6 +24,12 @@ internal class PubsubPushRequest
     ///     The full subscription name, <c>projects/{project}/subscriptions/{subscription}</c>
     /// </summary>
     public string Subscription { get; }
+
+    /// <summary>
+    ///     GH-5048. Which delivery of the message this is, starting at 1. Pub/Sub only sends it when the subscription
+    ///     has a dead letter policy, so null otherwise
+    /// </summary>
+    public int? DeliveryAttempt { get; }
 
     /// <summary>
     ///     Null when the body is not a push request
@@ -84,8 +91,24 @@ internal class PubsubPushRequest
                 message.PublishTime = Timestamp.FromDateTimeOffset(published);
             }
 
-            return new PubsubPushRequest(message, stringOf(root, "subscription") ?? string.Empty);
+            return new PubsubPushRequest(message, stringOf(root, "subscription") ?? string.Empty,
+                deliveryAttemptOf(root));
         }
+    }
+
+    // A JSON number in the push body, but accept it as a string too
+    private static int? deliveryAttemptOf(JsonElement root)
+    {
+        if (!root.TryGetProperty("deliveryAttempt", out var value)) return null;
+
+        var attempt = value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt32(out var number) => number,
+            JsonValueKind.String when int.TryParse(value.GetString(), out var parsed) => parsed,
+            _ => (int?)null
+        };
+
+        return attempt > 0 ? attempt : null;
     }
 
     private static string? stringOf(JsonElement element, string name)

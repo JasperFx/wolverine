@@ -18,7 +18,7 @@ using Wolverine.Transports;
 namespace Wolverine.Persistence.Durability;
 
 public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin,
-    IDeadLetters, ISagaSupport, INodeAgentPersistence
+    IDeadLetters, ISagaSupport, INodeAgentPersistence, IMessageInboxHandledCheck
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
@@ -358,6 +358,14 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
         return await database.Inbox.ExistsAsync(envelope, cancellation);
+    }
+
+    // GH-5049. A tenant store that cannot tell treats any existing row as handled, as ExistsAsync does
+    async Task<bool> IMessageInboxHandledCheck.IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        return await database.Inbox.TryFindHandledAsync(envelope, cancellation)
+               ?? await database.Inbox.ExistsAsync(envelope, cancellation);
     }
 
     async Task IMessageInbox.RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)

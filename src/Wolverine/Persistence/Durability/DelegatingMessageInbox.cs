@@ -4,7 +4,7 @@ namespace Wolverine.Persistence.Durability;
 /// This is necessary when the Wolverine system has "ancillary" message
 /// stores that are in separate databases
 /// </summary>
-internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
+internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat, IMessageInboxHandledCheck
 {
     private readonly IMessageInbox _inner;
     private readonly MessageStoreCollection _stores;
@@ -116,5 +116,13 @@ internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
     public Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
     {
         return _inner.ExistsAsync(envelope, cancellation);
+    }
+
+    // GH-5049. A store that cannot tell treats any existing row as handled, as ExistsAsync does
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var inbox = envelope.Store?.Inbox ?? _inner;
+        return await inbox.TryFindHandledAsync(envelope, cancellation).ConfigureAwait(false)
+               ?? await inbox.ExistsAsync(envelope, cancellation).ConfigureAwait(false);
     }
 }
