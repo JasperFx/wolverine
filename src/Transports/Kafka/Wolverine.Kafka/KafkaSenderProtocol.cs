@@ -37,12 +37,9 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
         // serialized awaits dwarfed the on-broker work the producer settings
         // were tuned for.
         //
-        // Batch semantics stay all-or-nothing to fit ISenderCallback's
-        // batch-shaped API: if every send acks, MarkSuccessfulAsync; if any
-        // fails, MarkProcessingFailureAsync (the durable outbox layer will
-        // retry the batch, idempotency on the receive side dedupes). Per-
-        // envelope partial-success bookkeeping would need a callback-shape
-        // change that's out of scope here — matches the SQS sender's choice.
+        // If every send acks, MarkSuccessfulAsync for the batch. If any fails,
+        // the acked records are reported successful and only the rest failed,
+        // each as its own OutgoingMessageBatch, the way the SQS sender does.
 
         // Phase 1 — map every envelope to a Confluent Message<>. A mapping /
         // serialization failure on any envelope before we've started enqueuing
@@ -81,10 +78,22 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
         }
         catch (Exception ex)
         {
-            // Task.WhenAll surfaces only the first exception when multiple
-            // tasks faulted; the caller's failure recovery path treats the
-            // batch atomically anyway, so the first cause is enough context.
-            await callback.MarkProcessingFailureAsync(batch, ex);
+            // Each record is acked on its own, so report the ones the broker did ack as sent. Failing the whole
+            // batch would send those again on retry, and a record that can never succeed (one over
+            // message.max.bytes) would duplicate its siblings on every retry
+            var succeeded = new List<Envelope>();
+            var failed = new List<Envelope>();
+            for (var i = 0; i < prepared.Count; i++)
+            {
+                (produceTasks[i].IsCompletedSuccessfully ? succeeded : failed).Add(prepared[i].envelope);
+            }
+
+            if (succeeded.Count > 0)
+            {
+                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, succeeded));
+            }
+
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failed), ex);
             return;
         }
 
