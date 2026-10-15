@@ -2,8 +2,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
-using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime;
@@ -28,7 +26,7 @@ public class serverless_request_reply_5016
             {
                 opts.Durability.Mode = mode;
                 opts.Discovery.DisableConventionalDiscovery();
-                opts.PublishMessage<ServerlessRequest>().ToPort(PortFinder.GetAvailablePort());
+                opts.PublishMessage<ServerlessRequest>().To("stub://serverless-requests");
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
