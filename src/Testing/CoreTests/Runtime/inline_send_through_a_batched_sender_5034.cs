@@ -248,7 +248,7 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
         envelope.Sender = null;
 
         var source = Substitute.For<IStaleOutgoingSource>();
-        source.LoadStaleOutgoingAsync(default, default!, default, default)
+        source.LoadStaleOutgoingAsync(default, default!, default, TestContext.Current.CancellationToken)
             .ReturnsForAnyArgs(new List<Envelope> { envelope });
 
         var step = new RecoverStaleOutgoingStep(theRuntime.Storage, source, NullLogger.Instance)
@@ -258,7 +258,8 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
         var context = new DurabilityPassContext(theRuntime, theRuntime.Storage, 10,
             DateTimeOffset.UtcNow.AddMilliseconds(200), () => DateTimeOffset.UtcNow);
 
-        var result = await step.ExecuteAsync(context, CancellationToken.None).WaitAsync(10.Seconds());
+        var result = await step.ExecuteAsync(context, TestContext.Current.CancellationToken)
+            .WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         result.OutgoingFailed.ShouldBe(1);
         result.OutgoingSent.ShouldBe(0);
