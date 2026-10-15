@@ -208,6 +208,10 @@ public class durability_pass_5016 : IAsyncLifetime
         report.Stores[0].Steps.ShouldBeEmpty();
         report.SkippedStores.ShouldBe([locked.Uri]);
         report.OutgoingSent.ShouldBe(1);
+
+        // GH-5050. Nothing says the skipped store has nothing waiting, so a drain loop has to come back
+        report.Remaining.ShouldBe(0);
+        report.HasMoreWork.ShouldBeTrue();
     }
 
     [Fact]
@@ -233,6 +237,7 @@ public class durability_pass_5016 : IAsyncLifetime
         var second = await runAsync([store]);
         second.Stores.Single().Lock.ShouldBe(DurabilityPassLockStatus.HeldElsewhere);
         second.OutgoingSent.ShouldBe(0);
+        second.HasMoreWork.ShouldBeTrue();
 
         release.SetResult();
         var firstReport = await first.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);

@@ -327,9 +327,10 @@ public class DurabilityPassReport
 
     /// <summary>
     ///     True when this pass left work behind, so a caller that wants to drain everything should run
-    ///     another pass
+    ///     another pass. That includes a store this pass skipped because another pass held its lock: nothing here
+    ///     says that store has nothing waiting (GH-5050)
     /// </summary>
-    public bool HasMoreWork => TimedOut || Remaining > 0;
+    public bool HasMoreWork => TimedOut || Remaining > 0 || SkippedStores.Count > 0;
 
     public override string ToString()
     {
