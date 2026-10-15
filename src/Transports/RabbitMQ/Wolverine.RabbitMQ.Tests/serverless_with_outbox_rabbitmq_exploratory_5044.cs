@@ -139,6 +139,36 @@ public class serverless_with_outbox_rabbitmq_exploratory_5044
         agent.IsDurable.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task plain_serverless_downgrades_a_durable_rabbit_endpoint_to_inline(bool resourceSetupOnStartup)
+    {
+        // The same ordering question for the pre-existing Serverless policy
+        var queueName = uniqueName("serverless");
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Serverless;
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Services.AddMarten(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = SchemaName;
+                        m.DisableNpgsqlLogging = true;
+                    })
+                    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = SchemaName);
+                opts.UseRabbitMq().AutoProvision();
+                opts.PublishMessage<Explore5044RmqEvent>().ToRabbitQueue(queueName).UseDurableOutbox();
+                if (resourceSetupOnStartup) opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync(Token);
+
+        var agent = host.GetRuntime().Endpoints.GetOrBuildSendingAgent(new Uri($"rabbitmq://queue/{queueName}"));
+        _output.WriteLine($"Serverless, resource setup on startup: {resourceSetupOnStartup}, endpoint mode: {agent.Endpoint.Mode}, agent: {agent.GetType().Name}");
+
+        agent.Endpoint.Mode.ShouldBe(EndpointMode.Inline);
+    }
+
     [Fact]
     public async Task happy_path_cascaded_message_lands_in_the_queue_and_the_outbox_is_empty()
     {
@@ -154,11 +184,17 @@ public class serverless_with_outbox_rabbitmq_exploratory_5044
         (await outboxAsync(host)).ShouldBeEmpty();
     }
 
-    [Fact]
-    public async Task envelope_reply_uri_points_at_a_response_queue_nobody_will_ever_listen_to()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task envelope_reply_uri_points_at_a_response_queue_nobody_will_ever_listen_to(bool disableReplyQueue)
     {
         var queueName = uniqueName("reply");
-        using var host = await startHostAsync(opts => opts.PublishMessage<Explore5044RmqEvent>().ToRabbitQueue(queueName),
+        using var host = await startHostAsync(opts =>
+            {
+                opts.PublishMessage<Explore5044RmqEvent>().ToRabbitQueue(queueName);
+                if (disableReplyQueue) opts.UseRabbitMq().DisableSystemRequestReplyQueueDeclaration();
+            },
             uniqueName("client"));
 
         await using var raw = await rawConnectionAsync();
@@ -309,6 +345,23 @@ public class serverless_with_outbox_rabbitmq_exploratory_5044
     }
 
     [Fact]
+    public async Task raw_client_mandatory_publish_with_confirm_tracking_throws_for_an_unroutable_message()
+    {
+        // What a fix for the unroutable case would rely on: RabbitMQ.Client 7 turns a basic.return into an
+        // exception when the channel tracks publisher confirms and the publish is mandatory
+        await using var raw = await rawConnectionAsync();
+        await using var channel = await raw.CreateChannelAsync(new CreateChannelOptions(true, true), Token);
+
+        var props = new BasicProperties();
+        var ex = await Should.ThrowAsync<Exception>(async () =>
+            await channel.BasicPublishAsync("", uniqueName("nowhere"), true, props, new byte[] { 1 }, Token));
+        _output.WriteLine($"{ex.GetType().FullName}: {ex.Message}");
+
+        // And without mandatory the same publish is confirmed although it went nowhere
+        await channel.BasicPublishAsync("", uniqueName("nowhere"), false, props, new byte[] { 1 }, Token);
+    }
+
+    [Fact]
     public async Task with_publisher_confirms_an_unroutable_message_is_still_dropped_and_deleted()
     {
         var queueName = uniqueName("deleted-queue-confirm");
@@ -373,5 +426,18 @@ public class serverless_with_outbox_rabbitmq_exploratory_5044
         _output.WriteLine($"outbox rows: {outbox.Count}, arrived: {arrived}");
 
         (arrived || outbox.Count == 1).ShouldBeTrue("the message neither arrived nor stayed in the outbox");
+
+        // Once the connection auto-recovers, a durability pass has to get the message out
+        var deadline = DateTimeOffset.UtcNow.Add(30.Seconds());
+        while (!arrived && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(1.Seconds(), Token);
+            var report = await host.RunDurabilityPassAsync(10.Seconds(), Token);
+            _output.WriteLine($"durability pass sent {report.OutgoingSent}, failed {report.OutgoingFailed}");
+            arrived = await waitForMessageAsync(raw, queueName, 1.Seconds());
+        }
+
+        arrived.ShouldBeTrue("the durability pass never recovered the message after the connection came back");
+        (await outboxAsync(host)).ShouldBeEmpty();
     }
 }
