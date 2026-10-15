@@ -325,7 +325,11 @@ public partial class WolverineRuntime
                 case DurabilityMode.ServerlessWithOutbox:
                     Options.Transports.RemoveLocal();
                     Options.Policies.DisableConventionalLocalRouting();
-                    Options.Policies.Add(new ServerlessWithOutboxEndpointsPolicy());
+                    // Normally already registered by the WolverineRuntime constructor, ahead of resource setup
+                    if (!Options.Transports.EndpointPolicies.OfType<ServerlessWithOutboxEndpointsPolicy>().Any())
+                    {
+                        Options.Policies.Add(new ServerlessWithOutboxEndpointsPolicy());
+                    }
 
                     await startMessagingTransportsAsync();
                     break;

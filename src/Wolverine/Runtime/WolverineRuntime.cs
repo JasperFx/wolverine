@@ -112,6 +112,15 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
         _container = container;
 
+        // GH-5016 / PR #5044. Registered here rather than in StartAsync: resource setup on startup
+        // (AddResourceSetupOnStartup, ResetResourceState, `resources setup`) compiles the broker endpoints
+        // before the runtime's StartAsync runs, and Endpoint.Compile() applies endpoint policies only once, so
+        // a policy added later left every RabbitMQ endpoint Inline and the outbox silently off
+        if (options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
+        {
+            options.Policies.Add(new ServerlessWithOutboxEndpointsPolicy());
+        }
+
         // GH-3564: when UseClaimCheck deferred to a DI-registered IClaimCheckStore (the
         // ...FromServices overloads), hand it the built service provider now so the claim-check
         // serializer resolves the real backend instead of silently falling back to the file system.
