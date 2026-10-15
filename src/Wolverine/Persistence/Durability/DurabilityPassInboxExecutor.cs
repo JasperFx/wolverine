@@ -82,7 +82,19 @@ internal class DurabilityPassInboxExecutor : IHandlerPipeline
         if (envelope.ContentType == TransportConstants.SerializedEnvelope) return false;
 
         // A scheduled retry of a message this application received from that endpoint is handled here
-        return _runtime.Options.Transports.TryGetEndpoint(envelope.Destination) is not { IsListener: true };
+        var endpoint = _runtime.Options.Transports.TryGetEndpoint(envelope.Destination);
+        if (endpoint == null || endpoint.IsListener) return false;
+
+        // Only a sender that schedules natively parks an unwrapped scheduled send under the endpoint's address. Any
+        // other scheduled send is wrapped in a scheduled-envelope bound for the durable local queue
+        try
+        {
+            return _runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination).SupportsNativeScheduledSend;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     // In the order HandOverAsync uses (GH-4824): the outbox row first, so the message is never only in flight,

@@ -42,6 +42,9 @@ public class durability_pass_steps_5028 : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
+                // The rows these tests store as received were received at this listener's address. A due scheduled row
+                // parked under an address with no listener is a scheduled send the pass forwards to that endpoint
+                opts.ListenForMessagesFrom("stub://inbox");
                 opts.Durability.DeadLetterQueueExpirationEnabled = true;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(DurabilityPassMessageHandler));
                 opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, SchemaName);
