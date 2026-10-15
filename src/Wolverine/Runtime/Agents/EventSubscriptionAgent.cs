@@ -251,8 +251,31 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     /// <see cref="ShardFailureCategory.Other" /> (a database outage, a timeout) is what auto-restart is
     /// actually for. See GH-3638.
     /// </summary>
+    /// <remarks>
+    /// GH-4986: deliberately still the category, not <see cref="ShardFailure.IsTransient" /> as in
+    /// <c>NodeAgentController.canSelfHeal</c>. This stall restart is bounded: after
+    /// <see cref="MaxLocalRestartsBeforeRelease" /> attempts the node releases the shard to a healthy peer (GH-3888),
+    /// which is exactly the response to a node-level fault such as memory pressure -- not transient by JasperFx's
+    /// rules, and gone on another node. The node sweep's restart has no such budget, so it needs the strict label.
+    /// </remarks>
     private static bool canSelfHeal(ShardFailure? failure)
         => failure == null || failure.Category == ShardFailureCategory.Other;
+
+    /// <summary>
+    /// GH-4986: tell observers (CritterWatch) that the node's sweep restarted this shard after a transient failure,
+    /// the same notification the stall-restart path raises.
+    /// </summary>
+    internal void NotifyRestarted(string reason)
+    {
+        try
+        {
+            OnRestarted?.Invoke(Uri.ToString(), reason, TimeProvider.GetUtcNow());
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error invoking OnRestarted callback for {Uri}", Uri);
+        }
+    }
 
     // GH-3638: turn "paused due to errors" into something an operator can act on without going to dig
     // through logs -- what kind of failure, which event it died on, and the exception type that actually
