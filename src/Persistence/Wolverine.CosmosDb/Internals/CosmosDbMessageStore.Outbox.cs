@@ -152,11 +152,40 @@ public partial class CosmosDbMessageStore : IMessageOutbox
         }
     }
 
+    /// <summary>
+    /// GH-5016. One TransactionalBatch per destination partition rather than one request per envelope, for
+    /// the batched delete after an inline send or a durability pass. A batch fails as a whole when any one
+    /// document is already gone, so that partition falls back to deleting each document on its own
+    /// </summary>
     public async Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        foreach (var envelope in envelopes)
+        if (envelopes.Length == 1)
         {
-            await DeleteOutgoingAsync(envelope);
+            await DeleteOutgoingAsync(envelopes[0]);
+            return;
+        }
+
+        foreach (var partition in envelopes.GroupBy(x => x.Destination?.ToString() ?? DocumentTypes.SystemPartition))
+        {
+            foreach (var chunk in partition.Chunk(MaximumBatchOperations))
+            {
+                if (chunk.Length > 1)
+                {
+                    var batch = _container.CreateTransactionalBatch(new PartitionKey(partition.Key));
+                    foreach (var envelope in chunk)
+                    {
+                        batch.DeleteItem($"outgoing|{envelope.Id}");
+                    }
+
+                    using var response = await batch.ExecuteAsync();
+                    if (response.IsSuccessStatusCode) continue;
+                }
+
+                foreach (var envelope in chunk)
+                {
+                    await DeleteOutgoingAsync(envelope);
+                }
+            }
         }
     }
 
