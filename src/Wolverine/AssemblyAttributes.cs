@@ -31,6 +31,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus.Tests")]
 [assembly: InternalsVisibleTo("PersistenceTests")]
 [assembly: InternalsVisibleTo("EfCoreTests")]
+[assembly: InternalsVisibleTo("EfCoreTests.MultiTenancy")]
 [assembly: InternalsVisibleTo("MartenTests")]
 [assembly: InternalsVisibleTo("PostgresqlTests")]
 [assembly: InternalsVisibleTo("SqlServerTests")]
