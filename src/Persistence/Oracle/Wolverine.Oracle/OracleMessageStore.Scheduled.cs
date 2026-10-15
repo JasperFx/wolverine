@@ -127,7 +127,7 @@ internal partial class OracleMessageStore
             clauses.Add($"(id = :id_{i} AND {DatabaseConstants.ReceivedAt} = :uri_{i})");
         }
 
-        return $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET owner_id = :owner, status = '{EnvelopeStatus.Incoming}' " +
+        return $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET owner_id = :owner, status = '{EnvelopeStatus.Incoming}'{restartIncomingStaleClock} " +
                $"WHERE status = '{EnvelopeStatus.Scheduled}' AND ({string.Join(" OR ", clauses)})";
     }
 }

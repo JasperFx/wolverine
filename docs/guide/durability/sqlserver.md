@@ -260,16 +260,62 @@ and turned worst-case deep-queue dequeue latency from hundreds of milliseconds i
 milliseconds.
 
 ::: warning
-This setting changes the physical schema of the queue tables. Enabling it on an **existing** database
-causes a one-time table rebuild the next time the schema is applied (drop the clustered primary key,
-add the `seq` identity column, and build the new clustered/unique indexes). Queue tables are normally
-transient, so this is usually cheap, but you should enable it during a maintenance window — ideally
-with the queues drained. New applications can simply turn it on from the start.
+This setting changes the physical schema of the queue tables. Turning it on or off for an **existing**
+database rebuilds the ready and scheduled queue tables the next time the schema is applied: in one
+transaction, Wolverine copies the rows out, recreates the table in the new layout and inserts the rows
+back in queue order, so messages already waiting keep their order and the new `seq` (or `queue_order`)
+identity follows it. The table is locked for the duration. Queue tables are normally transient, so this
+is usually cheap, but you should switch during a maintenance window — ideally with the queues drained —
+and on every application that shares the queue tables. New applications can simply turn it on from the
+start.
 
 This applies to Wolverine's native Sql Server queue tables only. The NServiceBus interoperability
 transport already uses the equivalent clustered layout (it must match the NServiceBus on-disk schema),
 so no opt-in is needed there.
 :::
+
+### Deterministic Queue Ordering
+
+With the default table layout, the Sql Server queue listeners dequeue by the `timestamp` column, a
+`datetimeoffset` filled in by `SYSDATETIMEOFFSET()`. Messages sent one at a time almost never share a
+timestamp, but `SYSDATETIMEOFFSET()` is evaluated once per statement, so every row written by one
+statement gets the same value. That is exactly what happens when scheduled messages come due: each
+promotion moves a batch of them into the ready queue in a single statement. Rows with the same
+timestamp have no defined order relative to each other. To persist a tie-breaker for those rows, opt
+into deterministic queue ordering:
+
+```cs
+opts.UseSqlServerPersistenceAndTransport(connectionString)
+    .EnableDeterministicQueueOrdering();
+```
+
+This adds a `queue_order bigint IDENTITY` column to the ready and scheduled queue tables, plus composite
+`(timestamp, queue_order)` and `(execution_time, queue_order)` indexes next to the existing single-column
+indexes. It applies to both durable and buffered listeners and keeps scheduled messages in sequence when
+they are promoted to the ready queue. The column is added to existing tables in place; SQL Server numbers
+the rows already in the table, so every existing message gets a distinct value, but their original order
+cannot be reconstructed when their timestamps already tie. This gives a stable order within each queue; it
+does not define a global commit order across concurrent senders, consumers, or different queues.
+
+Queues using [`OptimizeQueueThroughput()`](#optimizing-queue-throughput) are not changed by this option.
+Those tables already dequeue by their `seq` identity column, which is insertion order, and promote
+scheduled messages by `execution_time` with `seq` as the tie-breaker. SQL Server allows only one identity
+column per table, so no `queue_order` column is added there.
+
+Without the option, Wolverine still hands each dequeued batch to the listener in `timestamp` order (or
+`seq` order for the high-throughput layout) and promotes scheduled messages in `execution_time` order.
+Neither of those needs a schema change.
+
+The option is disabled by default so existing applications do not receive an automatic queue schema
+change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option
+enabled. Configure the option consistently on every application using the same queue schema; once the
+schema has been upgraded, turning the option off again leaves the added column and indexes in place.
+The composite indexes take additional storage and write maintenance.
+
+For a safe rollout, deploy the compatible version with this option disabled to every application sharing
+the queue schema. Then apply the opt-in schema migration and enable the option on all consumers. Rolling
+back to a binary that predates this change requires suppressing its automatic queue schema migrations,
+because its older table model may remove the added column and indexes.
 
 If you want to use Sql Server as a queueing mechanism between multiple applications, you'll need:
 

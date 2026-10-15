@@ -161,6 +161,83 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+### Deterministic Queue Ordering
+
+A SQLite queue row's `timestamp` defaults to `datetime('now')`, which only has one-second precision, so
+every message sent to a queue within the same second gets the same timestamp. Scheduled messages that are
+promoted to the ready queue together also share one timestamp. Ties are the normal case on SQLite, not an
+edge case.
+
+By default, the listeners read rows in timestamp order and hand each batch to the handlers in that order,
+and scheduled messages are promoted in `execution_time` order. Neither requires a schema change. Rows with
+the same timestamp have no defined order, though. To break those ties deterministically, opt in:
+
+```cs
+opts.UseSqlitePersistenceAndTransport(connectionString)
+    .EnableDeterministicQueueOrdering();
+```
+
+The same option is available from `PersistMessagesWithSqlite(connectionString).EnableMessageTransport(x => x.EnableDeterministicQueueOrdering())`.
+
+The tie-breaker is SQLite's implicit `rowid`. The queue tables have a text primary key, so each row
+already carries a `rowid`, and a new row always gets a larger `rowid` than every row still in the table.
+No column is added. With the option enabled, the listeners order by `timestamp, rowid`, and promotion
+inserts due scheduled messages in `execution_time, rowid` order, so promoted messages keep their order
+in the ready queue. It applies to both durable and buffered listeners, and to every tenant database.
+
+The schema change is one index on each queue table: `idx_{table}_timestamp` on the ready queue table and
+`idx_{table}_execution_time` on the scheduled table. SQLite stores the `rowid` in every index entry, so
+these indexes serve the `timestamp, rowid` and `execution_time, rowid` ordering without a sort. They are
+created in place on existing tables, without copying rows, and existing messages keep their `rowid`s.
+
+Messages that are resent to a queue, for example when a listener defers one, are written again and go
+to the back of the queue. The order is stable within a queue; it does not define a global order across
+different queues or different SQLite files.
+
+The option is disabled by default so existing applications do not receive an automatic queue schema
+change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option
+enabled. Configure the option consistently on every application using the same SQLite file; once the
+schema has been upgraded, leaving the option disabled keeps the added indexes. Rolling back to a version
+that predates this option may drop the indexes again, which loses no messages.
+
+### Prefixing the Queue Tables <Badge type="tip" text="6.50" />
+
+By default, the SQLite transport names the tables for a queue called `orders` `wolverine_queue_orders` and
+`wolverine_queue_orders_scheduled`. That's fine right up until you want two logically separate applications,
+or two separate sets of queues, to share one SQLite database file and they both happen to use a queue named
+`orders`. Since SQLite doesn't have schemas, Wolverine can't separate those tables the way it would with
+PostgreSQL or SQL Server. Instead, you can opt into a prefix on the queue table names:
+
+<!-- snippet: sample_sqlite_queue_table_prefix -->
+<a id='snippet-sample_sqlite_queue_table_prefix'></a>
+```cs
+opts.UseSqlitePersistenceAndTransport("Data Source=shared.db")
+
+    // The "orders" queue now lives in reporting_wolverine_queue_orders
+    // and reporting_wolverine_queue_orders_scheduled
+    .PrefixName("reporting");
+
+opts.ListenToSqliteQueue("orders");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L110-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_queue_table_prefix' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The same option is available from `PersistMessagesWithSqlite(connectionString).EnableMessageTransport(x => x.PrefixName("reporting"))`,
+and from `FisherIntegration.PrefixName` if you're using [Fisher](/guide/durability/fisher/#prefixing-native-sqlite-queue-tables).
+
+A few things to know about this:
+
+* **It's completely opt in.** If you never call `PrefixName()`, or you pass SQLite's built-in `"main"`, the
+  queue tables keep the exact names they've always had, so existing applications don't lose track of the
+  messages already sitting in those tables.
+* **It only applies to the queue tables.** To prefix Wolverine's own inbox, outbox and node tables too, use the
+  schema name argument to `PersistMessagesWithSqlite()` as described in [Schema Names](#schema-names).
+* **Every application on a queue has to agree.** A sender and a listener using different prefixes are talking
+  to different tables, and the messages will just sit there.
+* **Changing the prefix later points at new, empty tables.** Wolverine does not copy messages from the old
+  tables to the new ones, so drain the queues first or move the rows yourself.
+* **SQLite still allows only one writer per file.** The prefix separates table names; it doesn't change how
+  SQLite handles concurrent writes.
 
 ### Resetting in Tests
 
@@ -220,8 +297,9 @@ other than `main` produced SQL against a database that was never attached and fa
 [GH-3943](https://github.com/JasperFx/wolverine/issues/3943).
 :::
 
-The SQLite transport's queue tables are named `wolverine_queue_<name>` and take no prefix — they are named by
-the transport rather than by the message store.
+The SQLite transport's queue tables are named by the transport rather than by the message store, so this
+prefix does not apply to them. To prefix the queue tables as well, see
+[Prefixing the Queue Tables](#prefixing-the-queue-tables).
 
 `UseSqlitePersistenceAndTransport()` is intentionally connection-string only:
 

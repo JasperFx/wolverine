@@ -16,6 +16,8 @@ internal partial class TrackedSession
         _ignoreMessageRules.AddRange(parent._ignoreMessageRules);
         _ignoreEnvelopeRules.AddRange(parent._ignoreEnvelopeRules);
         _ignoreSystemCommands = parent._ignoreSystemCommands;
+        _hostRules.AddRange(parent._hostRules);
+        _applyHostRules = parent._applyHostRules;
         _source = new();
 
         AssertAnyFailureAcknowledgements = parent.AssertAnyFailureAcknowledgements;

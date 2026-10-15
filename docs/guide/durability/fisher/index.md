@@ -72,6 +72,51 @@ builder.Host.UseWolverine(opts =>
 * Make Fisher the active [saga storage](/guide/durability/sagas) for Wolverine
 * Add transactional middleware using Fisher to your Wolverine application
 
+## Prefixing native SQLite queue tables <Badge type="tip" text="6.50" />
+
+SQLite doesn't have schemas, so when you want separate sets of Wolverine tables living in the same Fisher
+database file, Wolverine uses a prefix on the table names instead. `MessageStorageSchemaName` has always
+prefixed Wolverine's inbox, outbox and node tables. To prefix the tables behind the native SQLite queues
+too, opt in with `PrefixName`:
+
+<!-- snippet: sample_fisher_prefix_name_for_sqlite_queue_tables -->
+<a id='snippet-sample_fisher_prefix_name_for_sqlite_queue_tables'></a>
+```cs
+var builder = Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+        opts.PublishAllMessages().ToSqliteQueue("orders");
+
+        opts.Services.AddFisher(m => m.Connection(connectionString))
+            .ApplyAllDatabaseChangesOnStartup()
+            .IntegrateWithWolverine(w =>
+            {
+                // Prefixes the SQLite queue tables, so the "orders" queue lives in
+                // reporting_wolverine_queue_orders and reporting_wolverine_queue_orders_scheduled
+                w.PrefixName = "reporting";
+
+                // Prefixes Wolverine's own inbox, outbox and node tables
+                w.MessageStorageSchemaName = "reporting";
+            });
+    });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/Bug_3947_prefix_name_for_sqlite_queue_tables.cs#L132-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fisher_prefix_name_for_sqlite_queue_tables' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This is completely opt in. If you never set `PrefixName`, or you set it to SQLite's built-in `"main"`, the
+queue tables keep the exact names they've always had. Every application sending to or listening on a queue
+has to use the same prefix, and changing the prefix later points the queues at new, empty tables without
+copying any messages over. See [Prefixing the Queue Tables](/guide/durability/sqlite#prefixing-the-queue-tables)
+in the SQLite guide for the rest of the details.
+
+::: warning
+`FisherIntegration.TransportSchemaName` is now obsolete. It never did anything on Fisher, because there's no
+schema for it to name. Setting it now sets `PrefixName` instead, so if you had set it before, your queue
+tables will pick up that value as a prefix when you upgrade. Either switch to `PrefixName` deliberately, or
+remove the `TransportSchemaName` setting to keep your existing queue table names.
+:::
+
 ## Event Sourcing
 
 The aggregate handler workflow is the store-agnostic one in Wolverine core, so a handler written
@@ -215,11 +260,10 @@ release. The following are tracked as follow-up work rather than shipped-but-bro
 |---|---|
 | Multi-tenancy | Fisher's tenancy is a **file per tenant**, so Wolverine's durability tables cannot follow a tenant across files without a second writer per file |
 | Cluster durability modes | One file, one node — see above |
-| Schema-scoped transport tables | SQLite has no schemas |
+| Schema-qualified transport tables | SQLite has no schemas; use `PrefixName` to prefix the queue tables instead |
 
 ::: tip
-Wolverine's durability tables go in SQLite's `main` schema. `MessageStorageSchemaName` only accepts
-a schema SQLite actually knows — `main`, `temp`, or a database you have `ATTACH`ed — so unlike the
-Marten and Polecat integrations there is no per-service schema isolation to configure. Isolate with a
-separate **file** instead.
+SQLite has no schemas, so Wolverine uses table name prefixes to keep separate sets of tables apart inside a
+shared file. `MessageStorageSchemaName` prefixes the inbox, outbox and node tables, and `PrefixName` prefixes
+the native SQLite queue tables. See [Prefixing native SQLite queue tables](#prefixing-native-sqlite-queue-tables).
 :::

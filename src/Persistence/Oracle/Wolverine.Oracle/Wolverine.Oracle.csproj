@@ -33,4 +33,11 @@
         <PackageReference Include="Weasel.Oracle" />
     </ItemGroup>
 
+    <!-- GHSA-846f-f764-76mx / CVE-2026-84008: a vulnerable System.Security.Cryptography.Pkcs
+         arrives transitively. Referenced directly so the patched version wins; see the note in
+         Directory.Packages.props. -->
+    <ItemGroup>
+        <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    </ItemGroup>
+
 </Project>

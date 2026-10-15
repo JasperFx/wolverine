@@ -20,6 +20,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     private readonly ILogger _logger;
     private readonly Uri _uri;
     private readonly CancellationTokenSource _cancellation;
+    private readonly SemaphoreSlim _wakeSignal = new(0, 1);
 
     private Task? _task;
     private volatile int _consecutiveFailures;
@@ -62,6 +63,39 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     public CancellationToken Token => _cancellation.Token;
 
     public int ConsecutiveFailures => _consecutiveFailures;
+
+    /// <summary>
+    ///     Wake an idle polling loop so it can check for work immediately. Multiple wakeups are
+    ///     coalesced because the signal only means "check the queue", not that one message exists.
+    /// </summary>
+    public void Wake()
+    {
+        try
+        {
+            if (_wakeSignal.CurrentCount == 0)
+            {
+                _wakeSignal.Release();
+            }
+        }
+        catch (SemaphoreFullException)
+        {
+            // There is already a pending wakeup.
+        }
+        catch (ObjectDisposedException)
+        {
+            // A late notification raced with listener teardown.
+        }
+    }
+
+    /// <summary>
+    /// Wait for a wakeup signal or the specified delay, whichever comes first. A wakeup is consumed
+    /// by this call, so the receive loop can use the same signal to interrupt work pacing.
+    /// </summary>
+    /// <returns><see langword="true"/> if a wakeup was consumed; otherwise, <see langword="false"/>.</returns>
+    public Task<bool> WaitForWakeupOrTimeoutAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
+        return _wakeSignal.WaitAsync(delay, cancellationToken);
+    }
 
     public ReceiveLoopStatus ReceiveLoopStatus => _status;
 
@@ -128,7 +162,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
 
                     if (!didWork)
                     {
-                        await Task.Delay(_idleDelay, _cancellation.Token).ConfigureAwait(false);
+                        await WaitForWakeupOrTimeoutAsync(_idleDelay, _cancellation.Token).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
@@ -271,6 +305,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
             }
         }
 
+        _wakeSignal.Dispose();
         _cancellation.Dispose();
     }
 }

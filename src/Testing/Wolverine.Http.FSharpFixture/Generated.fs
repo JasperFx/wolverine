@@ -349,6 +349,58 @@ type POST_fsharp_deduplicated(wolverineHttpOptions: Wolverine.Http.WolverineHttp
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_things_by_id_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            let id_rawValue = (httpContext.GetRouteValue("id") :?> string)
+            if isNull id_rawValue then
+                httpContext.Response.StatusCode <- 404
+                ()
+            else
+                match Wolverine.Http.HttpHandler.TryParseSingleValue<Wolverine.Http.FSharpContracts.ThingId, System.Guid>(id_rawValue, System.Func<System.Guid, Wolverine.Http.FSharpContracts.ThingId>(fun inner -> Wolverine.Http.FSharpContracts.ThingId(inner))) with
+                    | true, id ->
+                        let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                        
+                        // The actual HTTP request handler execution
+                        let result_of_GetByThingId = thingEndpoints.GetByThingId(id)
+
+                        do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetByThingId, 404)
+                    | _ ->
+                        httpContext.Response.StatusCode <- 404
+                        ()
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_things_by_code(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            let code_rawValue = httpContext.Request.Query.["code"].ToString()
+            let code = match Wolverine.Http.HttpHandler.TryParseSingleValue<Wolverine.Http.FSharpContracts.ThingCode>(code_rawValue, System.Func<string, Wolverine.Http.FSharpContracts.ThingCode>(fun inner -> Wolverine.Http.FSharpContracts.ThingCode(inner))) with | true, v -> v | _ -> Unchecked.defaultof<Wolverine.Http.FSharpContracts.ThingCode>
+            let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_GetByThingCode = thingEndpoints.GetByThingCode(code)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetByThingCode, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
@@ -378,5 +430,5 @@ type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
 type GeneratedHttpEndpointRegistry() =
     inherit Wolverine.Http.HttpEndpointRegistry()
     override this.EndpointTypes() : System.Type[] =
-        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.45.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.45.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
+        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.49.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.49.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
 

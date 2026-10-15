@@ -228,7 +228,10 @@ opts.UseNats("nats://localhost:4222")
     });
 ```
 
-`MaxDeliver`, `AckWait` and `DeliverPolicy` apply to the consumers of Wolverine's JetStream listeners. The stream
+`MaxDeliver`, `AckWait` and `DeliverPolicy` apply to the consumers of Wolverine's JetStream listeners.
+`MaxDeliver` is also the only limit on a message whose dead-letter copy keeps failing on an Inline or native-ack
+listener: it comes back every five seconds until the consumer has delivered it `MaxDeliver` times, and forever with
+`MaxDeliver = -1` — see "When the dead-letter copy fails" under [Error Handling](#error-handling). The stream
 limits in `JetStreamDefaults` (`MaxAge`, `MaxMessages`, `MaxBytes`, `Replicas`) only apply to a stream that
 `resources setup` / `AddResourceSetupOnStartup()` creates because a JetStream endpoint's stream does not exist yet. A stream
 you declare with `DefineStream()` and friends does not inherit them — whatever its declaration leaves unset is

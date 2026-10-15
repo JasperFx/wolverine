@@ -180,7 +180,15 @@ partial class Build
             // fetched them into previous-durations/ — longest-processing-time lane balancing
             // instead of count balancing. Null degrades to exactly today's behavior. See
             // build/TestDurations.cs for the whole loop.
-            KnownTestDurations = knownDurationsFor(projectName, framework)
+            KnownTestDurations = knownDurationsFor(projectName, framework),
+
+            // GH-5019: announce the run to a Bobcat monitor (`bobcat ui`, or the one a Stoat plan
+            // gates on) when one answers at BOBCAT_MONITOR_URL (default http://localhost:5525). The
+            // supervisor owns the run bracket and forwards every test's start and verdict, stalls,
+            // retries and heartbeats, and the run carries BOBCAT_RUN_TAG, so a plan gate sees the
+            // run it is waiting for. With no monitor listening -- every CI runner -- the probe costs
+            // one refused local connection and nothing is published. BOBCAT_MONITOR=0 turns it off.
+            PublishToMonitor = true
         };
 
         if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());

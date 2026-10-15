@@ -1,4 +1,5 @@
 using Npgsql;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -23,7 +24,8 @@ internal class TenantedPostgresqlQueue : Endpoint, IDatabaseBackedEndpoint
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        _sender = new PostgresqlQueueSender(_parent, _dataSource, _databaseName);
+        _sender = new PostgresqlQueueSender(_parent, _dataSource, _databaseName,
+            runtime.LoggerFactory.CreateLogger<PostgresqlQueueSender>());
         var listener = new PostgresqlQueueListener(_parent, runtime, receiver, _dataSource, _databaseName);
         await listener.StartAsync();
         return listener;

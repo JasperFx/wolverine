@@ -169,30 +169,13 @@ public static class AgentMessagingExtensions
     }
 
     /// <summary>
-    /// Publishes a message locally and sends it to every other node in the cluster
-    /// via each node's control URI. Node data is loaded fresh from persistence (no caching).
+    /// Sends a copy of the message to every node in the cluster. Prefer
+    /// <see cref="MessageBusExtensions.BroadcastToAllNodesAsync{T}"/>, which this now delegates to.
     /// </summary>
     /// <param name="context">The current message context.</param>
     /// <param name="message">The message to fan out to all nodes.</param>
     public static async Task FanOutToAllNodes(this IMessageContext context, object message)
     {
-        var messageContext = context.As<MessageContext>();
-        var runtime = messageContext.Runtime;
-
-        // Publish locally
-        await messageContext.PublishAsync(message);
-
-        // Load all nodes fresh from persistence
-        var allNodes = await runtime.Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
-
-        // Send to every other node via its ControlUri
-        var selfId = runtime.Options.UniqueNodeId;
-        foreach (var node in allNodes)
-        {
-            if (node.NodeId != selfId && node.ControlUri != null)
-            {
-                await messageContext.EndpointFor(node.ControlUri).SendAsync(message);
-            }
-        }
+        await context.BroadcastToAllNodesAsync(message);
     }
 }

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -11,6 +12,8 @@ using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.Postgresql.Transport;
+
+internal record UnconfirmedPop(Guid[] Ids, int NodeNumber);
 
 internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
 {
@@ -31,6 +34,12 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly string _quotedSchemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly bool _deterministicQueueOrdering;
+    private readonly string _queueNotificationKey;
+    private IAsyncDisposable? _notificationRegistration;
+
+    // GH-5015: a pop whose COMMIT outcome was unknown and whose release could not run yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -43,20 +52,32 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _logger = runtime.LoggerFactory.CreateLogger<PostgresqlQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
 
-        _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName);
+        _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName, _logger);
 
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
+        _queueNotificationKey = PostgresqlQueueNotification.Key(queue);
 
+        // DELETE ... RETURNING does not preserve the ordering of the selected rows. Always reapply
+        // timestamp order; the sequence tie-breaker is only referenced when its schema is enabled.
+        var queueOrderInOrderBy = _deterministicQueueOrdering ? $", {_queueTableName}.{QueueTable.QueueOrderColumn}" : string.Empty;
+        var queueOrderInReturning = _deterministicQueueOrdering ? $", {QueueTable.QueueOrderColumn}" : string.Empty;
+        var queueOrderInResultOrderBy = _deterministicQueueOrdering ? $", message.{QueueTable.QueueOrderColumn}" : string.Empty;
         _tryPopMessagesDirectlySql = $@"
 WITH message AS (
-               DELETE 
-               FROM {_queueTableName} WHERE CTID IN (SELECT ctid from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit :COUNT FOR UPDATE SKIP LOCKED)        
-               RETURNING {DatabaseConstants.Body}
+               DELETE
+               FROM {_queueTableName}
+               WHERE CTID IN (
+                   SELECT ctid FROM {_queueTableName}
+                   ORDER BY {_queueTableName}.timestamp{queueOrderInOrderBy}
+                   LIMIT :COUNT FOR UPDATE SKIP LOCKED
+               )
+               RETURNING {DatabaseConstants.Body}, timestamp{queueOrderInReturning}
 )
-SELECT message.{DatabaseConstants.Body} from message;
+SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{queueOrderInResultOrderBy};
 ";
         _queueName = _queue.Name;
     }
@@ -80,6 +101,7 @@ SELECT message.{DatabaseConstants.Body} from message;
     public async ValueTask DisposeAsync()
     {
         await _cancellation.CancelAsync();
+        await releaseNotificationRegistrationAsync();
         if (_loop != null)
         {
             await _loop.DisposeAsync();
@@ -92,6 +114,7 @@ SELECT message.{DatabaseConstants.Body} from message;
     public async ValueTask StopAsync()
     {
         await _cancellation.CancelAsync();
+        await releaseNotificationRegistrationAsync();
 
         if (_loop != null)
         {
@@ -156,19 +179,29 @@ SELECT message.{DatabaseConstants.Body} from message;
             // backlog is one enormous transaction holding locks the receive path needs. Capped at
             // RecoveryBatchSize per cycle; the poller runs again immediately after a full batch.
             var builder = new BatchBuilder();
+            var scheduledOrder = _deterministicQueueOrdering
+                ? $", {QueueTable.QueueOrderColumn}"
+                : string.Empty;
+            var scheduledReturning = _deterministicQueueOrdering
+                ? $", {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+                : string.Empty;
+            var promotionOrder = _deterministicQueueOrdering
+                ? $"ORDER BY {DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+                : string.Empty;
             var parameters = builder.AppendWithParameters($@"
 WITH moved AS (
     DELETE FROM {_scheduledTableName} WHERE CTID IN (
         SELECT ctid FROM {_scheduledTableName}
         WHERE {DatabaseConstants.ExecutionTime} <= now()
           AND id NOT IN (SELECT id FROM {_queueTableName})
-        ORDER BY {DatabaseConstants.ExecutionTime}
+        ORDER BY {DatabaseConstants.ExecutionTime}{scheduledOrder}
         LIMIT ? FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, body, message_type, keep_until
+    RETURNING id, body, message_type, keep_until{scheduledReturning}
 ), promoted AS (
     INSERT INTO {_queueTableName} (id, body, message_type, keep_until)
     SELECT id, body, message_type, keep_until FROM moved
+    {promotionOrder}
 )
 SELECT count(*) FROM moved");
 
@@ -180,6 +213,12 @@ SELECT count(*) FROM moved");
 
             count = (long)(await batch
                 .ExecuteScalarAsync(cancellationToken))!;
+
+            if (count > 0 && _queue.Parent.EnableQueueNotifications)
+            {
+                await PostgresqlQueueNotification.PublishAsync(conn, _queueNotificationKey, _logger,
+                    cancellationToken);
+            }
         }
         finally
         {
@@ -195,6 +234,11 @@ SELECT count(*) FROM moved");
     // applies its idle delay = _pollingInterval).
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
+        if (_unconfirmedPop != null)
+        {
+            await ReleaseUnconfirmedPopAsync(_logger, token);
+        }
+
         var messages = _queue.Mode == EndpointMode.Durable
             ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger, token)
             : await TryPopAsync(_queue.MaximumMessagesToReceive, _logger, token);
@@ -206,8 +250,8 @@ SELECT count(*) FROM moved");
 
         await _receiver.ReceivedAsync(this, messages.ToArray());
 
-        // Preserve the original post-process pacing between polls.
-        await Task.Delay(
+        // Preserve the original post-process pacing, but let a queue notification start the next poll immediately.
+        await _loop!.WaitForWakeupOrTimeoutAsync(
             messages.Count > _queue.MaximumMessagesToReceive ? 250.Milliseconds() : _pollingInterval, token);
 
         return true;
@@ -230,18 +274,32 @@ SELECT count(*) FROM moved");
         // pg_attribute insert-and-delete per poll (catalog churn), and a fresh relation each time
         // means the plan is never reused. This is the same DELETE ... RETURNING shape the
         // non-durable pop above already uses, extended with the inbox insert as a second CTE.
+        // The ORDER BY in the row selection only chooses the batch; DELETE ... RETURNING does not
+        // keep that order. The persistent sequence is included only for installations that opted in.
+        var queueOrderInOrderBy = _deterministicQueueOrdering
+            ? $", {_queueTableName}.{QueueTable.QueueOrderColumn}"
+            : string.Empty;
+        var queueOrderInReturning = _deterministicQueueOrdering
+            ? $", {QueueTable.QueueOrderColumn}"
+            : string.Empty;
+        var queueOrderInResultOrderBy = _deterministicQueueOrdering
+            ? $", popped.{QueueTable.QueueOrderColumn}"
+            : string.Empty;
         var parameters = builder.AppendWithParameters($@"
 WITH popped AS (
-    DELETE FROM {_queueTableName} WHERE CTID IN (
-        SELECT ctid FROM {_queueTableName} ORDER BY {_queueTableName}.timestamp LIMIT ? FOR UPDATE SKIP LOCKED
+    DELETE FROM {_queueTableName}
+    WHERE CTID IN (
+        SELECT ctid FROM {_queueTableName}
+        ORDER BY {_queueTableName}.timestamp{queueOrderInOrderBy}
+        LIMIT ? FOR UPDATE SKIP LOCKED
     )
-    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}
+    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, timestamp{queueOrderInReturning}
 ), inserted AS (
     INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
 )
-SELECT {DatabaseConstants.Body} FROM popped");
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
@@ -250,39 +308,157 @@ SELECT {DatabaseConstants.Body} FROM popped");
 
         await using var batch = builder.Compile();
 
-        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        var batchIds = new List<Guid>();
+        var list = new List<Envelope>();
+        Exception? commitFailure = null;
 
+        var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            // Keep the queue delete and inbox insert uncommitted until the client has read and
+            // materialized the complete result. With an implicit transaction, PostgreSQL can commit
+            // the pop before the client receives the response; a read timeout then strands inbox rows
+            // under this live node because the listener never received the envelopes to process. A
+            // failure before the COMMIT rolls the pop back, and the rows stay in the queue.
+            await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
+            batch.Connection = conn;
+            batch.Transaction = transaction;
+
+            await using (var reader = await batch.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+                    batchIds.Add(id);
+                    var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
+                    try
+                    {
+                        var e = EnvelopeSerializer.Deserialize(data);
+                        list.Add(e);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
+                        var ping = Envelope.ForPing(Address); // just a stand in
+                        list.Add(ping);
+                    }
+                }
+            }
+
+            try
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // The server may have committed even though the client did not receive COMMIT's reply.
+                // The batch is released after the transaction and connection are disposed below: the
+                // release waits on this transaction's row locks, so it must not run while we still hold it.
+                commitFailure = e;
+            }
+        }
+        finally
+        {
+            // Closing never decides the outcome. A close failure after a confirmed COMMIT must not
+            // discard a batch this node now owns, and one after an earlier failure must not replace
+            // the exception that explains it.
+            try
+            {
+                await conn.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Error closing the connection after a durable pop from PostgreSQL queue {Queue}",
+                    _queueName);
+            }
+        }
+
+        if (commitFailure != null)
+        {
+            if (batchIds.Count > 0)
+            {
+                _unconfirmedPop = new UnconfirmedPop(batchIds.ToArray(), settings.AssignedNodeNumber);
+                try
+                {
+                    await ReleaseUnconfirmedPopAsync(logger, CancellationToken.None);
+                }
+                catch (Exception e)
+                {
+                    // Kept in _unconfirmedPop: the receive loop tries again before its next poll, so a
+                    // database that is still unreachable here does not strand the batch
+                    logger.LogError(e,
+                        "Error releasing PostgreSQL queue batch {Queue} for recovery after a pop commit failure. Retrying before the next poll",
+                        _queueName);
+                }
+            }
+
+            ExceptionDispatchInfo.Capture(commitFailure).Throw();
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Release the batch of a pop whose COMMIT outcome is unknown to inbox recovery (owner_id = 0). The
+    /// first statement locks the batch's ids in the queue table. That waits out the pop's transaction if
+    /// the server is still committing it -- a slow commit is exactly the disk stall that loses the reply,
+    /// and an UPDATE on the inbox alone would not see the uncommitted rows, match nothing, and leave them
+    /// stranded once the commit landed. Once the lock returns the move has either committed (the update
+    /// releases the inbox rows) or rolled back (the rows are back in the queue and nothing matches).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(ILogger logger, CancellationToken cancellationToken)
+    {
+        if (_unconfirmedPop is not { } pop) return;
+
+        var builder = new BatchBuilder();
+        var lockParameters = builder.AppendWithParameters($"SELECT id FROM {_queueTableName} WHERE id = ANY(?) FOR UPDATE");
+        lockParameters[0].Value = pop.Ids;
+        lockParameters[0].NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+        builder.StartNewCommand();
+        var releaseParameters = builder.AppendWithParameters($@"
+UPDATE {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
+SET {DatabaseConstants.OwnerId} = 0
+WHERE {DatabaseConstants.Id} = ANY(?)
+  AND {DatabaseConstants.Status} = 'Incoming'
+  AND {DatabaseConstants.OwnerId} = ?
+  AND {DatabaseConstants.ReceivedAt} = ?");
+        releaseParameters[0].Value = pop.Ids;
+        releaseParameters[0].NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+        releaseParameters[1].Value = pop.NodeNumber;
+        releaseParameters[1].NpgsqlDbType = NpgsqlDbType.Integer;
+        releaseParameters[2].Value = Address.ToString();
+        releaseParameters[2].NpgsqlDbType = NpgsqlDbType.Varchar;
+
+        await using var batch = builder.Compile();
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             batch.Connection = conn;
             await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
-            var list = new List<Envelope>();
-
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken))
             {
-                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
-                try
-                {
-                    var e = EnvelopeSerializer.Deserialize(data);
-                    list.Add(e);
-                }
-                catch (Exception e)
-                {
-                    logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
-                    var ping = Envelope.ForPing(Address); // just a stand in
-                    list.Add(ping);
-                }
+                // the locked queue rows of a pop that rolled back
             }
 
             await reader.CloseAsync();
+            var released = batch.BatchCommands[1].RecordsAffected;
 
-            return list;
+            _unconfirmedPop = null;
+
+            if (released > 0)
+            {
+                logger.LogWarning(
+                    "Released {Count} committed messages from PostgreSQL queue {Queue} for inbox recovery after a post-read commit failure",
+                    released, _queueName);
+            }
         }
         finally
         {
             await conn.CloseAsync();
         }
     }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 
     public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, ILogger logger,
         CancellationToken cancellationToken)
@@ -341,9 +517,25 @@ SELECT {DatabaseConstants.Body} FROM popped");
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
-        
+
+        if (_queue.Parent.EnableQueueNotifications)
+        {
+            _notificationRegistration = await _queue.Parent.QueueNotificationManager.RegisterAsync(
+                _dataSource, _databaseName ?? "default", _queueNotificationKey, () => _loop?.Wake(), _logger,
+                _cancellation.Token);
+        }
+
         _loop = new BackgroundReceiveLoop(Address, _logger, pollOnceAsync, _cancellation.Token, _pollingInterval);
         _loop.Start();
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);
+    }
+
+    private async ValueTask releaseNotificationRegistrationAsync()
+    {
+        var registration = Interlocked.Exchange(ref _notificationRegistration, null);
+        if (registration != null)
+        {
+            await registration.DisposeAsync();
+        }
     }
 }

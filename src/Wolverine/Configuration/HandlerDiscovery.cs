@@ -95,6 +95,11 @@ public sealed partial class HandlerDiscovery
         HandlerQuery.Excludes.WithAttribute<WolverineIgnoreAttribute>();
     }
 
+    private bool matchesHandlerQuery(Type type)
+    {
+        return HandlerQuery.Includes.Matches(type) && !HandlerQuery.Excludes.Matches(type);
+    }
+
     private static bool isNotPublicType(Type type)
     {
         if (type.IsPublic)
@@ -117,8 +122,8 @@ public sealed partial class HandlerDiscovery
     
     /// <summary>
     ///  Customize the conventional filtering on the handler type discovery. This is *additive* to the
-    /// built in conventional handler discovery. Disabling conventional discovery will negate anything
-    /// done with this method
+    /// built in conventional handler discovery. If you also call <see cref="DisableConventionalDiscovery"/>,
+    /// the rules added here replace the built in conventions instead of adding to them
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -229,9 +234,18 @@ public sealed partial class HandlerDiscovery
         // attaches, because a chain keeps its message-type-derived TypeName. The loud version, a
         // MissingPreBuiltTypesException naming chains the application had excluded, was only the visible
         // half. Mirrors the _conventionalDiscoveryDisabled branch in FindCalls above.
+        //
+        // GH-4984: "mirrors" has to include the application's OWN CustomizeHandlerDiscovery() rules, which that
+        // branch still runs (HandlerQuery.Find) -- disabling the conventions only drops the built-in includes.
+        // Discarding the whole registry lost those handlers in Static mode while Dynamic mode found them. So keep
+        // the registry types the current HandlerQuery still selects, with the same include/exclude test
+        // TypeQuery.Find applies. With no custom includes nothing matches, which is exactly GH-4699's behavior,
+        // and a stale registry still cannot bring back a type the current rules exclude.
         if (_conventionalDiscoveryDisabled)
         {
-            return _explicitTypes
+            return handlerTypes
+                .Where(matchesHandlerQuery)
+                .Concat(_explicitTypes)
                 .Distinct()
                 .SelectMany(actionsFromType)
                 .ToArray();

@@ -11,6 +11,8 @@ using Wolverine.Transports;
 
 namespace Wolverine.Oracle.Transport;
 
+internal record UnconfirmedPop(Guid[] Ids, int NodeNumber);
+
 internal class OracleQueueListener : IListener
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -29,6 +31,12 @@ internal class OracleQueueListener : IListener
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly bool _deterministicQueueOrdering;
+    private readonly string _queueOrderBy;
+    private readonly string _scheduledOrderBy;
+
+    // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public OracleQueueListener(OracleQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         OracleDataSource dataSource, string? databaseName)
@@ -47,10 +55,23 @@ internal class OracleQueueListener : IListener
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _schemaName = _queue.Parent.MessageStorageSchemaName;
+        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
 
+        // The identity tie-breaker is only referenced when its schema is enabled
+        _queueOrderBy = _deterministicQueueOrdering
+            ? $"timestamp, {QueueTable.QueueOrderColumn}"
+            : "timestamp";
+        _scheduledOrderBy = _deterministicQueueOrdering
+            ? $"{DatabaseConstants.ExecutionTime}, {QueueTable.QueueOrderColumn}"
+            : DatabaseConstants.ExecutionTime;
+
+        // Oracle refuses ORDER BY + FETCH FIRST + FOR UPDATE (ORA-02014), so the batch size is
+        // enforced by reading at most :count rows instead. With SKIP LOCKED, Oracle locks rows
+        // as they are fetched rather than when the cursor opens, so this still only claims the
+        // rows the batch takes (plus at most one prefetch buffer, released at commit).
         _tryPopMessagesDirectlySql =
             $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM {_queueTableName} " +
-            "ORDER BY timestamp FETCH FIRST :count ROWS ONLY FOR UPDATE SKIP LOCKED";
+            $"ORDER BY {_queueOrderBy} FOR UPDATE SKIP LOCKED";
 
         _queueName = _queue.Name;
     }
@@ -141,11 +162,13 @@ internal class OracleQueueListener : IListener
                 return cmd;
             }
 
-            // Select scheduled messages that are ready and lock them
+            // Select scheduled messages that are ready and lock them. The rows are inserted into the
+            // ready queue one at a time in this order, so their timestamps (and the identity
+            // tie-breaker when it is enabled) preserve the scheduled order.
             await using var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_scheduledTableName} " +
                 $"WHERE {DatabaseConstants.ExecutionTime} <= SYSTIMESTAMP AT TIME ZONE 'UTC' " +
-                "FOR UPDATE SKIP LOCKED");
+                $"ORDER BY {_scheduledOrderBy} FOR UPDATE SKIP LOCKED");
 
             var idsToMove = new List<Guid>();
             var bodies = new List<byte[]>();
@@ -208,6 +231,11 @@ internal class OracleQueueListener : IListener
         {
             try
             {
+                if (_unconfirmedPop != null)
+                {
+                    await ReleaseUnconfirmedPopAsync(_cancellation.Token);
+                }
+
                 var messages = _queue.Mode == EndpointMode.Durable
                     ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger,
                         _cancellation.Token)
@@ -275,11 +303,11 @@ internal class OracleQueueListener : IListener
             dedupCmd.With("receivedAt", Address.ToString());
             await dedupCmd.ExecuteNonQueryAsync(cancellationToken);
 
-            // Select messages to process with lock
+            // Select messages to process with lock. See the constructor for why this reads at most
+            // `count` rows rather than using FETCH FIRST
             await using var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_queueTableName} " +
-                "ORDER BY timestamp FETCH FIRST :count ROWS ONLY FOR UPDATE SKIP LOCKED");
-            selectCmd.With("count", count);
+                $"ORDER BY {_queueOrderBy} FOR UPDATE SKIP LOCKED");
 
             var ids = new List<Guid>();
             var bodyList = new List<byte[]>();
@@ -288,7 +316,8 @@ internal class OracleQueueListener : IListener
 
             await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
             {
-                while (await reader.ReadAsync(cancellationToken))
+                limitPrefetch(reader, count);
+                while (ids.Count < count && await reader.ReadAsync(cancellationToken))
                 {
                     ids.Add(await OracleEnvelopeReader.ReadGuidAsync(reader, 0, cancellationToken));
                     bodyList.Add((byte[])reader.GetValue(1));
@@ -337,7 +366,19 @@ internal class OracleQueueListener : IListener
                 }
             }
 
-            await transaction.CommitAsync(cancellationToken);
+            try
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // GH-5015: a COMMIT that fails on the wire may still have committed, leaving the envelopes in the
+                // inbox owned by this live node and in no listener's memory -- recovery only reclaims
+                // owner_id = 0. Nothing is handed to the receiver (if the move rolled back, the rows are back in
+                // the queue and would run twice), so release whatever did commit to recovery instead.
+                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                throw;
+            }
 
             return list;
         }
@@ -346,6 +387,84 @@ internal class OracleQueueListener : IListener
             await conn.CloseAsync();
         }
     }
+
+    private async Task releaseAfterFailedCommitAsync(List<Guid> ids, int nodeNumber, Exception commitFailure,
+        ILogger logger)
+    {
+        if (ids.Count == 0) return;
+
+        logger.LogError(commitFailure,
+            "The commit of a durable pop of {Count} envelope(s) from Oracle queue {Queue} failed with an unknown outcome. Releasing them to recovery",
+            ids.Count, _queueName);
+
+        _unconfirmedPop = new UnconfirmedPop(ids.ToArray(), nodeNumber);
+        try
+        {
+            await ReleaseUnconfirmedPopAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e,
+                "Unable to release {Count} envelope(s) of an unconfirmed durable pop from Oracle queue {Queue}. Retrying on the next poll",
+                ids.Count, _queueName);
+        }
+    }
+
+    /// <summary>
+    /// GH-5015: hand the envelopes of a pop whose COMMIT outcome is unknown to recovery (owner_id = 0). The
+    /// SELECT ... FOR UPDATE locks the popped ids in the queue table, which waits out the original transaction
+    /// if it is somehow still in flight; once that returns, the move has either committed (the update releases
+    /// the inbox rows) or rolled back (the rows are back in the queue and the update matches nothing).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(CancellationToken cancellationToken)
+    {
+        if (_unconfirmedPop is not { } pop) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var transaction = await conn.BeginTransactionAsync(cancellationToken);
+
+            var idParameters = pop.Ids.Select((_, i) => ":id" + i).ToArray();
+            var ids = string.Join(", ", idParameters);
+
+            OracleCommand createCmd(string sql)
+            {
+                var cmd = conn.CreateCommand(sql);
+                cmd.Transaction = (OracleTransaction)transaction;
+                for (var i = 0; i < pop.Ids.Length; i++)
+                {
+                    cmd.With("id" + i, pop.Ids[i]);
+                }
+
+                return cmd;
+            }
+
+            await using (var lockCmd = createCmd($"SELECT id FROM {_queueTableName} WHERE id IN ({ids}) FOR UPDATE"))
+            {
+                await using var reader = await lockCmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                }
+            }
+
+            await using (var releaseCmd = createCmd(
+                             $"UPDATE {_schemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE id IN ({ids}) AND {DatabaseConstants.OwnerId} = :node AND {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'"))
+            {
+                releaseCmd.With("node", pop.NodeNumber);
+                await releaseCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            _unconfirmedPop = null;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 
     public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, ILogger logger,
         CancellationToken cancellationToken)
@@ -367,10 +486,10 @@ internal class OracleQueueListener : IListener
             var list = new List<Envelope>();
 
             await using var selectCmd = CreateCmd(_tryPopMessagesDirectlySql);
-            selectCmd.With("count", count);
             await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
             {
-                while (await reader.ReadAsync(cancellationToken))
+                limitPrefetch(reader, count);
+                while (idsToDelete.Count < count && await reader.ReadAsync(cancellationToken))
                 {
                     var id = await OracleEnvelopeReader.ReadGuidAsync(reader, 0, cancellationToken);
                     var data = (byte[])reader.GetValue(1);
@@ -406,6 +525,17 @@ internal class OracleQueueListener : IListener
         finally
         {
             await conn.CloseAsync();
+        }
+    }
+
+    // FOR UPDATE SKIP LOCKED locks rows as the client fetches them, and ODP.NET prefetches by
+    // bytes. Size the prefetch to the batch so a pop does not lock (and hide from other pollers)
+    // many more rows than it is going to take.
+    private static void limitPrefetch(System.Data.Common.DbDataReader reader, int count)
+    {
+        if (reader is OracleDataReader oracleReader && oracleReader.RowSize > 0)
+        {
+            oracleReader.FetchSize = oracleReader.RowSize * Math.Max(count, 1);
         }
     }
 

@@ -300,7 +300,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void LogException(Exception ex, object? correlationId = null,
         string message = "Exception detected:")
     {
-        ActiveSession?.LogException(ex, _serviceName);
+        ActiveSession?.LogException(ex, _serviceName, correlationId);
         Logger.LogError(ex, message);
     }
 

@@ -258,6 +258,67 @@ public class TrackingOptions
     /// when profiling a transactional handler. Default is <c>false</c>.
     /// </summary>
     public bool OutboxDiagnosticsEnabled { get; set; }
+
+    internal Wolverine.Tracking.TrackingIgnoreRules IgnoreRules { get; } = new();
+
+    /// <summary>
+    /// Every tracked session against this host ignores messages whose type is declared in
+    /// <paramref name="assembly" />, a batch of them included. Use this for traffic an embedded tool or
+    /// library keeps in flight for the whole life of the host, such as an embedded CritterWatch console's
+    /// polling, so a tracked session (and every WolverineFx.Bobcat act) waits for the application's own
+    /// messages only. An ignored envelope is never recorded: it does not hold the session open, it does not
+    /// appear in the session's history, and an exception it throws is not reported by the session. A single
+    /// session can opt back in with <c>TrackedSessionConfiguration.IncludeHostIgnoredTraffic()</c>.
+    /// </summary>
+    public TrackingOptions IgnoreMessagesFromAssembly(Assembly assembly)
+    {
+        IgnoreRules.IgnoreMessagesMatchingType(Wolverine.Tracking.TrackingIgnoreRules.FromAssembly(assembly));
+        return this;
+    }
+
+    /// <summary>
+    /// Every tracked session against this host ignores messages of type <typeparamref name="T" />, a batch
+    /// of them included. See <see cref="IgnoreMessagesFromAssembly" /> for what ignoring means.
+    /// </summary>
+    public TrackingOptions IgnoreMessageType<T>()
+    {
+        return IgnoreMessagesMatchingType(t => t == typeof(T));
+    }
+
+    /// <summary>
+    /// Every tracked session against this host ignores messages whose type matches
+    /// <paramref name="filter" />. A batch's array type is tested along with its element type. See
+    /// <see cref="IgnoreMessagesFromAssembly" /> for what ignoring means.
+    /// </summary>
+    public TrackingOptions IgnoreMessagesMatchingType(Func<Type, bool> filter)
+    {
+        IgnoreRules.IgnoreMessagesMatchingType(filter);
+        return this;
+    }
+
+    /// <summary>
+    /// Every tracked session against this host ignores traffic to or through the endpoint at
+    /// <paramref name="endpointUri" />: any envelope whose destination is that endpoint, whether it is sent
+    /// there or received by its listener. See <see cref="IgnoreMessagesFromAssembly" /> for what ignoring
+    /// means.
+    /// </summary>
+    public TrackingOptions IgnoreEndpoint(Uri endpointUri)
+    {
+        IgnoreRules.IgnoreEnvelopes(Wolverine.Tracking.TrackingIgnoreRules.ForEndpoint(endpointUri));
+        return this;
+    }
+
+    /// <summary>
+    /// Every tracked session against this host ignores any envelope matching <paramref name="filter" />.
+    /// The host-wide twin of <c>TrackedSessionConfiguration.IgnoreEnvelopes()</c>. Acknowledgements are
+    /// never ignored, whatever the filter. See <see cref="IgnoreMessagesFromAssembly" /> for what ignoring
+    /// means.
+    /// </summary>
+    public TrackingOptions IgnoreEnvelopes(Func<Envelope, bool> filter)
+    {
+        IgnoreRules.IgnoreEnvelopes(filter);
+        return this;
+    }
 }
 
 /// <summary>

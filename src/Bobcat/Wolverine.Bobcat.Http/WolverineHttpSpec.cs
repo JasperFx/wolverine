@@ -57,6 +57,80 @@ public abstract class WolverineHttpSpec : WolverineSpec
     public Task<TResponse?> WhenPosted<TResponse>(object command, string route, Action<Scenario>? configure = null)
         => HttpScenario.WhenPosted<TResponse>(command, route, configure);
 
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPostedToRoute" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "POST")]
+    public Task WhenPostedToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => HttpScenario.WhenPostedToRoute(command, routeName, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPut(object, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, HttpMethod = "PUT")]
+    public Task WhenPut(object command, Action<Scenario>? configure = null) => HttpScenario.WhenPut(command, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPut(object, string, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PUT")]
+    public Task WhenPut(object command, string route, Action<Scenario>? configure = null)
+        => HttpScenario.WhenPut(command, route, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPutToRoute" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "PUT")]
+    public Task WhenPutToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => HttpScenario.WhenPutToRoute(command, routeName, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPatched(object, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, HttpMethod = "PATCH")]
+    public Task WhenPatched(object command, Action<Scenario>? configure = null) => HttpScenario.WhenPatched(command, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPatched(object, string, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PATCH")]
+    public Task WhenPatched(object command, string route, Action<Scenario>? configure = null)
+        => HttpScenario.WhenPatched(command, route, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPatchedToRoute" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "PATCH")]
+    public Task WhenPatchedToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => HttpScenario.WhenPatchedToRoute(command, routeName, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenDeleted(object, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, HttpMethod = "DELETE")]
+    public Task WhenDeleted(object command, Action<Scenario>? configure = null) => HttpScenario.WhenDeleted(command, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenDeleted(object, string, Action{Scenario}?)" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "DELETE")]
+    public Task WhenDeleted(object command, string route, Action<Scenario>? configure = null)
+        => HttpScenario.WhenDeleted(command, route, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenDeletedToRoute" />
+    [EventModelRole(SliceRole.Command, nameof(command))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "DELETE")]
+    public Task WhenDeletedToRoute(object command, string routeName, Action<Scenario>? configure = null)
+        => HttpScenario.WhenDeletedToRoute(command, routeName, configure);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenReading{T}" />
+    [EventModelRole(SliceRole.ReadModel, nameof(T))]
+    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "GET")]
+    public Task<T?> WhenReading<T>(string route, params object[] routeValues) => HttpScenario.WhenReading<T>(route, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenReadingRoute{T}" />
+    [EventModelRole(SliceRole.ReadModel, nameof(T))]
+    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "GET")]
+    public Task<T?> WhenReadingRoute<T>(string routeName, params object[] routeValues)
+        => HttpScenario.WhenReadingRoute<T>(routeName, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.TheResponse{T}" />
+    public Task<T?> TheResponse<T>() => HttpScenario.TheResponse<T>();
+
+    /// <inheritdoc cref="WolverineHttpScenario.ThenNotFound" />
+    public void ThenNotFound() => HttpScenario.ThenNotFound();
+
     /// <inheritdoc cref="WolverineHttpScenario.ThenResponseIs" />
     public void ThenResponseIs(int status) => HttpScenario.ThenResponseIs(status);
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -13,6 +14,11 @@ public class EventStoreAgents : IAsyncDisposable
     private readonly IEventStore _store;
     private readonly IObserver<ShardState>[] _observers;
     private readonly SemaphoreSlim _daemonLock = new(1);
+
+    // GH-5003: every wrapper this store has built, so a rebuild that runs outside a wrapper can hand
+    // continuous execution back to the ones it stopped. A wrapper that has since been stopped stays in
+    // here until its URI is built again, but reads Stopped and is skipped.
+    private readonly ConcurrentDictionary<Uri, EventSubscriptionAgent> _builtAgents = new();
     private ImHashMap<DatabaseId, IProjectionDaemon> _daemons = ImHashMap<DatabaseId, IProjectionDaemon>.Empty;
 
     // The observer subscriptions taken out against each database's daemon Tracker, so they can be
@@ -30,7 +36,15 @@ public class EventStoreAgents : IAsyncDisposable
     // ImHashMap so the enumeration writes and the BuildAgentAsync reads are lock-free across threads. See
     // GH-3216.
     private ImHashMap<string, ShardName> _shardNames = ImHashMap<string, ShardName>.Empty;
-    
+
+    private IReadOnlyList<ShardName>? _projectionShardNames;
+
+    /// <summary>
+    ///     GH-4569: on a <see cref="NodeRole.Warmup" /> node only async projection shards are enumerated, so the
+    ///     node neither advertises a subscription nor resolves one it is asked to build.
+    /// </summary>
+    internal bool ProjectionsOnly { get; set; }
+
     public EventStoreAgents(IEventStore store, IObserver<ShardState>[] observers)
     {
         _store = store;
@@ -194,13 +208,14 @@ public class EventStoreAgents : IAsyncDisposable
     public async ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync(CancellationToken cancellation)
     {
         var list = new List<Uri>();
-        var usage = await _store.TryCreateUsage(cancellation);
-        if (usage == null) return list;
 
-        var asyncShards = usage.Subscriptions
-            .Where(x => x.Lifecycle == ProjectionLifecycle.Async)
-            .SelectMany(x => x.ShardNames)
-            .ToArray();
+        // GH-5002: this runs on every leader heartbeat for every store. It used to build the store's whole usage
+        // descriptor -- the highest event sequence and every projection, subscription, event type and tag type --
+        // for the async shard names and the database topology alone
+        var databases = await _store.TryDescribeDatabasesAsync(cancellation);
+        if (databases == null) return list;
+
+        var asyncShards = await asyncShardNamesAsync(cancellation);
 
         // wolverine#3280: under sharded databases + per-tenant event partitioning, multiple tenants are
         // co-located in one shard database and each draws its own event sequence, so a single store-global
@@ -231,7 +246,7 @@ public class EventStoreAgents : IAsyncDisposable
 
         // Using this to keep from double dipping
         var databaseIds = new List<DatabaseId>();
-        foreach (var database in usage.Database.Databases)
+        foreach (var database in databases.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             databaseIds.Add(id);
@@ -242,9 +257,9 @@ public class EventStoreAgents : IAsyncDisposable
             }
         }
 
-        if (usage.Database.MainDatabase != null)
+        if (databases.MainDatabase != null)
         {
-            var database = usage.Database.MainDatabase;
+            var database = databases.MainDatabase;
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             if (!databaseIds.Contains(id))
             {
@@ -258,6 +273,46 @@ public class EventStoreAgents : IAsyncDisposable
         return list;
     }
 
+    // GH-5002: the store's async shards -- async projections and every subscription -- from its in-memory registry,
+    // with no database work. A store that does not implement RegisteredShardNames still answers through the usage
+    private async ValueTask<IReadOnlyList<ShardName>> asyncShardNamesAsync(CancellationToken cancellation)
+    {
+        if (ProjectionsOnly)
+        {
+            return _projectionShardNames ??= await asyncProjectionShardNamesAsync(cancellation);
+        }
+
+        try
+        {
+            return _store.RegisteredShardNames();
+        }
+        catch (NotSupportedException)
+        {
+            var usage = await _store.TryCreateUsage(cancellation);
+            return usage == null
+                ? []
+                : usage.Subscriptions
+                    .Where(x => x.Lifecycle == ProjectionLifecycle.Async)
+                    .SelectMany(x => x.ShardNames)
+                    .ToArray();
+        }
+    }
+
+    // GH-4569: RegisteredShardNames() does not carry the shard's role, so a warm-up node reads the usage
+    // descriptor instead. That is the cost GH-5002 took off the heartbeat path, but only a warm-up node pays it,
+    // once -- the registered projections never change for the life of the process -- and a warm-up node is never
+    // the leader that enumerates on every evaluation.
+    private async ValueTask<IReadOnlyList<ShardName>> asyncProjectionShardNamesAsync(CancellationToken cancellation)
+    {
+        var usage = await _store.TryCreateUsage(cancellation);
+        return usage == null
+            ? []
+            : usage.Subscriptions
+                .Where(x => x.Lifecycle == ProjectionLifecycle.Async && x.SubscriptionType != SubscriptionType.Subscription)
+                .SelectMany(x => x.ShardNames)
+                .ToArray();
+    }
+
     /// <summary>
     /// Resolve the <see cref="DatabaseId" /> backing <paramref name="tenantId" /> under database-per-tenant
     /// multi-tenancy, using the store-agnostic tenant→database mapping carried on the usage descriptor.
@@ -265,16 +320,16 @@ public class EventStoreAgents : IAsyncDisposable
     /// </summary>
     public async ValueTask<DatabaseId?> TryResolveTenantDatabaseIdAsync(string tenantId, CancellationToken cancellation)
     {
-        var usage = await _store.TryCreateUsage(cancellation);
-        if (usage?.Database == null)
+        var databases = await _store.TryDescribeDatabasesAsync(cancellation);
+        if (databases == null)
         {
             return null;
         }
 
-        var candidates = usage.Database.Databases.ToList();
-        if (usage.Database.MainDatabase != null)
+        var candidates = databases.Databases.ToList();
+        if (databases.MainDatabase != null)
         {
-            candidates.Add(usage.Database.MainDatabase);
+            candidates.Add(databases.MainDatabase);
         }
 
         var match = candidates.FirstOrDefault(db => db.TenantIds.Contains(tenantId, StringComparer.OrdinalIgnoreCase));
@@ -286,16 +341,22 @@ public class EventStoreAgents : IAsyncDisposable
         var shardName = await ResolveShardNameAsync(shardPath, CancellationToken.None);
         if (shardName == null)
         {
-            throw new ArgumentOutOfRangeException(nameof(shardPath), $"Unable to find a shard with path '{shardPath}'");
+            throw new ArgumentOutOfRangeException(nameof(shardPath), ProjectionsOnly
+                ? $"Unable to find a projection shard with path '{shardPath}'. This is a warm-up node (Durability.NodeRole is Warmup), which runs async projections only, never subscriptions"
+                : $"Unable to find a shard with path '{shardPath}'");
         }
 
         var daemon = await FindDaemonAsync(databaseId);
 
-        return new EventSubscriptionAgent(uri, shardName, daemon)
+        var agent = new EventSubscriptionAgent(uri, shardName, daemon)
         {
+            StartsInRebuildMode = ProjectionsOnly,
             OnStarted = () => agentStartedAsync(databaseId),
             OnStopped = () => agentStoppedAsync(databaseId)
         };
+
+        _builtAgents[uri] = agent;
+        return agent;
     }
 
     /// <summary>
@@ -381,8 +442,41 @@ public class EventStoreAgents : IAsyncDisposable
         // tenantId flows to the daemon's tenant overload to rebuild just that partition, leaving the other
         // tenants untouched. For a store-global projection the tenant is a no-op. RebuildProjectionAsync
         // builds a rebuild-mode agent, replays to the high-water mark, then stops it.
-        await daemon.RebuildProjectionAsync(match.Subscription.Name, tenantId, cancellation);
+        try
+        {
+            await daemon.RebuildProjectionAsync(match.Subscription.Name, tenantId, cancellation);
+        }
+        finally
+        {
+            // GH-5003: the daemon's rebuild hard-stops this node's continuous agents for the projection and
+            // never restarts them, whether it succeeds or throws. Hand them back here rather than leaving
+            // NodeAgentController's sweep to notice -- it never does for an agent whose pre-rebuild failure
+            // was an Other one, and it can only restart the rest by stopping and starting them again.
+            if (!cancellation.IsCancellationRequested)
+            {
+                await resumeAgentsStoppedByRebuildAsync(daemon, match.Subscription.Name, tenantId);
+            }
+        }
+
         return true;
+    }
+
+    private async Task resumeAgentsStoppedByRebuildAsync(IProjectionDaemon daemon, string projectionName,
+        string? tenantId)
+    {
+        // Only this daemon's agents were stopped, and a per-tenant rebuild only stops that tenant's
+        // partition -- or the whole projection, when the projection isn't partitioned per tenant and the
+        // tenant argument is a no-op, which is what a shard with no tenant of its own means.
+        var stopped = _builtAgents.Values.Where(agent =>
+            ReferenceEquals(agent.Daemon, daemon)
+            && agent.ShardName.Name == projectionName
+            && (tenantId == null || agent.ShardName.TenantId == null
+                || string.Equals(agent.ShardName.TenantId, tenantId, StringComparison.OrdinalIgnoreCase)));
+
+        foreach (var agent in stopped)
+        {
+            await agent.TryResumeAfterRebuildAsync();
+        }
     }
 
     private static DatabaseId? ResolveDefaultDatabaseId(EventStoreUsage usage)
@@ -398,13 +492,14 @@ public class EventStoreAgents : IAsyncDisposable
 
     public async Task StartAllAsync(CancellationToken cancellationToken)
     {
-        var usage = await _store.TryCreateUsage(cancellationToken);
-        if (usage == null)
+        // GH-5002: the database topology is all this needs
+        var databases = await _store.TryDescribeDatabasesAsync(cancellationToken);
+        if (databases == null)
         {
             return;
         }
 
-        foreach (var database in usage.Database.Databases)
+        foreach (var database in databases.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             var daemon = await FindDaemonAsync(id);
@@ -412,9 +507,9 @@ public class EventStoreAgents : IAsyncDisposable
             await daemon.StartAllAsync();
         }
 
-        if (usage.Database.MainDatabase != null)
+        if (databases.MainDatabase != null)
         {
-            var id = new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+            var id = new DatabaseId(databases.MainDatabase.ServerName, databases.MainDatabase.DatabaseName);
             var daemon = await FindDaemonAsync(id);
 
             await daemon.StartAllAsync();
@@ -432,15 +527,16 @@ public class EventStoreAgents : IAsyncDisposable
     
     public async ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
     {
-        var usage = await _store.TryCreateUsage(CancellationToken.None);
-        if (usage == null)
+        // GH-5002: the database topology is all this needs
+        var databases = await _store.TryDescribeDatabasesAsync(CancellationToken.None);
+        if (databases == null)
         {
             return [];
         }
 
         var list = new List<IProjectionDaemon>();
         
-        foreach (var database in usage.Database.Databases)
+        foreach (var database in databases.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             var daemon = await FindDaemonAsync(id);
@@ -448,9 +544,9 @@ public class EventStoreAgents : IAsyncDisposable
             list.Add(daemon);
         }
 
-        if (usage.Database.MainDatabase != null && usage.Database.Cardinality == DatabaseCardinality.Single)
+        if (databases.MainDatabase != null && databases.Cardinality == DatabaseCardinality.Single)
         {
-            var id = new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+            var id = new DatabaseId(databases.MainDatabase.ServerName, databases.MainDatabase.DatabaseName);
             var daemon = await FindDaemonAsync(id);
 
             list.Add(daemon);

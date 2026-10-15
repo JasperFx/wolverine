@@ -71,9 +71,14 @@ public abstract class SingularAgent : IAgent, IAgentFamily
         var agent = assignments.AgentFor(Uri);
         if (agent.IsPaused) return new ValueTask();
 
+        // GH-4569: never on a warm-up node. A singular agent prefers a non-leader, and a warm-up node is never
+        // the leader, so without this a warm-up node would be the FIRST choice for recurring schedules.
+        if (agent.AssignedNode is { IsWarmup: true } && !agent.IsPinned) agent.Detach();
+
         if (agent.AssignedNode != null) return new ValueTask();
 
-        var node = assignments.Nodes.FirstOrDefault(x => !x.IsLeader) ?? assignments.Nodes.FirstOrDefault();
+        var serving = assignments.Nodes.Where(x => !x.IsWarmup).ToList();
+        var node = serving.FirstOrDefault(x => !x.IsLeader) ?? serving.FirstOrDefault();
         node?.Assign(agent);
 
         return new ValueTask();

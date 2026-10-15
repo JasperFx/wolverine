@@ -77,7 +77,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.IncludeAssembly(GetType().Assembly).IncludeType(typeof(DoOnAgentHandler)).IncludeType(typeof(TriggerFanOutHandler)).IncludeType(typeof(FanOutHandler));
+                opts.Discovery.IncludeAssembly(GetType().Assembly).IncludeType(typeof(DoOnAgentHandler)).IncludeType(typeof(TriggerFanOutHandler)).IncludeType(typeof(FanOutHandler)).IncludeType(typeof(BroadcastPingHandler));
                 
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
@@ -433,6 +433,47 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }, 30.Seconds());
     }
 
+    /// <summary>
+    /// GH-4569. A warm-up node of a blue/green rollout never leads, like a node that is not eligible, and on top
+    /// of that it is given none of the cluster's ordinary agents: it only ever runs the event subscription agents
+    /// that no serving node declares, and this cluster has none.
+    /// </summary>
+    [Fact]
+    public async Task a_warmup_node_never_leads_and_takes_no_ordinary_agents()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var warmup = await startHostAsync(o =>
+        {
+            ConfigureSlowHeartbeat(o);
+            o.Durability.NodeRole = NodeRole.Warmup;
+        });
+        var serving = await startHostAsync(ConfigureSlowHeartbeat);
+
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 6);
+            w.ExpectRunningAgents(warmup, 0);
+            w.ExpectRunningAgents(serving, 6);
+        }, 30.Seconds());
+
+        await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
+
+        // Prodded first, the warm-up node declines the vacant leadership
+        await warmup.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await warmup.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        warmup.GetRuntime().IsLeader().ShouldBeFalse();
+
+        await serving.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await serving.WaitUntilAssumesLeadershipAsync(15.Seconds());
+
+        await serving.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(warmup, 0);
+            w.ExpectRunningAgents(serving, 12);
+        }, 30.Seconds());
+    }
+
     [Fact]
     public async Task leader_switchover_between_nodes()
     {
@@ -708,6 +749,50 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task broadcast_to_all_nodes_is_handled_exactly_once_on_every_node()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var host2 = await startHostAsync();
+        var host3 = await startHostAsync();
+
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 4);
+            w.ExpectRunningAgents(host2, 4);
+            w.ExpectRunningAgents(host3, 4);
+        }, 30.Seconds());
+
+        // From outside of any message handler, the way an HTTP endpoint or a background service would
+        var ping = new BroadcastPing(Guid.NewGuid());
+        await _originalHost.MessageBus().BroadcastToAllNodesAsync(ping);
+
+        var expectedNodeNumbers = new[] { _originalHost, host2, host3 }
+            .Select(x => x.NodeNumber())
+            .OrderBy(x => x)
+            .ToArray();
+
+        int[] handledBy() => BroadcastPingHandler.Handled
+            .Where(x => x.Id == ping.Id)
+            .Select(x => x.NodeNumber)
+            .OrderBy(x => x)
+            .ToArray();
+
+        // Control queue messages are not tracked, so poll
+        using var cancellation = new CancellationTokenSource();
+        cancellation.CancelAfter(15.Seconds());
+        while (!cancellation.IsCancellationRequested && !expectedNodeNumbers.All(handledBy().Contains))
+        {
+            await Task.Delay(250.Milliseconds());
+        }
+
+        // Give a duplicate delivery the chance to show itself before asserting "exactly once"
+        await Task.Delay(1.Seconds());
+
+        handledBy().ShouldBe(expectedNodeNumbers);
+    }
+
+    [Fact]
     public async Task ability_to_send_messages_to_correct_node_or_forward()
     {
         DoOnAgentHandler.Handled.Clear();
@@ -800,5 +885,19 @@ public static class FanOutHandler
     public static void Handle(FannedOut message, IWolverineRuntime runtime)
     {
         Handled.Add(runtime.DurabilitySettings.AssignedNodeNumber);
+    }
+}
+
+public record BroadcastPing(Guid Id);
+
+public record BroadcastPingHandled(Guid Id, int NodeNumber);
+
+public static class BroadcastPingHandler
+{
+    public static ConcurrentBag<BroadcastPingHandled> Handled = new();
+
+    public static void Handle(BroadcastPing message, IWolverineRuntime runtime)
+    {
+        Handled.Add(new BroadcastPingHandled(message.Id, runtime.DurabilitySettings.AssignedNodeNumber));
     }
 }

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Runtime;
 using Wolverine.Runtime.RemoteInvocation;
 
 namespace Wolverine;
@@ -9,8 +10,9 @@ namespace Wolverine;
 ///     Stand in "spy" for IMessageContext/IMessagePublisher to facilitate unit testing
 ///     in applications using Wolverine
 /// </summary>
-public class TestMessageContext : IMessageContext
+public class TestMessageContext : IMessageContext, IBroadcastToAllNodes
 {
+    private readonly List<object> _broadcastToAllNodes = new();
     private readonly List<object> _invoked = new();
     private readonly List<object> _published = new();
     private readonly List<object> _responses = new();
@@ -44,9 +46,16 @@ public class TestMessageContext : IMessageContext
     public IReadOnlyList<object> Sent => _sent;
 
     /// <summary>
+    ///     All messages sent to every node in the cluster through BroadcastToAllNodesAsync(). If in
+    ///     doubt use AllOutgoing instead.
+    /// </summary>
+    public IReadOnlyList<object> BroadcastToAllNodes => _broadcastToAllNodes;
+
+    /// <summary>
     ///     All outgoing messages sent or published or scheduled through this context
     /// </summary>
-    public IReadOnlyList<object> AllOutgoing => _published.Concat(_sent).Concat(_responses).ToArray();
+    public IReadOnlyList<object> AllOutgoing =>
+        _published.Concat(_sent).Concat(_broadcastToAllNodes).Concat(_responses).ToArray();
 
     /// <summary>
     ///     Messages that were specifically sent back to the original sender of the
@@ -309,6 +318,16 @@ public class TestMessageContext : IMessageContext
         options?.Override(envelope);
 
         _published.Add(envelope);
+
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask IBroadcastToAllNodes.BroadcastToAllNodesAsync(object message, DeliveryOptions? options)
+    {
+        var envelope = new Envelope { Message = message };
+        options?.Override(envelope);
+
+        _broadcastToAllNodes.Add(envelope);
 
         return ValueTask.CompletedTask;
     }

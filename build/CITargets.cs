@@ -37,11 +37,81 @@ partial class Build
     /// </summary>
     void LaunchDockerServices(params string[] services)
     {
-        var serviceList = string.Join(" ", services);
+        // GH-5019: a service whose host port already answers is reused rather than started. Every
+        // worktree is its own compose project, but the ports in docker-compose.yml are fixed, so a
+        // suite started in a second worktree -- an agent's gate in a Stoat plan, say -- failed with
+        // "port is already allocated" while the first worktree's stack was up. AwaitDockerServices
+        // still runs the real readiness probe on a reused service. On a CI runner nothing is
+        // listening yet, so this changes nothing there.
+        var ports = composeServicePorts();
+        var reused = services
+            .Where(service => ports.TryGetValue(service, out var port) && portAnswers(port))
+            .ToArray();
+
+        if (reused.Length > 0)
+            Log.Information("Reusing docker services already listening on their ports: {Services}",
+                string.Join(" ", reused));
+
+        var toStart = services.Except(reused).ToArray();
+        if (toStart.Length == 0) return;
+
+        var serviceList = string.Join(" ", toStart);
         Log.Information("Starting docker services: {Services}", serviceList);
 
         // Pass each service as a separate argument to avoid quoting issues
         ComposeUp("compose up -d " + serviceList, serviceList);
+    }
+
+    static bool portAnswers(int port)
+    {
+        try
+        {
+            using var client = new System.Net.Sockets.TcpClient();
+            return client.ConnectAsync("localhost", port).Wait(TimeSpan.FromSeconds(1)) && client.Connected;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Each docker-compose.yml service's first published host port, read from the file itself so the
+    /// reuse check in <see cref="LaunchDockerServices"/> cannot drift from it. A line-based read of the
+    /// two shapes the file uses (<c>"5433:5432"</c> and <c>"127.0.0.1:4566:4566"</c>), not a YAML parser.
+    /// </summary>
+    Dictionary<string, int> composeServicePorts()
+    {
+        var ports = new Dictionary<string, int>();
+        string service = null;
+        var inPorts = false;
+
+        foreach (var line in File.ReadAllLines(RootDirectory / "docker-compose.yml"))
+        {
+            var serviceMatch = System.Text.RegularExpressions.Regex.Match(line, @"^  ([A-Za-z0-9_-]+):\s*$");
+            if (serviceMatch.Success)
+            {
+                service = serviceMatch.Groups[1].Value;
+                inPorts = false;
+                continue;
+            }
+
+            if (service is null) continue;
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, @"^    [A-Za-z_]+:"))
+            {
+                inPorts = line.Trim() == "ports:";
+                continue;
+            }
+
+            if (!inPorts || ports.ContainsKey(service)) continue;
+
+            var portMatch = System.Text.RegularExpressions.Regex.Match(line,
+                @"^\s+-\s+""?(?:[0-9.]+:)?([0-9]+)(?:-[0-9]+)?:[0-9]+");
+            if (portMatch.Success) ports[service] = int.Parse(portMatch.Groups[1].Value);
+        }
+
+        return ports;
     }
 
     /// <summary>

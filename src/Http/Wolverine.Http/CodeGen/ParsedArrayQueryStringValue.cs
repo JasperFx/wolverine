@@ -57,21 +57,8 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
             
             writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Query[\"{Variable.Usage}\"])");
 
-            if (elementType!.IsEnum)
-            {
-                // Enum names arrive on the wire as strings and must parse case-insensitively, matching the
-                // scalar binder and the List<TEnum> binder. Without ignoreCase a camelCased element (the
-                // default System.Text.Json spelling clients see in responses) is dropped from the array.
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, true, out var {Variable.Usage}ValueParsed))");
-            }
-            else if (elementType.IsBoolean())
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
-            }
-            else
-            {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}ValueParsed))");
-            }
+            // Enum names parse case-insensitively, matching the scalar binder
+            writer.Write($"BLOCK:if ({ParsingCode.TryParse(elementType!, $"{Variable.Usage}Value", $"var {Variable.Usage}ValueParsed")})");
 
             writer.Write($"{Variable.Usage}_List.Add({Variable.Usage}ValueParsed);");
             writer.FinishBlock(); // parsing block

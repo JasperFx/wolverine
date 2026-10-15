@@ -296,6 +296,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         }
     }
 
+    // GH-5022: the same clock as the inbox timestamp column default
+    protected override string currentTimestampSql => "GETUTCDATE()";
+
     protected override string toTopClause(DeadLetterEnvelopeQuery query)
     {
         if (query.PageSize > 0 && query.PageNumber <= 1)
@@ -556,7 +559,7 @@ group by o.name, ps.index_id, i.name";
             clauses.Add($"(id = @id_{i} and {DatabaseConstants.ReceivedAt} = @uri_{i})");
         }
 
-        return $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' " +
+        return $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}'{restartIncomingStaleClock} " +
                $"where status = '{EnvelopeStatus.Scheduled}' and ({string.Join(" or ", clauses)})";
     }
 
@@ -690,7 +693,9 @@ group by o.name, ps.index_id, i.name";
                     return;
                 }
 
-                if (Durability.MessageIdentity == MessageIdentity.IdOnly)
+                // GH-5022: the stored procedure cannot restart the InboxStaleTime clock, so a store that keeps
+                // one promotes with the inline statement instead
+                if (Durability.MessageIdentity == MessageIdentity.IdOnly && !Durability.InboxStaleTime.HasValue)
                 {
                     await using var reassign =
                         conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);

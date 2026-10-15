@@ -51,5 +51,10 @@ public partial class WolverineRuntime : IAsyncDisposable
         {
             d.Dispose();
         }
+
+        // GH-5012: a Meter lives in a process-wide static registry until it is disposed, and the
+        // persistence gauges on it hold callbacks back into this runtime. Without this, every
+        // disposed host stays reachable for the life of the process.
+        Meter.Dispose();
     }
 }

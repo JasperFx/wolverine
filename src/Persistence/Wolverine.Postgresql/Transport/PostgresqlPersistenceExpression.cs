@@ -30,6 +30,30 @@ public class PostgresqlPersistenceExpression : BrokerExpression<PostgresqlTransp
     }
 
     /// <summary>
+    ///     Opt into deterministic ordering for messages with the same timestamp in PostgreSQL
+    ///     queues. This changes the ready and scheduled queue schemas. With <c>AutoCreate.None</c>,
+    ///     apply the schema migration before starting listeners with this option enabled. Configure
+    ///     this before startup; changing it at runtime is not supported.
+    /// </summary>
+    public PostgresqlPersistenceExpression EnableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Opt into PostgreSQL LISTEN/NOTIFY wakeups for native queues. This holds one dedicated
+    ///     connection per active Npgsql data source (typically one per queue database) and application
+    ///     process; polling remains enabled as a fallback. Configure this before startup. With PgBouncer,
+    ///     LISTEN requires session pooling. Multiplexed Npgsql data sources are not supported.
+    /// </summary>
+    public PostgresqlPersistenceExpression EnableQueueNotifications()
+    {
+        Transport.EnableQueueNotifications = true;
+        return this;
+    }
+
+    /// <summary>
     /// Disable inbox and outbox usage on all Sql Server Transport endpoints
     /// </summary>
     /// <returns></returns>

@@ -11,6 +11,7 @@ using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Tracking;
@@ -42,7 +43,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema:"transports", transportSchema:"transports");
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema: "transports", transportSchema: "transports");
 
                 // Register the "one" queue but neutralize the host's auto-started listener.
                 // None of the tests in this fixture rely on the host listener; every test
@@ -226,11 +227,13 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     public async Task move_from_scheduled_to_queue()
     {
         var systemTime = await theTransport.SystemTimeAsync();
+        var expectedOrder = new List<Guid>();
 
         // Should be moved
         for (int i = 0; i < 20; i++)
         {
             var envelope = ObjectMother.Envelope();
+            expectedOrder.Add(envelope.Id);
             envelope.ScheduledTime = systemTime.Subtract(1.Days());
             await new PostgresqlQueueSender(theQueue).ScheduleMessageAsync(envelope, CancellationToken.None);
         }
@@ -255,6 +258,10 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
 
         (await theQueue.ScheduledCountAsync()).ShouldBe(10);
         (await theQueue.CountAsync()).ShouldBe(20);
+
+        var promoted = await theListener.TryPopDurablyAsync(20, theRuntime.DurabilitySettings, NullLogger.Instance,
+            TestContext.Current.CancellationToken);
+        promoted.Select(x => x.Id).ToArray().ShouldBe(expectedOrder.ToArray(), ignoreOrder: true);
     }
 
     [Fact]
@@ -290,7 +297,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
-        var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
+        var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings { AssignedNodeNumber = 21 }, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
 
         (await theQueue.CountAsync()).ShouldBe(15);

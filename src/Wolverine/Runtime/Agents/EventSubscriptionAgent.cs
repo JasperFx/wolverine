@@ -110,11 +110,22 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     // EventStoreAgents counts one logical agent per node for the observer-subscription lifecycle, and a
     // rebuild/rewind is transparent to that count (the wrapper never observed a matching stop), so
     // re-counting here would leak the database's tracker subscriptions. See GH-3520.
+    //
+    // GH-4569: on a warm-up node every start -- the first one, a resume after a rebuild, an auto-restart -- is a
+    // Rebuild-mode start that follows the store and resumes from the shard's own progress, so the new release's
+    // projections publish no side effects until the node is cut over and restarted as a serving node.
     private async Task resumeContinuousAsync(CancellationToken cancellationToken)
     {
-        _innerAgent = await _daemon.StartAgentAsync(_shardName, cancellationToken);
+        _innerAgent = StartsInRebuildMode
+            ? await _daemon.StartAgentInRebuildModeAsync(_shardName, cancellationToken)
+            : await _daemon.StartAgentAsync(_shardName, cancellationToken);
         Status = AgentStatus.Running;
     }
+
+    /// <summary>
+    ///     GH-4569: set on a <see cref="NodeRole.Warmup" /> node, where the shard runs in the daemon's rebuild mode
+    /// </summary>
+    internal bool StartsInRebuildMode { get; init; }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
@@ -132,7 +143,21 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         // Pass the shard's tenant so a per-tenant agent rebuilds ONLY its tenant's partition under
         // single-database per-tenant partitioning. _shardName.TenantId is null for store-global /
         // database-per-tenant shards, where the tenant-less behavior is correct.
-        await _daemon.RebuildProjectionAsync(_shardName.Name, _shardName.TenantId, cancellationToken);
+        try
+        {
+            await _daemon.RebuildProjectionAsync(_shardName.Name, _shardName.TenantId, cancellationToken);
+        }
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+        {
+            // GH-5003: a rebuild that throws has already hard-stopped the continuous agent and torn down
+            // the projection's state, so not resuming here left the shard stopped -- for good when the
+            // pre-rebuild agent was carrying an Other failure, which the sweep only reports. Resume anyway:
+            // the progress is already reset, so the continuous agent effectively rebuilds from the start.
+            // The rebuild's own exception still propagates; a resume failure is only logged under it.
+            _logger.LogError(e, "Rebuild of {ShardName} failed; resuming its continuous execution", _shardName.Identity);
+            await TryResumeAfterRebuildAsync();
+            throw;
+        }
 
         // GH-3520: the daemon-level rebuild stops the continuous agent and never restarts it. Under
         // Wolverine-managed distribution there is no store coordinator to resurrect it, and this wrapper
@@ -140,6 +165,37 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         // sees nothing to fix and the shard freezes at RegisteredIdle while its high-water climbs.
         // Restore continuous execution ourselves through the registered daemon start path.
         await resumeContinuousAsync(cancellationToken);
+    }
+
+    /// <inheritdoc cref="IEventSubscriptionAgent.IsRebuilding" />
+    public bool IsRebuilding => _daemon.IsRebuilding(_shardName);
+
+    internal ShardName ShardName => _shardName;
+
+    internal IProjectionDaemon Daemon => _daemon;
+
+    /// <summary>
+    /// GH-5003: resume continuous execution after a rebuild that ran outside this wrapper -- the
+    /// registered-projection rebuild in <see cref="EventStoreAgents.TryRebuildRegisteredProjectionAsync" />
+    /// hard-stops this node's agents for the projection and never restarts them. A wrapper that was stopped
+    /// on purpose (or never started) is left alone. Never throws: the rebuild's outcome is what the caller
+    /// reports, and a failed resume is still visible to NodeAgentController's sweep.
+    /// </summary>
+    internal async Task TryResumeAfterRebuildAsync()
+    {
+        if (_status == AgentStatus.Stopped)
+        {
+            return;
+        }
+
+        try
+        {
+            await resumeContinuousAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not resume continuous execution of {ShardName} after a rebuild", _shardName.Identity);
+        }
     }
 
     public async Task RewindAsync(long? sequenceFloor, DateTimeOffset? timestamp, CancellationToken cancellationToken)

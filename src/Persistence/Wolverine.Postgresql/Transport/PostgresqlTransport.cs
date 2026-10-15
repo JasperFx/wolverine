@@ -38,7 +38,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
             _transportSchemaName = value;
         }
     }
-    
+
     private string _messageStorageSchemaName = "public";
 
     /// <summary>
@@ -54,6 +54,15 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
     }
 
+    /// <summary>
+    ///     Enables PostgreSQL LISTEN/NOTIFY wakeups for native queues. This holds one dedicated
+    ///     PostgreSQL connection per active Npgsql data source (typically one per queue database) and
+    ///     application process. Queue polling remains enabled as a recovery path. Configure before startup.
+    /// </summary>
+    public bool EnableQueueNotifications { get; set; }
+
+    internal PostgresqlQueueNotificationManager QueueNotificationManager { get; } = new();
+
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
         // This is important, let the Postgres queues get built automatically
@@ -64,7 +73,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
             throw new InvalidOperationException(
                 $"The PostgreSQL transport is configured for usage, but the envelope storage is incompatible: {runtime.Storage}");
         }
-        
+
         foreach (var store in stores)
         {
             foreach (var queue in Queues)
@@ -110,6 +119,15 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     }
 
     public LightweightCache<string, PostgresqlQueue> Queues { get; }
+
+    /// <summary>
+    ///     Enables persistent sequence values to break timestamp ties when dequeueing PostgreSQL
+    ///     queue messages. This adds columns and indexes to the ready and scheduled queue tables.
+    ///     It applies to queues managed by this transport, including tenant databases, and is
+    ///     opt-in to avoid changing existing schemas automatically. Configure it before startup;
+    ///     changing it at runtime is not supported.
+    /// </summary>
+    public bool EnableDeterministicQueueOrdering { get; set; }
 
     protected override IEnumerable<PostgresqlQueue> endpoints()
     {
@@ -236,7 +254,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         {
             yield break;
         }
-        
+
         if (Queues.Any(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive }))
         {
             yield return new StickyPostgresqlQueueListenerAgentFamily(runtime);

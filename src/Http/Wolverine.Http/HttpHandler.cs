@@ -92,6 +92,39 @@ public abstract class HttpHandler
 
     public abstract Task Handle(HttpContext httpContext);
 
+    /// <summary>
+    ///     Used by generated code to bind a single-value wrapper type like <c>record struct OrderId(Guid Value)</c>
+    ///     that has no TryParse of its own: parses the inner value, then wraps it
+    /// </summary>
+    public static bool TryParseSingleValue<TWrapper, TInner>(string? rawValue, Func<TInner, TWrapper> wrap,
+        out TWrapper value) where TInner : IParsable<TInner>
+    {
+        if (rawValue != null && TInner.TryParse(rawValue, System.Globalization.CultureInfo.InvariantCulture, out var inner))
+        {
+            value = wrap(inner);
+            return true;
+        }
+
+        value = default!;
+        return false;
+    }
+
+    /// <summary>
+    ///     Used by generated code to bind a single-value wrapper type around a string, like
+    ///     <c>record struct CustomerCode(string Value)</c>
+    /// </summary>
+    public static bool TryParseSingleValue<TWrapper>(string? rawValue, Func<string, TWrapper> wrap, out TWrapper value)
+    {
+        if (rawValue != null)
+        {
+            value = wrap(rawValue);
+            return true;
+        }
+
+        value = default!;
+        return false;
+    }
+
     public static string? ReadSingleHeaderValue(HttpContext context, string headerKey)
     {
         return context.Request.Headers[headerKey].SingleOrDefault();

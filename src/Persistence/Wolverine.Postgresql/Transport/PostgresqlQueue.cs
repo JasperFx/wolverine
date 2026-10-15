@@ -82,7 +82,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<PostgresqlQueue>());
         }
-        
+
         if (Parent.Databases != null)
         {
             var mtListener = new MultiTenantedQueueListener(
@@ -98,21 +98,21 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         return listener;
     }
 
-    private void buildSenderIfMissing()
+    private void buildSenderIfMissing(ILogger? logger = null)
     {
         if (Parent.Databases != null)
         {
-            _sender = new MultiTenantedQueueSender(this, Parent.Databases);
+            _sender = new MultiTenantedQueueSender(this, Parent.Databases, logger);
         }
         else
         {
-            _sender =  new PostgresqlQueueSender(this, DataSource, null);
+            _sender = new PostgresqlQueueSender(this, DataSource, null, logger);
         }
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        buildSenderIfMissing();
+        buildSenderIfMissing(runtime.LoggerFactory.CreateLogger<PostgresqlQueueSender>());
         return _sender!;
     }
 
@@ -329,6 +329,6 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         return _sender!.ScheduleRetryAsync(envelope, cancellation);
     }
 }
-    
+
 
 

@@ -29,6 +29,7 @@ public class Appointment
 
     public void Apply(AppointmentConfirmed e) => Confirmed = true;
     public void Apply(AppointmentCancelled e) => Cancelled = true;
+    public void Apply(PatientRenamed e) => Patient = e.Patient;
 }
 
 public record ConfirmAppointmentRequest(Guid AppointmentId);
@@ -42,7 +43,7 @@ public static class ConfirmAppointmentEndpoint
             ? new ProblemDetails { Detail = "The appointment is already confirmed", Status = 400 }
             : WolverineContinue.NoProblems;
 
-    [WolverinePost("/api/appointments/confirm")]
+    [WolverinePost("/api/appointments/confirm", RouteName = "ConfirmAppointment")]
     public static (ConfirmationResponse, EventsToAppend, OutgoingMessages) Post(ConfirmAppointmentRequest request,
         [WriteModel] Appointment appointment)
         => (new ConfirmationResponse(request.AppointmentId, "Confirmed"),
@@ -163,4 +164,48 @@ public static class AddPatientNoteEndpoint
     [EmptyResponse]
     public static void Post(AddPatientNote command, global::Marten.IDocumentSession session)
         => session.Events.StartStream(Guid.CreateVersion7(), new PatientNoteAdded(command.Patient, command.Note));
+}
+
+// Read acts: a GET of an event-sourced aggregate (404 when the stream is missing), and a GET addressed by route name
+public record AppointmentSummary(Guid Id, string Patient, bool Confirmed);
+
+public static class AppointmentQueries
+{
+    [WolverineGet("/api/appointments/{id}")]
+    public static Appointment Get([global::Wolverine.Marten.ReadAggregate] Appointment appointment) => appointment;
+
+    [WolverineGet("/api/appointments/{id}/summary", RouteName = "AppointmentSummary")]
+    public static AppointmentSummary Summary([global::Wolverine.Http.Marten.Document] Appointment appointment)
+        => new(appointment.Id, appointment.Patient, appointment.Confirmed);
+}
+
+// PUT / PATCH / DELETE command acts, each with a route name
+public record RenamePatient(Guid AppointmentId, string Patient);
+
+public record PatientRenamed(Guid AppointmentId, string Patient);
+
+public record NoteAppointment(Guid AppointmentId, string Note);
+
+public record AppointmentNoted(Guid AppointmentId, string Note);
+
+public record WithdrawAppointment(Guid AppointmentId, string Reason);
+
+public record AppointmentWithdrawn(Guid AppointmentId, string Reason);
+
+public static class AppointmentCommandEndpoints
+{
+    [WolverinePut("/api/appointments/{appointmentId}/patient", RouteName = "RenamePatient")]
+    [EmptyResponse]
+    public static PatientRenamed Put(RenamePatient command, [WriteModel] Appointment appointment)
+        => new(command.AppointmentId, command.Patient);
+
+    [WolverinePatch("/api/appointments/{appointmentId}/notes", RouteName = "NoteAppointment")]
+    public static (AppointmentNoted, EventsToAppend) Patch(NoteAppointment command, [WriteModel] Appointment appointment)
+        => (new AppointmentNoted(command.AppointmentId, command.Note),
+            new EventsToAppend { new AppointmentNoted(command.AppointmentId, command.Note) });
+
+    [WolverineDelete("/api/appointments/{appointmentId}", RouteName = "WithdrawAppointment")]
+    [EmptyResponse]
+    public static AppointmentWithdrawn Delete(WithdrawAppointment command, [WriteModel] Appointment appointment)
+        => new(command.AppointmentId, command.Reason);
 }

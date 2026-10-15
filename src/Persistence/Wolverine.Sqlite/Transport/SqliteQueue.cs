@@ -35,17 +35,16 @@ public class SqliteQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
         base(ToUri(name, databaseName), role)
     {
         Parent = parent;
-        var queueTableName = $"wolverine_queue_{name}";
-        var scheduledTableName = $"wolverine_queue_{name}_scheduled";
 
         Mode = EndpointMode.Durable;
         Name = name;
         EndpointName = name;
         BrokerRole = "queue";
 
-        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, queueTableName));
-        _scheduledMessageTable =
-            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, scheduledTableName));
+        _queueTable = new Lazy<QueueTable>(() =>
+            new QueueTable(Parent, Parent.QueueTableNameFor($"wolverine_queue_{name}")));
+        _scheduledMessageTable = new Lazy<ScheduledMessageTable>(() =>
+            new ScheduledMessageTable(Parent, Parent.QueueTableNameFor($"wolverine_queue_{name}_scheduled")));
     }
 
     public string Name { get; }

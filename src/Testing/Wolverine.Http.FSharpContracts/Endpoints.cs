@@ -14,6 +14,11 @@ public record ThingCreated(string Name);
 /// <summary>Complex query string type exercising <c>QueryStringBindingFrame</c>.</summary>
 public record ThingFilter(string? Name, int MaxResults);
 
+// GH-4978: hand-written single-value wrappers with no TryParse of their own
+public readonly record struct ThingId(Guid Value);
+
+public readonly record struct ThingCode(string Value);
+
 /// <summary>
 ///     The "smallest viable" Wolverine.Http endpoints for the F# code-generation audit
 ///     (issue GH-2969, Phase C): a GET returning a string and a POST binding a JSON body and
@@ -48,6 +53,13 @@ public class ThingEndpoints
     }
 
     // Query-string binding: q has no matching route token, so it binds from the query string.
+    // GH-4978: a single-value wrapper bound from a route value and from a query string value
+    [WolverineGet("/fsharp/things/by-id/{id}")]
+    public string GetByThingId(ThingId id) => id.Value.ToString();
+
+    [WolverineGet("/fsharp/things/by-code")]
+    public string GetByThingCode(ThingCode code) => code.Value;
+
     [WolverineGet("/fsharp/search")]
     public string Search(string q)
     {

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Weasel.Core;
 using Weasel.SqlServer.Tables;
 using Wolverine.RDBMS;
@@ -51,6 +52,32 @@ internal class ScheduledMessageTable : Table
         else
         {
             id.AsPrimaryKey();
+
+            // GH-4862: see QueueTable. The high-throughput layout's seq identity is already the
+            // tie-breaker there (the execution_time index carries the clustering key), so only the
+            // default layout needs the opt-in column.
+            AddOnlyMigrations = true;
+
+            if (transport.EnableDeterministicQueueOrdering)
+            {
+                // Preserve a deterministic order when multiple scheduled rows are promoted together.
+                AddColumn(new QueueOrderingColumn());
+
+                Indexes.Add(new IndexDefinition($"idx_{tableName}_execution_time_queue_order")
+                {
+                    Columns = [DatabaseConstants.ExecutionTime, QueueTable.QueueOrderColumn]
+                });
+            }
         }
+    }
+
+    // GH-4989: an existing table on the other OptimizeQueueThroughput() layout is rebuilt, not migrated
+    // in place. See QueueTableLayoutSwitchDelta
+    public override async Task<ISchemaObjectDelta> CreateDeltaAsync(DbDataReader reader, CancellationToken ct = default)
+    {
+        var delta = await base.CreateDeltaAsync(reader, ct);
+        return delta is TableDelta tableDelta && QueueTableLayoutSwitchDelta.IsLayoutSwitch(this, tableDelta.Actual)
+            ? new QueueTableLayoutSwitchDelta(this, tableDelta.Actual!, DatabaseConstants.ExecutionTime)
+            : delta;
     }
 }

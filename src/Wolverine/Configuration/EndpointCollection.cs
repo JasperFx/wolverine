@@ -438,10 +438,45 @@ public class EndpointCollection : IEndpointCollection
             .Where(x => x is not LocalQueue)
             .Where(x => x.ShouldAutoStartAsListener(_options.Durability));
 
+        // GH-4569: a warm-up node listens for agent commands and their replies, and for nothing else. That is
+        // the control endpoint and the reply endpoint of the transport that owns it -- not every System-role
+        // endpoint, because a System endpoint can still carry application traffic (the Azure Service Bus
+        // retry queue redelivers application messages), and the reply endpoints of some transports are not
+        // marked System at all.
+        if (_options.Durability.NodeRole == NodeRole.Warmup)
+        {
+            var controlEndpoints = WarmupControlEndpoints(_options);
+            listeningEndpoints = listeningEndpoints.Where(controlEndpoints.Contains);
+        }
+
         foreach (var endpoint in listeningEndpoints)
         {
             await StartListenerAsync(endpoint, _runtime.Cancellation);
         }
+    }
+
+    /// <summary>
+    ///     GH-4569: the only endpoints a <see cref="NodeRole.Warmup" /> node listens to -- the node's control
+    ///     endpoint, and the reply endpoint of the transport that owns it, where the answers to the agent
+    ///     commands this node sends arrive.
+    /// </summary>
+    internal static IReadOnlyList<Endpoint> WarmupControlEndpoints(WolverineOptions options)
+    {
+        var control = options.Transports.NodeControlEndpoint;
+        if (control == null) return [];
+
+        var endpoints = new List<Endpoint> { control };
+
+        var reply = options.Transports
+            .FirstOrDefault(t => t.Endpoints().Contains(control))?
+            .ReplyEndpoint();
+
+        if (reply != null && !endpoints.Contains(reply))
+        {
+            endpoints.Add(reply);
+        }
+
+        return endpoints;
     }
 
     public async Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)

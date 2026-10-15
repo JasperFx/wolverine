@@ -10,6 +10,9 @@ using Wolverine.Transports;
 
 namespace Wolverine.MySql.Transport;
 
+// The ids are kept as read back, whatever type the connector's GuidFormat maps CHAR(36) to
+internal record UnconfirmedPop(object[] Ids, int NodeNumber);
+
 internal class MySqlQueueListener : IListener
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -28,6 +31,14 @@ internal class MySqlQueueListener : IListener
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly bool _deterministicQueueOrdering;
+    private readonly string _queueOrderBy;
+    private readonly string _scheduledOrderBy;
+    private readonly string _tempPopTable;
+    private readonly string _tempMoveTable;
+
+    // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
+    private UnconfirmedPop? _unconfirmedPop;
 
     public MySqlQueueListener(MySqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         MySqlDataSource dataSource, string? databaseName)
@@ -48,17 +59,34 @@ internal class MySqlQueueListener : IListener
         _queueTableName = _queue.QueueTableFor(dataSource).Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTableFor(dataSource).Identifier.QualifiedName;
         _schemaName = _queue.Parent.MessageStorageSchemaName;
+        _queueName = _queue.Name;
+
+        // GH-4862: the queue_order tie-breaker is only referenced when its schema is enabled. Without it,
+        // rows are still handed over in timestamp (and execution_time) order, but ties stay arbitrary.
+        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
+        var tieBreaker = _deterministicQueueOrdering ? $", {QueueOrdering.QueueOrderColumn}" : string.Empty;
+        _queueOrderBy = $"timestamp{tieBreaker}";
+        _scheduledOrderBy = $"{DatabaseConstants.ExecutionTime}{tieBreaker}";
+
+        // These temporary tables carry the ordering columns so the batch can be read back in order. They
+        // have new names because a pooled connection keeps the temporary tables of an earlier session,
+        // and CREATE TEMPORARY TABLE IF NOT EXISTS would silently reuse the older temp_pop_* /
+        // temp_move_* shape that has no ordering columns.
+        _tempPopTable = MySqlIdentifier.Shorten($"temp_pop_ordered_{_queueName}");
+        _tempMoveTable = MySqlIdentifier.Shorten($"temp_move_ordered_{_queueName}");
 
         // MySQL doesn't have CTID, so we use a different approach:
         // Select rows with FOR UPDATE SKIP LOCKED, delete them, and return the bodies
         _tryPopMessagesDirectlySql = $@"
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM {_queueTableName}
-ORDER BY timestamp LIMIT @count FOR UPDATE SKIP LOCKED
+ORDER BY {_queueOrderBy} LIMIT @count FOR UPDATE SKIP LOCKED
 ";
-        _queueName = _queue.Name;
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
+    // The queue_order column only exists once deterministic ordering has been enabled
+    private string queueOrderOrNull() => _deterministicQueueOrdering ? QueueOrdering.QueueOrderColumn : "NULL";
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -148,44 +176,52 @@ ORDER BY timestamp LIMIT @count FOR UPDATE SKIP LOCKED
                 return cmd;
             }
 
-            // Create temp table to hold IDs to move
+            // Create temp table to hold the rows to move, with the columns they are ordered by
             await using var createTempCmd = CreateCmd($@"
-CREATE TEMPORARY TABLE IF NOT EXISTS temp_move_{_queueName} (
+CREATE TEMPORARY TABLE IF NOT EXISTS {_tempMoveTable} (
     id CHAR(36) PRIMARY KEY,
     body LONGBLOB,
     message_type VARCHAR(500),
-    keep_until DATETIME(6)
+    keep_until DATETIME(6),
+    {DatabaseConstants.ExecutionTime} DATETIME(6),
+    {QueueOrdering.QueueOrderColumn} BIGINT NULL
 )");
             await createTempCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Clear any existing data
-            await using var truncateCmd = CreateCmd($"TRUNCATE TABLE temp_move_{_queueName}");
+            // GH-5015: DELETE, not TRUNCATE. TRUNCATE causes an implicit commit, which ended the transaction
+            // opened above, so every statement after it auto-committed on its own and the move was durable
+            // before the client had read it back.
+            await using var truncateCmd = CreateCmd($"DELETE FROM {_tempMoveTable}");
             await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select scheduled messages that are ready
             await using var selectCmd = CreateCmd($@"
-INSERT INTO temp_move_{_queueName} (id, body, message_type, keep_until)
-SELECT id, body, message_type, keep_until
+INSERT INTO {_tempMoveTable} (id, body, message_type, keep_until, {DatabaseConstants.ExecutionTime}, {QueueOrdering.QueueOrderColumn})
+SELECT id, body, message_type, keep_until, {DatabaseConstants.ExecutionTime}, {queueOrderOrNull()}
 FROM {_scheduledTableName}
 WHERE {DatabaseConstants.ExecutionTime} <= UTC_TIMESTAMP(6)
 AND id NOT IN (SELECT id FROM {_queueTableName})
+ORDER BY {_scheduledOrderBy}
 FOR UPDATE SKIP LOCKED");
             await selectCmd.ExecuteNonQueryAsync(cancellationToken);
 
-            // Insert into queue table
+            // Insert into queue table in execution order. INSERT ... SELECT ... ORDER BY assigns
+            // AUTO_INCREMENT values in that order, so the ready table's queue_order keeps it.
             await using var insertCmd = CreateCmd($@"
 INSERT INTO {_queueTableName} (id, body, message_type, keep_until)
-SELECT id, body, message_type, keep_until FROM temp_move_{_queueName}");
+SELECT id, body, message_type, keep_until FROM {_tempMoveTable}
+ORDER BY {_scheduledOrderBy}");
             await insertCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Delete from scheduled table
             await using var deleteCmd = CreateCmd($@"
 DELETE FROM {_scheduledTableName}
-WHERE id IN (SELECT id FROM temp_move_{_queueName})");
+WHERE id IN (SELECT id FROM {_tempMoveTable})");
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Get count
-            await using var countCmd = CreateCmd($"SELECT COUNT(*) FROM temp_move_{_queueName}");
+            await using var countCmd = CreateCmd($"SELECT COUNT(*) FROM {_tempMoveTable}");
             var countResult = await countCmd.ExecuteScalarAsync(cancellationToken);
             count = Convert.ToInt64(countResult);
 
@@ -207,6 +243,11 @@ WHERE id IN (SELECT id FROM temp_move_{_queueName})");
         {
             try
             {
+                if (_unconfirmedPop != null)
+                {
+                    await ReleaseUnconfirmedPopAsync(_cancellation.Token);
+                }
+
                 var messages = _queue.Mode == EndpointMode.Durable
                     ? await TryPopDurablyAsync(_queue.MaximumMessagesToReceive, _settings, _logger,
                         _cancellation.Token)
@@ -278,50 +319,58 @@ WHERE id IN (SELECT id FROM temp_move_{_queueName})");
 
             // Create temp table for this operation
             await using var createTempCmd = CreateCmd($@"
-CREATE TEMPORARY TABLE IF NOT EXISTS temp_pop_{_queueName} (
+CREATE TEMPORARY TABLE IF NOT EXISTS {_tempPopTable} (
     id CHAR(36) PRIMARY KEY,
     body LONGBLOB,
     message_type VARCHAR(500),
-    keep_until DATETIME(6)
+    keep_until DATETIME(6),
+    timestamp DATETIME(6),
+    {QueueOrdering.QueueOrderColumn} BIGINT NULL
 )");
             await createTempCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Clear temp table
-            await using var truncateCmd = CreateCmd($"TRUNCATE TABLE temp_pop_{_queueName}");
+            // GH-5015: DELETE, not TRUNCATE. TRUNCATE causes an implicit commit, which ended the transaction
+            // opened above, so every statement after it auto-committed on its own and the move was durable
+            // before the client had read it back.
+            await using var truncateCmd = CreateCmd($"DELETE FROM {_tempPopTable}");
             await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select messages to process with lock
             await using var selectCmd = CreateCmd($@"
-INSERT INTO temp_pop_{_queueName} (id, body, message_type, keep_until)
-SELECT id, body, message_type, keep_until
+INSERT INTO {_tempPopTable} (id, body, message_type, keep_until, timestamp, {QueueOrdering.QueueOrderColumn})
+SELECT id, body, message_type, keep_until, timestamp, {queueOrderOrNull()}
 FROM {_queueTableName}
-ORDER BY timestamp
+ORDER BY {_queueOrderBy}
 LIMIT @count
 FOR UPDATE SKIP LOCKED");
             selectCmd.Parameters.AddWithValue("@count", count);
             await selectCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Delete from queue table
-            await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM temp_pop_{_queueName})");
+            await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_tempPopTable})");
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Insert into incoming table
             await using var insertCmd = CreateCmd($@"
 INSERT INTO {_schemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until)
 SELECT id, 'Incoming', @ownerId, body, message_type, @receivedAt, keep_until
-FROM temp_pop_{_queueName}");
+FROM {_tempPopTable}");
             insertCmd.Parameters.AddWithValue("@ownerId", settings.AssignedNodeNumber);
             insertCmd.Parameters.AddWithValue("@receivedAt", Address.ToString());
             await insertCmd.ExecuteNonQueryAsync(cancellationToken);
 
-            // Read the bodies
+            // Read the bodies. GH-4862: without the ORDER BY these came back in the temporary table's
+            // primary key (message id) order, not the order they were selected in.
+            var ids = new List<object>();
             var list = new List<Envelope>();
-            await using var readCmd = CreateCmd($"SELECT body FROM temp_pop_{_queueName}");
+            await using var readCmd = CreateCmd($"SELECT id, body FROM {_tempPopTable} ORDER BY {_queueOrderBy}");
             await using var reader = await readCmd.ExecuteReaderAsync(cancellationToken);
 
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                var data = (byte[])reader.GetValue(0);
+                ids.Add(reader.GetValue(0));
+                var data = (byte[])reader.GetValue(1);
                 try
                 {
                     var e = EnvelopeSerializer.Deserialize(data);
@@ -336,7 +385,20 @@ FROM temp_pop_{_queueName}");
             }
 
             await reader.CloseAsync();
-            await transaction.CommitAsync(cancellationToken);
+
+            try
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                // GH-5015: a COMMIT that fails on the wire may still have committed, leaving the envelopes in the
+                // inbox owned by this live node and in no listener's memory -- recovery only reclaims
+                // owner_id = 0. Nothing is handed to the receiver (if the move rolled back, the rows are back in
+                // the queue and would run twice), so release whatever did commit to recovery instead.
+                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                throw;
+            }
 
             return list;
         }
@@ -345,6 +407,65 @@ FROM temp_pop_{_queueName}");
             await conn.CloseAsync();
         }
     }
+
+    private async Task releaseAfterFailedCommitAsync(List<object> ids, int nodeNumber, Exception commitFailure,
+        ILogger logger)
+    {
+        if (ids.Count == 0) return;
+
+        logger.LogError(commitFailure,
+            "The commit of a durable pop of {Count} envelope(s) from MySQL queue {Queue} failed with an unknown outcome. Releasing them to recovery",
+            ids.Count, _queueName);
+
+        _unconfirmedPop = new UnconfirmedPop(ids.ToArray(), nodeNumber);
+        try
+        {
+            await ReleaseUnconfirmedPopAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e,
+                "Unable to release {Count} envelope(s) of an unconfirmed durable pop from MySQL queue {Queue}. Retrying on the next poll",
+                ids.Count, _queueName);
+        }
+    }
+
+    /// <summary>
+    /// GH-5015: hand the envelopes of a pop whose COMMIT outcome is unknown to recovery (owner_id = 0). An InnoDB
+    /// UPDATE is a locking read, so it waits on the inbox rows the original transaction inserted if that
+    /// transaction is somehow still in flight; once it runs, the move has either committed (the rows are
+    /// released) or rolled back (the rows are back in the queue and nothing matches).
+    /// </summary>
+    internal async Task ReleaseUnconfirmedPopAsync(CancellationToken cancellationToken)
+    {
+        if (_unconfirmedPop is not { } pop) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var cmd = conn.CreateCommand();
+
+            var idParameters = new string[pop.Ids.Length];
+            for (var i = 0; i < pop.Ids.Length; i++)
+            {
+                idParameters[i] = "@id" + i;
+                cmd.Parameters.AddWithValue(idParameters[i], pop.Ids[i]);
+            }
+
+            cmd.Parameters.AddWithValue("@node", pop.NodeNumber);
+            cmd.CommandText =
+                $"UPDATE {_schemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE id IN ({string.Join(", ", idParameters)}) AND {DatabaseConstants.OwnerId} = @node AND {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'";
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            _unconfirmedPop = null;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    internal bool HasUnconfirmedPop => _unconfirmedPop != null;
 
     public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, ILogger logger,
         CancellationToken cancellationToken)

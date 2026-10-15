@@ -112,6 +112,53 @@ public class background_receive_loop_3236
         await theLoop.DisposeAsync();
     }
 
+    [Fact]
+    public async Task wake_interrupts_the_idle_delay()
+    {
+        var iterations = 0;
+        var secondIteration = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var theLoop = loop(_ =>
+        {
+            if (Interlocked.Increment(ref iterations) == 2)
+            {
+                secondIteration.TrySetResult();
+            }
+
+            return Task.FromResult(false);
+        }, TimeSpan.FromHours(1));
+
+        theLoop.Start();
+        await waitUntil(() => Volatile.Read(ref iterations) == 1);
+        theLoop.Wake();
+
+        await secondIteration.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
+        await theLoop.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task wake_bursts_are_coalesced_and_interrupt_a_work_delay()
+    {
+        await using var theLoop = loop(_ => Task.FromResult(true));
+
+        for (var i = 0; i < 1000; i++)
+        {
+            theLoop.Wake();
+        }
+
+        (await theLoop.WaitForWakeupOrTimeoutAsync(TimeSpan.FromHours(1), TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        var stopwatch = Stopwatch.StartNew();
+        (await theLoop.WaitForWakeupOrTimeoutAsync(100.Milliseconds(), TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+        stopwatch.Elapsed.ShouldBeGreaterThanOrEqualTo(50.Milliseconds());
+
+        var interruptedWait = theLoop.WaitForWakeupOrTimeoutAsync(TimeSpan.FromHours(1),
+            TestContext.Current.CancellationToken);
+        theLoop.Wake();
+        (await interruptedWait.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken)).ShouldBeTrue();
+    }
+
     // GH-3434: the Kafka listener used to await this loop with Timeout.InfiniteTimeSpan, so a consume loop wedged
     // in a blocking IConsumer.Consume(token) that never observed cancellation hung host shutdown forever. StopAsync
     // must honor its finite budget and return even when the iteration ignores the token entirely.

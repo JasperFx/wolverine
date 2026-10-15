@@ -245,6 +245,72 @@ If you want to scope by correlation id, write that predicate yourself —
 because that would be a promise that a correlation id survives every transport, HTTP endpoint and interop
 mapping, and any gap would surface as a session that silently stops waiting rather than as an error.
 
+### Ignoring traffic in every session on a host <Badge type="tip" text="6.50" />
+
+Some hosts always have an envelope in flight. An embedded CritterWatch console (`opts.AddCritterWatchEmbedded()`)
+polls, raises alerts and pushes batches to its browser clients for the life of the host, and any library with
+background messaging of its own does the same. A tracked session waits for every envelope it saw to finish, so on a
+host like that it never finishes, and every test that uses one times out, including every WolverineFx.Bobcat act.
+
+Rather than filtering each session, write the rules once on `WolverineOptions.Tracking`, and every tracked session
+against that host applies them:
+
+```cs
+builder.Host.UseWolverine(opts =>
+{
+    // Everything whose message type is declared in these assemblies, a batch of them included
+    opts.Tracking.IgnoreMessagesFromAssembly(typeof(SomeEmbeddedToolMessage).Assembly);
+
+    // Any envelope sent to, or received by, this endpoint
+    opts.Tracking.IgnoreEndpoint(new Uri("local://embedded-tool"));
+
+    // And the same type and envelope rules a single session has
+    opts.Tracking.IgnoreMessageType<HeartbeatTick>();
+    opts.Tracking.IgnoreMessagesMatchingType(t => t.Namespace == "SomeTool.Messages");
+    opts.Tracking.IgnoreEnvelopes(e => e.Headers.ContainsKey("x-background"));
+});
+```
+
+In a test project, the same rules go into the test host's configuration, for example
+`services.ConfigureWolverine(opts => opts.Tracking.IgnoreMessagesFromAssembly(...))` in an Alba or
+WolverineFx.Bobcat fixture. `WolverineScenario` opens its tracked sessions from the host, so the acts honor the rules
+with nothing to configure on the specification.
+
+An ignored envelope is never recorded:
+
+* it does not hold the session open, so the session completes on the application's own messages;
+* it does not appear in the session's history (`AllRecordsInOrder()`, `Sent`, `Executed` and the rest). When a
+  session times out, the activity grid says how many envelope events the rules dropped;
+* an exception it throws is not the session's: `AllExceptions()` leaves it out and `AssertNoExceptionsWereThrown()`
+  does not fail on it;
+* events it appends, and consistency boundaries it loads, are not reported to `AppendedEvents` or `LoadedBoundaries`.
+
+A batch is an array of the batched message type, so every rule that tests a message type, the default ignoring of
+`ISystemCommand` included, also matches a batch of that type. Acknowledgements are never ignored.
+
+A single session can add rules of its own with `IgnoreMessagesFromAssembly()` and `IgnoreEndpoint()` on
+`TrackActivity()`, and a test that asserts on the traffic the host ignores, such as an extension's own tests,
+opts back in with `IncludeHostIgnoredTraffic()`:
+
+```cs
+var session = await host.TrackActivity()
+    .IncludeHostIgnoredTraffic()
+    .InvokeMessageAndWaitAsync(new SomeEmbeddedToolMessage());
+```
+
+An extension that knows its own traffic is background noise can add the rule itself, from an `IWolverineExtension`
+or its `WolverineOptions` registration method, so the applications that use it don't have to:
+
+```cs
+public class MyToolExtension : IWolverineExtension
+{
+    public void Configure(WolverineOptions options)
+    {
+        options.Tracking.IgnoreMessagesFromAssembly(typeof(MyToolExtension).Assembly);
+    }
+}
+```
+
 ### Timeouts govern the whole session
 
 `Timeout()` bounds the *entire* tracked session, including any stage it runs — so a stage that does
@@ -574,8 +640,10 @@ A few things to know:
 * The act carries its tenant (`LastAct.TenantId`): the tenant an HTTP endpoint's tenant detection found, or the entry
   message's, which `WhenReceived(message, options: new DeliveryOptions { TenantId = "red" })` sets. On a store with
   conjoined tenancy (one database, the tenant as a column) the step looks for the act's events within that tenant only.
-* For now, the step only works against a single database. A store that spreads its tenants across several databases
-  is refused with a clear message.
+* On a store that gives each tenant its own database, the step waits on and reads the act's tenant's database. It
+  asks the store which database that is through `IEventStore.FindDatabaseForTenantAsync()`, and if the store can't
+  say yet, it just waits on every database before reading through the tenant. An act that carried no tenant at all is
+  looked for in every database. That's still exact, because a correlation id only ever belongs to one act.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
   endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
@@ -609,6 +677,48 @@ are worth knowing about from the Wolverine side:
   correlation id, so it never fires there. The hook is only added while a tracked session runs.
 * **`ProjectionCatchUpTimeoutException`.** A document or read-model step that waits for the async daemons and runs out of
   time throws this (it's a `TimeoutException`), naming the shards that were behind and the identity being read.
+
+### WolverineFx.Bobcat.Http: reads and the other verbs <Badge type="tip" text="6.50" />
+
+`WolverineHttpSpec` (and `WolverineHttpScenario`, and its `In<T>()` views) can read as well as post. A read is an act
+like any other: it runs inside the tracked session, and its exchange lands in the HTTP report a failing spec writes out.
+
+```cs
+[Fact]
+public async Task a_scheduled_appointment_is_read()
+{
+    var id = Guid.NewGuid();
+    await GivenEvents<Appointment>(id, new AppointmentScheduled(id, "Ann"));
+
+    // GET the template, filled with its values in order; the 2xx body comes back as the type
+    var appointment = await WhenReading<Appointment>("/api/appointments/{id}", id);
+    appointment!.Patient.ShouldBe("Ann");
+
+    // or address the endpoint by its RouteName
+    var summary = await WhenReadingRoute<AppointmentSummary>("AppointmentSummary", id);
+}
+
+[Fact]
+public async Task a_missing_appointment_is_not_found()
+{
+    await WhenReading<Appointment>("/api/appointments/{id}", Guid.NewGuid());
+    ThenNotFound();
+}
+```
+
+* **`WhenReading<T>(route, params routeValues)`** and **`WhenReadingRoute<T>(routeName, params routeValues)`** GET the
+  endpoint and hand back the 2xx body as a `T`, or null for a 4xx. A 404 is a refusal, not a failure, so
+  `ThenNotFound()` (or `ThenResponseIs(404)`) asserts it.
+* **A read is a Query slice.** Both acts declare a GET trigger and a read model role with no command, so Bobcat puts a
+  spec whose last act is a read on the Event Model as a **Query** slice that reads `T`. The slice carries the route, and
+  for `WhenReadingRoute` the route name too. Pass the template or the route name as a constant so the generator can
+  read it.
+* **PUT, PATCH and DELETE** have the same three forms as `WhenPosted`, each a command act with its verb on the trigger:
+  `WhenPut`/`WhenPatched`/`WhenDeleted(command)` find the endpoint from the command's type,
+  `(command, route)` takes the route, and `WhenPutToRoute`/`WhenPatchedToRoute`/`WhenDeletedToRoute`/`WhenPostedToRoute(command, routeName)`
+  address the endpoint by route name. Route parameters are filled from the command's properties, and `DELETE` sends the
+  command as its JSON body.
+* **`TheResponse<T>()`** reads the last HTTP act's 2xx body, for the acts that don't hand one back.
 
 ## Dealing with Scheduled Messages  <Badge type="tip" text="4.12" />
 

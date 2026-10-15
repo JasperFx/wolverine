@@ -54,7 +54,7 @@ public class Bug_3943_message_storage_schema_name : IAsyncLifetime
                     .IntegrateWithWolverine(w =>
                     {
                         w.MessageStorageSchemaName = SchemaName;
-                        w.TransportSchemaName = SchemaName;
+                        w.PrefixName = SchemaName;
                     });
             }).StartAsync();
     }
