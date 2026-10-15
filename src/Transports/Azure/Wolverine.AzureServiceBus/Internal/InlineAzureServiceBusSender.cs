@@ -48,6 +48,32 @@ public class InlineAzureServiceBusSender : ISender
         await _endpoint.InitializeAsync(_logger);
         var message = new ServiceBusMessage();
         _mapper.MapEnvelopeToOutgoing(envelope, message);
+
+        if (envelope.ScheduledCancellation is { } registration && envelope.ScheduledTime is { } scheduledTime)
+        {
+            if (registration.IsBound)
+            {
+                return;
+            }
+
+            if (scheduledTime <= DateTimeOffset.UtcNow)
+            {
+                registration.MarkNotScheduled();
+                message.ScheduledEnqueueTime = default;
+            }
+            else
+            {
+                if (registration.CanBeBound)
+                {
+                    var sequenceNumber = await _sender.ScheduleMessageAsync(message, scheduledTime, _cancellationToken)
+                        .ConfigureAwait(false);
+                    registration.TryBind(token => AzureServiceBusScheduledCancellation.CancelAsync(_sender, sequenceNumber, token));
+                }
+
+                return;
+            }
+        }
+
         await _sender.SendMessageAsync(message, _cancellationToken);
     }
 }

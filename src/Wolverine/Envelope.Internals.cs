@@ -143,6 +143,9 @@ public partial class Envelope
     internal ISendingAgent? Sender { get; set; }
 
     [JsonIgnore]
+    internal ScheduledMessageCancellationRegistration? ScheduledCancellation { get; set; }
+
+    [JsonIgnore]
     public IListener? Listener { get; internal set; }
     
     [JsonIgnore]
@@ -646,6 +649,7 @@ public partial class Envelope
         BatchGroupId = null;
         FromPool = false;
         Sender = null;
+        ScheduledCancellation = null;
         Listener = null;
         IsResponse = false;
         Failure = null;

@@ -323,6 +323,104 @@ public partial class MessageBus : IMessageBus, IMessageContext
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask<IScheduledMessage> ScheduleWithCancellationAsync<T>(T message, DateTimeOffset time,
+        DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        options ??= new DeliveryOptions();
+        options.ScheduledTime = time;
+        return scheduleWithCancellationAsync(message, options);
+    }
+
+    public ValueTask<IScheduledMessage> ScheduleWithCancellationAsync<T>(T message, TimeSpan delay,
+        DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        options ??= new DeliveryOptions();
+        options.ScheduleDelay = delay;
+        return scheduleWithCancellationAsync(message, options);
+    }
+
+    private async ValueTask<IScheduledMessage> scheduleWithCancellationAsync(object message, DeliveryOptions options)
+    {
+        Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
+        options = applyTenantContext(options)!;
+
+        var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
+
+        if (outgoing.Length == 0)
+        {
+            Runtime.MessageTracking.NoRoutesFor(new Envelope(message));
+        }
+
+        var registry = (Runtime as IWolverineRuntimeInternal)?.ScheduledMessageCancellations;
+        var registrations = new List<ScheduledMessageCancellationRegistration>(outgoing.Length);
+        var registered = new List<Guid>(outgoing.Length);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var envelope in outgoing)
+        {
+            ScheduledMessageCancellationRegistration registration;
+            var supportsCancellation = envelope.Sender?.Endpoint is ISupportsScheduledMessageCancellation;
+            if (envelope.ScheduledTime is not { } scheduledTime || scheduledTime <= now)
+            {
+                registration = new ScheduledMessageCancellationRegistration(envelope.Id,
+                    ScheduledMessageCancellationStatus.NotScheduled);
+                if (supportsCancellation)
+                {
+                    // Let the Azure sender clear a past ScheduledEnqueueTime and send immediately.
+                    envelope.ScheduledCancellation = registration;
+                }
+            }
+            else if (supportsCancellation && registry != null)
+            {
+                registration = new ScheduledMessageCancellationRegistration(envelope.Id);
+                envelope.ScheduledCancellation = registration;
+                registry.Register(registration);
+                registered.Add(envelope.Id);
+            }
+            else
+            {
+                registration = new ScheduledMessageCancellationRegistration(envelope.Id,
+                    ScheduledMessageCancellationStatus.NotSupported);
+            }
+
+            registrations.Add(registration);
+        }
+
+        try
+        {
+            if (outgoing.Length > 0)
+            {
+                await PersistOrSendAsync(outgoing).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            if (registry != null)
+            {
+                foreach (var id in registered)
+                {
+                    registry.Remove(id);
+                }
+            }
+
+            throw;
+        }
+
+        return new ScheduledMessageCancellationHandle(registrations);
+    }
+
     public ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null)
     {
         if (message == null)

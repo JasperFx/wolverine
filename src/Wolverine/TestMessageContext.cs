@@ -234,7 +234,7 @@ public class TestMessageContext : IMessageContext, IBroadcastToAllNodes
     IAsyncEnumerable<TResponse> ICommandBus.StreamAsync<TResponse>(object message, CancellationToken cancellation)
     {
         _invoked.Add(message);
-        return EmptyAsyncEnumerable<TResponse>(cancellation);
+        return emptyAsyncEnumerable<TResponse>(cancellation);
     }
 
     IAsyncEnumerable<TResponse> ICommandBus.StreamAsync<TResponse>(object message, DeliveryOptions options,
@@ -243,7 +243,7 @@ public class TestMessageContext : IMessageContext, IBroadcastToAllNodes
         var envelope = new Envelope(message);
         options.Override(envelope);
         _invoked.Add(envelope);
-        return EmptyAsyncEnumerable<TResponse>(cancellation);
+        return emptyAsyncEnumerable<TResponse>(cancellation);
     }
 
     Task<TResponse> ICommandBus.StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
@@ -267,7 +267,7 @@ public class TestMessageContext : IMessageContext, IBroadcastToAllNodes
         return Task.FromResult(response);
     }
 
-    private static async IAsyncEnumerable<T> EmptyAsyncEnumerable<T>(
+    private static async IAsyncEnumerable<T> emptyAsyncEnumerable<T>(
         [EnumeratorCancellation] CancellationToken cancellation = default)
     {
         await Task.CompletedTask;
@@ -310,6 +310,36 @@ public class TestMessageContext : IMessageContext, IBroadcastToAllNodes
         _published.Add(envelope);
 
         return ValueTask.CompletedTask;
+    }
+
+    ValueTask<IScheduledMessage> IMessageBus.ScheduleWithCancellationAsync<T>(T message, DateTimeOffset time,
+        DeliveryOptions? options)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        options ??= new DeliveryOptions();
+        options.ScheduledTime = time;
+        return scheduleWithCancellationAsync(message, options);
+    }
+
+    ValueTask<IScheduledMessage> IMessageBus.ScheduleWithCancellationAsync<T>(T message, TimeSpan delay,
+        DeliveryOptions? options)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        options ??= new DeliveryOptions();
+        options.ScheduleDelay = delay;
+        return scheduleWithCancellationAsync(message, options);
+    }
+
+    private ValueTask<IScheduledMessage> scheduleWithCancellationAsync<T>(T message, DeliveryOptions options)
+    {
+        var envelope = new Envelope { Message = message };
+        options.Override(envelope);
+        _published.Add(envelope);
+
+        var registration = new ScheduledMessageCancellationRegistration(envelope.Id,
+            ScheduledMessageCancellationStatus.NotSupported);
+        IScheduledMessage handle = new ScheduledMessageCancellationHandle([registration]);
+        return ValueTask.FromResult(handle);
     }
 
     ValueTask IMessageBus.BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options)

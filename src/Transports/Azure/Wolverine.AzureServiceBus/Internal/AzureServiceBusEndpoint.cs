@@ -34,7 +34,7 @@ public interface IAzureServiceBusListeningEndpoint
     public int PrefetchCount { get; set; }
 }
 
-public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>, IBrokerEndpoint, IAzureServiceBusListeningEndpoint
+public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>, IBrokerEndpoint, IAzureServiceBusListeningEndpoint, ISupportsScheduledMessageCancellation
 {
     private int? _prefetchCount;
 

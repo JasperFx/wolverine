@@ -213,7 +213,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 var utcNow = DateTimeOffset.UtcNow;
                 if (envelope.IsScheduledForLater(utcNow))
                 {
-                    if (!envelope.Sender!.IsDurable)
+                    // A cancellation handle needs the broker's sequence number while the message is still
+                    // scheduled. Durable outbox envelopes are already committed at this point, so send this
+                    // opt-in path to a native scheduler now instead of waiting for Wolverine's due-time poll.
+                    if (!envelope.Sender!.IsDurable || envelope.ScheduledCancellation != null)
                     {
                         if (envelope.Sender!.SupportsNativeScheduledSendFor(envelope, utcNow))
                         {
@@ -807,7 +810,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // the case above. When ResponseType is set (StreamAsync path), the check above this
         // switch already captured the sequence; we only reach here during regular InvokeAsync
         // with a handler that returns a typed async sequence.
-        var cascader = ResolveTypedAsyncEnumerableCascader(message.GetType());
+        var cascader = resolveTypedAsyncEnumerableCascader(message.GetType());
         if (cascader != null)
         {
             await ((Task)cascader.Invoke(null, [message, this])!).ConfigureAwait(false);
@@ -831,9 +834,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     }
 
     private static readonly MethodInfo _cascadeTypedItemsMethod =
-        typeof(MessageContext).GetMethod(nameof(CascadeTypedItemsAsync), BindingFlags.Static | BindingFlags.NonPublic)!;
+        typeof(MessageContext).GetMethod(nameof(cascadeTypedItemsAsync), BindingFlags.Static | BindingFlags.NonPublic)!;
 
-    // Per-message-type cache of the constructed CascadeTypedItemsAsync<T> MethodInfo (or null for
+    // Per-message-type cache of the constructed cascadeTypedItemsAsync<T> MethodInfo (or null for
     // message types that don't implement IAsyncEnumerable<T>). Eliminates GetInterfaces() and
     // MakeGenericMethod() from every cascade after the first for each unique type. ImHashMap is
     // lock-free and copy-on-write — appropriate because the set of cascading message types
@@ -841,7 +844,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private static ImHashMap<Type, MethodInfo?> _typedEnumerableCascadeMethods =
         ImHashMap<Type, MethodInfo?>.Empty;
 
-    // Resolves the constructed CascadeTypedItemsAsync<T> MethodInfo for a message
+    // Resolves the constructed cascadeTypedItemsAsync<T> MethodInfo for a message
     // type that implements IAsyncEnumerable<T>. Steady state hits the ImHashMap
     // cache; the miss path walks GetInterfaces (IL2070) and MakeGenericMethod
     // (IL2060 + IL3050). AOT-clean apps pre-populate the cache during handler-
@@ -862,8 +865,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "messageType reaches GetInterfaces from runtime-resolved message types that are statically rooted via handler registration.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "MakeGenericMethod over CascadeTypedItemsAsync<T>; AOT consumers pre-populate the cache at handler-graph compile time. See AOT guide.")]
-    private static MethodInfo? ResolveTypedAsyncEnumerableCascader(Type messageType)
+        Justification = "MakeGenericMethod over cascadeTypedItemsAsync<T>; AOT consumers pre-populate the cache at handler-graph compile time. See AOT guide.")]
+    private static MethodInfo? resolveTypedAsyncEnumerableCascader(Type messageType)
     {
         if (_typedEnumerableCascadeMethods.TryFind(messageType, out var cached))
         {
@@ -885,11 +888,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// Pre-populate the typed-enumerable cascader cache with the supplied message
     /// types. Called from <see cref="Wolverine.Runtime.Handlers.HandlerGraph.Compile"/>
     /// after handler-graph compilation so the per-message
-    /// <see cref="ResolveTypedAsyncEnumerableCascader"/> hot path never pays the
+    /// <see cref="resolveTypedAsyncEnumerableCascader"/> hot path never pays the
     /// first-occurrence reflection cost (GetInterfaces walk + MakeGenericMethod).
     /// Closes the AOT story for the cascading-async-enumerable resolution from
     /// AOT pillar issue #2769 — at steady state the cache is pre-warmed and the
-    /// reflective miss path inside <see cref="ResolveTypedAsyncEnumerableCascader"/>
+    /// reflective miss path inside <see cref="resolveTypedAsyncEnumerableCascader"/>
     /// never fires.
     /// </summary>
     /// <remarks>
@@ -898,13 +901,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// </remarks>
     /// <param name="messageTypes">Message types to resolve and cache.</param>
     [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as resolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
     [UnconditionalSuppressMessage("Trimming", "IL2060",
-        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as resolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
     [UnconditionalSuppressMessage("Trimming", "IL2070",
-        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as resolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as resolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
     internal static void PrepopulateCascadeCache(IEnumerable<Type>? messageTypes)
     {
         if (messageTypes == null) return;
@@ -914,11 +917,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (messageType == null) continue;
             if (_typedEnumerableCascadeMethods.TryFind(messageType, out _)) continue;
 
-            ResolveTypedAsyncEnumerableCascader(messageType);
+            resolveTypedAsyncEnumerableCascader(messageType);
         }
     }
 
-    private static async Task CascadeTypedItemsAsync<T>(IAsyncEnumerable<T> source, MessageContext context)
+    private static async Task cascadeTypedItemsAsync<T>(IAsyncEnumerable<T> source, MessageContext context)
     {
         await foreach (var item in source)
         {

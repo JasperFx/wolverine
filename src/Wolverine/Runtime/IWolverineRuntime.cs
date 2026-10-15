@@ -127,6 +127,7 @@ public interface IExecutorFactory
 internal interface IWolverineRuntimeInternal : IWolverineRuntime
 {
     IFaultPublisher FaultPublisher { get; }
+    ScheduledMessageCancellationRegistry ScheduledMessageCancellations { get; }
 }
 
 // This was for testing
