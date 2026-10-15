@@ -185,7 +185,8 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     }
 
     // SQL Server has no array parameters, so one parameter per excluded id. Only rows that already failed in
-    // this pass are excluded, which keeps the list far below the 2,100 parameter ceiling
+    // this pass are excluded, and a step stops once there are more than DurabilityPassContext.MaxExcludedIds
+    // of them, which keeps the list below the 2,100 parameter ceiling. See GH-5035
     private static void writeExcluded(DbCommandBuilder builder, Guid[] excluded)
     {
         if (excluded.Length == 0) return;

@@ -14,6 +14,7 @@ public abstract class InboxDurabilityPassStep : IDurabilityPassStep
     private readonly ILogger _logger;
     private readonly HashSet<Guid> _failed = new();
     private DurabilityPassInboxExecutor? _executor;
+    private int _remaining;
 
     protected InboxDurabilityPassStep(IMessageStore store, IDurabilityPassInboxSource source, ILogger logger)
     {
@@ -36,6 +37,14 @@ public abstract class InboxDurabilityPassStep : IDurabilityPassStep
 
     public async Task<DurabilityPassStepResult> ExecuteAsync(DurabilityPassContext context, CancellationToken token)
     {
+        if (_failed.Count > DurabilityPassContext.MaxExcludedIds)
+        {
+            // Nothing done, so the pass moves on. What is left waits for a later pass. See GH-5035
+            _logger.LogWarning("Durability pass step '{Step}' stopped against {Store} after {Failed} failed",
+                Name, _store.Uri, _failed.Count);
+            return buildResult(0, _remaining);
+        }
+
         var page = await loadAsync(context, _failed.ToArray(), token);
         if (page.Count == 0) return DurabilityPassStepResult.Nothing;
 
@@ -54,7 +63,10 @@ public abstract class InboxDurabilityPassStep : IDurabilityPassStep
             }
         }
 
-        var remaining = page.Count < context.BatchSize ? 0 : await countAsync(context, _failed.ToArray(), token);
+        // Past the cap, the failed rows are counted as left too rather than sending a longer id list
+        var excluded = _failed.Count > DurabilityPassContext.MaxExcludedIds ? [] : _failed.ToArray();
+        var remaining = page.Count < context.BatchSize ? 0 : await countAsync(context, excluded, token);
+        _remaining = remaining;
 
         _logger.LogInformation(
             "Durability pass step '{Step}' executed {Settled} inbox message(s) from {Store} and left {Failed} that failed",

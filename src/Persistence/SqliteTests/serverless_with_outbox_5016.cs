@@ -185,6 +185,64 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_pass_that_overruns_the_lock_ttl_keeps_its_lock()
+    {
+        // GH-5035. A short TTL so the test does not wait out the two minute default. The holder renews its
+        // row every quarter of the TTL
+        theStore.DurabilityPassLockTtl = 4.Seconds();
+
+        var running = await theStore.TryAcquireDurabilityPassLockAsync(Token);
+        running.ShouldNotBeNull();
+
+        try
+        {
+            // Well past the TTL, so an unrenewed row would be reaped here
+            await Task.Delay(7.Seconds(), Token);
+
+            (await theStore.TryAcquireDurabilityPassLockAsync(Token)).ShouldBeNull();
+        }
+        finally
+        {
+            await running.DisposeAsync();
+        }
+
+        var again = await theStore.TryAcquireDurabilityPassLockAsync(Token);
+        again.ShouldNotBeNull();
+        await again.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task a_stale_holder_cannot_release_the_lock_of_the_pass_that_reaped_it()
+    {
+        // GH-5035
+        var stale = await theStore.TryAcquireDurabilityPassLockAsync(Token);
+        stale.ShouldNotBeNull();
+
+        // The holder stalled long enough for its row to age past the TTL, so the next pass reaps it
+        await executeAsync(
+            $"update wolverine_locks set acquired_at = datetime('now', '-1 hours') where lock_id = {theStore.DurabilityPassLockId}");
+
+        var newer = await theStore.TryAcquireDurabilityPassLockAsync(Token);
+        newer.ShouldNotBeNull();
+
+        try
+        {
+            // The stale holder finishing must leave the newer pass's lock in place
+            await stale.DisposeAsync();
+
+            (await theStore.TryAcquireDurabilityPassLockAsync(Token)).ShouldBeNull();
+        }
+        finally
+        {
+            await newer.DisposeAsync();
+        }
+
+        var again = await theStore.TryAcquireDurabilityPassLockAsync(Token);
+        again.ShouldNotBeNull();
+        await again.DisposeAsync();
+    }
+
+    [Fact]
     public async Task a_pass_skips_the_store_while_another_pass_holds_its_lock()
     {
         var envelope = await storeOutgoingAsync("stub://locked");

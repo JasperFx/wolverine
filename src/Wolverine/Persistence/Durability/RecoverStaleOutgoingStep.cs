@@ -39,6 +39,7 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
     private readonly IStaleOutgoingSource _source;
     private readonly ILogger _logger;
     private readonly HashSet<Guid> _failed = new();
+    private int _remaining;
 
     public RecoverStaleOutgoingStep(IMessageStore store, IStaleOutgoingSource source, ILogger logger)
     {
@@ -54,6 +55,15 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
         var runtime = context.Runtime;
         var staleTime = runtime.Options.Durability.OutboxStaleTime;
         DateTimeOffset? staleBefore = staleTime.HasValue ? context.Now.Subtract(staleTime.Value) : null;
+
+        if (_failed.Count > DurabilityPassContext.MaxExcludedIds)
+        {
+            // Nothing done, so the pass moves on. What is left waits for a later pass. See GH-5035
+            _logger.LogWarning(
+                "Durability pass stopped recovering outgoing messages from {Store} after {Failed} failed to send",
+                _store.Uri, _failed.Count);
+            return new DurabilityPassStepResult { Remaining = _remaining };
+        }
 
         var page = await _source.LoadStaleOutgoingAsync(staleBefore, _failed.ToArray(), context.BatchSize, token);
         if (page.Count == 0) return DurabilityPassStepResult.Nothing;
@@ -97,9 +107,11 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             runtime.MessageTracking.DiscardedEnvelope(envelope);
         }
 
+        // Past the cap, the failed rows are counted as left too rather than sending a longer id list
         var remaining = page.Count < context.BatchSize
             ? 0
-            : await _source.CountStaleOutgoingAsync(staleBefore, _failed.ToArray(), token);
+            : await _source.CountStaleOutgoingAsync(staleBefore, excludedIds(), token);
+        _remaining = remaining;
 
         if (sent.Count + expired.Count + failed > 0)
         {
@@ -115,6 +127,11 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             ExpiredDeleted = expired.Count,
             Remaining = remaining
         };
+    }
+
+    private Guid[] excludedIds()
+    {
+        return _failed.Count > DurabilityPassContext.MaxExcludedIds ? [] : _failed.ToArray();
     }
 
     private async Task<bool> trySendAsync(IWolverineRuntime runtime, Envelope envelope)

@@ -67,6 +67,13 @@ public class DurabilityPassOptions
 /// </summary>
 public class DurabilityPassContext
 {
+    /// <summary>
+    ///     The most row ids a step excludes from its queries in one pass because they already failed in it. A
+    ///     step stops for the rest of the pass once it has more failures than this, so the id list stays well
+    ///     inside Oracle's 1,000 expressions in an IN list and SQL Server's 2,100 parameters. See GH-5035
+    /// </summary>
+    public const int MaxExcludedIds = 500;
+
     private readonly Func<DateTimeOffset> _clock;
 
     internal DurabilityPassContext(IWolverineRuntime runtime, IMessageStore store, int batchSize,

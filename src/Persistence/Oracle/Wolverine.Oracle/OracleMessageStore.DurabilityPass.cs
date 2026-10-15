@@ -246,8 +246,9 @@ internal partial class OracleMessageStore : IMessageStoreWithDurabilityPass, ISt
         cmd.Parameters.Add(new OracleParameter(name, OracleDbType.TimeStampTZ) { Value = value });
     }
 
-    // One RAW(16) bind per excluded id. Only rows that already failed in this pass are excluded, which keeps
-    // the list far below Oracle's 1,000 expression ceiling for an IN list
+    // One RAW(16) bind per excluded id. Only rows that already failed in this pass are excluded, and a step
+    // stops once there are more than DurabilityPassContext.MaxExcludedIds of them, which keeps the list below
+    // Oracle's 1,000 expression ceiling for an IN list. See GH-5035
     private static void writeExcluded(OracleCommand cmd, StringBuilder sql, Guid[] excluded)
     {
         if (excluded.Length == 0) return;
