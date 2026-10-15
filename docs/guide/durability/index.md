@@ -158,7 +158,6 @@ The inbox clock starts over whenever a node claims a message -- when it's receiv
 it, or when a scheduled retry comes due -- and Wolverine only bumps messages that are waiting to run, never scheduled
 ones. That means a message bouncing through durable retries isn't going to get replayed underneath itself anymore.
 
-<!-- JEREMY: draft for the InboxStaleTime heartbeat, please rewrite or approve -->
 Wolverine also keeps the clock running for any message a node is still holding onto, whether it's sitting in a durable
 listener's local queue or its handler is actually running. A few times per `InboxStaleTime` window, each durable
 listener tells the database "I've still got these," so a handler that legitimately takes longer than `InboxStaleTime`
