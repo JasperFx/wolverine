@@ -314,6 +314,12 @@ public sealed partial class WolverineOptions : IPolicies
         Policies.Add(policy);
     }
 
+    void IPolicies.MessageFailureLogLevel(LogLevel logLevel)
+    {
+        var policy = new LambdaHandlerPolicy(c => c.FailureLogLevel = logLevel);
+        Policies.Add(policy);
+    }
+
     /// <summary>
     /// Logger level for Wolverine to use for log messages marking the execution stop and finish for all
     /// messages being processed. Wolverine's default is Debug

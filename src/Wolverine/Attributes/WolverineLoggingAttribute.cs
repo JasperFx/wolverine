@@ -11,6 +11,7 @@ namespace Wolverine.Attributes;
 public class WolverineLoggingAttribute : ModifyHandlerChainAttribute
 {
     private LogLevel? _messageStartingLogLevel;
+    private LogLevel? _failureLogLevel;
 
     /// <summary>
     /// 
@@ -30,6 +31,11 @@ public class WolverineLoggingAttribute : ModifyHandlerChainAttribute
         chain.TelemetryEnabled = TelemetryEnabled;
         chain.SuccessLogLevel = SuccessLogLevel;
         chain.ProcessingLogLevel = ExecutionLogLevel;
+
+        if (_failureLogLevel.HasValue)
+        {
+            chain.FailureLogLevel = _failureLogLevel.Value;
+        }
 
         if (_messageStartingLogLevel.HasValue)
         {
@@ -55,6 +61,16 @@ public class WolverineLoggingAttribute : ModifyHandlerChainAttribute
     public LogLevel SuccessLogLevel { get; set; }
 
     public LogLevel ExecutionLogLevel { get; set; }
+
+    /// <summary>
+    /// GH-5043. The level to log a failed attempt to handle this message at, including one that an error
+    /// handling rule then retries. Left alone, the chain keeps its own setting, which is Error by default
+    /// </summary>
+    public LogLevel FailureLogLevel
+    {
+        set => _failureLogLevel = value;
+        get => _failureLogLevel ?? LogLevel.Error;
+    }
 
     /// <summary>
     /// If set to a value (besides LogLevel.None!), this attribute will direct Wolverine to generate code

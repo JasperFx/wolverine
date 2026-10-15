@@ -85,7 +85,7 @@ internal class Executor : IExecutor
             LoggerMessage.Define<string, Guid, string>(handler.SuccessLogLevel, MessageSucceededEventId,
                 "Successfully processed message {Name}#{envelope} from {ReplyUri}");
 
-        _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
+        _messageFailed = LoggerMessage.Define<string, Guid, string>(handler.FailureLogLevel, MessageFailedEventId,
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _messageTypeName = handler.MessageType.ToMessageTypeName();
@@ -300,7 +300,7 @@ internal class Executor : IExecutor
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Invocation of {Message} failed!", context.Envelope.Message);
+            _logger.Log(Handler.FailureLogLevel, e, "Invocation of {Message} failed!", context.Envelope.Message);
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
