@@ -154,7 +154,20 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
     }
 
-    public async Task FlushOutgoingMessagesAsync()
+    public Task FlushOutgoingMessagesAsync()
+    {
+        // GH-5016: nothing can be trusted to run after a serverless request completes, so every flush sends
+        // inline -- including the plain FlushOutgoingMessages postprocessor of a handler or HTTP endpoint that
+        // has no transactional middleware to do it on commit
+        if (Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
+        {
+            return SendAllOutgoingMessagesInlineAsync();
+        }
+
+        return flushOutgoingMessagesAsync();
+    }
+
+    private async Task flushOutgoingMessagesAsync()
     {
         var outgoing = await beginFlushAsync().ConfigureAwait(false);
         if (outgoing == null) return;

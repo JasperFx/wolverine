@@ -53,8 +53,8 @@ internal class DurableSendingAgent : SendingAgent
         if (settings.StoreOutgoingBatchSize > 1)
         {
             _storeCoalescer = new EnvelopeStoreCoalescer(
-                envelopes => _outbox.StoreOutgoingAsync(envelopes, settings.AssignedNodeNumber),
-                envelope => _outbox.StoreOutgoingAsync(envelope, settings.AssignedNodeNumber),
+                envelopes => _outbox.StoreOutgoingAsync(envelopes, settings.OutgoingOwnerId),
+                envelope => _outbox.StoreOutgoingAsync(envelope, settings.OutgoingOwnerId),
                 settings.StoreOutgoingBatchSize, endpoint.Uri, logger);
 
             // GH-4319. The success path already had a many-envelope DELETE -- OutgoingMessageBatch has
@@ -239,9 +239,49 @@ internal class DurableSendingAgent : SendingAgent
 
         await storeOutgoingAsync(envelope);
 
-        await _sending.PostAsync(envelope);
+        // GH-5016: a send with no outbox transaction behind it, like a Wolverine.HTTP endpoint without
+        // transactional middleware. Nothing can be trusted to run after a serverless request completes, so
+        // send it right now instead of handing it to the background sending block
+        if (_settings.Mode == DurabilityMode.ServerlessWithOutbox && !Latched &&
+            !envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+        {
+            await sendInlineAsync(envelope);
+        }
+        else
+        {
+            await _sending.PostAsync(envelope);
+        }
 
         activity?.Stop();
+    }
+
+    // The outbox row was written first, so a failed send -- or a function frozen mid-send -- leaves it for the
+    // next durability pass to recover
+    private async Task sendInlineAsync(Envelope envelope)
+    {
+        try
+        {
+            await _sender.SendToBrokerAsync(envelope);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
+                envelope, envelope.Destination);
+            return;
+        }
+
+        try
+        {
+            await _outbox.DeleteOutgoingAsync(envelope);
+        }
+        catch (Exception e)
+        {
+            // The message was sent, so the worst case is a duplicate send by a later durability pass
+            _logger.LogError(e,
+                "Unable to delete the outbox row of message {Envelope} that was already sent inline. A later durability pass may send it again",
+                envelope);
+        }
     }
 
     /// <summary>
@@ -272,7 +312,7 @@ internal class DurableSendingAgent : SendingAgent
         return DurableWriteRetry.ExecuteAsync(
             () => _storeCoalescer != null
                 ? _storeCoalescer.StoreAsync(envelope)
-                : _outbox.StoreOutgoingAsync(envelope, _settings.AssignedNodeNumber),
+                : _outbox.StoreOutgoingAsync(envelope, _settings.OutgoingOwnerId),
             envelope, _logger, _settings.Cancellation);
     }
 }
