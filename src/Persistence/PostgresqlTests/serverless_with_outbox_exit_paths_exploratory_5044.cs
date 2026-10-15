@@ -790,3 +790,175 @@ public class Explore5044Saga : Saga
         MarkCompleted();
     }
 }
+
+/// <summary>
+/// A scheduled send to an external endpoint that DOES schedule natively (a PostgreSQL transport queue) under
+/// ServerlessWithOutbox. From a root IMessageBus it goes straight to the queue's scheduled table. From a
+/// [Transactional] handler it is parked in the inbox as Scheduled, owned by any node, under its eventual
+/// destination (same as Solo). In the other modes the scheduled poller forwards such a row to its destination
+/// (WolverineRuntime.EnqueueDirectlyAsync); the durability pass instead executes it locally.
+/// </summary>
+public class serverless_with_outbox_native_scheduling_exploratory_5044 : IAsyncDisposable
+{
+    private const string SchemaName = "explore5044_exit_native";
+    private const string QueueName = "explore5044_exit_q";
+
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    private IHost? theFunction;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (theFunction != null)
+        {
+            await theFunction.StopAsync();
+            theFunction.Dispose();
+        }
+    }
+
+    private async Task startAsync(DurabilityMode mode = DurabilityMode.ServerlessWithOutbox)
+    {
+        theFunction = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = mode;
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(Explore5044NativeHandlers));
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, SchemaName, transportSchema: SchemaName)
+                    .AutoProvision().AutoPurgeOnStartup();
+                opts.PublishMessage<Explore5044NativeScheduled>().ToPostgresqlQueue(QueueName);
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync(Token);
+
+        await theFunction.ResetResourceState();
+
+        Console.WriteLine($"[explore5044 native] tables: {string.Join(", ", await tablesAsync())}");
+    }
+
+    private static async Task<long> countAsync(string sql)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(Token);
+        return Convert.ToInt64(await conn.CreateCommand(sql).ExecuteScalarAsync(Token));
+    }
+
+    private static async Task<List<string>> tablesAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(Token);
+        var names = new List<string>();
+        await using var reader = await conn
+            .CreateCommand($"select table_name from information_schema.tables where table_schema = '{SchemaName}'")
+            .ExecuteReaderAsync(Token);
+        while (await reader.ReadAsync(Token)) names.Add(await reader.GetFieldValueAsync<string>(0, Token));
+        return names;
+    }
+
+    // -1 when the queue's tables were never created
+    private static async Task<long> scheduledInQueueAsync()
+    {
+        try
+        {
+            return await countAsync($"select count(*) from {SchemaName}.wolverine_queue_{QueueName}_scheduled");
+        }
+        catch (PostgresException e) when (e.SqlState == "42P01")
+        {
+            return -1;
+        }
+    }
+
+    private static async Task<string> everywhereAsync()
+    {
+        return $"queue={await countAsync($"select count(*) from {SchemaName}.wolverine_queue_{QueueName}")}, " +
+               $"queue_scheduled={await scheduledInQueueAsync()}, " +
+               $"incoming={await countAsync($"select count(*) from {SchemaName}.{DatabaseConstants.IncomingTable}")}, " +
+               $"outgoing={await countAsync($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")}";
+    }
+
+    [Fact]
+    public async Task scheduled_transactional_cascade_is_released_to_the_queue_by_a_pass()
+    {
+        await startAsync();
+
+        await theFunction!.MessageBus().InvokeAsync(new Explore5044NativeSoonCommand(Guid.NewGuid()), Token);
+
+        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
+        {
+            await conn.OpenAsync(Token);
+            await using var reader = await conn
+                .CreateCommand($"select status, owner_id, received_at, message_type from {SchemaName}.{DatabaseConstants.IncomingTable}")
+                .ExecuteReaderAsync(Token);
+            while (await reader.ReadAsync(Token))
+            {
+                Console.WriteLine($"[explore5044 native inbox] status={reader.GetString(0)} owner={reader.GetInt32(1)} destination={reader.GetValue(2)} type={reader.GetString(3)}");
+            }
+        }
+
+        Console.WriteLine($"[explore5044 native before pass] {await everywhereAsync()}");
+
+        await Task.Delay(1500, Token);
+        var report = await theFunction!.RunDurabilityPassAsync(token: Token);
+        Console.WriteLine($"[explore5044 native after pass] {await everywhereAsync()} released={report.ScheduledReleased}");
+
+        // Released into the queue table, ready for whatever listens to it
+        (await countAsync($"select count(*) from {SchemaName}.wolverine_queue_{QueueName}")).ShouldBe(1);
+    }
+
+    // Where does a natively scheduled cascade from a [Transactional] handler end up, by mode?
+    [Theory]
+    [InlineData(DurabilityMode.Solo)]
+    [InlineData(DurabilityMode.Serverless)]
+    [InlineData(DurabilityMode.ServerlessWithOutbox)]
+    public async Task where_a_scheduled_transactional_cascade_lands(DurabilityMode mode)
+    {
+        await startAsync(mode);
+
+        await theFunction!.MessageBus().InvokeAsync(new Explore5044NativeCommand(Guid.NewGuid()), Token);
+        await Task.Delay(1.Seconds(), Token);
+
+        var where = await everywhereAsync();
+        Console.WriteLine($"[explore5044 native lands {mode}] {where}");
+
+        where.ShouldNotBe("queue=0, queue_scheduled=0, incoming=0, outgoing=0", "The scheduled cascade is nowhere");
+    }
+
+    private static async Task<List<int>> outboxOwnersAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(Token);
+        var owners = new List<int>();
+        await using var reader = await conn
+            .CreateCommand($"select owner_id from {SchemaName}.{DatabaseConstants.OutgoingTable}")
+            .ExecuteReaderAsync(Token);
+        while (await reader.ReadAsync(Token)) owners.Add(await reader.GetFieldValueAsync<int>(0, Token));
+        return owners;
+    }
+
+    [Fact]
+    public async Task scheduled_send_from_the_root_bus_goes_straight_to_the_queue()
+    {
+        await startAsync();
+
+        await theFunction!.MessageBus().ScheduleAsync(new Explore5044NativeScheduled(Guid.NewGuid()), 1.Hours());
+
+        // No delay at all: in the transport before the call returned
+        (await scheduledInQueueAsync()).ShouldBe(1);
+        (await countAsync($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")).ShouldBe(0);
+    }
+}
+
+public record Explore5044NativeCommand(Guid Id);
+
+public record Explore5044NativeScheduled(Guid Id);
+
+public record Explore5044NativeSoonCommand(Guid Id);
+
+public static class Explore5044NativeHandlers
+{
+    [Transactional]
+    public static object Handle(Explore5044NativeCommand command, NpgsqlConnection connection)
+        => new Explore5044NativeScheduled(command.Id).DelayedFor(1.Hours());
+
+    [Transactional]
+    public static object Handle(Explore5044NativeSoonCommand command, NpgsqlConnection connection)
+        => new Explore5044NativeScheduled(command.Id).DelayedFor(1.Seconds());
+}
