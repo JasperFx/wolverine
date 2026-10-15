@@ -262,7 +262,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         loadedEnvelope.Data.ShouldBe(envelope.Data);
 
 
-        loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
+        // GH-5038: written as owned by this node, as every other store writes it, not with the envelope's own stamp
+        loadedEnvelope.OwnerId.ShouldBe(Host.GetRuntime().Options.Durability.AssignedNodeNumber);
     }
 
     [Fact]
@@ -305,7 +306,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         loadedEnvelope.Data.ShouldBe(envelope.Data);
 
 
-        loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
+        // GH-5038: written as owned by this node, as every other store writes it, not with the envelope's own stamp
+        loadedEnvelope.OwnerId.ShouldBe(Host.GetRuntime().Options.Durability.AssignedNodeNumber);
     }
 
     [Fact]
