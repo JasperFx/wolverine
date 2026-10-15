@@ -809,9 +809,21 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     {
         Runtime = runtime;
 
-        foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
+        foreach (var policy in runtime.Options.Transports.EndpointPolicies)
+        {
+            if (policy is IDurabilityModeEndpointPolicy) continue;
+            policy.Apply(this, runtime);
+        }
 
         foreach (var configuration in snapshotDelayedConfiguration()) configuration.Apply();
+
+        // GH-5051. The durability mode wins over the endpoint's own configuration. Applied before the delayed
+        // configuration, the Serverless policies lost to a per-endpoint UseDurableOutbox() or SendInline().
+        // Only the Serverless modes register one of these, so every other mode compiles exactly as before
+        foreach (var policy in runtime.Options.Transports.EndpointPolicies)
+        {
+            if (policy is IDurabilityModeEndpointPolicy) policy.Apply(this, runtime);
+        }
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 

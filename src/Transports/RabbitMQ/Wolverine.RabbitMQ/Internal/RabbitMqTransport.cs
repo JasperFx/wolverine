@@ -334,7 +334,13 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
-        if (DeclareRequestReplySystemQueue)
+        // GH-5053. The serverless modes listen for no replies, so a system reply queue would be one more queue
+        // per cold start that nobody consumes, and every outgoing envelope's reply-uri would point replies and
+        // acks at it. The same as DisableSystemRequestReplyQueueDeclaration(), applied automatically
+        var isServerless = runtime.Options.Durability.Mode is DurabilityMode.Serverless
+            or DurabilityMode.ServerlessWithOutbox;
+
+        if (DeclareRequestReplySystemQueue && !isServerless)
         {
             // We switched back to using a Guid to disambiguate Wolverine nodes
             // that might be connecting to the same broker but within different apps

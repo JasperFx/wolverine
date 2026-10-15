@@ -116,9 +116,15 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         // (AddResourceSetupOnStartup, ResetResourceState, `resources setup`) compiles the broker endpoints
         // before the runtime's StartAsync runs, and Endpoint.Compile() applies endpoint policies only once, so
         // a policy added later left every RabbitMQ endpoint Inline and the outbox silently off
+        //
+        // GH-5051. Plain Serverless had the same ordering problem with ServerlessEndpointsMustBeInlinePolicy
         if (options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
         {
             options.Policies.Add(new ServerlessWithOutboxEndpointsPolicy());
+        }
+        else if (options.Durability.Mode == DurabilityMode.Serverless)
+        {
+            options.Policies.Add(new ServerlessEndpointsMustBeInlinePolicy());
         }
 
         // GH-3564: when UseClaimCheck deferred to a DI-registered IClaimCheckStore (the
