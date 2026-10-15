@@ -37,7 +37,8 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
             return AgentCommands.Empty;
         }
 
-        var envelopes = await _store.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
+        var envelopes = await _store.ClaimPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize,
+            _settings.AssignedNodeNumber);
 
         // Ensure each recovered envelope carries a reference to the store it was loaded from.
         // This is critical for ancillary stores: without this, the envelope's Store property
@@ -48,8 +49,6 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         {
             envelope.Store ??= _store;
         }
-
-        await _store.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
 
         // GH-3680. The rows above are now owned by *this* node, and orphan recovery only ever releases
         // rows owned by a node it has proven to be dead. If the hand-off into the listener fails -- and it

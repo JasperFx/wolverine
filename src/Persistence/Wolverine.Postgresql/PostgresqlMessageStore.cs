@@ -31,7 +31,7 @@ using Wolverine.Postgresql.Internals;
 
 namespace Wolverine.Postgresql;
 
-internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConnectionBudgetProbe, ISagaStorageCodeSource
+internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IMessageStore, IConnectionBudgetProbe, ISagaStorageCodeSource
 {
     /// <summary>
     ///     GH-4805. Lets generated saga code construct <c>DatabaseSagaSchema<TSaga, TId></c> itself, which is the only way the
@@ -663,6 +663,28 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         int limit)
     {
         return await CreateCommand(_findAtLargeEnvelopesSql)
+            .With("address", listenerAddress.ToString())
+            .With("limit", limit)
+            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
+    }
+
+    async Task<IReadOnlyList<Envelope>> IMessageStore.ClaimPageOfGloballyOwnedIncomingAsync(Uri listenerAddress,
+        int limit, int ownerId)
+    {
+        var table = $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
+        var restartClock = ownerId == TransportConstants.AnyNode ? string.Empty : restartIncomingStaleClock;
+        return await CreateCommand($"""
+                with page as materialized (
+                    select id, received_at from {table}
+                    where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}'
+                      and received_at = @address
+                    limit @limit for update skip locked)
+                update {table} set owner_id = @owner{restartClock}
+                where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}'
+                  and (id, received_at) in (select id, received_at from page)
+                returning {DatabaseConstants.IncomingFields}
+                """)
+            .With("owner", ownerId)
             .With("address", listenerAddress.ToString())
             .With("limit", limit)
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));

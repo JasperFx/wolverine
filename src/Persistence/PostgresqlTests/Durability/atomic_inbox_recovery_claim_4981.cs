@@ -113,6 +113,60 @@ public class atomic_inbox_recovery_claim_4981
             .With("address", endpoint.Uri.ToString()).FetchListAsync<bool>(cancellation)).ShouldAllBe(x => x);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task claims_only_the_requested_page_of_unowned_incoming_rows(bool partitioned, bool staleClock)
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var schema = $"claim_page_4981_{partitioned}_{staleClock}".ToLowerInvariant();
+        var table = $"{schema}.wolverine_incoming_envelopes";
+        using var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            opts.Durability.DurabilityAgentEnabled = false;
+            opts.Durability.EnableInboxPartitioning = partitioned;
+            opts.Durability.InboxStaleTime = staleClock ? TimeSpan.FromHours(1) : null;
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schema);
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        }).StartAsync(cancellation);
+
+        var store = host.GetRuntime().Storage;
+        var address = new Uri("local://claim-page");
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(cancellation);
+        await conn.CreateCommand($"""
+            insert into {table} (id, status, owner_id, body, message_type, received_at)
+                select gen_random_uuid(), 'Incoming', 0, @body, 'test', @address from generate_series(1, 3);
+            insert into {table} (id, status, owner_id, body, message_type, received_at)
+                values (gen_random_uuid(), 'Scheduled', 0, @body, 'test', @address),
+                       (gen_random_uuid(), 'Incoming', 99, @body, 'test', @address);
+            """).With("body", Array.Empty<byte>()).With("address", address.ToString())
+            .ExecuteNonQueryAsync(cancellation);
+
+        if (partitioned)
+        {
+            await conn.CreateCommand($"""
+                insert into {table} (id, status, owner_id, body, message_type, received_at)
+                    select id, 'Handled', 0, body, message_type, received_at from {table} where status = 'Incoming';
+                """).ExecuteNonQueryAsync(cancellation);
+        }
+
+        var first = await store.ClaimPageOfGloballyOwnedIncomingAsync(address, 1, 42);
+        first.Count.ShouldBe(1);
+        first.ShouldAllBe(x => x.OwnerId == 42 && x.Status == EnvelopeStatus.Incoming && x.Destination == address);
+        var rest = await store.ClaimPageOfGloballyOwnedIncomingAsync(address, 10, 43);
+        rest.Count.ShouldBe(2);
+        rest.ShouldAllBe(x => x.OwnerId == 43 && x.Status == EnvelopeStatus.Incoming && x.Destination == address);
+        rest.Select(x => x.Id).ShouldNotContain(first.Single().Id);
+        (await store.ClaimPageOfGloballyOwnedIncomingAsync(address, 10, 44)).ShouldBeEmpty();
+        (await conn.CreateCommand($"select owner_id from {table} where status <> 'Incoming'")
+            .FetchListAsync<int>(cancellation)).ShouldAllBe(x => x == 0);
+        (await conn.CreateCommand($"select count(*) from {table} where owner_id = 99")
+            .ExecuteScalarAsync(cancellation)).ShouldBe(1L);
+    }
+
     private static async Task waitForBlockedClaims(int count, Task? completed = null)
     {
         var cancellation = TestContext.Current.CancellationToken;
