@@ -30,6 +30,9 @@ public class unsendable_outgoing_envelopes_are_dead_lettered_5047 : IAsyncDispos
 
     public unsendable_outgoing_envelopes_are_dead_lettered_5047()
     {
+        // GH-5038: the inline send's own failure handling, which is the ServerlessWithOutbox one. Outside that
+        // mode a failed send goes to the destination's sending agent instead
+        theRuntime.Options.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
         // Nothing listens on the port: the protocol below answers instead of a broker
         var endpoint = new TcpEndpoint(2345);
         var sender = new BatchedSender(endpoint, theProtocol, CancellationToken.None, NullLogger.Instance);

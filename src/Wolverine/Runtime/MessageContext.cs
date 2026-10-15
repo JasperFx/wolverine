@@ -296,6 +296,20 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         continue;
                     }
 
+                    // GH-5038. Outside ServerlessWithOutbox the outbox row is owned by this live node, and nothing
+                    // recovers a live node's rows: the durability agent only takes owner 0, and the dead-node sweep
+                    // waits for the node to die. Hand the envelope to the destination's own sending agent instead,
+                    // which keeps retrying it exactly as a normal flush would have
+                    if (Runtime.Options.Durability.Mode != DurabilityMode.ServerlessWithOutbox)
+                    {
+                        Runtime.Logger.LogError(results[i].Exception,
+                            "Unable to send outgoing message {Envelope} inline to {Destination}. Handing it to the destination's sending agent to retry",
+                            envelope, envelope.Destination);
+
+                        await flushEnvelopeAsync(envelope).ConfigureAwait(false);
+                        continue;
+                    }
+
                     Runtime.Logger.LogError(results[i].Exception,
                         "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
                         envelope, envelope.Destination);

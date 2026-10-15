@@ -30,6 +30,13 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
     private readonly MockWolverineRuntime theRuntime = new();
     private readonly List<IAsyncDisposable> _disposables = new();
 
+    public inline_send_through_a_batched_sender_5034()
+    {
+        // GH-5038: the inline send's own failure handling, which is the ServerlessWithOutbox one. Outside that
+        // mode a failed send goes to the destination's sending agent instead
+        theRuntime.Options.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var disposable in _disposables) await disposable.DisposeAsync();

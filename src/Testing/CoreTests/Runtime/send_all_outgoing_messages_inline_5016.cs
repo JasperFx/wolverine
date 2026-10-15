@@ -33,6 +33,9 @@ public class send_all_outgoing_messages_inline_5016 : IAsyncDisposable
 
     public send_all_outgoing_messages_inline_5016()
     {
+        // GH-5038: the inline send's own failure handling, which is the ServerlessWithOutbox one. Outside that
+        // mode a failed send goes to the destination's sending agent instead
+        theRuntime.Options.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
         theSender.Destination.Returns(new Uri("stub://one"));
         theContext = new MessageContext(theRuntime);
     }
@@ -137,6 +140,30 @@ public class send_all_outgoing_messages_inline_5016 : IAsyncDisposable
             Arg.Is<Envelope[]>(x => x.Length == 2 && x.Contains(envelopes[1]) && x.Contains(envelopes[3])));
 
         await theRuntime.Storage.Outbox.DidNotReceiveWithAnyArgs().DeleteOutgoingAsync(Arg.Any<Envelope[]>());
+    }
+
+    [Fact]
+    public async Task outside_serverless_with_outbox_a_failed_send_goes_to_the_sending_agent_to_retry()
+    {
+        // GH-5038. Here the outbox row is owned by this live node, which no durability pass recovers
+        theRuntime.Options.Durability.Mode = DurabilityMode.Balanced;
+
+        var envelopes = await outgoing(durableAgent(), 2);
+        var attempts = 0;
+        theSender.SendAsync(envelopes[1]).Returns(_ =>
+            Interlocked.Increment(ref attempts) == 1 ? throw new DivideByZeroException() : ValueTask.CompletedTask);
+
+        await theContext.SendAllOutgoingMessagesInlineAsync();
+
+        // The sending agent tried it again
+        for (var i = 0; i < 100 && Volatile.Read(ref attempts) < 2; i++)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        Volatile.Read(ref attempts).ShouldBe(2);
+        await theRuntime.Storage.Outbox.Received(1).DeleteOutgoingAsync(
+            Arg.Is<Envelope[]>(x => x.Length == 1 && x.Contains(envelopes[0])));
     }
 
     [Fact]

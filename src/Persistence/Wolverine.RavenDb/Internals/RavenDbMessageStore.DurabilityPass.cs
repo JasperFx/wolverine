@@ -30,7 +30,10 @@ public partial class RavenDbMessageStore : IMessageStoreWithDurabilityPass, ISta
 
     internal TimeSpan KeepAfterMessageHandling => _options.Durability.KeepAfterMessageHandling;
 
-    internal string DurabilityPassLockId => "wolverine/durability-pass/" + _options.ServiceName.ToLowerInvariant();
+    // GH-5038: one lock per database, not per service. The stale outbox and inbox queries are not scoped by
+    // service, so two services sharing a database ran passes over the same owner 0 documents at once. The lock
+    // document lives in this database, so a fixed id is per database, as the SQL stores key on their schema
+    internal string DurabilityPassLockId => "wolverine/durability-pass";
 
     public async Task<IAsyncDisposable?> TryAcquireDurabilityPassLockAsync(CancellationToken token)
     {

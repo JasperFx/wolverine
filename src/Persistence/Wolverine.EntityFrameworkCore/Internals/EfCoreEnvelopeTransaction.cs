@@ -47,11 +47,15 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public DbContext DbContext { get; }
 
+    // GH-5038: owned by any node (0) under ServerlessWithOutbox, otherwise this node, as every other store
+    // writes it, rather than whatever the envelope happened to be stamped with
+    private int outgoingOwnerId => _messaging.Runtime.Options.Durability.OutgoingOwnerId;
+
     public async Task PersistOutgoingAsync(Envelope envelope)
     {
         if (DbContext.IsWolverineEnabled())
         {
-            DbContext.Add(new OutgoingMessage(envelope));
+            DbContext.Add(new OutgoingMessage(envelope) { OwnerId = outgoingOwnerId });
         }
         else
         {
@@ -61,7 +65,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _database);
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, outgoingOwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 
@@ -78,7 +82,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         if (DbContext.IsWolverineEnabled())
         {
-            DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e)));
+            DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e) { OwnerId = outgoingOwnerId }));
         }
         else
         {
@@ -88,7 +92,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, _database);
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, outgoingOwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 

@@ -41,9 +41,15 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
 
     private async Task startHostAsync(bool enableOutgoingTimestampIndex = false)
     {
-        theHost = await Host.CreateDefaultBuilder()
+        theHost = await buildHostAsync(enableOutgoingTimestampIndex);
+    }
+
+    private Task<IHost> buildHostAsync(bool enableOutgoingTimestampIndex = false, string? serviceName = null)
+    {
+        return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                if (serviceName != null) opts.ServiceName = serviceName;
                 opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
 
                 // Makes no difference to RavenDb, which maintains its own auto index for the stale query
@@ -177,6 +183,25 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
 
         sent().Single().Id.ShouldBe(envelope.Id);
         (await outboxDocumentsAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task services_sharing_a_database_share_one_pass_lock()
+    {
+        // GH-5038. The stale queries are not scoped by service, so neither may the lock be
+        await startHostAsync();
+        using var other = await buildHostAsync(serviceName: "another-service");
+
+        var store = (RavenDbMessageStore)theHost.GetRuntime().Storage;
+        var otherStore = (RavenDbMessageStore)other.GetRuntime().Storage;
+
+        var held = await store.TryAcquireDurabilityPassLockAsync(Token);
+        held.ShouldNotBeNull();
+
+        (await otherStore.TryAcquireDurabilityPassLockAsync(Token)).ShouldBeNull();
+
+        await held.DisposeAsync();
+        await other.StopAsync(Token);
     }
 
     [Fact]
