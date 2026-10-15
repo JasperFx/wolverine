@@ -135,9 +135,31 @@ public class pubsub_push_mapper_5016 : IAsyncLifetime
 
     private async Task<Envelope?> map(object body, PubsubPushEnvelopeMapper? mapper = null)
     {
+        return (await mapAll(body, mapper)).SingleOrDefault();
+    }
+
+    private async Task<IReadOnlyList<Envelope>> mapAll(object body, PubsubPushEnvelopeMapper? mapper = null)
+    {
         var context = new DefaultHttpContext();
         context.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(body));
         return await (mapper ?? new PubsubPushEnvelopeMapper(runtime)).MapAsync(context, CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     The one Pub/Sub message a Wolverine batching sender publishes for several messages
+    /// </summary>
+    private PubsubMessage publishedAsABatch(params string[] names)
+    {
+        var envelopes = names.Select(name => new Envelope(new PushedPubsubMessage(name))
+        {
+            Data = JsonSerializer.SerializeToUtf8Bytes(new PushedPubsubMessage(name)),
+            ContentType = "application/json",
+            Destination = events.Uri
+        }).ToList();
+
+        var message = new PubsubMessage { MessageId = "5002" };
+        new PubsubEnvelopeMapper(events).MapOutgoingToMessage(new OutgoingMessageBatch(events.Uri, envelopes), message);
+        return message;
     }
 
     private Task<HttpResponseMessage> post(string url, object body) => _client.PostAsJsonAsync(url, body, TestContext.Current.CancellationToken);
@@ -265,19 +287,31 @@ public class pubsub_push_mapper_5016 : IAsyncLifetime
     }
 
     [Fact]
-    public async Task refuses_a_batch_of_several()
+    public async Task reads_every_envelope_of_a_batch()
     {
-        var envelopes = new[] { "Kessel", "Jakku" }.Select(name => new Envelope(new PushedPubsubMessage(name))
-        {
-            Data = JsonSerializer.SerializeToUtf8Bytes(new PushedPubsubMessage(name)),
-            ContentType = "application/json",
-            Destination = orders.Uri
-        }).ToList();
+        var envelopes = await mapAll(pushBody(publishedAsABatch("Kessel", "Jakku"),
+            "projects/wolverine/subscriptions/events"));
 
-        var message = new PubsubMessage { MessageId = "5002" };
-        new PubsubEnvelopeMapper(orders).MapOutgoingToMessage(new OutgoingMessageBatch(orders.Uri, envelopes), message);
+        envelopes.Select(x => x.MessageType).ShouldBe(
+            [typeof(PushedPubsubMessage).ToMessageTypeName(), typeof(PushedPubsubMessage).ToMessageTypeName()]);
+        envelopes.ShouldAllBe(x => x.Destination == events.Uri);
+        envelopes.Select(x => x.Id).Distinct().Count().ShouldBe(2);
+    }
 
-        await Should.ThrowAsync<NotSupportedException>(async () => await map(pushBody(message)));
+    [Fact]
+    public async Task receives_every_message_of_a_batch_in_order()
+    {
+        // A non-serverless Wolverine service batches what it publishes to a topic, so a push subscription on that
+        // topic delivers several envelopes in one request
+        var response = await post("/pubsub/push",
+            pushBody(publishedAsABatch("Dagobah", "Endor", "Bespin"), "projects/wolverine/subscriptions/events"));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var names = recorder.Received.Select(x => x.Name).ToList();
+        names.ShouldContain("Dagobah");
+        names.IndexOf("Dagobah").ShouldBeLessThan(names.IndexOf("Endor"));
+        names.IndexOf("Endor").ShouldBeLessThan(names.IndexOf("Bespin"));
     }
 
     [Fact]

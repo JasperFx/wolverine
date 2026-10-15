@@ -237,6 +237,60 @@ public class push_receiver_5016
         recorderFor(host).Handled.ShouldBe(["native"]);
     }
 
+    private static Envelope pushedEnvelope(string name) => new()
+    {
+        Id = Guid.NewGuid(),
+        MessageType = typeof(PushedMessage).ToMessageTypeName(),
+        ContentType = "application/json",
+        Data = JsonSerializer.SerializeToUtf8Bytes(new PushedMessage(name))
+    };
+
+    private static Task<IScenarioResult> pushBatch(IAlbaHost host, int status, params Envelope[] envelopes)
+    {
+        // The batch form Wolverine's own HTTP transport sends
+        return host.Scenario(x =>
+        {
+            x.Post.ByteArray(EnvelopeSerializer.Serialize(envelopes)).ToUrl("/_wolverine/push/envelopes")
+                .ContentType(HttpTransport.EnvelopeBatchContentType);
+            x.StatusCodeShouldBe(status);
+        });
+    }
+
+    [Fact]
+    public async Task receives_a_batch_of_wolverine_envelopes_in_order()
+    {
+        await using var host = await hostWith();
+
+        await pushBatch(host, 200, pushedEnvelope("one"), pushedEnvelope("two"), pushedEnvelope("three"));
+
+        recorderFor(host).Handled.ShouldBe(["one", "two", "three"]);
+        outFor(host).Sent.Select(x => ((PushCascade)x.Message!).Name).ShouldBe(["one", "two", "three"]);
+    }
+
+    [Fact]
+    public async Task a_retry_in_a_batch_redelivers_the_request_and_stops_the_rest()
+    {
+        await using var host = await hostWith();
+
+        await pushBatch(host, 500, pushedEnvelope("one"), pushedEnvelope("requeue"), pushedEnvelope("three"));
+
+        // "three" has not run, so the broker's redelivery runs it once, in order
+        recorderFor(host).Handled.ShouldBe(["one", "requeue"]);
+    }
+
+    [Fact]
+    public async Task a_batch_with_one_message_type_that_is_not_allowed_is_rejected_whole()
+    {
+        await using var host = await hostWith();
+
+        var notAllowed = pushedEnvelope("sneaky");
+        notAllowed.MessageType = typeof(PushCascade).ToMessageTypeName();
+
+        await pushBatch(host, 400, pushedEnvelope("one"), notAllowed);
+
+        recorderFor(host).Handled.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task the_envelope_mapper_rejects_anything_else()
     {
@@ -308,10 +362,9 @@ public class push_receiver_5016
         context.Request.ContentType = HttpTransport.EnvelopeContentType;
         context.Request.Body = new MemoryStream(EnvelopeSerializer.Serialize(envelope));
 
-        var mapped = await new WolverineEnvelopePushMapper(typeof(PushedMessage))
-            .MapAsync(context, TestContext.Current.CancellationToken);
+        var mapped = (await new WolverineEnvelopePushMapper(typeof(PushedMessage))
+            .MapAsync(context, TestContext.Current.CancellationToken)).Single();
 
-        mapped.ShouldNotBeNull();
         mapped.Id.ShouldBe(envelope.Id);
         mapped.ReplyUri.ShouldBeNull();
         mapped.ReplyRequested.ShouldBeNull();
@@ -465,18 +518,21 @@ public class FakePubsubPushMapper : IPushEnvelopeMapper
         subscription = "projects/demo/subscriptions/orders"
     };
 
-    public async ValueTask<Envelope?> MapAsync(HttpContext context, CancellationToken cancellation)
+    public async ValueTask<IReadOnlyList<Envelope>> MapAsync(HttpContext context, CancellationToken cancellation)
     {
         using var document = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: cancellation);
-        if (!document.RootElement.TryGetProperty("message", out var message)) return null;
+        if (!document.RootElement.TryGetProperty("message", out var message)) return [];
 
-        return new Envelope
-        {
-            Id = Guid.Parse(message.GetProperty("messageId").GetString()!),
-            Data = Convert.FromBase64String(message.GetProperty("data").GetString()!),
-            MessageType = message.GetProperty("attributes").GetProperty("message-type").GetString(),
-            ContentType = "application/json"
-        };
+        return
+        [
+            new Envelope
+            {
+                Id = Guid.Parse(message.GetProperty("messageId").GetString()!),
+                Data = Convert.FromBase64String(message.GetProperty("data").GetString()!),
+                MessageType = message.GetProperty("attributes").GetProperty("message-type").GetString(),
+                ContentType = "application/json"
+            }
+        ];
     }
 }
 

@@ -19,9 +19,8 @@ namespace Wolverine.Pubsub.Http;
 /// </summary>
 /// <remarks>
 ///     Expects the wrapped push format, the default for a push subscription. A message a Wolverine sender batched
-///     with others cannot be received over push because the receiver takes one envelope per request, so send to a
-///     topic with a push subscription inline (<c>SendInline()</c>), as every sender is under
-///     <see cref="DurabilityMode.ServerlessWithOutbox" />
+///     with others is read into all of its envelopes, which the push receiver handles in order and acks together,
+///     just as a pulled Pub/Sub listener in <see cref="Wolverine.Configuration.EndpointMode.NativeAck" /> mode settles one delivery
 /// </remarks>
 public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
 {
@@ -42,29 +41,23 @@ public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
     /// </summary>
     public Uri? EndpointUri { get; init; }
 
-    public async ValueTask<Envelope?> MapAsync(HttpContext context, CancellationToken cancellation)
+    public async ValueTask<IReadOnlyList<Envelope>> MapAsync(HttpContext context, CancellationToken cancellation)
     {
         var push = await PubsubPushRequest.ReadAsync(context.Request.Body, cancellation);
-        if (push == null) return null;
+        if (push == null) return [];
 
         var target = targetFor(push.Subscription);
         var message = push.Message;
 
-        Envelope envelope;
+        Envelope[] envelopes;
         if (message.Attributes.ContainsKey("batched"))
         {
-            var batched = EnvelopeSerializer.ReadMany(message.Data.ToByteArray());
-            if (batched.Length != 1)
-            {
-                throw new NotSupportedException(
-                    $"Pub/Sub message {message.MessageId} pushed from subscription '{push.Subscription}' is a batch of {batched.Length} Wolverine envelopes, but a push receiver takes one envelope per request. Send to this topic inline (SendInline()) so every message is published on its own");
-            }
-
-            envelope = batched[0];
+            // Wolverine's own batching sender, which marks every message it publishes as a batch, even a batch of one
+            envelopes = EnvelopeSerializer.ReadMany(message.Data.ToByteArray());
         }
         else
         {
-            envelope = new Envelope();
+            var envelope = new Envelope();
             var assigned = envelope.Id;
 
             var mapper = target.Endpoint.EnvelopeMapper ??= target.Endpoint.BuildMapper(_runtime);
@@ -77,12 +70,17 @@ public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
             {
                 envelope.Id = idFor(push.Subscription, message.MessageId);
             }
+
+            envelopes = [envelope];
         }
 
-        if (target.IsKnown) envelope.Destination ??= target.Endpoint.Uri;
-        if (target.TenantId != null) envelope.TenantId ??= target.TenantId;
+        foreach (var envelope in envelopes)
+        {
+            if (target.IsKnown) envelope.Destination ??= target.Endpoint.Uri;
+            if (target.TenantId != null) envelope.TenantId ??= target.TenantId;
+        }
 
-        return envelope;
+        return envelopes;
     }
 
     private PushTarget targetFor(string subscription)

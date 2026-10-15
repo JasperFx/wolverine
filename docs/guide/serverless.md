@@ -281,6 +281,7 @@ app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper
 For each request, the push receiver:
 
 1. Maps the request into an envelope. A request that doesn't carry a message gets a 400
+<!-- DRAFT (PR #5044 review, for Jeremy to word): a request can now carry several envelopes (a Wolverine-batched Pub/Sub message, or the HTTP transport's envelope batch). They run in order, the request is acked only if all were, and the first one that asks for a retry stops the rest so the broker redelivers the whole request. Suggest recommending DeduplicateWithInbox for batching publishers. -->
 2. Runs the message handler inline inside the HTTP request, including the handler's normal [error handling policies](/guide/handlers/error-handling)
 3. Sends every outgoing message before writing the response
 4. Uses the status code to tell the broker what happened. A message that was handled successfully, discarded, or moved to Wolverine's dead letter
@@ -294,6 +295,7 @@ Both status codes can be changed through the `PushReceiverOptions` configuration
 `DeduplicateWithInbox` to `true` to have the push receiver skip any message id that is already in the durable inbox, and record every message it acks
 as handled.
 
+<!-- DRAFT (PR #5044 review, for Jeremy to word): WolverineEnvelopePushMapper now also reads the binary/wolverine-envelopes batch form, and one disallowed message type rejects the whole batch with a 400. -->
 Wolverine ships a `WolverineEnvelopePushMapper` out of the box that reads a whole binary Wolverine envelope out of the request body. Since the caller
 writes the entire envelope, you have to tell that mapper which message types it's allowed to accept, and anything else gets a 400. The mapper also
 throws away any reply, acknowledgement, or destination information the caller put on the envelope:

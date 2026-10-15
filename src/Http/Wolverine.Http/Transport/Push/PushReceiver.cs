@@ -102,6 +102,35 @@ public class PushReceiver : IHandlerPipeline
         return channel.Outcome;
     }
 
+    /// <summary>
+    ///     Handle every envelope of one pushed request inline, in order, and say what the broker should be told
+    ///     about the request as a whole. It is acked only when every envelope was. The first envelope that asks for
+    ///     a retry stops the rest, which have not run yet, so the broker's redelivery runs them in order. The
+    ///     envelopes before it were handled and will be handled again on that redelivery, unless
+    ///     <see cref="DeduplicateWithInbox" /> recognizes them
+    /// </summary>
+    public async Task<PushReceiveOutcome> ReceiveAsync(IReadOnlyList<Envelope> envelopes, CancellationToken cancellation)
+    {
+        if (envelopes.Count == 1) return await ReceiveAsync(envelopes[0], cancellation).ConfigureAwait(false);
+
+        var outcome = PushReceiveOutcome.Duplicate;
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            var received = await ReceiveAsync(envelopes[i], cancellation).ConfigureAwait(false);
+            if (received == PushReceiveOutcome.Retry)
+            {
+                _logger.LogInformation(
+                    "Pushed message {EnvelopeId} ({MessageType}) received at {Address} asked for a retry, so the {Remaining} message(s) after it in the same request are left for the broker to redeliver",
+                    envelopes[i].Id, envelopes[i].MessageType, Address, envelopes.Count - 1 - i);
+                return PushReceiveOutcome.Retry;
+            }
+
+            if (received == PushReceiveOutcome.Acknowledged) outcome = PushReceiveOutcome.Acknowledged;
+        }
+
+        return outcome;
+    }
+
     private async Task recordHandledAsync(Envelope envelope)
     {
         var handled = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, _runtime.Options.Durability);

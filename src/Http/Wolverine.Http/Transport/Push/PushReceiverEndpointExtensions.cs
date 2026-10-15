@@ -43,8 +43,8 @@ public static class PushReceiverEndpointExtensions
     /// <summary>
     ///     GH-5016. Add an endpoint at <paramref name="pattern" /> that receives messages a broker pushes over HTTP,
     ///     such as a Pub/Sub push subscription, for <see cref="DurabilityMode.ServerlessWithOutbox" /> or any other
-    ///     deployment that receives by push. <paramref name="mapper" /> turns each request into an envelope, the
-    ///     handler runs inline inside the request, and every outgoing message is sent before the response. The
+    ///     deployment that receives by push. <paramref name="mapper" /> turns each request into its envelopes, usually
+    ///     one, the handlers run inline inside the request, and every outgoing message is sent before the response. The
     ///     status code tells the broker what happened: success when the message was handled, discarded or moved to
     ///     Wolverine's dead letter storage, a failure status when the error policies asked for a retry so the broker
     ///     redelivers it with its own backoff, and 400 when the request did not carry a message at all.
@@ -77,10 +77,10 @@ public static class PushReceiverEndpointExtensions
             // Built on first use, once the Wolverine runtime has started
             receiver ??= new PushReceiver(runtime, options.Address, options.DeduplicateWithInbox);
 
-            Envelope? envelope;
+            IReadOnlyList<Envelope> envelopes;
             try
             {
-                envelope = await mapper.MapAsync(context, context.RequestAborted);
+                envelopes = await mapper.MapAsync(context, context.RequestAborted);
             }
             catch (Exception e)
             {
@@ -89,12 +89,12 @@ public static class PushReceiverEndpointExtensions
                 return Results.StatusCode(options.RetryStatusCode);
             }
 
-            if (envelope == null)
+            if (envelopes.Count == 0)
             {
                 return Results.Problem("The request does not carry a message", statusCode: StatusCodes.Status400BadRequest);
             }
 
-            var outcome = await receiver.ReceiveAsync(envelope, context.RequestAborted);
+            var outcome = await receiver.ReceiveAsync(envelopes, context.RequestAborted);
 
             return Results.StatusCode(outcome == PushReceiveOutcome.Retry ? options.RetryStatusCode : options.SuccessStatusCode);
         }).ExcludeFromDescription();
