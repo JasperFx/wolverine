@@ -178,6 +178,10 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
                 {
                     result.Accept(envelope);
                 }
+                else if (callback.IsSerializationFailure(envelope))
+                {
+                    result.FailSerialization(envelope, callback.FailureFor(envelope));
+                }
                 else
                 {
                     result.Fail(envelope, callback.FailureFor(envelope));

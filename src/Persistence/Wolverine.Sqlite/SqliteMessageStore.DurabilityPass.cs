@@ -113,6 +113,22 @@ internal partial class SqliteMessageStore : IMessageStoreWithDurabilityPass, ISt
         return countAsync(builder, token);
     }
 
+    public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
+    {
+        // The timestamp column only exists when OutboxStaleTime is set
+        if (HasDisposed || envelopes.Count == 0 || !Durability.OutboxStaleTime.HasValue) return;
+
+        // The same expression as the column's default. Ids inline, for the same reason as writeExcluded below
+        var builder = ToCommandBuilder();
+        builder.Append(
+            $"update {this.TableNameFor(DatabaseConstants.OutgoingTable)} set {DatabaseConstants.Timestamp} = datetime('now') where {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} and lower({DatabaseConstants.Id}) in ({envelopes.Select(x => $"'{x.Id:D}'").Join(", ")})");
+
+        await using var conn = await DataSource.OpenConnectionAsync(token);
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+        await cmd.ExecuteNonQueryAsync(token);
+    }
+
     // owner_id = 0 [and timestamp <= @stale] [and id not in (...)]
     private void writeStaleOutgoingPredicate(DbCommandBuilder builder, DateTimeOffset? staleBefore, Guid[] excluded)
     {

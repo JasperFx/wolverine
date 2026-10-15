@@ -132,6 +132,23 @@ internal partial class OracleMessageStore : IMessageStoreWithDurabilityPass, ISt
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(token));
     }
 
+    public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
+    {
+        // The timestamp column only exists when OutboxStaleTime is set
+        if (HasDisposed || envelopes.Count == 0 || !_durability.OutboxStaleTime.HasValue) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(token);
+        await using var cmd = conn.CreateCommand("");
+
+        // The same expression as the column's default. At most MaxExcludedIds ids per call, below Oracle's 1,000
+        // expression ceiling for an IN list
+        cmd.CommandText =
+            $"UPDATE {SchemaName}.{DatabaseConstants.OutgoingTable} SET {DatabaseConstants.Timestamp} = SYSTIMESTAMP AT TIME ZONE 'UTC' " +
+            $"WHERE {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} AND {DatabaseConstants.Id} IN ({cmd.WithIdList("restarted", envelopes.Select(x => x.Id).ToArray())})";
+
+        await cmd.ExecuteNonQueryAsync(token);
+    }
+
     // owner_id = 0 [and timestamp <= :stale] [and id not in (:excluded)]
     private void writeStaleOutgoingPredicate(OracleCommand cmd, StringBuilder sql, DateTimeOffset? staleBefore,
         Guid[] excluded)

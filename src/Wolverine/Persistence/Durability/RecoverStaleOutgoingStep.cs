@@ -23,6 +23,15 @@ public interface IStaleOutgoingSource
     ///     How many rows <see cref="LoadStaleOutgoingAsync" /> would still find, ignoring the limit
     /// </summary>
     Task<int> CountStaleOutgoingAsync(DateTimeOffset? staleBefore, Guid[] excluded, CancellationToken token);
+
+    /// <summary>
+    ///     GH-5050. Restart the stale clock (the written time) of these owner-0 rows, whose send just failed, at the
+    ///     store's current time. They go to the back of the oldest-first order and are not stale again for
+    ///     <see cref="DurabilitySettings.OutboxStaleTime" />, so rows that keep failing cannot starve the rows behind
+    ///     them and are retried with a natural backoff. Only called when <see cref="DurabilitySettings.OutboxStaleTime" />
+    ///     has a value
+    /// </summary>
+    Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token);
 }
 
 /// <summary>
@@ -31,7 +40,11 @@ public interface IStaleOutgoingSource
 ///     sender, then everything sent (or expired) deleted in <b>one</b> batched call
 /// </summary>
 /// <remarks>
-///     A row whose send fails stays in the outbox for a later pass, and is not tried again in this one
+///     A row whose send fails stays in the outbox for a later pass, and is not tried again in this one. Its stale
+///     clock is restarted, so it moves to the back of the stale order and waits <see cref="DurabilitySettings.OutboxStaleTime" />
+///     before a pass tries it again (GH-5050). A row the
+///     transport reports as a serialization failure, which no retry can fix, is moved to dead letter storage
+///     (GH-5047)
 /// </remarks>
 public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
 {
@@ -39,6 +52,9 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
     private readonly IStaleOutgoingSource _source;
     private readonly ILogger _logger;
     private readonly HashSet<Guid> _failed = new();
+
+    // The failed rows whose stale clock could not be restarted, so they still count as stale. See GH-5050
+    private readonly HashSet<Guid> _stillStale = new();
     private int _remaining;
 
     public RecoverStaleOutgoingStep(IMessageStore store, IStaleOutgoingSource source, ILogger logger)
@@ -70,8 +86,9 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
 
         var sent = new List<Envelope>();
         var expired = new List<Envelope>();
+        var deadLettered = new List<Envelope>();
         var toSend = new List<(Envelope Envelope, ISender Sender)>();
-        var failed = 0;
+        var failedEnvelopes = new List<Envelope>();
 
         foreach (var envelope in page)
         {
@@ -87,8 +104,7 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             var sender = senderFor(runtime, envelope);
             if (sender == null)
             {
-                _failed.Add(envelope.Id);
-                failed++;
+                failedEnvelopes.Add(envelope);
                 continue;
             }
 
@@ -117,6 +133,15 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
                     continue;
                 }
 
+                // GH-5047. Sending it again in every later pass can never succeed
+                if (result != null && result.IsSerializationFailure(envelope, out var serializationFailure) &&
+                    await UnsendableOutgoingEnvelopes.TryMoveToDeadLetterStorageAsync(runtime, _store, envelope,
+                        serializationFailure, _logger))
+                {
+                    deadLettered.Add(envelope);
+                    continue;
+                }
+
                 if (result == null)
                 {
                     _logger.LogError(
@@ -130,16 +155,23 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
                         envelope, envelope.Destination);
                 }
 
-                _failed.Add(envelope.Id);
-                failed++;
+                failedEnvelopes.Add(envelope);
             }
         }
 
-        var deletes = sent.Concat(expired).ToArray();
+        var failed = failedEnvelopes.Count;
+        foreach (var envelope in failedEnvelopes) _failed.Add(envelope.Id);
+
+        if (failed > 0 && !(staleTime.HasValue && await tryRestartStaleClockAsync(failedEnvelopes, token)))
+        {
+            foreach (var envelope in failedEnvelopes) _stillStale.Add(envelope.Id);
+        }
+
+        var deletes = sent.Concat(expired).Concat(deadLettered).ToArray();
         if (deletes.Length > 0)
         {
-            // The messages are already sent, so a failure here means a duplicate send by a later pass, which
-            // at-least-once delivery allows
+            // The messages are already sent (or dead lettered), so a failure here means a duplicate send (or a
+            // second dead letter) by a later pass, which at-least-once delivery allows
             await _store.Outbox.DeleteOutgoingAsync(deletes);
         }
 
@@ -148,23 +180,25 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             runtime.MessageTracking.DiscardedEnvelope(envelope);
         }
 
-        // Past the cap, the failed rows are counted as left too rather than sending a longer id list
+        // Past the cap the id list is not sent. The failed rows whose stale clock was restarted are not stale any
+        // more, so they are not counted as left either way (GH-5050)
         var remaining = page.Count < context.BatchSize
             ? 0
             : await _source.CountStaleOutgoingAsync(staleBefore, excludedIds(), token);
         _remaining = remaining;
 
-        if (sent.Count + expired.Count + failed > 0)
+        if (sent.Count + expired.Count + deadLettered.Count + failed > 0)
         {
             _logger.LogInformation(
-                "Durability pass recovered {Sent} outgoing message(s) from the outbox of {Store}, discarded {Expired} expired and left {Failed} that failed to send",
-                sent.Count, _store.Uri, expired.Count, failed);
+                "Durability pass recovered {Sent} outgoing message(s) from the outbox of {Store}, discarded {Expired} expired, moved {DeadLettered} that can never be sent to dead letter storage and left {Failed} that failed to send",
+                sent.Count, _store.Uri, expired.Count, deadLettered.Count, failed);
         }
 
         return new DurabilityPassStepResult
         {
             OutgoingSent = sent.Count,
             OutgoingFailed = failed,
+            OutgoingDeadLettered = deadLettered.Count,
             ExpiredDeleted = expired.Count,
             Remaining = remaining,
             NewlyExcluded = failed
@@ -207,9 +241,40 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
         }
     }
 
+    // GH-5050. Without this every pass starts again from the same oldest rows, so more failing rows than a pass
+    // can exclude (MaxExcludedIds) starve every healthy row behind them for good, and a drain loop on HasMoreWork
+    // never ends. The ids stay excluded for the rest of this pass as well, whatever the clocks say
+    private async Task<bool> tryRestartStaleClockAsync(List<Envelope> failed, CancellationToken token)
+    {
+        try
+        {
+            foreach (var chunk in failed.Chunk(DurabilityPassContext.MaxExcludedIds))
+            {
+                await _source.RestartStaleOutgoingAsync(chunk, token);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            // The rows are still in the outbox, so nothing is lost. They are only tried again sooner
+            _logger.LogError(e,
+                "Unable to restart the stale clock of {Count} outgoing message(s) in {Store} that failed to send",
+                failed.Count, _store.Uri);
+            return false;
+        }
+    }
+
+    // What the count leaves out: only the failed rows that are still stale. A row whose clock was restarted is not
+    // stale any more, and a store that counts by subtracting the excluded ids (RavenDb, Cosmos DB) would otherwise
+    // take it off twice
     private Guid[] excludedIds()
     {
-        return _failed.Count > DurabilityPassContext.MaxExcludedIds ? [] : _failed.ToArray();
+        return _stillStale.Count > DurabilityPassContext.MaxExcludedIds ? [] : _stillStale.ToArray();
     }
 
     private ISender? senderFor(IWolverineRuntime runtime, Envelope envelope)

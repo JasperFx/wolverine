@@ -106,6 +106,22 @@ public partial class RavenDbMessageStore : IMessageStoreWithDurabilityPass, ISta
         return Math.Max(0, count - excluded.Length);
     }
 
+    public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
+    {
+        if (HasDisposed || envelopes.Count == 0) return;
+
+        // The application's clock, the same one OutgoingMessage stamps a new document with
+        var now = DateTimeOffset.UtcNow;
+
+        using var session = _store.OpenAsyncSession();
+        foreach (var envelope in envelopes)
+        {
+            session.Advanced.Patch<OutgoingMessage, DateTimeOffset?>(envelope.Id.ToString(), x => x.Timestamp, now);
+        }
+
+        await session.SaveChangesAsync(token);
+    }
+
     private static IAsyncDocumentQuery<OutgoingMessage> staleOutgoing(IAsyncDocumentSession session,
         DateTimeOffset? staleBefore)
     {

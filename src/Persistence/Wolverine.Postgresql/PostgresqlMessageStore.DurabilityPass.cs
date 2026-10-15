@@ -105,6 +105,23 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
         return Convert.ToInt32(count);
     }
 
+    public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
+    {
+        // The timestamp column only exists when OutboxStaleTime is set
+        if (HasDisposed || envelopes.Count == 0 || !Durability.OutboxStaleTime.HasValue) return;
+
+        var builder = new DbCommandBuilder(new NpgsqlCommand());
+        builder.Append(
+            $"update {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} set {DatabaseConstants.Timestamp} = clock_timestamp() where {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} and {DatabaseConstants.Id} = any(");
+        builder.AppendParameter(envelopes.Select(x => x.Id).ToArray());
+        builder.Append(")");
+
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(token);
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+        await cmd.ExecuteNonQueryAsync(token);
+    }
+
     // owner_id = 0 [and timestamp <= @stale] [and not (id = any(@excluded))]
     private void writeStaleOutgoingPredicate(DbCommandBuilder builder, DateTimeOffset? staleBefore, Guid[] excluded)
     {

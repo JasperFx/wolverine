@@ -96,6 +96,29 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
         return countAsync(builder, token);
     }
 
+    public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
+    {
+        // The timestamp column only exists when OutboxStaleTime is set
+        if (HasDisposed || envelopes.Count == 0 || !Durability.OutboxStaleTime.HasValue) return;
+
+        var builder = new DbCommandBuilder(new SqlCommand());
+        builder.Append(
+            $"update {SchemaName}.{DatabaseConstants.OutgoingTable} set {DatabaseConstants.Timestamp} = GETUTCDATE() where {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} and {DatabaseConstants.Id} in (");
+        for (var i = 0; i < envelopes.Count; i++)
+        {
+            if (i > 0) builder.Append(", ");
+            builder.AppendParameter(envelopes[i].Id);
+        }
+
+        builder.Append(")");
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+        await cmd.ExecuteNonQueryAsync(token);
+    }
+
     // owner_id = 0 [and timestamp <= @stale] [and id not in (@excluded)]
     private void writeStaleOutgoingPredicate(DbCommandBuilder builder, DateTimeOffset? staleBefore, Guid[] excluded)
     {
