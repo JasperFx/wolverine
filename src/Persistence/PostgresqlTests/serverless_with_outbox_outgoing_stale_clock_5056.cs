@@ -120,3 +120,62 @@ public class serverless_with_outbox_outgoing_stale_clock_5056 : IAsyncLifetime
         (await timestampDefaultAsync()).ShouldBe("clock_timestamp()");
     }
 }
+
+/// <summary>
+/// GH-5056. The stale outgoing release in the other modes has the same long-transaction race, so the outgoing table
+/// defaults to clock_timestamp() whatever the durability mode, and an existing now() default is repaired
+/// </summary>
+public class outgoing_timestamp_default_in_every_mode_5056
+{
+    private const string SchemaName = "gh5056_every_mode";
+
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    private static async Task<string?> timestampDefaultAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(Token);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"""
+                           select pg_get_expr(d.adbin, d.adrelid)
+                           from pg_attrdef d
+                           join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+                           where d.adrelid = to_regclass('{SchemaName}.{DatabaseConstants.OutgoingTable}')
+                             and a.attname = '{DatabaseConstants.Timestamp}'
+                           """;
+        return (string?)await cmd.ExecuteScalarAsync(Token);
+    }
+
+    [Theory]
+    [InlineData(DurabilityMode.Solo)]
+    [InlineData(DurabilityMode.Balanced)]
+    public async Task the_outgoing_timestamp_defaults_to_clock_timestamp(DurabilityMode mode)
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = mode;
+                opts.Durability.OutboxStaleTime = 1.Minutes();
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName);
+            }).StartAsync(Token);
+
+        await host.RebuildAllEnvelopeStorageAsync();
+        (await timestampDefaultAsync()).ShouldBe("clock_timestamp()");
+
+        // A table created before GH-5056 is repaired on migration
+        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
+        {
+            await conn.OpenAsync(Token);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText =
+                $"alter table {SchemaName}.{DatabaseConstants.OutgoingTable} alter column \"{DatabaseConstants.Timestamp}\" set default now()";
+            await cmd.ExecuteNonQueryAsync(Token);
+        }
+
+        await host.GetRuntime().Storage.Admin.MigrateAsync();
+        (await timestampDefaultAsync()).ShouldBe("clock_timestamp()");
+
+        await host.StopAsync(Token);
+    }
+}
