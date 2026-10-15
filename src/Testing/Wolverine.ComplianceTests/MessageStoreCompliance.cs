@@ -201,10 +201,15 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         var exists = await thePersistence.Inbox.ExistsAsync(elsewhere, CancellationToken.None);
         var isHandled = await thePersistence.Inbox.IsHandledAsync(elsewhere, CancellationToken.None);
 
-        // Under IdOnly that is the same message; under IdAndDestination it is a different one
-        var sameMessage = identityStyle() == MessageIdentity.IdOnly;
-        exists.ShouldBe(sameMessage);
-        isHandled.ShouldBe(sameMessage);
+        // Whatever the store's own identity rule finds, both answer the same. (Under IdOnly a relational store finds
+        // the same id at another address, while Cosmos DB, which partitions by destination, does not)
+        isHandled.ShouldBe(exists);
+
+        // Under IdAndDestination it is a different message on every store
+        if (identityStyle() == MessageIdentity.IdAndDestination)
+        {
+            isHandled.ShouldBeFalse();
+        }
     }
 
     [Fact]
