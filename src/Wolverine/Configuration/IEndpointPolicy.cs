@@ -14,6 +14,14 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
     {
         try
         {
+            // GH-5030. Persistence extensions can register system/control endpoints whose transports pin them to
+            // a non-Inline mode. Preserve their transport-defined mode; only application endpoints must support
+            // Inline in Serverless mode.
+            if (endpoint.Role == EndpointRole.System && !endpoint.SupportsMode(EndpointMode.Inline))
+            {
+                return;
+            }
+
             // GH-3708. Coercing NativeAck to Inline is correct for Serverless -- there is no long-running process
             // to hold an execution block -- but it silently drops the endpoint's partitioning and parallelism, and
             // partitioned processing is a GUARANTEE the user asked for. Say so rather than degrading in silence.
