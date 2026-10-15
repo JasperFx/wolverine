@@ -16,8 +16,9 @@ namespace Wolverine.Http.Transport.Push;
 public class PushReceiverOptions : ProtectedEndpointOptions
 {
     /// <summary>
-    ///     Skip a message whose id the durable inbox already holds, and record each acked message there as handled
-    ///     so a later redelivery of it is skipped. Requires a message store. Default is false
+    ///     Claim each message id in the durable inbox before handling it, so a redelivery that arrives while the
+    ///     message is still being handled gets the retry status instead of running it again, and a redelivery of a
+    ///     message that was already acked is acked without running it. Requires a message store. Default is false
     /// </summary>
     public bool DeduplicateWithInbox { get; set; }
 

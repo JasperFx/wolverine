@@ -126,6 +126,26 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
     
     [Fact]
+    public async Task incoming_is_only_handled_once_marked_handled()
+    {
+        // GH-5049. The push receiver claims a message with an Incoming row, and has to tell that claim apart
+        // from a message the inbox has finished with
+        var check = thePersistence.Inbox.ShouldBeAssignableTo<IMessageInboxHandledCheck>()!;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+
+        (await check.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        (await check.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        (await check.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task store_a_single_incoming_envelope_that_is_handled()
     {
         // This is for cases where you're only persisting the record for idempotency checks
