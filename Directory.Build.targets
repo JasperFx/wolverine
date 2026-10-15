@@ -47,4 +47,19 @@
         </Compile>
     </ItemGroup>
 
+    <!--
+      GH-5057. The Microsoft.Testing.Platform entry point (see the name-keyed rule in
+      Directory.Build.props) for the test projects whose names do not end in "Tests": the same
+      eight listed above. Without it those executables were built around xUnit's own console
+      runner, so `dotnet test` and xUnit's filter-class option refused them and only the classic
+      `-class` switch worked.
+
+      Keyed on IsTestProject for the same reason as the item group above, and safe to set this
+      late: xunit.v3.core.mtp-v2 reads UseMicrosoftTestingPlatformRunner only inside its
+      entry-point generation targets, never at evaluation time.
+    -->
+    <PropertyGroup Condition=" '$(IsTestProject)' == 'true' ">
+        <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    </PropertyGroup>
+
 </Project>
