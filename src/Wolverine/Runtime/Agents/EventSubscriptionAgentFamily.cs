@@ -176,6 +176,22 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
     public string Scheme => SchemeName;
 
+    /// <summary>
+    ///     GH-4569: set on a <see cref="NodeRole.Warmup" /> node. The node then advertises -- and can build --
+    ///     async projection shards only, never subscriptions: a subscription is a side effect by definition, and
+    ///     the serving nodes keep running every one of them until cut over.
+    /// </summary>
+    internal bool IsWarmup { get; private set; }
+
+    internal void UseWarmupRole()
+    {
+        IsWarmup = true;
+        foreach (var entry in _stores.Enumerate())
+        {
+            entry.Value.ProjectionsOnly = true;
+        }
+    }
+
     // The enumeration AllKnownAgentsAsync handed the leader for the evaluation in progress, for
     // EvaluateAssignmentsAsync to reuse. Every enumeration rebuilds each store's usage descriptor, and for a
     // master-table tenancy that is a database round trip per store -- paid twice per evaluation when the

@@ -36,6 +36,26 @@ public enum DurabilityMode
 }
 
 /// <summary>
+/// GH-4569. The part a node plays in a Balanced cluster during a blue/green rollout
+/// </summary>
+public enum NodeRole
+{
+    /// <summary>
+    /// The default. The node handles messages and runs whatever agents the leader assigns it
+    /// </summary>
+    Serving,
+
+    /// <summary>
+    /// The node only warms up the projections of a new release before it is cut over to. It takes part in
+    /// the agent cluster through the control queue, but never leads, never handles application messages,
+    /// never recovers or schedules persisted envelopes, and only runs the projection agents that no
+    /// serving node declares -- in rebuild mode, so their side effects are not published. Restart the
+    /// node as <see cref="Serving"/> to cut over to it
+    /// </summary>
+    Warmup
+}
+
+/// <summary>
 /// Controls how Wolverine chooses to identify received message uniqueness in message storage
 /// </summary>
 public enum MessageIdentity
@@ -663,6 +683,22 @@ public class DurabilitySettings : IDescribeMyself
     ///     leadership lock. At least one node of the cluster must be eligible, or nothing is ever assigned.
     /// </summary>
     public bool LeadershipEligible { get; set; } = true;
+
+    /// <summary>
+    ///     GH-4569. The part this node plays in a blue/green rollout. The default is <see cref="Wolverine.NodeRole.Serving"/>.
+    ///     A <see cref="Wolverine.NodeRole.Warmup"/> node warms up the new release's projections in the same cluster as
+    ///     the serving nodes without doing any of their messaging, and is never eligible for leadership. The
+    ///     role travels to the leader as a marker in the node's capabilities, so it needs no change to any
+    ///     node table, but the serving nodes -- the leader among them -- must run a Wolverine version that
+    ///     understands it before a warm-up node uses it.
+    /// </summary>
+    public NodeRole NodeRole { get; set; } = NodeRole.Serving;
+
+    /// <summary>
+    ///     Whether this node may contend for leadership: <see cref="LeadershipEligible"/>, and never on a
+    ///     <see cref="Wolverine.NodeRole.Warmup"/> node.
+    /// </summary>
+    internal bool CanLead => LeadershipEligible && NodeRole == NodeRole.Serving;
 
     /// <summary>
     ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single

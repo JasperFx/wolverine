@@ -10,6 +10,14 @@ public partial class NodeAgentController
 {
     public static readonly Uri LeaderUri = new("wolverine://leader");
 
+    /// <summary>
+    ///     GH-4569: the capability a <see cref="NodeRole.Warmup" /> node publishes so the leader can tell it
+    ///     apart from a serving node. Like <see cref="Wolverine.Persistence.MessageStoreCollection.DurabilityCapabilityUri" />
+    ///     it is a node-level marker, not an agent: no family distributes the <c>wolverine</c> scheme, so the
+    ///     leader never builds an assignment for it.
+    /// </summary>
+    public static readonly Uri WarmupRoleUri = new("wolverine://node-role/warmup");
+
     private readonly Dictionary<string, IAgentFamily>
         _agentFamilies = new();
 
@@ -150,6 +158,24 @@ public partial class NodeAgentController
         foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))
         {
             _agentFamilies[family.Scheme] = family;
+        }
+
+        // GH-4569: a warm-up node runs projection agents and nothing else. The leader already keeps every
+        // other family's agents off it, but a leader that predates node roles would not, so the node also
+        // cannot build them: any other scheme it is asked to start fails as an unrecognized agent. A warm-up
+        // node never leads, so it never needs these families to evaluate assignments either.
+        if (runtime.Options.Durability.NodeRole == NodeRole.Warmup)
+        {
+            foreach (var scheme in _agentFamilies.Where(x => x.Value is not EventSubscriptionAgentFamily)
+                         .Select(x => x.Key).ToArray())
+            {
+                _agentFamilies.Remove(scheme);
+            }
+
+            foreach (var family in _agentFamilies.Values.OfType<EventSubscriptionAgentFamily>())
+            {
+                family.UseWarmupRole();
+            }
         }
 
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);

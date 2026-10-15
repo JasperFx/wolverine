@@ -433,6 +433,47 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }, 30.Seconds());
     }
 
+    /// <summary>
+    /// GH-4569. A warm-up node of a blue/green rollout never leads, like a node that is not eligible, and on top
+    /// of that it is given none of the cluster's ordinary agents: it only ever runs the event subscription agents
+    /// that no serving node declares, and this cluster has none.
+    /// </summary>
+    [Fact]
+    public async Task a_warmup_node_never_leads_and_takes_no_ordinary_agents()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var warmup = await startHostAsync(o =>
+        {
+            ConfigureSlowHeartbeat(o);
+            o.Durability.NodeRole = NodeRole.Warmup;
+        });
+        var serving = await startHostAsync(ConfigureSlowHeartbeat);
+
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 6);
+            w.ExpectRunningAgents(warmup, 0);
+            w.ExpectRunningAgents(serving, 6);
+        }, 30.Seconds());
+
+        await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
+
+        // Prodded first, the warm-up node declines the vacant leadership
+        await warmup.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await warmup.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        warmup.GetRuntime().IsLeader().ShouldBeFalse();
+
+        await serving.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await serving.WaitUntilAssumesLeadershipAsync(15.Seconds());
+
+        await serving.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(warmup, 0);
+            w.ExpectRunningAgents(serving, 12);
+        }, 30.Seconds());
+    }
+
     [Fact]
     public async Task leader_switchover_between_nodes()
     {
