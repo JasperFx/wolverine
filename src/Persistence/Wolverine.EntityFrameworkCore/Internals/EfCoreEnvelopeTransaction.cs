@@ -265,7 +265,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         if (flushOutgoingMessages)
         {
-            await _messaging.FlushOutgoingMessagesAsync();
+            await EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(_messaging);
         }
     }
     

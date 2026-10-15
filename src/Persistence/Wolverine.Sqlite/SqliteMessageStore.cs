@@ -26,7 +26,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.Sqlite;
 
-internal class SqliteMessageStore : MessageDatabase<SqliteConnection>, ISagaStorageCodeSource
+internal partial class SqliteMessageStore : MessageDatabase<SqliteConnection>, ISagaStorageCodeSource
 {
     /// <summary>
     /// GH-4375. SQLITE_MAX_VARIABLE_NUMBER, measured at 32,766 against the bundled SQLite 3.50.4 by

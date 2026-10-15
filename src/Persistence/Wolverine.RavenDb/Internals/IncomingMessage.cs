@@ -20,6 +20,14 @@ public class IncomingMessage
         Body = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination;
+
+        // GH-5036. A document stored already Handled is kept only for idempotency, and a durability pass
+        // deletes it once this has passed
+        if (envelope.Status == EnvelopeStatus.Handled)
+        {
+            KeepUntil = (envelope.KeepUntil ?? DateTimeOffset.UtcNow.Add(store.KeepAfterMessageHandling))
+                .ToUniversalTime();
+        }
     }
 
     public Guid EnvelopeId { get; set; }

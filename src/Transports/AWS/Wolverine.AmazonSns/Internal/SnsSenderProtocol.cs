@@ -25,6 +25,26 @@ internal class SnsSenderProtocol :ISenderProtocol
     {
         await _topic.InitializeAsync(_logger);
 
+        // PublishBatch takes at most 10 entries, whatever MessageBatchSize the endpoint was given
+        if (batch.Messages.Count <= MaximumBatchEntries)
+        {
+            await sendChunkAsync(callback, batch);
+            return;
+        }
+
+        foreach (var chunk in batch.Messages.Chunk(MaximumBatchEntries))
+        {
+            await sendChunkAsync(callback, new OutgoingMessageBatch(batch.Destination, chunk));
+        }
+    }
+
+    /// <summary>
+    ///     The most entries one SNS PublishBatch request accepts
+    /// </summary>
+    internal const int MaximumBatchEntries = 10;
+
+    private async Task sendChunkAsync(ISenderCallback callback, OutgoingMessageBatch batch)
+    {
         var snsBatch = new OutgoingSnsBatch(_topic, _logger, batch.Messages);
 
         try

@@ -31,7 +31,7 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
             await DbContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
 
-        await FlushOutgoingMessagesAsync();
+        await EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(this);
     }
 
     public async Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default)
@@ -87,7 +87,7 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
             await ActiveContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
 
-        await FlushOutgoingMessagesAsync();
+        await EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(this);
     }
 
     public async Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default)

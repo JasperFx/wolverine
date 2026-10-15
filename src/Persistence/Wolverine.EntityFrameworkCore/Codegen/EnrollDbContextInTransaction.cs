@@ -181,15 +181,16 @@ internal class FlushOutboxAfterCommit : AsyncFrame, IFlushesMessages
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("GH-2917/GH-4742: flush the outbox after the commit and before the response is written");
+        // GH-5016: the helper sends inline under ServerlessWithOutbox, and is a plain flush otherwise
         writer.Write(
-            $"await {_context.Usage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}().ConfigureAwait(false);");
+            $"await {typeof(EfCoreOutboxFlushing).FullNameInCode()}.{nameof(EfCoreOutboxFlushing.FlushOutgoingMessagesAsync)}({_context.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("GH-2917/GH-4742: flush the outbox after the commit and before the response is written");
-        writer.Write($"do! {_context.FSharpUsage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}()");
+        writer.Write($"do! {typeof(EfCoreOutboxFlushing).FullNameInCode()}.{nameof(EfCoreOutboxFlushing.FlushOutgoingMessagesAsync)}({_context.FSharpUsage})");
         Next?.GenerateFSharpCode(method, writer);
     }
 

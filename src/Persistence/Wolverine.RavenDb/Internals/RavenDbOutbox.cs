@@ -23,7 +23,7 @@ public class RavenDbOutbox : MessageContext, IRavenDbOutbox
     public async Task SaveChangesAsync(CancellationToken cancellation = default)
     {
         await Session.SaveChangesAsync(cancellation);
-        await FlushOutgoingMessagesAsync();
+        await RavenDbOutboxFlushing.FlushOutgoingMessagesAsync(this);
     }
 
     public IAsyncDocumentSession Session { get; private set; } = null!;

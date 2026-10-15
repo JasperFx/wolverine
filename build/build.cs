@@ -328,6 +328,7 @@ partial class Build : NukeBuild
                 Solution.Transports.Kafka.Wolverine_Kafka,
                 Solution.Transports.Pulsar.Wolverine_Pulsar,
                 Solution.Transports.GCP.Wolverine_Pubsub,
+                Solution.Transports.GCP.Wolverine_Pubsub_Http,
                 Solution.Persistence.Wolverine_RDBMS,
                 Solution.Persistence.PostgreSQL.Wolverine_Postgresql,
                 Solution.Persistence.Marten.Wolverine_Marten,

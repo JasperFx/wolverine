@@ -87,8 +87,11 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         var wolverineOptions = new WolverineRabbitMqChannelOptions();
         _transport.ChannelCreationOptions?.Invoke(wolverineOptions);
 
-        var options = new CreateChannelOptions(wolverineOptions.PublisherConfirmationsEnabled,
-            wolverineOptions.PublisherConfirmationTrackingEnabled,
+        // GH-5016: with tracking on, BasicPublishAsync only returns once the broker confirmed the message, and
+        // throws if it was rejected or, when mandatory, returned as unroutable
+        var options = new CreateChannelOptions(
+            wolverineOptions.PublisherConfirmationsEnabled || _transport.RequirePublisherConfirms,
+            wolverineOptions.PublisherConfirmationTrackingEnabled || _transport.RequirePublisherConfirms,
             consumerDispatchConcurrency: consumerDispatchConcurrency ?? wolverineOptions.ConsumerDispatchConcurrency);
 
         return connection.CreateChannelAsync(options);

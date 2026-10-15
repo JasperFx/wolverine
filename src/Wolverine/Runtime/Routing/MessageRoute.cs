@@ -243,7 +243,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             else if (!sender.SupportsNativeScheduledSendFor(envelope, utcNow))
             {
                 runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) wrapped for durable scheduled send to {Destination} (transport does not support native scheduling for this envelope)", envelope.Id, envelope.MessageType, envelope.Destination);
-                return envelope.ForScheduledSend(localDurableQueue);
+                return envelope.ForScheduledSend(localDurableQueue ?? throw new InvalidOperationException(
+                    $"Unable to schedule a {MessageType.FullNameInCode()} message for later delivery to {envelope.Destination} because that transport does not support native scheduling and there is no local durable queue in Durability.Mode {runtime.Options.Durability.Mode}"));
             }
             else
             {
@@ -252,7 +253,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
         else
         {
-            envelope.OwnerId = runtime.Options.Durability.AssignedNodeNumber;
+            envelope.OwnerId = runtime.Options.Durability.OutgoingOwnerId;
         }
 
         return envelope;
@@ -341,6 +342,14 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     protected virtual async Task<T> sendAndAwaitReplyAsync<T>(Envelope envelope, MessageBus bus,
         CancellationToken cancellation, TimeSpan timeout)
     {
+        // GH-5016: the serverless modes start no listeners, so nothing would ever bring a brokered reply back, and
+        // the caller would set off the remote handler and then wait out the whole timeout
+        if (bus.Runtime.Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox)
+        {
+            throw new InvalidOperationException(
+                $"Request/reply to {_endpoint.Uri} needs a listener to receive the reply, and DurabilityMode.{bus.Runtime.Options.Durability.Mode} runs no listeners. Use a transport that returns the reply in the same exchange, like Wolverine's HTTP transport, or send the message without waiting for a reply");
+        }
+
         var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout);
 
         await Sender.EnqueueOutgoingAsync(envelope);

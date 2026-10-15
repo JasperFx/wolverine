@@ -23,6 +23,17 @@ internal class OutgoingEnvelopeTable : Table
         if (durability.OutboxStaleTime.HasValue)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("now()");
+
+            // GH-5016: opt-in, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
+            // (`owner_id = 0 and timestamp <= @stale`). Partial on unowned rows, which are all it ever reads
+            if (durability.EnableOutgoingTimestampIndex)
+            {
+                Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{DatabaseConstants.OutgoingTable}_stale"))
+                {
+                    Columns = [DatabaseConstants.Timestamp],
+                    Predicate = $"{DatabaseConstants.OwnerId} = 0"
+                });
+            }
         }
 
         // GH-3971: the orphaned-message sweep asks `owner_id in (<dead owners>)`, worked out in memory

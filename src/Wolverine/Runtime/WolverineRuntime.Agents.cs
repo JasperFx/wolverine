@@ -350,6 +350,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
 
             case DurabilityMode.Serverless:
+            case DurabilityMode.ServerlessWithOutbox:
             case DurabilityMode.MediatorOnly:
                 break;
         }

@@ -42,6 +42,7 @@ public class EndpointTests
     [InlineData(true, ListenerScope.Exclusive, DurabilityMode.Solo, true)]
     [InlineData(true, ListenerScope.Exclusive, DurabilityMode.Serverless, false)]
     [InlineData(true, ListenerScope.Exclusive, DurabilityMode.MediatorOnly, false)]
+    [InlineData(true, ListenerScope.Exclusive, DurabilityMode.ServerlessWithOutbox, false)]
     [InlineData(false, ListenerScope.CompetingConsumers, DurabilityMode.Balanced, false)]
     public void should_auto_start_as_listener(bool isListener, ListenerScope scope, DurabilityMode mode, bool shouldStart)
     {

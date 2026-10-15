@@ -22,6 +22,16 @@ internal class OutgoingEnvelopeTable : Table
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
                 .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
+
+            // GH-5016: opt-in, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
+            // (`owner_id = 0 and timestamp <= :stale`). No partial indexes in this provider, so owner_id leads
+            if (durability.EnableOutgoingTimestampIndex)
+            {
+                Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.OutgoingTable}_stale")
+                {
+                    Columns = [DatabaseConstants.OwnerId, DatabaseConstants.Timestamp]
+                });
+            }
         }
 
         // GH-3971: the orphaned-message sweep asks `owner_id in (<dead owners>)`, worked out in memory

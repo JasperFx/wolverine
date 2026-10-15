@@ -22,6 +22,15 @@ public class IncomingMessage
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination?.ToString();
         PartitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
+
+        // GH-5036. A document stored already Handled, as the deduplication of a push receiver under
+        // ServerlessWithOutbox does for every message, is kept only for idempotency. Without a keepUntil
+        // neither the durability agent nor a durability pass would ever delete it
+        if (envelope.Status == EnvelopeStatus.Handled)
+        {
+            KeepUntil = (envelope.KeepUntil ?? DateTimeOffset.UtcNow.Add(store.KeepAfterMessageHandling))
+                .ToUniversalTime();
+        }
     }
 
     [JsonProperty("id")]

@@ -154,7 +154,187 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
     }
 
-    public async Task FlushOutgoingMessagesAsync()
+    public Task FlushOutgoingMessagesAsync()
+    {
+        // GH-5016: nothing can be trusted to run after a serverless request completes, so every flush sends
+        // inline -- including the plain FlushOutgoingMessages postprocessor of a handler or HTTP endpoint that
+        // has no transactional middleware to do it on commit
+        if (Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
+        {
+            return SendAllOutgoingMessagesInlineAsync();
+        }
+
+        return flushOutgoingMessagesAsync();
+    }
+
+    private async Task flushOutgoingMessagesAsync()
+    {
+        var outgoing = await beginFlushAsync().ConfigureAwait(false);
+        if (outgoing == null) return;
+
+        foreach (var envelope in outgoing)
+        {
+            // https://github.com/JasperFx/wolverine/issues/2006
+            if (envelope == null) continue;
+
+            await flushEnvelopeAsync(envelope).ConfigureAwait(false);
+        }
+
+        await completeFlushAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Send every outgoing message in this context <b>right now</b>, awaiting the broker, instead of
+    ///     handing them off to the sending agents in the background. Use this after the transaction
+    ///     commits wherever nothing can be trusted to run after the request completes, such as a
+    ///     serverless function under <see cref="DurabilityMode.ServerlessWithOutbox" />.
+    /// </summary>
+    /// <remarks>
+    ///     <para>Every envelope bound for an external destination is sent through its endpoint's transport
+    ///     sender directly, whether that endpoint is configured as inline, buffered or durable. A batching
+    ///     sender is bypassed for its transport protocol, so a send only counts once the broker has accepted
+    ///     the message (GH-5034). The envelopes for one destination go out in batches of its endpoint's
+    ///     MessageBatchSize, one broker round trip per batch, and different destinations are sent
+    ///     concurrently.</para>
+    ///     <para>The outbox rows of the envelopes that were sent are deleted in <b>one</b> batched call per
+    ///     message store rather than one round trip per envelope. An envelope whose send fails is left in
+    ///     the outbox for the next durability pass to recover, and logged. A durable envelope that had no
+    ///     outbox row yet, because there is no external transaction, is stored to the outbox when its send
+    ///     fails.</para>
+    ///     <para>Messages scheduled for later, and destinations without a transport sender (local queues),
+    ///     are flushed exactly as <see cref="FlushOutgoingMessagesAsync" /> flushes them.</para>
+    /// </remarks>
+    public async Task SendAllOutgoingMessagesInlineAsync()
+    {
+        var outgoing = await beginFlushAsync().ConfigureAwait(false);
+        if (outgoing == null) return;
+
+        // With an external transaction (Marten, EF Core, the RDBMS stores) the durable envelopes were
+        // persisted with it. With this context as its own transaction nothing has been written yet
+        var alreadyPersisted = Transaction != null && !ReferenceEquals(Transaction, this);
+        List<Envelope>? toDelete = null;
+        List<(Envelope Envelope, ISendingAgent Agent, ISender Sender)>? sendable = null;
+
+        foreach (var envelope in outgoing)
+        {
+            // https://github.com/JasperFx/wolverine/issues/2006
+            if (envelope == null) continue;
+
+            var agent = envelope.Sender;
+            var sender = agent switch
+            {
+                SendingAgent a => a.Sender,
+                InlineSendingAgent a => a.Sender,
+
+                // An agent that is its own transport sender, like the stub transport's endpoints
+                ISender s => s,
+                _ => null
+            };
+
+            if (agent == null || sender == null || agent.Latched || envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+            {
+                await flushEnvelopeAsync(envelope).ConfigureAwait(false);
+                continue;
+            }
+
+            envelope.Status = EnvelopeStatus.Outgoing;
+            envelope.OwnerId = Runtime.Options.Durability.OutgoingOwnerId;
+            envelope.ReplyUri ??= agent.ReplyUri;
+
+            (sendable ??= new()).Add((envelope, agent, sender));
+        }
+
+        if (sendable != null)
+        {
+            // One group per transport sender, each sent in as few broker round trips as its transport allows.
+            // The groups go to different destinations, so they are sent concurrently, while the envelopes of one
+            // group keep their order
+            var groups = sendable.GroupBy(x => x.Sender).ToArray();
+            var results = await Task.WhenAll(groups.Select(group =>
+                group.Key.SendToBrokerAsync(group.Select(x => x.Envelope).ToArray()))).ConfigureAwait(false);
+
+            for (var i = 0; i < groups.Length; i++)
+            {
+                foreach (var (envelope, agent, _) in groups[i])
+                {
+                    if (results[i].WasAccepted(envelope))
+                    {
+                        Runtime.MessageTracking.Sent(envelope);
+
+                        if (alreadyPersisted && agent.IsDurable)
+                        {
+                            (toDelete ??= new()).Add(envelope);
+                        }
+
+                        continue;
+                    }
+
+                    if (!agent.IsDurable)
+                    {
+                        Runtime.Logger.LogError(results[i].Exception,
+                            "Unable to send outgoing message {Envelope} inline to non-durable destination {Destination}, so it has been discarded",
+                            envelope, envelope.Destination);
+                        Runtime.MessageTracking.DiscardedEnvelope(envelope);
+                        continue;
+                    }
+
+                    Runtime.Logger.LogError(results[i].Exception,
+                        "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
+                        envelope, envelope.Destination);
+
+                    if (!alreadyPersisted)
+                    {
+                        await storeUnsentEnvelopeAsync(envelope).ConfigureAwait(false);
+                    }
+                }
+            }
+        }
+
+        if (toDelete != null)
+        {
+            await deleteSentOutboxRowsAsync(toDelete).ConfigureAwait(false);
+        }
+
+        await completeFlushAsync().ConfigureAwait(false);
+    }
+
+    private async Task storeUnsentEnvelopeAsync(Envelope envelope)
+    {
+        try
+        {
+            await (envelope.Store ?? Runtime.Storage).Outbox
+                .StoreOutgoingAsync(envelope, Runtime.Options.Durability.OutgoingOwnerId).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            Runtime.Logger.LogError(e,
+                "Unable to store unsent outgoing message {Envelope} in the outbox, so it has been discarded",
+                envelope);
+            Runtime.MessageTracking.DiscardedEnvelope(envelope);
+        }
+    }
+
+    // One DeleteOutgoingAsync(Envelope[]) per message store, not one round trip per envelope
+    private async Task deleteSentOutboxRowsAsync(List<Envelope> sent)
+    {
+        foreach (var byStore in sent.GroupBy(x => x.Store ?? Runtime.Storage))
+        {
+            try
+            {
+                await byStore.Key.Outbox.DeleteOutgoingAsync(byStore.ToArray()).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                // The messages were sent, so the worst case is a duplicate send by a later durability pass
+                Runtime.Logger.LogError(e,
+                    "Unable to delete the outbox rows of {Count} message(s) that were already sent inline. A later durability pass may send them again",
+                    byStore.Count());
+            }
+        }
+    }
+
+    // Answers null when there is nothing to flush
+    private async Task<Envelope[]?> beginFlushAsync()
     {
         if (_hasFlushed)
         {
@@ -173,7 +353,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         }
                     }
 
-                    return;
+                    return null;
 
                 case MultiFlushMode.AllowMultiples:
                     Runtime.Logger.LogDebug("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
@@ -196,71 +376,82 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // Snapshot under lock so concurrent publishes from a Marten projection
         // (Block parallelism = 10 in AggregationRunner) cannot corrupt the list
         // while we're iterating it. GH-2529.
-        Envelope[] outgoing;
         lock (_outstandingLock)
         {
-            if (_outstanding.Count == 0) return;
-            outgoing = _outstanding.ToArray();
+            if (_outstanding.Count == 0) return null;
+            return _outstanding.ToArray();
         }
+    }
 
-        foreach (var envelope in outgoing)
+    private async Task flushEnvelopeAsync(Envelope envelope)
+    {
+        try
         {
-            // https://github.com/JasperFx/wolverine/issues/2006
-            if (envelope == null) continue;
-
-            try
+            var utcNow = DateTimeOffset.UtcNow;
+            if (envelope.IsScheduledForLater(utcNow))
             {
-                var utcNow = DateTimeOffset.UtcNow;
-                if (envelope.IsScheduledForLater(utcNow))
+                if (!envelope.Sender!.IsDurable)
                 {
-                    if (!envelope.Sender!.IsDurable)
+                    if (envelope.Sender!.SupportsNativeScheduledSendFor(envelope, utcNow))
                     {
-                        if (envelope.Sender!.SupportsNativeScheduledSendFor(envelope, utcNow))
-                        {
-                            Runtime.Logger.LogDebug("Sending scheduled envelope {EnvelopeId} ({MessageType}) via native scheduled send to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
-                            await sendEnvelopeAsync(envelope).ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            // Non-durable sender, no native scheduling. In current Wolverine this
-                            // branch is effectively unreachable for non-local transports — the
-                            // routing layer (MessageRoute.WriteEnvelope) already swaps such
-                            // envelopes to the local://durable queue, which means Sender.IsDurable
-                            // would be true above. Kept for defense in depth.
-                            Runtime.Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution (non-durable, no native scheduling) to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
-                            Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
-                        }
+                        Runtime.Logger.LogDebug("Sending scheduled envelope {EnvelopeId} ({MessageType}) via native scheduled send to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
+                        await sendEnvelopeAsync(envelope).ConfigureAwait(false);
                     }
                     else
                     {
-                        Runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) is scheduled with durable sender to {Destination}, relying on durable inbox scheduling", envelope.Id, envelope.MessageType, envelope.Destination);
-                    }
-
-                    // If NullMessageStore, then we're calling a different Send method that is marking the message
-                    if (Runtime.Storage is not NullMessageStore)
-                    {
-                        // See https://github.com/JasperFx/wolverine/issues/1697
-                        Runtime.MessageTracking.Sent(envelope);
+                        // Non-durable sender, no native scheduling. In current Wolverine this
+                        // branch is effectively unreachable for non-local transports — the
+                        // routing layer (MessageRoute.WriteEnvelope) already swaps such
+                        // envelopes to the local://durable queue, which means Sender.IsDurable
+                        // would be true above. Kept for defense in depth.
+                        Runtime.Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution (non-durable, no native scheduling) to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
+                        Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
                     }
                 }
                 else
                 {
-                    await sendEnvelopeAsync(envelope).ConfigureAwait(false);
+                    Runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) is scheduled with durable sender to {Destination}, relying on durable inbox scheduling", envelope.Id, envelope.MessageType, envelope.Destination);
+                }
+
+                // If NullMessageStore, then we're calling a different Send method that is marking the message
+                if (Runtime.Storage is not NullMessageStore)
+                {
+                    // See https://github.com/JasperFx/wolverine/issues/1697
+                    Runtime.MessageTracking.Sent(envelope);
                 }
             }
-            catch (Exception e)
+            else
             {
-                // GH-4662. This used to read "most likely due to serialization issues", which was a fair
-                // guess back when a durable store failure was swallowed by a RetryBlock and could never
-                // reach this catch. It can now, and an unreachable message store is the more common cause
-                // of the two, so name both -- and name the envelope, which this never did.
-                Runtime.Logger.LogError(e,
-                    "Unable to send outgoing message {Envelope}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
-                    envelope);
-                Runtime.MessageTracking.DiscardedEnvelope(envelope);
+                await sendEnvelopeAsync(envelope).ConfigureAwait(false);
             }
         }
+        catch (Exception e)
+        {
+            // GH-4662. This used to read "most likely due to serialization issues", which was a fair
+            // guess back when a durable store failure was swallowed by a RetryBlock and could never
+            // reach this catch. It can now, and an unreachable message store is the more common cause
+            // of the two, so name both -- and name the envelope, which this never did.
+            Runtime.Logger.LogError(e,
+                "Unable to send outgoing message {Envelope}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
+                envelope);
+            Runtime.MessageTracking.DiscardedEnvelope(envelope);
+        }
 
+        async Task sendEnvelopeAsync(Envelope envelope)
+        {
+            if (ReferenceEquals(this, Transaction))
+            {
+                await envelope.StoreAndForwardAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                await envelope.QuickSendAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task completeFlushAsync()
+    {
         if (Scheduled.Count > 0 && ReferenceEquals(Transaction, this))
         {
             await flushScheduledMessagesAsync().ConfigureAwait(false);
@@ -274,18 +465,6 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _hasFlushed = true;
-
-        async Task sendEnvelopeAsync(Envelope envelope)
-        {
-            if (ReferenceEquals(this, Transaction))
-            {
-                await envelope.StoreAndForwardAsync().ConfigureAwait(false);
-            }
-            else
-            {
-                await envelope.QuickSendAsync().ConfigureAwait(false);
-            }
-        }
     }
 
     private List<Envelope>? _sent;

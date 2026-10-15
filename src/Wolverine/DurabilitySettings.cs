@@ -2,6 +2,7 @@
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence;
+using Wolverine.Transports;
 
 namespace Wolverine;
 
@@ -32,7 +33,16 @@ public enum DurabilityMode
     /// Optimizes Wolverine for usage as strictly a mediator tool. This completely disables all node
     /// persistence including the inbox and outbox
     /// </summary>
-    MediatorOnly
+    MediatorOnly,
+
+    /// <summary>
+    /// The same lean runtime as <see cref="Serverless"/> -- no node registration, no node agents,
+    /// no leader election, no local queues and no background durability timers -- but the message
+    /// store's transactional outbox stays active. Outgoing envelopes are persisted inside the
+    /// handler's transaction with an owner of "any node" (0), and are recovered by an externally
+    /// triggered durability pass. See GH-5016
+    /// </summary>
+    ServerlessWithOutbox
 }
 
 /// <summary>
@@ -244,7 +254,37 @@ public class DurabilitySettings : IDescribeMyself
     /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>
-    public TimeSpan? OutboxStaleTime { get; set; }
+    /// <remarks>
+    /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 60 seconds. A value set
+    /// explicitly always wins.
+    /// </remarks>
+    public TimeSpan? OutboxStaleTime
+    {
+        get => _outboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultOutboxStaleTime : null);
+        set => _outboxStaleTime = value;
+    }
+
+    private TimeSpan? _outboxStaleTime;
+
+    internal static readonly TimeSpan ServerlessWithOutboxDefaultOutboxStaleTime = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// The owner id stamped onto outgoing envelopes when they are written to the outbox. Under
+    /// <see cref="DurabilityMode.ServerlessWithOutbox"/> there is no node record to own them, so they are
+    /// written as owned by any node (0) from the start
+    /// </summary>
+    internal int OutgoingOwnerId => Mode == DurabilityMode.ServerlessWithOutbox
+        ? TransportConstants.AnyNode
+        : AssignedNodeNumber;
+
+    /// <summary>
+    /// GH-5016. Opt in to an index on the outgoing envelope table's <c>timestamp</c> column, for the stale
+    /// <c>owner_id = 0</c> predicate a <see cref="DurabilityMode.ServerlessWithOutbox"/> durability pass
+    /// uses to find the outbox rows whose inline send failed. Only applies where the column exists, which
+    /// is whenever <see cref="OutboxStaleTime"/> has a value. Default is false, so there is no schema
+    /// change unless you ask for one
+    /// </summary>
+    public bool EnableOutgoingTimestampIndex { get; set; }
     
     /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable inbox that is older
@@ -258,8 +298,20 @@ public class DurabilitySettings : IDescribeMyself
     /// clock is restarted three times per InboxStaleTime, so a long handler or a long local backlog is not
     /// released underneath itself. That needs a store implementing
     /// <see cref="Wolverine.Persistence.Durability.IMessageInboxHeartbeat" />, which every relational store does.
+    /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 5 minutes, so a durability pass
+    /// recovers the inbox rows of a process that died before its handler finished (GH-5037). That mode runs no
+    /// durable receivers and so no heartbeat, so there it must be longer than the longest handler. A value set
+    /// explicitly always wins.
     /// </remarks>
-    public TimeSpan? InboxStaleTime { get; set; }
+    public TimeSpan? InboxStaleTime
+    {
+        get => _inboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultInboxStaleTime : null);
+        set => _inboxStaleTime = value;
+    }
+
+    private TimeSpan? _inboxStaleTime;
+
+    internal static readonly TimeSpan ServerlessWithOutboxDefaultInboxStaleTime = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// GH-4659. How long a tenant database's writes are held after it refuses one, before a single probe
@@ -1139,6 +1191,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
+        if (EnableOutgoingTimestampIndex) desc.AddValue(nameof(EnableOutgoingTimestampIndex), EnableOutgoingTimestampIndex);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);
         return desc;

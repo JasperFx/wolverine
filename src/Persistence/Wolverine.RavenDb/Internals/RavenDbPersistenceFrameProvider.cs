@@ -31,7 +31,7 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
                 saveChanges.CommentText = "Commit any outstanding RavenDb changes";
                 chain.Postprocessors.Add(saveChanges);
                 
-                chain.Postprocessors.Add(new FlushOutgoingMessages());
+                chain.Postprocessors.Add(RavenDbOutboxFlushing.BuildFrame());
             }
         }
     }

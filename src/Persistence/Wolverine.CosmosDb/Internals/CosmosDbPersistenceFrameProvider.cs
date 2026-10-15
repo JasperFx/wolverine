@@ -26,7 +26,7 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
 
             if (chain is not SagaChain)
             {
-                chain.Postprocessors.Add(new FlushOutgoingMessages());
+                chain.Postprocessors.Add(CosmosDbOutboxFlushing.BuildFrame());
             }
         }
     }
@@ -105,7 +105,7 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
     public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
         // CosmosDB operations are immediate, but we still flush outgoing messages
-        return new FlushOutgoingMessages();
+        return CosmosDbOutboxFlushing.BuildFrame();
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
