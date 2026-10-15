@@ -165,6 +165,12 @@ public class DurabilityPassStepResult
     /// </summary>
     public int Processed => OutgoingSent + ScheduledReleased + IncomingRecovered + ExpiredDeleted + OtherProcessed;
 
+    /// <summary>
+    ///     Rows this call failed and added to the step's excluded ids, so calling it again in the same pass
+    ///     reaches rows behind them. The runner keeps calling a step that did this even if nothing succeeded
+    /// </summary>
+    internal int NewlyExcluded { get; set; }
+
     internal DurabilityPassStepResult Add(DurabilityPassStepResult other)
     {
         return new DurabilityPassStepResult

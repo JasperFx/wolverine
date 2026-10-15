@@ -151,7 +151,8 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             OutgoingSent = sent.Count,
             OutgoingFailed = failed,
             ExpiredDeleted = expired.Count,
-            Remaining = remaining
+            Remaining = remaining,
+            NewlyExcluded = failed
         };
     }
 
