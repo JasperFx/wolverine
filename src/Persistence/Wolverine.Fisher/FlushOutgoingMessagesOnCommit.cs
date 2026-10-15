@@ -46,7 +46,12 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
         {
             if (_context.Envelope.WasPersistedInInbox)
             {
-                if (_context.Envelope.Store == null && _messageStore.Role == MessageStoreRole.Ancillary)
+                // GH-5045: only when THIS store's database holds the row. Checking for a null Envelope.Store let
+                // an envelope persisted in the main store (a handler registered with AddMessageHandler is not
+                // in the ancillary map) be marked in the ancillary database, matching no rows, and the Handled
+                // status flipped in AfterCommitAsync then made DurableReceiver skip the mark that would have
+                // found it. Leave it to DurableReceiver, which marks it in the envelope's own store
+                if (!_context.Envelope.InboxRowIsIn(_messageStore, _context.Runtime.Storage))
                 {
                     return Task.CompletedTask;
                 }
@@ -106,7 +111,8 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
         // Mark incoming as handled if needed
         if (_context.Envelope?.Destination != null && _context.Envelope.WasPersistedInInbox)
         {
-            if (_context.Envelope.Store == null && _messageStore.Role == MessageStoreRole.Ancillary)
+            // GH-5045: see FlushOutgoingMessagesOnCommit
+            if (!_context.Envelope.InboxRowIsIn(_messageStore, _context.Runtime.Storage))
             {
                 return;
             }
