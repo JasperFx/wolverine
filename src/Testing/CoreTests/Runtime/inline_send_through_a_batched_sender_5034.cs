@@ -237,6 +237,34 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
             .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 3));
     }
 
+    [Fact]
+    public async Task the_durability_pass_gives_up_on_a_hung_send_at_its_deadline()
+    {
+        // A broker send takes no cancellation token, so a hung one used to hold the pass, and its lock, forever
+        var endpoint = new TcpEndpoint(deadPort());
+        var agent = durableAgent(endpoint,
+            new BatchedSender(endpoint, new HangingProtocol(), CancellationToken.None, NullLogger.Instance));
+        var envelope = envelopeTo(agent);
+        envelope.Sender = null;
+
+        var source = Substitute.For<IStaleOutgoingSource>();
+        source.LoadStaleOutgoingAsync(default, default!, default, default)
+            .ReturnsForAnyArgs(new List<Envelope> { envelope });
+
+        var step = new RecoverStaleOutgoingStep(theRuntime.Storage, source, NullLogger.Instance)
+        {
+            SendGrace = 100.Milliseconds()
+        };
+        var context = new DurabilityPassContext(theRuntime, theRuntime.Storage, 10,
+            DateTimeOffset.UtcNow.AddMilliseconds(200), () => DateTimeOffset.UtcNow);
+
+        var result = await step.ExecuteAsync(context, CancellationToken.None).WaitAsync(10.Seconds());
+
+        result.OutgoingFailed.ShouldBe(1);
+        result.OutgoingSent.ShouldBe(0);
+        await theRuntime.Storage.Outbox.DidNotReceiveWithAnyArgs().DeleteOutgoingAsync(Arg.Any<Envelope[]>());
+    }
+
     private Task<DurabilityPassStepResult> recoverAsync(params Envelope[] envelopes)
     {
         // A recovered row has no sending agent of its own; the step finds it by destination
@@ -251,6 +279,12 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
             DateTimeOffset.UtcNow.AddMinutes(1), () => DateTimeOffset.UtcNow);
 
         return step.ExecuteAsync(context, CancellationToken.None);
+    }
+
+    private class HangingProtocol : ISenderProtocol
+    {
+        public Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
+            => new TaskCompletionSource().Task;
     }
 
     /// <summary>

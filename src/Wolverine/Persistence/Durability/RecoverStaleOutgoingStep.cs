@@ -98,23 +98,38 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
         // One group per transport sender, each sent in as few broker round trips as its transport allows, and the
         // groups concurrently with each other. The rows come oldest first, so each group keeps that order
         var groups = toSend.GroupBy(x => x.Sender).ToArray();
-        var results = await Task.WhenAll(groups.Select(group =>
-            group.Key.SendToBrokerAsync(group.Select(x => x.Envelope).ToArray())));
+        var sends = groups.Select(group => group.Key.SendToBrokerAsync(group.Select(x => x.Envelope).ToArray()))
+            .ToArray();
+
+        await waitForSendsAsync(sends, context, token);
 
         for (var i = 0; i < groups.Length; i++)
         {
+            // A send still running past the pass's time is abandoned rather than awaited. See below
+            var result = sends[i].IsCompletedSuccessfully ? await sends[i] : null;
+
             foreach (var (envelope, _) in groups[i])
             {
-                if (results[i].WasAccepted(envelope))
+                if (result != null && result.WasAccepted(envelope))
                 {
                     runtime.MessageTracking.Sent(envelope);
                     sent.Add(envelope);
                     continue;
                 }
 
-                _logger.LogError(results[i].Exception,
-                    "Unable to send recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
-                    envelope, envelope.Destination);
+                if (result == null)
+                {
+                    _logger.LogError(
+                        "Gave up waiting on the send of recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
+                        envelope, envelope.Destination);
+                }
+                else
+                {
+                    _logger.LogError(result.Exception,
+                        "Unable to send recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
+                        envelope, envelope.Destination);
+                }
+
                 _failed.Add(envelope.Id);
                 failed++;
             }
@@ -154,6 +169,42 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             Remaining = remaining,
             NewlyExcluded = failed
         };
+    }
+
+    /// <summary>
+    ///     How long past the pass's deadline a send may still run before it is abandoned
+    /// </summary>
+    internal TimeSpan SendGrace { get; set; } = TimeSpan.FromSeconds(5);
+
+    // A broker send takes no cancellation token, so a hung one would otherwise hold the pass -- and its lock, so
+    // every other pass skips this store -- for as long as it hangs. Stop waiting at the pass's deadline plus a
+    // grace period, or when the pass is cancelled, and count whatever has not finished as failed. Such a send may
+    // still complete later, and then a later pass sends that message again, which at-least-once delivery allows
+    private async Task waitForSendsAsync(Task[] sends, DurabilityPassContext context, CancellationToken token)
+    {
+        if (sends.Length == 0) return;
+
+        var remaining = context.TimeRemaining;
+        var bound = (remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + SendGrace;
+
+        try
+        {
+            await Task.WhenAll(sends).WaitAsync(bound, token);
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning("Durability pass stopped waiting on {Count} outgoing send(s) to recover from {Store} after {Bound}",
+                sends.Count(x => !x.IsCompleted), _store.Uri, bound);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Settle what did finish below, then the runner sees the cancellation
+        }
+        catch (Exception e)
+        {
+            // A grouped send reports failures rather than throwing, so this is unexpected. Its group counts as failed
+            _logger.LogError(e, "Unexpected failure while recovering outgoing messages from {Store}", _store.Uri);
+        }
     }
 
     private Guid[] excludedIds()
