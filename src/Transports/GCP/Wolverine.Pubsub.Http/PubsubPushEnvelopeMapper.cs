@@ -20,7 +20,10 @@ namespace Wolverine.Pubsub.Http;
 /// <remarks>
 ///     Expects the wrapped push format, the default for a push subscription. A message a Wolverine sender batched
 ///     with others is read into all of its envelopes, which the push receiver handles in order and acks together,
-///     just as a pulled Pub/Sub listener in <see cref="Wolverine.Configuration.EndpointMode.NativeAck" /> mode settles one delivery
+///     just as a pulled Pub/Sub listener in <see cref="Wolverine.Configuration.EndpointMode.NativeAck" /> mode settles one delivery.
+///     When the push request carries a <c>deliveryAttempt</c>, which Pub/Sub only sends for a subscription with a dead
+///     letter policy, every envelope starts from the attempts before it, so error policies that count attempts
+///     escalate across redeliveries (GH-5048)
 /// </remarks>
 public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
 {
@@ -78,6 +81,11 @@ public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
         {
             if (target.IsKnown) envelope.Destination ??= target.Endpoint.Uri;
             if (target.TenantId != null) envelope.TenantId ??= target.TenantId;
+
+            // GH-5048. Each redelivery is mapped into a new envelope, so without the broker's count every one of them
+            // would be a first attempt and the error policies that count attempts would never escalate. Handling
+            // the message counts this attempt, so it starts from the attempts before it
+            if (push.DeliveryAttempt is { } attempt) envelope.Attempts = attempt - 1;
         }
 
         return envelopes;

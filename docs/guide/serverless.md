@@ -288,6 +288,8 @@ For each request, the push receiver:
    storage gets a 200. If the error policies asked for a retry, or an exception escaped the policies altogether, the receiver answers with a 500 so the broker
    redelivers the message with its own backoff
 
+<!-- DRAFT (GH-5048, for Jeremy to word): every push redelivery arrives as a new envelope, so error policies that count attempts (Requeue(n), ScheduleRetry(delays...), RetryTimes(n) followed by MoveToErrorQueue, MaximumAttempts) can only escalate when the broker tells Wolverine which delivery this is. The push mapper sets Envelope.Attempts from the broker's delivery count when the request carries one: for Pub/Sub that is the top-level deliveryAttempt, which Pub/Sub only sends when the push subscription has a dead-letter policy. Without it every redelivery is attempt 1, the policy keeps answering with the retry status, and a poison message is redelivered until the broker gives up on its own (or forever). Recommend configuring a dead-letter policy (dead-letter topic + max delivery attempts) on every push subscription: it is what makes deliveryAttempt appear, and it is the backstop if Wolverine never acks. Note the interplay: the broker's max delivery attempts should be higher than the attempts the Wolverine policy uses, or the broker dead-letters the message before Wolverine's own dead letter storage does. A custom IPushEnvelopeMapper should set Envelope.Attempts = brokerDeliveryCount - 1 the same way when its broker carries a count. -->
+
 Just like the durability endpoint, mapping a push receiver requires an authorization decision through its `PushReceiverOptions`, either
 `opts.RequireAuthorization("policy")` or an explicit `opts.AllowAnonymous()`, or the mapping throws an exception.
 
