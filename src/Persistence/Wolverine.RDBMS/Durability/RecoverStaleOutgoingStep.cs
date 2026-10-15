@@ -1,0 +1,169 @@
+using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
+using Wolverine.Transports.Sending;
+
+namespace Wolverine.RDBMS.Durability;
+
+/// <summary>
+///     GH-5016. What a relational message store answers so <see cref="RecoverStaleOutgoingStep" /> can recover
+///     the outbox rows whose inline send failed under <see cref="DurabilityMode.ServerlessWithOutbox" />
+/// </summary>
+public interface IStaleOutgoingSource
+{
+    /// <summary>
+    ///     Load up to <paramref name="limit" /> outgoing envelopes owned by any node (<c>owner_id = 0</c>),
+    ///     oldest first. When <paramref name="staleBefore" /> has a value, only rows written at or before it
+    ///     qualify, so a pass never races the request that is still sending a row inline. Rows whose ids are in
+    ///     <paramref name="excluded" /> are skipped
+    /// </summary>
+    Task<IReadOnlyList<Envelope>> LoadStaleOutgoingAsync(DateTimeOffset? staleBefore, Guid[] excluded, int limit,
+        CancellationToken token);
+
+    /// <summary>
+    ///     How many rows <see cref="LoadStaleOutgoingAsync" /> would still find, ignoring the limit
+    /// </summary>
+    Task<int> CountStaleOutgoingAsync(DateTimeOffset? staleBefore, Guid[] excluded, CancellationToken token);
+}
+
+/// <summary>
+///     GH-5016. The outbox recovery step of a <see cref="DurabilityMode.ServerlessWithOutbox" /> durability
+///     pass: one batch of stale owner-0 rows per call, each sent straight through its endpoint's transport
+///     sender, then everything sent (or expired) deleted in <b>one</b> batched call
+/// </summary>
+/// <remarks>
+///     A row whose send fails stays in the outbox for a later pass, and is not tried again in this one
+/// </remarks>
+public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
+{
+    private readonly IMessageStore _store;
+    private readonly IStaleOutgoingSource _source;
+    private readonly ILogger _logger;
+    private readonly HashSet<Guid> _failed = new();
+
+    public RecoverStaleOutgoingStep(IMessageStore store, IStaleOutgoingSource source, ILogger logger)
+    {
+        _store = store;
+        _source = source;
+        _logger = logger;
+    }
+
+    public string Name => "Recover stale outgoing messages";
+
+    public async Task<DurabilityPassStepResult> ExecuteAsync(DurabilityPassContext context, CancellationToken token)
+    {
+        var runtime = context.Runtime;
+        var staleTime = runtime.Options.Durability.OutboxStaleTime;
+        DateTimeOffset? staleBefore = staleTime.HasValue ? context.Now.Subtract(staleTime.Value) : null;
+
+        var page = await _source.LoadStaleOutgoingAsync(staleBefore, _failed.ToArray(), context.BatchSize, token);
+        if (page.Count == 0) return DurabilityPassStepResult.Nothing;
+
+        var sent = new List<Envelope>();
+        var expired = new List<Envelope>();
+        var failed = 0;
+
+        foreach (var envelope in page)
+        {
+            // An in-memory-only reference that does not survive persistence. See GH-4417
+            envelope.Store ??= _store;
+
+            if (envelope.IsExpired())
+            {
+                expired.Add(envelope);
+                continue;
+            }
+
+            if (await trySendAsync(runtime, envelope))
+            {
+                sent.Add(envelope);
+            }
+            else
+            {
+                _failed.Add(envelope.Id);
+                failed++;
+            }
+        }
+
+        var deletes = sent.Concat(expired).ToArray();
+        if (deletes.Length > 0)
+        {
+            // The messages are already sent, so a failure here means a duplicate send by a later pass, which
+            // at-least-once delivery allows
+            await _store.Outbox.DeleteOutgoingAsync(deletes);
+        }
+
+        foreach (var envelope in expired)
+        {
+            runtime.MessageTracking.DiscardedEnvelope(envelope);
+        }
+
+        var remaining = page.Count < context.BatchSize
+            ? 0
+            : await _source.CountStaleOutgoingAsync(staleBefore, _failed.ToArray(), token);
+
+        if (sent.Count + expired.Count + failed > 0)
+        {
+            _logger.LogInformation(
+                "Durability pass recovered {Sent} outgoing message(s) from the outbox of {Store}, discarded {Expired} expired and left {Failed} that failed to send",
+                sent.Count, _store.Uri, expired.Count, failed);
+        }
+
+        return new DurabilityPassStepResult
+        {
+            OutgoingSent = sent.Count,
+            OutgoingFailed = failed,
+            ExpiredDeleted = expired.Count,
+            Remaining = remaining
+        };
+    }
+
+    private async Task<bool> trySendAsync(IWolverineRuntime runtime, Envelope envelope)
+    {
+        ISendingAgent agent;
+        try
+        {
+            agent = runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!);
+        }
+        catch (Exception e)
+        {
+            // A leftover row for a transport that was removed must not stop the rest. See GH-3413
+            _logger.LogError(e, "Error trying to find a sending agent for {Destination}", envelope.Destination);
+            return false;
+        }
+
+        var sender = agent switch
+        {
+            SendingAgent a => a.Sender,
+            InlineSendingAgent a => a.Sender,
+            ISender s => s,
+            _ => null
+        };
+
+        if (sender == null || agent.Latched)
+        {
+            _logger.LogWarning(
+                "Unable to send recovered outgoing message {Envelope} to {Destination} inline, so it is left in the outbox",
+                envelope, envelope.Destination);
+            return false;
+        }
+
+        // The sender wire tap is in-memory only as well. See GH-3263
+        envelope.WireTap ??= agent.Endpoint.WireTap;
+        envelope.Status = EnvelopeStatus.Outgoing;
+
+        try
+        {
+            await sender.SendAsync(envelope);
+            runtime.MessageTracking.Sent(envelope);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Unable to send recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
+                envelope, envelope.Destination);
+            return false;
+        }
+    }
+}

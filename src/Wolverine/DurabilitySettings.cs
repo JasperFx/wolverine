@@ -256,6 +256,15 @@ public class DurabilitySettings : IDescribeMyself
     internal int OutgoingOwnerId => Mode == DurabilityMode.ServerlessWithOutbox
         ? TransportConstants.AnyNode
         : AssignedNodeNumber;
+
+    /// <summary>
+    /// GH-5016. Opt in to an index on the outgoing envelope table's <c>timestamp</c> column, for the stale
+    /// <c>owner_id = 0</c> predicate a <see cref="DurabilityMode.ServerlessWithOutbox"/> durability pass
+    /// uses to find the outbox rows whose inline send failed. Only applies where the column exists, which
+    /// is whenever <see cref="OutboxStaleTime"/> has a value. Default is false, so there is no schema
+    /// change unless you ask for one
+    /// </summary>
+    public bool EnableOutgoingTimestampIndex { get; set; }
     
     /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable inbox that is older
@@ -1119,6 +1128,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
+        if (EnableOutgoingTimestampIndex) desc.AddValue(nameof(EnableOutgoingTimestampIndex), EnableOutgoingTimestampIndex);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);
         return desc;
