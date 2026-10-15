@@ -194,6 +194,35 @@ public class serverless_with_outbox_mode_5016
     }
 
     [Fact]
+    public async Task plain_serverless_reports_a_durable_endpoint_created_after_startup()
+    {
+        var logs = new CapturedLogs();
+        var later = $"serverless-durable-later-{Guid.NewGuid():N}";
+
+        using var host = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(x => x.AddProvider(logs))
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Serverless;
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
+                // Known at startup, which also registers the shared memory transport
+                opts.PublishAllMessages().ToSharedMemoryTopic($"serverless-durable-startup-{Guid.NewGuid():N}");
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>().ShouldBeOfType<WolverineRuntime>();
+
+        // GH-5038. Not known at startup, so the aggregated warning could not list it
+        runtime.Endpoints.GetOrBuildSendingAgent(new Uri($"shared-memory://{later}"), e => e.Mode = EndpointMode.Durable).Endpoint.Mode
+            .ShouldBe(EndpointMode.Inline);
+
+        logs.Warnings.Where(x => x.Contains(nameof(DurabilityMode.ServerlessWithOutbox)) && x.Contains(later))
+            .Count().ShouldBe(1);
+    }
+
+    [Fact]
     public async Task plain_serverless_without_durable_endpoints_logs_no_downgrade_warning()
     {
         var logs = new CapturedLogs();

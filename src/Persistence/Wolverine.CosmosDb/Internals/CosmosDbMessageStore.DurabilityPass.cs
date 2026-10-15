@@ -37,7 +37,10 @@ public partial class CosmosDbMessageStore : IMessageStoreWithDurabilityPass, ISt
             : filter;
     }
 
-    internal string DurabilityPassLockId => $"lock|durability-pass|{_options.ServiceName.ToLowerInvariant()}";
+    // GH-5038: one lock per container, not per service. The stale outbox and inbox queries are not scoped by
+    // service, so two services sharing a container ran passes over the same owner 0 documents at once. The lock
+    // document lives in this container, so a fixed id is per container, as the SQL stores key on their schema
+    internal string DurabilityPassLockId => "lock|durability-pass";
 
     public async Task<IAsyncDisposable?> TryAcquireDurabilityPassLockAsync(CancellationToken token)
     {

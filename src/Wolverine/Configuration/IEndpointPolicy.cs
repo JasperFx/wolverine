@@ -41,6 +41,9 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IDurabilityModeEndpointPo
 {
     private readonly List<Uri> _downgradedDurableEndpoints = [];
 
+    // GH-5038. Set once the startup warning has gone out, so an endpoint created afterward is reported on its own
+    private bool _reportedAtStartup;
+
     internal IReadOnlyList<Uri> DowngradedDurableEndpoints
     {
         get
@@ -58,7 +61,13 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IDurabilityModeEndpointPo
     /// </summary>
     internal void WarnAboutDowngradedDurableEndpoints(ILogger logger)
     {
-        var downgraded = DowngradedDurableEndpoints;
+        IReadOnlyList<Uri> downgraded;
+        lock (_downgradedDurableEndpoints)
+        {
+            _reportedAtStartup = true;
+            downgraded = _downgradedDurableEndpoints.ToArray();
+        }
+
         if (downgraded.Count == 0) return;
 
         logger.LogWarning(
@@ -90,9 +99,21 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IDurabilityModeEndpointPo
 
             if (endpoint.Mode == EndpointMode.Durable)
             {
+                bool reportNow;
                 lock (_downgradedDurableEndpoints)
                 {
+                    reportNow = _reportedAtStartup && !_downgradedDurableEndpoints.Contains(endpoint.Uri);
                     if (!_downgradedDurableEndpoints.Contains(endpoint.Uri)) _downgradedDurableEndpoints.Add(endpoint.Uri);
+                }
+
+                // GH-5038. The startup warning only lists the endpoints known at startup
+                if (reportNow)
+                {
+                    runtime.Logger.LogWarning(
+                        "Serverless mode requires every endpoint to be Inline, so Wolverine has downgraded durable endpoint {Endpoint} to Inline. "
+                        + "The transactional outbox guarantee no longer applies to messages sent to it. "
+                        + "Use DurabilityMode.{Mode} to keep the outbox in a serverless deployment.",
+                        endpoint.Uri, nameof(DurabilityMode.ServerlessWithOutbox));
                 }
             }
 

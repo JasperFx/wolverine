@@ -10,8 +10,9 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
     private readonly int _nodeId;
     private readonly RavenDbMessageStore _store;
 
-    // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them
-    private readonly bool _ownedByAnyNode;
+    // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them. GH-5038:
+    // otherwise this node, like every other store, rather than whatever the envelope was stamped with
+    private readonly int _outgoingOwnerId;
 
     public RavenDbEnvelopeTransaction(IAsyncDocumentSession session, MessageContext context)
     {
@@ -19,7 +20,7 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
         {
             _store = store;
             _nodeId = context.Runtime.Options.Durability.AssignedNodeNumber;
-            _ownedByAnyNode = context.Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox;
+            _outgoingOwnerId = context.Runtime.Options.Durability.OutgoingOwnerId;
         }
         else
         {
@@ -64,13 +65,7 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
 
     private OutgoingMessage buildOutgoing(Envelope envelope)
     {
-        var outgoing = new OutgoingMessage(envelope);
-        if (_ownedByAnyNode)
-        {
-            outgoing.OwnerId = TransportConstants.AnyNode;
-        }
-
-        return outgoing;
+        return new OutgoingMessage(envelope) { OwnerId = _outgoingOwnerId };
     }
 
     public Task PersistIncomingAsync(Envelope envelope)
