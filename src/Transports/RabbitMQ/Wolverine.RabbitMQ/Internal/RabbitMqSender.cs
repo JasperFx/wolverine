@@ -11,6 +11,7 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 {
     private readonly RabbitMqEndpoint _endpoint;
+    private readonly RabbitMqTransport _transport;
     private readonly IWolverineRuntime _runtime;
     private readonly CachedString _exchangeName;
     private readonly bool _isDurable;
@@ -34,6 +35,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
+        _transport = transport;
         _runtime = runtime;
     }
 
@@ -86,7 +88,10 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         _mapper.MapEnvelopeToOutgoing(envelope, props);
 
         var routingKey = await ToRoutingKeyAsync(envelope);
-        await Channel.BasicPublishAsync(_exchangeName, routingKey, false, props, envelope.Data);
+        // GH-5016: a queue that does not exist makes a mandatory publish fail rather than be confirmed and dropped,
+        // so its outbox row stays. An exchange with no bindings still drops a message, as it does in any other mode
+        var mandatory = _transport.RequirePublisherConfirms && _endpoint is RabbitMqQueue;
+        await Channel.BasicPublishAsync(_exchangeName, routingKey, mandatory, props, envelope.Data);
     }
 
     public override string ToString()
