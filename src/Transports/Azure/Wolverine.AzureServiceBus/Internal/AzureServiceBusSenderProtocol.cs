@@ -84,9 +84,15 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
                     serviceBusMessageBatch.Dispose();
 
-                    // Create a new batch and add the message to it
+                    // Create a new batch and add the message to it. A message that does not fit even an empty
+                    // batch is too large to send at all, and must not be reported as sent with the rest
                     serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-                    serviceBusMessageBatch.TryAddMessage(message);
+                    if (!serviceBusMessageBatch.TryAddMessage(message))
+                    {
+                        serviceBusMessageBatch.Dispose();
+                        throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                            AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
+                    }
                 }
 
                 pendingEnvelopes.Add(envelope);
@@ -148,9 +154,15 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                         await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
                         serviceBusMessageBatch.Dispose();
 
-                        // Create a new batch and add the message to it
+                        // Create a new batch and add the message to it. A message that does not fit even an
+                        // empty batch is too large to send at all
                         serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-                        serviceBusMessageBatch.TryAddMessage(message);
+                        if (!serviceBusMessageBatch.TryAddMessage(message))
+                        {
+                            serviceBusMessageBatch.Dispose();
+                            throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                                AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
+                        }
                     }
                 }
 
