@@ -29,6 +29,18 @@ You've got two choices:
 | Scheduled messages | Nothing releases them | Released by the durability pass |
 | Extra moving parts | None | Something has to trigger the durability pass |
 
+<!-- DRAFT (GH-5046): this table needs to say what happens to the messages the application handles itself. Under
+`ServerlessWithOutbox` the "Local queues" row is still "Removed", but a message with a handler in the same application
+(PublishAsync/SendAsync, a cascaded message, an explicit `PublishMessage<T>().ToLocalQueue(...)` rule) is no longer
+dropped: it is written to the durable inbox, owned by any node (0), inside the handler's transaction when there is one,
+and the next durability pass handles it. So it runs with the outbox's atomicity, but only as soon as the next pass,
+not in the request. Suggested new row: "Messages handled by this application | Dropped (use InvokeAsync) | Stored in
+the inbox and handled by the next durability pass". The "Scheduled messages" row should also cover what now works:
+`ScheduleAsync`/`DelayedFor` of a locally handled message, saga `TimeoutMessage`s, and scheduled sends to a transport
+that cannot schedule natively (TCP, RabbitMQ), including `IMessageBus.EndpointFor(...)` sends with a `ScheduleDelay`
+(GH-5052), are all stored in the inbox owned by any node and released by the pass when due. A `DisableConventionalLocalRouting()`
+the application makes itself still turns off the "handled by this application" routing. Plain `Serverless` is unchanged. -->
+
 The short version is that `Serverless` is the simplest possible thing. If a handler commits its transaction and then the
 outgoing message fails to send, that message is just gone. If that's acceptable for your system, or you aren't sending
 any messages to a broker from your serverless functions in the first place, use `Serverless`.
@@ -347,6 +359,12 @@ by opting into [pre-generated types](/guide/codegen.html#generating-code-ahead-o
 Just so you know going in, neither `Serverless` nor `ServerlessWithOutbox` supports:
 
 * Local queues. Use `InvokeAsync()` for in-process work instead, or send messages to an external broker
+
+<!-- DRAFT (GH-5046): under `ServerlessWithOutbox` the bullet above is only half true now. There are still no local
+queues, but publishing or cascading a message this application handles is stored in the inbox and handled by the
+next durability pass (latency up to the pass interval). This list should say that `ServerlessWithOutbox` replaces local
+queues with "handled by the next durability pass", while plain `Serverless` still drops such messages. -->
+
 * Listeners on external brokers. See [Receiving Messages by Push](#receiving-messages-by-push) instead
 * Recurring scheduled messages. Use your cloud provider's scheduler to call an HTTP endpoint instead
 * Anything that depends on leader election or agent assignment, like the [Marten async daemon in distributed mode](/guide/durability/marten/distribution)
