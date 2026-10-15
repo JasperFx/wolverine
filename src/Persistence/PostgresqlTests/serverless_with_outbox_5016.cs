@@ -237,7 +237,8 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
         report.Remaining.ShouldBe(0);
         report.HasMoreWork.ShouldBeFalse();
 
-        var step = report.Stores.Single(x => x.StoreUri == theStore.Uri).Steps.Single();
+        var step = report.Stores.Single(x => x.StoreUri == theStore.Uri).Steps
+            .Single(x => x.StepName == "Recover stale outgoing messages");
         step.Calls.ShouldBe(3);
 
         sentTo("batched").Count.ShouldBe(5);
