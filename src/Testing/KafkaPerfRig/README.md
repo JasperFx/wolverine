@@ -222,6 +222,45 @@ The emulator also needs BOTH connection strings — AMQP on 5673 and management 
 AutoProvision goes through the management API. `UseAzureServiceBusEmulator(amqp, management)` is
 the wiring; `UseAzureServiceBus(amqp)` alone fails at startup with an HTTP connect error.
 
+### Database queue durable pop (GH-5015 / #5020 / #5021) — measured 2026-10-14: a cost, change kept
+
+Role `db-queue-pop`, selected with `RIG_STORE` (postgresql | sqlserver). #5020 and #5021 moved the
+durable pop of the database queue transports into an explicit transaction that commits only after
+the batch is read -- the fix for popped envelopes stranded on a live node when the reply was lost.
+That is one more round trip per poll. Not an end-to-end cell, for the same reason as the outbox-store
+lane: the pop is called directly (the PostgreSQL one through reflection, since it only lives on the
+internal listener), so no handler or broker time buries the round trip.
+
+Three cells per round, 20 rounds after 5 warmup: 200 pops against an **empty** queue (most polls on
+most queues), one pop of a **full batch** (`MaximumMessagesToReceive`, 20), and a **drain** of a
+5,000-message backlog. Queue and inbox are cleared between rounds. Before and after are **two
+independently built worktrees** -- `274a909d1` (the parent of the #5020 merge) and `c90020ac5` --
+running this same lane, three interleaved pairs per store with the order flipped each pair.
+
+| PostgreSQL (p50) | before | after | change |
+|---|---|---|---|
+| empty pop | 0.39-0.40ms | 0.55-0.56ms | **+0.16ms (+40%)** |
+| full-batch pop | 0.75-0.79ms | 0.97-1.05ms | **+0.22ms (+28%)** |
+| drain | 9,210-9,260 msg/s | 7,740-8,090 msg/s | **about -14%** |
+
+| SQL Server (p50) | before | after | change |
+|---|---|---|---|
+| empty pop | 2.98-3.15ms | 3.78-4.29ms | **+1.2ms (+38%)** |
+| full-batch pop | 11.7-12.3ms | 11.7-12.0ms | none measurable |
+| drain | 1,970-2,110 msg/s | 1,770-1,970 msg/s | **about -11%** |
+
+The first PostgreSQL "before" run is left out of the table: it was 3-4x slower on every cell, a cold
+start against a Postgres container another session was also using. The other five runs were tight.
+
+Read it this way: an idle queue polls once per polling interval (5s by default), so the added
+fraction of a millisecond is invisible there; the drain number is the pop **ceiling** with no handler
+at all, and real handler time sits on top of it. The change was kept because the bug it fixes loses
+work. SQL Server pays more than PostgreSQL because Npgsql sends `BEGIN` with the pop itself, while
+SqlClient's `BeginTransaction` is a round trip of its own.
+
+The SQL Server cells need `dotnet build -c Release -p:InvariantGlobalization=false`: the rig builds
+with invariant globalization, and SqlClient refuses to open a connection under it.
+
 Measured findings and the experiment ledgers live in the deep-dive issues (GH-3490/3492/3493/
 3494, all closed with their ledgers) and the `*-PERF-DEEP-DIVE-PLAN.md` documents at the repo
 root (session artifacts).
