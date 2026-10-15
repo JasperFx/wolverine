@@ -214,8 +214,9 @@ internal class DurabilityPassRunner
                 total = total.Add(result);
 
                 // Done, stuck, or out of time. A step that reports work left but got nothing done this
-                // time (every send failed, say) is not called again until the next pass
-                if (result.Remaining <= 0 || result.Processed <= 0) break;
+                // time is not called again until the next pass, unless it excluded the rows that failed:
+                // then the next call reaches the rows behind them, up to MaxExcludedIds
+                if (result.Remaining <= 0 || (result.Processed <= 0 && result.NewlyExcluded <= 0)) break;
 
                 if (context.HasExpired)
                 {

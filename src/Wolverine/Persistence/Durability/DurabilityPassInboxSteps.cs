@@ -71,7 +71,9 @@ public abstract class InboxDurabilityPassStep : IDurabilityPassStep
             "Durability pass step '{Step}' executed {Settled} inbox message(s) from {Store} and left {Failed} that failed",
             Name, settled, _store.Uri, page.Count - settled);
 
-        return buildResult(settled, remaining);
+        var result = buildResult(settled, remaining);
+        result.NewlyExcluded = page.Count - settled;
+        return result;
     }
 }
 
