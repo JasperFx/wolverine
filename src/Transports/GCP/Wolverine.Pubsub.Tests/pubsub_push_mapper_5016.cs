@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Wolverine.Attributes;
 using Wolverine.Http.Transport.Push;
 using Wolverine.Pubsub.Http;
 using Wolverine.Pubsub.Internal;
@@ -297,6 +298,9 @@ public class PushedPubsubRecorder
     public List<ReceivedPubsubPush> Received { get; } = new();
 }
 
+// Kept out of the conventional discovery the other Pub/Sub tests use, as conventional routing would build
+// topics and listeners for these message types. The push host includes it explicitly
+[WolverineIgnore]
 public class PushedPubsubHandler
 {
     public static void Handle(PushedPubsubMessage message, Envelope envelope, PushedPubsubRecorder recorder)
