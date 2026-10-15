@@ -18,6 +18,7 @@
         <ProjectReference
                 Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj"/>
         <ProjectReference Include="..\Wolverine.Pubsub\Wolverine.Pubsub.csproj"/>
+        <ProjectReference Include="..\Wolverine.Pubsub.Http\Wolverine.Pubsub.Http.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
