@@ -178,7 +178,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// </summary>
     /// <remarks>
     ///     <para>Every envelope bound for an external destination is sent through its endpoint's transport
-    ///     sender directly, whether that endpoint is configured as inline, buffered or durable.</para>
+    ///     sender directly, whether that endpoint is configured as inline, buffered or durable. A batching
+    ///     sender is bypassed for its transport protocol, so a send only counts once the broker has accepted
+    ///     the message (GH-5034).</para>
     ///     <para>The outbox rows of the envelopes that were sent are deleted in <b>one</b> batched call per
     ///     message store rather than one round trip per envelope. An envelope whose send fails is left in
     ///     the outbox for the next durability pass to recover, and logged. A durable envelope that had no
@@ -225,7 +227,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
             try
             {
-                await sender.SendAsync(envelope).ConfigureAwait(false);
+                await sender.SendToBrokerAsync(envelope).ConfigureAwait(false);
                 Runtime.MessageTracking.Sent(envelope);
 
                 if (alreadyPersisted && agent.IsDurable)

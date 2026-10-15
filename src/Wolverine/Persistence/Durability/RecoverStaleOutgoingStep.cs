@@ -153,7 +153,7 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
 
         try
         {
-            await sender.SendAsync(envelope);
+            await sender.SendToBrokerAsync(envelope);
             runtime.MessageTracking.Sent(envelope);
             return true;
         }

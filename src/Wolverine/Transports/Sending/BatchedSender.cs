@@ -99,6 +99,30 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         return _serializing.PostAsync(message);
     }
 
+    /// <summary>
+    ///     GH-5034. Send one envelope straight through the transport protocol, bypassing the in-memory batching,
+    ///     and only return once the broker has accepted it. Throws if it did not. Used where the caller deletes
+    ///     the envelope's outbox row as soon as this returns, so nothing can be left to the background
+    /// </summary>
+    internal async Task SendThroughProtocolAsync(Envelope envelope)
+    {
+        if (Latched)
+        {
+            throw new InlineSendFailedException($"The sender to {Destination} is latched", null);
+        }
+
+        if (envelope.Data == null && envelope.Serializer != null)
+        {
+            envelope.Data = envelope.Serializer.Write(envelope);
+        }
+
+        var callback = new InlineSendCallback();
+        await _protocol.SendBatchAsync(callback, new OutgoingMessageBatch(Destination, [envelope]))
+            .ConfigureAwait(false);
+
+        callback.AssertAccepted(envelope);
+    }
+
     public void Dispose()
     {
         if (_protocol is IDisposable d)
