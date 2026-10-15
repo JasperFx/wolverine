@@ -185,6 +185,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public LogLevel ProcessingLogLevel { get; set; } = LogLevel.Debug;
 
     /// <summary>
+    ///     GH-5043. At what level should Wolverine log a failed attempt to handle this message type? The
+    ///     default is Error. Every failed attempt is logged, including one that an error handling rule then
+    ///     retries, so lower this for a chain where some failures are expected and handled by a retry
+    /// </summary>
+    public LogLevel FailureLogLevel { get; set; } = LogLevel.Error;
+
+    /// <summary>
     ///     Is Open Telemetry logging enabled during message invocation (IMessageBus.InvokeAsync()) for
     ///     this message type. Default is true
     /// </summary>

@@ -106,7 +106,15 @@ public partial class HttpChain : IEndpointConventionBuilder
                 $"The generated source code was:\n{_generatedType?.SourceCode}");
         }
 
-        return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+        var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+
+        // GH-5042: an endpoint can own its JSON format instead of taking the application's
+        if (JsonSerializerOptions != null)
+        {
+            handler.JsonSerializerOptions = JsonSerializerOptions;
+        }
+
+        return handler;
     }
 
     public RouteEndpoint BuildEndpoint(RouteWarmup warmup)

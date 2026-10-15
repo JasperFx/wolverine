@@ -166,7 +166,13 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         services.AddType(typeof(IApiDescriptionProvider), typeof(WolverineApiDescriptionProvider),
             ServiceLifetime.Singleton);
-        services.AddSingleton<WolverineHttpOptions>();
+        // GH-5042: resolve ASP.NET Core's JsonOptions from the start. Only MapWolverineEndpoints() used to,
+        // so pre-generated HttpHandlers mapped directly -- a library mapping its own endpoints into somebody
+        // else's application -- wrote with a bare JsonSerializerOptions: PascalCase, numeric enums
+        services.AddSingleton(serviceProvider => new WolverineHttpOptions
+        {
+            JsonSerializerOptions = aspNetCoreJsonOptions(serviceProvider)
+        });
         // NewtonsoftHttpSerialization moved to the WolverineFx.Http.Newtonsoft
         // companion package in 6.0. The package's AddWolverineHttpNewtonsoft()
         // service-collection extension registers the singleton on demand; only
@@ -276,7 +282,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
             options.WarmUpRoutes = RouteWarmup.Lazy;
         }
 
-        options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
+        options.JsonSerializerOptions = aspNetCoreJsonOptions(serviceProvider);
 
         options.Endpoints.AutoAntiforgeryOnFormEndpoints = options._autoAntiforgeryOnFormEndpoints;
         options.Endpoints.RejectUnparseableQueryValues = options.RejectUnparseableQueryValues;
@@ -294,6 +300,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // synchronization while the host is starting. See HostEndpointDataSources, GH-3421 and GH-4500.
         options.HostEndpointsPublished =
             HostEndpointDataSources.IsRoot(endpoints) && HostEndpointDataSources.TryPublish(endpoints);
+    }
+
+    private static Lazy<JsonSerializerOptions> aspNetCoreJsonOptions(IServiceProvider serviceProvider)
+    {
+        return new Lazy<JsonSerializerOptions>(() =>
+            serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
     }
 
     internal static WolverineRuntime GetWolverineRuntime(IEndpointRouteBuilder endpoints)

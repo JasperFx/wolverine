@@ -15,6 +15,11 @@ public interface IMessageHandler
     LogLevel ProcessingLogLevel { get; }
 
     /// <summary>
+    /// GH-5043. The level Wolverine logs a failed attempt to handle this message at. Error by default
+    /// </summary>
+    LogLevel FailureLogLevel => LogLevel.Error;
+
+    /// <summary>
     /// Is OpenTelemetry logging enabled for invoking this message type?
     /// </summary>
     bool TelemetryEnabled { get; }
@@ -42,6 +47,7 @@ public abstract class MessageHandler : IMessageHandler
 
     public LogLevel SuccessLogLevel => Chain!.SuccessLogLevel;
     public LogLevel ProcessingLogLevel => Chain!.ProcessingLogLevel;
+    public LogLevel FailureLogLevel => Chain?.FailureLogLevel ?? LogLevel.Error;
 
     public bool TelemetryEnabled => Chain!.TelemetryEnabled;
 
