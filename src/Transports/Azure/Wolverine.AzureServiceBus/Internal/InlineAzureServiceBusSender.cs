@@ -59,7 +59,12 @@ public class InlineAzureServiceBusSender : ISender
         var message = new ServiceBusMessage();
         _mapper.MapEnvelopeToOutgoing(envelope, message);
 
-        var registration = envelope.ScheduledCancellation ?? _cancellations?.Find(envelope.Id);
+        // The listener reuses an incoming envelope when it sends a retry or deferral. Its ID can
+        // still match the original schedule's live cancellation registration, but that registration
+        // must only deduplicate outgoing outbox work (including recovery), not listener requeues.
+        var registration = envelope.Status == EnvelopeStatus.Outgoing
+            ? envelope.ScheduledCancellation ?? _cancellations?.Find(envelope.Id)
+            : null;
         if (registration?.IsBound == true)
         {
             return;

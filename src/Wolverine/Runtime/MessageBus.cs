@@ -378,6 +378,12 @@ public partial class MessageBus : IMessageBus, IMessageContext
                     ScheduledMessageCancellationStatus.NotScheduled);
                 if (supportsCancellation)
                 {
+                    // DeliveryOptions.Override() leaves even an already-due schedule in Scheduled state.
+                    // Persist it as outgoing work so a durable transaction does not also create an
+                    // executable inbox copy alongside the immediate Azure send.
+                    envelope.Status = EnvelopeStatus.Outgoing;
+                    envelope.OwnerId = Runtime.Options.Durability.AssignedNodeNumber;
+
                     // Let the Azure sender clear a past ScheduledEnqueueTime and send immediately.
                     envelope.ScheduledCancellation = registration;
                 }
