@@ -34,6 +34,11 @@ public abstract class InboxDurabilityPassStep : IDurabilityPassStep
 
     protected abstract DurabilityPassStepResult buildResult(int settled, int remaining);
 
+    /// <summary>
+    ///     Whether a row parked under an external endpoint's address is sent on to that endpoint rather than handled
+    /// </summary>
+    protected virtual bool forwardsExternalDestinations => false;
+
     public async Task<DurabilityPassStepResult> ExecuteAsync(DurabilityPassContext context, CancellationToken token)
     {
         if (_failed.Count > DurabilityPassContext.MaxExcludedIds)
@@ -52,7 +57,7 @@ public abstract class InboxDurabilityPassStep : IDurabilityPassStep
         var settled = 0;
         foreach (var envelope in page)
         {
-            if (await _executor.ExecuteAsync(envelope, token) == InboxExecutionOutcome.Settled)
+            if (await _executor.ExecuteAsync(envelope, token, forwardsExternalDestinations) == InboxExecutionOutcome.Settled)
             {
                 settled++;
             }
@@ -91,6 +96,8 @@ public sealed class ReleaseScheduledMessagesStep : InboxDurabilityPassStep
     }
 
     public override string Name => "Release due scheduled messages";
+
+    protected override bool forwardsExternalDestinations => true;
 
     protected override Task<IReadOnlyList<Envelope>> loadAsync(DurabilityPassContext context, Guid[] excluded,
         CancellationToken token)

@@ -7,6 +7,7 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -46,10 +47,16 @@ internal class DurabilityPassInboxExecutor : IHandlerPipeline
         _executors = new LightweightCache<Type, IExecutor>(type => ((IExecutorFactory)_runtime).BuildFor(type));
     }
 
-    public async Task<InboxExecutionOutcome> ExecuteAsync(Envelope envelope, CancellationToken token)
+    public async Task<InboxExecutionOutcome> ExecuteAsync(Envelope envelope, CancellationToken token,
+        bool forwardExternalDestinations = false)
     {
         // An in-memory-only reference that does not survive persistence. See GH-2318
         envelope.Store ??= _store;
+
+        if (forwardExternalDestinations && isForExternalEndpoint(envelope))
+        {
+            return await forwardAsync(envelope).ConfigureAwait(false);
+        }
 
         if (envelope.Message == null && envelope.Serializer == null)
         {
@@ -63,6 +70,102 @@ internal class DurabilityPassInboxExecutor : IHandlerPipeline
         await invokeAsync(envelope, channel, token).ConfigureAwait(false);
 
         return channel.Settled ? InboxExecutionOutcome.Settled : InboxExecutionOutcome.Failed;
+    }
+
+    // A due scheduled send to an endpoint that schedules natively, like a database queue, is parked in the inbox
+    // under that endpoint's address, unwrapped. The other modes' scheduled job hands such a row over to the
+    // endpoint when there is no listener for it (WolverineRuntime.HandOverAsync). Executing it here would handle
+    // it locally instead, or drop it when this application has no handler for it
+    private bool isForExternalEndpoint(Envelope envelope)
+    {
+        if (envelope.Destination == null || envelope.Destination.Scheme == TransportConstants.Local) return false;
+        if (envelope.ContentType == TransportConstants.SerializedEnvelope) return false;
+
+        // A scheduled retry of a message this application received from that endpoint is handled here
+        return _runtime.Options.Transports.TryGetEndpoint(envelope.Destination) is not { IsListener: true };
+    }
+
+    // In the order HandOverAsync uses (GH-4824): the outbox row first, so the message is never only in flight,
+    // then the inbox row retired before the send, so a listener on that address never finds the id in its inbox
+    // and drops the delivered message as a duplicate (GH-4316). Then sent inline, as nothing runs in the
+    // background under ServerlessWithOutbox. A failed send leaves the outbox row for the outgoing recovery
+    private async Task<InboxExecutionOutcome> forwardAsync(Envelope envelope)
+    {
+        ISendingAgent agent;
+        try
+        {
+            agent = _runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to find a sending agent for due scheduled message {EnvelopeId} to {Destination}",
+                envelope.Id, envelope.Destination);
+            return InboxExecutionOutcome.Failed;
+        }
+
+        envelope.ScheduledTime = null;
+
+        bool stored;
+        try
+        {
+            stored = await agent.TryStoreOutgoingAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to move due scheduled message {EnvelopeId} to the outbox for {Destination}",
+                envelope.Id, envelope.Destination);
+            return InboxExecutionOutcome.Failed;
+        }
+
+        try
+        {
+            await envelope.Store!.Inbox.DeleteIncomingEnvelopeAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // The message is in the outbox either way. A stranded inbox row is recoverable by hand
+            _logger.LogError(e, "Unable to delete the inbox row of due scheduled message {EnvelopeId} after moving it to the outbox",
+                envelope.Id);
+        }
+
+        var sender = agent switch
+        {
+            SendingAgent a => a.Sender,
+            InlineSendingAgent a => a.Sender,
+            ISender s => s,
+            _ => null
+        };
+
+        if (sender == null || agent.Latched) return InboxExecutionOutcome.Settled;
+
+        try
+        {
+            await sender.SendToBrokerAsync(envelope).ConfigureAwait(false);
+            _runtime.MessageTracking.Sent(envelope);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Unable to send due scheduled message {EnvelopeId} to {Destination}. It is left in the outbox for a later durability pass",
+                envelope.Id, envelope.Destination);
+            return InboxExecutionOutcome.Settled;
+        }
+
+        if (stored)
+        {
+            try
+            {
+                await envelope.Store!.Outbox.DeleteOutgoingAsync(envelope).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                // Already sent, so the worst case is a duplicate send by a later pass
+                _logger.LogError(e, "Unable to delete the outbox row of due scheduled message {EnvelopeId} after sending it",
+                    envelope.Id);
+            }
+        }
+
+        return InboxExecutionOutcome.Settled;
     }
 
     // Retries from the error policies (RetryNow, RetryWithCooldown) come back through here by way of the
