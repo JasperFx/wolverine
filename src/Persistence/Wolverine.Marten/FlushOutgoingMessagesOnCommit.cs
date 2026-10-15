@@ -146,6 +146,14 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
             _context.Envelope.Status = EnvelopeStatus.Handled;
         }
 
+        // GH-5016: nothing can be trusted to run after a serverless request completes, so the messages are
+        // sent right now and their outbox rows deleted in one batch. A failed send stays in the outbox
+        // for the next durability pass
+        if (_context.Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
+        {
+            return _context.SendAllOutgoingMessagesInlineAsync();
+        }
+
         return _context.FlushOutgoingMessagesAsync();
     }
 }

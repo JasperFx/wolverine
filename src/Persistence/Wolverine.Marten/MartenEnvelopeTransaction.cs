@@ -11,6 +11,8 @@ namespace Wolverine.Marten;
 internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _context;
+
+    // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them
     private readonly int _nodeId;
 
     public MartenEnvelopeTransaction(IDocumentSession session, MessageContext context)
@@ -19,12 +21,12 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         if (context.Storage is PostgresqlMessageStore store)
         {
             Store = store;
-            _nodeId = store.Durability.AssignedNodeNumber;
+            _nodeId = store.Durability.OutgoingOwnerId;
         }
         else if (context.Storage is MultiTenantedMessageStore { Main: PostgresqlMessageStore s })
         {
             Store = s;
-            _nodeId = s.Durability.AssignedNodeNumber;
+            _nodeId = s.Durability.OutgoingOwnerId;
         }
         else
         {

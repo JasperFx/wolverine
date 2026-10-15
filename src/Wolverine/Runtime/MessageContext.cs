@@ -207,6 +207,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 SendingAgent a => a.Sender,
                 InlineSendingAgent a => a.Sender,
+
+                // An agent that is its own transport sender, like the stub transport's endpoints
+                ISender s => s,
                 _ => null
             };
 
