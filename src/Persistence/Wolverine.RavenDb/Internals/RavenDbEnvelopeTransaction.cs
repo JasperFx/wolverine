@@ -75,7 +75,7 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
 
     public Task PersistIncomingAsync(Envelope envelope)
     {
-        return Session.StoreAsync(new IncomingMessage(envelope, _store));
+        return _store.StoreIncomingAsync(Session, envelope);
     }
 
     public ValueTask RollbackAsync()

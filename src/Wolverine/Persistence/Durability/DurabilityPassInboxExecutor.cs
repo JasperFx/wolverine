@@ -3,13 +3,12 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 
-namespace Wolverine.RDBMS.Durability;
+namespace Wolverine.Persistence.Durability;
 
 internal enum InboxExecutionOutcome
 {

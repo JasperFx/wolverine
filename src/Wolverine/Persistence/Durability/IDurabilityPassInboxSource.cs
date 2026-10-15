@@ -1,7 +1,7 @@
-namespace Wolverine.RDBMS.Durability;
+namespace Wolverine.Persistence.Durability;
 
 /// <summary>
-///     GH-5028. What a relational message store answers so the inbox steps of a
+///     GH-5028. What a message store answers so the inbox steps of a
 ///     <see cref="DurabilityMode.ServerlessWithOutbox" /> durability pass,
 ///     <see cref="ReleaseScheduledMessagesStep" /> and <see cref="RecoverIncomingMessagesStep" />, can find their
 ///     rows. Rows whose ids are in <c>excluded</c> already failed in this pass and are skipped
@@ -24,7 +24,8 @@ public interface IDurabilityPassInboxSource
     ///     Load up to <paramref name="limit" /> <c>Incoming</c> inbox rows that no live request is handling. When
     ///     <paramref name="staleBefore" /> has a value (<see cref="DurabilitySettings.InboxStaleTime" /> is set),
     ///     that is every row of any owner whose stale clock is at or before it. Otherwise it is the rows owned by
-    ///     any node (<c>owner_id = 0</c>)
+    ///     any node (<c>owner_id = 0</c>). A store with no inbox stale clock, such as RavenDb or Cosmos DB, takes
+    ///     the rows owned by any node either way
     /// </summary>
     Task<IReadOnlyList<Envelope>> LoadRecoverableIncomingAsync(DateTimeOffset? staleBefore, Guid[] excluded,
         int limit, CancellationToken token);

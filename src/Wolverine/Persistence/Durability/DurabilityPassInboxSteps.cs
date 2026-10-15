@@ -1,8 +1,7 @@
 using Microsoft.Extensions.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
-namespace Wolverine.RDBMS.Durability;
+namespace Wolverine.Persistence.Durability;
 
 /// <summary>
 ///     GH-5028. The common shape of the inbox steps of a durability pass: one batch of rows per call, each
