@@ -21,6 +21,17 @@ internal class OutgoingEnvelopeTable : Table
         if (durability.OutboxStaleTime.HasValue)
         {
             AddColumn(DatabaseConstants.Timestamp, "TEXT").DefaultValueByExpression("(datetime('now'))");
+
+            // GH-5016: opt-in, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
+            // (`owner_id = 0 and timestamp <= @stale`). Partial, so it only covers the rows a pass looks at
+            if (durability.EnableOutgoingTimestampIndex)
+            {
+                Indexes.Add(new IndexDefinition($"idx_{Identifier.Name}_stale")
+                {
+                    Columns = [DatabaseConstants.Timestamp],
+                    Predicate = $"{DatabaseConstants.OwnerId} = 0"
+                });
+            }
         }
     }
 }
