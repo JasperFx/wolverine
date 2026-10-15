@@ -7,6 +7,7 @@ using NSubstitute;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -34,12 +35,17 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
         foreach (var disposable in _disposables) await disposable.DisposeAsync();
     }
 
-    private DurableSendingAgent durableTcpAgent(int port)
+    private DurableSendingAgent durableTcpAgent(int port, int? messageBatchSize = null)
     {
         var endpoint = new TcpEndpoint(port);
-        var sender = new BatchedSender(endpoint, new SocketSenderProtocol(), CancellationToken.None,
-            NullLogger.Instance);
+        if (messageBatchSize.HasValue) endpoint.MessageBatchSize = messageBatchSize.Value;
 
+        return durableAgent(endpoint, new BatchedSender(endpoint, new SocketSenderProtocol(), CancellationToken.None,
+            NullLogger.Instance));
+    }
+
+    private DurableSendingAgent durableAgent(Endpoint endpoint, ISender sender)
+    {
         var agent = new DurableSendingAgent(sender, theRuntime.Options.Durability, NullLogger.Instance,
             Substitute.For<IMessageTracker>(), Substitute.For<IMessageOutbox>(), endpoint);
         _disposables.Add(agent);
@@ -138,20 +144,136 @@ public class inline_send_through_a_batched_sender_5034 : IAsyncDisposable
             .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 1 && x[0] == envelope));
     }
 
-    private Task<DurabilityPassStepResult> recoverAsync(Envelope envelope)
+    [Fact]
+    public async Task the_inline_send_puts_every_envelope_for_one_destination_in_one_round_trip()
+    {
+        await using var broker = new FakeTcpBroker();
+        var agent = durableTcpAgent(broker.Port);
+        var envelopes = new[] { envelopeTo(agent), envelopeTo(agent), envelopeTo(agent) };
+        var context = await contextWithOutgoing(envelopes);
+
+        await context.SendAllOutgoingMessagesInlineAsync();
+
+        broker.Received.ShouldBe(1);
+        await theRuntime.Storage.Outbox.Received(1)
+            .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 3 && envelopes.All(x.Contains)));
+    }
+
+    [Fact]
+    public async Task the_inline_send_batches_by_the_endpoints_message_batch_size()
+    {
+        await using var broker = new FakeTcpBroker();
+        var agent = durableTcpAgent(broker.Port, messageBatchSize: 2);
+        var envelopes = Enumerable.Range(0, 5).Select(_ => envelopeTo(agent)).ToArray();
+        var context = await contextWithOutgoing(envelopes);
+
+        await context.SendAllOutgoingMessagesInlineAsync();
+
+        broker.Received.ShouldBe(3);
+        await theRuntime.Storage.Outbox.Received(1)
+            .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 5));
+    }
+
+    [Fact]
+    public async Task the_inline_send_only_deletes_what_the_broker_accepted_from_a_partly_failed_batch()
+    {
+        var endpoint = new TcpEndpoint(deadPort());
+        var protocol = new PartlyAcceptingProtocol();
+        var agent = durableAgent(endpoint, new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance));
+
+        var accepted = envelopeTo(agent);
+        var rejected = envelopeTo(agent);
+        var ignored = envelopeTo(agent);
+        protocol.Rejected.Add(rejected.Id);
+        protocol.Ignored.Add(ignored.Id);
+
+        var context = await contextWithOutgoing(accepted, rejected, ignored);
+        await context.SendAllOutgoingMessagesInlineAsync();
+
+        // One round trip, and a protocol that says nothing about an envelope did not send it
+        protocol.Batches.ShouldBe(1);
+        await theRuntime.Storage.Outbox.Received(1)
+            .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 1 && x[0] == accepted));
+    }
+
+    [Fact]
+    public async Task the_inline_send_goes_through_the_protocol_of_a_tenants_batched_sender()
+    {
+        await using var broker = new FakeTcpBroker();
+
+        var tenantEndpoint = new TcpEndpoint(broker.Port);
+        var tenantSender = new BatchedSender(tenantEndpoint, new SocketSenderProtocol(), CancellationToken.None,
+            NullLogger.Instance);
+
+        var endpoint = new TcpEndpoint(deadPort());
+        var tenanted = new TenantedSender(endpoint.Uri, TenantedIdBehavior.TenantIdRequired, null);
+        tenanted.RegisterSender("tenant-a", tenantSender);
+        var agent = durableAgent(endpoint, tenanted);
+
+        var envelope = envelopeTo(agent);
+        envelope.TenantId = "tenant-a";
+        var context = await contextWithOutgoing(envelope);
+
+        await context.SendAllOutgoingMessagesInlineAsync();
+
+        // TenantedSender.SendAsync would only have queued it inside the tenant's BatchedSender
+        broker.Received.ShouldBe(1);
+        await theRuntime.Storage.Outbox.Received(1)
+            .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 1 && x[0] == envelope));
+    }
+
+    [Fact]
+    public async Task the_durability_pass_recovers_one_destination_in_one_round_trip()
+    {
+        await using var broker = new FakeTcpBroker();
+        var agent = durableTcpAgent(broker.Port);
+        var envelopes = new[] { envelopeTo(agent), envelopeTo(agent), envelopeTo(agent) };
+
+        var report = await recoverAsync(envelopes);
+
+        report.OutgoingSent.ShouldBe(3);
+        broker.Received.ShouldBe(1);
+        await theRuntime.Storage.Outbox.Received(1)
+            .DeleteOutgoingAsync(Arg.Is<Envelope[]>(x => x.Length == 3));
+    }
+
+    private Task<DurabilityPassStepResult> recoverAsync(params Envelope[] envelopes)
     {
         // A recovered row has no sending agent of its own; the step finds it by destination
-        envelope.Sender = null;
+        foreach (var envelope in envelopes) envelope.Sender = null;
 
         var source = Substitute.For<IStaleOutgoingSource>();
         source.LoadStaleOutgoingAsync(default, default!, default, default)
-            .ReturnsForAnyArgs(new List<Envelope> { envelope });
+            .ReturnsForAnyArgs(envelopes.ToList());
 
         var step = new RecoverStaleOutgoingStep(theRuntime.Storage, source, NullLogger.Instance);
         var context = new DurabilityPassContext(theRuntime, theRuntime.Storage, 10,
             DateTimeOffset.UtcNow.AddMinutes(1), () => DateTimeOffset.UtcNow);
 
         return step.ExecuteAsync(context, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Answers for part of a batch the way SQS does: the accepted envelopes and the rejected ones come back as
+    /// separate sub-batches. An "ignored" envelope is in neither, as Azure Service Bus does with one it cannot map
+    /// </summary>
+    private class PartlyAcceptingProtocol : ISenderProtocol
+    {
+        public HashSet<Guid> Rejected { get; } = new();
+        public HashSet<Guid> Ignored { get; } = new();
+        public int Batches { get; private set; }
+
+        public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
+        {
+            Batches++;
+
+            var accepted = batch.Messages.Where(x => !Rejected.Contains(x.Id) && !Ignored.Contains(x.Id)).ToList();
+            var rejected = batch.Messages.Where(x => Rejected.Contains(x.Id)).ToList();
+
+            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, accepted));
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, rejected),
+                new InvalidOperationException("Throttled"));
+        }
     }
 
     /// <summary>

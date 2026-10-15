@@ -70,6 +70,7 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
 
         var sent = new List<Envelope>();
         var expired = new List<Envelope>();
+        var toSend = new List<(Envelope Envelope, ISender Sender)>();
         var failed = 0;
 
         foreach (var envelope in page)
@@ -83,12 +84,37 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
                 continue;
             }
 
-            if (await trySendAsync(runtime, envelope))
+            var sender = senderFor(runtime, envelope);
+            if (sender == null)
             {
-                sent.Add(envelope);
+                _failed.Add(envelope.Id);
+                failed++;
+                continue;
             }
-            else
+
+            toSend.Add((envelope, sender));
+        }
+
+        // One group per transport sender, each sent in as few broker round trips as its transport allows, and the
+        // groups concurrently with each other. The rows come oldest first, so each group keeps that order
+        var groups = toSend.GroupBy(x => x.Sender).ToArray();
+        var results = await Task.WhenAll(groups.Select(group =>
+            group.Key.SendToBrokerAsync(group.Select(x => x.Envelope).ToArray())));
+
+        for (var i = 0; i < groups.Length; i++)
+        {
+            foreach (var (envelope, _) in groups[i])
             {
+                if (results[i].WasAccepted(envelope))
+                {
+                    runtime.MessageTracking.Sent(envelope);
+                    sent.Add(envelope);
+                    continue;
+                }
+
+                _logger.LogError(results[i].Exception,
+                    "Unable to send recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
+                    envelope, envelope.Destination);
                 _failed.Add(envelope.Id);
                 failed++;
             }
@@ -134,7 +160,7 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
         return _failed.Count > DurabilityPassContext.MaxExcludedIds ? [] : _failed.ToArray();
     }
 
-    private async Task<bool> trySendAsync(IWolverineRuntime runtime, Envelope envelope)
+    private ISender? senderFor(IWolverineRuntime runtime, Envelope envelope)
     {
         ISendingAgent agent;
         try
@@ -145,7 +171,7 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
         {
             // A leftover row for a transport that was removed must not stop the rest. See GH-3413
             _logger.LogError(e, "Error trying to find a sending agent for {Destination}", envelope.Destination);
-            return false;
+            return null;
         }
 
         var sender = agent switch
@@ -161,25 +187,13 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
             _logger.LogWarning(
                 "Unable to send recovered outgoing message {Envelope} to {Destination} inline, so it is left in the outbox",
                 envelope, envelope.Destination);
-            return false;
+            return null;
         }
 
         // The sender wire tap is in-memory only as well. See GH-3263
         envelope.WireTap ??= agent.Endpoint.WireTap;
         envelope.Status = EnvelopeStatus.Outgoing;
 
-        try
-        {
-            await sender.SendToBrokerAsync(envelope);
-            runtime.MessageTracking.Sent(envelope);
-            return true;
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e,
-                "Unable to send recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
-                envelope, envelope.Destination);
-            return false;
-        }
+        return sender;
     }
 }

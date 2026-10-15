@@ -184,7 +184,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     }
 
     /// <summary>
-    ///     Send every outgoing message in this context <b>right now</b>, awaiting each send, instead of
+    ///     Send every outgoing message in this context <b>right now</b>, awaiting the broker, instead of
     ///     handing them off to the sending agents in the background. Use this after the transaction
     ///     commits wherever nothing can be trusted to run after the request completes, such as a
     ///     serverless function under <see cref="DurabilityMode.ServerlessWithOutbox" />.
@@ -193,7 +193,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     ///     <para>Every envelope bound for an external destination is sent through its endpoint's transport
     ///     sender directly, whether that endpoint is configured as inline, buffered or durable. A batching
     ///     sender is bypassed for its transport protocol, so a send only counts once the broker has accepted
-    ///     the message (GH-5034).</para>
+    ///     the message (GH-5034). The envelopes for one destination go out in batches of its endpoint's
+    ///     MessageBatchSize, one broker round trip per batch, and different destinations are sent
+    ///     concurrently.</para>
     ///     <para>The outbox rows of the envelopes that were sent are deleted in <b>one</b> batched call per
     ///     message store rather than one round trip per envelope. An envelope whose send fails is left in
     ///     the outbox for the next durability pass to recover, and logged. A durable envelope that had no
@@ -211,6 +213,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // persisted with it. With this context as its own transaction nothing has been written yet
         var alreadyPersisted = Transaction != null && !ReferenceEquals(Transaction, this);
         List<Envelope>? toDelete = null;
+        List<(Envelope Envelope, ISendingAgent Agent, ISender Sender)>? sendable = null;
 
         foreach (var envelope in outgoing)
         {
@@ -238,34 +241,51 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             envelope.OwnerId = Runtime.Options.Durability.OutgoingOwnerId;
             envelope.ReplyUri ??= agent.ReplyUri;
 
-            try
-            {
-                await sender.SendToBrokerAsync(envelope).ConfigureAwait(false);
-                Runtime.MessageTracking.Sent(envelope);
+            (sendable ??= new()).Add((envelope, agent, sender));
+        }
 
-                if (alreadyPersisted && agent.IsDurable)
-                {
-                    (toDelete ??= new()).Add(envelope);
-                }
-            }
-            catch (Exception e)
+        if (sendable != null)
+        {
+            // One group per transport sender, each sent in as few broker round trips as its transport allows.
+            // The groups go to different destinations, so they are sent concurrently, while the envelopes of one
+            // group keep their order
+            var groups = sendable.GroupBy(x => x.Sender).ToArray();
+            var results = await Task.WhenAll(groups.Select(group =>
+                group.Key.SendToBrokerAsync(group.Select(x => x.Envelope).ToArray()))).ConfigureAwait(false);
+
+            for (var i = 0; i < groups.Length; i++)
             {
-                if (!agent.IsDurable)
+                foreach (var (envelope, agent, _) in groups[i])
                 {
-                    Runtime.Logger.LogError(e,
-                        "Unable to send outgoing message {Envelope} inline to non-durable destination {Destination}, so it has been discarded",
+                    if (results[i].WasAccepted(envelope))
+                    {
+                        Runtime.MessageTracking.Sent(envelope);
+
+                        if (alreadyPersisted && agent.IsDurable)
+                        {
+                            (toDelete ??= new()).Add(envelope);
+                        }
+
+                        continue;
+                    }
+
+                    if (!agent.IsDurable)
+                    {
+                        Runtime.Logger.LogError(results[i].Exception,
+                            "Unable to send outgoing message {Envelope} inline to non-durable destination {Destination}, so it has been discarded",
+                            envelope, envelope.Destination);
+                        Runtime.MessageTracking.DiscardedEnvelope(envelope);
+                        continue;
+                    }
+
+                    Runtime.Logger.LogError(results[i].Exception,
+                        "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
                         envelope, envelope.Destination);
-                    Runtime.MessageTracking.DiscardedEnvelope(envelope);
-                    continue;
-                }
 
-                Runtime.Logger.LogError(e,
-                    "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
-                    envelope, envelope.Destination);
-
-                if (!alreadyPersisted)
-                {
-                    await storeUnsentEnvelopeAsync(envelope).ConfigureAwait(false);
+                    if (!alreadyPersisted)
+                    {
+                        await storeUnsentEnvelopeAsync(envelope).ConfigureAwait(false);
+                    }
                 }
             }
         }
