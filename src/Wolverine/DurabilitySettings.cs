@@ -2,6 +2,7 @@
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence;
+using Wolverine.Transports;
 
 namespace Wolverine;
 
@@ -32,7 +33,16 @@ public enum DurabilityMode
     /// Optimizes Wolverine for usage as strictly a mediator tool. This completely disables all node
     /// persistence including the inbox and outbox
     /// </summary>
-    MediatorOnly
+    MediatorOnly,
+
+    /// <summary>
+    /// The same lean runtime as <see cref="Serverless"/> -- no node registration, no node agents,
+    /// no leader election, no local queues and no background durability timers -- but the message
+    /// store's transactional outbox stays active. Outgoing envelopes are persisted inside the
+    /// handler's transaction with an owner of "any node" (0), and are recovered by an externally
+    /// triggered durability pass. See GH-5016
+    /// </summary>
+    ServerlessWithOutbox
 }
 
 /// <summary>
@@ -224,7 +234,28 @@ public class DurabilitySettings : IDescribeMyself
     /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>
-    public TimeSpan? OutboxStaleTime { get; set; }
+    /// <remarks>
+    /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 60 seconds. A value set
+    /// explicitly always wins.
+    /// </remarks>
+    public TimeSpan? OutboxStaleTime
+    {
+        get => _outboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultOutboxStaleTime : null);
+        set => _outboxStaleTime = value;
+    }
+
+    private TimeSpan? _outboxStaleTime;
+
+    internal static readonly TimeSpan ServerlessWithOutboxDefaultOutboxStaleTime = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// The owner id stamped onto outgoing envelopes when they are written to the outbox. Under
+    /// <see cref="DurabilityMode.ServerlessWithOutbox"/> there is no node record to own them, so they are
+    /// written as owned by any node (0) from the start
+    /// </summary>
+    internal int OutgoingOwnerId => Mode == DurabilityMode.ServerlessWithOutbox
+        ? TransportConstants.AnyNode
+        : AssignedNodeNumber;
     
     /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable inbox that is older

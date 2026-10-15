@@ -252,7 +252,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
         else
         {
-            envelope.OwnerId = runtime.Options.Durability.AssignedNodeNumber;
+            envelope.OwnerId = runtime.Options.Durability.OutgoingOwnerId;
         }
 
         return envelope;

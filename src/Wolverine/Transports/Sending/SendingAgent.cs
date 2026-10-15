@@ -218,7 +218,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     protected void setDefaults(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Outgoing;
-        envelope.OwnerId = _settings.AssignedNodeNumber;
+        envelope.OwnerId = _settings.OutgoingOwnerId;
         envelope.ReplyUri ??= ReplyUri;
     }
 

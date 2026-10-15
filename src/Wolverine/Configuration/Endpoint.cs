@@ -1161,6 +1161,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
             case DurabilityMode.MediatorOnly:
             case DurabilityMode.Serverless:
+            case DurabilityMode.ServerlessWithOutbox:
                 return false;
         }
 

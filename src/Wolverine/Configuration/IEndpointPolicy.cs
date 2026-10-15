@@ -10,10 +10,47 @@ public interface IEndpointPolicy : IWolverinePolicy
 
 internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
 {
+    private readonly List<Uri> _downgradedDurableEndpoints = [];
+
+    internal IReadOnlyList<Uri> DowngradedDurableEndpoints
+    {
+        get
+        {
+            lock (_downgradedDurableEndpoints)
+            {
+                return _downgradedDurableEndpoints.ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// GH-5016. Plain Serverless silently dropped the outbox of every UseDurableOutbox() endpoint. Report all
+    /// of them in one warning -- a warning, not an error, so existing apps keep starting
+    /// </summary>
+    internal void WarnAboutDowngradedDurableEndpoints(ILogger logger)
+    {
+        var downgraded = DowngradedDurableEndpoints;
+        if (downgraded.Count == 0) return;
+
+        logger.LogWarning(
+            "Serverless mode requires every endpoint to be Inline, so Wolverine has downgraded these durable endpoints to Inline: {Endpoints}. "
+            + "The transactional outbox guarantee no longer applies to messages sent to them. "
+            + "Use DurabilityMode.{Mode} to keep the outbox in a serverless deployment.",
+            string.Join(", ", downgraded), nameof(DurabilityMode.ServerlessWithOutbox));
+    }
+
     public void Apply(Endpoint endpoint, IWolverineRuntime runtime)
     {
         try
         {
+            if (endpoint.Mode == EndpointMode.Durable)
+            {
+                lock (_downgradedDurableEndpoints)
+                {
+                    if (!_downgradedDurableEndpoints.Contains(endpoint.Uri)) _downgradedDurableEndpoints.Add(endpoint.Uri);
+                }
+            }
+
             // GH-3708. Coercing NativeAck to Inline is correct for Serverless -- there is no long-running process
             // to hold an execution block -- but it silently drops the endpoint's partitioning and parallelism, and
             // partitioned processing is a GUARANTEE the user asked for. Say so rather than degrading in silence.
@@ -32,6 +69,19 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
         {
             throw new InvalidOperationException("All endpoints must be Inline when running in Serverless mode", e);
         }
+    }
+}
+
+/// <summary>
+/// GH-5016. The ServerlessWithOutbox counterpart of <see cref="ServerlessEndpointsMustBeInlinePolicy"/>: every
+/// endpoint that can be durable is made durable, so the transactional outbox is kept for every sending
+/// endpoint. Endpoints whose transport cannot be durable fall back to Inline
+/// </summary>
+internal class ServerlessWithOutboxEndpointsPolicy : IEndpointPolicy
+{
+    public void Apply(Endpoint endpoint, IWolverineRuntime runtime)
+    {
+        endpoint.Mode = endpoint.SupportsMode(EndpointMode.Durable) ? EndpointMode.Durable : EndpointMode.Inline;
     }
 }
 
