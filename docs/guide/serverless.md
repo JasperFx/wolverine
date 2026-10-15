@@ -340,6 +340,8 @@ settings, or `DefaultIncomingMessage<T>()` that you've configured on that endpoi
 Pub/Sub messages without a Wolverine message id get a stable id derived from the subscription and the Pub/Sub message id, so the inbox
 deduplication still recognizes a redelivery.
 
+<!-- DRAFT (GH-5054, for Jeremy to word): say plainly that Wolverine does not create push subscriptions. The push subscription the push receiver needs (push endpoint = this route's public URL, OIDC token/audience for the authorization policy, ack deadline, retry policy, and the dead-letter policy recommended under GH-5048) has to be provisioned outside Wolverine -- Terraform, gcloud, Pulumi, etc. Also warn that calling AutoProvision() on a push-receiving ServerlessWithOutbox host creates every ListenToPubsubTopic(...) subscription as a PULL subscription (no push config, 10 s to 600 s retry policy), in the default project and in every tenant project, and nothing ever pulls them in this mode: either create the push subscription first under the same name (worth verifying what AutoProvision then does with an existing push subscription before recommending this) or don't AutoProvision the listener subscriptions on the push host. A later change could let the push receiver mapping supply the push endpoint for provisioning; until then this is documentation only. -->
+
 ## Pre-Generate All Types
 
 The runtime code generation that Wolverine does comes with a potentially non-trivial "cold start" problem with its first
@@ -352,5 +354,6 @@ Just so you know going in, neither `Serverless` nor `ServerlessWithOutbox` suppo
 
 * Local queues. Use `InvokeAsync()` for in-process work instead, or send messages to an external broker
 * Listeners on external brokers. See [Receiving Messages by Push](#receiving-messages-by-push) instead
+<!-- DRAFT (GH-5054, for Jeremy to word): maybe add here that resource provisioning of a broker's listener side (e.g. AutoProvision() of Pub/Sub subscriptions) still runs and creates pull subscriptions that nothing reads; the push subscriptions are provisioned outside Wolverine. See the GH-5054 note under Google Pub/Sub Push Subscriptions. -->
 * Recurring scheduled messages. Use your cloud provider's scheduler to call an HTTP endpoint instead
 * Anything that depends on leader election or agent assignment, like the [Marten async daemon in distributed mode](/guide/durability/marten/distribution)
