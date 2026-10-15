@@ -30,19 +30,30 @@ internal class MqttSenderProtocol : ISenderProtocol
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
+        // Published one at a time, so on a failure the ones before it were already acknowledged
+        var published = 0;
         try
         {
             foreach (var envelope in batch.Messages)
             {
                 var message = _topic.BuildMessage(envelope).ApplicationMessage;
                 await _client.InternalClient.PublishAsync(message, CancellationToken.None);
+                published++;
             }
 
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception ex)
         {
-            await callback.MarkProcessingFailureAsync(batch, ex);
+            // Report the acknowledged ones as sent, so a retry does not publish them again, and only the rest failed
+            if (published > 0)
+            {
+                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination,
+                    batch.Messages.Take(published).ToList()));
+            }
+
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination,
+                batch.Messages.Skip(published).ToList()), ex);
         }
     }
 }
