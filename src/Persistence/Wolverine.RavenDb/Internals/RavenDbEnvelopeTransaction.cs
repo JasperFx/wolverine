@@ -1,6 +1,7 @@
 using Raven.Client.Documents.Session;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
 
@@ -9,12 +10,16 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
     private readonly int _nodeId;
     private readonly RavenDbMessageStore _store;
 
+    // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them
+    private readonly bool _ownedByAnyNode;
+
     public RavenDbEnvelopeTransaction(IAsyncDocumentSession session, MessageContext context)
     {
         if (context.Storage is RavenDbMessageStore store)
         {
             _store = store;
             _nodeId = context.Runtime.Options.Durability.AssignedNodeNumber;
+            _ownedByAnyNode = context.Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox;
         }
         else
         {
@@ -46,15 +51,26 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
 
     public Task PersistOutgoingAsync(Envelope envelope)
     {
-        return Session.StoreAsync(new OutgoingMessage(envelope));
+        return Session.StoreAsync(buildOutgoing(envelope));
     }
 
     public async Task PersistOutgoingAsync(Envelope[] envelopes)
     {
         foreach (var envelope in envelopes)
         {
-            await Session.StoreAsync(new OutgoingMessage(envelope));
+            await Session.StoreAsync(buildOutgoing(envelope));
         }
+    }
+
+    private OutgoingMessage buildOutgoing(Envelope envelope)
+    {
+        var outgoing = new OutgoingMessage(envelope);
+        if (_ownedByAnyNode)
+        {
+            outgoing.OwnerId = TransportConstants.AnyNode;
+        }
+
+        return outgoing;
     }
 
     public Task PersistIncomingAsync(Envelope envelope)

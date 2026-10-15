@@ -75,13 +75,24 @@ internal class ServerlessEndpointsMustBeInlinePolicy : IEndpointPolicy
 /// <summary>
 /// GH-5016. The ServerlessWithOutbox counterpart of <see cref="ServerlessEndpointsMustBeInlinePolicy"/>: every
 /// endpoint that can be durable is made durable, so the transactional outbox is kept for every sending
-/// endpoint. Endpoints whose transport cannot be durable fall back to Inline
+/// endpoint. Endpoints whose transport cannot be durable fall back to Inline, and an endpoint locked to
+/// some other mode is left alone
 /// </summary>
 internal class ServerlessWithOutboxEndpointsPolicy : IEndpointPolicy
 {
     public void Apply(Endpoint endpoint, IWolverineRuntime runtime)
     {
-        endpoint.Mode = endpoint.SupportsMode(EndpointMode.Durable) ? EndpointMode.Durable : EndpointMode.Inline;
+        if (endpoint.SupportsMode(EndpointMode.Durable))
+        {
+            endpoint.Mode = EndpointMode.Durable;
+        }
+        else if (endpoint.SupportsMode(EndpointMode.Inline))
+        {
+            endpoint.Mode = EndpointMode.Inline;
+        }
+
+        // Otherwise, like the RavenDb control endpoint that only supports BufferedInMemory, the endpoint keeps
+        // the one mode it can run in rather than failing the application at startup
     }
 }
 

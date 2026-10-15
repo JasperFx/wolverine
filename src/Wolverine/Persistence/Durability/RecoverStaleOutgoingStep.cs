@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
 
-namespace Wolverine.RDBMS.Durability;
+namespace Wolverine.Persistence.Durability;
 
 /// <summary>
-///     GH-5016. What a relational message store answers so <see cref="RecoverStaleOutgoingStep" /> can recover
+///     GH-5016. What a message store answers so <see cref="RecoverStaleOutgoingStep" /> can recover
 ///     the outbox rows whose inline send failed under <see cref="DurabilityMode.ServerlessWithOutbox" />
 /// </summary>
 public interface IStaleOutgoingSource
