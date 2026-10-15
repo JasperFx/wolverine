@@ -249,6 +249,34 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         });
     }
 
+    /// <summary>
+    /// GH-5059. Under <see cref="MessageIdentity.IdOnly"/> a message's identity is its id alone, so the same id
+    /// received at another address is the same message, and storing it again is a duplicate. Skipped under
+    /// IdAndDestination, where it is a different message
+    /// </summary>
+    [Fact]
+    public async Task under_id_only_the_same_id_at_another_destination_is_a_duplicate()
+    {
+        if (identityStyle() != MessageIdentity.IdOnly) return;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming");
+        envelope.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var elsewhere = ObjectMother.Envelope();
+        elsewhere.Id = envelope.Id;
+        elsewhere.Destination = new Uri("stub://elsewhere");
+        elsewhere.Status = EnvelopeStatus.Incoming;
+
+        (await thePersistence.Inbox.ExistsAsync(elsewhere, CancellationToken.None)).ShouldBeTrue();
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
+        {
+            await thePersistence.Inbox.StoreIncomingAsync(elsewhere);
+        });
+    }
+
     [Fact]
     public async Task bulk_store_intra_batch_duplicate_reports_only_actual_duplicates()
     {
