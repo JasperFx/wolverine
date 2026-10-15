@@ -200,7 +200,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     ///     message store rather than one round trip per envelope. An envelope whose send fails is left in
     ///     the outbox for the next durability pass to recover, and logged. A durable envelope that had no
     ///     outbox row yet, because there is no external transaction, is stored to the outbox when its send
-    ///     fails.</para>
+    ///     fails. A durable envelope the transport reports as a serialization failure, which no retry can fix, is
+    ///     moved to dead letter storage instead and its outbox row deleted (GH-5047).</para>
     ///     <para>Messages scheduled for later, and destinations without a transport sender (local queues),
     ///     are flushed exactly as <see cref="FlushOutgoingMessagesAsync" /> flushes them.</para>
     /// </remarks>
@@ -267,6 +268,23 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         }
 
                         continue;
+                    }
+
+                    if (agent.IsDurable && results[i].IsSerializationFailure(envelope, out var serializationFailure))
+                    {
+                        // GH-5047. The transport can never take it, so a later pass sending it again cannot help.
+                        // Its outbox row goes with the sent ones below, once the dead letter is written
+                        if (await UnsendableOutgoingEnvelopes.TryMoveToDeadLetterStorageAsync(Runtime,
+                                envelope.Store ?? Runtime.Storage, envelope, serializationFailure, Runtime.Logger)
+                                .ConfigureAwait(false))
+                        {
+                            if (alreadyPersisted)
+                            {
+                                (toDelete ??= new()).Add(envelope);
+                            }
+
+                            continue;
+                        }
                     }
 
                     if (!agent.IsDurable)

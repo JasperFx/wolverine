@@ -136,6 +136,12 @@ public class DurabilityPassStepResult
     public int OutgoingFailed { get; init; }
 
     /// <summary>
+    ///     Recovered outgoing messages the transport reported as a serialization failure, such as an SQS message over
+    ///     the size limit. No retry can send them, so they were moved to dead letter storage. See GH-5047
+    /// </summary>
+    public int OutgoingDeadLettered { get; init; }
+
+    /// <summary>
     ///     Scheduled messages that were due and released
     /// </summary>
     public int ScheduledReleased { get; init; }
@@ -163,7 +169,8 @@ public class DurabilityPassStepResult
     /// <summary>
     ///     Everything this call got done
     /// </summary>
-    public int Processed => OutgoingSent + ScheduledReleased + IncomingRecovered + ExpiredDeleted + OtherProcessed;
+    public int Processed => OutgoingSent + OutgoingDeadLettered + ScheduledReleased + IncomingRecovered +
+                            ExpiredDeleted + OtherProcessed;
 
     /// <summary>
     ///     Rows this call failed and added to the step's excluded ids, so calling it again in the same pass
@@ -177,6 +184,7 @@ public class DurabilityPassStepResult
         {
             OutgoingSent = OutgoingSent + other.OutgoingSent,
             OutgoingFailed = OutgoingFailed + other.OutgoingFailed,
+            OutgoingDeadLettered = OutgoingDeadLettered + other.OutgoingDeadLettered,
             ScheduledReleased = ScheduledReleased + other.ScheduledReleased,
             IncomingRecovered = IncomingRecovered + other.IncomingRecovered,
             ExpiredDeleted = ExpiredDeleted + other.ExpiredDeleted,
@@ -272,6 +280,7 @@ public class DurabilityPassReport
         var steps = stores.SelectMany(x => x.Steps).ToArray();
         OutgoingSent = steps.Sum(x => x.Result.OutgoingSent);
         OutgoingFailed = steps.Sum(x => x.Result.OutgoingFailed);
+        OutgoingDeadLettered = steps.Sum(x => x.Result.OutgoingDeadLettered);
         ScheduledReleased = steps.Sum(x => x.Result.ScheduledReleased);
         IncomingRecovered = steps.Sum(x => x.Result.IncomingRecovered);
         ExpiredDeleted = steps.Sum(x => x.Result.ExpiredDeleted);
@@ -292,6 +301,12 @@ public class DurabilityPassReport
 
     public int OutgoingSent { get; }
     public int OutgoingFailed { get; }
+
+    /// <summary>
+    ///     Outgoing messages no retry can send, moved to dead letter storage. See GH-5047
+    /// </summary>
+    public int OutgoingDeadLettered { get; }
+
     public int ScheduledReleased { get; }
     public int IncomingRecovered { get; }
     public int ExpiredDeleted { get; }
@@ -319,6 +334,6 @@ public class DurabilityPassReport
     public override string ToString()
     {
         return
-            $"Durability pass: {OutgoingSent} outgoing sent, {OutgoingFailed} outgoing failed, {ScheduledReleased} scheduled released, {IncomingRecovered} incoming recovered, {ExpiredDeleted} expired deleted, {OtherProcessed} other, {Remaining} remaining, {FailedSteps} failed step(s), {SkippedStores.Count} store(s) skipped as locked elsewhere, timed out: {TimedOut}, elapsed {Elapsed}";
+            $"Durability pass: {OutgoingSent} outgoing sent, {OutgoingFailed} outgoing failed, {OutgoingDeadLettered} outgoing dead lettered, {ScheduledReleased} scheduled released, {IncomingRecovered} incoming recovered, {ExpiredDeleted} expired deleted, {OtherProcessed} other, {Remaining} remaining, {FailedSteps} failed step(s), {SkippedStores.Count} store(s) skipped as locked elsewhere, timed out: {TimedOut}, elapsed {Elapsed}";
     }
 }

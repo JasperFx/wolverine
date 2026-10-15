@@ -86,11 +86,12 @@ internal static class BrokerAcceptedSend
 }
 
 /// <summary>
-///     Which envelopes of a grouped inline send the broker accepted
+///     Which envelopes of a grouped inline send the broker accepted, and which ones it can never take
 /// </summary>
 internal class InlineSendResult
 {
     private readonly HashSet<Guid> _accepted = new();
+    private Dictionary<Guid, Exception>? _serializationFailures;
 
     /// <summary>
     ///     The first failure, for the log entry of every envelope that was not accepted
@@ -99,12 +100,33 @@ internal class InlineSendResult
 
     public bool WasAccepted(Envelope envelope) => _accepted.Contains(envelope.Id);
 
+    /// <summary>
+    ///     GH-5047. The transport reported this envelope as a serialization failure, like an SQS message over the
+    ///     size limit without fragmenting: sending it again can never succeed
+    /// </summary>
+    public bool IsSerializationFailure(Envelope envelope, out Exception exception)
+    {
+        if (_serializationFailures != null && _serializationFailures.TryGetValue(envelope.Id, out exception!))
+        {
+            return true;
+        }
+
+        exception = null!;
+        return false;
+    }
+
     internal void Accept(Envelope envelope) => _accepted.Add(envelope.Id);
 
     internal void Fail(Envelope envelope, Exception? exception)
     {
         _accepted.Remove(envelope.Id);
         Exception ??= exception;
+    }
+
+    internal void FailSerialization(Envelope envelope, Exception exception)
+    {
+        Fail(envelope, exception);
+        (_serializationFailures ??= new())[envelope.Id] = exception;
     }
 }
 
@@ -118,6 +140,7 @@ internal class InlineSendCallback : ISenderCallback
     // failed, as SQS, SNS and Azure Service Bus do when the broker accepts only part of a batch
     private readonly HashSet<Guid> _succeeded = new();
     private readonly HashSet<Guid> _failed = new();
+    private HashSet<Guid>? _serializationFailed;
 
     public bool Succeeded { get; private set; }
     public string? Failure { get; private set; }
@@ -132,7 +155,13 @@ internal class InlineSendCallback : ISenderCallback
 
     public Task MarkTimedOutAsync(OutgoingMessageBatch outgoing) => fail(outgoing, "timed out");
 
-    public Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing) => fail(outgoing, "failed to serialize");
+    public Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
+    {
+        // GH-5047. Unlike every other failure, retrying cannot help, so the caller dead letters these
+        _serializationFailed ??= new();
+        foreach (var envelope in outgoing.Messages) _serializationFailed.Add(envelope.Id);
+        return fail(outgoing, "failed to serialize");
+    }
 
     public Task MarkQueueDoesNotExistAsync(OutgoingMessageBatch outgoing) => fail(outgoing, "the queue does not exist");
 
@@ -159,8 +188,20 @@ internal class InlineSendCallback : ISenderCallback
     /// </summary>
     public bool WasAccepted(Envelope envelope) => _succeeded.Contains(envelope.Id) && !_failed.Contains(envelope.Id);
 
+    /// <summary>
+    ///     GH-5047. The protocol reported this envelope as one the broker can never take
+    /// </summary>
+    public bool IsSerializationFailure(Envelope envelope) => _serializationFailed?.Contains(envelope.Id) == true;
+
     public InlineSendFailedException FailureFor(Envelope envelope)
     {
+        if (IsSerializationFailure(envelope))
+        {
+            return new InlineSendFailedException(
+                $"Sending envelope {envelope} to {envelope.Destination} inline failed to serialize, so the transport can never send it",
+                Exception);
+        }
+
         var reason = Failure ?? "was never confirmed by the broker";
         return new InlineSendFailedException(
             $"Sending envelope {envelope} to {envelope.Destination} inline {reason}", Exception);
