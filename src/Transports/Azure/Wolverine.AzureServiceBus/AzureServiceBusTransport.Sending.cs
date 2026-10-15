@@ -34,7 +34,8 @@ public partial class AzureServiceBusTransport
         if (topic.SendsInline)
         {
             var inlineSender = new InlineAzureServiceBusSender(topic, mapper, sender,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation,
+                (runtime as IWolverineRuntimeInternal)?.ScheduledMessageCancellations);
 
             return inlineSender;
         }
@@ -70,7 +71,8 @@ public partial class AzureServiceBusTransport
     {
         var sender = BusClient.CreateSender(topic.TopicName);
         return new InlineAzureServiceBusSender(topic, mapper, sender,
-            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation,
+            (runtime as IWolverineRuntimeInternal)?.ScheduledMessageCancellations);
     }
 
     internal ISender BuildInlineSenderForQueue(IWolverineRuntime runtime, AzureServiceBusQueue queue)
@@ -98,7 +100,8 @@ public partial class AzureServiceBusTransport
     {
         var sender = BusClient.CreateSender(queue.QueueName);
         return new InlineAzureServiceBusSender(queue, mapper, sender,
-            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation,
+            (runtime as IWolverineRuntimeInternal)?.ScheduledMessageCancellations);
     }
 
     internal ISender BuildSenderForQueue(IWolverineRuntime runtime, AzureServiceBusQueue queue)
@@ -123,7 +126,8 @@ public partial class AzureServiceBusTransport
         if (queue.SendsInline)
         {
             var inlineSender = new InlineAzureServiceBusSender(queue, mapper, sender,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation,
+                (runtime as IWolverineRuntimeInternal)?.ScheduledMessageCancellations);
 
             return inlineSender;
         }

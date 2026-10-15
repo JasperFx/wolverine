@@ -384,6 +384,13 @@ public partial class MessageBus : IMessageBus, IMessageContext
             }
             else if (supportsCancellation && registry != null)
             {
+                // Native cancellation needs the broker sequence number, so this envelope must stay
+                // as durable outbox work. Keeping it Scheduled would persist an executable inbox copy
+                // in addition to the broker schedule; cancellation would then leave that copy eligible
+                // for delivery.
+                envelope.Status = EnvelopeStatus.Outgoing;
+                envelope.OwnerId = Runtime.Options.Durability.AssignedNodeNumber;
+
                 registration = new ScheduledMessageCancellationRegistration(envelope.Id);
                 envelope.ScheduledCancellation = registration;
                 registry.Register(registration);

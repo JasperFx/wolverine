@@ -193,6 +193,50 @@ public class ScheduledMessageCancellationTests
         await sender.DidNotReceive().ScheduleMessageAsync(Arg.Any<ServiceBusMessage>(), Arg.Any<DateTimeOffset>(),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task InlineSenderFindsCancellationAfterEnvelopeRecoveryAndSkipsBoundSchedules()
+    {
+        var endpoint = new AzureServiceBusQueue(new AzureServiceBusTransport(), "scheduled-cancellation-recovered-inline");
+        var mapper = Substitute.For<IOutgoingMapper<ServiceBusMessage>>();
+        var sender = Substitute.For<ServiceBusSender>();
+        sender.ScheduleMessageAsync(Arg.Any<ServiceBusMessage>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(987L));
+
+        var registry = new ScheduledMessageCancellationRegistry();
+        var envelopeId = Guid.NewGuid();
+        var registration = new ScheduledMessageCancellationRegistration(envelopeId);
+        registry.Register(registration);
+        var inlineSender = new InlineAzureServiceBusSender(endpoint, mapper, sender, NullLogger.Instance,
+            CancellationToken.None, registry);
+        var scheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        // The recovered envelope has no in-memory registration; lookup by ID reconnects it to the live handle.
+        var recovered = new Envelope(new ScheduledCancellationMessage())
+        {
+            Id = envelopeId,
+            ScheduledTime = scheduledTime
+        };
+        await inlineSender.SendAsync(recovered);
+
+        await sender.Received(1).ScheduleMessageAsync(Arg.Any<ServiceBusMessage>(), scheduledTime,
+            Arg.Any<CancellationToken>());
+        (await registration.CancelAsync(CancellationToken.None)).Status
+            .ShouldBe(ScheduledMessageCancellationStatus.CancellationAccepted);
+        await sender.Received(1).CancelScheduledMessageAsync(987L, CancellationToken.None);
+
+        // A recovered duplicate for a schedule already accepted by Azure must not create another schedule.
+        var duplicate = new Envelope(new ScheduledCancellationMessage())
+        {
+            Id = envelopeId,
+            ScheduledTime = scheduledTime
+        };
+        await inlineSender.SendAsync(duplicate);
+
+        await sender.Received(1).ScheduleMessageAsync(Arg.Any<ServiceBusMessage>(), scheduledTime,
+            Arg.Any<CancellationToken>());
+        await sender.DidNotReceive().SendMessageAsync(Arg.Any<ServiceBusMessage>(), Arg.Any<CancellationToken>());
+    }
 }
 
 public record ScheduledCancellationMessage;

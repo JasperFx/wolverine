@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -12,14 +13,23 @@ public class InlineAzureServiceBusSender : ISender
     private readonly ServiceBusSender _sender;
     private readonly ILogger _logger;
     private readonly CancellationToken _cancellationToken;
+    private readonly ScheduledMessageCancellationRegistry? _cancellations;
 
     public InlineAzureServiceBusSender(AzureServiceBusEndpoint endpoint, IOutgoingMapper<ServiceBusMessage> mapper, ServiceBusSender sender, ILogger logger, CancellationToken cancellationToken)
+        : this(endpoint, mapper, sender, logger, cancellationToken, null)
+    {
+    }
+
+    internal InlineAzureServiceBusSender(AzureServiceBusEndpoint endpoint, IOutgoingMapper<ServiceBusMessage> mapper,
+        ServiceBusSender sender, ILogger logger, CancellationToken cancellationToken,
+        ScheduledMessageCancellationRegistry? cancellations)
     {
         _endpoint = endpoint;
         _mapper = mapper;
         _sender = sender;
         _logger = logger;
         _cancellationToken = cancellationToken;
+        _cancellations = cancellations;
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -49,13 +59,14 @@ public class InlineAzureServiceBusSender : ISender
         var message = new ServiceBusMessage();
         _mapper.MapEnvelopeToOutgoing(envelope, message);
 
-        if (envelope.ScheduledCancellation is { } registration && envelope.ScheduledTime is { } scheduledTime)
+        var registration = envelope.ScheduledCancellation ?? _cancellations?.Find(envelope.Id);
+        if (registration?.IsBound == true)
         {
-            if (registration.IsBound)
-            {
-                return;
-            }
+            return;
+        }
 
+        if (registration != null && envelope.ScheduledTime is { } scheduledTime)
+        {
             if (scheduledTime <= DateTimeOffset.UtcNow)
             {
                 registration.MarkNotScheduled();
