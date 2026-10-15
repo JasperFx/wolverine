@@ -329,6 +329,10 @@ public partial class WolverineRuntime
                     break;
 
                 case DurabilityMode.ServerlessWithOutbox:
+                    // GH-5046. Read what the application configured for local queues before they are removed
+                    var localTransport = Options.Transports.ForScheme(TransportConstants.Local) as LocalTransport;
+                    var routesHandledMessageTypes = !Options.LocalRoutingConventionDisabled;
+
                     Options.Transports.RemoveLocal();
                     Options.Policies.DisableConventionalLocalRouting();
                     // Normally already registered by the WolverineRuntime constructor, ahead of resource setup
@@ -336,6 +340,9 @@ public partial class WolverineRuntime
                     {
                         Options.Policies.Add(new ServerlessWithOutboxEndpointsPolicy());
                     }
+
+                    // Before anything can route: locally handled and scheduled messages go to the inbox for a pass
+                    await startDurabilityPassInboxAsync(localTransport, routesHandledMessageTypes);
 
                     await startMessagingTransportsAsync();
                     break;
@@ -715,6 +722,30 @@ public partial class WolverineRuntime
         if (Storage is NullMessageStore) return;
         var state = await Storage.Nodes.LoadNodeAgentStateAsync(Cancellation);
         Restrictions = state.Restrictions;
+    }
+
+    /// <summary>
+    ///     GH-5046. Only under <see cref="DurabilityMode.ServerlessWithOutbox" />. Puts the inbox for the durability
+    ///     pass at the durable local queue's address, replacing a durable local queue that something built there
+    ///     before the local transport was removed (GH-5052), and drops every router built before it
+    /// </summary>
+    private async Task startDurabilityPassInboxAsync(LocalTransport? localTransport, bool routesHandledMessageTypes)
+    {
+        // GH-5052. A router built during resource setup, before the local transport was removed, builds a durable
+        // local queue that would otherwise stay in the active sending agents
+        foreach (var stale in Endpoints.ActiveSendingAgents().OfType<DurableLocalQueue>().ToArray())
+        {
+            await _endpoints.RemoveSendingAgentAsync(stale.Destination);
+            stale.SafeDispose();
+        }
+
+        var inbox = new DurabilityPassInbox(this, localTransport, routesHandledMessageTypes);
+        _endpoints.StoreSendingAgent(inbox);
+
+        PassInbox = inbox;
+
+        // Anything routed before this point was routed without it
+        clearAllRouting();
     }
 
     private void startInMemoryScheduledJobs()
