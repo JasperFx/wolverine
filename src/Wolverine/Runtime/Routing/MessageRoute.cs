@@ -342,6 +342,14 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     protected virtual async Task<T> sendAndAwaitReplyAsync<T>(Envelope envelope, MessageBus bus,
         CancellationToken cancellation, TimeSpan timeout)
     {
+        // GH-5016: the serverless modes start no listeners, so nothing would ever bring a brokered reply back, and
+        // the caller would set off the remote handler and then wait out the whole timeout
+        if (bus.Runtime.Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox)
+        {
+            throw new InvalidOperationException(
+                $"Request/reply to {_endpoint.Uri} needs a listener to receive the reply, and DurabilityMode.{bus.Runtime.Options.Durability.Mode} runs no listeners. Use a transport that returns the reply in the same exchange, like Wolverine's HTTP transport, or send the message without waiting for a reply");
+        }
+
         var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout);
 
         await Sender.EnqueueOutgoingAsync(envelope);
