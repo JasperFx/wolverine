@@ -249,6 +249,7 @@ When working on specific areas, consult these files:
 | Architectural patterns & conventions | `.claude/docs/architectural_patterns.md` |
 | AOT suppression audit (GH-4810) | `.claude/docs/aot_suppression_audit.md` |
 | Test suites as Stoat gates: commands, Docker services, parallelism (GH-5019) | `.claude/docs/test_gates.md` |
+| `ServerlessWithOutbox` settled design decisions (GH-5016 / GH-5017) | `.claude/docs/serverless_with_outbox_decisions.md` |
 
 ## Version
 
