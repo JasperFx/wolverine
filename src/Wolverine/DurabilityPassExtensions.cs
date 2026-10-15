@@ -15,7 +15,9 @@ public static class DurabilityPassExtensions
     /// </summary>
     /// <remarks>
     ///     A store that another pass is already working on is skipped rather than waited for. Check
-    ///     <see cref="DurabilityPassReport.HasMoreWork" /> and run another pass to drain everything.
+    ///     <see cref="DurabilityPassReport.HasMoreWork" /> and run another pass to drain everything. Throws an
+    ///     <see cref="InvalidOperationException" /> under any other durability mode, where Wolverine's own durability
+    ///     agents do this work.
     /// </remarks>
     public static Task<DurabilityPassReport> RunDurabilityPassAsync(this IHost host, TimeSpan maxDuration,
         CancellationToken token = default)
@@ -31,7 +33,9 @@ public static class DurabilityPassExtensions
     /// </summary>
     /// <remarks>
     ///     A store that another pass is already working on is skipped rather than waited for. Check
-    ///     <see cref="DurabilityPassReport.HasMoreWork" /> and run another pass to drain everything.
+    ///     <see cref="DurabilityPassReport.HasMoreWork" /> and run another pass to drain everything. Throws an
+    ///     <see cref="InvalidOperationException" /> under any other durability mode, where Wolverine's own durability
+    ///     agents do this work.
     /// </remarks>
     public static Task<DurabilityPassReport> RunDurabilityPassAsync(this IHost host,
         DurabilityPassOptions? options = null, CancellationToken token = default)
@@ -40,7 +44,9 @@ public static class DurabilityPassExtensions
     }
 
     /// <summary>
-    ///     GH-5016. Run one bounded pass of durability work across every message store and return what it did
+    ///     GH-5016. Run one bounded pass of durability work across every message store and return what it did.
+    ///     Only allowed under <see cref="DurabilityMode.ServerlessWithOutbox" />, and throws an
+    ///     <see cref="InvalidOperationException" /> under any other mode
     /// </summary>
     public static Task<DurabilityPassReport> RunDurabilityPassAsync(this IWolverineRuntime runtime,
         DurabilityPassOptions? options = null, CancellationToken token = default)

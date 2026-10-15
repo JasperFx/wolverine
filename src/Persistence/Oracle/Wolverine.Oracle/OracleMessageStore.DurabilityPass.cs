@@ -221,16 +221,18 @@ internal partial class OracleMessageStore : IMessageStoreWithDurabilityPass, ISt
         writeExcluded(cmd, sql, excluded);
     }
 
-    // status = 'Incoming' and (timestamp <= :stale | owner_id = 0) [and id not in (:excluded)]
+    // status = 'Incoming' and (owner_id = 0 [or timestamp <= :stale]) [and id not in (:excluded)]
     private void writeRecoverableIncomingPredicate(OracleCommand cmd, StringBuilder sql, DateTimeOffset? staleBefore,
         Guid[] excluded)
     {
         sql.Append($" WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
 
-        // The timestamp column only exists when InboxStaleTime is set
+        // The timestamp column only exists when InboxStaleTime is set. A row owned by any node was never claimed
+        // by a live request, so it is recoverable at once, and a row a node claimed is once its stale clock runs out
         if (staleBefore.HasValue && _durability.InboxStaleTime.HasValue)
         {
-            sql.Append($" AND {DatabaseConstants.Timestamp} <= :staleBefore");
+            sql.Append(
+                $" AND ({DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} OR {DatabaseConstants.Timestamp} <= :staleBefore)");
             addTimestamp(cmd, "staleBefore", staleBefore.Value);
         }
         else

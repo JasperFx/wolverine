@@ -177,17 +177,20 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
         writeExcluded(builder, excluded);
     }
 
-    // status = 'Incoming' and (timestamp <= @stale | owner_id = 0) [and not (id = any(@excluded))]
+    // status = 'Incoming' and (owner_id = 0 [or timestamp <= @stale]) [and not (id = any(@excluded))]
     private void writeRecoverableIncomingPredicate(DbCommandBuilder builder, DateTimeOffset? staleBefore,
         Guid[] excluded)
     {
         builder.Append($" where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
 
-        // The timestamp column only exists when InboxStaleTime is set
+        // The timestamp column only exists when InboxStaleTime is set. A row owned by any node was never claimed
+        // by a live request, so it is recoverable at once, and a row a node claimed is once its stale clock runs out
         if (staleBefore.HasValue && Durability.InboxStaleTime.HasValue)
         {
-            builder.Append($" and {DatabaseConstants.Timestamp} <= ");
+            builder.Append(
+                $" and ({DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} or {DatabaseConstants.Timestamp} <= ");
             builder.AppendParameter(staleBefore.Value);
+            builder.Append(")");
         }
         else
         {

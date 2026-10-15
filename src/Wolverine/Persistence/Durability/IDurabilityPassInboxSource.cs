@@ -21,11 +21,11 @@ public interface IDurabilityPassInboxSource
     Task<int> CountDueScheduledAsync(DateTimeOffset now, Guid[] excluded, CancellationToken token);
 
     /// <summary>
-    ///     Load up to <paramref name="limit" /> <c>Incoming</c> inbox rows that no live request is handling. When
-    ///     <paramref name="staleBefore" /> has a value (<see cref="DurabilitySettings.InboxStaleTime" /> is set),
-    ///     that is every row of any owner whose stale clock is at or before it. Otherwise it is the rows owned by
-    ///     any node (<c>owner_id = 0</c>). A store with no inbox stale clock, such as RavenDb or Cosmos DB, takes
-    ///     the rows owned by any node either way
+    ///     Load up to <paramref name="limit" /> <c>Incoming</c> inbox rows that no live request is handling: the
+    ///     rows owned by any node (<c>owner_id = 0</c>) and, when <paramref name="staleBefore" /> has a value
+    ///     (<see cref="DurabilitySettings.InboxStaleTime" /> is set), every row of any other owner whose stale clock
+    ///     is at or before it too. A store with no inbox stale clock, such as RavenDb or Cosmos DB, takes only the
+    ///     rows owned by any node
     /// </summary>
     Task<IReadOnlyList<Envelope>> LoadRecoverableIncomingAsync(DateTimeOffset? staleBefore, Guid[] excluded,
         int limit, CancellationToken token);

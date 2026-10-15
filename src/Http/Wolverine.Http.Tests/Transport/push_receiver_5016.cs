@@ -5,8 +5,10 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Configuration;
@@ -54,16 +56,64 @@ public class push_receiver_5016
 
         return await AlbaHost.For(builder, app =>
         {
-            #region sample_map_wolverine_push_receiver
+            // The tests stand in for the broker, with nothing in front of the application
+            app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper(), o =>
+            {
+                o.AllowAnonymous();
+                push?.Invoke(o);
+            });
 
-            // The mapper is the transport's: it turns the request the broker pushes into a Wolverine envelope.
-            // Protect this endpoint before you deploy it, for example with the push subscription's OIDC token
-            app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper(), push);
-
-            #endregion
-
-            app.MapWolverinePushReceiver<WolverineEnvelopePushMapper>("/_wolverine/push/envelopes");
+            app.MapWolverinePushReceiver("/_wolverine/push/envelopes", new WolverineEnvelopePushMapper(typeof(PushedMessage)),
+                o => o.AllowAnonymous());
         });
+    }
+
+    [Fact]
+    public void mapping_requires_an_authorization_decision()
+    {
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Host.UseWolverine();
+        var app = builder.Build();
+
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper(), _ => { }));
+        ex.Message.ShouldContain("authorization decision");
+    }
+
+    [Fact]
+    public void requires_the_named_authorization_policy()
+    {
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Host.UseWolverine();
+        builder.Services.AddAuthorization(x => x.AddPolicy("pubsub-push", p => p.RequireAuthenticatedUser()));
+        var app = builder.Build();
+
+        #region sample_map_wolverine_push_receiver
+
+        // The mapper is the transport's: it turns the request the broker pushes into a Wolverine envelope.
+        // Mapping the receiver takes an authorization decision, here a policy that validates the push
+        // subscription's OIDC token
+        app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper(),
+            opts => opts.RequireAuthorization("pubsub-push"));
+
+        #endregion
+
+        #region sample_map_wolverine_envelope_push_receiver
+
+        // A caller that pushes whole Wolverine envelopes only gets to send the message types named here
+        app.MapWolverinePushReceiver("/_wolverine/push/envelopes", new WolverineEnvelopePushMapper(typeof(PushedMessage)),
+            opts => opts.RequireAuthorization("pubsub-push"));
+
+        #endregion
+
+        var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(x => x.Endpoints).OfType<RouteEndpoint>()
+            .Where(x => x.RoutePattern.RawText!.StartsWith("/_wolverine/push/")).ToArray();
+
+        endpoints.Length.ShouldBe(2);
+        foreach (var endpoint in endpoints)
+        {
+            endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(x => x.Policy).ShouldContain("pubsub-push");
+        }
     }
 
     private static Task<IScenarioResult> push(IAlbaHost host, string name, Guid? id = null, int status = 200)
@@ -206,7 +256,67 @@ public class push_receiver_5016
         builder.Host.UseWolverine();
         var app = builder.Build();
 
-        Should.Throw<ArgumentNullException>(() => app.MapWolverinePushReceiver("", new FakePubsubPushMapper()));
+        Should.Throw<ArgumentNullException>(() =>
+            app.MapWolverinePushReceiver("", new FakePubsubPushMapper(), o => o.AllowAnonymous()));
+    }
+
+    [Fact]
+    public void the_envelope_mapper_needs_an_allowed_message_type()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => new WolverineEnvelopePushMapper());
+    }
+
+    [Fact]
+    public async Task the_envelope_mapper_rejects_a_message_type_that_is_not_allowed()
+    {
+        await using var host = await hostWith();
+
+        var envelope = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            MessageType = typeof(PushCascade).ToMessageTypeName(),
+            ContentType = "application/json",
+            Data = JsonSerializer.SerializeToUtf8Bytes(new PushCascade("sneaky"))
+        };
+
+        await host.Scenario(x =>
+        {
+            x.Post.ByteArray(EnvelopeSerializer.Serialize(envelope)).ToUrl("/_wolverine/push/envelopes")
+                .ContentType(HttpTransport.EnvelopeContentType);
+            x.StatusCodeShouldBe(400);
+        });
+
+        recorderFor(host).Handled.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task the_envelope_mapper_does_not_trust_the_reply_and_destination_headers()
+    {
+        var envelope = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            MessageType = typeof(PushedMessage).ToMessageTypeName(),
+            ContentType = "application/json",
+            Data = JsonSerializer.SerializeToUtf8Bytes(new PushedMessage("native")),
+            ReplyUri = new Uri("http://attacker/replies"),
+            ReplyRequested = typeof(PushCascade).ToMessageTypeName(),
+            AckRequested = true,
+            Destination = new Uri("local://somewhere-else")
+        };
+
+        var context = new DefaultHttpContext();
+        context.Request.ContentType = HttpTransport.EnvelopeContentType;
+        context.Request.Body = new MemoryStream(EnvelopeSerializer.Serialize(envelope));
+
+        var mapped = await new WolverineEnvelopePushMapper(typeof(PushedMessage))
+            .MapAsync(context, TestContext.Current.CancellationToken);
+
+        mapped.ShouldNotBeNull();
+        mapped.Id.ShouldBe(envelope.Id);
+        mapped.ReplyUri.ShouldBeNull();
+        mapped.ReplyRequested.ShouldBeNull();
+        mapped.AckRequested.ShouldBeFalse();
+        mapped.Destination.ShouldBeNull();
     }
 
     private static void persistInPostgres(WolverineOptions opts, string schema)

@@ -166,6 +166,35 @@ public class durability_pass_steps_5028 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task recovers_an_owned_incoming_row_once_its_stale_clock_runs_out()
+    {
+        // GH-5037. A durable listener stamps the row with its own node number, so a process that dies after the
+        // broker ack and before the handler finishes leaves an owned row. InboxStaleTime defaults to 5 minutes
+        // under ServerlessWithOutbox, and the pass takes the row once that has run out
+        var orphaned = localEnvelope(EnvelopeStatus.Incoming);
+        orphaned.OwnerId = 5;
+        await theStore.Inbox.StoreIncomingAsync(orphaned);
+
+        var inFlight = localEnvelope(EnvelopeStatus.Incoming);
+        inFlight.OwnerId = 5;
+        await theStore.Inbox.StoreIncomingAsync(inFlight);
+
+        await executeAsync(
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Timestamp} = now() - interval '10 minutes' where id = '{orphaned.Id}'");
+
+        var report = await theHost.RunDurabilityPassAsync(30.Seconds(), Token);
+
+        report.FailedSteps.ShouldBe(0);
+        report.IncomingRecovered.ShouldBe(1);
+
+        DurabilityPassMessageHandler.Handled.ShouldBe([orphaned.Message!.As<DurabilityPassMessage>().Id]);
+
+        var rows = await inboxStatusesAsync();
+        rows[orphaned.Id].ShouldBe(EnvelopeStatus.Handled.ToString());
+        rows[inFlight.Id].ShouldBe(EnvelopeStatus.Incoming.ToString());
+    }
+
+    [Fact]
     public async Task due_scheduled_messages_are_released_in_batches()
     {
         for (var i = 0; i < 5; i++)

@@ -35,6 +35,31 @@ public class serverless_with_outbox_mode_5016
     }
 
     [Fact]
+    public void inbox_stale_time_defaults_to_5_minutes_only_under_serverless_with_outbox()
+    {
+        // GH-5037. Durable listeners stamp inbox rows with this process's node number, so without a stale
+        // clock a process that dies after the broker ack and before the handler finishes orphans the row
+        new DurabilitySettings { Mode = DurabilityMode.ServerlessWithOutbox }
+            .InboxStaleTime.ShouldBe(5.Minutes());
+
+        new DurabilitySettings { Mode = DurabilityMode.Serverless }.InboxStaleTime.ShouldBeNull();
+        new DurabilitySettings { Mode = DurabilityMode.Balanced }.InboxStaleTime.ShouldBeNull();
+        new DurabilitySettings { Mode = DurabilityMode.Solo }.InboxStaleTime.ShouldBeNull();
+    }
+
+    [Fact]
+    public void an_explicit_inbox_stale_time_always_wins()
+    {
+        var settings = new DurabilitySettings { Mode = DurabilityMode.ServerlessWithOutbox };
+        settings.InboxStaleTime = 20.Minutes();
+        settings.InboxStaleTime.ShouldBe(20.Minutes());
+
+        var other = new DurabilitySettings { InboxStaleTime = 30.Seconds() };
+        other.Mode = DurabilityMode.ServerlessWithOutbox;
+        other.InboxStaleTime.ShouldBe(30.Seconds());
+    }
+
+    [Fact]
     public void an_explicit_outbox_stale_time_always_wins()
     {
         var settings = new DurabilitySettings { Mode = DurabilityMode.ServerlessWithOutbox };

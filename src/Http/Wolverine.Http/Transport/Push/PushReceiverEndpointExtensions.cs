@@ -9,9 +9,11 @@ using Wolverine.Runtime;
 namespace Wolverine.Http.Transport.Push;
 
 /// <summary>
-///     GH-5016. Configures one push receiver endpoint
+///     GH-5016. Configures one push receiver endpoint. Mapping it requires an authorization decision (GH-5037),
+///     either <see cref="ProtectedEndpointOptions.RequireAuthorization" /> or
+///     <see cref="ProtectedEndpointOptions.AllowAnonymous" />
 /// </summary>
-public class PushReceiverOptions
+public class PushReceiverOptions : ProtectedEndpointOptions
 {
     /// <summary>
     ///     Skip a message whose id the durable inbox already holds, and record each acked message there as handled
@@ -48,11 +50,12 @@ public static class PushReceiverEndpointExtensions
     ///     redelivers it with its own backoff, and 400 when the request did not carry a message at all.
     /// </summary>
     /// <remarks>
-    ///     Protect this endpoint before you deploy it, for example with the push subscription's OIDC token and an
-    ///     authorization policy through the returned <see cref="RouteHandlerBuilder" />.
+    ///     This endpoint handles messages, so <paramref name="configure" /> has to make an authorization decision
+    ///     (GH-5037): <c>opts.RequireAuthorization("pubsub-push")</c> for the push subscription's OIDC token, or
+    ///     <c>opts.AllowAnonymous()</c> when something in front of the application already protects it.
     /// </remarks>
     public static RouteHandlerBuilder MapWolverinePushReceiver(this IEndpointRouteBuilder endpoints, string pattern,
-        IPushEnvelopeMapper mapper, Action<PushReceiverOptions>? configure = null)
+        IPushEnvelopeMapper mapper, Action<PushReceiverOptions> configure)
     {
         if (pattern.IsEmpty())
         {
@@ -60,14 +63,16 @@ public static class PushReceiverEndpointExtensions
         }
 
         ArgumentNullException.ThrowIfNull(mapper);
+        ArgumentNullException.ThrowIfNull(configure);
 
         var options = new PushReceiverOptions();
-        configure?.Invoke(options);
+        configure(options);
+        options.AssertDecided($"the push receiver at {pattern}");
         options.Address ??= $"http://localhost{(pattern.StartsWith('/') ? pattern : "/" + pattern)}".ToUri();
 
         PushReceiver? receiver = null;
 
-        return endpoints.MapPost(pattern, async (HttpContext context, IWolverineRuntime runtime) =>
+        var route = endpoints.MapPost(pattern, async (HttpContext context, IWolverineRuntime runtime) =>
         {
             // Built on first use, once the Wolverine runtime has started
             receiver ??= new PushReceiver(runtime, options.Address, options.DeduplicateWithInbox);
@@ -93,15 +98,19 @@ public static class PushReceiverEndpointExtensions
 
             return Results.StatusCode(outcome == PushReceiveOutcome.Retry ? options.RetryStatusCode : options.SuccessStatusCode);
         }).ExcludeFromDescription();
+
+        options.ApplyTo(route);
+
+        return route;
     }
 
     /// <summary>
     ///     GH-5016. Add a push receiver endpoint at <paramref name="pattern" /> whose mapper is
     ///     <typeparamref name="TMapper" />, resolved from the container or built with the container's services. See
-    ///     <see cref="MapWolverinePushReceiver(IEndpointRouteBuilder, string, IPushEnvelopeMapper, Action{PushReceiverOptions}?)" />
+    ///     <see cref="MapWolverinePushReceiver(IEndpointRouteBuilder, string, IPushEnvelopeMapper, Action{PushReceiverOptions})" />
     /// </summary>
     public static RouteHandlerBuilder MapWolverinePushReceiver<TMapper>(this IEndpointRouteBuilder endpoints,
-        string pattern, Action<PushReceiverOptions>? configure = null) where TMapper : IPushEnvelopeMapper
+        string pattern, Action<PushReceiverOptions> configure) where TMapper : IPushEnvelopeMapper
     {
         var mapper = ActivatorUtilities.GetServiceOrCreateInstance<TMapper>(endpoints.ServiceProvider);
         return endpoints.MapWolverinePushReceiver(pattern, mapper, configure);

@@ -49,7 +49,7 @@ public class DurabilityPassResponse
                 StoreUri = store.StoreUri.ToString(),
                 StoreName = store.StoreName,
                 Lock = store.Lock.ToString(),
-                Error = store.Exception?.Message,
+                Error = errorFor(store.Exception),
                 Steps = store.Steps.Select(step => new DurabilityPassStepResponse
                 {
                     StepName = step.StepName,
@@ -58,11 +58,15 @@ public class DurabilityPassResponse
                     ElapsedMilliseconds = step.Elapsed.TotalMilliseconds,
                     Processed = step.Result.Processed,
                     Remaining = step.Result.Remaining,
-                    Error = step.Exception?.Message
+                    Error = errorFor(step.Exception)
                 }).ToArray()
             }).ToArray()
         };
     }
+
+    // GH-5037. Only the exception type: its message can carry connection details or data, and it is in the
+    // application's log either way
+    private static string? errorFor(Exception? exception) => exception?.GetType().Name;
 }
 
 /// <summary>
@@ -91,6 +95,23 @@ public class DurabilityPassStepResponse
     public string? Error { get; set; }
 }
 
+/// <summary>
+///     GH-5037. Configures the durability pass endpoint. Mapping it requires an authorization decision, either
+///     <see cref="ProtectedEndpointOptions.RequireAuthorization" /> or <see cref="ProtectedEndpointOptions.AllowAnonymous" />
+/// </summary>
+public class DurabilityEndpointOptions : ProtectedEndpointOptions
+{
+    /// <summary>
+    ///     The largest <c>batchSize</c> a caller may ask for. A larger value is lowered to this. Default is 1,000
+    /// </summary>
+    public int MaxBatchSize { get; set; } = 1000;
+
+    /// <summary>
+    ///     The longest <c>maxDuration</c> a caller may ask for. A longer one is lowered to this. Default is 5 minutes
+    /// </summary>
+    public TimeSpan MaxDuration { get; set; } = 5.Minutes();
+}
+
 public static class DurabilityEndpointExtensions
 {
     /// <summary>
@@ -98,33 +119,54 @@ public static class DurabilityEndpointExtensions
     ///     EventBridge Scheduler or a timer-triggered function to call under
     ///     <see cref="DurabilityMode.ServerlessWithOutbox" />. <c>POST {groupUrlPrefix}/pass</c> runs the pass and
     ///     answers with a <see cref="DurabilityPassResponse" />, 200 when every step succeeded and 500 when any step
-    ///     failed. The optional <c>maxDuration</c> (seconds) and <c>batchSize</c> query string values bound the pass.
+    ///     failed, or 409 when the application runs in any other durability mode. The optional <c>maxDuration</c>
+    ///     (seconds) and <c>batchSize</c> query string values bound the pass, up to
+    ///     <see cref="DurabilityEndpointOptions.MaxDuration" /> and <see cref="DurabilityEndpointOptions.MaxBatchSize" />.
     /// </summary>
     /// <remarks>
-    ///     This endpoint sends messages and deletes rows, so <b>protect it</b> before you deploy it: Cloud Run
-    ///     IAM/OIDC, function keys, or an authorization policy through the returned <see cref="RouteGroupBuilder" />,
-    ///     for example <c>app.MapWolverineDurabilityEndpoints().RequireAuthorization("scheduler")</c>.
+    ///     This endpoint sends messages and deletes rows, so <paramref name="configure" /> has to make an
+    ///     authorization decision: <c>opts.RequireAuthorization("scheduler")</c>, or <c>opts.AllowAnonymous()</c>
+    ///     when Cloud Run IAM/OIDC, a function key or the like already protects the application.
     /// </remarks>
+    /// <param name="configure">Make the authorization decision and optionally tighten the caps</param>
     /// <param name="groupUrlPrefix">
     ///     Optionally override the group Url prefix for these endpoints. The default is "/_wolverine/durability"
     /// </param>
     public static RouteGroupBuilder MapWolverineDurabilityEndpoints(this IEndpointRouteBuilder endpoints,
-        string groupUrlPrefix = "/_wolverine/durability")
+        Action<DurabilityEndpointOptions> configure, string groupUrlPrefix = "/_wolverine/durability")
     {
+        ArgumentNullException.ThrowIfNull(configure);
+
         if (groupUrlPrefix.IsEmpty())
         {
             throw new ArgumentNullException(nameof(groupUrlPrefix), "Cannot be empty or null");
         }
+
+        var settings = new DurabilityEndpointOptions();
+        configure(settings);
+        settings.AssertDecided("the Wolverine durability endpoints");
 
         var group = endpoints.MapGroup(groupUrlPrefix);
 
         group.MapPost("/pass", async (IWolverineRuntime runtime, int? maxDuration, int? batchSize,
             CancellationToken cancellation) =>
         {
-            var options = new DurabilityPassOptions { BatchSize = batchSize };
+            if (!DurabilityPassRunner.IsAllowedIn(runtime.Options.Durability.Mode))
+            {
+                return Results.Problem(
+                    $"A durability pass only runs under DurabilityMode.{nameof(DurabilityMode.ServerlessWithOutbox)}",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+
+            var options = new DurabilityPassOptions
+            {
+                BatchSize = batchSize is > 0 ? Math.Min(batchSize.Value, settings.MaxBatchSize) : null
+            };
+
             if (maxDuration is > 0)
             {
-                options.MaxDuration = maxDuration.Value.Seconds();
+                var requested = maxDuration.Value.Seconds();
+                options.MaxDuration = requested > settings.MaxDuration ? settings.MaxDuration : requested;
             }
 
             var report = await runtime.RunDurabilityPassAsync(options, cancellation);
@@ -132,6 +174,8 @@ public static class DurabilityEndpointExtensions
             return Results.Json(DurabilityPassResponse.For(report),
                 statusCode: report.FailedSteps > 0 ? StatusCodes.Status500InternalServerError : StatusCodes.Status200OK);
         });
+
+        settings.ApplyTo(group);
 
         return group;
     }

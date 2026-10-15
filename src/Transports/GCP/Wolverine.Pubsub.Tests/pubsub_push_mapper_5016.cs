@@ -56,16 +56,18 @@ public class pubsub_push_mapper_5016 : IAsyncLifetime
         #region sample_map_pubsub_push_receiver
 
         // Every push subscription can share one route: each pushed message is read by the Pub/Sub endpoint
-        // whose subscription the push request names. Protect this endpoint before you deploy it, for example
-        // with the push subscription's OIDC token
-        _app.MapPubsubPushReceiver("/pubsub/push");
+        // whose subscription the push request names. Mapping it takes an authorization decision: a policy that
+        // validates the push subscription's OIDC token, or AllowAnonymous() when Cloud Run IAM already
+        // protects the service, as here
+        _app.MapPubsubPushReceiver("/pubsub/push", opts => opts.AllowAnonymous());
 
         // Or read everything pushed to a route through one Pub/Sub endpoint
-        _app.MapPubsubPushReceiver("/pubsub/orders", endpointUri: new Uri("pubsub://wolverine/orders"));
+        _app.MapPubsubPushReceiver("/pubsub/orders", opts => opts.AllowAnonymous(),
+            endpointUri: new Uri("pubsub://wolverine/orders"));
 
         #endregion
 
-        _app.MapWolverinePushReceiver<PubsubPushEnvelopeMapper>("/pubsub/generic");
+        _app.MapWolverinePushReceiver<PubsubPushEnvelopeMapper>("/pubsub/generic", opts => opts.AllowAnonymous());
 
         await _app.StartAsync();
 

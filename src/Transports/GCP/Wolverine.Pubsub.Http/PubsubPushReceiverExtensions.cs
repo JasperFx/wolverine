@@ -14,14 +14,15 @@ public static class PubsubPushReceiverExtensions
     ///     receives by push. Each pushed message is mapped by the Pub/Sub endpoint whose subscription it came from (or
     ///     the one at <paramref name="endpointUri" />), the handler runs inline inside the request, and the status code
     ///     acks the message or asks Pub/Sub to redeliver it. See
-    ///     <see cref="PushReceiverEndpointExtensions.MapWolverinePushReceiver(IEndpointRouteBuilder, string, IPushEnvelopeMapper, Action{PushReceiverOptions}?)" />
+    ///     <see cref="PushReceiverEndpointExtensions.MapWolverinePushReceiver(IEndpointRouteBuilder, string, IPushEnvelopeMapper, Action{PushReceiverOptions})" />
     /// </summary>
     /// <remarks>
-    ///     Protect this endpoint before you deploy it, for example by having the push subscription send an OIDC token
-    ///     and requiring an authorization policy through the returned <see cref="RouteHandlerBuilder" />.
+    ///     <paramref name="configure" /> has to make an authorization decision (GH-5037), for example
+    ///     <c>opts.RequireAuthorization("pubsub-push")</c> with a policy that validates the OIDC token the push
+    ///     subscription sends, or <c>opts.AllowAnonymous()</c> when Cloud Run IAM already protects the service.
     /// </remarks>
     public static RouteHandlerBuilder MapPubsubPushReceiver(this IEndpointRouteBuilder endpoints, string pattern,
-        Action<PushReceiverOptions>? configure = null, Uri? endpointUri = null)
+        Action<PushReceiverOptions> configure, Uri? endpointUri = null)
     {
         var mapper = new PubsubPushEnvelopeMapper(endpoints.ServiceProvider.GetRequiredService<IWolverineRuntime>())
         {

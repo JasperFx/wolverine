@@ -1,6 +1,8 @@
 using Alba;
 using JasperFx.Core;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -11,11 +13,17 @@ namespace Wolverine.Http.Tests;
 
 public class durability_pass_triggers_5016
 {
-    private static async Task<IAlbaHost> hostWith(params IDurabilityPassStep[] steps)
+    private static Task<IAlbaHost> hostWith(params IDurabilityPassStep[] steps)
+    {
+        return hostWith(DurabilityMode.ServerlessWithOutbox, steps);
+    }
+
+    private static async Task<IAlbaHost> hostWith(DurabilityMode mode, params IDurabilityPassStep[] steps)
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.Host.UseWolverine(opts =>
         {
+            opts.Durability.Mode = mode;
             foreach (var step in steps)
             {
                 opts.Services.AddSingleton(step);
@@ -27,14 +35,78 @@ public class durability_pass_triggers_5016
 
         return await AlbaHost.For(builder, app =>
         {
-            #region sample_map_wolverine_durability_endpoints
-
-            // Protect this endpoint before you deploy it, for example with
-            // .RequireAuthorization() on the returned route group
-            app.MapWolverineDurabilityEndpoints();
-
-            #endregion
+            // The tests stand in for a scheduler, with nothing in front of the application
+            app.MapWolverineDurabilityEndpoints(opts =>
+            {
+                opts.AllowAnonymous();
+                opts.MaxBatchSize = 50;
+            });
         });
+    }
+
+    [Fact]
+    public void mapping_requires_an_authorization_decision()
+    {
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Host.UseWolverine(opts => opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox);
+        var app = builder.Build();
+
+        var ex = Should.Throw<InvalidOperationException>(() => app.MapWolverineDurabilityEndpoints(_ => { }));
+        ex.Message.ShouldContain("authorization decision");
+    }
+
+    [Fact]
+    public void requires_the_named_authorization_policy()
+    {
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Host.UseWolverine(opts => opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox);
+        builder.Services.AddAuthorization(x => x.AddPolicy("scheduler", p => p.RequireAuthenticatedUser()));
+        var app = builder.Build();
+
+        #region sample_map_wolverine_durability_endpoints
+
+        // The pass sends messages and deletes rows, so mapping it takes an authorization
+        // decision: a policy, or AllowAnonymous() when Cloud Run IAM or a function key
+        // already protects the application
+        app.MapWolverineDurabilityEndpoints(opts => opts.RequireAuthorization("scheduler"));
+
+        #endregion
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(x => x.Endpoints)
+            .Single(x => x is RouteEndpoint route && route.RoutePattern.RawText == "/_wolverine/durability/pass");
+
+        endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(x => x.Policy).ShouldContain("scheduler");
+    }
+
+    [Fact]
+    public async Task refuses_to_run_outside_serverless_with_outbox()
+    {
+        var step = new CountingStep("catch-up", processed: 1);
+        await using var host = await hostWith(DurabilityMode.Balanced, step);
+
+        await host.Scenario(x =>
+        {
+            x.Post.Url("/_wolverine/durability/pass");
+            x.StatusCodeShouldBe(409);
+        });
+
+        step.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task batch_size_is_capped()
+    {
+        var step = new CountingStep("catch-up", processed: 1);
+        await using var host = await hostWith(step);
+
+        await host.Scenario(x =>
+        {
+            x.Post.Url("/_wolverine/durability/pass?batchSize=1000000&maxDuration=100000");
+            x.StatusCodeShouldBeOk();
+        });
+
+        step.LastBatchSize.ShouldBe(50);
+        step.LastTimeRemaining.ShouldBeLessThanOrEqualTo(5.Minutes());
     }
 
     [Fact]
@@ -98,7 +170,9 @@ public class durability_pass_triggers_5016
         var steps = response.Stores.SelectMany(x => x.Steps).ToArray();
         var failed = steps.Single(x => x.StepName == "boom");
         failed.Status.ShouldBe(nameof(DurabilityPassStepStatus.Failed));
-        failed.Error.ShouldBe("The step blew up");
+        // Only the exception type, never its message
+        failed.Error.ShouldBe(nameof(InvalidOperationException));
+        (await result.ReadAsTextAsync()).ShouldNotContain("The step blew up");
 
         // The rest of the pass carries on
         steps.Single(x => x.StepName == "after").Processed.ShouldBe(2);
@@ -110,11 +184,16 @@ public class durability_pass_triggers_5016
         var step = new CountingStep("catch-up", processed: 1);
 
         var builder = WebApplication.CreateBuilder([]);
-        builder.Host.UseWolverine(opts => opts.Services.AddSingleton<IDurabilityPassStep>(step));
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
+            opts.Services.AddSingleton<IDurabilityPassStep>(step);
+        });
         builder.Services.DisableAllExternalWolverineTransports();
         builder.Services.AddWolverineHttp();
 
-        await using var host = await AlbaHost.For(builder, app => app.MapWolverineDurabilityEndpoints("/ops/durability"));
+        await using var host = await AlbaHost.For(builder,
+            app => app.MapWolverineDurabilityEndpoints(opts => opts.AllowAnonymous(), "/ops/durability"));
 
         await host.Scenario(x =>
         {
@@ -132,13 +211,19 @@ public class durability_pass_triggers_5016
         builder.Host.UseWolverine();
         var app = builder.Build();
 
-        Should.Throw<ArgumentNullException>(() => app.MapWolverineDurabilityEndpoints(""));
+        Should.Throw<ArgumentNullException>(() => app.MapWolverineDurabilityEndpoints(opts => opts.AllowAnonymous(), ""));
     }
 
     private static IHostBuilder cliHost(params IDurabilityPassStep[] steps)
     {
+        return cliHost(DurabilityMode.ServerlessWithOutbox, steps);
+    }
+
+    private static IHostBuilder cliHost(DurabilityMode mode, params IDurabilityPassStep[] steps)
+    {
         return Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
+            opts.Durability.Mode = mode;
             opts.Services.DisableAllExternalWolverineTransports();
             foreach (var step in steps)
             {
@@ -166,6 +251,23 @@ public class durability_pass_triggers_5016
         step.Calls.ShouldBe(1);
         step.LastBatchSize.ShouldBe(5);
         step.LastTimeRemaining.ShouldBeLessThanOrEqualTo(10.Seconds());
+    }
+
+    [Fact]
+    public async Task storage_flush_refuses_to_run_outside_serverless_with_outbox()
+    {
+        var step = new CountingStep("catch-up", processed: 1);
+
+        var input = new StorageInput
+        {
+            HostBuilder = cliHost(DurabilityMode.Balanced, step),
+            Action = StorageCommandAction.flush
+        };
+
+        var succeeded = await new StorageCommand().Execute(input);
+
+        succeeded.ShouldBeFalse();
+        step.Calls.ShouldBe(0);
     }
 
     [Fact]

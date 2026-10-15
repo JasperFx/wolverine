@@ -77,6 +77,36 @@ public class durability_pass_5016 : IAsyncLifetime
         store.Steps.Single().Status.ShouldBe(DurabilityPassStepStatus.Completed);
     }
 
+    [Theory]
+    [InlineData(DurabilityMode.Balanced)]
+    [InlineData(DurabilityMode.Solo)]
+    [InlineData(DurabilityMode.Serverless)]
+    [InlineData(DurabilityMode.MediatorOnly)]
+    public async Task refuses_to_run_outside_serverless_with_outbox(DurabilityMode mode)
+    {
+        // GH-5037. In these modes the node's own durability agents recover the same rows, under locks the
+        // pass does not take, so a pass beside them could send or handle a message twice
+        var step = new RecordingStep("projections", new DurabilityPassStepResult { OtherProcessed = 1 });
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = mode;
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Services.AddSingleton<IDurabilityPassStep>(step);
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+            host.RunDurabilityPassAsync(maxDuration: 30.Seconds(), token: TestContext.Current.CancellationToken));
+
+        ex.Message.ShouldContain(nameof(DurabilityMode.ServerlessWithOutbox));
+        ex.Message.ShouldContain(mode.ToString());
+        step.Calls.ShouldBeEmpty();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public async Task runs_with_nothing_to_do_on_a_storeless_host()
     {

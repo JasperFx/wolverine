@@ -5,7 +5,7 @@ namespace Wolverine.Http.Transport.Push;
 /// <summary>
 ///     GH-5016. Turns the HTTP request a broker pushes (a Pub/Sub push subscription, SNS or EventBridge to HTTP, an
 ///     Event Grid subscription and so on) into a Wolverine <see cref="Envelope" /> for
-///     <see cref="PushReceiverEndpointExtensions.MapWolverinePushReceiver(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder, string, IPushEnvelopeMapper, System.Action{PushReceiverOptions}?)" />.
+///     <see cref="PushReceiverEndpointExtensions.MapWolverinePushReceiver(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder, string, IPushEnvelopeMapper, System.Action{PushReceiverOptions})" />.
 ///     Each transport supplies its own, usually by wrapping the envelope mapper it already uses for pulled messages
 /// </summary>
 public interface IPushEnvelopeMapper

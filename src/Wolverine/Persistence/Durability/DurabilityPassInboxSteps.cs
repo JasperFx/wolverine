@@ -111,8 +111,9 @@ public sealed class ReleaseScheduledMessagesStep : InboxDurabilityPassStep
 /// <summary>
 ///     GH-5028. Recovers the incoming messages that were persisted but never handled in a
 ///     <see cref="DurabilityMode.ServerlessWithOutbox" /> durability pass, executing each one inline. When
-///     <see cref="DurabilitySettings.InboxStaleTime" /> is set, only rows whose stale clock has run out are taken,
-///     so a pass never races the request that is still handling a row
+///     <see cref="DurabilitySettings.InboxStaleTime" /> is set (by default under ServerlessWithOutbox), a row a node
+///     claimed is only taken once its stale clock has run out, so a pass never races the request that is still
+///     handling it. Rows owned by any node are taken at once
 /// </summary>
 public sealed class RecoverIncomingMessagesStep : InboxDurabilityPassStep
 {

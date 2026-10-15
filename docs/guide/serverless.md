@@ -152,6 +152,18 @@ keeps a durability pass from racing a request that is still in the middle of sen
 Scheduler's one minute minimum and with typical broker SDK publish timeouts. You'd only get a duplicate message out of this if an inline send hangs
 for longer than the stale time, and Wolverine's at-least-once delivery already allows for that anyway.
 
+### InboxStaleTime
+
+`ServerlessWithOutbox` makes your listening endpoints durable too, and a durable listener stamps each inbox row with the number of the process
+that received it before it acknowledges the message to the broker. If that process dies after the acknowledgement but before the handler finishes,
+nothing else would ever claim that row. To cover that, `DurabilitySettings.InboxStaleTime` defaults to 5 minutes under `ServerlessWithOutbox`,
+and a durability pass recovers any inbox row whose stale clock has run out, along with the rows that no process ever claimed. Again, a value you
+set explicitly always wins.
+
+Make sure the stale time is longer than your longest running handler, or a durability pass can start a second copy of a message that's still
+being handled. The relational message stores support this. RavenDb and Cosmos DB don't have an inbox stale clock, so a pass only recovers the
+inbox rows that no process ever claimed with those two stores.
+
 ### The Outgoing Timestamp Index
 
 To find the outbox rows whose inline send failed, the durability pass queries the outgoing envelope table by its `timestamp` column. If you
@@ -172,6 +184,11 @@ tell Wolverine to catch up. We call that a "durability pass," and one pass:
 A durability pass is bounded by a maximum duration (30 seconds by default) and a batch size (`DurabilitySettings.RecoveryBatchSize` by default),
 so it fits comfortably inside a function invocation. Each message store takes a non-blocking lock before doing any work, so if two passes
 overlap, the second one just skips the stores the first one is already working on instead of waiting.
+
+::: warning
+A durability pass only runs under `DurabilityMode.ServerlessWithOutbox`, and all three ways of triggering one refuse to run in any other mode. In
+the other modes Wolverine's own durability agents are already doing this work, and a pass running beside them could send or handle a message twice.
+:::
 
 There are three different ways to trigger a durability pass.
 
@@ -208,22 +225,26 @@ or a timer triggered function can call:
 <!-- snippet: sample_map_wolverine_durability_endpoints -->
 <a id='snippet-sample_map_wolverine_durability_endpoints'></a>
 ```cs
-// Protect this endpoint before you deploy it, for example with
-// .RequireAuthorization() on the returned route group
-app.MapWolverineDurabilityEndpoints();
+// The pass sends messages and deletes rows, so mapping it takes an authorization
+// decision: a policy, or AllowAnonymous() when Cloud Run IAM or a function key
+// already protects the application
+app.MapWolverineDurabilityEndpoints(opts => opts.RequireAuthorization("scheduler"));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/durability_pass_triggers_5016.cs#L30-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_wolverine_durability_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/durability_pass_triggers_5016.cs#L66-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_wolverine_durability_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That maps `POST /_wolverine/durability/pass`. You can override the URL prefix as an argument to `MapWolverineDurabilityEndpoints()`, and
 bound the pass with the optional `maxDuration` (in seconds) and `batchSize` query string values like `POST /_wolverine/durability/pass?maxDuration=20&batchSize=200`.
-The response is a JSON report of the pass with a 200 status code if every step succeeded, or a 500 if any step failed so that your scheduler
-records the failure.
+Callers can't ask for more than `DurabilityEndpointOptions.MaxBatchSize` (1,000 by default) or `DurabilityEndpointOptions.MaxDuration` (5 minutes by default),
+and larger values are just lowered to those caps. The response is a JSON report of the pass with a 200 status code if every step succeeded, or a 500
+if any step failed so that your scheduler records the failure. A failed step only reports the exception type, and the details go to your application's log.
+If the application isn't running in `ServerlessWithOutbox`, the endpoint answers with a 409 and doesn't run anything.
 
 ::: warning
-This endpoint sends messages and deletes rows from your database, so please protect it before you deploy it. That could be Cloud Run IAM or OIDC
-tokens, function keys, or an authorization policy on the `RouteGroupBuilder` that `MapWolverineDurabilityEndpoints()` returns, like
-`app.MapWolverineDurabilityEndpoints().RequireAuthorization("scheduler")`.
+This endpoint sends messages and deletes rows from your database, so `MapWolverineDurabilityEndpoints()` makes you decide how it's protected and
+throws an exception if you don't. Either name the authorization policy it requires with `opts.RequireAuthorization("scheduler")` (or
+`opts.RequireAuthorization()` for the default policy), or call `opts.AllowAnonymous()` when something in front of your application like Cloud Run
+IAM or a function key already decides who can call it.
 :::
 
 ### From the Command Line
@@ -249,10 +270,12 @@ the like -- and use Wolverine.HTTP's push receiver to handle them.
 <a id='snippet-sample_map_wolverine_push_receiver'></a>
 ```cs
 // The mapper is the transport's: it turns the request the broker pushes into a Wolverine envelope.
-// Protect this endpoint before you deploy it, for example with the push subscription's OIDC token
-app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper(), push);
+// Mapping the receiver takes an authorization decision, here a policy that validates the push
+// subscription's OIDC token
+app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper(),
+    opts => opts.RequireAuthorization("pubsub-push"));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Transport/push_receiver_5016.cs#L57-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_wolverine_push_receiver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Transport/push_receiver_5016.cs#L91-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_wolverine_push_receiver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For each request, the push receiver:
@@ -264,12 +287,26 @@ For each request, the push receiver:
    storage gets a 200. If the error policies asked for a retry, or an exception escaped the policies altogether, the receiver answers with a 500 so the broker
    redelivers the message with its own backoff
 
-Both status codes can be changed through the optional `PushReceiverOptions` configuration. Since push delivery is at-least-once, you can also set
+Just like the durability endpoint, mapping a push receiver requires an authorization decision through its `PushReceiverOptions`, either
+`opts.RequireAuthorization("policy")` or an explicit `opts.AllowAnonymous()`, or the mapping throws an exception.
+
+Both status codes can be changed through the `PushReceiverOptions` configuration as well. Since push delivery is at-least-once, you can also set
 `DeduplicateWithInbox` to `true` to have the push receiver skip any message id that is already in the durable inbox, and record every message it acks
 as handled.
 
-Wolverine ships a `WolverineEnvelopePushMapper` out of the box that reads a whole binary Wolverine envelope out of the request body, and you can
-use that with `app.MapWolverinePushReceiver<WolverineEnvelopePushMapper>("/some/route")`.
+Wolverine ships a `WolverineEnvelopePushMapper` out of the box that reads a whole binary Wolverine envelope out of the request body. Since the caller
+writes the entire envelope, you have to tell that mapper which message types it's allowed to accept, and anything else gets a 400. The mapper also
+throws away any reply, acknowledgement, or destination information the caller put on the envelope:
+
+<!-- snippet: sample_map_wolverine_envelope_push_receiver -->
+<a id='snippet-sample_map_wolverine_envelope_push_receiver'></a>
+```cs
+// A caller that pushes whole Wolverine envelopes only gets to send the message types named here
+app.MapWolverinePushReceiver("/_wolverine/push/envelopes", new WolverineEnvelopePushMapper(typeof(PushedMessage)),
+    opts => opts.RequireAuthorization("pubsub-push"));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Transport/push_receiver_5016.cs#L101-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_wolverine_envelope_push_receiver' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ### Google Pub/Sub Push Subscriptions
 
@@ -280,14 +317,16 @@ that pulls from Pub/Sub the normal way doesn't take on a dependency on ASP.NET C
 <a id='snippet-sample_map_pubsub_push_receiver'></a>
 ```cs
 // Every push subscription can share one route: each pushed message is read by the Pub/Sub endpoint
-// whose subscription the push request names. Protect this endpoint before you deploy it, for example
-// with the push subscription's OIDC token
-_app.MapPubsubPushReceiver("/pubsub/push");
+// whose subscription the push request names. Mapping it takes an authorization decision: a policy that
+// validates the push subscription's OIDC token, or AllowAnonymous() when Cloud Run IAM already
+// protects the service, as here
+_app.MapPubsubPushReceiver("/pubsub/push", opts => opts.AllowAnonymous());
 
 // Or read everything pushed to a route through one Pub/Sub endpoint
-_app.MapPubsubPushReceiver("/pubsub/orders", endpointUri: new Uri("pubsub://wolverine/orders"));
+_app.MapPubsubPushReceiver("/pubsub/orders", opts => opts.AllowAnonymous(),
+    endpointUri: new Uri("pubsub://wolverine/orders"));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/pubsub_push_mapper_5016.cs#L56-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_pubsub_push_receiver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/pubsub_push_mapper_5016.cs#L56-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_map_pubsub_push_receiver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Each pushed message is read by the Pub/Sub endpoint whose subscription the push request names, so any custom envelope mapper, interoperability

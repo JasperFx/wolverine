@@ -34,8 +34,25 @@ internal class DurabilityPassRunner
 
     internal Func<DateTimeOffset> Clock { get; set; } = () => DateTimeOffset.UtcNow;
 
+    /// <summary>
+    ///     GH-5037. In any other mode the node's own durability agents recover the same rows, under locks the pass
+    ///     does not take, so a pass beside them could send or handle a message twice
+    /// </summary>
+    public static bool IsAllowedIn(DurabilityMode mode) => mode == DurabilityMode.ServerlessWithOutbox;
+
+    public static void AssertPassIsAllowed(DurabilityMode mode)
+    {
+        if (!IsAllowedIn(mode))
+        {
+            throw new InvalidOperationException(
+                $"A durability pass can only run under DurabilityMode.{nameof(DurabilityMode.ServerlessWithOutbox)}, but this application uses DurabilityMode.{mode}. In that mode Wolverine's own durability agents already do this work, and a pass beside them could send or handle a message twice.");
+        }
+    }
+
     public async Task<DurabilityPassReport> RunAsync(DurabilityPassOptions options, CancellationToken token)
     {
+        AssertPassIsAllowed(_runtime.Options.Durability.Mode);
+
         var stores = await _runtime.Stores.FindAllAsync().ConfigureAwait(false);
         var extensionSteps = _runtime.Services.GetServices<IDurabilityPassStep>().ToArray();
 

@@ -113,6 +113,16 @@ public class StorageCommand : JasperFxAsyncCommand<StorageInput>
     // job reports it
     private static async Task<bool> flushAsync(IHost host, StorageInput input)
     {
+        // GH-5037. Checked before the host starts, because in any other mode starting it starts the very
+        // durability agents a pass would race
+        var mode = host.Services.GetRequiredService<WolverineOptions>().Durability.Mode;
+        if (!DurabilityPassRunner.IsAllowedIn(mode))
+        {
+            AnsiConsole.MarkupLine(
+                $"[red]storage flush only runs under DurabilityMode.{nameof(DurabilityMode.ServerlessWithOutbox)}, but this application uses DurabilityMode.{mode}. Wolverine's own durability agents do this work in that mode.[/]");
+            return false;
+        }
+
         await host.StartAsync();
 
         try

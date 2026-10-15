@@ -275,8 +275,19 @@ public class DurabilitySettings : IDescribeMyself
     /// The age is measured from when a node last claimed the message -- on receipt, on recovery, or when a
     /// scheduled retry came due -- and only messages waiting to run are released, not scheduled ones (GH-5022).
     /// A message is not touched while its handler runs, so this must be longer than the longest handler.
+    /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 5 minutes, so a durability pass
+    /// recovers the inbox rows of a process that died before its handler finished (GH-5037). A value set
+    /// explicitly always wins.
     /// </remarks>
-    public TimeSpan? InboxStaleTime { get; set; }
+    public TimeSpan? InboxStaleTime
+    {
+        get => _inboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultInboxStaleTime : null);
+        set => _inboxStaleTime = value;
+    }
+
+    private TimeSpan? _inboxStaleTime;
+
+    internal static readonly TimeSpan ServerlessWithOutboxDefaultInboxStaleTime = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// GH-4659. How long a tenant database's writes are held after it refuses one, before a single probe
