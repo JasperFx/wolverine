@@ -309,6 +309,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         if (_runtime.Stores == null) return;
 
+        // GH-5040: a database-backed endpoint never writes the inbox itself -- its dequeue already moved the row
+        // into the inbox of the transport's own store. Pointing the envelope at the handler's ancillary store
+        // here sent the mark-handled to a database that has no such row, and the row stayed Incoming in the
+        // main store to be replayed on every restart
+        if (!ShouldPersistBeforeProcessing) return;
+
         // Uri, not just the message type: a sticky handler makes the owning store endpoint specific,
         // and this receiver only ever feeds the handler chain for its own endpoint (GH-3886).
         var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(Uri, envelope.MessageType);
