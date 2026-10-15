@@ -356,8 +356,8 @@ select {owner} from owners where {owner} is not null";
     /// </para>
     ///
     /// <para>
-    /// GH-5056. Under ServerlessWithOutbox the outgoing table's default is clock_timestamp() rather than now() (see
-    /// <see cref="OutgoingEnvelopeTable.TimestampDefaultFor" />), so a table created with now() is repaired the same
+    /// GH-5056. The outgoing table's default is clock_timestamp() rather than now() (see
+    /// <see cref="OutgoingEnvelopeTable.TimestampDefault" />), so a table created with now() is repaired the same
     /// way. A SET DEFAULT only changes the catalog: no table rewrite, and existing rows keep their values.
     /// </para>
     /// </summary>
@@ -370,17 +370,16 @@ select {owner} from owners where {owner} is not null";
 
         if (Durability.OutboxStaleTime.HasValue)
         {
-            var expected = OutgoingEnvelopeTable.TimestampDefaultFor(Durability);
-            await repairTimestampDefaultAsync(conn, DatabaseConstants.OutgoingTable, expected,
-                expected == "clock_timestamp()");
+            await repairTimestampDefaultAsync(conn, DatabaseConstants.OutgoingTable, OutgoingEnvelopeTable.TimestampDefault,
+                true);
         }
     }
 
     private async Task repairTimestampDefaultAsync(DbConnection conn, string tableName, string expected,
         bool replaceNow)
     {
-        // GH-5056: under ServerlessWithOutbox any default other than clock_timestamp() is replaced too, the plain
-        // now() included. In any other mode a clock_timestamp() default is left as it is
+        // GH-5056: on the outgoing table any default other than clock_timestamp() is replaced too, the plain now()
+        // included. The incoming table keeps now()
         var orNotClockTimestamp = replaceNow ? " or lower(existing) not like '%clock_timestamp%'" : "";
 
         // Reads the catalog first and only ALTERs a default that is actually the old one, so a healthy
