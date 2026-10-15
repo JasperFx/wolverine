@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
 
-public partial class RavenDbMessageStore : IMessageInbox, IMessageInboxHandledCheck
+public partial class RavenDbMessageStore : IMessageInbox
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {

@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T> : IMessageInboxHandledCheck
+public abstract partial class MessageDatabase<T>
 {
     public abstract void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
 

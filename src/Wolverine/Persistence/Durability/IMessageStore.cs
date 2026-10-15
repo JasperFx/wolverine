@@ -42,6 +42,19 @@ public interface IMessageInbox
 
     Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation);
 
+    /// <summary>
+    ///     GH-5049. Whether the inbox holds this envelope's identity as <see cref="EnvelopeStatus.Handled" />, by the
+    ///     same identity rule as <see cref="ExistsAsync" />. This tells a message the inbox has finished with apart from
+    ///     one that is still waiting or running (an <see cref="EnvelopeStatus.Incoming" /> row), which the push
+    ///     receiver's inbox deduplication needs: it claims a message id with an Incoming row before running the
+    ///     handler. The default treats any existing row as handled, as <see cref="ExistsAsync" /> does, for a store
+    ///     that cannot tell the two apart
+    /// </summary>
+    Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        return ExistsAsync(envelope, cancellation);
+    }
+
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
 
     // Only called by DurableReceiver

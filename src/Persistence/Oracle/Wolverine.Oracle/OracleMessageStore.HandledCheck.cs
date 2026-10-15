@@ -4,7 +4,7 @@ using Wolverine.RDBMS;
 
 namespace Wolverine.Oracle;
 
-internal partial class OracleMessageStore : IMessageInboxHandledCheck
+internal partial class OracleMessageStore
 {
     /// <summary>
     /// GH-5049. Whether a retained Handled row exists for the envelope's identity, by the same identity rule as

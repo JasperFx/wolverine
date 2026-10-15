@@ -169,9 +169,7 @@ public class PushReceiver : IHandlerPipeline
         {
             // Checked first because with inbox partitioning a Handled row does not collide with a new Incoming one.
             // A store that cannot tell a handled row from a claim treats any row as handled, as before GH-5049
-            var handled = await inbox.TryFindHandledAsync(envelope, cancellation).ConfigureAwait(false)
-                          ?? await inbox.ExistsAsync(envelope, cancellation).ConfigureAwait(false);
-            if (handled)
+            if (await inbox.IsHandledAsync(envelope, cancellation).ConfigureAwait(false))
             {
                 logDuplicate(envelope);
                 return PushReceiveOutcome.Duplicate;
@@ -198,7 +196,7 @@ public class PushReceiver : IHandlerPipeline
 
         try
         {
-            if (await inbox.TryFindHandledAsync(envelope, cancellation).ConfigureAwait(false) == true)
+            if (await inbox.IsHandledAsync(envelope, cancellation).ConfigureAwait(false))
             {
                 logDuplicate(envelope);
                 return PushReceiveOutcome.Duplicate;

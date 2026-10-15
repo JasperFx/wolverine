@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.CosmosDb.Internals;
 
-public partial class CosmosDbMessageStore : IMessageInbox, IMessageInboxHandledCheck
+public partial class CosmosDbMessageStore : IMessageInbox
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {

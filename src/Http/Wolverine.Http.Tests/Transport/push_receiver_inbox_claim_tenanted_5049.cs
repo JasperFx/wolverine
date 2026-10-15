@@ -20,7 +20,7 @@ namespace Wolverine.Http.Tests.Transport;
 
 /// <summary>
 ///     GH-5049 with a database per tenant. The push receiver's inbox claim, and the check that tells a claim apart from
-///     a handled message (IMessageInboxHandledCheck), go through MultiTenantedMessageStore, which routes them by the
+///     a handled message (IMessageInbox.IsHandledAsync), go through MultiTenantedMessageStore, which routes them by the
 ///     envelope's tenant id. The claim and the handled row have to land in, and be found in, that tenant's database
 /// </summary>
 public class push_receiver_inbox_claim_tenanted_5049 : IAsyncLifetime

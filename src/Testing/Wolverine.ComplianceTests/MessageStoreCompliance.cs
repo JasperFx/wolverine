@@ -125,24 +125,86 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
     }
     
-    [Fact]
-    public async Task incoming_is_only_handled_once_marked_handled()
+    // GH-5049. IMessageInbox.IsHandledAsync: the push receiver claims a message id with an Incoming row before running
+    // the handler, and has to tell that claim apart from a message the inbox has finished with
+
+    private static Envelope incomingEnvelope(EnvelopeStatus status = EnvelopeStatus.Incoming)
     {
-        // GH-5049. The push receiver claims a message with an Incoming row, and has to tell that claim apart
-        // from a message the inbox has finished with
-        var check = thePersistence.Inbox.ShouldBeAssignableTo<IMessageInboxHandledCheck>()!;
-
         var envelope = ObjectMother.Envelope();
-        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.Status = status;
         envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        return envelope;
+    }
 
-        (await check.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+    [Fact]
+    public async Task is_handled_is_false_with_no_row()
+    {
+        (await thePersistence.Inbox.IsHandledAsync(incomingEnvelope(), CancellationToken.None)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task an_incoming_row_is_only_handled_once_it_is_marked_handled()
+    {
+        var envelope = incomingEnvelope();
 
         await thePersistence.Inbox.StoreIncomingAsync(envelope);
-        (await check.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
 
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
-        (await check.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task a_row_stored_as_handled_is_handled()
+    {
+        // As the push receiver and the inbox deduplication record a message they have finished with
+        var envelope = incomingEnvelope(EnvelopeStatus.Handled);
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task a_scheduled_row_is_not_handled()
+    {
+        var envelope = incomingEnvelope(EnvelopeStatus.Scheduled);
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_dead_lettered_message_is_not_handled()
+    {
+        var envelope = incomingEnvelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, new InvalidOperationException("Boom"));
+
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task is_handled_uses_the_same_identity_rule_as_exists()
+    {
+        var handled = incomingEnvelope(EnvelopeStatus.Handled);
+        await thePersistence.Inbox.StoreIncomingAsync(handled);
+
+        // The same id received at another address
+        var elsewhere = incomingEnvelope();
+        elsewhere.Id = handled.Id;
+        elsewhere.Destination = new Uri("stub://elsewhere");
+
+        var exists = await thePersistence.Inbox.ExistsAsync(elsewhere, CancellationToken.None);
+        var isHandled = await thePersistence.Inbox.IsHandledAsync(elsewhere, CancellationToken.None);
+
+        // Under IdOnly that is the same message; under IdAndDestination it is a different one
+        var sameMessage = identityStyle() == MessageIdentity.IdOnly;
+        exists.ShouldBe(sameMessage);
+        isHandled.ShouldBe(sameMessage);
     }
 
     [Fact]
