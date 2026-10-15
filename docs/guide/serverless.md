@@ -146,6 +146,23 @@ Here's what happens when a handler cascades a message in this mode:
 3. Wolverine deletes the outbox rows for every message that was sent successfully in one batch
 4. If a send fails, Wolverine logs the failure and leaves that row in the outbox for the next durability pass to pick up
 
+<!-- DRAFT (GH-5016 review, for Jeremy to word): step 2 is out of date. The messages are grouped by destination and each
+group goes out in as few broker round trips as its transport allows (batches of the endpoint's MessageBatchSize), with
+different destinations sent concurrently and each destination keeping its order. Only the outbox rows of messages the
+broker actually accepted are deleted; a transport that accepts part of a batch (SQS, SNS, Azure Service Bus) has only the
+rest left behind. -->
+
+<!-- DRAFT (GH-5047 / GH-5050, for Jeremy to word): step 4 is out of date. A failed send restarts the row's stale clock, so
+the row goes to the back of the line and isn't retried until OutboxStaleTime passes again (a natural backoff). A message
+the broker refuses as a serialization failure (an oversized SQS message without FragmentOversizedMessages(), say) is never
+going to send, so it's moved to dead letter storage instead of being retried forever. Kafka is the exception: an oversized
+Kafka record is reported as an ordinary failure and keeps being retried. -->
+
+<!-- DRAFT (GH-5016 review, for Jeremy to word): the steps above describe a handler with a database transaction. A message
+sent with no transaction at all, like from a Wolverine.HTTP endpoint without transactional middleware or a plain
+IMessageBus.PublishAsync(), is also sent inline before the call returns; its outbox row is written first and owned by any
+node, so a later durability pass recovers it if the send fails. -->
+
 That works today with the Marten, Polecat, Fisher, EF Core, and RavenDb integrations, and the durability pass is supported by the PostgreSQL,
 SQL Server, MySQL, Oracle, SQLite, RavenDb, and Cosmos DB message stores. That includes [multi-tenanted](/guide/durability/managing.html) message
 databases, where the durability pass works its way through every tenant database.
@@ -154,6 +171,20 @@ databases, where the durability pass works its way through every tenant database
 Every sending endpoint that can be durable is made durable under this mode, so you don't have to mark endpoints with `UseDurableOutbox()`
 yourself. Endpoints for transports that can't be durable fall back to *Inline*.
 :::
+
+<!-- DRAFT (GH-5051, for Jeremy to word): the durability mode wins over per-endpoint settings. Under ServerlessWithOutbox an
+endpoint explicitly configured with SendInline() is still made durable, and under plain Serverless one configured with
+UseDurableOutbox() is still downgraded to Inline. Wolverine logs a warning naming each endpoint whose explicit mode it
+overrode. This applies to listeners too: under plain Serverless a partitioned listener with an explicit non-Inline mode
+now fails at startup. -->
+
+<!-- DRAFT (GH-5016 review / GH-5053, for Jeremy to word): RabbitMQ under ServerlessWithOutbox. Because an outbox row is
+deleted as soon as its inline send returns, Wolverine turns on publisher confirms with confirmation tracking for every
+channel (whatever ConfigureChannelCreation() says) and publishes to a queue as mandatory, so a publish only counts once
+the broker confirmed it and a queue that doesn't exist fails the send instead of silently dropping the message. That costs
+one confirmed round trip per message. An exchange with no bindings still drops a message, as in every other mode. Under
+both serverless modes Wolverine also skips declaring the system reply queue and doesn't stamp a reply-uri, since nothing
+would ever listen to it. -->
 
 ### OutboxStaleTime
 
@@ -192,6 +223,12 @@ tell Wolverine to catch up. We call that a "durability pass," and one pass:
 * Releases scheduled messages that are due, including scheduled retries from error handling
 * Recovers incoming messages that were persisted to the inbox but never handled
 * Deletes expired handled envelopes, dead letters, and deduplication records
+
+<!-- DRAFT (GH-5047 / GH-5050, for Jeremy to word): a row whose send fails during a pass has its stale clock restarted, so
+it waits OutboxStaleTime before it's tried again, and rows that keep failing don't hold back healthy rows behind them. A
+message the broker can never accept is moved to dead letter storage; the pass report counts those as OutgoingDeadLettered.
+A store skipped because another pass holds its lock counts as more work left (HasMoreWork). Jeremy is rewriting the drain
+loop sample below with that in mind. -->
 
 A durability pass is bounded by a maximum duration (30 seconds by default) and a batch size (`DurabilitySettings.RecoveryBatchSize` by default),
 so it fits comfortably inside a function invocation. Each message store takes a non-blocking lock before doing any work, so if two passes
@@ -375,3 +412,8 @@ queues with "handled by the next durability pass", while plain `Serverless` stil
 <!-- DRAFT (GH-5054, for Jeremy to word): maybe add here that resource provisioning of a broker's listener side (e.g. AutoProvision() of Pub/Sub subscriptions) still runs and creates pull subscriptions that nothing reads; the push subscriptions are provisioned outside Wolverine. See the GH-5054 note under Google Pub/Sub Push Subscriptions. -->
 * Recurring scheduled messages. Use your cloud provider's scheduler to call an HTTP endpoint instead
 * Anything that depends on leader election or agent assignment, like the [Marten async daemon in distributed mode](/guide/durability/marten/distribution)
+
+<!-- DRAFT (GH-5016 review, for Jeremy to word): add brokered request/reply. InvokeAsync<T>() to a remote endpoint needs a
+listener to bring the reply back, and neither mode starts one, so it now throws right away instead of running the remote
+handler and then waiting out the whole timeout. Request/reply over Wolverine's own HTTP transport still works, because the
+reply comes back in the same HTTP exchange. -->
