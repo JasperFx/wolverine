@@ -107,11 +107,13 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                     await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
                     currentBatch.Dispose();
 
-                    // Create a new batch and add the message to it
                     currentBatch = await _sender.CreateMessageBatchAsync();
                     if (!currentBatch.TryAddMessage(message))
                     {
-                        throw new MessageTooLargeException(envelope, currentBatch.MaxSizeInBytes,
+                        var maxSizeInBytes = currentBatch.MaxSizeInBytes;
+                        currentBatch.Dispose();
+                        currentBatch = null;
+                        throw new MessageTooLargeException(envelope, maxSizeInBytes,
                             AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                     }
                 }
@@ -206,11 +208,13 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                         await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
                         currentBatch.Dispose();
 
-                        // Create a new batch and add the message to it
                         currentBatch = await _sender.CreateMessageBatchAsync();
                         if (!currentBatch.TryAddMessage(message))
                         {
-                            throw new MessageTooLargeException(envelope, currentBatch.MaxSizeInBytes,
+                            var maxSizeInBytes = currentBatch.MaxSizeInBytes;
+                            currentBatch.Dispose();
+                            currentBatch = null;
+                            throw new MessageTooLargeException(envelope, maxSizeInBytes,
                                 AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                         }
                     }

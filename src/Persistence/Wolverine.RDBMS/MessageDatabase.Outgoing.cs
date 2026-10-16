@@ -20,8 +20,9 @@ public abstract partial class MessageDatabase<T>
         foreach (var chunk in chunkByParameterLimit(envelopes, DatabaseConstants.OutgoingParametersPerEnvelope,
                      DatabaseConstants.OutgoingSharedParameters))
         {
+            // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them
             await using var cmd = DatabasePersistence.BuildOutgoingStorageCommand(chunk.ToArray(),
-                Durability.AssignedNodeNumber, this);
+                Durability.OutgoingOwnerId, this);
             cmd.Connection = tx.Connection;
             cmd.Transaction = tx;
 

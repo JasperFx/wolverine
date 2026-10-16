@@ -153,12 +153,14 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
             .WithParameter("@status", EnvelopeStatus.Incoming)
             .WithParameter("@limit", limit);
 
+        // GH-5059. Under IdOnly a document is partitioned by its identity, not by the address it was received at, and
+        // documents written before that are still in the address's partition, so the query runs across partitions.
+        // Under IdAndDestination every document for the address is in its partition
         var results = new List<Envelope>();
         using var iterator = _container.GetItemQueryIterator<IncomingMessage>(query,
-            requestOptions: new QueryRequestOptions
-            {
-                PartitionKey = new PartitionKey(partitionKey)
-            });
+            requestOptions: _options.Durability.MessageIdentity == MessageIdentity.IdOnly
+                ? null
+                : new QueryRequestOptions { PartitionKey = new PartitionKey(partitionKey) });
 
         while (iterator.HasMoreResults)
         {
@@ -173,20 +175,11 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
     {
         foreach (var envelope in incoming)
         {
-            var id = _identity(envelope);
-            var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-            try
-            {
-                var response =
-                    await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
-                var message = response.Resource;
-                message.OwnerId = ownerId;
-                await _container.ReplaceItemAsync(message, id, new PartitionKey(partitionKey));
-            }
-            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-            {
-                // Envelope was already handled/deleted, skip it
-            }
+            // Envelope was already handled/deleted, skip it
+            if (await readIncomingAsync(envelope) is not var (message, partitionKey)) continue;
+
+            message.OwnerId = ownerId;
+            await replaceIncomingAsync(message, partitionKey);
         }
     }
 }

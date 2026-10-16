@@ -32,8 +32,19 @@ public abstract class MessageRouterBase : IMessageRouter
     {
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
 
-        // We'll use this for executing scheduled envelopes that aren't native
-        LocalDurableQueue = runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
+        // We'll use this for executing scheduled envelopes that aren't native. GH-5016: the serverless modes
+        // remove the local transport, and a router there must still route to external endpoints, so there
+        // is no local durable queue at all. Only scheduling a message the transport cannot schedule natively
+        // needs one, and that is refused when it happens.
+        //
+        // GH-5046 / GH-5052: except under ServerlessWithOutbox, where such a send is wrapped for the durability
+        // pass inbox instead. A router built there before the runtime starts (resource setup) is never sent
+        // through, and must not build a durable local queue that outlives the local transport
+        LocalDurableQueue = runtime.PassInbox
+                            ?? (runtime.Options.Transports.ForScheme(TransportConstants.Local) == null
+                                || runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox
+                                ? null!
+                                : runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri));
 
         var chain = runtime.Handlers.ChainFor(messageType);
         if (chain != null)

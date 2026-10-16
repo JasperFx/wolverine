@@ -32,7 +32,7 @@ using Table = Weasel.SqlServer.Tables.Table;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe, ISagaStorageCodeSource
+public partial class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe, ISagaStorageCodeSource
 {
     /// <summary>
     /// GH-4902. SQL Server compares a uniqueidentifier from its last six bytes, and the envelope tables are

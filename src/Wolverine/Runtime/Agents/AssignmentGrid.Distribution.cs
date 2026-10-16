@@ -45,7 +45,12 @@ public partial class AssignmentGrid
         // the shed line (see Node.IsAcceptingAgents), so a node hovering at the boundary doesn't have
         // this pass place agents that the next pass sheds. When capacity-aware assignment is off, no
         // node is ever flagged and this is exactly the full node list (today's behavior).
-        var receiving = _nodes.Where(x => x.IsAcceptingAgents).ToList();
+        //
+        // GH-4569: a warm-up node never receives an evenly distributed agent -- the listener, recurring and
+        // custom families that come through here are all messaging -- and gives back any it carries. The
+        // detach comes after the early return, for the same reason as the shed pass: with no serving node to
+        // move to, detaching would only stop the agent.
+        var receiving = _nodes.Where(x => x.IsAcceptingAgents && !x.IsWarmup).ToList();
         if (receiving.Count == 0)
         {
             // No node has real headroom: leave the unassigned remainder waiting. The next evaluation
@@ -59,6 +64,14 @@ public partial class AssignmentGrid
             // durability agents and daemon shards with it. An overloaded node still running its work
             // is strictly better than that.
             return;
+        }
+
+        foreach (var node in _nodes.Where(x => x.IsWarmup))
+        {
+            foreach (var agent in node.Agents.Where(x => agentSet.Contains(x) && !x.IsPinned).ToArray())
+            {
+                agent.Detach();
+            }
         }
 
         // GH-3959 shed pass: an overloaded node gives up a bounded number of this pass's agents per
@@ -229,7 +242,38 @@ public partial class AssignmentGrid
             return;
         }
 
-        var nodes = _nodes.OrderBy(x => x.IsLeader).ThenBy(x => x.AssignedId).ToList();
+        if (!HasWarmupNodes)
+        {
+            groupAffinityPass(agents, _nodes, sameCapabilities, groupKey);
+            return;
+        }
+
+        // GH-4569: with warm-up nodes present the serving nodes and the warm-up nodes are distributed as two
+        // independent pools. Every agent's candidates are now either all serving or all warm-up nodes (see
+        // MatchAgentsToCapableNodesFor), so the pools never compete for an agent, and each pool's ceiling is
+        // computed over its own nodes -- one ceiling over both would sit below what the serving nodes carry
+        // and push their shared agents around on every evaluation. An agent no node declares belongs to the
+        // serving pool, where the GH-3341 rescue gives it a home; it never goes to a warm-up node.
+        var warmupAgents = agents
+            .Where(a => a.CandidateNodes.Count > 0 && a.CandidateNodes.All(n => n.IsWarmup))
+            .ToList();
+        var servingAgents = agents.Except(warmupAgents).ToList();
+
+        groupAffinityPass(servingAgents, _nodes.Where(x => !x.IsWarmup), sameCapabilities, groupKey);
+        groupAffinityPass(warmupAgents, _nodes.Where(x => x.IsWarmup), sameCapabilities, groupKey);
+    }
+
+    private void groupAffinityPass(IReadOnlyList<Agent> agents, IEnumerable<Node> pool, bool sameCapabilities,
+        Func<Uri, string> groupKey)
+    {
+        var nodes = pool.OrderBy(x => x.IsLeader).ThenBy(x => x.AssignedId).ToList();
+
+        // GH-4569: a pool can be empty -- every serving node gone with only warm-up nodes left. Its agents stay
+        // unassigned rather than spill into the other pool.
+        if (agents.Count == 0 || nodes.Count == 0)
+        {
+            return;
+        }
 
         if (nodes.Count == 1)
         {
@@ -584,7 +628,9 @@ public partial class AssignmentGrid
             return;
         }
 
-        var capableNodes = _nodes.Where(nodeIsCapable).ToList();
+        // GH-4569: a warm-up node is never capable, whatever the predicate says -- it does not publish the
+        // durability marker, so the predicates in use already agree, but a custom one might not.
+        var capableNodes = _nodes.Where(x => !x.IsWarmup && nodeIsCapable(x)).ToList();
 
         // Detach anything parked on a node that cannot run it, so the passes below can move it. This also
         // covers the "nobody is capable" case: everything ends up detached rather than latched onto a node
@@ -714,6 +760,14 @@ public partial class AssignmentGrid
     /// </summary>
     public bool AllNodesHaveSameCapabilities(string scheme, Func<Uri, bool> filter)
     {
+        // GH-4569: a warm-up node must never be handed agents by a capability-blind placement, so a grid with
+        // one always takes the capability-matching path, where MatchAgentsToCapableNodesFor keeps warm-up
+        // nodes to the agents only they declare.
+        if (HasWarmupNodes)
+        {
+            return false;
+        }
+
         var gold = _nodes[0].OrderedCapabilitiesForScheme(scheme).Where(filter);
 
         foreach (var node in _nodes.Skip(1))
@@ -768,10 +822,36 @@ public partial class AssignmentGrid
             return;
         }
 
+        if (!HasWarmupNodes)
+        {
+            blueGreenPass(agents, nodes);
+            return;
+        }
+
+        // GH-4569: serving and warm-up nodes as two independent pools, for the same reason as in
+        // DistributeByGroupAffinity: each pool's ceiling over its own nodes and its own agents. An agent no node
+        // declares has no candidate in either pool and stays unassigned, exactly as without warm-up nodes.
+        var warmupAgents = agents
+            .Where(a => a.CandidateNodes.Count > 0 && a.CandidateNodes.All(n => n.IsWarmup))
+            .ToList();
+
+        blueGreenPass(agents.Except(warmupAgents).ToList(), nodes.Where(x => !x.IsWarmup).ToList());
+        blueGreenPass(warmupAgents, nodes.Where(x => x.IsWarmup).ToList());
+    }
+
+    private void blueGreenPass(IReadOnlyList<Agent> agents, IReadOnlyList<Node> nodes)
+    {
+        if (agents.Count == 0 || nodes.Count == 0)
+        {
+            return;
+        }
+
         if (nodes.Count == 1)
         {
+            // Only the agents this node can run: with a single node of a pool, every candidate of the pool's
+            // agents is that node, except an agent nobody declares, which blue/green leaves unassigned.
             var node = nodes.Single();
-            foreach (var agent in agents) node.Assign(agent);
+            foreach (var agent in agents.Where(x => x.CandidateNodes.Contains(node))) node.Assign(agent);
 
             return;
         }

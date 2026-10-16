@@ -77,6 +77,12 @@ public partial class AssignmentGrid
         public int AssignedId { get; }
         public Guid NodeId { get; }
 
+        /// <summary>
+        ///     GH-4569. Whether this node published the <see cref="NodeRole.Warmup" /> marker. A warm-up node
+        ///     only ever receives event subscription agents that no serving node declares.
+        /// </summary>
+        public bool IsWarmup => Declares(NodeAgentController.WarmupRoleUri);
+
         public bool IsLeader { get; internal set; }
 
         /// <summary>

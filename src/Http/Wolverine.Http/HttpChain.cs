@@ -111,6 +111,15 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// </summary>
     public ConnegMode ConnegMode { get; set; } = ConnegMode.Loose;
 
+    /// <summary>
+    /// GH-5042. System.Text.Json options for this endpoint alone, in place of the application's
+    /// (<see cref="WolverineHttpOptions" />, which default to ASP.NET Core's <c>JsonOptions</c>). Null, the
+    /// default, uses the application's. Lets a library's endpoints keep their own wire format whatever the
+    /// host application configures
+    /// </summary>
+    [IgnoreDescription]
+    public JsonSerializerOptions? JsonSerializerOptions { get; set; }
+
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
 

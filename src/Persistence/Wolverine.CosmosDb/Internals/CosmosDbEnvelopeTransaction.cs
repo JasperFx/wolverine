@@ -9,12 +9,16 @@ public class CosmosDbEnvelopeTransaction : IEnvelopeTransaction
     private readonly int _nodeId;
     private readonly CosmosDbMessageStore _store;
 
+    // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them
+    private readonly int _outgoingOwnerId;
+
     public CosmosDbEnvelopeTransaction(Container container, MessageContext context)
     {
         if (context.Storage is CosmosDbMessageStore store)
         {
             _store = store;
             _nodeId = context.Runtime.Options.Durability.AssignedNodeNumber;
+            _outgoingOwnerId = context.Runtime.Options.Durability.OutgoingOwnerId;
         }
         else
         {
@@ -46,7 +50,10 @@ public class CosmosDbEnvelopeTransaction : IEnvelopeTransaction
 
     public async Task PersistOutgoingAsync(Envelope envelope)
     {
-        var outgoing = new OutgoingMessage(envelope);
+        var outgoing = new OutgoingMessage(envelope)
+        {
+            OwnerId = _outgoingOwnerId
+        };
         await Container.UpsertItemAsync(outgoing, new PartitionKey(outgoing.PartitionKey));
     }
 

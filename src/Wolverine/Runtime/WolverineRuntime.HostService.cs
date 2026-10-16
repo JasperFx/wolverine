@@ -170,7 +170,7 @@ public partial class WolverineRuntime
                 // "Silently never fires" is not a degradation, it is a refusal: these modes run no
                 // agents at all, so a registered schedule would be accepted and then simply never
                 // happen — the exact class of quiet failure the recurring feature exists to avoid.
-                if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.MediatorOnly)
+                if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox or DurabilityMode.MediatorOnly)
                 {
                     var names = Options.Schedules.Select(x => x.Name).Join(", ");
                     throw new InvalidOperationException(
@@ -310,7 +310,39 @@ public partial class WolverineRuntime
                 case DurabilityMode.Serverless:
                     Options.Transports.RemoveLocal();
                     Options.Policies.DisableConventionalLocalRouting();
-                    Options.Policies.Add(new ServerlessEndpointsMustBeInlinePolicy());
+                    // Normally already registered by the WolverineRuntime constructor, ahead of resource setup
+                    var inlinePolicy = Options.Transports.EndpointPolicies.OfType<ServerlessEndpointsMustBeInlinePolicy>()
+                        .FirstOrDefault();
+                    if (inlinePolicy == null)
+                    {
+                        inlinePolicy = new ServerlessEndpointsMustBeInlinePolicy();
+                        Options.Policies.Add(inlinePolicy);
+                    }
+
+                    await startMessagingTransportsAsync();
+
+                    // GH-5016. Endpoint policies run lazily inside Endpoint.Compile(), so compile every
+                    // known endpoint now to collect every durable endpoint the policy downgraded, then say
+                    // so ONCE rather than once per endpoint
+                    foreach (var endpoint in Options.Transports.AllEndpoints()) endpoint.Compile(this);
+                    inlinePolicy.WarnAboutDowngradedDurableEndpoints(Logger);
+                    break;
+
+                case DurabilityMode.ServerlessWithOutbox:
+                    // GH-5046. Read what the application configured for local queues before they are removed
+                    var localTransport = Options.Transports.ForScheme(TransportConstants.Local) as LocalTransport;
+                    var routesHandledMessageTypes = !Options.LocalRoutingConventionDisabled;
+
+                    Options.Transports.RemoveLocal();
+                    Options.Policies.DisableConventionalLocalRouting();
+                    // Normally already registered by the WolverineRuntime constructor, ahead of resource setup
+                    if (!Options.Transports.EndpointPolicies.OfType<ServerlessWithOutboxEndpointsPolicy>().Any())
+                    {
+                        Options.Policies.Add(new ServerlessWithOutboxEndpointsPolicy());
+                    }
+
+                    // Before anything can route: locally handled and scheduled messages go to the inbox for a pass
+                    await startDurabilityPassInboxAsync(localTransport, routesHandledMessageTypes);
 
                     await startMessagingTransportsAsync();
                     break;
@@ -361,7 +393,7 @@ public partial class WolverineRuntime
             // TODO: a follow-up could make MessageRouterBase's LocalDurableQueue
             // lazy / nullable so Serverless apps reclaim the AOT cold-start win.
             var mode = Options.Durability.Mode;
-            if (mode != DurabilityMode.MediatorOnly && mode != DurabilityMode.Serverless)
+            if (mode is not (DurabilityMode.MediatorOnly or DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox))
             {
                 PrepopulateRoutingCache(Handlers.AllMessageTypes());
             }
@@ -692,6 +724,30 @@ public partial class WolverineRuntime
         Restrictions = state.Restrictions;
     }
 
+    /// <summary>
+    ///     GH-5046. Only under <see cref="DurabilityMode.ServerlessWithOutbox" />. Puts the inbox for the durability
+    ///     pass at the durable local queue's address, replacing a durable local queue that something built there
+    ///     before the local transport was removed (GH-5052), and drops every router built before it
+    /// </summary>
+    private async Task startDurabilityPassInboxAsync(LocalTransport? localTransport, bool routesHandledMessageTypes)
+    {
+        // GH-5052. A router built during resource setup, before the local transport was removed, builds a durable
+        // local queue that would otherwise stay in the active sending agents
+        foreach (var stale in Endpoints.ActiveSendingAgents().OfType<DurableLocalQueue>().ToArray())
+        {
+            await _endpoints.RemoveSendingAgentAsync(stale.Destination);
+            stale.SafeDispose();
+        }
+
+        var inbox = new DurabilityPassInbox(this, localTransport, routesHandledMessageTypes);
+        _endpoints.StoreSendingAgent(inbox);
+
+        PassInbox = inbox;
+
+        // Anything routed before this point was routed without it
+        clearAllRouting();
+    }
+
     private void startInMemoryScheduledJobs()
     {
         ScheduledJobs =
@@ -764,7 +820,7 @@ public partial class WolverineRuntime
         }
 
         // No local queues if running in Serverless
-        if (Options.Durability.Mode == DurabilityMode.Serverless)
+        if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox)
         {
             Options.Transports.RemoveLocal();
         }

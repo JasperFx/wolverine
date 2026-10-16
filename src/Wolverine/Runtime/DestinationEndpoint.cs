@@ -25,6 +25,15 @@ internal class DestinationEndpoint : IDestinationEndpoint
         }
     }
 
+    // GH-5052. The same agent routing wraps such a send for: under ServerlessWithOutbox the durability pass inbox, so
+    // the row is owned by any node and released by a pass, and the durable local queue in every other mode
+    private ISendingAgent localDurableQueue()
+    {
+        return _parent.Runtime is WolverineRuntime { PassInbox: { } passInbox }
+            ? passInbox
+            : _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
+    }
+
     public Uri Uri => _endpoint.Uri;
     public string EndpointName => _endpoint.EndpointName;
 
@@ -54,9 +63,7 @@ internal class DestinationEndpoint : IDestinationEndpoint
         var utcNow = DateTimeOffset.UtcNow;
         if (envelope.IsScheduledForLater(utcNow) && !_endpoint.Agent!.SupportsNativeScheduledSendFor(envelope, utcNow))
         {
-            var localDurableQueue =
-                _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
-            envelope = envelope.ForScheduledSend(localDurableQueue);
+            envelope = envelope.ForScheduledSend(localDurableQueue());
         }
 
         _parent.TrackEnvelopeCorrelation(envelope, Activity.Current);
@@ -100,9 +107,7 @@ internal class DestinationEndpoint : IDestinationEndpoint
         var utcNow = DateTimeOffset.UtcNow;
         if (envelope.IsScheduledForLater(utcNow) && !_endpoint.Agent!.SupportsNativeScheduledSendFor(envelope, utcNow))
         {
-            var localDurableQueue =
-                _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
-            envelope = envelope.ForScheduledSend(localDurableQueue);
+            envelope = envelope.ForScheduledSend(localDurableQueue());
         }
 
         _parent.TrackEnvelopeCorrelation(envelope, Activity.Current);

@@ -21,6 +21,7 @@ public class OutgoingMessage
         Destination = envelope.Destination?.ToString();
         DeliverBy = envelope.DeliverBy?.ToUniversalTime();
         PartitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
+        Timestamp = DateTimeOffset.UtcNow;
     }
 
     [JsonProperty("id")]
@@ -62,6 +63,15 @@ public class OutgoingMessage
     [JsonProperty("messageType")]
     [JsonPropertyName("messageType")]
     public string MessageType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// GH-5016. When this outbox document was written, for the stale owner-0 query of a
+    /// <see cref="DurabilityMode.ServerlessWithOutbox"/> durability pass. Documents written before this
+    /// property existed have no timestamp at all, and always count as stale
+    /// </summary>
+    [JsonProperty("timestamp")]
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset? Timestamp { get; set; }
 
     [JsonProperty("_etag")]
     [JsonPropertyName("_etag")]

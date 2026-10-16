@@ -47,11 +47,15 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public DbContext DbContext { get; }
 
+    // GH-5038: owned by any node (0) under ServerlessWithOutbox, otherwise this node, as every other store
+    // writes it, rather than whatever the envelope happened to be stamped with
+    private int outgoingOwnerId => _messaging.Runtime.Options.Durability.OutgoingOwnerId;
+
     public async Task PersistOutgoingAsync(Envelope envelope)
     {
         if (DbContext.IsWolverineEnabled())
         {
-            DbContext.Add(new OutgoingMessage(envelope));
+            DbContext.Add(new OutgoingMessage(envelope) { OwnerId = outgoingOwnerId });
         }
         else
         {
@@ -61,7 +65,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _database);
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, outgoingOwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 
@@ -78,7 +82,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         if (DbContext.IsWolverineEnabled())
         {
-            DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e)));
+            DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e) { OwnerId = outgoingOwnerId }));
         }
         else
         {
@@ -88,7 +92,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, _database);
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, outgoingOwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 
@@ -221,25 +225,34 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             // Are we marking an existing envelope as persisted?
             if (_messaging.Envelope.WasPersistedInInbox)
             {
-                var keepUntil =
-                    DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
+                // GH-5040: only when this DbContext's database holds the row. A durable PostgreSQL queue moves
+                // the row into the MAIN store's inbox on dequeue, while a DbContext enrolled in an ancillary
+                // store points _database at another database. Marking it here updated zero rows, and the
+                // Handled status below made DurableReceiver skip the mark that would have found it
+                if (_messaging.Envelope.InboxRowIsIn(_database, _messaging.Runtime.Storage))
+                {
+                    var keepUntil =
+                        DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
 
-                // Route through the store rather than binding the id here: the generic Weasel path binds
-                // a Guid as DbType.Guid, which ODP.NET rejects against Oracle's RAW(16) id columns
-                // (GH-3581). The store knows how to bind for its own provider.
-                await _database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, _messaging.Envelope,
-                    keepUntil, cancellation);
+                    // Route through the store rather than binding the id here: the generic Weasel path binds
+                    // a Guid as DbType.Guid, which ODP.NET rejects against Oracle's RAW(16) id columns
+                    // (GH-3581). The store knows how to bind for its own provider.
+                    await _database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, _messaging.Envelope,
+                        keepUntil, cancellation);
+
+                    _messaging.Envelope.Status = EnvelopeStatus.Handled;
+                }
             }
-            
+
             // Or inserting a record just to tell the inbox about
             // handled messages for the sake of idempotency
             else
             {
                 var envelope = Envelope.ForPersistedHandled(_messaging.Envelope, DateTimeOffset.UtcNow, _messaging.Runtime.Options.Durability);
                 await PersistIncomingAsync(envelope);
+
+                _messaging.Envelope.Status = EnvelopeStatus.Handled;
             }
-            
-            _messaging.Envelope.Status = EnvelopeStatus.Handled;
         }
 
         // GH-3744/GH-4628: on a Wolverine-mapped DbContext both the scrape above (a durable route runs
@@ -265,7 +278,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         if (flushOutgoingMessages)
         {
-            await _messaging.FlushOutgoingMessagesAsync();
+            await EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(_messaging);
         }
     }
     

@@ -241,6 +241,17 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void MessageSuccessLogLevel(LogLevel logLevel);
 
     /// <summary>
+    /// GH-5043. Override the log level for Wolverine's built in logging of a failed attempt to handle a
+    /// message. This is Error by default. Every failed attempt is logged, including one that an error
+    /// handling rule then retries
+    /// </summary>
+    /// <param name="logLevel"></param>
+    void MessageFailureLogLevel(LogLevel logLevel)
+    {
+        throw new NotSupportedException($"{nameof(MessageFailureLogLevel)}() is not supported by this {nameof(IPolicies)} implementation.");
+    }
+
+    /// <summary>
     /// Override the log level for Wolverine to trace execution starting and
     /// finishing of the actual message execution. The default is Debug.
     /// </summary>

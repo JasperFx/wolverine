@@ -206,7 +206,9 @@ internal partial class OracleMessageStore
 
             cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
             cmd.With("id", envelope.Id);
-            cmd.With("ownerId", envelope.OwnerId);
+            // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them.
+            // Otherwise this node, as MessageDatabase<T>.StoreOutgoingAsync(DbTransaction, Envelope[]) does
+            cmd.With("ownerId", _durability.OutgoingOwnerId);
             cmd.With("destination", envelope.Destination!.ToString());
             cmd.Parameters.Add(new OracleParameter("deliverBy", OracleDbType.TimeStampTZ) { Value = (object?)envelope.DeliverBy ?? DBNull.Value });
             cmd.With("attempts", envelope.Attempts);

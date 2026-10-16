@@ -209,10 +209,43 @@ public partial class AssignmentGrid
                     agent.CandidateNodes.Add(node);
                 }
             }
+
+            // GH-4569: a warm-up node is only a home for what no serving node can run -- the new release's
+            // projection versions. An agent the serving nodes also declare stays with them, so a warm-up
+            // joining or leaving never moves the shared agents. With no serving node declaring it, the
+            // warm-up nodes remain its candidates.
+            if (agent.CandidateNodes.Any(x => x.IsWarmup) && agent.CandidateNodes.Any(x => !x.IsWarmup))
+            {
+                agent.CandidateNodes.RemoveAll(x => x.IsWarmup);
+            }
         }
+
+        detachFromIneligibleWarmupNodes(agents);
 
         return agents;
     }
+
+    /// <summary>
+    ///     GH-4569: a warm-up node is not a candidate for anything outside the rule above, so an agent sitting on
+    ///     one it is not a candidate of -- a shared agent placed there before the node published its role, say
+    ///     -- is detached for the distribution to re-place. A pin outranks this, as it outranks the ceiling
+    ///     passes: an operator may put a shared agent on a warm-up node on purpose.
+    /// </summary>
+    private static void detachFromIneligibleWarmupNodes(IEnumerable<Agent> agents)
+    {
+        foreach (var agent in agents)
+        {
+            if (agent.AssignedNode is { IsWarmup: true } node && !agent.IsPinned && !agent.CandidateNodes.Contains(node))
+            {
+                agent.Detach();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     GH-4569: whether any node of this grid is a <see cref="NodeRole.Warmup" /> node.
+    /// </summary>
+    internal bool HasWarmupNodes => _nodes.Any(x => x.IsWarmup);
 
     /// <summary>
     ///     Find information about a single agent by its Uri

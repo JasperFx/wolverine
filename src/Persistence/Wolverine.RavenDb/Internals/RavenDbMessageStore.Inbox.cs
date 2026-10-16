@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Raven.Client;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
 using Raven.Client.Exceptions.Documents.Session;
 using Wolverine.Persistence.Durability;
@@ -86,11 +87,9 @@ public partial class RavenDbMessageStore : IMessageInbox
         using var session = _store.OpenAsyncSession();
         session.Advanced.UseOptimisticConcurrency = true;
         
-        var incoming = new IncomingMessage(envelope, this);
-
         try
         {
-            await session.StoreAsync(incoming);
+            await StoreIncomingAsync(session, envelope);
             await session.SaveChangesAsync();
         }
         catch (ConcurrencyException)
@@ -108,8 +107,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         {
             foreach (var envelope in envelopes)
             {
-                var incoming = new IncomingMessage(envelope, this);
-                await session.StoreAsync(incoming);
+                await StoreIncomingAsync(session, envelope);
             }
 
             await session.SaveChangesAsync();
@@ -126,6 +124,25 @@ public partial class RavenDbMessageStore : IMessageInbox
         {
             // At least one envelope is already in the inbox; same fallback contract.
             throw new DuplicateIncomingEnvelopeException(await findDuplicatesAsync(envelopes));
+        }
+    }
+
+    /// <summary>
+    /// GH-5036. A document stored already Handled, as the deduplication of a push receiver under
+    /// <see cref="DurabilityMode.ServerlessWithOutbox"/> does for every message, carries the same
+    /// <c>@expires</c> that <see cref="MarkIncomingEnvelopeAsHandledAsync(Envelope)"/> stamps, so RavenDb's
+    /// expiration feature removes it when that is turned on. A durability pass deletes it by
+    /// <see cref="IncomingMessage.KeepUntil"/> either way
+    /// </summary>
+    internal async Task StoreIncomingAsync(IAsyncDocumentSession session, Envelope envelope)
+    {
+        var incoming = new IncomingMessage(envelope, this);
+        await session.StoreAsync(incoming);
+
+        if (incoming.KeepUntil.HasValue)
+        {
+            session.Advanced.GetMetadataFor(incoming)[Constants.Documents.Metadata.Expires] =
+                incoming.KeepUntil.Value.UtcDateTime;
         }
     }
 
@@ -151,6 +168,15 @@ public partial class RavenDbMessageStore : IMessageInbox
         using var session = _store.OpenAsyncSession();
         var identity = IdentityFor(envelope);
         return (await session.LoadAsync<IncomingMessage>(identity, cancellation)) != null;
+    }
+
+    // GH-5049. Same identity as ExistsAsync, but only a document the inbox has finished with counts
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        using var session = _store.OpenAsyncSession();
+        var identity = IdentityFor(envelope);
+        var message = await session.LoadAsync<IncomingMessage>(identity, cancellation);
+        return message?.Status == EnvelopeStatus.Handled;
     }
 
     public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
@@ -192,6 +218,7 @@ public partial class RavenDbMessageStore : IMessageInbox
             where id() = $id
             update {{
                 this[""@metadata""][""@expires""] = $expire;
+                this.KeepUntil = $expire;
                 this.Status = $status;
                 this.OwnerId = $owner;
             }}";
@@ -224,6 +251,7 @@ public partial class RavenDbMessageStore : IMessageInbox
             where id() in ($ids)
             update {{
                 this[""@metadata""][""@expires""] = $expire;
+                this.KeepUntil = $expire;
                 this.Status = $status;
                 this.OwnerId = $owner;
             }}";

@@ -32,7 +32,7 @@
         <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>6.50.2</Version>
+        <Version>6.51.0</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -46,7 +46,10 @@
          only the built executable's entry point. Since GH-4979 (xunit.v3 4.x on platform 2.x) the
          root global.json also puts `dotnet test` in the platform's own mode, so `dotnet test`
          runs these same hosts; VSTest is not involved anywhere on the command line. Set here
-         rather than per-job so a build can never silently produce a non-supervisable executable. -->
+         rather than per-job so a build can never silently produce a non-supervisable executable.
+         The name test misses the eight suites whose names do not end in "Tests" (*.LeaderElection,
+         EfCoreTests.MultiTenancy, ChaosTesting); Directory.Build.targets covers those by
+         IsTestProject, which is not set yet when this file is imported (GH-5057). -->
     <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     </PropertyGroup>

@@ -76,6 +76,8 @@ internal class CircuitBreakerWrappedMessageHandler : IMessageHandler
 
     public LogLevel SuccessLogLevel => _inner.SuccessLogLevel;
 
+    public LogLevel FailureLogLevel => _inner.FailureLogLevel;
+
     public bool TelemetryEnabled => _inner.TelemetryEnabled;
 }
 

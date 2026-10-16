@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>WolverineFx.Pubsub.Http</PackageId>
+        <Description>Receive Google Cloud Platform Pub/Sub push subscriptions through Wolverine.HTTP, for serverless Wolverine applications</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\Wolverine.Pubsub\Wolverine.Pubsub.csproj"/>
+        <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj"/>
+    </ItemGroup>
+
+</Project>

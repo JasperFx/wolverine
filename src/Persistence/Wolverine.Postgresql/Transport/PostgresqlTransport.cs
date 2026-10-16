@@ -81,8 +81,6 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 store.AddTable(queue.QueueTable);
                 store.AddTable(queue.ScheduledTable);
             }
-
-            MessageStorageSchemaName = store.SchemaName;
         }
 
         if (runtime.Storage is PostgresqlMessageStore s)
@@ -116,6 +114,12 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 "or an Ancillary store registered with role: MessageStoreRole.Ancillary), but the envelope " +
                 $"storage is incompatible: {runtime.Storage}");
         }
+
+        // The senders and listeners read and write the inbox and outbox of the store the transport is bound
+        // to. This used to take the schema of whichever PostgreSQL store came LAST, so a host with an
+        // ancillary store in another schema moved its outgoing rows from a table they were never written to
+        // ("No matching outgoing envelope") -- found while reproducing GH-5040
+        MessageStorageSchemaName = Store.SchemaName;
     }
 
     public LightweightCache<string, PostgresqlQueue> Queues { get; }

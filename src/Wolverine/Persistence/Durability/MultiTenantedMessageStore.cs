@@ -360,6 +360,14 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return await database.Inbox.ExistsAsync(envelope, cancellation);
     }
 
+    // GH-5049. Forwarded to the tenant's database explicitly: the default implementation would answer from
+    // ExistsAsync instead
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        return await database.Inbox.IsHandledAsync(envelope, cancellation);
+    }
+
     async Task IMessageInbox.RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);

@@ -28,7 +28,7 @@ using Table = Weasel.MySql.Tables.Table;
 
 namespace Wolverine.MySql;
 
-internal class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISagaStorageCodeSource
+internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISagaStorageCodeSource
 {
     /// <summary>
     ///     GH-4805. Lets generated saga code construct <c>DatabaseSagaSchema<TSaga, TId></c> itself, which is the only way the

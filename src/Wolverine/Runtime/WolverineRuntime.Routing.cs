@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -109,6 +110,16 @@ internal class ExplicitRouting : IMessageRouteSource
             yield return explicitRoute;
         }
 
+        // GH-5046. Under ServerlessWithOutbox the local queues are gone, so an explicit rule to one routes to the
+        // durability pass inbox instead
+        if (runtime is WolverineRuntime { PassInbox: { } passInbox })
+        {
+            foreach (var inboxRoute in passInbox.ExplicitRoutesFor(messageType))
+            {
+                yield return inboxRoute;
+            }
+        }
+
         foreach (var topology in runtime.Options.MessagePartitioning.ShardedMessageTopologies)
         {
             if (topology.TryMatch(messageType, runtime, out var route))
@@ -140,6 +151,13 @@ internal class LocalRouting : IMessageRouteSource
 {
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
+        // GH-5046. Under ServerlessWithOutbox there are no local queues, and a locally handled message goes to the
+        // durability pass inbox instead
+        if (runtime is WolverineRuntime { PassInbox: { } passInbox })
+        {
+            return passInbox.ConventionalRoutesFor(messageType);
+        }
+
         var options = runtime.Options;
         if (options.LocalRoutingConventionDisabled) return Array.Empty<IMessageRoute>();
         
@@ -407,6 +425,13 @@ public partial class WolverineRuntime
         }
     }
 
+    /// <summary>
+    ///     GH-5046. Only under <see cref="DurabilityMode.ServerlessWithOutbox" />, once started: where the messages
+    ///     this application handles itself, and the scheduled sends a transport cannot schedule natively, are
+    ///     written for the durability pass. Null in every other mode
+    /// </summary>
+    internal DurabilityPassInbox? PassInbox { get; private set; }
+
     internal ISendingAgent? DetermineLocalSendingAgent(Type messageType)
     {
         if (Options.LocalRouting.Assignments.TryGetValue(messageType, out var endpoint))
@@ -415,6 +440,11 @@ public partial class WolverineRuntime
         }
 
         return null;
+    }
+
+    private void clearAllRouting()
+    {
+        _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
     }
 
     internal void ClearRoutingFor(Type messageType)

@@ -251,11 +251,13 @@ public partial class NodeAgentController
         // enumerates a different agent set than the serving fleet's -- does everything above (heartbeat, local
         // sweeps, ejection) and nothing below. It never contends for the lock, and if its configuration changed
         // underneath an existing lease it lets go.
-        if (!_runtime.Options.Durability.LeadershipEligible)
+        if (!_runtime.Options.Durability.CanLead)
         {
             if (IsLeader)
             {
-                await stepDownAsync("this node is not eligible for leadership (Durability.LeadershipEligible is false)");
+                await stepDownAsync(_runtime.Options.Durability.NodeRole == NodeRole.Warmup
+                    ? "this node is a warm-up node (Durability.NodeRole is Warmup)"
+                    : "this node is not eligible for leadership (Durability.LeadershipEligible is false)");
             }
 
             return AgentCommands.Empty;

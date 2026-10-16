@@ -23,7 +23,7 @@ public class CosmosDbOutbox : MessageContext, ICosmosDbOutbox
     /// <param name="cancellation"></param>
     public async Task SaveChangesAsync(CancellationToken cancellation = default)
     {
-        await FlushOutgoingMessagesAsync();
+        await CosmosDbOutboxFlushing.FlushOutgoingMessagesAsync(this);
     }
 
     public Container Container { get; private set; } = null!;

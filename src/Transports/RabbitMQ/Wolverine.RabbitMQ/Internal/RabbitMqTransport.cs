@@ -124,6 +124,13 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public ConnectionFactory? ConnectionFactory { get; private set; }
 
     /// <summary>
+    ///     GH-5016. Under <see cref="DurabilityMode.ServerlessWithOutbox" /> an outbox row is deleted as soon as its
+    ///     publish returns, so every channel is created with publisher confirms and confirmation tracking, and a
+    ///     publish to a queue is mandatory, whatever <see cref="ChannelCreationOptions" /> says
+    /// </summary>
+    internal bool RequirePublisherConfirms { get; private set; }
+
+    /// <summary>
     /// Secret-safe summary of <see cref="ConnectionFactory"/> for diagnostic
     /// rendering. Exposes host / port / vhost / user / SSL / heartbeat and
     /// omits the password.
@@ -221,6 +228,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
+        RequirePublisherConfirms = runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox;
         Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation,
             runtime.DurabilitySettings.MaximumAckAttempts);
 
@@ -326,7 +334,13 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
-        if (DeclareRequestReplySystemQueue)
+        // GH-5053. The serverless modes listen for no replies, so a system reply queue would be one more queue
+        // per cold start that nobody consumes, and every outgoing envelope's reply-uri would point replies and
+        // acks at it. The same as DisableSystemRequestReplyQueueDeclaration(), applied automatically
+        var isServerless = runtime.Options.Durability.Mode is DurabilityMode.Serverless
+            or DurabilityMode.ServerlessWithOutbox;
+
+        if (DeclareRequestReplySystemQueue && !isServerless)
         {
             // We switched back to using a Guid to disambiguate Wolverine nodes
             // that might be connecting to the same broker but within different apps

@@ -147,6 +147,8 @@ Wolverine uses a single CosmosDB container, named `wolverine` by default, with a
 `/partitionKey`. The container is automatically created during database migration if it does not exist, but the
 database it lives in is not: create the database ahead of time.
 
+<!-- DRAFT (GH-5059, for Jeremy to word): incoming envelope documents are partitioned by their message identity under the default MessageIdentity.IdOnly (one logical partition per message, so the same message id received at two addresses is rejected as a duplicate), and by destination under MessageIdentity.IdAndDestination. Documents written by earlier versions were partitioned by destination; they are still found, updated and deleted, and drain away normally. While they do, a redelivery of one of those older messages is not recognized as a duplicate. -->
+
 All Wolverine document types are stored in the same container, differentiated by a `docType` field:
 - `incoming` - Incoming message envelopes
 - `outgoing` - Outgoing message envelopes

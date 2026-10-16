@@ -9,52 +9,33 @@ public partial class CosmosDbMessageStore : IMessageInbox
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
-        var id = _identity(envelope);
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-        try
-        {
-            var response =
-                await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
-            var message = response.Resource;
-
-            // GH-4216: a Handled document is never resurrected by a late retry booking. It is the dedup
-            // window's record that the message completed
-            if (message.Status == EnvelopeStatus.Handled)
-            {
-                return;
-            }
-
-            message.ExecutionTime = envelope.ScheduledTime;
-            message.Status = EnvelopeStatus.Scheduled;
-            message.Attempts = envelope.Attempts;
-            message.OwnerId = 0;
-            await _container.ReplaceItemAsync(message, id, new PartitionKey(partitionKey));
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        if (await readIncomingAsync(envelope) is not var (message, partitionKey))
         {
             // Already gone
+            return;
         }
+
+        // GH-4216: a Handled document is never resurrected by a late retry booking. It is the dedup
+        // window's record that the message completed
+        if (message.Status == EnvelopeStatus.Handled)
+        {
+            return;
+        }
+
+        message.ExecutionTime = envelope.ScheduledTime;
+        message.Status = EnvelopeStatus.Scheduled;
+        message.Attempts = envelope.Attempts;
+        message.OwnerId = 0;
+        await replaceIncomingAsync(message, partitionKey);
     }
 
-    public async Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    public Task DeleteIncomingEnvelopeAsync(Envelope envelope)
     {
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-
-        try
-        {
-            await _container.DeleteItemAsync<IncomingMessage>(_identity(envelope), new PartitionKey(partitionKey));
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-        {
-            // Already gone
-        }
+        return deleteIncomingAsync(envelope);
     }
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        var id = _identity(envelope);
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-
         var dlq = new DeadLetterMessage(envelope, exception);
 
         if (envelope.DeliverBy.HasValue)
@@ -68,32 +49,19 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
         await _container.UpsertItemAsync(dlq, new PartitionKey(DocumentTypes.DeadLetterPartition));
 
-        try
-        {
-            await _container.DeleteItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-        {
-            // Already gone
-        }
+        await deleteIncomingAsync(envelope);
     }
 
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
-        var id = _identity(envelope);
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-        try
-        {
-            var response =
-                await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
-            var message = response.Resource;
-            message.Attempts = envelope.Attempts;
-            await _container.ReplaceItemAsync(message, id, new PartitionKey(partitionKey));
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        if (await readIncomingAsync(envelope) is not var (message, partitionKey))
         {
             // Already gone
+            return;
         }
+
+        message.Attempts = envelope.Attempts;
+        await replaceIncomingAsync(message, partitionKey);
     }
 
     public async Task StoreIncomingAsync(Envelope envelope)
@@ -136,18 +104,14 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
     public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
     {
-        var id = IdentityFor(envelope);
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-        try
-        {
-            await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey),
-                cancellationToken: cancellation);
-            return true;
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-        {
-            return false;
-        }
+        return await readIncomingAsync(envelope, cancellation) != null;
+    }
+
+    // GH-5049. Same identity as ExistsAsync, but only a document the inbox has finished with counts
+    public async Task<bool> IsHandledAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        return await readIncomingAsync(envelope, cancellation) is var (message, _) &&
+               message.Status == EnvelopeStatus.Handled;
     }
 
     public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
@@ -159,19 +123,14 @@ public partial class CosmosDbMessageStore : IMessageInbox
         // existed for the identity -- the normal case this method exists for (GH-2462 / GH-2823 on the relational
         // stores). Update first, insert only when nothing is there, and leave a Handled document alone: the
         // message already completed, so a retry booked after the fact is discarded
-        var id = _identity(envelope);
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-        try
-        {
-            var response = await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
-            if (response.Resource.Status == EnvelopeStatus.Handled)
-            {
-                return;
-            }
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        if (await readIncomingAsync(envelope) is not var (message, _))
         {
             await StoreIncomingAsync(envelope);
+            return;
+        }
+
+        if (message.Status == EnvelopeStatus.Handled)
+        {
             return;
         }
 
@@ -180,27 +139,21 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
-        var id = _identity(envelope);
-        var partitionKey = envelope.Destination?.ToString() ?? DocumentTypes.SystemPartition;
-        try
-        {
-            var response =
-                await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey));
-            var message = response.Resource;
-            message.Status = EnvelopeStatus.Handled;
-
-            // GH-4784: a Handled document is kept only for idempotency and nothing recovers it, so it has
-            // no owner -- the same as a document inserted already Handled (Envelope.ForPersistedHandled).
-            // Every CosmosDb query that reads ownerId or drives recovery/cleanup is status-filtered, so
-            // releasing the owner here cannot make a retained document look recoverable.
-            message.OwnerId = TransportConstants.AnyNode;
-            message.KeepUntil = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
-            await _container.ReplaceItemAsync(message, id, new PartitionKey(partitionKey));
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        if (await readIncomingAsync(envelope) is not var (message, partitionKey))
         {
             // Already gone
+            return;
         }
+
+        message.Status = EnvelopeStatus.Handled;
+
+        // GH-4784: a Handled document is kept only for idempotency and nothing recovers it, so it has
+        // no owner -- the same as a document inserted already Handled (Envelope.ForPersistedHandled).
+        // Every CosmosDb query that reads ownerId or drives recovery/cleanup is status-filtered, so
+        // releasing the owner here cannot make a retained document look recoverable.
+        message.OwnerId = TransportConstants.AnyNode;
+        message.KeepUntil = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
+        await replaceIncomingAsync(message, partitionKey);
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
@@ -213,7 +166,10 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
-        var partitionKey = receivedAt.ToString();
+        // GH-5059. Under IdOnly a document is partitioned by its identity, not by the address it was received at, and
+        // documents written before that are still in the address's partition, so the query runs across partitions.
+        // Under IdAndDestination every document for the address is in its partition. Each one is replaced in the
+        // partition it is actually in
         var queryText =
             "SELECT * FROM c WHERE c.docType = @docType AND c.ownerId = @ownerId AND c.receivedAt = @receivedAt";
         var query = new QueryDefinition(queryText)
@@ -222,10 +178,9 @@ public partial class CosmosDbMessageStore : IMessageInbox
             .WithParameter("@receivedAt", receivedAt.ToString());
 
         using var iterator = _container.GetItemQueryIterator<IncomingMessage>(query,
-            requestOptions: new QueryRequestOptions
-            {
-                PartitionKey = new PartitionKey(partitionKey)
-            });
+            requestOptions: _options.Durability.MessageIdentity == MessageIdentity.IdOnly
+                ? null
+                : new QueryRequestOptions { PartitionKey = new PartitionKey(receivedAt.ToString()) });
 
         while (iterator.HasMoreResults)
         {
@@ -233,8 +188,20 @@ public partial class CosmosDbMessageStore : IMessageInbox
             foreach (var message in response)
             {
                 message.OwnerId = 0;
-                await _container.ReplaceItemAsync(message, message.Id, new PartitionKey(partitionKey));
+                await _container.ReplaceItemAsync(message, message.Id, new PartitionKey(message.PartitionKey));
             }
+        }
+    }
+
+    private async Task replaceIncomingAsync(IncomingMessage message, string partitionKey)
+    {
+        try
+        {
+            await _container.ReplaceItemAsync(message, message.Id, new PartitionKey(partitionKey));
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Deleted since it was read. Already gone
         }
     }
 }

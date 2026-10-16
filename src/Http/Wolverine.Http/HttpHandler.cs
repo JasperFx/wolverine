@@ -28,7 +28,7 @@ namespace Wolverine.Http;
 public abstract class HttpHandler
 {
     private readonly WolverineHttpOptions _options;
-    private readonly JsonSerializerOptions _jsonOptions;
+    private JsonSerializerOptions _jsonOptions;
 
     /// <summary>
     /// GH-4528. The non-standard but widely-understood "client closed request" status (nginx), used only for
@@ -42,6 +42,19 @@ public abstract class HttpHandler
     {
         _options = wolverineHttpOptions;
         _jsonOptions = wolverineHttpOptions.JsonSerializerOptions.Value;
+    }
+
+    /// <summary>
+    ///     GH-5042. The System.Text.Json options this endpoint reads request bodies and writes responses with.
+    ///     Defaults to <see cref="WolverineHttpOptions" />' options, which are ASP.NET Core's <c>JsonOptions</c>.
+    ///     A library that maps its own pre-generated handlers into another application can set this so its
+    ///     wire format does not depend on the host's JSON configuration. See also
+    ///     <see cref="HttpChain.JsonSerializerOptions" />
+    /// </summary>
+    public JsonSerializerOptions JsonSerializerOptions
+    {
+        get => _jsonOptions;
+        set => _jsonOptions = value ?? throw new ArgumentNullException(nameof(value));
     }
 
     public ResponseCacheAttribute? Caching { get; set; }

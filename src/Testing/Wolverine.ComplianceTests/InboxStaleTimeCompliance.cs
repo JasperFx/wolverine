@@ -160,4 +160,40 @@ public abstract class InboxStaleTimeCompliance : IAsyncLifetime
         // Not waiting to run, so not stuck: the scheduled-job path owns it until it is due
         (await theInboxRowFor(envelope)).OwnerId.ShouldBe(ClaimingNode);
     }
+
+    private IMessageInboxHeartbeat theHeartbeat =>
+        theStore.Inbox as IMessageInboxHeartbeat
+        ?? throw new InvalidOperationException($"{theStore.GetType().Name} does not support the InboxStaleTime heartbeat");
+
+    [Fact]
+    public async Task the_heartbeat_restarts_the_clock_of_a_row_this_node_holds()
+    {
+        // A handler that has been running longer than the stale time
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.OwnerId = ClaimingNode;
+        await theStore.Inbox.StoreIncomingAsync(envelope);
+        await BackdateAsync(envelope, longerThanTheStaleTime);
+
+        await theHeartbeat.RestartStaleClockAsync(ClaimingNode, [envelope]);
+        await runTheStaleSweepAsync();
+
+        (await theInboxRowFor(envelope)).OwnerId.ShouldBe(ClaimingNode);
+    }
+
+    [Fact]
+    public async Task the_heartbeat_does_not_keep_alive_a_row_another_node_owns()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.OwnerId = ClaimingNode + 1;
+        await theStore.Inbox.StoreIncomingAsync(envelope);
+        await BackdateAsync(envelope, longerThanTheStaleTime);
+
+        // This node does not hold it, so its heartbeat must not keep it alive
+        await theHeartbeat.RestartStaleClockAsync(ClaimingNode, [envelope]);
+        await runTheStaleSweepAsync();
+
+        (await theInboxRowFor(envelope)).OwnerId.ShouldBe(0);
+    }
 }

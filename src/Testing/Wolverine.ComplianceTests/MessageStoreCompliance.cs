@@ -125,6 +125,93 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
     }
     
+    // GH-5049. IMessageInbox.IsHandledAsync: the push receiver claims a message id with an Incoming row before running
+    // the handler, and has to tell that claim apart from a message the inbox has finished with
+
+    private static Envelope incomingEnvelope(EnvelopeStatus status = EnvelopeStatus.Incoming)
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = status;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        return envelope;
+    }
+
+    [Fact]
+    public async Task is_handled_is_false_with_no_row()
+    {
+        (await thePersistence.Inbox.IsHandledAsync(incomingEnvelope(), CancellationToken.None)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task an_incoming_row_is_only_handled_once_it_is_marked_handled()
+    {
+        var envelope = incomingEnvelope();
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task a_row_stored_as_handled_is_handled()
+    {
+        // As the push receiver and the inbox deduplication record a message they have finished with
+        var envelope = incomingEnvelope(EnvelopeStatus.Handled);
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task a_scheduled_row_is_not_handled()
+    {
+        var envelope = incomingEnvelope(EnvelopeStatus.Scheduled);
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_dead_lettered_message_is_not_handled()
+    {
+        var envelope = incomingEnvelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, new InvalidOperationException("Boom"));
+
+        (await thePersistence.Inbox.IsHandledAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task is_handled_uses_the_same_identity_rule_as_exists()
+    {
+        var handled = incomingEnvelope(EnvelopeStatus.Handled);
+        await thePersistence.Inbox.StoreIncomingAsync(handled);
+
+        // The same id received at another address
+        var elsewhere = incomingEnvelope();
+        elsewhere.Id = handled.Id;
+        elsewhere.Destination = new Uri("stub://elsewhere");
+
+        var exists = await thePersistence.Inbox.ExistsAsync(elsewhere, CancellationToken.None);
+        var isHandled = await thePersistence.Inbox.IsHandledAsync(elsewhere, CancellationToken.None);
+
+        // Whatever the store's own identity rule finds, both answer the same. (Under IdOnly a relational store finds
+        // the same id at another address, while Cosmos DB, which partitions by destination, does not)
+        isHandled.ShouldBe(exists);
+
+        // Under IdAndDestination it is a different message on every store
+        if (identityStyle() == MessageIdentity.IdAndDestination)
+        {
+            isHandled.ShouldBeFalse();
+        }
+    }
+
     [Fact]
     public async Task store_a_single_incoming_envelope_that_is_handled()
     {
@@ -159,6 +246,34 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
         {
             await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        });
+    }
+
+    /// <summary>
+    /// GH-5059. Under <see cref="MessageIdentity.IdOnly"/> a message's identity is its id alone, so the same id
+    /// received at another address is the same message, and storing it again is a duplicate. Skipped under
+    /// IdAndDestination, where it is a different message
+    /// </summary>
+    [Fact]
+    public async Task under_id_only_the_same_id_at_another_destination_is_a_duplicate()
+    {
+        if (identityStyle() != MessageIdentity.IdOnly) return;
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming");
+        envelope.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var elsewhere = ObjectMother.Envelope();
+        elsewhere.Id = envelope.Id;
+        elsewhere.Destination = new Uri("stub://elsewhere");
+        elsewhere.Status = EnvelopeStatus.Incoming;
+
+        (await thePersistence.Inbox.ExistsAsync(elsewhere, CancellationToken.None)).ShouldBeTrue();
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
+        {
+            await thePersistence.Inbox.StoreIncomingAsync(elsewhere);
         });
     }
 

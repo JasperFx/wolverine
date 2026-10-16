@@ -330,7 +330,14 @@ public partial class WolverineRuntime : IAgentRuntime
         switch (Options.Durability.Mode)
         {
             case DurabilityMode.Balanced:
-                await startDurableScheduledJobs();
+                // GH-4569: every Balanced node polls the scheduled rows of its stores whether or not it was
+                // assigned anything, and executes what comes due on itself. A warm-up node must never run a
+                // production message, so it does not poll at all; the serving nodes keep doing it.
+                if (Options.Durability.NodeRole == NodeRole.Serving)
+                {
+                    await startDurableScheduledJobs();
+                }
+
                 startNodeAgentController();
                 break;
 
@@ -343,6 +350,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
 
             case DurabilityMode.Serverless:
+            case DurabilityMode.ServerlessWithOutbox:
             case DurabilityMode.MediatorOnly:
                 break;
         }

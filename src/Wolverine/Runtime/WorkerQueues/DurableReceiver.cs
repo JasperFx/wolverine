@@ -45,6 +45,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private bool _latched;
     private int _inboxUnavailableSignaled;
 
+    // The InboxStaleTime heartbeat: the envelopes this receiver holds in memory, and the timer that restarts their
+    // rows' stale clock. Both null unless InboxStaleTime is set and the inbox supports it.
+    private readonly InboxCustody? _custody;
+    private readonly Timer? _heartbeat;
+    private readonly TimeSpan _heartbeatPeriod;
+    private int _heartbeating;
+
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _endpoint = endpoint;
@@ -56,6 +63,16 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _logger = runtime.LoggerFactory.CreateLogger<DurableReceiver>();
 
         Uri = endpoint.Uri;
+
+        // The stale sweep releases an owned inbox row once its clock is older than InboxStaleTime. A row this
+        // receiver is still holding -- queued here, or running in a handler -- is not stuck, so its clock is
+        // restarted three times per InboxStaleTime while it is held.
+        if (_settings.InboxStaleTime is { } staleTime && _inbox is IMessageInboxHeartbeat)
+        {
+            _custody = new InboxCustody();
+            _heartbeatPeriod = TimeSpan.FromTicks(Math.Max(staleTime.Ticks / 3, TimeSpan.FromMilliseconds(50).Ticks));
+            _heartbeat = new Timer(_ => _ = restartHeldStaleClocksAsync(), null, _heartbeatPeriod, _heartbeatPeriod);
+        }
 
         ShouldPersistBeforeProcessing = !(endpoint is IDatabaseBackedEndpoint);
 
@@ -96,38 +113,47 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
         {
-            if (_latched)
-            {
-                return;
-            }
-
             try
             {
-                envelope.ContentType ??= EnvelopeConstants.JsonContentType;
+                if (_latched)
+                {
+                    return;
+                }
 
-                await pipeline.InvokeAsync(envelope, this).ConfigureAwait(false);
-            }
-            catch (Exception? e)
-            {
-                // CritterWatch#942 — everything in this recovery path must be exception-safe: an
-                // escape here faults the execution block terminally (jasperfx#506) and a faulted
-                // block never recovers. Both the requeue and the log call can throw under the same
-                // memory pressure that caused the original failure.
                 try
                 {
-                    if (_receiver != null)
-                    {
-                        await _receiver.PostAsync(envelope).ConfigureAwait(false);
-                    }
+                    envelope.ContentType ??= EnvelopeConstants.JsonContentType;
 
-                    // This *should* never happen, but of course it will
-                    _logger.LogError(e, "Unexpected pipeline invocation error");
+                    await pipeline.InvokeAsync(envelope, this).ConfigureAwait(false);
                 }
-                catch
+                catch (Exception? e)
                 {
-                    // The message is lost to this attempt, but durable inbox recovery re-offers it;
-                    // the listener survives.
+                    // CritterWatch#942 — everything in this recovery path must be exception-safe: an
+                    // escape here faults the execution block terminally (jasperfx#506) and a faulted
+                    // block never recovers. Both the requeue and the log call can throw under the same
+                    // memory pressure that caused the original failure.
+                    try
+                    {
+                        if (_receiver != null)
+                        {
+                            // Still held: the requeue is counted in before this execution counts out below
+                            _custody?.Enter(envelope, DateTimeOffset.UtcNow);
+                            await _receiver.PostAsync(envelope).ConfigureAwait(false);
+                        }
+
+                        // This *should* never happen, but of course it will
+                        _logger.LogError(e, "Unexpected pipeline invocation error");
+                    }
+                    catch
+                    {
+                        // The message is lost to this attempt, but durable inbox recovery re-offers it;
+                        // the listener survives.
+                    }
                 }
+            }
+            finally
+            {
+                _custody?.Leave(envelope);
             }
         };
         
@@ -283,6 +309,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         if (_runtime.Stores == null) return;
 
+        // GH-5040: a database-backed endpoint never writes the inbox itself -- its dequeue already moved the row
+        // into the inbox of the transport's own store. Pointing the envelope at the handler's ancillary store
+        // here sent the mark-handled to a database that has no such row, and the row stayed Incoming in the
+        // main store to be replayed on every restart
+        if (!ShouldPersistBeforeProcessing) return;
+
         // Uri, not just the message type: a sticky handler makes the owning store endpoint specific,
         // and this receiver only ever feeds the handler chain for its own endpoint (GH-3886).
         var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(Uri, envelope.MessageType);
@@ -301,8 +333,49 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
     }
 
+    /// <summary>
+    /// One heartbeat tick: restart the stale clock of every envelope held here for at least one period. Never
+    /// overlaps itself and never throws; a failed write is retried on the next tick, which still leaves two more
+    /// before the sweep could release the row.
+    /// </summary>
+    private async Task restartHeldStaleClocksAsync()
+    {
+        if (_custody == null || Interlocked.Exchange(ref _heartbeating, 1) == 1) return;
+
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var due = _custody.FindDue(now.Subtract(_heartbeatPeriod));
+            if (due.Count == 0) return;
+
+            await ((IMessageInboxHeartbeat)_inbox).RestartStaleClockAsync(_settings.AssignedNodeNumber, due)
+                .ConfigureAwait(false);
+            _custody.MarkClockRestarted(due, now);
+        }
+        catch (Exception e)
+        {
+            try
+            {
+                _logger.LogWarning(e,
+                    "Unable to restart the InboxStaleTime clock of messages held by {Uri}. Retrying on the next heartbeat",
+                    Uri);
+            }
+            catch
+            {
+                // Logging failed; the next tick tries again regardless
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _heartbeating, 0);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        if (_heartbeat != null) await _heartbeat.DisposeAsync().ConfigureAwait(false);
+        _custody?.Clear();
+
         await _receiver.WaitForCompletionAsync().ConfigureAwait(false);
 
         _incrementAttempts.Dispose();
@@ -435,6 +508,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // sure the ancillary-store routing is applied here too so the
         // mark-as-handled SQL goes to the correct store. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
+        _custody?.Enter(envelope, DateTimeOffset.UtcNow);
         _receiver.Post(envelope);
     }
 
@@ -448,6 +522,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // through the assignAncillaryStoreIfNeeded calls in receiveOneAsync /
         // ProcessReceivedMessagesAsync. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
+        _custody?.Enter(envelope, DateTimeOffset.UtcNow);
         return _receiver.PostAsync(envelope);
     }
 

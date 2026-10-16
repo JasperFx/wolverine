@@ -386,6 +386,7 @@
     <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus/Wolverine.AzureServiceBus.csproj" />
   </Folder>
   <Folder Name="/Transports/GCP/">
+    <Project Path="src/Transports/GCP/Wolverine.Pubsub.Http/Wolverine.Pubsub.Http.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub.Tests/Wolverine.Pubsub.Tests.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub/Wolverine.Pubsub.csproj" />
   </Folder>

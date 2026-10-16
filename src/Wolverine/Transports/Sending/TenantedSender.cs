@@ -123,6 +123,11 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
         return senderForTenantId(envelope.TenantId!).SendAsync(envelope);
     }
 
+    /// <summary>
+    ///     The sender that really sends <paramref name="envelope" />, the one for its tenant
+    /// </summary>
+    internal ISender SenderFor(Envelope envelope) => senderForTenantId(envelope.TenantId!);
+
     private ISender senderForTenantId(string tenantId)
     {
         if (tenantId.IsEmpty())

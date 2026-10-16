@@ -12,6 +12,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
     private readonly ILogger _logger;
 
     private readonly ISenderProtocol _protocol;
+    private readonly int _batchSize;
     private readonly IBlock<Envelope> _serializing;
     private ISenderCallback? _callback;
     private int _queued;
@@ -20,6 +21,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
     {
         Destination = destination.Uri;
         _protocol = protocol;
+        _batchSize = Math.Max(1, destination.MessageBatchSize);
         _cancellation = cancellation;
         _logger = logger;
 
@@ -97,6 +99,95 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         // QueuedCount reflects envelopes accepted but not yet flushed to the protocol
         Interlocked.Increment(ref _queued);
         return _serializing.PostAsync(message);
+    }
+
+    /// <summary>
+    ///     GH-5034. Send one envelope straight through the transport protocol, bypassing the in-memory batching,
+    ///     and only return once the broker has accepted it. Throws if it did not. Used where the caller deletes
+    ///     the envelope's outbox row as soon as this returns, so nothing can be left to the background
+    /// </summary>
+    internal async Task SendThroughProtocolAsync(Envelope envelope)
+    {
+        if (Latched)
+        {
+            throw new InlineSendFailedException($"The sender to {Destination} is latched", null);
+        }
+
+        if (envelope.Data == null && envelope.Serializer != null)
+        {
+            envelope.Data = envelope.Serializer.Write(envelope);
+        }
+
+        var callback = new InlineSendCallback();
+        await _protocol.SendBatchAsync(callback, new OutgoingMessageBatch(Destination, [envelope]))
+            .ConfigureAwait(false);
+
+        callback.AssertAccepted(envelope);
+    }
+
+    /// <summary>
+    ///     GH-5016. Send several envelopes straight through the transport protocol, bypassing the in-memory
+    ///     batching, in batches of the endpoint's MessageBatchSize, one broker round trip per batch. Records in
+    ///     <paramref name="result" /> which envelopes the broker accepted. A protocol that reports part of a batch
+    ///     as failed, like SQS, has only that part left out
+    /// </summary>
+    internal async Task SendThroughProtocolAsync(IReadOnlyList<Envelope> envelopes, InlineSendResult result)
+    {
+        if (Latched)
+        {
+            var latched = new InlineSendFailedException($"The sender to {Destination} is latched", null);
+            foreach (var envelope in envelopes) result.Fail(envelope, latched);
+            return;
+        }
+
+        var ready = new List<Envelope>(envelopes.Count);
+        foreach (var envelope in envelopes)
+        {
+            try
+            {
+                if (envelope.Data == null && envelope.Serializer != null)
+                {
+                    envelope.Data = envelope.Serializer.Write(envelope);
+                }
+
+                ready.Add(envelope);
+            }
+            catch (Exception e)
+            {
+                result.Fail(envelope, e);
+            }
+        }
+
+        foreach (var chunk in ready.Chunk(_batchSize))
+        {
+            var callback = new InlineSendCallback();
+            try
+            {
+                await _protocol.SendBatchAsync(callback, new OutgoingMessageBatch(Destination, chunk))
+                    .ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                foreach (var envelope in chunk) result.Fail(envelope, e);
+                continue;
+            }
+
+            foreach (var envelope in chunk)
+            {
+                if (callback.WasAccepted(envelope))
+                {
+                    result.Accept(envelope);
+                }
+                else if (callback.IsSerializationFailure(envelope))
+                {
+                    result.FailSerialization(envelope, callback.FailureFor(envelope));
+                }
+                else
+                {
+                    result.Fail(envelope, callback.FailureFor(envelope));
+                }
+            }
+        }
     }
 
     public void Dispose()

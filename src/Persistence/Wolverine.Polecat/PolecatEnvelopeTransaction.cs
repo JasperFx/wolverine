@@ -10,6 +10,8 @@ namespace Wolverine.Polecat;
 internal class PolecatEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _context;
+
+    // GH-5016: owned by any node (0) under ServerlessWithOutbox, which has no node record to own them
     private readonly int _nodeId;
 
     public PolecatEnvelopeTransaction(IDocumentSession session, MessageContext context)
@@ -18,12 +20,12 @@ internal class PolecatEnvelopeTransaction : IEnvelopeTransaction
         if (context.Storage is SqlServerMessageStore store)
         {
             Store = store;
-            _nodeId = store.Durability.AssignedNodeNumber;
+            _nodeId = store.Durability.OutgoingOwnerId;
         }
         else if (context.Storage is MultiTenantedMessageStore { Main: SqlServerMessageStore s })
         {
             Store = s;
-            _nodeId = s.Durability.AssignedNodeNumber;
+            _nodeId = s.Durability.OutgoingOwnerId;
         }
         else
         {
