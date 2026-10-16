@@ -259,6 +259,19 @@ public partial class NodeAgentController
         // GH-2602.
         foreach (var report in grid.DuplicateAgentReports)
         {
+            // Leadership is not an agent and has nothing to stop: the advisory lock and the assignment row
+            // ARE its lifecycle, and a duplicate here is only ever a stale snapshot (a predecessor that died
+            // inside StaleNodeTimeout, or the GH-2682 self-injection above beside a lagging row). Stopping
+            // "the older copy" either invokes a dead node's lane, or -- when this node was enumerated first --
+            // runs StopAgentAsync(LeaderUri) locally, whose owner-scoped delete takes this leader's own row.
+            if (report.AgentUri == LeaderUri)
+            {
+                _logger.LogDebug(
+                    "Ignoring a duplicate leader assignment reported on Node {ExistingNode} and Node {NewNode}; the leadership lock decides the leader, not the duplicate healer",
+                    report.ExistingNode.AssignedId, report.NewNode.AssignedId);
+                continue;
+            }
+
             _logger.LogWarning(
                 "Detected duplicate agent {AgentUri} reported running on Node {ExistingNode} and Node {NewNode} — sending StopRemoteAgent to the older copy to heal split-brain residue.",
                 report.AgentUri, report.ExistingNode.AssignedId, report.NewNode.AssignedId);
