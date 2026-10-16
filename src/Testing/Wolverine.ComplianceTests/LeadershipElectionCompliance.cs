@@ -610,6 +610,49 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }, 30.Seconds());
     }
 
+    /// <summary>
+    ///     The leader dies hard -- its advisory lock goes with its connection, but its node row heartbeated a
+    ///     moment ago and its assignment rows, the leader's among them, are still in the table. The survivor
+    ///     that wins the lock inside StaleNodeTimeout takes over from a snapshot that still names the dead node
+    ///     as leader, and must come out of that tick with exactly one persisted leader row: its own. It used to
+    ///     come out with none: the takeover left the leader assignment on both nodes of its snapshot, the
+    ///     GH-2602 duplicate healer stopped the copy on whichever node the store enumerated first, and when
+    ///     that was the survivor the local stop deleted the row the takeover had just written.
+    ///
+    ///     <para>Which node a store enumerates first is its own business (a heap order, here), so this test
+    ///     cannot force the losing order; <c>leader_takeover_keeps_its_own_leader_row</c> in CoreTests pins the
+    ///     takeover tick in both orders. This one runs the real takeover against the real store and the real
+    ///     owner-scoped delete, with a predecessor that is dead but not yet stale -- the existing takeover
+    ///     tests only ever hand the successor a predecessor that is already past StaleNodeTimeout.</para>
+    /// </summary>
+    [Fact]
+    public async Task a_leader_that_dies_inside_the_stale_window_leaves_its_successor_with_a_leader_row()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var host2 = await startHostAsync(ConfigureSlowHeartbeat);
+
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 6);
+            w.ExpectRunningAgents(host2, 6);
+        }, 30.Seconds());
+
+        // The crash: lock released, heartbeat fresh, assignment rows untouched
+        await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow);
+
+        // host2 polls every ten minutes, so this is the one takeover tick -- and the tracked session runs the
+        // commands it emits, which is where the leader's own stop used to execute
+        await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await host2.WaitUntilAssumesLeadershipAsync(15.Seconds());
+
+        var successor = host2.GetRuntime().Options.UniqueNodeId;
+        var state = await host2.GetRuntime().Storage.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+
+        var leaders = state.Nodes.Where(x => x.IsLeader()).Select(x => x.NodeId).ToArray();
+        leaders.ShouldBe([successor]);
+    }
+
     [Fact]
     public async Task take_over_leader_ship_if_leader_becomes_stale_with_racing_nodes()
     {

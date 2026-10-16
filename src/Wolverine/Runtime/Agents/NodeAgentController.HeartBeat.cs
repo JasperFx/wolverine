@@ -286,6 +286,8 @@ public partial class NodeAgentController
             {
                 if (IsLeader)
                 {
+                    await reassertLeaderRowAsync(nodes, selfRowIsPersisted);
+
                     return waitForNodeSetToSettle
                         ? AgentCommands.Empty
                         : await EvaluateAssignmentsAsync(nodes, restrictions);
@@ -360,6 +362,38 @@ public partial class NodeAgentController
         }
     }
 
+    /// <summary>
+    ///     The leader's persisted assignment row is written once, at takeover, and nothing else on the leader
+    ///     ever rewrites it: the heartbeat only restores rows for agents in <see cref="Agents" /> (the leader
+    ///     is not one), and the reconciliation sweep leaves <see cref="LeaderUri" /> alone by design. So a
+    ///     lost row stayed lost for as long as the lease lasted, with every observer that reads the table
+    ///     reporting no leader while the lock was held and the leader was placing agents. Whatever took it
+    ///     -- the takeover-snapshot duplicate above, an operator's delete -- the holder of the lock puts it
+    ///     back on its next tick. Only ever costs a query when the row is actually missing.
+    /// </summary>
+    private async Task reassertLeaderRowAsync(IReadOnlyList<WolverineNode> nodes, bool selfRowIsPersisted)
+    {
+        if (!selfRowIsPersisted) return;
+
+        var self = nodes.FirstOrDefault(x => x.NodeId == _runtime.Options.UniqueNodeId);
+        if (self == null || self.IsLeader()) return;
+
+        try
+        {
+            await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri, _cancellation.Token);
+            self.AssignAgents([LeaderUri]);
+
+            _logger.LogWarning(
+                "Node {NodeNumber} holds the leadership lock but its persisted leader assignment was missing; the assignment row has been rewritten",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to rewrite the leader assignment row for node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
+    }
+
     private async Task<AgentCommands> tryStartLeadershipAsync(IReadOnlyList<WolverineNode> nodes,
         AgentRestrictions restrictions, bool waitForNodeSetToSettle = false)
     {
@@ -387,6 +421,17 @@ public partial class NodeAgentController
         // This is important, some of the assignment logic depends on knowing what the leader is
         var self = nodes.FirstOrDefault(x => x.NodeId == _runtime.Options.UniqueNodeId);
         self!.AssignAgents([LeaderUri]);
+
+        // The snapshot was read BEFORE the upsert above, so a predecessor that crashed inside
+        // StaleNodeTimeout still shows the leader assignment on its row. The upsert just moved that row
+        // here -- it is the assignment table's primary key, one owner -- so make the snapshot say so too.
+        // Left in place, the grid saw the leader "running" on two nodes and the GH-2602 duplicate healer
+        // stopped the copy on whichever node the store enumerated first: this one, half the time, and the
+        // local stop's owner-scoped delete took the row this takeover had just written.
+        foreach (var other in nodes)
+        {
+            if (other.NodeId != self.NodeId) other.ActiveAgents.Remove(LeaderUri);
+        }
 
         // The pass a brand new leader would run right here is the one AssignmentSettlePeriod exists to
         // hold back: it sees the pods that happen to be up at this instant, and every later arrival costs
