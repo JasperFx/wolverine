@@ -46,6 +46,7 @@ public class null_message_store_never_throws
             (await theStore.LoadOutgoingAsync(new Uri("local://one"))).ShouldBeEmpty();
             (await theStore.LoadScheduledToExecuteAsync(DateTimeOffset.UtcNow)).ShouldBeEmpty();
             (await theStore.LoadPageOfGloballyOwnedIncomingAsync(new Uri("local://one"), 10)).ShouldBeEmpty();
+            (await theStore.TryClaimIncomingAsync(1, [new Envelope()])).ShouldBeEmpty();
 
             await theStore.ReassignOutgoingAsync(1, Array.Empty<Envelope>());
             await theStore.ReassignIncomingAsync(1, Array.Empty<Envelope>());

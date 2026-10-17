@@ -182,4 +182,61 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
             await replaceIncomingAsync(message, partitionKey);
         }
     }
+
+    public async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        var claimed = new List<Envelope>(incoming.Count);
+
+        try
+        {
+            foreach (var envelope in incoming)
+            {
+                if (await readIncomingAsync(envelope, _options.Durability.Cancellation) is not var (message, partitionKey))
+                {
+                    continue;
+                }
+
+                if (message.OwnerId != TransportConstants.AnyNode || message.Status != EnvelopeStatus.Incoming)
+                {
+                    continue;
+                }
+
+                message.OwnerId = ownerId;
+                try
+                {
+                    await _container.ReplaceItemAsync(message, message.Id, new PartitionKey(partitionKey),
+                        new ItemRequestOptions { IfMatchEtag = message.ETag }, _options.Durability.Cancellation);
+                }
+                catch (CosmosException e) when (e.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.NotFound)
+                {
+                    // Another recovery pass updated or deleted this inbox document first.
+                    continue;
+                }
+
+                envelope.OwnerId = ownerId;
+                claimed.Add(envelope);
+            }
+        }
+        catch (Exception claimFailure)
+        {
+            if (claimed.Count > 0)
+            {
+                try
+                {
+                    // The caller cannot enqueue a partial result when this method throws, so release earlier wins.
+                    await ReassignIncomingAsync(TransportConstants.AnyNode, claimed);
+                }
+                catch (Exception releaseFailure)
+                {
+                    throw new AggregateException(
+                        "Cosmos DB failed to claim incoming messages and could not release the partial claim",
+                        claimFailure, releaseFailure);
+                }
+            }
+
+            throw;
+        }
+
+        return claimed;
+    }
 }

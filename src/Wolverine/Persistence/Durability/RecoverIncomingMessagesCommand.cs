@@ -37,19 +37,23 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
             return AgentCommands.Empty;
         }
 
-        var envelopes = await _store.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
+        var candidates = await _store.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
 
         // Ensure each recovered envelope carries a reference to the store it was loaded from.
         // This is critical for ancillary stores: without this, the envelope's Store property
         // is null and DelegatingMessageInbox falls back to the main store when marking the
         // envelope as handled — leaving it stuck as "Incoming" in the ancillary store.
         // See https://github.com/JasperFx/wolverine/issues/2318
-        foreach (var envelope in envelopes)
+        foreach (var envelope in candidates)
         {
             envelope.Store ??= _store;
         }
 
-        await _store.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
+        var envelopes = await _store.TryClaimIncomingAsync(_settings.AssignedNodeNumber, candidates);
+        if (envelopes.Count == 0)
+        {
+            return AgentCommands.Empty;
+        }
 
         // GH-3680. The rows above are now owned by *this* node, and orphan recovery only ever releases
         // rows owned by a node it has proven to be dead. If the hand-off into the listener fails -- and it
