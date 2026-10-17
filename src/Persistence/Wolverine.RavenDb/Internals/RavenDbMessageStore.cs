@@ -158,15 +158,20 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
 
     public async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
-        var claimed = new List<Envelope>(incoming.Count);
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
 
-        try
+        // SaveChanges submits the document updates as one RavenDB transaction. If another recovery pass
+        // wins any document first, optimistic concurrency aborts the whole batch, so no earlier claim can
+        // be stranded when a later one conflicts. Retry to claim any candidates that remain globally owned.
+        const int maxAttempts = 3;
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
         {
+            var claimed = new List<Envelope>(incoming.Count);
+            using var session = _store.OpenAsyncSession();
+            session.Advanced.UseOptimisticConcurrency = true;
+
             foreach (var envelope in incoming)
             {
-                using var session = _store.OpenAsyncSession();
-                session.Advanced.UseOptimisticConcurrency = true;
-
                 var message = await session.LoadAsync<IncomingMessage>(_identity(envelope));
                 if (message == null || message.OwnerId != TransportConstants.AnyNode ||
                     message.Status != EnvelopeStatus.Incoming)
@@ -175,40 +180,25 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
                 }
 
                 message.OwnerId = ownerId;
-                try
-                {
-                    await session.SaveChangesAsync();
-                }
-                catch (ConcurrencyException)
-                {
-                    // Another recovery pass updated or deleted this inbox document first.
-                    continue;
-                }
-
-                envelope.OwnerId = ownerId;
                 claimed.Add(envelope);
             }
-        }
-        catch (Exception claimFailure)
-        {
-            if (claimed.Count > 0)
+
+            if (claimed.Count == 0) return Array.Empty<Envelope>();
+
+            try
             {
-                try
-                {
-                    // The caller cannot enqueue a partial result when this method throws, so release earlier wins.
-                    await ReassignIncomingAsync(TransportConstants.AnyNode, claimed);
-                }
-                catch (Exception releaseFailure)
-                {
-                    throw new AggregateException(
-                        "RavenDB failed to claim incoming messages and could not release the partial claim",
-                        claimFailure, releaseFailure);
-                }
+                await session.SaveChangesAsync();
+            }
+            catch (ConcurrencyException) when (attempt + 1 < maxAttempts)
+            {
+                // The transaction committed none of this page. Reload to skip documents claimed by another pass.
+                continue;
             }
 
-            throw;
+            foreach (var envelope in claimed) envelope.OwnerId = ownerId;
+            return claimed;
         }
 
-        return claimed;
+        return Array.Empty<Envelope>();
     }
 }
