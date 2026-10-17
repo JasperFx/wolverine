@@ -283,6 +283,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        return Task.FromResult<IReadOnlyList<Envelope>>(Array.Empty<Envelope>());
+    }
+
     public Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         return Task.FromResult<DeadLetterEnvelope?>(null);

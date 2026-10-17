@@ -221,6 +221,26 @@ public interface IMessageStore : IAsyncDisposable
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
+    /// <summary>
+    ///     Attempts to claim globally owned incoming envelopes for one node and returns only those this call
+    ///     successfully claimed. Implementations should make the owner check and reassignment atomic so concurrent
+    ///     recovery commands cannot enqueue the same envelope.
+    /// </summary>
+    /// <remarks>
+    ///     The default preserves compatibility with external message stores, but cannot distinguish rows another
+    ///     recovery command claimed concurrently. Custom stores must override this method with an atomic owner check
+    ///     and update to guarantee single delivery during concurrent recovery.
+    /// </remarks>
+    async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
+
+        await ReassignIncomingAsync(ownerId, incoming);
+        foreach (var envelope in incoming) envelope.OwnerId = ownerId;
+
+        return incoming;
+    }
+
     void PromoteToMain(IWolverineRuntime runtime);
     void DemoteToAncillary();
 }

@@ -680,6 +680,52 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
+    /// <summary>
+    /// GH-5073. Atomically claims only incoming rows that are still globally owned. Recovery commands may
+    /// load the same page concurrently; the owner predicate makes the UPDATE the claim, and RETURNING gives
+    /// each command only the envelopes it actually won.
+    /// </summary>
+    public override async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId,
+        IReadOnlyList<Envelope> incoming)
+    {
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
+
+        var candidates = incoming.ToArray();
+        await using var command = CreateCommand(
+                $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} target " +
+                $"set {DatabaseConstants.OwnerId} = @owner{restartIncomingStaleClock} " +
+                $"from unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
+                $"where target.id = due.id " +
+                $"and target.{DatabaseConstants.ReceivedAt} = due.{DatabaseConstants.ReceivedAt} " +
+                $"and target.{DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"and target.{DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' " +
+                $"returning target.id, target.{DatabaseConstants.ReceivedAt}")
+            .With("owner", ownerId)
+            .WithEnvelopeIds("ids", candidates)
+            .With("uris", candidates.Select(x => x.Destination!.ToString()).ToArray());
+
+        var claimed = new HashSet<(Guid Id, string Destination)>();
+        await using (var reader = await command.ExecuteReaderAsync(_cancellation))
+        {
+            while (await reader.ReadAsync(_cancellation))
+            {
+                claimed.Add((reader.GetGuid(0), reader.GetString(1)));
+            }
+        }
+
+        var result = new List<Envelope>(claimed.Count);
+        foreach (var envelope in candidates)
+        {
+            if (claimed.Remove((envelope.Id, envelope.Destination!.ToString())))
+            {
+                envelope.OwnerId = ownerId;
+                result.Add(envelope);
+            }
+        }
+
+        return result;
+    }
+
     public override DbCommandBuilder ToCommandBuilder()
     {
         return new DbCommandBuilder(new NpgsqlCommand());

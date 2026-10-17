@@ -1773,6 +1773,52 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-5073. Two recovery commands can load the same orphan before either claims it. Only the store that
+    /// atomically changes owner_id from AnyNode may return the envelope for enqueueing.
+    /// </summary>
+    [Fact]
+    public async Task CompetingRecoveryPassesOnlyClaimAGloballyOwnedIncomingRowOnce()
+    {
+        var envelopes = new[] { ObjectMother.Envelope(), ObjectMother.Envelope() };
+        var destination = envelopes[0].Destination!;
+        foreach (var envelope in envelopes)
+        {
+            envelope.Destination = destination;
+            envelope.Status = EnvelopeStatus.Incoming;
+            envelope.OwnerId = TransportConstants.AnyNode;
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelopes);
+
+        // Both recovery passes read the same page before either attempts to claim it.
+        var firstCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
+        var secondCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
+
+        foreach (var envelope in envelopes)
+        {
+            firstCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+            secondCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+        }
+
+        var claims = await Task.WhenAll(
+            thePersistence.TryClaimIncomingAsync(45_001, firstCandidates),
+            thePersistence.TryClaimIncomingAsync(45_002, secondCandidates));
+
+        var claimed = claims.SelectMany(x => x).ToArray();
+        claimed.Length.ShouldBe(envelopes.Length,
+            "every envelope in the page should be claimed and returned exactly once");
+        claimed.Select(x => x.Id).OrderBy(x => x).ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x));
+
+        foreach (var envelope in claimed)
+        {
+            envelope.OwnerId.ShouldBeOneOf(45_001, 45_002);
+        }
+
+        var remaining = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
+        remaining.ShouldBeEmpty();
+    }
+
+    /// <summary>
     /// Sister contract test to <see cref="scheduled_poll_stamps_envelope_with_originating_store"/>:
     /// the inbox-recovery path (which DLQ replay funnels through) must stamp
     /// <c>envelope.Store</c> so downstream mark-as-handled writes route to the

@@ -131,6 +131,28 @@ public class message_store_compliance : MessageStoreCompliance
     }
 
     [Fact]
+    public async Task does_not_save_earlier_claims_if_a_later_candidate_fails_to_load()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.OwnerId = Wolverine.Transports.TransportConstants.AnyNode;
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var candidate = (await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10))
+            .Single(x => x.Id == envelope.Id);
+        var store = (RavenDbMessageStore)thePersistence;
+
+        await Should.ThrowAsync<NullReferenceException>(() => store.TryClaimIncomingAsync(45_001,
+            new Envelope[] { candidate, null! }));
+
+        using var session = _store.OpenAsyncSession();
+        var persisted = await session.LoadAsync<IncomingMessage>(store.IdentityFor(envelope),
+            TestContext.Current.CancellationToken);
+        persisted.ShouldNotBeNull();
+        persisted.OwnerId.ShouldBe(Wolverine.Transports.TransportConstants.AnyNode);
+    }
+
+    [Fact]
     public async Task node_persistence_works_when_store_has_optimistic_concurrency_enabled()
     {
         // Node-agent persistence has two failure modes when the consumer enables optimistic

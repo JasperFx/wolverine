@@ -127,10 +127,16 @@ public class ListenerInboxRecovery
                     envelope.Store ??= store;
                 }
 
-                // Claimed as each page is read, so the next page query (owner 0 only) never returns a row
-                // twice and no other sweep can take it in the meantime
-                await store.ReassignIncomingAsync(_runtime.DurabilitySettings.AssignedNodeNumber, page);
-                batch.AddRange(page);
+                // Claim each page before enqueueing it, so the next page query (owner 0 only) never returns
+                // the same row and no other sweep can take it in the meantime.
+                var claimed = await store.TryClaimIncomingAsync(_runtime.DurabilitySettings.AssignedNodeNumber, page);
+                if (claimed.Count == 0)
+                {
+                    // Another recovery pass claimed these candidates first. It owns the enqueue now.
+                    break;
+                }
+
+                batch.AddRange(claimed);
 
                 if (page.Count < pageSize)
                 {
