@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using Npgsql;
 using Weasel.Postgresql;
@@ -6,6 +7,7 @@ using Wolverine.Postgresql;
 using Xunit;
 namespace Wolverine.AzureServiceBus.Tests;
 
+[BobcatFeature("Azure Service Bus control queue leader election")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)

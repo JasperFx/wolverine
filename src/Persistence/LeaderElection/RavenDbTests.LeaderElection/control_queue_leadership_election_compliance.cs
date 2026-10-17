@@ -1,3 +1,4 @@
+using Bobcat;
 using Microsoft.Extensions.DependencyInjection;
 using Raven.Client.Documents;
 using Wolverine;
@@ -15,6 +16,7 @@ namespace RavenDbTests.LeaderElection;
 /// RavenDbControlTransport added in #3285 under real multi-node fan-out,
 /// send-to-node, and leader-failover scenarios.
 /// </summary>
+[BobcatFeature("RavenDB leader election, native control queue")]
 [Collection("raven")]
 public class control_queue_leadership_election_compliance : LeadershipElectionCompliance
 {

@@ -6,6 +6,15 @@ using Wolverine.Tracking;
 using Xunit;
 namespace Wolverine.ComplianceTests;
 
+/// <summary>
+///     Writes every <see cref="IWolverineEvent" /> a host's tracker publishes to test output.
+/// </summary>
+/// <remarks>
+///     Nothing in Wolverine publishes <see cref="AgentAssignmentsChanged" /> to the tracker any more, so in
+///     practice this writes <c>ListenerState</c> changes only and the assignment branch below never runs. The
+///     leadership suite's assignment history comes from <c>Telemetry.AgentAssignmentTelemetry</c>, which hears the
+///     runtime's <c>IWolverineObserver</c> instead and is written out only when a specification fails.
+/// </remarks>
 public class XUnitEventObserver : IObserver<IWolverineEvent>
 {
     private readonly ITestOutputHelper _output;

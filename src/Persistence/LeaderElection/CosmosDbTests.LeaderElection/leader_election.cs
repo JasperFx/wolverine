@@ -1,3 +1,4 @@
+using Bobcat;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine;
 using Wolverine.CosmosDb;
@@ -5,6 +6,7 @@ using Wolverine.ComplianceTests;
 using Xunit;
 namespace CosmosDbTests.LeaderElection;
 
+[BobcatFeature("Cosmos DB leader election")]
 [Collection("cosmosdb")]
 public class leader_election(AppFixture fixture, ITestOutputHelper output)
     : LeadershipElectionCompliance(output)

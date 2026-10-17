@@ -9,6 +9,12 @@
           <OutputType>Exe</OutputType> (its targets hard-error otherwise), which a package
           consumed by ~40 downstream test projects must not be.
         -->
+        <!--
+          Bobcat.Xunit brings Microsoft.Testing.Platform in, whose buildTransitive targets default this to
+          true in any project referencing it, and `dotnet test` in the platform's own mode refuses a solution
+          holding a Library-typed test application.
+        -->
+        <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
     </PropertyGroup>
 
     <ItemGroup>
@@ -53,6 +59,18 @@
         -->
         <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <!--
+          LeadershipElectionCompliance is written as Bobcat specifications, and its agent-assignment telemetry
+          (Telemetry/) goes out through Bobcat's reports, step logs and failure attachments when one fails.
+          The generator has to be HERE, because the [BobcatSpec] methods and the step calls are in this
+          compilation; it is a development dependency, so it does not flow on. Bobcat.Xunit's buildTransitive
+          props (the test-platform session hook and [assembly: RecordBobcatFeatures]) are kept from flowing to
+          the ~40 downstream test projects that never run a Bobcat specification: the projects that subclass
+          LeadershipElectionCompliance reference Bobcat.Xunit and Bobcat.Generators themselves.
+        -->
+        <PackageReference Include="Bobcat" />
+        <PackageReference Include="Bobcat.Xunit" PrivateAssets="build;buildtransitive;analyzers;contentfiles" />
+        <PackageReference Include="Bobcat.Generators" />
     </ItemGroup>
 
 </Project>

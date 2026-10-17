@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using Npgsql;
 using Weasel.Postgresql;
@@ -7,6 +8,7 @@ using Wolverine.Postgresql;
 using Xunit;
 namespace PostgresqlTests.LeaderElection;
 
+[BobcatFeature("PostgreSQL leader election")]
 [Collection("marten")]
 public class leader_election : LeadershipElectionCompliance
 {

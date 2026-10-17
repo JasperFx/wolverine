@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using MySqlConnector;
 using Wolverine;
@@ -6,6 +7,7 @@ using Wolverine.MySql;
 using Xunit;
 namespace MySqlTests.LeaderElection;
 
+[BobcatFeature("MySQL leader election")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)
