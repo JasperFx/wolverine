@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using Oracle.ManagedDataAccess.Client;
 using Wolverine;
@@ -17,6 +18,7 @@ namespace OracleTests.LeaderElection;
 // retry that the exclusion was standing in for. Re-measured 2026-08-04: 15/15 green on four
 // consecutive runs, 1m44s each. Watch CIOracle -- the shared-container contention this was
 // hedging against cannot be reproduced on a dev box.
+[BobcatFeature("Oracle leader election")]
 public class leader_election : LeadershipElectionCompliance
 {
     public const string SchemaName = "WOLVERINE";

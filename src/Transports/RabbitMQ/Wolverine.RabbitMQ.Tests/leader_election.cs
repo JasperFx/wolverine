@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using JasperFx.Core;
 using Npgsql;
@@ -9,6 +10,7 @@ using Wolverine.Tracking;
 using Xunit;
 namespace Wolverine.RabbitMQ.Tests;
 
+[BobcatFeature("RabbitMQ control queue leader election")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)

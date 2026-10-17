@@ -1,3 +1,4 @@
+using Bobcat;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Raven.Client.Documents;
@@ -20,6 +21,7 @@ public class DatabaseCollection : ICollectionFixture<DatabaseFixture>
     // ICollectionFixture<> interfaces.
 }
 
+[BobcatFeature("RavenDB leader election, TCP control endpoint")]
 [Collection("raven")]
 public class leadership_election_compliance : LeadershipElectionCompliance
 {

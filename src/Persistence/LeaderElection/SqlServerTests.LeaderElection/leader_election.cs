@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using Microsoft.Data.SqlClient;
 using Weasel.SqlServer;
@@ -7,6 +8,7 @@ using Wolverine.SqlServer;
 using Xunit;
 namespace SqlServerTests.LeaderElection;
 
+[BobcatFeature("SQL Server leader election")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)

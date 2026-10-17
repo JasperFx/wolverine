@@ -84,7 +84,8 @@ the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
   suite, the Docker services each needs and what can run side by side are in `.claude/docs/test_gates.md`.
 - `[assembly: CollectionBehavior(DisableTestParallelization = true)]` no longer compiles; use
   `[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]`. A helper library that
-  references the platform but is not a test host needs `IsTestingPlatformApplication=false`; none does today.
+  references the platform but is not a test host needs `IsTestingPlatformApplication=false`; `Wolverine.ComplianceTests` is the one
+  that does (Bobcat.Xunit brings the platform in for the leadership-election specifications).
 
 **Solutions** (new `.slnx` XML format):
 - `wolverine.slnx` - Full solution

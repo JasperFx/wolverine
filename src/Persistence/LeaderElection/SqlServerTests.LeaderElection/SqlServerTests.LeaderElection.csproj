@@ -10,6 +10,10 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
         <PackageReference Include="xunit.v3"/>
+        <!-- Runs LeadershipElectionCompliance, which is written as Bobcat specifications: the session hook
+             (Bobcat.Xunit's props) and the generator that binds each inherited specification to this suite. -->
+        <PackageReference Include="Bobcat.Xunit" />
+        <PackageReference Include="Bobcat.Generators" />
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>

@@ -1,3 +1,4 @@
+using Bobcat;
 using IntegrationTests;
 using Npgsql;
 using Weasel.Postgresql;
@@ -8,6 +9,7 @@ using Wolverine.Transports.SharedMemory;
 using Xunit;
 namespace SlowTests.SharedMemory;
 
+[BobcatFeature("Shared-memory queueing leader election")]
 public class leadership_compliance: LeadershipElectionCompliance
 {
     public leadership_compliance(ITestOutputHelper output) : base(output)
