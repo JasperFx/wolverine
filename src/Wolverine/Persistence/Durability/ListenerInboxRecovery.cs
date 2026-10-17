@@ -111,7 +111,8 @@ public class ListenerInboxRecovery
             while (batch.Count < cap)
             {
                 var pageSize = Math.Min(_runtime.DurabilitySettings.RecoveryBatchSize, cap - batch.Count);
-                var page = await store.LoadPageOfGloballyOwnedIncomingAsync(destination, pageSize);
+                var page = await store.ClaimPageOfGloballyOwnedIncomingAsync(destination, pageSize,
+                    _runtime.DurabilitySettings.AssignedNodeNumber);
                 if (page.Count == 0)
                 {
                     exhausted = true;
@@ -127,9 +128,6 @@ public class ListenerInboxRecovery
                     envelope.Store ??= store;
                 }
 
-                // Claimed as each page is read, so the next page query (owner 0 only) never returns a row
-                // twice and no other sweep can take it in the meantime
-                await store.ReassignIncomingAsync(_runtime.DurabilitySettings.AssignedNodeNumber, page);
                 batch.AddRange(page);
 
                 if (page.Count < pageSize)

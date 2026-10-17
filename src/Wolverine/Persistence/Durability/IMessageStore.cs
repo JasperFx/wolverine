@@ -221,6 +221,17 @@ public interface IMessageStore : IAsyncDisposable
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
+    /// <summary>
+    /// Claims a recovery page and returns the claimed envelopes. Stores can override the default
+    /// load-then-reassign behavior to prevent concurrent recovery commands from claiming the same rows.
+    /// </summary>
+    async Task<IReadOnlyList<Envelope>> ClaimPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit, int ownerId)
+    {
+        var envelopes = await LoadPageOfGloballyOwnedIncomingAsync(listenerAddress, limit);
+        await ReassignIncomingAsync(ownerId, envelopes);
+        return envelopes;
+    }
+
     void PromoteToMain(IWolverineRuntime runtime);
     void DemoteToAncillary();
 }
