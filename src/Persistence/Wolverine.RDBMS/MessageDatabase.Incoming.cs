@@ -39,6 +39,45 @@ public abstract partial class MessageDatabase<T>
     }
 
     /// <summary>
+    /// GH-5073. Claims only incoming rows that are still globally owned, and returns only rows this node won.
+    /// Each conditional UPDATE is atomic; the transaction keeps a partially claimed page from being stranded
+    /// if a later update in the page fails.
+    /// </summary>
+    public virtual async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId,
+        IReadOnlyList<Envelope> incoming)
+    {
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
+
+        var claimed = new List<Envelope>(incoming.Count);
+        var restartClock = restartIncomingStaleClock;
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        await using var tx = await conn.BeginTransactionAsync(_cancellation);
+
+        foreach (var envelope in incoming)
+        {
+            await using var cmd = conn.CreateCommand(
+                $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} " +
+                $"set {DatabaseConstants.OwnerId} = @owner{restartClock} " +
+                $"where id = @id and {DatabaseConstants.ReceivedAt} = @destination " +
+                $"and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"and {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
+            cmd.Transaction = tx;
+            cmd.With("owner", ownerId)
+                .With("id", envelope.Id)
+                .With("destination", envelope.Destination!.ToString());
+
+            if (await cmd.ExecuteNonQueryAsync(_cancellation) > 0)
+            {
+                envelope.OwnerId = ownerId;
+                claimed.Add(envelope);
+            }
+        }
+
+        await tx.CommitAsync(_cancellation);
+        return claimed;
+    }
+
+    /// <summary>
     /// GH-4375. Chunked for the same reason as the outgoing transactional path: this array is sized by
     /// the caller's transaction rather than by any batch-size setting, and 234 envelopes was enough to
     /// exceed SQL Server's 2,100-parameter ceiling.

@@ -80,8 +80,9 @@ public partial class RavenDbDurabilityAgent
     {
         try
         {
-            var envelopes = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener, _settings.RecoveryBatchSize);
-            await _parent.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
+            var candidates = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener, _settings.RecoveryBatchSize);
+            var envelopes = await _parent.TryClaimIncomingAsync(_settings.AssignedNodeNumber, candidates);
+            if (envelopes.Count == 0) return;
 
             await circuit.EnqueueDirectlyAsync(envelopes);
             _logger.RecoveredIncoming(envelopes);

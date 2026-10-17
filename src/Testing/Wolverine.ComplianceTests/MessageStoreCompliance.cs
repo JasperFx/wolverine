@@ -1773,6 +1773,39 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-5073. Two recovery commands can load the same orphan before either claims it. Only the store that
+    /// atomically changes owner_id from AnyNode may return the envelope for enqueueing.
+    /// </summary>
+    [Fact]
+    public async Task CompetingRecoveryPassesOnlyClaimAGloballyOwnedIncomingRowOnce()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.OwnerId = TransportConstants.AnyNode;
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        // Both recovery passes read the same orphan before either attempts to claim it.
+        var firstCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10);
+        var secondCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10);
+
+        firstCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+        secondCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+
+        var claims = await Task.WhenAll(
+            thePersistence.TryClaimIncomingAsync(45_001, firstCandidates),
+            thePersistence.TryClaimIncomingAsync(45_002, secondCandidates));
+
+        claims.Sum(x => x.Count).ShouldBe(1,
+            "only one concurrent recovery pass should receive an envelope after claiming it");
+
+        var claimed = claims.Single(x => x.Count == 1).Single();
+        claimed.OwnerId.ShouldBeOneOf(45_001, 45_002);
+
+        var remaining = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10);
+        remaining.ShouldBeEmpty();
+    }
+
+    /// <summary>
     /// Sister contract test to <see cref="scheduled_poll_stamps_envelope_with_originating_store"/>:
     /// the inbox-recovery path (which DLQ replay funnels through) must stamp
     /// <c>envelope.Store</c> so downstream mark-as-handled writes route to the

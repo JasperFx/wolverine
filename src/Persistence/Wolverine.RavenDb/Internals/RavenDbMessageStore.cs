@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Raven.Client.Documents;
+using Raven.Client.Exceptions;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals.Durability;
@@ -153,5 +154,61 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         }
 
         await session.SaveChangesAsync();
+    }
+
+    public async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        var claimed = new List<Envelope>(incoming.Count);
+
+        try
+        {
+            foreach (var envelope in incoming)
+            {
+                using var session = _store.OpenAsyncSession();
+                session.Advanced.UseOptimisticConcurrency = true;
+
+                var message = await session.LoadAsync<IncomingMessage>(_identity(envelope));
+                if (message == null || message.OwnerId != TransportConstants.AnyNode ||
+                    message.Status != EnvelopeStatus.Incoming)
+                {
+                    continue;
+                }
+
+                message.OwnerId = ownerId;
+                try
+                {
+                    await session.SaveChangesAsync();
+                }
+                catch (ConcurrencyException)
+                {
+                    // Another recovery pass updated or deleted this inbox document first.
+                    continue;
+                }
+
+                envelope.OwnerId = ownerId;
+                claimed.Add(envelope);
+            }
+        }
+        catch (Exception claimFailure)
+        {
+            if (claimed.Count > 0)
+            {
+                try
+                {
+                    // The caller cannot enqueue a partial result when this method throws, so release earlier wins.
+                    await ReassignIncomingAsync(TransportConstants.AnyNode, claimed);
+                }
+                catch (Exception releaseFailure)
+                {
+                    throw new AggregateException(
+                        "RavenDB failed to claim incoming messages and could not release the partial claim",
+                        claimFailure, releaseFailure);
+                }
+            }
+
+            throw;
+        }
+
+        return claimed;
     }
 }
