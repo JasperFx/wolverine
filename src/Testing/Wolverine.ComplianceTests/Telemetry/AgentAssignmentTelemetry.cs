@@ -132,7 +132,9 @@ public sealed class AgentAssignmentTelemetry
 
                     foreach (var command in evaluation.Commands)
                     {
-                        builder.AppendLine($"           > {command.Text}");
+                        builder.AppendLine(command.Agent is null
+                            ? $"           > {command.Text}"
+                            : $"           > {command.Agent}: {command.Text}");
                     }
 
                     foreach (var agent in evaluation.Agents)
