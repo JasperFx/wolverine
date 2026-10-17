@@ -13,6 +13,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
     private readonly IWolverineRuntime _runtime;
     private readonly ServiceBusSender _sender;
     private readonly ILogger<AzureServiceBusSenderProtocol> _logger;
+    private readonly ScheduledMessageCancellationRegistry? _cancellations;
 
     public AzureServiceBusSenderProtocol(IWolverineRuntime runtime, AzureServiceBusEndpoint endpoint,
         IOutgoingMapper<ServiceBusMessage> mapper, ServiceBusSender sender)
@@ -22,6 +23,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
         _mapper = mapper;
         _sender = sender;
         _logger = runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>();
+        _cancellations = (runtime as IWolverineRuntimeInternal)?.ScheduledMessageCancellations;
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
@@ -56,41 +58,62 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
     {
         var sentEnvelopes = new List<Envelope>();
         var pendingEnvelopes = new List<Envelope>();
+        ServiceBusMessageBatch? currentBatch = null;
 
         try
         {
-            var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-
             foreach (var (envelope, message) in messages)
             {
-                if (!serviceBusMessageBatch.TryAddMessage(message))
+                var cancellation = tryFindCancellation(envelope);
+                if (cancellation?.IsBound == true)
+                {
+                    sentEnvelopes.Add(envelope);
+                    continue;
+                }
+
+                if (cancellation != null && envelope.ScheduledTime is { } scheduledTime &&
+                    scheduledTime <= DateTimeOffset.UtcNow)
+                {
+                    cancellation.MarkNotScheduled();
+                    message.ScheduledEnqueueTime = default;
+                }
+                else if (cancellation != null && envelope.ScheduledTime is { } futureTime)
+                {
+                    if (currentBatch != null)
+                    {
+                        await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
+                        currentBatch.Dispose();
+                        currentBatch = null;
+                    }
+
+                    await scheduleCancellableAsync(cancellation, message, futureTime);
+                    sentEnvelopes.Add(envelope);
+                    continue;
+                }
+
+                currentBatch ??= await _sender.CreateMessageBatchAsync();
+                if (!currentBatch.TryAddMessage(message))
                 {
                     // If the batch is empty and the message still doesn't fit, it's too large for any batch
-                    if (serviceBusMessageBatch.Count == 0)
+                    if (currentBatch.Count == 0)
                     {
-                        serviceBusMessageBatch.Dispose();
-                        throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                        throw new MessageTooLargeException(envelope, currentBatch.MaxSizeInBytes,
                                 AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                     }
 
                     _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
 
                     // Send the currently full batch
-                    await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                    await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
+                    currentBatch.Dispose();
 
-                    // All pending envelopes for this sub-batch are now sent
-                    sentEnvelopes.AddRange(pendingEnvelopes);
-                    pendingEnvelopes.Clear();
-
-                    serviceBusMessageBatch.Dispose();
-
-                    // Create a new batch and add the message to it. A message that does not fit even an empty
-                    // batch is too large to send at all, and must not be reported as sent with the rest
-                    serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-                    if (!serviceBusMessageBatch.TryAddMessage(message))
+                    currentBatch = await _sender.CreateMessageBatchAsync();
+                    if (!currentBatch.TryAddMessage(message))
                     {
-                        serviceBusMessageBatch.Dispose();
-                        throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                        var maxSizeInBytes = currentBatch.MaxSizeInBytes;
+                        currentBatch.Dispose();
+                        currentBatch = null;
+                        throw new MessageTooLargeException(envelope, maxSizeInBytes,
                             AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                     }
                 }
@@ -99,9 +122,10 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             }
 
             // Send the final batch
-            await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
-            sentEnvelopes.AddRange(pendingEnvelopes);
-            serviceBusMessageBatch.Dispose();
+            if (currentBatch != null)
+            {
+                await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
+            }
 
             await callback.MarkSuccessfulAsync(batch);
         }
@@ -114,6 +138,10 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
             var failedEnvelopes = batch.Messages.Where(env => !sentEnvelopes.Contains(env)).ToList();
             await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failedEnvelopes), e);
+        }
+        finally
+        {
+            currentBatch?.Dispose();
         }
     }
 
@@ -128,57 +156,86 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
         foreach (var group in groupedMessages)
         {
-            var groupEnvelopes = group.Select(x => x.Envelope).ToList();
+            var pendingEnvelopes = new List<Envelope>();
+            ServiceBusMessageBatch? currentBatch = null;
 
             try
             {
-                var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-
                 _logger.LogDebug("Processing batch with session id '{SessionId}'", group.Key);
 
                 foreach (var (envelope, message) in group)
                 {
-                    if (!serviceBusMessageBatch.TryAddMessage(message))
+                    var cancellation = tryFindCancellation(envelope);
+                    if (cancellation?.IsBound == true)
+                    {
+                        sentEnvelopes.Add(envelope);
+                        continue;
+                    }
+
+                    if (cancellation != null && envelope.ScheduledTime is { } scheduledTime &&
+                        scheduledTime <= DateTimeOffset.UtcNow)
+                    {
+                        cancellation.MarkNotScheduled();
+                        message.ScheduledEnqueueTime = default;
+                    }
+                    else if (cancellation != null && envelope.ScheduledTime is { } futureTime)
+                    {
+                        if (currentBatch != null)
+                        {
+                            await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
+                            currentBatch.Dispose();
+                            currentBatch = null;
+                        }
+
+                        await scheduleCancellableAsync(cancellation, message, futureTime);
+                        sentEnvelopes.Add(envelope);
+                        continue;
+                    }
+
+                    currentBatch ??= await _sender.CreateMessageBatchAsync();
+                    if (!currentBatch.TryAddMessage(message))
                     {
                         // If the batch is empty and the message still doesn't fit, it's too large for any batch
-                        if (serviceBusMessageBatch.Count == 0)
+                        if (currentBatch.Count == 0)
                         {
-                            serviceBusMessageBatch.Dispose();
-                            throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                            throw new MessageTooLargeException(envelope, currentBatch.MaxSizeInBytes,
                                 AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                         }
 
                         _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
 
                         // Send the currently full batch
-                        await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
-                        serviceBusMessageBatch.Dispose();
+                        await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
+                        currentBatch.Dispose();
 
-                        // Create a new batch and add the message to it. A message that does not fit even an
-                        // empty batch is too large to send at all
-                        serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-                        if (!serviceBusMessageBatch.TryAddMessage(message))
+                        currentBatch = await _sender.CreateMessageBatchAsync();
+                        if (!currentBatch.TryAddMessage(message))
                         {
-                            serviceBusMessageBatch.Dispose();
-                            throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes,
+                            var maxSizeInBytes = currentBatch.MaxSizeInBytes;
+                            currentBatch.Dispose();
+                            currentBatch = null;
+                            throw new MessageTooLargeException(envelope, maxSizeInBytes,
                                 AzureServiceBusTransport.MessageTooLargeRemedy(_endpoint.Uri));
                         }
                     }
+
+                    pendingEnvelopes.Add(envelope);
                 }
 
                 // Send the final batch for this session group
-                if (serviceBusMessageBatch.Count > 0)
+                if (currentBatch != null)
                 {
-                    await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                    await flushBatchAsync(currentBatch, pendingEnvelopes, sentEnvelopes);
                 }
-                serviceBusMessageBatch.Dispose();
-
-                sentEnvelopes.AddRange(groupEnvelopes);
             }
             catch (Exception e)
             {
                 lastException = e;
                 break;
+            }
+            finally
+            {
+                currentBatch?.Dispose();
             }
         }
 
@@ -196,5 +253,36 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
         {
             await callback.MarkSuccessfulAsync(batch);
         }
+    }
+
+    private ScheduledMessageCancellationRegistration? tryFindCancellation(Envelope envelope)
+    {
+        return envelope.ScheduledCancellation ?? _cancellations?.Find(envelope.Id);
+    }
+
+    private async ValueTask scheduleCancellableAsync(ScheduledMessageCancellationRegistration registration,
+        ServiceBusMessage message, DateTimeOffset scheduledTime)
+    {
+        if (registration.IsBound || !registration.CanBeBound)
+        {
+            return;
+        }
+
+        var sequenceNumber = await _sender.ScheduleMessageAsync(message, scheduledTime, _runtime.Cancellation)
+            .ConfigureAwait(false);
+        registration.TryBind(token => AzureServiceBusScheduledCancellation.CancelAsync(_sender, sequenceNumber, token));
+    }
+
+    private async Task flushBatchAsync(ServiceBusMessageBatch messageBatch, List<Envelope> pendingEnvelopes,
+        List<Envelope> sentEnvelopes)
+    {
+        if (pendingEnvelopes.Count == 0)
+        {
+            return;
+        }
+
+        await _sender.SendMessagesAsync(messageBatch, _runtime.Cancellation).ConfigureAwait(false);
+        sentEnvelopes.AddRange(pendingEnvelopes);
+        pendingEnvelopes.Clear();
     }
 }

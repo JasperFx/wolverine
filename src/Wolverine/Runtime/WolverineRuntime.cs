@@ -194,6 +194,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
     private readonly Lazy<IFaultPublisher> _faultPublisher;
     IFaultPublisher IWolverineRuntimeInternal.FaultPublisher => _faultPublisher.Value;
+    ScheduledMessageCancellationRegistry IWolverineRuntimeInternal.ScheduledMessageCancellations { get; } = new();
 
     public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
 

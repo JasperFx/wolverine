@@ -282,6 +282,42 @@ public interface IMessageBus : ICommandBus
     ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null);
 
     /// <summary>
+    ///     Schedule publishing or execution of a message and return a handle that can cancel native broker schedules.
+    /// </summary>
+    /// <remarks>
+    ///     Cancellation support depends on the destination transport. The returned handle is runtime-local and
+    ///     cancellation attempted before the broker accepts the scheduled send reports <see cref="ScheduledMessageCancellationStatus.NotScheduledYet"/>.
+    /// </remarks>
+    /// <param name="message"></param>
+    /// <param name="time"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    ValueTask<IScheduledMessage> ScheduleWithCancellationAsync<T>(T message, DateTimeOffset time,
+        DeliveryOptions? options = null)
+    {
+        throw new NotSupportedException($"{nameof(ScheduleWithCancellationAsync)}() is not supported by this {nameof(IMessageBus)} implementation.");
+    }
+
+    /// <summary>
+    ///     Schedule publishing or execution of a message after a delay and return a handle that can cancel native broker schedules.
+    /// </summary>
+    /// <remarks>
+    ///     Cancellation support depends on the destination transport. The returned handle is runtime-local and
+    ///     cancellation attempted before the broker accepts the scheduled send reports <see cref="ScheduledMessageCancellationStatus.NotScheduledYet"/>.
+    /// </remarks>
+    /// <param name="message"></param>
+    /// <param name="delay"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    ValueTask<IScheduledMessage> ScheduleWithCancellationAsync<T>(T message, TimeSpan delay,
+        DeliveryOptions? options = null)
+    {
+        throw new NotSupportedException($"{nameof(ScheduleWithCancellationAsync)}() is not supported by this {nameof(IMessageBus)} implementation.");
+    }
+
+    /// <summary>
     ///     Send a message to a specific topic name. This relies
     ///     on having a backing transport endpoint that supports
     ///     topic routing.
