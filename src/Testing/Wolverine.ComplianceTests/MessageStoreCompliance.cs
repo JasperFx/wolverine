@@ -1779,29 +1779,42 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     [Fact]
     public async Task CompetingRecoveryPassesOnlyClaimAGloballyOwnedIncomingRowOnce()
     {
-        var envelope = ObjectMother.Envelope();
-        envelope.Status = EnvelopeStatus.Incoming;
-        envelope.OwnerId = TransportConstants.AnyNode;
-        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        var envelopes = new[] { ObjectMother.Envelope(), ObjectMother.Envelope() };
+        var destination = envelopes[0].Destination!;
+        foreach (var envelope in envelopes)
+        {
+            envelope.Destination = destination;
+            envelope.Status = EnvelopeStatus.Incoming;
+            envelope.OwnerId = TransportConstants.AnyNode;
+        }
 
-        // Both recovery passes read the same orphan before either attempts to claim it.
-        var firstCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10);
-        var secondCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10);
+        await thePersistence.Inbox.StoreIncomingAsync(envelopes);
 
-        firstCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
-        secondCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+        // Both recovery passes read the same page before either attempts to claim it.
+        var firstCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
+        var secondCandidates = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
+
+        foreach (var envelope in envelopes)
+        {
+            firstCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+            secondCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
+        }
 
         var claims = await Task.WhenAll(
             thePersistence.TryClaimIncomingAsync(45_001, firstCandidates),
             thePersistence.TryClaimIncomingAsync(45_002, secondCandidates));
 
-        claims.Sum(x => x.Count).ShouldBe(1,
-            "only one concurrent recovery pass should receive an envelope after claiming it");
+        var claimed = claims.SelectMany(x => x).ToArray();
+        claimed.Length.ShouldBe(envelopes.Length,
+            "every envelope in the page should be claimed and returned exactly once");
+        claimed.Select(x => x.Id).OrderBy(x => x).ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x));
 
-        var claimed = claims.Single(x => x.Count == 1).Single();
-        claimed.OwnerId.ShouldBeOneOf(45_001, 45_002);
+        foreach (var envelope in claimed)
+        {
+            envelope.OwnerId.ShouldBeOneOf(45_001, 45_002);
+        }
 
-        var remaining = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(envelope.Destination!, 10);
+        var remaining = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
         remaining.ShouldBeEmpty();
     }
 
