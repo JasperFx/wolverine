@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bobcat;
 using Bobcat.Engine;
 using JasperFx.Core;
@@ -35,6 +36,13 @@ public sealed class ClusterNode
     public Guid Id { get; }
 
     public override string ToString() => $"node {Number}";
+
+    /// <summary>
+    ///     Steps take a node by its number, because Bobcat renders a step argument it does not know by its type's
+    ///     name ("ClusterNode stops") rather than its <c>ToString()</c>. This keeps the call sites
+    ///     <c>the.NodeStops(second)</c> while the step text reads "node 2 stops".
+    /// </summary>
+    public static implicit operator int(ClusterNode node) => node.Number;
 }
 
 /// <summary>
@@ -59,6 +67,9 @@ public sealed class Placement
     public IReadOnlyList<(ClusterNode Node, int Count)> Expected => _expected;
 
     public override string ToString() => _expected.Select(x => $"{x.Node} runs {x.Count}").Join(", ");
+
+    /// <summary>Passed to a step as its text, for the same reason <see cref="ClusterNode" /> is passed as a number.</summary>
+    public static implicit operator string(Placement placement) => placement.ToString();
 }
 
 /// <summary>
@@ -201,99 +212,117 @@ public sealed class LeadershipSteps : IAsyncDisposable
         });
     }
 
-    [When("{node} stops")]
-    public async Task NodeStops(ClusterNode node)
+    [When("node {node} stops")]
+    public async Task NodeStops(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
-        var wasLeader = node.Host.GetRuntime().IsLeader();
-        Telemetry.Note(node.Number, $"stopping {node}");
-        await stopAsync(node);
+        var wasLeader = subject.Host.GetRuntime().IsLeader();
+        Telemetry.Note(subject.Number, $"stopping {subject}");
+        await stopAsync(subject);
 
-        SpecLog.Write($"{node} stopped{(wasLeader ? ", taking the leadership with it" : "")}");
+        SpecLog.Write($"{subject} stopped{(wasLeader ? ", taking the leadership with it" : "")}");
     }
 
-    [When("{node} goes stale")]
-    public async Task NodeGoesStale(ClusterNode node)
+    [When("node {node} goes stale")]
+    public async Task NodeGoesStale(int node)
     {
-        Telemetry.AttachToScenario();
-        Telemetry.Note(node.Number, $"{node} disables its agents, with a heartbeat an hour old");
+        var subject = nodeNumbered(node);
 
-        await node.Host.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
+        Telemetry.AttachToScenario();
+        Telemetry.Note(subject.Number, $"{subject} disables its agents, with a heartbeat an hour old");
+
+        await subject.Host.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
     }
 
-    [When("{node} crashes: its lock is released, but its heartbeat and assignment rows are fresh")]
-    public async Task NodeCrashesInsideTheStaleWindow(ClusterNode node)
+    [When("node {node} crashes: its lock is released, but its heartbeat and assignment rows are fresh")]
+    public async Task NodeCrashesInsideTheStaleWindow(int node)
     {
-        Telemetry.AttachToScenario();
-        Telemetry.Note(node.Number, $"{node} crashes inside the stale window");
+        var subject = nodeNumbered(node);
 
-        await node.Host.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow);
+        Telemetry.AttachToScenario();
+        Telemetry.Note(subject.Number, $"{subject} crashes inside the stale window");
+
+        await subject.Host.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow);
     }
 
-    [When("{node} is prodded to check agent health")]
-    public async Task NodeChecksAgentHealth(ClusterNode node)
+    [When("node {node} is prodded to check agent health")]
+    public async Task NodeChecksAgentHealth(int node)
     {
-        Telemetry.AttachToScenario();
-        Telemetry.Note(node.Number, $"{node} is sent CheckAgentHealth");
+        var subject = nodeNumbered(node);
 
-        await node.Host.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        Telemetry.AttachToScenario();
+        Telemetry.Note(subject.Number, $"{subject} is sent CheckAgentHealth");
+
+        await subject.Host.InvokeMessageAndWaitAsync(new CheckAgentHealth());
     }
 
-    [When("{node} stops running health checks")]
-    public void NodeStopsRunningHealthChecks(ClusterNode node)
+    [When("node {node} stops running health checks")]
+    public void NodeStopsRunningHealthChecks(int node)
     {
-        Telemetry.AttachToScenario();
-        Telemetry.Note(node.Number, $"{node}'s health checks are disabled");
+        var subject = nodeNumbered(node);
 
-        node.Host.GetRuntime().Agents.DisableHealthChecks();
+        Telemetry.AttachToScenario();
+        Telemetry.Note(subject.Number, $"{subject}'s health checks are disabled");
+
+        subject.Host.GetRuntime().Agents.DisableHealthChecks();
     }
 
     // ---------------------------------------------------------------------------------------------------------
     // Leadership
 
-    [Then("{node} becomes the leader")]
-    public async Task NodeBecomesTheLeader(ClusterNode node)
+    [Then("node {node} becomes the leader")]
+    public async Task NodeBecomesTheLeader(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
-        var became = await pollAsync(() => node.Host.GetRuntime().IsLeader(), describeLeadership,
+        var became = await pollAsync(() => subject.Host.GetRuntime().IsLeader(), describeLeadership,
             LeadershipTimeout);
 
-        SpecAssert.Check("leader", currentLeader(), node.ToString());
-        stopUnless(became, $"{node} did not assume the leadership");
+        SpecAssert.Check("leader", currentLeader(), subject.ToString());
+        stopUnless(became, $"{subject} did not assume the leadership");
     }
 
-    [Then("a node other than {former} becomes the leader")]
-    public async Task AnotherNodeBecomesTheLeader(ClusterNode former)
+    [Then("a node other than node {former} becomes the leader")]
+    public async Task AnotherNodeBecomesTheLeader(int former)
     {
+        var formerNode = nodeNumbered(former);
+
         Telemetry.AttachToScenario();
 
-        var became = await pollAsync(() => _nodes.Any(x => x != former && x.Host.GetRuntime().IsLeader()),
+        var became = await pollAsync(() => _nodes.Any(x => x != formerNode && x.Host.GetRuntime().IsLeader()),
             describeLeadership, LeadershipTimeout);
 
-        SpecAssert.Fact(became, $"no node other than {former} assumed the leadership");
-        stopUnless(became, $"no node other than {former} assumed the leadership");
+        SpecAssert.Fact(became, $"no node other than {formerNode} assumed the leadership");
+        stopUnless(became, $"no node other than {formerNode} assumed the leadership");
     }
 
-    [Then("{node} is not the leader")]
-    public void NodeIsNotTheLeader(ClusterNode node)
+    [Then("node {node} is not the leader")]
+    public void NodeIsNotTheLeader(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
-        SpecAssert.Check($"{node} leads", node.Host.GetRuntime().IsLeader(), false);
+        SpecAssert.Check($"{subject} leads", subject.Host.GetRuntime().IsLeader(), false);
     }
 
-    [Then("{node} is the only node with a persisted leader row")]
-    public async Task NodeIsTheOnlyPersistedLeader(ClusterNode node)
+    [Then("node {node} is the only node with a persisted leader row")]
+    public async Task NodeIsTheOnlyPersistedLeader(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
-        var state = await node.Host.GetRuntime().Storage.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+        var state = await subject.Host.GetRuntime().Storage.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
         var leaders = state.Nodes.Where(x => x.IsLeader()).Select(x => x.AssignedNodeNumber).OrderBy(x => x)
             .ToArray();
 
         SpecAssert.Check("persisted leader rows", leaders.Length == 0 ? "none" : leaders.Select(x => $"node {x}").Join(", "),
-            node.ToString());
+            subject.ToString());
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -304,15 +333,20 @@ public sealed class LeadershipSteps : IAsyncDisposable
     ///     while it waits as a step log, and on timeout records one check per node plus the placement report,
     ///     instead of a string in a <c>TimeoutException</c>.
     /// </summary>
+    /// <param name="placement">A <see cref="Placement" />, as its text: "node 1 runs 6, node 2 runs 6".</param>
     [Then("the agents settle as {placement}")]
-    public async Task AgentsSettleAs(Placement placement)
+    public async Task AgentsSettleAs(string placement)
     {
         Telemetry.AttachToScenario();
 
-        Dictionary<ClusterNode, int> counts() =>
-            placement.Expected.ToDictionary(x => x.Node, x => ordinaryAgentsOn(x.Node).Length);
+        var expected = Regex.Matches(placement, @"node (\d+) runs (\d+)")
+            .Select(m => (Node: nodeNumbered(int.Parse(m.Groups[1].Value)), Count: int.Parse(m.Groups[2].Value)))
+            .ToArray();
 
-        var settled = await pollAsync(() => placement.Expected.All(x => counts()[x.Node] == x.Count),
+        Dictionary<ClusterNode, int> counts() =>
+            expected.ToDictionary(x => x.Node, x => ordinaryAgentsOn(x.Node).Length);
+
+        var settled = await pollAsync(() => expected.All(x => counts()[x.Node] == x.Count),
             () => counts().Select(x => $"{x.Key} runs {x.Value}").Join(", "), SettleTimeout);
 
         if (settled) return;
@@ -320,7 +354,7 @@ public sealed class LeadershipSteps : IAsyncDisposable
         await AgentPlacementReport.CaptureAsync(Hosts);
 
         var final = counts();
-        foreach (var (node, count) in placement.Expected)
+        foreach (var (node, count) in expected)
         {
             SpecAssert.Check($"{node}", final[node], count);
         }
@@ -332,8 +366,11 @@ public sealed class LeadershipSteps : IAsyncDisposable
     public Task EveryAgentRunsExactlyOnce() => expectExactlyOneCopyOfEachAsync(AllFakeAgents, []);
 
     [Then("every agent but {paused} runs exactly once, and {paused} runs nowhere")]
-    public Task EveryAgentButThePausedOneRunsExactlyOnce(Uri paused)
-        => expectExactlyOneCopyOfEachAsync(AllFakeAgents.Where(x => x != paused).ToArray(), [paused]);
+    public Task EveryAgentButThePausedOneRunsExactlyOnce(string paused)
+    {
+        var pausedUri = new Uri(paused);
+        return expectExactlyOneCopyOfEachAsync(AllFakeAgents.Where(x => x != pausedUri).ToArray(), [pausedUri]);
+    }
 
     /// <summary>
     ///     Polls until every agent in <paramref name="expected" /> is running on exactly one node and nothing in
@@ -381,14 +418,16 @@ public sealed class LeadershipSteps : IAsyncDisposable
     ///     divergence heals, and does.
     /// </summary>
     [Then("{agent} runs once, with a row naming its node")]
-    public async Task AgentRunsOnceWithARowNamingItsNode(Uri agent)
+    public async Task AgentRunsOnceWithARowNamingItsNode(string agent)
     {
+        var agentUri = new Uri(agent);
+
         Telemetry.AttachToScenario();
 
         async Task<(ClusterNode[] Runners, int? Row)> observe()
         {
-            var runners = _nodes.Where(x => x.Host.RunningAgents().Contains(agent)).ToArray();
-            return (runners, await rowOwnerOfAsync(agent));
+            var runners = _nodes.Where(x => x.Host.RunningAgents().Contains(agentUri)).ToArray();
+            return (runners, await rowOwnerOfAsync(agentUri));
         }
 
         static string describe((ClusterNode[] Runners, int? Row) x) =>
@@ -412,7 +451,7 @@ public sealed class LeadershipSteps : IAsyncDisposable
                 final.Runners[0].ToString());
         }
 
-        stopUnless(false, $"{agent} did not converge to one copy with a row naming its node");
+        stopUnless(false, $"{agentUri} did not converge to one copy with a row naming its node");
     }
 
     [Then("the singular agent runs on exactly one node")]
@@ -429,45 +468,58 @@ public sealed class LeadershipSteps : IAsyncDisposable
         SpecAssert.Check("copies running", runners().Length, 1);
     }
 
-    [Then("{node} still runs {agent}")]
-    public void NodeRuns(ClusterNode node, Uri agent)
+    [Then("node {node} still runs {agent}")]
+    public void NodeRuns(int node, string agent)
     {
+        var subject = nodeNumbered(node);
+        var agentUri = new Uri(agent);
+
         Telemetry.AttachToScenario();
-        SpecAssert.Check($"{node} runs {agent}", node.Host.RunningAgents().Contains(agent), true);
+        SpecAssert.Check($"{subject} runs {agentUri}", subject.Host.RunningAgents().Contains(agentUri), true);
     }
 
     /// <summary>Not a step: picks the subject of a scenario.</summary>
     public ClusterNode NodeRunning(Uri agent) => _nodes.First(x => x.Host.RunningAgents().Contains(agent));
 
     /// <summary>Not a step: picks the subject of a scenario.</summary>
-    public Uri AnAgentRunningOn(ClusterNode node) => node.Host.GetRuntime().Agents.AllRunningAgentUris().First();
+    public ClusterNode NodeRunning(string agent) => NodeRunning(new Uri(agent));
+
+    /// <summary>Not a step: picks the subject of a scenario, as the text the agent steps take.</summary>
+    public string AnAgentRunningOn(ClusterNode node)
+        => node.Host.GetRuntime().Agents.AllRunningAgentUris().First().ToString();
 
     // ---------------------------------------------------------------------------------------------------------
     // Pausing
 
-    [When("{agent} is paused through {node}")]
-    public async Task AgentIsPaused(Uri agent, ClusterNode node)
+    [When("{agent} is paused through node {node}")]
+    public async Task AgentIsPaused(string agent, int node)
     {
+        var agentUri = new Uri(agent);
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
-        Telemetry.Note(node.Number, $"pause {agent} through {node}");
+        Telemetry.Note(subject.Number, $"pause {agentUri} through {subject}");
 
         var restrictions = new AgentRestrictions([]);
-        restrictions.PauseAgent(agent);
-        await node.Host.GetRuntime().Agents.ApplyRestrictionsAsync(restrictions, CancellationToken.None);
+        restrictions.PauseAgent(agentUri);
+        await subject.Host.GetRuntime().Agents.ApplyRestrictionsAsync(restrictions, CancellationToken.None);
     }
 
     /// <summary>
     ///     No polling: by the time <c>ApplyRestrictionsAsync</c> returns the stop must have been carried out, and the
     ///     in-memory restrictions <c>ListeningAgent</c> consults must say so, or a paused listener restarts itself.
     /// </summary>
-    [Then("{agent} has stopped on {node}, which knows it is paused")]
-    public void AgentHasStoppedAndIsKnownPaused(Uri agent, ClusterNode node)
+    [Then("{agent} has stopped on node {node}, which knows it is paused")]
+    public void AgentHasStoppedAndIsKnownPaused(string agent, int node)
     {
+        var agentUri = new Uri(agent);
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
-        var runtime = node.Host.GetRuntime();
-        SpecAssert.Check("still running", runtime.Agents.AllRunningAgentUris().Contains(agent), false);
-        SpecAssert.Check("known paused", runtime.Restrictions.FindPausedAgentUris().Contains(agent), true);
+        var runtime = subject.Host.GetRuntime();
+        SpecAssert.Check("still running", runtime.Agents.AllRunningAgentUris().Contains(agentUri), false);
+        SpecAssert.Check("known paused", runtime.Restrictions.FindPausedAgentUris().Contains(agentUri), true);
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -478,46 +530,57 @@ public sealed class LeadershipSteps : IAsyncDisposable
     ///     there upserts the intruder's row, so the owner's claim is put straight back, leaving the intruder running a
     ///     copy no row accounts for.
     /// </summary>
-    [When("{intruder} starts a second copy of {agent} that no row accounts for")]
-    public async Task ANodeStartsACopyNoRowAccountsFor(ClusterNode intruder, Uri agent)
+    [When("node {intruder} starts a second copy of {agent} that no row accounts for")]
+    public async Task ANodeStartsACopyNoRowAccountsFor(int intruder, string agent)
     {
+        var intruderNode = nodeNumbered(intruder);
+        var agentUri = new Uri(agent);
+
         Telemetry.AttachToScenario();
 
-        var owner = NodeRunning(agent);
-        Telemetry.Note(intruder.Number, $"{intruder} starts {agent}; {owner}'s row for it is put back");
+        var owner = NodeRunning(agentUri);
+        Telemetry.Note(intruderNode.Number, $"{intruderNode} starts {agentUri}; {owner}'s row for it is put back");
 
-        await intruder.Host.GetRuntime().NodeController!.StartAgentAsync(agent);
-        await owner.Host.GetRuntime().Storage.Nodes.AddAssignmentAsync(owner.Id, agent, CancellationToken.None);
+        await intruderNode.Host.GetRuntime().NodeController!.StartAgentAsync(agentUri);
+        await owner.Host.GetRuntime().Storage.Nodes.AddAssignmentAsync(owner.Id, agentUri, CancellationToken.None);
     }
 
     /// <summary>The GH-3987 wedge: the agent goes away on its owner while the owner's row stays put.</summary>
-    [When("{agent} stops on {owner} without its row being removed")]
-    public async Task AnAgentStopsLeavingItsRow(Uri agent, ClusterNode owner)
+    [When("{agent} stops on node {owner} without its row being removed")]
+    public async Task AnAgentStopsLeavingItsRow(string agent, int owner)
     {
-        Telemetry.AttachToScenario();
-        Telemetry.Note(owner.Number, $"{agent} is pulled out of {owner}'s controller; the row stays");
+        var agentUri = new Uri(agent);
+        var ownerNode = nodeNumbered(owner);
 
-        var removed = owner.Host.GetRuntime().NodeController!.Agents.TryRemove(agent, out var running);
-        SpecAssert.Check($"{owner} was running {agent}", removed, true);
+        Telemetry.AttachToScenario();
+        Telemetry.Note(ownerNode.Number, $"{agentUri} is pulled out of {ownerNode}'s controller; the row stays");
+
+        var removed = ownerNode.Host.GetRuntime().NodeController!.Agents.TryRemove(agentUri, out var running);
+        SpecAssert.Check($"{ownerNode} was running {agentUri}", removed, true);
         if (running != null) await running.StopAsync(CancellationToken.None);
     }
 
     /// <summary>The peer-ejection cascade: the row goes, the running copy stays.</summary>
-    [When("{owner}'s row for {agent} is lost while it keeps running")]
-    public async Task AnAgentsRowIsLost(ClusterNode owner, Uri agent)
+    [When("node {owner}'s row for {agent} is lost while it keeps running")]
+    public async Task AnAgentsRowIsLost(int owner, string agent)
     {
-        Telemetry.AttachToScenario();
-        Telemetry.Note(owner.Number, $"{owner}'s row for {agent} is deleted");
+        var ownerNode = nodeNumbered(owner);
+        var agentUri = new Uri(agent);
 
-        await owner.Host.GetRuntime().Storage.Nodes.RemoveAssignmentAsync(owner.Id, agent, CancellationToken.None);
+        Telemetry.AttachToScenario();
+        Telemetry.Note(ownerNode.Number, $"{ownerNode}'s row for {agentUri} is deleted");
+
+        await ownerNode.Host.GetRuntime().Storage.Nodes.RemoveAssignmentAsync(ownerNode.Id, agentUri, CancellationToken.None);
     }
 
     // ---------------------------------------------------------------------------------------------------------
     // Node records
 
-    [When("{node} logs four node records")]
-    public Task NodeLogsRecords(ClusterNode node)
+    [When("node {node} logs four node records")]
+    public Task NodeLogsRecords(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
         var records = new[]
@@ -528,19 +591,21 @@ public sealed class LeadershipSteps : IAsyncDisposable
             new NodeRecord { Description = "one", NodeNumber = 2, RecordType = NodeRecordType.NodeStopped }
         };
 
-        return node.Host.GetRuntime().Storage.Nodes.LogRecordsAsync(records);
+        return subject.Host.GetRuntime().Storage.Nodes.LogRecordsAsync(records);
     }
 
     /// <summary>
     ///     Bounded: the attempt counter was once never incremented, so a store that did not persist the records spun
     ///     here forever -- a 40-minute hang on the SharedMemory variant -- instead of failing.
     /// </summary>
-    [Then("{node} reads back at least four node records")]
-    public async Task NodeReadsBackRecords(ClusterNode node)
+    [Then("node {node} reads back at least four node records")]
+    public async Task NodeReadsBackRecords(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
-        var nodes = node.Host.GetRuntime().Storage.Nodes;
+        var nodes = subject.Host.GetRuntime().Storage.Nodes;
         await SpecAssert.EventuallyAsync("records read back",
             async () => Math.Min((await nodes.FetchRecentRecordsAsync(10)).Count, 4), 4,
             10 * PollingInterval, PollingInterval);
@@ -549,13 +614,15 @@ public sealed class LeadershipSteps : IAsyncDisposable
     // ---------------------------------------------------------------------------------------------------------
     // Messaging across the cluster
 
-    [When("{node} fans a message out to all nodes")]
-    public async Task NodeFansOut(ClusterNode node)
+    [When("node {node} fans a message out to all nodes")]
+    public async Task NodeFansOut(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
         // TriggerFanOut's handler calls FanOutToAllNodes(new FannedOut())
-        await node.Host.InvokeMessageAndWaitAsync(new TriggerFanOut());
+        await subject.Host.InvokeMessageAndWaitAsync(new TriggerFanOut());
     }
 
     /// <summary>Control queue messages are not tracked, so this polls.</summary>
@@ -574,13 +641,15 @@ public sealed class LeadershipSteps : IAsyncDisposable
         }
     }
 
-    [When("{node} broadcasts {ping} to all nodes, from outside any handler")]
-    public Task NodeBroadcasts(ClusterNode node, BroadcastPing ping)
+    [When("node {node} broadcasts {ping} to all nodes, from outside any handler")]
+    public Task NodeBroadcasts(int node, BroadcastPing ping)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
         // From outside of any message handler, the way an HTTP endpoint or a background service would
-        return node.Host.MessageBus().BroadcastToAllNodesAsync(ping).AsTask();
+        return subject.Host.MessageBus().BroadcastToAllNodesAsync(ping).AsTask();
     }
 
     [Then("every node handles {ping} exactly once")]
@@ -609,14 +678,16 @@ public sealed class LeadershipSteps : IAsyncDisposable
             "none");
     }
 
-    [When("{node} is asked to act on every agent")]
-    public async Task NodeActsOnEveryAgent(ClusterNode node)
+    [When("node {node} is asked to act on every agent")]
+    public async Task NodeActsOnEveryAgent(int node)
     {
+        var subject = nodeNumbered(node);
+
         Telemetry.AttachToScenario();
 
         foreach (var agent in new FakeAgentFamily().AllAgentUris())
         {
-            await node.Host.InvokeMessageAndWaitAsync(new DoOnAgent(agent));
+            await subject.Host.InvokeMessageAndWaitAsync(new DoOnAgent(agent));
         }
     }
 
@@ -651,6 +722,10 @@ public sealed class LeadershipSteps : IAsyncDisposable
 
     // ---------------------------------------------------------------------------------------------------------
     // Plumbing
+
+    private ClusterNode nodeNumbered(int number)
+        => _nodes.SingleOrDefault(x => x.Number == number)
+           ?? throw new SpecCriticalException($"No running node is numbered {number}; the cluster has {(_nodes.Count == 0 ? "no nodes" : _nodes.Select(x => x.ToString()).Join(", "))}");
 
     private static string names(IEnumerable<Uri> uris)
     {

@@ -135,7 +135,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         // ones that were never assigned in the first place.
         await the.EveryAgentRunsExactlyOnce();
 
-        var paused = new Uri("fake://twelve");
+        var paused = new Uri("fake://twelve").ToString();
         await the.AgentIsPaused(paused, _first);
 
         // Take away the leader and one more, leaving a single survivor that has to pick up everything.
@@ -145,7 +145,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         await the.EveryAgentButThePausedOneRunsExactlyOnce(paused);
 
         // ...and the survivor really is the only node left holding them.
-        the.NodeRuns(third, LeadershipSteps.AllFakeAgents.First(x => x != paused));
+        the.NodeRuns(third, LeadershipSteps.AllFakeAgents.Select(x => x.ToString()).First(x => x != paused));
     }
 
     // GH-4407: the divergences the GH-3987 reconciliation sweep exists to heal, each fabricated directly on a
@@ -158,7 +158,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         await the.ANodeStarts();
         await the.EveryAgentRunsExactlyOnce();
 
-        var agent = LeadershipSteps.AllFakeAgents[0];
+        var agent = LeadershipSteps.AllFakeAgents[0].ToString();
         var intruder = the.Nodes.First(x => x != the.NodeRunning(agent));
 
         // The intruder's sweep stops its copy without touching the owner's row; on a store whose delete was not
@@ -177,7 +177,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         await the.ANodeStarts();
         await the.EveryAgentRunsExactlyOnce();
 
-        var agent = LeadershipSteps.AllFakeAgents[0];
+        var agent = LeadershipSteps.AllFakeAgents[0].ToString();
 
         // The leader reads it as placed and never places it again. The owner's own sweep restarts it -- unless the
         // leader gets there first and re-places it, which is just as good.
@@ -194,7 +194,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         await the.ANodeStarts();
         await the.EveryAgentRunsExactlyOnce();
 
-        var agent = LeadershipSteps.AllFakeAgents[0];
+        var agent = LeadershipSteps.AllFakeAgents[0].ToString();
 
         // The leader now reads the agent as unplaced and may place it again while the owner's sweep restores its
         // claim -- either way the cluster has to come back to one copy and one row naming the node that runs it.

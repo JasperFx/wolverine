@@ -57,10 +57,11 @@
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
     <PackageVersion Include="Bobcat.Supervisor" Version="0.60.4" />
-    <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833). -->
-    <PackageVersion Include="Bobcat" Version="0.60.4" />
-    <PackageVersion Include="Bobcat.Xunit" Version="0.60.4" />
-    <PackageVersion Include="Bobcat.Generators" Version="0.60.4" />
+    <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833), and for the
+         leadership-election compliance specifications in Wolverine.ComplianceTests. -->
+    <PackageVersion Include="Bobcat" Version="1.0.0-alpha.1" />
+    <PackageVersion Include="Bobcat.Xunit" Version="1.0.0-alpha.1" />
+    <PackageVersion Include="Bobcat.Generators" Version="1.0.0-alpha.1" />
     <PackageVersion Include="JasperFx" Version="2.90.1" />
     <PackageVersion Include="JasperFx.Events" Version="2.90.1" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.90.1" />
