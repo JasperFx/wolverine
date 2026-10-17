@@ -11,9 +11,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Bobcat.Xunit" />
+        <PackageReference Include="Bobcat.Xunit" VersionOverride="$(WolverineFxBobcatBobcatVersion)" />
         <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
-        <PackageReference Include="Bobcat.Generators" />
+        <PackageReference Include="Bobcat.Generators" VersionOverride="$(WolverineFxBobcatBobcatVersion)" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit.v3" />
         <!-- IDE discovery (Rider, Visual Studio): Bobcat warns BOBCAT033 without these. `dotnet test` and CI run

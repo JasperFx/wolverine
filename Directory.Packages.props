@@ -57,11 +57,22 @@
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
     <PackageVersion Include="Bobcat.Supervisor" Version="0.60.4" />
-    <!-- Bobcat itself, for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833), and for the
-         leadership-election compliance specifications in Wolverine.ComplianceTests. -->
+    <!-- Bobcat itself, for the leadership-election compliance specifications in Wolverine.ComplianceTests and
+         for WolverineFx.Bobcat / WolverineFx.Bobcat.Http and their tests (GH-4833). -->
     <PackageVersion Include="Bobcat" Version="1.0.0-alpha.1" />
     <PackageVersion Include="Bobcat.Xunit" Version="1.0.0-alpha.1" />
     <PackageVersion Include="Bobcat.Generators" Version="1.0.0-alpha.1" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- WolverineFx.Bobcat, WolverineFx.Bobcat.Http, their tests and the two samples that dogfood them stay on 0.60.4
+         (VersionOverride="$(WolverineFxBobcatBobcatVersion)") until they can move to 1.0 without rewriting their
+         suite around an upstream bug: on 1.0.0-alpha.1 ThenSingleReadModel no longer refuses a MultiStreamProjection
+         when the scenario has no stream (JasperFx/bobcat#672). The move also has to take the intended 1.0 changes:
+         value aliases render as "#theAppointment" (bobcat#640, 12 tests) and a single read with no stream reads the
+         one document in the store (bobcat#616, 1 test). None of these projects references Wolverine.ComplianceTests. -->
+    <WolverineFxBobcatBobcatVersion>0.60.4</WolverineFxBobcatBobcatVersion>
+  </PropertyGroup>
+  <ItemGroup>
     <PackageVersion Include="JasperFx" Version="2.90.1" />
     <PackageVersion Include="JasperFx.Events" Version="2.90.1" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.90.1" />
