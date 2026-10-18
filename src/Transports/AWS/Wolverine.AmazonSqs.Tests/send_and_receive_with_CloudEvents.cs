@@ -43,4 +43,22 @@ public class send_and_receive_with_CloudEvents : IAsyncLifetime
             .Name.ShouldBe(message.Name);
     }
 
+    [Fact]
+    public async Task custom_headers_survive_as_extension_attributes()
+    {
+        // GH-5080: SQS carries only the CloudEvents document, so the headers must be inside it
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new SqsMessage("Josh Allen"), options);
+
+        var envelope = session.Received.SingleEnvelope<SqsMessage>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
+
 }

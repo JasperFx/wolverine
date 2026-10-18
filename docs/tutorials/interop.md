@@ -442,6 +442,15 @@ With CloudEvents interoperability:
 * Basic correlation and causation is mapped for Open Telemetry style traceability
 * Wolverine is again depending on [message type aliases](/guide/messages.html#message-type-name-or-alias) to "know" what message type the CloudEvents envelopes are referring to, and you might very well
   have to explicitly register message type aliases to bridge the gap between CloudEvents and your Wolverine application.
+* Custom headers on the outgoing `Envelope` are written as top level CloudEvents [extension attributes](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md#extension-context-attributes),
+  and incoming extension attributes are read back into `Envelope.Headers`. This is how headers survive transports
+  like Amazon SQS, Amazon SNS, the HTTP transport, or SignalR where the CloudEvents document is the entire message.
+
+::: warning
+Only headers with **lower case** names are carried as CloudEvents extension attributes, so use `x-user` rather
+than `X-User`. A header that collides with a CloudEvents attribute like `source` or `type`, or with one of
+Wolverine's own envelope header keys like `correlation-id`, is never written into the CloudEvents document.
+:::
 
 
 ## Interop with NServiceBus over Database Transports

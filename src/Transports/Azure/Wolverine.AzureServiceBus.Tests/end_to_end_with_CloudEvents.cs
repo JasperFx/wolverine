@@ -66,4 +66,22 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
         session.Received.SingleMessage<AsbMessage1>()
             .Name.ShouldBe(message.Name);
     }
+
+    [Fact]
+    public async Task custom_headers_survive_a_cloud_events_endpoint()
+    {
+        // GH-5080
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new AsbMessage1("Josh Allen"), options);
+
+        var envelope = session.Received.SingleEnvelope<AsbMessage1>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
 }

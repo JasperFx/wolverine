@@ -1,5 +1,9 @@
 using JasperFx.Core;
+using Microsoft.Extensions.Hosting;
+using Shouldly;
+using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace Wolverine.Pulsar.Tests;
@@ -60,4 +64,59 @@ public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixtur
     // serialization reason before that, which GH-3800 removed: ErrorCausingMessage records an exception
     // TYPE NAME rather than a live Exception, so it survives System.Text.Json and CloudEvents no longer
     // corrupts it. Neither reason applies now, so it too runs from the base class.
+}
+
+// GH-5080
+[Collection("pulsar")]
+public class with_cloud_events_custom_headers : IAsyncLifetime
+{
+    private IHost _host = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        var topicPath = $"persistent://public/default/ce-headers{Guid.NewGuid()}";
+
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
+                opts.Policies.UsePulsarWithCloudEvents();
+                opts.IncludeType<PulsarHeadersMessageHandler>();
+
+                opts.PublishMessage<PulsarHeadersMessage>().ToPulsarTopic(topicPath);
+                opts.ListenToPulsarTopic(topicPath);
+            }).StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _host.StopAsync();
+        _host.Dispose();
+    }
+
+    [Fact]
+    public async Task custom_headers_survive_a_cloud_events_topic()
+    {
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new PulsarHeadersMessage("Josh Allen"), options);
+
+        var envelope = session.Received.SingleEnvelope<PulsarHeadersMessage>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
+}
+
+public record PulsarHeadersMessage(string Name);
+
+public class PulsarHeadersMessageHandler
+{
+    public void Handle(PulsarHeadersMessage message)
+    {
+    }
 }

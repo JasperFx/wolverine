@@ -102,6 +102,31 @@ public class CloudEventsHttpTransportTests : IDisposable
     }
 
     [Fact]
+    public async Task custom_headers_are_sent_as_extension_attributes()
+    {
+        // GH-5080
+        var uri = "https://localhost:5001/cloudevents";
+        _httpClient.BaseAddress = new Uri(uri);
+        _clientFactory.CreateClient(uri).Returns(_httpClient);
+
+        var envelope = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            MessageType = "MyApp.TestCommand",
+            Message = new CloudEventsTestCommand { Value = 42 },
+            Source = "test-service"
+        };
+        envelope.Headers["x-user"] = "alice";
+        envelope.Headers["x-country"] = "ca";
+
+        await _client.SendAsync(uri, envelope, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        var json = System.Text.Json.Nodes.JsonNode.Parse(_handler.LastContent)!;
+        json["x-user"]!.GetValue<string>().ShouldBe("alice");
+        json["x-country"]!.GetValue<string>().ShouldBe("ca");
+    }
+
+    [Fact]
     public async Task send_batch_with_cloud_events_uses_envelope_batch_content_type()
     {
         var uri = "https://localhost:5001/batch";

@@ -176,6 +176,35 @@ public class HttpTransportExecutorTests : IntegrationContext
     }
 
     [Fact]
+    public async Task invoke_reads_cloud_events_extension_attributes_as_headers()
+    {
+        // GH-5080
+        var json = $$"""
+                     {
+                       "specversion": "1.0",
+                       "type": "{{typeof(HttpMessage1).ToMessageTypeName()}}",
+                       "source": "test-source",
+                       "id": "{{Guid.NewGuid()}}",
+                       "datacontenttype": "application/json",
+                       "data": { "name": "cloud-test" },
+                       "x-user": "alice",
+                       "x-country": "ca"
+                     }
+                     """;
+
+        var (tracked, _) = await TrackedHttpCall(s =>
+        {
+            s.Post.Text(json).ToUrl("/_wolverine/invoke")
+                .ContentType("application/cloudevents+json");
+            s.StatusCodeShouldBeOk();
+        });
+
+        var envelope = tracked.Executed.SingleEnvelope<HttpMessage1>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
+
+    [Fact]
     public async Task invoke_returns_400_for_unknown_message_type()
     {
         var envelope = new Envelope
