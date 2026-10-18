@@ -442,15 +442,101 @@ With CloudEvents interoperability:
 * Basic correlation and causation is mapped for Open Telemetry style traceability
 * Wolverine is again depending on [message type aliases](/guide/messages.html#message-type-name-or-alias) to "know" what message type the CloudEvents envelopes are referring to, and you might very well
   have to explicitly register message type aliases to bridge the gap between CloudEvents and your Wolverine application.
-* Custom headers on the outgoing `Envelope` are written as top level CloudEvents [extension attributes](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md#extension-context-attributes),
-  and incoming extension attributes are read back into `Envelope.Headers`. This is how headers survive transports
-  like Amazon SQS, Amazon SNS, the HTTP transport, or SignalR where the CloudEvents document is the entire message.
+* Custom headers are carried as CloudEvents extension attributes. See the next section.
 
-::: warning
-Only headers with **lower case** names are carried as CloudEvents extension attributes, so use `x-user` rather
-than `X-User`. A header that collides with a CloudEvents attribute like `source` or `type`, or with one of
-Wolverine's own envelope header keys like `correlation-id`, is never written into the CloudEvents document.
-:::
+### Custom Headers with CloudEvents
+
+Wolverine carries the custom headers on an outgoing `Envelope` as top level CloudEvents
+[extension attributes](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md#extension-context-attributes),
+and reads extension attributes on incoming CloudEvents back into `Envelope.Headers`. That's what lets headers survive
+transports like Amazon SQS, Amazon SNS, the [HTTP transport](/guide/http/transport), or [SignalR](/guide/messaging/transports/signalr)
+where the CloudEvents document is the entire message. It doesn't matter how the header got onto the envelope:
+`DeliveryOptions`, your own `IEnvelopeRule`, or [header propagation](/guide/messaging/header-propagation) all work the same way.
+
+Here's a sample of sending a message with a couple of custom headers through an Amazon SQS queue that's configured
+with `InteropWithCloudEvents()` on both the publishing and listening side:
+
+<!-- snippet: sample_sending_custom_headers_with_cloudevents -->
+<a id='snippet-sample_sending_custom_headers_with_cloudevents'></a>
+```cs
+// Only lower case header names are carried as CloudEvents extension attributes
+var options = new DeliveryOptions();
+options.Headers["x-user"] = "alice";
+options.Headers["x-country"] = "ca";
+
+var session = await _host.TrackActivity()
+    .IncludeExternalTransports()
+    .Timeout(30.Seconds())
+    .SendMessageAndWaitAsync(new SqsMessage("Josh Allen"), options);
+
+// The headers come back out of the CloudEvents document on the receiving side
+var envelope = session.Received.SingleEnvelope<SqsMessage>();
+envelope.Headers["x-user"].ShouldBe("alice");
+envelope.Headers["x-country"].ShouldBe("ca");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/send_and_receive_with_CloudEvents.cs#L50-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_custom_headers_with_cloudevents' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The CloudEvents document that goes over the wire looks like this, with the two headers at the end:
+
+```json
+{
+  "topic": null,
+  "tenantid": null,
+  "traceid": "e5a0c86b-1b8f-4d0c-9d3c-0b7a3a1f2a10",
+  "tracestate": null,
+  "data": {
+    "orderId": 7
+  },
+  "id": "08df2d5f-751b-271a-baa4-8b734d750000",
+  "specversion": "1.0",
+  "datacontenttype": "application/json; charset=utf-8",
+  "source": "warehouse",
+  "type": "com.example.ship-order",
+  "time": "2026-10-18T13:16:39.6944610+00:00",
+  "traceparent": null,
+  "x-user": "alice",
+  "x-country": "ca"
+}
+```
+
+On the receiving side, a handler just reads the headers off of the `Envelope` like any other header. This works the same
+way whether the CloudEvents document came from another Wolverine application or from some other CloudEvents producer:
+
+<!-- snippet: sample_reading_cloudevents_extension_attributes_in_a_handler -->
+<a id='snippet-sample_reading_cloudevents_extension_attributes_in_a_handler'></a>
+```cs
+public record ShipOrder(int OrderId);
+
+public record OrderShipped(int OrderId, string? ShippedBy);
+
+public static class ShipOrderHandler
+{
+    public static OrderShipped Handle(ShipOrder command, Envelope envelope)
+    {
+        // "x-user" arrived as a CloudEvents extension attribute
+        envelope.Headers.TryGetValue("x-user", out var user);
+
+        return new OrderShipped(command.OrderId, user);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Interop/CloudEvents_custom_headers.cs#L201-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reading_cloudevents_extension_attributes_in_a_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A few rules apply:
+
+* Only headers with **lower case** names are carried as extension attributes. `x-user` works, but `X-User` is
+  silently left out of the CloudEvents document.
+* A header named like a CloudEvents attribute (`id`, `source`, `specversion`, `type`, `datacontenttype`,
+  `dataschema`, `subject`, `time`, `data`, `data_base64`) or like an attribute Wolverine writes itself (`topic`,
+  `tenantid`, `traceid`, `tracestate`, `traceparent`) is never written, so it can't overwrite the real value.
+  The same goes for Wolverine's own envelope header keys like `correlation-id` or `message-type`.
+* On the way in, string values are read as is, numbers and booleans are read as their text, and object or array
+  values are ignored.
+* Transports that can carry native headers, like Kafka, Rabbit MQ, Azure Service Bus, or Pulsar, still send custom
+  headers as native broker headers when you use `InteropWithCloudEvents()`, so the headers travel in both places. If
+  an incoming message has the same header in both places, the native broker header wins.
 
 
 ## Interop with NServiceBus over Database Transports

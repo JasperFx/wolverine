@@ -43,7 +43,8 @@ This works across all transports — Kafka, RabbitMQ, Azure Service Bus, or any 
 
 ::: tip
 If an endpoint uses [CloudEvents interoperability](/tutorials/interop.html#interop-with-cloudevents), only headers with
-lower case names like `x-user` are carried along in the CloudEvents document.
+lower case names like `x-user` are carried along in the CloudEvents document. See
+[Custom Headers with CloudEvents](/tutorials/interop.html#custom-headers-with-cloudevents).
 :::
 
 ::: warning

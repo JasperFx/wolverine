@@ -173,4 +173,44 @@ public class CloudEvents_custom_headers
         envelope.Headers["x-country"].ShouldBe("ca");
         envelope.Headers.ContainsKey("Type").ShouldBeFalse();
     }
+
+    [Fact]
+    public void a_handler_reads_extension_attributes_from_the_envelope()
+    {
+        theHandlers.RegisterMessageType(typeof(ShipOrder), "com.example.ship-order");
+
+        var json = """
+                   {
+                     "specversion": "1.0",
+                     "id": "5929aaac-a5e2-4ca1-859c-edfe73f11565",
+                     "source": "warehouse",
+                     "type": "com.example.ship-order",
+                     "data": { "orderId": 7 },
+                     "x-user": "alice"
+                   }
+                   """;
+
+        var envelope = new Envelope();
+        theMapper.MapIncoming(envelope, json);
+
+        ShipOrderHandler.Handle((ShipOrder)envelope.Message!, envelope)
+            .ShouldBe(new OrderShipped(7, "alice"));
+    }
 }
+
+#region sample_reading_cloudevents_extension_attributes_in_a_handler
+public record ShipOrder(int OrderId);
+
+public record OrderShipped(int OrderId, string? ShippedBy);
+
+public static class ShipOrderHandler
+{
+    public static OrderShipped Handle(ShipOrder command, Envelope envelope)
+    {
+        // "x-user" arrived as a CloudEvents extension attribute
+        envelope.Headers.TryGetValue("x-user", out var user);
+
+        return new OrderShipped(command.OrderId, user);
+    }
+}
+#endregion
