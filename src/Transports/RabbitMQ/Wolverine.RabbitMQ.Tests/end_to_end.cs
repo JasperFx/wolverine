@@ -327,6 +327,39 @@ public class end_to_end
     }
 
     [Fact]
+    public async Task custom_headers_survive_a_cloud_events_queue()
+    {
+        // GH-5080
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+            opts.PublishAllMessages().ToRabbitQueue(queueName).InteropWithCloudEvents();
+        });
+
+        using var receiver = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision();
+            opts.ListenToRabbitQueue(queueName).InteropWithCloudEvents();
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await publisher.TrackActivity()
+            .AlsoTrack(receiver)
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver)
+            .SendMessageAndWaitAsync(new ColorChosen { Name = "blue" }, options);
+
+        var envelope = session.Received.SingleEnvelope<ColorChosen>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
+
+    [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_listener_connection()
     {
         var queueName = RabbitTesting.NextQueueName();

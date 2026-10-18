@@ -130,9 +130,10 @@ public class send_and_receive_with_cloudevents : IAsyncLifetime
 
                 opts
                     .PublishMessage<TestPubsubMessage>()
-                    .ToPubsubTopic("cloudevents");
+                    .ToPubsubTopic("cloudevents")
+                    .InteropWithCloudEvents();
 
-                opts.ListenToPubsubTopic("cloudevents");
+                opts.ListenToPubsubTopic("cloudevents").InteropWithCloudEvents();
             }).StartAsync();
     }
 
@@ -152,6 +153,24 @@ public class send_and_receive_with_cloudevents : IAsyncLifetime
             .SendMessageAndWaitAsync(message);
 
         session.Received.SingleMessage<TestPubsubMessage>().Name.ShouldBe(message.Name);
+    }
+
+    [Fact]
+    public async Task custom_headers_survive_a_cloud_events_endpoint()
+    {
+        // GH-5080
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(1.Minutes())
+            .SendMessageAndWaitAsync(new TestPubsubMessage("Josh Allen"), options);
+
+        var envelope = session.Received.SingleEnvelope<TestPubsubMessage>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
     }
 
 }

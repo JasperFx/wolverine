@@ -80,6 +80,81 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
         session.Received.SingleMessage<ColorMessage>()
             .Color.ShouldBe("yellow");
     }
+
+    [Fact]
+    public async Task custom_headers_survive_a_mapper_that_only_writes_the_cloud_event()
+    {
+        // GH-5080: the sender's mapper writes no Kafka headers, so they have to be in the document
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
+            .AlsoTrack(_receiver)
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new ColorMessage("yellow"), options);
+
+        var envelope = session.Received.SingleEnvelope<ColorMessage>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
+}
+
+// GH-5080: InteropWithCloudEvents() on both sides of the topic
+public class interop_with_CloudEvents_on_both_sides : IAsyncLifetime
+{
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        _receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
+                opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
+                opts.ListenToKafkaTopic("cloudevents-both").InteropWithCloudEvents();
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        _sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
+                opts.Policies.DisableConventionalLocalRouting();
+                opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
+                opts.PublishAllMessages().ToKafkaTopic("cloudevents-both").InteropWithCloudEvents();
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _sender.StopAsync();
+        _sender.Dispose();
+        await _receiver.StopAsync();
+        _receiver.Dispose();
+    }
+
+    [Fact]
+    public async Task custom_headers_survive()
+    {
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
+            .AlsoTrack(_receiver)
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new ColorMessage("yellow"), options);
+
+        var envelope = session.Received.SingleEnvelope<ColorMessage>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
 }
 
 public class inline_end_to_end_with_CloudEvents : IAsyncLifetime

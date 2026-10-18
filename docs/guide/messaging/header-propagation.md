@@ -41,6 +41,12 @@ When a handler receives a message carrying any of the named headers, Wolverine w
 
 This works across all transports — Kafka, RabbitMQ, Azure Service Bus, or any other.
 
+::: tip
+If an endpoint uses [CloudEvents interoperability](/tutorials/interop.html#interop-with-cloudevents), only headers with
+lower case names like `x-user` are carried along in the CloudEvents document. See
+[Custom Headers with CloudEvents](/tutorials/interop.html#custom-headers-with-cloudevents).
+:::
+
 ::: warning
 The headers must be present on the incoming `Envelope` at the point the handler runs. Wolverine's default envelope mappers only carry Wolverine's own metadata headers, so if you need to propagate custom headers from an external producer you will need a custom envelope mapper that explicitly reads those headers from the transport message and sets them on the envelope.
 :::

@@ -6,6 +6,7 @@ using JasperFx.Core.Reflection;
 using MassTransit;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Interop;
@@ -43,8 +44,29 @@ internal class CloudEventsEnvelope
         Time = envelope.SentAt.ToString("O");
 
         TraceParent = envelope.ParentId!;
+
+        // GH-5080: custom headers ride along as CloudEvents extension attributes so they survive
+        // transports where the CloudEvents document is the whole message (SQS, SNS, HTTP, SignalR)
+        if (envelope.HasHeaders)
+        {
+            foreach (var pair in envelope.Headers)
+            {
+                if (pair.Value != null && CloudEventsMapper.IsExtensionAttribute(pair.Key))
+                {
+                    Extensions ??= new Dictionary<string, object>();
+                    Extensions[pair.Key] = pair.Value;
+                }
+            }
+        }
     }
-    
+
+    /// <summary>
+    /// CloudEvents extension attributes, written at the top level of the document. Outgoing, these are
+    /// the envelope's lower case custom headers
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, object>? Extensions { get; set; }
+
     [JsonPropertyName("topic")]
     public string Topic { get; set; } = null!;
 
@@ -94,6 +116,33 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
     }
 
     public override string ToString() => "Cloud Events";
+
+    // Names that are already CloudEvents context attributes, or that Wolverine itself writes into the
+    // CloudEvents document, so they can never be used for a custom header
+    private static readonly HashSet<string> _reservedAttributeNames = new(StringComparer.Ordinal)
+    {
+        "id", "source", "specversion", "type", "datacontenttype", "dataschema", "subject", "time",
+        "data", "data_base64", "topic", "tenantid", "traceid", "tracestate", "traceparent"
+    };
+
+    /// <summary>
+    /// Is this header name carried as a CloudEvents extension attribute? Only lower case names are, and
+    /// never a CloudEvents context attribute or one of Wolverine's own envelope header keys
+    /// </summary>
+    internal static bool IsExtensionAttribute(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+
+        foreach (var c in name)
+        {
+            if (char.IsUpper(c)) return false;
+        }
+
+        return !_reservedAttributeNames.Contains(name)
+               && !EnvelopeSerializer.ReservedHeaderKeys.Contains(name)
+               && name != EnvelopeConstants.SentAtKey
+               && name != TransportConstants.ProtocolVersion;
+    }
 
     // CloudEvents interop layer wraps the user message inside CloudEventsEnvelope
     // and serializes the wrapper with the default reflection-based STJ overloads
@@ -167,6 +216,11 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
         }
 
+        if (node is JsonObject attributes)
+        {
+            readExtensionAttributes(envelope, attributes);
+        }
+
         if (node!.TryGetValue<string>("tenantid", out var tenantid))
         {
             envelope.TenantId = tenantid;
@@ -237,6 +291,28 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             else
             {
                 envelope.ContentType = contentType;
+            }
+        }
+    }
+
+    // GH-5080: lower case extension attributes come back as envelope headers. A header the transport
+    // already mapped natively wins
+    private static void readExtensionAttributes(Envelope envelope, JsonObject attributes)
+    {
+        foreach (var pair in attributes)
+        {
+            if (pair.Value is not JsonValue value || !IsExtensionAttribute(pair.Key)) continue;
+
+            var text = value.GetValueKind() switch
+            {
+                JsonValueKind.String => value.GetValue<string>(),
+                JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => value.ToJsonString(),
+                _ => null
+            };
+
+            if (text != null)
+            {
+                envelope.Headers.TryAdd(pair.Key, text);
             }
         }
     }

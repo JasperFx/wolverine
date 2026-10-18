@@ -65,4 +65,22 @@ public class send_to_topic_and_receive_in_queue_with_cloud_events : IAsyncLifeti
             .Name.ShouldBe(message.Name);
     }
 
+    [Fact]
+    public async Task custom_headers_survive_as_extension_attributes()
+    {
+        // GH-5080: SNS to SQS carries only the CloudEvents document, so the headers must be inside it
+        var options = new DeliveryOptions();
+        options.Headers["x-user"] = "alice";
+        options.Headers["x-country"] = "ca";
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(5.Minutes())
+            .SendMessageAndWaitAsync(new SnsMessage("Josh Allen"), options);
+
+        var envelope = session.Received.SingleEnvelope<SnsMessage>();
+        envelope.Headers["x-user"].ShouldBe("alice");
+        envelope.Headers["x-country"].ShouldBe("ca");
+    }
+
 }
