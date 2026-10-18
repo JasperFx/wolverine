@@ -25,6 +25,8 @@
   <Folder Name="/Bobcat/">
     <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
          CIBobcat builds and runs them at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
+    <Project Path="src/Bobcat/Wolverine.Bobcat.EventModel.Tests/Wolverine.Bobcat.EventModel.Tests.csproj" />
+    <Project Path="src/Bobcat/Wolverine.Bobcat.EventModel/Wolverine.Bobcat.EventModel.csproj" />
     <Project Path="src/Bobcat/Wolverine.Bobcat.Http.Tests/Wolverine.Bobcat.Http.Tests.csproj">
       <Build Project="false" />
     </Project>
