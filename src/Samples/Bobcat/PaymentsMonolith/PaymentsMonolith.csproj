@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- net10 to match the Bobcat libraries the Tests project links against. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Must match Tests.csproj's AssemblyName, not its directory name. -->
+    <InternalsVisibleTo Include="PaymentsMonolith.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(WolverineSource)Extensions/Wolverine.FluentValidation/Wolverine.FluentValidation.csproj" />
+    <ProjectReference Include="$(WolverineSource)Http/Wolverine.Http/Wolverine.Http.csproj" />
+    <ProjectReference Include="$(WolverineSource)Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
+    <ProjectReference Include="$(WolverineSource)Persistence/Wolverine.Marten/Wolverine.Marten.csproj" />
+    <!-- Wolverine 6 stopped shipping the runtime compiler in core, so a host left in the default
+         TypeLoadMode.Dynamic fails to START with "no IAssemblyGenerator (Roslyn) is registered"
+         (GH-2876). See docs/sample-wiring.md footgun 4. -->
+    <ProjectReference Include="$(WolverineSource)Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Tests/**" />
+    <Content Remove="Tests/**" />
+    <None Remove="Tests/**" />
+  </ItemGroup>
+
+</Project>

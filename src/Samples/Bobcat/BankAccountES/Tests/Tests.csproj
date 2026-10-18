@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The BankAccountES specifications, written in Bobcat's projected (code-first) model on xUnit v3
+    (bobcat#471). Every spec derives from CritterStackSpec, Bobcat's store-only vocabulary, so the same
+    tests run on Marten and on Fisher. The Event Model roles come off that vocabulary's
+    [EventModelRole] attributes, and the slice binding off [BobcatSpec]; nothing in a test is
+    authored for the model.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- Match the InternalsVisibleTo declared in BankAccountES.csproj. -->
+    <AssemblyName>BankAccountES.Tests</AssemblyName>
+    <RootNamespace>BankAccountES.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Alba" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BankAccountES.csproj" />
+  </ItemGroup>
+
+</Project>

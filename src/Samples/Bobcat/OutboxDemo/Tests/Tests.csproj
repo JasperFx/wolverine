@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The OutboxDemo specifications, in Bobcat's projected (code-first) model on xUnit v3
+    (bobcat#471). Ordinary tests that render as Given/When/Then specifications; the HTTP calls go
+    through Alba directly.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- Match the InternalsVisibleTo declared in the host project. -->
+    <AssemblyName>OutboxDemo.Tests</AssemblyName>
+    <RootNamespace>OutboxDemo.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Alba" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OutboxDemo.csproj" />
+  </ItemGroup>
+
+</Project>

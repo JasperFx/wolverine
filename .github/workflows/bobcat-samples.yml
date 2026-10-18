@@ -1,0 +1,56 @@
+name: bobcat-samples
+
+# GH-5082: the Bobcat samples (src/Samples/Bobcat) moved here from the Bobcat repository with the Critter Stack
+# vocabulary. They are not in wolverine.slnx, so no other job touches them. This one builds every sample project and
+# runs the specs of every runnable one through the Nuke build's BobcatSamples target (build/BobcatSamples.cs), which
+# is also where the reasoning lives: why building was never enough, the quarantine list and its "stale quarantine
+# fails too" rule, the database per sample, and BankAccountES's Fisher leg. `./build.sh BobcatSamples` runs the same
+# thing locally; it starts the docker-compose Postgres (5433) itself, or reuses one already listening there.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'build/**'
+      - 'Directory.Packages.props'
+      - 'NuGet.config'
+      - 'docker-compose.yml'
+      - '.github/workflows/bobcat-samples.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'build/**'
+      - 'Directory.Packages.props'
+      - 'NuGet.config'
+      - 'docker-compose.yml'
+      - '.github/workflows/bobcat-samples.yml'
+  workflow_dispatch:
+
+env:
+  # A spec host publishes its progress to a Bobcat monitor when one answers. Nothing listens here.
+  BOBCAT_MONITOR: "0"
+
+jobs:
+  samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and run every Bobcat sample
+        run: ./build.sh BobcatSamples
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down

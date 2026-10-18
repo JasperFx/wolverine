@@ -1,0 +1,17 @@
+using JasperFx.Events;
+using Marten.Events.Projections;
+using TripDomain;
+
+public partial class DistanceProjection: EventProjection
+{
+    public DistanceProjection()
+    {
+        Name = "Distance";
+    }
+
+    // Create a new Distance document based on a Travel event
+    public Distance Create(Travel travel, IEvent e)
+    {
+        return new Distance {Id = e.Id, Day = travel.Day, Total = travel.TotalDistance()};
+    }
+}

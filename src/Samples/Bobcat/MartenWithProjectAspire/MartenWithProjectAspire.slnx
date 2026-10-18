@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AspireHost/AspireHost.csproj" />
+  <Project Path="EventPublisher/EventPublisher.csproj" />
+  <Project Path="TripBuildingService/TripBuildingService.csproj" />
+  <Project Path="TripDomain/TripDomain.csproj" />
+</Solution>

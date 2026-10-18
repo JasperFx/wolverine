@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- net10 to match the Bobcat libraries the Tests project links against. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Must match Tests.csproj's AssemblyName, not its directory name. -->
+    <InternalsVisibleTo Include="BankAccountES.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Tests\**" />
+    <Content Remove="Tests\**" />
+    <None Remove="Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(WolverineSource)Extensions/Wolverine.FluentValidation/Wolverine.FluentValidation.csproj" />
+    <ProjectReference Include="$(WolverineSource)Http/Wolverine.Http/Wolverine.Http.csproj" />
+    <ProjectReference Include="$(WolverineSource)Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
+    <!-- Both stores are referenced; Program.cs registers ONE of them from configuration (EventStore=Marten|Fisher).
+         Every handler and projection is written against the store-agnostic vocabulary, so neither package
+         is named outside Program.cs. Issue #103. -->
+    <ProjectReference Include="$(WolverineSource)Persistence/Wolverine.Marten/Wolverine.Marten.csproj" />
+    <ProjectReference Include="$(WolverineSource)Persistence/Wolverine.Fisher/Wolverine.Fisher.csproj" />
+    <!-- The stores are pinned EXPLICITLY rather than left to Wolverine's floors. A store older
+         than the JasperFx it runs against fails to LOAD — JasperFx.Events 2.67 added an
+         abstract `QueryStreamStates` to IReadOnlyEventStore — which is how this sample's Fisher
+         leg once died with a TypeLoadException while every pin looked satisfiable. The versions
+         are the repository's own (Directory.Packages.props), imported by ../Directory.Packages.props. -->
+    <PackageReference Include="Marten" />
+    <PackageReference Include="Fisher" />
+    <!-- Marten and Fisher each bundle JasperFx.Events.SourceGenerator inside their own nupkg, so
+         referencing both loads the generator twice and every aggregate's Evolver partial is
+         emitted twice (CS0433 — jasperfx#462). Compile with one explicit copy, pinned to the same
+         JasperFx.Events the Tests project unifies on, and drop every store-bundled copy below.
+         Same fix as src/Bobcat/Bobcat.CritterStackScenario.Tests, which references both stores for the same
+         reason. Two identical store-bundled generators used to dedupe by themselves, which is why
+         this only became visible when the stores moved to different JasperFx builds. -->
+    <PackageReference Include="JasperFx.Events" />
+    <PackageReference Include="JasperFx.Events.SourceGenerator"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <!-- Wolverine 6 stopped shipping the runtime compiler in core, so a host left in the default
+         TypeLoadMode.Dynamic fails to START with "no IAssemblyGenerator (Roslyn) is registered"
+         (GH-2876). See docs/sample-wiring.md footgun 4. -->
+    <ProjectReference Include="$(WolverineSource)Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <!-- bobcat#172 fourth rung: CritterWatch monitoring, config-gated in Program.cs so specs and
+         CI run exactly as before. The client's WolverineFx dependency is satisfied by the ProjectReference above. -->
+    <PackageReference Include="Wolverine.CritterWatch" />
+    <ProjectReference Include="$(WolverineSource)Transports/RabbitMQ/Wolverine.RabbitMQ/Wolverine.RabbitMQ.csproj" />
+  </ItemGroup>
+
+  <Target Name="DropDuplicateBundledEventSourceGenerator" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)"
+                Condition="'%(Filename)' == 'JasperFx.Events.SourceGenerator' and ($([System.String]::Copy('%(Identity)').Replace('\', '/').Contains('/marten/')) or $([System.String]::Copy('%(Identity)').Replace('\', '/').Contains('/fisher/')) or $([System.String]::Copy('%(Identity)').Replace('\', '/').Contains('/polecat/')))" />
+    </ItemGroup>
+  </Target>
+
+</Project>
