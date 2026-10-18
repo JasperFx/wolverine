@@ -163,6 +163,13 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         // SaveChanges submits the document updates as one RavenDB transaction. If another recovery pass
         // wins any document first, optimistic concurrency aborts the whole batch, so no earlier claim can
         // be stranded when a later one conflicts. Retry to claim any candidates that remain globally owned.
+        //
+        // The whole page is loaded in ONE request. Loading document by document cost a request per envelope,
+        // and RavenDB refuses a session's 31st request -- so any page of 30 or more (RecoveryBatchSize defaults
+        // to 100) threw instead of claiming anything, and the rows were never recovered.
+        var identities = incoming.Select(envelope => (envelope, id: _identity(envelope))).ToArray();
+        var ids = identities.Select(x => x.id).Distinct().ToArray();
+
         const int maxAttempts = 3;
         for (var attempt = 0; attempt < maxAttempts; attempt++)
         {
@@ -170,9 +177,11 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
             using var session = _store.OpenAsyncSession();
             session.Advanced.UseOptimisticConcurrency = true;
 
-            foreach (var envelope in incoming)
+            var messages = await session.LoadAsync<IncomingMessage>(ids);
+
+            foreach (var (envelope, id) in identities)
             {
-                var message = await session.LoadAsync<IncomingMessage>(_identity(envelope));
+                messages.TryGetValue(id, out var message);
                 if (message == null || message.OwnerId != TransportConstants.AnyNode ||
                     message.Status != EnvelopeStatus.Incoming)
                 {
