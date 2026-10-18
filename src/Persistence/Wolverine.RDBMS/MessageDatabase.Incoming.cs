@@ -41,7 +41,8 @@ public abstract partial class MessageDatabase<T>
     /// <summary>
     /// GH-5073. Claims only incoming rows that are still globally owned, and returns only rows this node won.
     /// Each conditional UPDATE is atomic; the transaction keeps a partially claimed page from being stranded
-    /// if a later update in the page fails.
+    /// if a later update in the page fails. Rows are claimed in <see cref="DatabasePersistence.InClaimOrder"/>
+    /// so two competing claims cannot deadlock on each other's row locks.
     /// </summary>
     public virtual async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId,
         IReadOnlyList<Envelope> incoming)
@@ -53,7 +54,7 @@ public abstract partial class MessageDatabase<T>
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
         await using var tx = await conn.BeginTransactionAsync(_cancellation);
 
-        foreach (var envelope in incoming)
+        foreach (var envelope in DatabasePersistence.InClaimOrder(incoming))
         {
             await using var cmd = conn.CreateCommand(
                 $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} " +

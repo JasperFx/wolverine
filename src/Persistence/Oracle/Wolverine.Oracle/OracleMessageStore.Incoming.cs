@@ -397,7 +397,8 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         await using var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
-        foreach (var envelope in incoming)
+        // GH-5073: one total claim order, or two competing claims can deadlock on each other's row locks
+        foreach (var envelope in DatabasePersistence.InClaimOrder(incoming))
         {
             await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} " +

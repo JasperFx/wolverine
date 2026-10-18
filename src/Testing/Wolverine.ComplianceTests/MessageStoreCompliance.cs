@@ -1819,6 +1819,94 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-5073 end to end against this store. Two inbox recovery commands for one destination both load the
+    /// same page of globally owned rows before either claims it -- what the durability agent does when a poll
+    /// issues a second command while the first is still on the agents queue, which runs 20 at a time. Each
+    /// row must be handed to the listener by exactly one of them.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentRecoveryCommandsEnqueueEachInboxRowOnce()
+    {
+        var envelopes = Enumerable.Range(0, 20).Select(_ => ObjectMother.Envelope()).ToArray();
+        var destination = envelopes[0].Destination!;
+        foreach (var envelope in envelopes)
+        {
+            envelope.Destination = destination;
+            envelope.Status = EnvelopeStatus.Incoming;
+            envelope.OwnerId = TransportConstants.AnyNode;
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelopes);
+
+        var store = LoadBarrierMessageStore.For(thePersistence, callers: 2);
+        var enqueued = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+
+        RecoverIncomingMessagesCommand commandFor(int node)
+        {
+            var circuit = Substitute.For<IListenerCircuit>();
+            circuit.Status.Returns(ListeningStatus.Accepting);
+            circuit.QueueCount.Returns(0);
+            circuit.Endpoint.Returns(new Wolverine.Transports.Local.LocalQueue("gh5073"));
+            circuit.EnqueueDirectlyAsync(Arg.Any<IEnumerable<Envelope>>()).Returns(callInfo =>
+            {
+                foreach (var envelope in callInfo.Arg<IEnumerable<Envelope>>()) enqueued.Add(envelope.Id);
+                return Task.CompletedTask;
+            });
+
+            return new RecoverIncomingMessagesCommand(store, new IncomingCount(destination, envelopes.Length),
+                circuit, new DurabilitySettings { AssignedNodeNumber = node }, NullLogger.Instance);
+        }
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        await Task.WhenAll(
+            commandFor(45_001).ExecuteAsync(runtime, CancellationToken.None),
+            commandFor(45_002).ExecuteAsync(runtime, CancellationToken.None));
+
+        enqueued.OrderBy(x => x).ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x),
+            "each recovered inbox row should be enqueued exactly once");
+
+        (await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 100)).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// GH-5073. The page query has no ORDER BY, so two recovery commands are free to load the same rows in
+    /// different orders. A claim that locks rows in the order it was handed them deadlocks against a claim
+    /// going the other way, and on PostgreSQL, SQL Server and MySQL it did so on most attempts. Competing
+    /// claims must neither fail nor double up, whatever order their candidates arrive in.
+    /// </summary>
+    [Fact]
+    public async Task CompetingRecoveryPassesInOppositeOrdersDoNotDeadlock()
+    {
+        var envelopes = Enumerable.Range(0, 50).Select(_ => ObjectMother.Envelope()).ToArray();
+        var destination = envelopes[0].Destination!;
+        foreach (var envelope in envelopes)
+        {
+            envelope.Destination = destination;
+            envelope.Status = EnvelopeStatus.Incoming;
+            envelope.OwnerId = TransportConstants.AnyNode;
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelopes);
+
+        for (var round = 0; round < 10; round++)
+        {
+            await thePersistence.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes);
+
+            var forwards = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 100);
+            var backwards = (await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 100))
+                .Reverse().ToArray();
+
+            var claims = await Task.WhenAll(
+                thePersistence.TryClaimIncomingAsync(45_001, forwards),
+                thePersistence.TryClaimIncomingAsync(45_002, backwards));
+
+            claims.SelectMany(x => x).Select(x => x.Id).OrderBy(x => x)
+                .ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x),
+                    $"round {round}: every envelope should be claimed by exactly one of the two passes");
+        }
+    }
+
+    /// <summary>
     /// Sister contract test to <see cref="scheduled_poll_stamps_envelope_with_originating_store"/>:
     /// the inbox-recovery path (which DLQ replay funnels through) must stamp
     /// <c>envelope.Store</c> so downstream mark-as-handled writes route to the

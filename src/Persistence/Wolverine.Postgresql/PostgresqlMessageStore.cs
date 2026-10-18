@@ -684,6 +684,12 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
     /// GH-5073. Atomically claims only incoming rows that are still globally owned. Recovery commands may
     /// load the same page concurrently; the owner predicate makes the UPDATE the claim, and RETURNING gives
     /// each command only the envelopes it actually won.
+    ///
+    /// The rows are locked first with FOR UPDATE SKIP LOCKED. A plain UPDATE ... FROM unnest() takes its row
+    /// locks in whatever order the plan visits them, and two competing claims deadlocked (40P01) on most
+    /// attempts in the GH-5073 review. SKIP LOCKED never waits, so there is nothing to deadlock on: a row
+    /// another claim is holding is that claim's to win. MATERIALIZED keeps the locking CTE from being folded
+    /// into the UPDATE and evaluated more than once (the same trap #5033 found with an IN subquery).
     /// </summary>
     public override async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId,
         IReadOnlyList<Envelope> incoming)
@@ -691,14 +697,21 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         if (incoming.Count == 0) return Array.Empty<Envelope>();
 
         var candidates = incoming.ToArray();
+        var table = $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
         await using var command = CreateCommand(
-                $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} target " +
-                $"set {DatabaseConstants.OwnerId} = @owner{restartIncomingStaleClock} " +
-                $"from unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
-                $"where target.id = due.id " +
-                $"and target.{DatabaseConstants.ReceivedAt} = due.{DatabaseConstants.ReceivedAt} " +
-                $"and target.{DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"with claimable as materialized (" +
+                $"select target.id, target.{DatabaseConstants.ReceivedAt} from {table} target " +
+                $"join unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
+                $"on target.id = due.id and target.{DatabaseConstants.ReceivedAt} = due.{DatabaseConstants.ReceivedAt} " +
+                $"where target.{DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
                 $"and target.{DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' " +
+                $"for update of target skip locked) " +
+                $"update {table} target " +
+                $"set {DatabaseConstants.OwnerId} = @owner{restartIncomingStaleClock} " +
+                $"from claimable " +
+                $"where target.id = claimable.id " +
+                $"and target.{DatabaseConstants.ReceivedAt} = claimable.{DatabaseConstants.ReceivedAt} " +
+                $"and target.{DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
                 $"returning target.id, target.{DatabaseConstants.ReceivedAt}")
             .With("owner", ownerId)
             .WithEnvelopeIds("ids", candidates)
