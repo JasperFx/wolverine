@@ -1773,6 +1773,15 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-5073. An inbox address nothing in the test host listens on. The host runs a real durability agent, and
+    /// globally owned rows addressed to a live listener -- ObjectMother's envelopes go to the replies endpoint --
+    /// are its to recover, so a poll landing mid-test claims them out from under the claims being tested. CI
+    /// caught exactly that on Cosmos DB. The agent skips an address with no listener, so these rows are only
+    /// ever claimed by the test.
+    /// </summary>
+    protected static Uri UnlistenedInboxDestination() => new($"stub://gh5073-{Guid.NewGuid():N}/");
+
+    /// <summary>
     /// GH-5073. Two recovery commands can load the same orphan before either claims it. Only the store that
     /// atomically changes owner_id from AnyNode may return the envelope for enqueueing.
     /// </summary>
@@ -1780,7 +1789,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     public async Task CompetingRecoveryPassesOnlyClaimAGloballyOwnedIncomingRowOnce()
     {
         var envelopes = new[] { ObjectMother.Envelope(), ObjectMother.Envelope() };
-        var destination = envelopes[0].Destination!;
+        var destination = UnlistenedInboxDestination();
         foreach (var envelope in envelopes)
         {
             envelope.Destination = destination;
@@ -1828,7 +1837,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     public async Task ConcurrentRecoveryCommandsEnqueueEachInboxRowOnce()
     {
         var envelopes = Enumerable.Range(0, 20).Select(_ => ObjectMother.Envelope()).ToArray();
-        var destination = envelopes[0].Destination!;
+        var destination = UnlistenedInboxDestination();
         foreach (var envelope in envelopes)
         {
             envelope.Destination = destination;
@@ -1878,7 +1887,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     public async Task CompetingRecoveryPassesInOppositeOrdersDoNotDeadlock()
     {
         var envelopes = Enumerable.Range(0, 50).Select(_ => ObjectMother.Envelope()).ToArray();
-        var destination = envelopes[0].Destination!;
+        var destination = UnlistenedInboxDestination();
         foreach (var envelope in envelopes)
         {
             envelope.Destination = destination;
