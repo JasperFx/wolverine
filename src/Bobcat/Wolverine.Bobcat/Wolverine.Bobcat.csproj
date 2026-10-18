@@ -5,6 +5,10 @@
         <!-- Ships as a prerelease while the API settles: Wolverine's version, then -alpha.N -->
         <Version>$(Version)-alpha.1</Version>
         <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <!-- C# 13: the Critter Stack vocabulary moved here from Bobcat core (GH-5082) uses System.Threading.Lock -->
+        <LangVersion>13</LangVersion>
+        <!-- CS0419 (ambiguous cref) as Bobcat built the moved files: their crefs name overload groups -->
+        <NoWarn>$(NoWarn);CS0419</NoWarn>
         <!-- Test-time library: exempt from the AOT compliance the shipping runtime packages carry -->
         <IsAotCompatible>false</IsAotCompatible>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
@@ -22,5 +26,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Wolverine.Bobcat.Tests" />
         <InternalsVisibleTo Include="Wolverine.Bobcat.Http" />
+        <!-- The store-only vocabulary's own tests, which moved here with it (GH-5082) -->
+        <InternalsVisibleTo Include="Bobcat.CritterStackScenario.Tests" />
     </ItemGroup>
 </Project>

@@ -75,13 +75,13 @@ public class WolverineHttpScenario : WolverineScenario
     /// built before the act; the step shows only the members it specifies.
     /// </remarks>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http)]
+    [EventModelTrigger(ActTrigger.Http)]
     public Task WhenPosted(object command, Action<Scenario>? configure = null)
         => commandAsync("POST", command, null, null, configure);
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route))]
     public Task WhenPosted(object command, string route, Action<Scenario>? configure = null)
         => commandAsync("POST", command, route, null, configure);
 
@@ -91,43 +91,43 @@ public class WolverineHttpScenario : WolverineScenario
     /// command's properties of the same name. A constant route name reaches the Event Model as that endpoint's route.
     /// </summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "POST")]
+    [EventModelTrigger(ActTrigger.Http, RouteName = nameof(routeName), HttpMethod = "POST")]
     public Task WhenPostedToRoute(object command, string routeName, Action<Scenario>? configure = null)
         => commandAsync("POST", command, null, routeName, configure);
 
     /// <summary>PUT <paramref name="command" /> to the Wolverine.HTTP endpoint that accepts its type on PUT.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, HttpMethod = "PUT")]
+    [EventModelTrigger(ActTrigger.Http, HttpMethod = "PUT")]
     public Task WhenPut(object command, Action<Scenario>? configure = null)
         => commandAsync("PUT", command, null, null, configure);
 
     /// <summary>PUT <paramref name="command" /> to <paramref name="route" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PUT")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PUT")]
     public Task WhenPut(object command, string route, Action<Scenario>? configure = null)
         => commandAsync("PUT", command, route, null, configure);
 
     /// <summary>PUT <paramref name="command" /> to the endpoint named <paramref name="routeName" />, as for <see cref="WhenPostedToRoute" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "PUT")]
+    [EventModelTrigger(ActTrigger.Http, RouteName = nameof(routeName), HttpMethod = "PUT")]
     public Task WhenPutToRoute(object command, string routeName, Action<Scenario>? configure = null)
         => commandAsync("PUT", command, null, routeName, configure);
 
     /// <summary>PATCH <paramref name="command" /> to the Wolverine.HTTP endpoint that accepts its type on PATCH.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, HttpMethod = "PATCH")]
+    [EventModelTrigger(ActTrigger.Http, HttpMethod = "PATCH")]
     public Task WhenPatched(object command, Action<Scenario>? configure = null)
         => commandAsync("PATCH", command, null, null, configure);
 
     /// <summary>PATCH <paramref name="command" /> to <paramref name="route" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PATCH")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PATCH")]
     public Task WhenPatched(object command, string route, Action<Scenario>? configure = null)
         => commandAsync("PATCH", command, route, null, configure);
 
     /// <summary>PATCH <paramref name="command" /> to the endpoint named <paramref name="routeName" />, as for <see cref="WhenPostedToRoute" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "PATCH")]
+    [EventModelTrigger(ActTrigger.Http, RouteName = nameof(routeName), HttpMethod = "PATCH")]
     public Task WhenPatchedToRoute(object command, string routeName, Action<Scenario>? configure = null)
         => commandAsync("PATCH", command, null, routeName, configure);
 
@@ -136,19 +136,19 @@ public class WolverineHttpScenario : WolverineScenario
     /// type on DELETE, route parameters filled from its properties.
     /// </summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, HttpMethod = "DELETE")]
+    [EventModelTrigger(ActTrigger.Http, HttpMethod = "DELETE")]
     public Task WhenDeleted(object command, Action<Scenario>? configure = null)
         => commandAsync("DELETE", command, null, null, configure);
 
     /// <summary>Send <paramref name="command" /> as the JSON body of a DELETE to <paramref name="route" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "DELETE")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "DELETE")]
     public Task WhenDeleted(object command, string route, Action<Scenario>? configure = null)
         => commandAsync("DELETE", command, route, null, configure);
 
     /// <summary>DELETE to the endpoint named <paramref name="routeName" /> with <paramref name="command" /> as the body, as for <see cref="WhenPostedToRoute" />.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "DELETE")]
+    [EventModelTrigger(ActTrigger.Http, RouteName = nameof(routeName), HttpMethod = "DELETE")]
     public Task WhenDeletedToRoute(object command, string routeName, Action<Scenario>? configure = null)
         => commandAsync("DELETE", command, null, routeName, configure);
 
@@ -164,7 +164,7 @@ public class WolverineHttpScenario : WolverineScenario
     /// generator can read it.
     /// </remarks>
     [EventModelRole(SliceRole.ReadModel, nameof(T))]
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "GET")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "GET")]
     public Task<T?> WhenReading<T>(string route, params object[] routeValues)
         => httpRoot.readAsync<T>(route, HttpRoutes.Fill(route, routeValues));
 
@@ -175,7 +175,7 @@ public class WolverineHttpScenario : WolverineScenario
     /// route name to the endpoint's template, so the Query slice carries both the route and the route name.
     /// </summary>
     [EventModelRole(SliceRole.ReadModel, nameof(T))]
-    [EventModelTrigger(TriggerKind.Http, RouteName = nameof(routeName), HttpMethod = "GET")]
+    [EventModelTrigger(ActTrigger.Http, RouteName = nameof(routeName), HttpMethod = "GET")]
     public Task<T?> WhenReadingRoute<T>(string routeName, params object[] routeValues)
     {
         var template = HttpRoutes.Named(Host, routeName, "GET");
@@ -283,7 +283,7 @@ public class WolverineHttpScenario : WolverineScenario
     /// response body, deserialized — or null when the endpoint refused or failed.
     /// </summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http)]
+    [EventModelTrigger(ActTrigger.Http)]
     public async Task<TResponse?> WhenPosted<TResponse>(object command, Action<Scenario>? configure = null)
     {
         await WhenPosted(command, configure);
@@ -292,7 +292,7 @@ public class WolverineHttpScenario : WolverineScenario
 
     /// <summary>POST <paramref name="command" /> to <paramref name="route" /> and hand back the 2xx response body.</summary>
     [EventModelRole(SliceRole.Command, nameof(command))]
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route))]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route))]
     public async Task<TResponse?> WhenPosted<TResponse>(object command, string route, Action<Scenario>? configure = null)
     {
         await WhenPosted(command, route, configure);
