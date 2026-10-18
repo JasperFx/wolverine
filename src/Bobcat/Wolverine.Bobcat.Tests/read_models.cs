@@ -35,7 +35,7 @@ public class read_models(AppointmentsHost app) : WolverineSpec(app.Host)
         });
 
         var then = recording.Steps.Last();
-        then.Text.ShouldBe("the Appointment matches");
+        then.Text.ShouldBe("the Appointment #theAppointment matches");
         then.Status.ShouldBe(ResultStatus.failed);
         var confirmed = then.Cells.Single(x => x.Name == nameof(Appointment.Confirmed));
         confirmed.Status.ShouldBe(ResultStatus.failed);
@@ -53,7 +53,7 @@ public class read_models(AppointmentsHost app) : WolverineSpec(app.Host)
         });
 
         recording.GatheredFailures().ShouldBeNull();
-        recording.Steps.Last().Text.ShouldBe("there is no Appointment theAppointment");
+        recording.Steps.Last().Text.ShouldBe("there is no Appointment #theAppointment");
     }
 
     [Fact]

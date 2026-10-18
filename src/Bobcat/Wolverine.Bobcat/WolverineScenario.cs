@@ -392,7 +392,7 @@ public class WolverineScenario : CritterStackScenario
     {
         if (marks.Count == 1) return true;
         if (commit.Store is { } identity) return Equals(identity, store.Identity);
-        return hasStore() && ReferenceEquals(Store, store);
+        return hasStore() && ReferenceEquals(EventStore, store);
     }
 
     private ActOutcome mergeReadBack(ActOutcome outcome, CritterStackActOutcome readBack, IReadOnlyList<StoreHighWaterMark> marks)

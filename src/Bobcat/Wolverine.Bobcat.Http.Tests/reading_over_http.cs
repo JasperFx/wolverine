@@ -121,7 +121,7 @@ public class other_command_verbs(AppHost app) : WolverineHttpSpec(app.Host)
         });
 
         recording.GatheredFailures().ShouldBeNull();
-        recording.Steps[0].Text.ShouldBe($"RenamePatient(AppointmentId: theAppointment, Patient: \"Bea\") is put to \"/api/appointments/{id}/patient\"");
+        recording.Steps[0].Text.ShouldBe($"RenamePatient(AppointmentId: #theAppointment, Patient: \"Bea\") is put to \"/api/appointments/{id}/patient\"");
     }
 
     [Fact]

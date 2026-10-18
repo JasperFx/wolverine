@@ -130,7 +130,7 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
 
         recording.GatheredFailures().ShouldBeNull();
         var values = recording.Steps.Last().Cells.Single(x => x.Name == "values");
-        values.DisplayText.ShouldBe("Seat: 4C, tags: [theScreeningId, CustomerId(CUST-104)]");
+        values.DisplayText.ShouldBe("Seat: \"4C\", tags: [#theScreeningId, CustomerId(CUST-104)]");
     }
 
     [Fact]
@@ -148,8 +148,8 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
         });
 
         recording.GatheredFailures().ShouldBeNull();
-        recording.Steps[0].Text.ShouldBe("SeatAvailability theScreeningId has already recorded ScreeningScheduled(Screening: theScreeningId, Seats: 2) tagged [theScreeningId]");
-        recording.Steps.Last().Text.ShouldBe("the SeatAvailability over events tagged theScreeningId matches");
+        recording.Steps[0].Text.ShouldBe("SeatAvailability #theScreeningId has already recorded ScreeningScheduled(Screening: #theScreeningId, Seats: 2) tagged [#theScreeningId]");
+        recording.Steps.Last().Text.ShouldBe("the SeatAvailability over events tagged #theScreeningId matches");
 
         (await TheDcbModel<SeatAvailability>(EventTagQuery.For(theScreeningId)))!.Seats.ShouldBe(1);
     }
@@ -294,9 +294,9 @@ public class dcb_tags(DcbHost app) : WolverineSpec(app.Host), IClassFixture<DcbH
 
         recording.GatheredFailures().ShouldBeNull();
         var steps = recording.Steps.TakeLast(3).Select(x => x.Text).ToArray();
-        steps[0].ShouldBe("the consistency boundary is events tagged theScreeningId (ScreeningScheduled, SeatReserved)");
-        steps[1].ShouldBe("a concurrent SeatReserved tagged [theScreeningId] would conflict");
-        steps[2].ShouldBe("a concurrent ScreeningRenamed tagged [theScreeningId] would not conflict");
+        steps[0].ShouldBe("the consistency boundary is events tagged #theScreeningId (ScreeningScheduled, SeatReserved)");
+        steps[1].ShouldBe("a concurrent SeatReserved tagged [#theScreeningId] would conflict");
+        steps[2].ShouldBe("a concurrent ScreeningRenamed tagged [#theScreeningId] would not conflict");
 
         recording.Steps[^3].Cells.Single(x => x.Name == "boundary").Status.ShouldBe(ResultStatus.success);
     }

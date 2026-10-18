@@ -61,7 +61,7 @@ public class modeled_read_models(AppointmentsHost app) : WolverineSpec(app.Host)
             await GivenReadModel<Dashboard>(Specify<Dashboard>().With(x => x.Status, "quiet"));
         });
 
-        recording.Steps.First().Text.ShouldBe("the Dashboard read model is Dashboard(Status: quiet)");
+        recording.Steps.First().Text.ShouldBe("there is a Dashboard with Status: \"quiet\"");
     }
 
     [Fact]
@@ -92,7 +92,9 @@ public class modeled_read_models(AppointmentsHost app) : WolverineSpec(app.Host)
     [Fact]
     public async Task a_single_read_model_needs_a_stream_to_be_about()
     {
-        var failure = await Should.ThrowAsync<SpecCriticalException>(() => ThenSingleReadModel<Appointment>());
+        // Bobcat 1.0 (bobcat#616): with no stream, the single read is the one Appointment in the store, so
+        // none or several is an assertion failure naming why every Appointment counted, not a critical.
+        var failure = await Should.ThrowAsync<SpecificationFailedException>(() => ThenSingleReadModel<Appointment>());
         failure.Message.ShouldContain("the act started none and the givens arranged none");
     }
 
@@ -214,7 +216,7 @@ public class typed_refusals(AppointmentsHost app) : WolverineSpec(app.Host)
         });
 
         recording.GatheredFailures().ShouldBeNull();
-        recording.Steps.Last().Text.ShouldBe("refused with AppointmentAlreadyConfirmed(AppointmentId: theAppointment)");
+        recording.Steps.Last().Text.ShouldBe("refused with AppointmentAlreadyConfirmed(AppointmentId: #theAppointment)");
     }
 
     [Fact]

@@ -25,8 +25,8 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
         {
             // The id reads as the variable it was declared as, and a value that fits on the line is
             // shown whole; AppointmentScheduled does not fit, so its values are a table under the step
-            "Given Appointment theAppointment has already recorded AppointmentScheduled",
-            "When ConfirmAppointment(AppointmentId: theAppointment) is received",
+            "Given Appointment #theAppointment has already recorded AppointmentScheduled",
+            "When ConfirmAppointment(AppointmentId: #theAppointment) is received",
             "Then AppointmentConfirmed is emitted"
         });
 
@@ -127,7 +127,7 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
             ThenEvents(typeof(AppointmentScheduled));
         });
 
-        recording.Steps[0].Text.ShouldBe("Appointment theAppointment has no events yet");
+        recording.Steps[0].Text.ShouldBe("Appointment #theAppointment has no events yet");
         recording.GatheredFailures().ShouldBeNull();
     }
 

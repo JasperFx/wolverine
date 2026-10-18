@@ -146,7 +146,7 @@ public abstract class aggregate_less_streams<THost>(THost app) : WolverineSpec(a
             ThenEvents(typeof(CallLogged));
         });
 
-        recording.Steps.First().Text.ShouldBe("stream theCall has already recorded CallStarted(Id: theCall, Caller: \"Ann\")");
+        recording.Steps.First().Text.ShouldBe("stream #theCall has already recorded CallStarted(Id: #theCall, Caller: \"Ann\")");
         recording.Steps.ShouldAllBe(x => x.Status == ResultStatus.success);
         recording.GatheredFailures().ShouldBeNull();
 
