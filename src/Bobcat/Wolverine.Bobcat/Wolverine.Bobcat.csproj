@@ -17,7 +17,7 @@
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Bobcat" VersionOverride="$(WolverineFxBobcatBobcatVersion)" />
+        <PackageReference Include="Bobcat" />
     </ItemGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Wolverine.Bobcat.Tests" />
