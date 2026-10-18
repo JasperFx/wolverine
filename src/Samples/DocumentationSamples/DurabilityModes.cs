@@ -113,13 +113,17 @@ public class DurabilityModes
         var report = await host.RunDurabilityPassAsync(maxDuration: 30.Seconds());
 
         // If the pass ran out of time or hit the batch size, it tells you
-        // so and you can just go around again
-        while (report.HasMoreWork && !report.TimedOut)
+        // so and you can go around again. Cap the number of passes so that a
+        // store another pass is holding the lock on, or a backlog bigger than
+        // one invocation, can't keep this function alive forever
+        var passes = 1;
+        while (report.HasMoreWork && !report.TimedOut && passes < 5)
         {
             report = await host.RunDurabilityPassAsync(maxDuration: 30.Seconds());
+            passes++;
         }
 
-        Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, released {report.ScheduledReleased} scheduled messages");
+        Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, dead lettered {report.OutgoingDeadLettered}, released {report.ScheduledReleased} scheduled messages");
         #endregion
     }
 }

@@ -23,23 +23,25 @@ You've got two choices:
 |---|---|---|
 | Node registration, leader election, background agents | Off | Off |
 | Local queues | Removed | Removed |
+| Messages handled by this application | Dropped, so use `InvokeAsync()` | Stored in the inbox and handled by the next durability pass |
 | Sending endpoints | Forced to *Inline* | Made *Durable* where the transport can be |
 | Transactional outbox | Off | On |
 | Recovers messages that failed to send | No | Yes, through an externally triggered durability pass |
-| Scheduled messages | Nothing releases them | Released by the durability pass |
+| Scheduled messages | Nothing releases them | Stored in the inbox and released by the durability pass when they're due |
 | Extra moving parts | None | Something has to trigger the durability pass |
 
-<!-- DRAFT (GH-5046): this table needs to say what happens to the messages the application handles itself. Under
-`ServerlessWithOutbox` the "Local queues" row is still "Removed", but a message with a handler in the same application
-(PublishAsync/SendAsync, a cascaded message, an explicit `PublishMessage<T>().ToLocalQueue(...)` rule) is no longer
-dropped: it is written to the durable inbox, owned by any node (0), inside the handler's transaction when there is one,
-and the next durability pass handles it. So it runs with the outbox's atomicity, but only as soon as the next pass,
-not in the request. Suggested new row: "Messages handled by this application | Dropped (use InvokeAsync) | Stored in
-the inbox and handled by the next durability pass". The "Scheduled messages" row should also cover what now works:
-`ScheduleAsync`/`DelayedFor` of a locally handled message, saga `TimeoutMessage`s, and scheduled sends to a transport
-that cannot schedule natively (TCP, RabbitMQ), including `IMessageBus.EndpointFor(...)` sends with a `ScheduleDelay`
-(GH-5052), are all stored in the inbox owned by any node and released by the pass when due. A `DisableConventionalLocalRouting()`
-the application makes itself still turns off the "handled by this application" routing. Plain `Serverless` is unchanged. -->
+That "messages handled by this application" row deserves a little explanation. Neither mode has local queues, but under `ServerlessWithOutbox`
+a message that has a handler in this very same application -- whether you `PublishAsync()` or `SendAsync()` it, cascade it from another handler,
+or route it there yourself with an explicit `PublishMessage<T>().ToLocalQueue()` rule -- isn't just dropped on the floor. Wolverine writes it to
+the durable inbox, owned by "any node," inside the handler's transaction when there is one, and the next durability pass picks it up and handles it.
+So you get the atomicity of the outbox, but the message runs as soon as the next pass gets to it rather than inside the request. Plain `Serverless`
+drops those messages, so use `InvokeAsync()` there if you need the work done. If your application calls `DisableConventionalLocalRouting()` itself,
+that still turns off the "handled by this application" routing in either mode, exactly like it does everywhere else.
+
+The same goes for scheduled messages under `ServerlessWithOutbox`. `ScheduleAsync()` or `DelayedFor()` on a message this application handles, the
+`TimeoutMessage`s from your sagas, and scheduled sends to a transport that can't schedule natively like TCP or RabbitMQ -- including
+`IMessageBus.EndpointFor()` sends with a `ScheduleDelay` -- all go into the inbox owned by any node, and the durability pass releases them when
+they come due.
 
 The short version is that `Serverless` is the simplest possible thing. If a handler commits its transaction and then the
 outgoing message fails to send, that message is just gone. If that's acceptable for your system, or you aren't sending
@@ -141,27 +143,22 @@ Here's what happens when a handler cascades a message in this mode:
 
 1. The outgoing message is persisted to the outbox inside the very same database transaction as the rest of the handler's work. The outbox row
    is marked as being owned by "any node" because there's no node record in this mode to own it
-2. After the transaction commits, Wolverine sends every outgoing message right then and there, inside the same request, and waits for each
-   send to complete. There's no background sending agent to hand things off to
-3. Wolverine deletes the outbox rows for every message that was sent successfully in one batch
-4. If a send fails, Wolverine logs the failure and leaves that row in the outbox for the next durability pass to pick up
+2. After the transaction commits, Wolverine sends every outgoing message right then and there, inside the same request, and waits for the
+   sends to complete. There's no background sending agent to hand things off to. The messages are grouped by destination, and each group goes
+   out in as few round trips to the broker as its transport allows, in batches of the endpoint's `MessageBatchSize`. Different destinations
+   are sent concurrently, but each destination keeps its order
+3. Wolverine deletes the outbox rows for the messages the broker actually accepted. If a transport only accepts part of a batch -- and SQS, SNS,
+   and Azure Service Bus can all do that -- only the rows for the rest are left behind
+4. If a send fails, Wolverine logs the failure and leaves that row in the outbox for a later durability pass. The failure also restarts the
+   row's stale clock, so the row goes to the back of the line and isn't tried again until `OutboxStaleTime` has passed again, which gives you
+   a natural backoff for free. A message the broker refuses as a serialization failure -- say an oversized SQS message without
+   `FragmentOversizedMessages()` -- is never going to send no matter how many times it's retried, so Wolverine moves it to dead letter storage
+   instead of retrying it forever. Kafka is the one exception there, because an oversized Kafka record comes back as an ordinary failure and
+   keeps on being retried
 
-<!-- DRAFT (GH-5016 review, for Jeremy to word): step 2 is out of date. The messages are grouped by destination and each
-group goes out in as few broker round trips as its transport allows (batches of the endpoint's MessageBatchSize), with
-different destinations sent concurrently and each destination keeping its order. Only the outbox rows of messages the
-broker actually accepted are deleted; a transport that accepts part of a batch (SQS, SNS, Azure Service Bus) has only the
-rest left behind. -->
-
-<!-- DRAFT (GH-5047 / GH-5050, for Jeremy to word): step 4 is out of date. A failed send restarts the row's stale clock, so
-the row goes to the back of the line and isn't retried until OutboxStaleTime passes again (a natural backoff). A message
-the broker refuses as a serialization failure (an oversized SQS message without FragmentOversizedMessages(), say) is never
-going to send, so it's moved to dead letter storage instead of being retried forever. Kafka is the exception: an oversized
-Kafka record is reported as an ordinary failure and keeps being retried. -->
-
-<!-- DRAFT (GH-5016 review, for Jeremy to word): the steps above describe a handler with a database transaction. A message
-sent with no transaction at all, like from a Wolverine.HTTP endpoint without transactional middleware or a plain
-IMessageBus.PublishAsync(), is also sent inline before the call returns; its outbox row is written first and owned by any
-node, so a later durability pass recovers it if the send fails. -->
+Those steps assume the handler has a database transaction. A message sent with no transaction at all -- from a Wolverine.HTTP endpoint that
+isn't using transactional middleware, or just a plain `IMessageBus.PublishAsync()` call -- is sent inline the same way before the call returns.
+Its outbox row is written first and owned by any node, so if that send fails, a later durability pass recovers it.
 
 That works today with the Marten, Polecat, Fisher, EF Core, and RavenDb integrations, and the durability pass is supported by the PostgreSQL,
 SQL Server, MySQL, Oracle, SQLite, RavenDb, and Cosmos DB message stores. That includes [multi-tenanted](/guide/durability/managing.html) message
@@ -172,19 +169,23 @@ Every sending endpoint that can be durable is made durable under this mode, so y
 yourself. Endpoints for transports that can't be durable fall back to *Inline*.
 :::
 
-<!-- DRAFT (GH-5051, for Jeremy to word): the durability mode wins over per-endpoint settings. Under ServerlessWithOutbox an
-endpoint explicitly configured with SendInline() is still made durable, and under plain Serverless one configured with
-UseDurableOutbox() is still downgraded to Inline. Wolverine logs a warning naming each endpoint whose explicit mode it
-overrode. This applies to listeners too: under plain Serverless a partitioned listener with an explicit non-Inline mode
-now fails at startup. -->
+::: warning
+The durability mode wins over anything you say about an individual endpoint. Under `ServerlessWithOutbox`, an endpoint you explicitly configured
+with `SendInline()` is still made durable, and under plain `Serverless`, one you configured with `UseDurableOutbox()` is still downgraded to *Inline*.
+Wolverine logs a warning at startup naming each endpoint whose explicit mode it overrode. The same rule applies to listeners, so under plain
+`Serverless` a partitioned listener with an explicit mode other than *Inline* fails at startup rather than quietly running in a mode you didn't ask for.
+:::
 
-<!-- DRAFT (GH-5016 review / GH-5053, for Jeremy to word): RabbitMQ under ServerlessWithOutbox. Because an outbox row is
-deleted as soon as its inline send returns, Wolverine turns on publisher confirms with confirmation tracking for every
-channel (whatever ConfigureChannelCreation() says) and publishes to a queue as mandatory, so a publish only counts once
-the broker confirmed it and a queue that doesn't exist fails the send instead of silently dropping the message. That costs
-one confirmed round trip per message. An exchange with no bindings still drops a message, as in every other mode. Under
-both serverless modes Wolverine also skips declaring the system reply queue and doesn't stamp a reply-uri, since nothing
-would ever listen to it. -->
+### RabbitMQ Publisher Confirms
+
+An outbox row is deleted as soon as its inline send returns, so under `ServerlessWithOutbox` Wolverine has to be sure the broker really has the
+message before that happens. With RabbitMQ that means Wolverine turns on publisher confirms with confirmation tracking for every channel, regardless
+of what your `ConfigureChannelCreation()` says, and publishes to queues as *mandatory*. A publish only counts once the broker has confirmed it, and
+publishing to a queue that doesn't exist fails the send instead of silently dropping the message. That costs you one confirmed round trip per message.
+Publishing to an exchange with no bindings still drops the message, just like it does in every other mode, because that's just how RabbitMQ works.
+
+Under both serverless modes Wolverine also skips declaring its system reply queue and doesn't stamp a reply uri on outgoing messages, because
+nothing would ever be listening for the reply anyway.
 
 ### OutboxStaleTime
 
@@ -221,14 +222,14 @@ tell Wolverine to catch up. We call that a "durability pass," and one pass:
 
 * Sends the stale outbox messages whose inline send failed
 * Releases scheduled messages that are due, including scheduled retries from error handling
-* Recovers incoming messages that were persisted to the inbox but never handled
+* Recovers incoming messages that were persisted to the inbox but never handled, including the messages this application handles itself
 * Deletes expired handled envelopes, dead letters, and deduplication records
 
-<!-- DRAFT (GH-5047 / GH-5050, for Jeremy to word): a row whose send fails during a pass has its stale clock restarted, so
-it waits OutboxStaleTime before it's tried again, and rows that keep failing don't hold back healthy rows behind them. A
-message the broker can never accept is moved to dead letter storage; the pass report counts those as OutgoingDeadLettered.
-A store skipped because another pass holds its lock counts as more work left (HasMoreWork). Jeremy is rewriting the drain
-loop sample below with that in mind. -->
+A few details about the outgoing messages that fail again during a pass. A row whose send fails during the pass has its stale clock restarted,
+so it waits another `OutboxStaleTime` before it's tried again, and rows that keep on failing don't hold back the healthy rows behind them. A message
+the broker can never accept is moved to dead letter storage, and the pass report counts those under `OutgoingDeadLettered`. Lastly, a store that was
+skipped because another pass already held its lock counts as more work left (`HasMoreWork`), because nothing in that pass can say the store had
+nothing waiting.
 
 A durability pass is bounded by a maximum duration (30 seconds by default) and a batch size (`DurabilitySettings.RecoveryBatchSize` by default),
 so it fits comfortably inside a function invocation. Each message store takes a non-blocking lock before doing any work, so if two passes
@@ -252,19 +253,25 @@ If you're writing your own timer triggered function or job, you can call `RunDur
 var report = await host.RunDurabilityPassAsync(maxDuration: 30.Seconds());
 
 // If the pass ran out of time or hit the batch size, it tells you
-// so and you can just go around again
-while (report.HasMoreWork && !report.TimedOut)
+// so and you can go around again. Cap the number of passes so that a
+// store another pass is holding the lock on, or a backlog bigger than
+// one invocation, can't keep this function alive forever
+var passes = 1;
+while (report.HasMoreWork && !report.TimedOut && passes < 5)
 {
     report = await host.RunDurabilityPassAsync(maxDuration: 30.Seconds());
+    passes++;
 }
 
-Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, released {report.ScheduledReleased} scheduled messages");
+Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, dead lettered {report.OutgoingDeadLettered}, released {report.ScheduledReleased} scheduled messages");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L111-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_running_a_durability_pass' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L111-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_running_a_durability_pass' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The `DurabilityPassReport` that comes back tells you what the pass did for each message store and each step, and whether or not there's
-still more work to be done.
+The `DurabilityPassReport` that comes back tells you what the pass did for each message store and each step, which stores it skipped because
+another pass held their lock (`SkippedStores`), and whether or not there's still more work to be done. `HasMoreWork` is true when the pass timed
+out, when any step reported work left over, or when a store was skipped, so a loop like the one above goes around again on a skipped store too.
+That's why you want a cap on the number of passes rather than looping until `HasMoreWork` is false.
 
 ### Over HTTP
 
@@ -329,29 +336,64 @@ app.MapWolverinePushReceiver("/_wolverine/push/orders", new FakePubsubPushMapper
 
 For each request, the push receiver:
 
-1. Maps the request into an envelope. A request that doesn't carry a message gets a 400
-<!-- DRAFT (PR #5044 review, for Jeremy to word): a request can now carry several envelopes (a Wolverine-batched Pub/Sub message, or the HTTP transport's envelope batch). They run in order, the request is acked only if all were, and the first one that asks for a retry stops the rest so the broker redelivers the whole request. Suggest recommending DeduplicateWithInbox for batching publishers. -->
-2. Runs the message handler inline inside the HTTP request, including the handler's normal [error handling policies](/guide/handlers/error-handling)
+1. Maps the request into one or more envelopes. A request that doesn't carry a message gets a 400
+2. Runs the message handler inline inside the HTTP request, including the handler's normal [error handling policies](/guide/handlers/error-handling).
+   If the request carried several envelopes -- a Wolverine-batched Pub/Sub message, say, or the HTTP transport's own envelope batch -- they run in order
 3. Sends every outgoing message before writing the response
 4. Uses the status code to tell the broker what happened. A message that was handled successfully, discarded, or moved to Wolverine's dead letter
    storage gets a 200. If the error policies asked for a retry, or an exception escaped the policies altogether, the receiver answers with a 500 so the broker
-   redelivers the message with its own backoff
+   redelivers the message with its own backoff. With several envelopes in one request, the request is only acknowledged if every one of them was, and
+   the first envelope that asks for a retry stops the rest so that the broker redelivers the whole request
 
-<!-- DRAFT (GH-5048, for Jeremy to word): every push redelivery arrives as a new envelope, so error policies that count attempts (Requeue(n), ScheduleRetry(delays...), RetryTimes(n) followed by MoveToErrorQueue, MaximumAttempts) can only escalate when the broker tells Wolverine which delivery this is. The push mapper sets Envelope.Attempts from the broker's delivery count when the request carries one: for Pub/Sub that is the top-level deliveryAttempt, which Pub/Sub only sends when the push subscription has a dead-letter policy. Without it every redelivery is attempt 1, the policy keeps answering with the retry status, and a poison message is redelivered until the broker gives up on its own (or forever). Recommend configuring a dead-letter policy (dead-letter topic + max delivery attempts) on every push subscription: it is what makes deliveryAttempt appear, and it is the backstop if Wolverine never acks. Note the interplay: the broker's max delivery attempts should be higher than the attempts the Wolverine policy uses, or the broker dead-letters the message before Wolverine's own dead letter storage does. A custom IPushEnvelopeMapper should set Envelope.Attempts = brokerDeliveryCount - 1 the same way when its broker carries a count. -->
+::: tip
+If your publisher batches messages into one push request, turn on `DeduplicateWithInbox` as described below so that a redelivery of the whole
+request doesn't run the messages that already succeeded a second time.
+:::
 
 Just like the durability endpoint, mapping a push receiver requires an authorization decision through its `PushReceiverOptions`, either
 `opts.RequireAuthorization("policy")` or an explicit `opts.AllowAnonymous()`, or the mapping throws an exception.
 
-Both status codes can be changed through the `PushReceiverOptions` configuration as well. Since push delivery is at-least-once, you can also set
-`DeduplicateWithInbox` to `true` to have the push receiver skip any message id that is already in the durable inbox, and record every message it acks
-as handled.
+Both status codes can be changed through the `PushReceiverOptions` configuration as well.
 
-<!-- DRAFT (GH-5049, for Jeremy to word): DeduplicateWithInbox now claims the message id in the inbox BEFORE the handler runs, so the paragraph above needs rewording. Points to cover: (1) a redelivery that arrives while the first delivery is still running -- the usual cause is a handler slower than the push subscription's ack deadline, since the broker redelivers at each deadline and a late 200 does not ack -- is answered with the retry status instead of running the handler a second time; a redelivery of a message that was already acked is still acked without running it. (2) Push handlers should still finish well inside the ack deadline: each concurrent redelivery costs a request and a 500, and with a dead-letter policy each one counts as a delivery attempt. (3) The claim is an Incoming inbox row owned by the node that received it: a ServerlessWithOutbox durability pass leaves it alone until InboxStaleTime (5 minutes by default in that mode) runs out, so InboxStaleTime must be longer than the longest push handler, and if the process dies mid-request a later pass recovers and runs the message, after which redeliveries are acked as duplicates. (4) A retry outcome deletes the claim so the broker's redelivery runs it. (5) Costs up to three inbox round trips per message (handled check, claim, mark handled) instead of two. -->
+### Delivery Attempts and Dead Letter Policies
 
-<!-- DRAFT (PR #5044 review, for Jeremy to word): WolverineEnvelopePushMapper now also reads the binary/wolverine-envelopes batch form, and one disallowed message type rejects the whole batch with a 400. -->
-Wolverine ships a `WolverineEnvelopePushMapper` out of the box that reads a whole binary Wolverine envelope out of the request body. Since the caller
-writes the entire envelope, you have to tell that mapper which message types it's allowed to accept, and anything else gets a 400. The mapper also
-throws away any reply, acknowledgement, or destination information the caller put on the envelope:
+Every redelivery from the broker arrives as a brand new envelope as far as Wolverine can tell, so the error handling policies that count attempts --
+`Requeue(n)`, `ScheduleRetry()`, `RetryTimes(n)` followed by `MoveToErrorQueue()`, `MaximumAttempts` -- can only escalate when the broker tells
+Wolverine which delivery this is. The push mapper sets `Envelope.Attempts` from the broker's delivery count when the request carries one. For Pub/Sub
+that's the top level `deliveryAttempt` field, and Pub/Sub only sends that when the push subscription has a dead-letter policy. Without one, every
+redelivery looks like attempt number one, the policy keeps answering with the retry status, and a poison message is redelivered until the broker
+gives up on its own -- or forever.
+
+So our recommendation is to configure a dead-letter policy, meaning a dead letter topic plus a maximum number of delivery attempts, on every push
+subscription. It's what makes `deliveryAttempt` show up in the first place, and it's your backstop if Wolverine never acknowledges a message. Set
+the broker's maximum delivery attempts higher than the number of attempts your Wolverine policy uses, or the broker dead letters the message before
+Wolverine's own dead letter storage ever gets a look at it.
+
+If you write your own `IPushEnvelopeMapper` for a broker that carries a delivery count, set `Envelope.Attempts = brokerDeliveryCount - 1` the same way.
+
+### Deduplicating with the Inbox
+
+Push delivery is at-least-once, so you can also set `DeduplicateWithInbox` to `true` to have the push receiver use the durable inbox to recognize
+redeliveries. Before the handler runs, the receiver claims the message id in the inbox. A redelivery of a message that was already acknowledged
+is acknowledged again without running the handler. A redelivery that shows up while the first delivery is still running -- which usually means your
+handler is slower than the push subscription's ack deadline, since the broker redelivers at every deadline and a late 200 doesn't acknowledge
+anything -- is answered with the retry status instead of running the handler a second time. Once the handler succeeds, the message is recorded as
+handled.
+
+Your push handlers should still finish well inside the ack deadline. Every one of those concurrent redeliveries costs you a request and a 500, and
+with a dead-letter policy in place, each one counts as a delivery attempt.
+
+The claim is an incoming inbox row owned by the process that received it, so a durability pass leaves it alone until `InboxStaleTime` (5 minutes by
+default under `ServerlessWithOutbox`) runs out. That means `InboxStaleTime` has to be longer than your longest push handler. The upside is that if
+the process dies in the middle of a request, a later pass recovers and runs the message, and any redeliveries after that are acknowledged as duplicates.
+A retry outcome deletes the claim so that the broker's redelivery gets to run the handler.
+
+All of that costs up to three inbox round trips per message -- the handled check, the claim, and marking it handled -- instead of two.
+
+Wolverine ships a `WolverineEnvelopePushMapper` out of the box that reads a whole binary Wolverine envelope out of the request body, or a whole batch
+of them in the `binary/wolverine-envelopes` form that Wolverine's own [HTTP transport](/guide/http/transport) sends. Since the caller writes the entire
+envelope, you have to tell that mapper which message types it's allowed to accept, and anything else gets a 400. One disallowed message type in a batch
+rejects the whole batch. The mapper also throws away any reply, acknowledgement, or destination information the caller put on the envelope:
 
 <!-- snippet: sample_map_wolverine_envelope_push_receiver -->
 <a id='snippet-sample_map_wolverine_envelope_push_receiver'></a>
@@ -389,7 +431,18 @@ settings, or `DefaultIncomingMessage<T>()` that you've configured on that endpoi
 Pub/Sub messages without a Wolverine message id get a stable id derived from the subscription and the Pub/Sub message id, so the inbox
 deduplication still recognizes a redelivery.
 
-<!-- DRAFT (GH-5054, for Jeremy to word): say plainly that Wolverine does not create push subscriptions. The push subscription the push receiver needs (push endpoint = this route's public URL, OIDC token/audience for the authorization policy, ack deadline, retry policy, and the dead-letter policy recommended under GH-5048) has to be provisioned outside Wolverine -- Terraform, gcloud, Pulumi, etc. Also warn that calling AutoProvision() on a push-receiving ServerlessWithOutbox host creates every ListenToPubsubTopic(...) subscription as a PULL subscription (no push config, 10 s to 600 s retry policy), in the default project and in every tenant project, and nothing ever pulls them in this mode: either create the push subscription first under the same name (worth verifying what AutoProvision then does with an existing push subscription before recommending this) or don't AutoProvision the listener subscriptions on the push host. A later change could let the push receiver mapping supply the push endpoint for provisioning; until then this is documentation only. -->
+::: warning
+Wolverine does not create push subscriptions for you. The push subscription that the push receiver depends on -- its push endpoint pointing at this
+route's public URL, the OIDC token and audience your authorization policy validates, the ack deadline, the retry policy, and the dead-letter policy
+recommended above -- has to be provisioned outside of Wolverine with Terraform, `gcloud`, Pulumi, or whatever you use for the rest of your Google
+Cloud infrastructure.
+
+Be careful with `AutoProvision()` on a push-receiving `ServerlessWithOutbox` host too. It creates every `ListenToPubsubTopic()` subscription as a *pull*
+subscription, in the default project and in every tenant project, and nothing ever pulls from those subscriptions in this mode. Wolverine leaves a
+subscription that already exists alone, so creating the push subscription first under the name Wolverine would use is one workaround. The simpler one
+is to not `AutoProvision()` the listener subscriptions on the push host at all. See [GH-5054](https://github.com/JasperFx/wolverine/issues/5054) for
+where this is headed.
+:::
 
 ## Pre-Generate All Types
 
@@ -401,19 +454,16 @@ by opting into [pre-generated types](/guide/codegen.html#generating-code-ahead-o
 
 Just so you know going in, neither `Serverless` nor `ServerlessWithOutbox` supports:
 
-* Local queues. Use `InvokeAsync()` for in-process work instead, or send messages to an external broker
+* Local queues. Under plain `Serverless` a message this application handles is dropped, so use `InvokeAsync()` for in-process work instead or send
+  the message to an external broker. `ServerlessWithOutbox` replaces local queues with the inbox: a published or cascaded message this application
+  handles is stored there and handled by the next durability pass, so expect latency up to your pass interval
 
-<!-- DRAFT (GH-5046): under `ServerlessWithOutbox` the bullet above is only half true now. There are still no local
-queues, but publishing or cascading a message this application handles is stored in the inbox and handled by the
-next durability pass (latency up to the pass interval). This list should say that `ServerlessWithOutbox` replaces local
-queues with "handled by the next durability pass", while plain `Serverless` still drops such messages. -->
-
-* Listeners on external brokers. See [Receiving Messages by Push](#receiving-messages-by-push) instead
-<!-- DRAFT (GH-5054, for Jeremy to word): maybe add here that resource provisioning of a broker's listener side (e.g. AutoProvision() of Pub/Sub subscriptions) still runs and creates pull subscriptions that nothing reads; the push subscriptions are provisioned outside Wolverine. See the GH-5054 note under Google Pub/Sub Push Subscriptions. -->
+* Listeners on external brokers. See [Receiving Messages by Push](#receiving-messages-by-push) instead. Provisioning the listening side of a broker
+  still runs though, so `AutoProvision()` of Pub/Sub subscriptions creates pull subscriptions that nothing ever reads. The push subscriptions themselves
+  are provisioned outside of Wolverine, as described under [Google Pub/Sub Push Subscriptions](#google-pub-sub-push-subscriptions)
 * Recurring scheduled messages. Use your cloud provider's scheduler to call an HTTP endpoint instead
+* Request/reply through a broker. `InvokeAsync<T>()` to a remote endpoint needs a listener to bring the reply back, and neither mode starts one, so
+  Wolverine throws right away instead of running the remote handler and then waiting out the whole timeout. Request/reply over Wolverine's own
+  [HTTP transport](/guide/http/transport) still works, because the reply comes back in the same HTTP exchange
 * Anything that depends on leader election or agent assignment, like the [Marten async daemon in distributed mode](/guide/durability/marten/distribution)
 
-<!-- DRAFT (GH-5016 review, for Jeremy to word): add brokered request/reply. InvokeAsync<T>() to a remote endpoint needs a
-listener to bring the reply back, and neither mode starts one, so it now throws right away instead of running the remote
-handler and then waiting out the whole timeout. Request/reply over Wolverine's own HTTP transport still works, because the
-reply comes back in the same HTTP exchange. -->
