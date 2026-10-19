@@ -34,7 +34,12 @@ public sealed class AppointmentsHost : IAsyncLifetime
                     .IncludeType(typeof(ConfirmAppointmentHandler))
                     .IncludeType(typeof(CheckInPatientHandler))
                     .IncludeType(typeof(SendConfirmationEmailHandler))
-                    .IncludeType(typeof(PatientArrivedHandler));
+                    .IncludeType(typeof(PatientArrivedHandler))
+                    // GH-5077
+                    .IncludeType(typeof(AwaitConfirmationHandler))
+                    .IncludeType(typeof(ConfirmationOverdueHandler))
+                    .IncludeType(typeof(EscalateUnconfirmedAppointmentHandler))
+                    .IncludeType(typeof(SnoozeReminderHandler));
             })
             .StartAsync();
 

@@ -88,3 +88,38 @@ public static class PatientArrivedHandler
     {
     }
 }
+
+// GH-5077: a timeout whose handler escalates, and a command whose handler schedules it
+public record ConfirmationOverdue(Guid AppointmentId) : TimeoutMessage(TimeSpan.FromDays(5));
+
+public record EscalateUnconfirmedAppointment(Guid AppointmentId);
+
+public record AwaitConfirmation(Guid AppointmentId);
+
+public static class AwaitConfirmationHandler
+{
+    public static ConfirmationOverdue Handle(AwaitConfirmation command) => new(command.AppointmentId);
+}
+
+public static class ConfirmationOverdueHandler
+{
+    public static EscalateUnconfirmedAppointment Handle(ConfirmationOverdue message) => new(message.AppointmentId);
+}
+
+public static class EscalateUnconfirmedAppointmentHandler
+{
+    public static void Handle(EscalateUnconfirmedAppointment message)
+    {
+    }
+}
+
+// GH-5077: a message that sends itself by scheduling itself, a shape WhenReceived cannot make run now
+public record SnoozeReminder(Guid AppointmentId) : ISendMyself
+{
+    public ValueTask ApplyAsync(IMessageContext context) => context.ScheduleAsync(this, TimeSpan.FromHours(1));
+}
+
+public static class SnoozeReminderHandler
+{
+    public static EscalateUnconfirmedAppointment Handle(SnoozeReminder message) => new(message.AppointmentId);
+}

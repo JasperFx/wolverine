@@ -209,3 +209,31 @@ public static class AppointmentCommandEndpoints
     public static AppointmentWithdrawn Delete(WithdrawAppointment command, [WriteModel] Appointment appointment)
         => new(command.AppointmentId, command.Reason);
 }
+
+// GH-5076: body-less acts -- each endpoint takes everything from its route
+public record PatientArrivedAtDesk(Guid AppointmentId);
+
+public record AppointmentHeld(Guid AppointmentId);
+
+public record AppointmentFlagged(Guid AppointmentId);
+
+public record AppointmentUnconfirmed(Guid AppointmentId);
+
+public static class BodyLessEndpoints
+{
+    [WolverinePost("/api/appointments/{id}/arrive")]
+    [EmptyResponse]
+    public static PatientArrivedAtDesk Arrive([WriteModel] Appointment appointment) => new(appointment.Id);
+
+    [WolverinePut("/api/appointments/{id}/hold")]
+    [EmptyResponse]
+    public static AppointmentHeld Hold([WriteModel] Appointment appointment) => new(appointment.Id);
+
+    [WolverinePatch("/api/appointments/{id}/flag")]
+    [EmptyResponse]
+    public static AppointmentFlagged Flag([WriteModel] Appointment appointment) => new(appointment.Id);
+
+    [WolverineDelete("/api/appointments/{id}/confirmation")]
+    [EmptyResponse]
+    public static AppointmentUnconfirmed Unconfirm([WriteModel] Appointment appointment) => new(appointment.Id);
+}
