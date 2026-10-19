@@ -104,7 +104,13 @@ public abstract class WolverineSpec : CritterStackSpec
         DeliveryOptions? options = null)
         => Scenario.WhenPublished(message, configureTracking, options);
 
+    /// <inheritdoc cref="WolverineScenario.WhenScheduledMessagesAreExecuted" />
+    public Task WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null) => Scenario.WhenScheduledMessagesAreExecuted(timeout);
+
     /// <inheritdoc cref="WolverineScenario.GivenReceived" />
+    // An arranged message is run evidence, never the act: the Document role puts its type in the specification's resolved
+    // types only -- no canvas element -- and, unlike a Command role or a trigger, does not make this call the slice's act
+    [EventModelRole(SliceRole.Document, nameof(message))]
     public Task GivenReceived(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
         DeliveryOptions? options = null)
@@ -182,6 +188,10 @@ public abstract class WolverineSpec : CritterStackSpec
     /// <inheritdoc cref="WolverineScenario.ThenMessageScheduled(object)" />
     [EventModelRole(SliceRole.Message, nameof(expected))]
     public void ThenMessageScheduled(object expected) => Scenario.ThenMessageScheduled(expected);
+
+    /// <inheritdoc cref="WolverineScenario.ThenMessagesScheduled" />
+    [EventModelRole(SliceRole.Message, nameof(messages))]
+    public void ThenMessagesScheduled(params object[] messages) => Scenario.ThenMessagesScheduled(messages);
 
     /// <inheritdoc cref="WolverineScenario.ThenNoMessageScheduled{T}" />
     public void ThenNoMessageScheduled<T>() => Scenario.ThenNoMessageScheduled<T>();

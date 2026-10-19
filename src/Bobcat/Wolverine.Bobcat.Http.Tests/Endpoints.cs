@@ -237,3 +237,15 @@ public static class BodyLessEndpoints
     [EmptyResponse]
     public static AppointmentUnconfirmed Unconfirm([WriteModel] Appointment appointment) => new(appointment.Id);
 }
+
+// GH-5076: a body-less endpoint that needs a header, for the configure overloads
+public record EscalationResponse(Guid Id, string By);
+
+public static class EscalateEndpoint
+{
+    [WolverinePost("/api/appointments/{id}/escalate")]
+    public static Microsoft.AspNetCore.Http.IResult Post(Guid id, Microsoft.AspNetCore.Http.HttpRequest request)
+        => request.Headers.TryGetValue("x-escalated-by", out var by)
+            ? Microsoft.AspNetCore.Http.Results.Json(new EscalationResponse(id, by.ToString()))
+            : Microsoft.AspNetCore.Http.Results.BadRequest();
+}

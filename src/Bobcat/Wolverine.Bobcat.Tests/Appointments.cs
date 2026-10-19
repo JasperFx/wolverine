@@ -112,14 +112,3 @@ public static class EscalateUnconfirmedAppointmentHandler
     {
     }
 }
-
-// GH-5077: a message that sends itself by scheduling itself, a shape WhenReceived cannot make run now
-public record SnoozeReminder(Guid AppointmentId) : ISendMyself
-{
-    public ValueTask ApplyAsync(IMessageContext context) => context.ScheduleAsync(this, TimeSpan.FromHours(1));
-}
-
-public static class SnoozeReminderHandler
-{
-    public static EscalateUnconfirmedAppointment Handle(SnoozeReminder message) => new(message.AppointmentId);
-}

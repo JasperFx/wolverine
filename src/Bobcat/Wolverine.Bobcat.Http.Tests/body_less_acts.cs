@@ -77,4 +77,36 @@ public class body_less_acts(AppHost app) : WolverineHttpSpec(app.Host)
         ThenHandled<SendConfirmationEmail>();
         ThenNotHandled<ConfirmAppointmentRequest>();
     }
+
+    [Fact]
+    public async Task configure_applies_alba_overrides_such_as_a_header()
+    {
+        var id = Guid.NewGuid();
+
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await WhenPostedTo("/api/appointments/{id}/escalate", x => x.WithRequestHeader("x-escalated-by", "Bea"), id);
+            ThenResponseIs(200);
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        recording.Steps[0].Text.ShouldBe("a POST is sent to \"/api/appointments/{id}/escalate\"");
+        (await TheResponse<EscalationResponse>()).ShouldBe(new EscalationResponse(id, "Bea"));
+
+        // Without the header, the endpoint refuses
+        await WhenPostedTo("/api/appointments/{id}/escalate", id);
+        ThenResponseIs(400);
+    }
+
+    [Fact]
+    public async Task every_body_less_verb_takes_a_configure()
+    {
+        var id = await scheduled();
+        Action<Alba.Scenario> expectNoContent = x => x.StatusCodeShouldBe(204);
+
+        await WhenPutTo("/api/appointments/{id}/hold", expectNoContent, id);
+        await WhenPatchedTo("/api/appointments/{id}/flag", expectNoContent, id);
+        await WhenDeletedAt("/api/appointments/{id}/confirmation", expectNoContent, id);
+        ThenEvents(new AppointmentUnconfirmed(id));
+    }
 }

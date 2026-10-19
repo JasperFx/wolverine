@@ -25,6 +25,12 @@ public sealed class MessageActivityReport : TableReport
 {
     public override string Title => "Message activity";
 
+    // GH-5077: a record of a message scheduled for later says so, whichever event a transport recorded it as
+    private static string eventOf(EnvelopeRecord record)
+        => record.WasScheduled && record.MessageEventType != MessageEventType.Scheduled
+            ? $"{record.MessageEventType} (scheduled)"
+            : record.MessageEventType.ToString();
+
     /// <summary>Add every record of <paramref name="session" />.</summary>
     public void Add(ITrackedSession session)
     {
@@ -40,10 +46,11 @@ public sealed class MessageActivityReport : TableReport
                     ? new CellResult("event", ResultStatus.failed)
                     {
                         Expected = "",
-                        Actual = record.MessageEventType.ToString(),
-                        Note = record.Exception?.Message
+                        Actual = eventOf(record),
+                        // GH-5077: the exception type too, which is what a troubleshooter looks for first
+                        Note = record.Exception is { } exception ? $"{exception.GetType().Name}: {exception.Message}" : null
                     }
-                    : new CellResult("event", ResultStatus.ok, record.MessageEventType.ToString()),
+                    : new CellResult("event", ResultStatus.ok, eventOf(record)),
                 new("message", ResultStatus.ok, record.Message?.GetType().Name ?? record.Envelope?.MessageType ?? ""),
                 new("destination", ResultStatus.ok, record.Envelope?.Destination?.ToString() ?? ""),
                 new("attempt", ResultStatus.ok, record.AttemptNumber.ToString()),

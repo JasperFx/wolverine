@@ -66,16 +66,11 @@ public class arranging_by_a_received_message(AppointmentsHost app) : WolverineSp
     }
 
     [Fact]
-    public async Task a_timeout_message_arranges_by_running_now()
+    public async Task a_timeout_message_is_only_scheduled_so_it_arranges_nothing_and_the_given_fails()
     {
-        await GivenReceived(new ConfirmationOverdue(Guid.NewGuid()));
+        // GH-5077: sent exactly as given, as Wolverine sends it
+        var thrown = await Should.ThrowAsync<SpecCriticalException>(() => GivenReceived(new ConfirmationOverdue(Guid.NewGuid())));
+        thrown.Message.ShouldContain("it was only scheduled for later, so its handler never ran and it arranged nothing");
         LastAct.ShouldBeSameAs(ActOutcome.None);
-    }
-
-    [Fact]
-    public async Task a_message_that_only_schedules_itself_fails_the_given()
-    {
-        var thrown = await Should.ThrowAsync<SpecCriticalException>(() => GivenReceived(new SnoozeReminder(Guid.NewGuid())));
-        thrown.Message.ShouldContain("it was only scheduled");
     }
 }
