@@ -55,6 +55,7 @@ public partial class CosmosDbMessageStore
             {
                 var response = await _container.ReadItemAsync<IncomingMessage>(id, new PartitionKey(partitionKey),
                     cancellationToken: cancellation);
+                response.Resource.ETag = response.ETag;
                 return (response.Resource, partitionKey);
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)

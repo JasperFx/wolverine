@@ -680,6 +680,65 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
+    /// <summary>
+    /// GH-5073. Atomically claims only incoming rows that are still globally owned. Recovery commands may
+    /// load the same page concurrently; the owner predicate makes the UPDATE the claim, and RETURNING gives
+    /// each command only the envelopes it actually won.
+    ///
+    /// The rows are locked first with FOR UPDATE SKIP LOCKED. A plain UPDATE ... FROM unnest() takes its row
+    /// locks in whatever order the plan visits them, and two competing claims deadlocked (40P01) on most
+    /// attempts in the GH-5073 review. SKIP LOCKED never waits, so there is nothing to deadlock on: a row
+    /// another claim is holding is that claim's to win. MATERIALIZED keeps the locking CTE from being folded
+    /// into the UPDATE and evaluated more than once (the same trap #5033 found with an IN subquery).
+    /// </summary>
+    public override async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId,
+        IReadOnlyList<Envelope> incoming)
+    {
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
+
+        var candidates = incoming.ToArray();
+        var table = $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
+        await using var command = CreateCommand(
+                $"with claimable as materialized (" +
+                $"select target.id, target.{DatabaseConstants.ReceivedAt} from {table} target " +
+                $"join unnest(@ids, @uris) as due(id, {DatabaseConstants.ReceivedAt}) " +
+                $"on target.id = due.id and target.{DatabaseConstants.ReceivedAt} = due.{DatabaseConstants.ReceivedAt} " +
+                $"where target.{DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"and target.{DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' " +
+                $"for update of target skip locked) " +
+                $"update {table} target " +
+                $"set {DatabaseConstants.OwnerId} = @owner{restartIncomingStaleClock} " +
+                $"from claimable " +
+                $"where target.id = claimable.id " +
+                $"and target.{DatabaseConstants.ReceivedAt} = claimable.{DatabaseConstants.ReceivedAt} " +
+                $"and target.{DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"returning target.id, target.{DatabaseConstants.ReceivedAt}")
+            .With("owner", ownerId)
+            .WithEnvelopeIds("ids", candidates)
+            .With("uris", candidates.Select(x => x.Destination!.ToString()).ToArray());
+
+        var claimed = new HashSet<(Guid Id, string Destination)>();
+        await using (var reader = await command.ExecuteReaderAsync(_cancellation))
+        {
+            while (await reader.ReadAsync(_cancellation))
+            {
+                claimed.Add((reader.GetGuid(0), reader.GetString(1)));
+            }
+        }
+
+        var result = new List<Envelope>(claimed.Count);
+        foreach (var envelope in candidates)
+        {
+            if (claimed.Remove((envelope.Id, envelope.Destination!.ToString())))
+            {
+                envelope.OwnerId = ownerId;
+                result.Add(envelope);
+            }
+        }
+
+        return result;
+    }
+
     public override DbCommandBuilder ToCommandBuilder()
     {
         return new DbCommandBuilder(new NpgsqlCommand());

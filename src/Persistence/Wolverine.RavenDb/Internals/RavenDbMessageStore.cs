@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Raven.Client.Documents;
+using Raven.Client.Exceptions;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals.Durability;
@@ -153,5 +154,60 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         }
 
         await session.SaveChangesAsync();
+    }
+
+    public async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
+
+        // SaveChanges submits the document updates as one RavenDB transaction. If another recovery pass
+        // wins any document first, optimistic concurrency aborts the whole batch, so no earlier claim can
+        // be stranded when a later one conflicts. Retry to claim any candidates that remain globally owned.
+        //
+        // The whole page is loaded in ONE request. Loading document by document cost a request per envelope,
+        // and RavenDB refuses a session's 31st request -- so any page of 30 or more (RecoveryBatchSize defaults
+        // to 100) threw instead of claiming anything, and the rows were never recovered.
+        var identities = incoming.Select(envelope => (envelope, id: _identity(envelope))).ToArray();
+        var ids = identities.Select(x => x.id).Distinct().ToArray();
+
+        const int maxAttempts = 3;
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var claimed = new List<Envelope>(incoming.Count);
+            using var session = _store.OpenAsyncSession();
+            session.Advanced.UseOptimisticConcurrency = true;
+
+            var messages = await session.LoadAsync<IncomingMessage>(ids);
+
+            foreach (var (envelope, id) in identities)
+            {
+                messages.TryGetValue(id, out var message);
+                if (message == null || message.OwnerId != TransportConstants.AnyNode ||
+                    message.Status != EnvelopeStatus.Incoming)
+                {
+                    continue;
+                }
+
+                message.OwnerId = ownerId;
+                claimed.Add(envelope);
+            }
+
+            if (claimed.Count == 0) return Array.Empty<Envelope>();
+
+            try
+            {
+                await session.SaveChangesAsync();
+            }
+            catch (ConcurrencyException) when (attempt + 1 < maxAttempts)
+            {
+                // The transaction committed none of this page. Reload to skip documents claimed by another pass.
+                continue;
+            }
+
+            foreach (var envelope in claimed) envelope.OwnerId = ownerId;
+            return claimed;
+        }
+
+        return Array.Empty<Envelope>();
     }
 }

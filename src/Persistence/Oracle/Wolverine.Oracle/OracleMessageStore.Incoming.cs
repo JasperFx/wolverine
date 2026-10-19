@@ -389,6 +389,39 @@ internal partial class OracleMessageStore
         await conn.CloseAsync();
     }
 
+    public async Task<IReadOnlyList<Envelope>> TryClaimIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        if (incoming.Count == 0) return Array.Empty<Envelope>();
+
+        var claimed = new List<Envelope>(incoming.Count);
+        await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
+        await using var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
+
+        // GH-5073: one total claim order, or two competing claims can deadlock on each other's row locks
+        foreach (var envelope in DatabasePersistence.InClaimOrder(incoming))
+        {
+            await using var cmd = conn.CreateCommand(
+                $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} " +
+                $"SET {DatabaseConstants.OwnerId} = :owner{restartIncomingStaleClock} " +
+                $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :destination " +
+                $"AND {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"AND {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
+            cmd.Transaction = tx;
+            cmd.With("owner", ownerId)
+                .With("id", envelope.Id)
+                .With("destination", envelope.Destination!.ToString());
+
+            if (await cmd.ExecuteNonQueryAsync(_cancellation) > 0)
+            {
+                envelope.OwnerId = ownerId;
+                claimed.Add(envelope);
+            }
+        }
+
+        await tx.CommitAsync(_cancellation);
+        return claimed;
+    }
+
     // IMessageDatabase
     public async Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {

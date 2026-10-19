@@ -13,6 +13,25 @@ namespace Wolverine.RDBMS;
 public static class DatabasePersistence
 {
     /// <summary>
+    ///     GH-5073. The order an inbox recovery claim updates its candidate rows in.
+    /// </summary>
+    /// <remarks>
+    ///     A claim updates its page one row at a time inside one transaction, so every row it wins stays
+    ///     locked until the page commits. Two claims over the same rows in different orders then wait on each
+    ///     other: the review of GH-5073 deadlocked PostgreSQL, SQL Server and MySQL that way on most attempts.
+    ///     The page query has no ORDER BY, so nothing promises two recovery commands load a page in the same
+    ///     order. Claiming in one total order makes every claimer take its locks in the same sequence, and the
+    ///     loser simply waits for the winner's commit and then finds the rows already owned.
+    /// </remarks>
+    internal static IReadOnlyList<Envelope> InClaimOrder(IReadOnlyList<Envelope> candidates)
+    {
+        return candidates
+            .OrderBy(x => x.Id)
+            .ThenBy(x => x.Destination?.ToString(), StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
     ///     Mirror onto the in-memory envelopes what a scheduled-message promotion just did to their rows,
     ///     before they are handed to <see cref="IWolverineRuntime.EnqueueDirectlyAsync" />.
     /// </summary>
