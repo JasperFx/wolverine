@@ -264,14 +264,13 @@ dotnet tool install -g Bobcat.Console
 ```
 
 Then point it at the board export and the application project. For CritterCrush, we only want two of the board's
-chapters, and we want the specifications too:
+chapters:
 
 ```bash
 bobcat import-event-model K9CRUSH.emlang.v3.yaml \
   --model CritterCrush --namespace CritterCrush \
   --out ./CritterCrush \
-  --chapter BookingAppointments VolunteeringAndHomeChecks \
-  --specs --store marten
+  --chapter BookingAppointments VolunteeringAndHomeChecks
 ```
 
 ::: warning
@@ -363,8 +362,23 @@ settles it. That's what makes the import usable from an AI agent or from Stoat. 
 
 ## Generated Specifications
 
-With `--specs`, the import also writes one [WolverineFx.Bobcat](https://bobcat.jasperfx.net/integrations/wolverine)
-specification per example on the board into a sibling `CritterCrush.Specs` project, with a folder per chapter. The
+Wolverine's `write-specs` command writes one [WolverineFx.Bobcat](https://bobcat.jasperfx.net/integrations/wolverine)
+specification per example on the board into a sibling `CritterCrush.Specs` project, with a folder per chapter, and the
+spec project itself when there is none yet. It comes with the `WolverineFx.Bobcat.EventModel` package (it was
+`bobcat import-event-model --specs` before the spec writer moved to Wolverine). Reference that package from the
+application, then run it with the same board and the same flags you gave the import:
+
+```bash
+dotnet run --project ./CritterCrush -- write-specs K9CRUSH.emlang.v3.yaml \
+  --model CritterCrush --namespace CritterCrush \
+  --out ./CritterCrush \
+  --chapter BookingAppointments VolunteeringAndHomeChecks \
+  --store marten
+```
+
+A specification can name a member the board only gives in an example, so the command merges those members into the
+stubs the import wrote, the same additive way a re-import does. Running it again adds the specifications for the
+board's new examples and changes nothing else. The
 `AppointmentConfirmed` example from the board becomes this:
 
 ```csharp

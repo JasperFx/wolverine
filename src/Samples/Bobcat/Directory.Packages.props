@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    Central Package Management for the Bobcat samples: the repository's own versions, imported, so the
+    samples run on exactly the Critter Stack (Marten, Fisher, JasperFx.Events), Bobcat, xUnit and Alba the
+    rest of the repository builds against. In the Bobcat repository the samples carried a copy of these
+    versions that had to be kept identical by hand, and drifting cost a TypeLoadException the first time a
+    session opened (an older Marten against a newer JasperFx.Events). Importing removes the copy.
+
+    Only what no other project here uses is pinned below.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)..'))" />
+
+  <ItemGroup>
+    <!-- BankAccountES's config-gated CritterWatch monitoring (bobcat#172). 1.1.0-rc.1 depends on WolverineFx
+         6.51.0, which the ProjectReference to src/Wolverine satisfies. -->
+    <PackageVersion Include="Wolverine.CritterWatch" Version="1.1.0-rc.1" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="9.2.1" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="9.2.1" />
+    <PackageVersion Include="Aspire.Npgsql" Version="9.2.1" />
+  </ItemGroup>
+
+</Project>

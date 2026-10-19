@@ -1,0 +1,13 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Basket/Basket.csproj" />
+  <Project Path="Catalog/Catalog.csproj" />
+  <Project Path="Discount/Discount.csproj" />
+  <Project Path="Ordering/Ordering.csproj" />
+  <Project Path="Shared/Shared.csproj" />
+  <Project Path="Tests/Tests.csproj" />
+</Solution>

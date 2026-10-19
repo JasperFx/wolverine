@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OutboxDemo.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Tests\**" />
+    <Content Remove="Tests\**" />
+    <None Remove="Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(WolverineSource)Http/Wolverine.Http/Wolverine.Http.csproj" />
+    <!-- Wolverine 6 stopped shipping the runtime compiler in core, so a host left in the default
+         TypeLoadMode.Dynamic now fails to START: "no IAssemblyGenerator (Roslyn) is registered"
+         (GH-2876). Referencing this package auto-registers one. A build-only CI job could never
+         have caught that — it took running the specs. -->
+    <ProjectReference Include="$(WolverineSource)Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+    <ProjectReference Include="$(WolverineSource)Persistence/Wolverine.Marten/Wolverine.Marten.csproj" />
+    <ProjectReference Include="$(WolverineSource)Transports/RabbitMQ/Wolverine.RabbitMQ/Wolverine.RabbitMQ.csproj" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+
+</Project>

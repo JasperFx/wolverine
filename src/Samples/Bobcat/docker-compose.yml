@@ -1,0 +1,28 @@
+# Postgres for the sample applications.
+#
+#   cd samples && docker compose up -d
+#
+# Published on 5433, which is the port every sample's default connection string already names —
+# see any samples/*/appsettings.json. Nothing in this repo used to provide it, so "run the
+# sample" quietly depended on a Postgres the author happened to have running on that port. That
+# is the gap that let nine samples rot: issue #70's whole point is that a sample is not fixed
+# until it has been RUN, and there was nothing to run it against.
+#
+# Each sample uses its own database on the one server. Marten creates schemas and tables on
+# demand, but not databases, so init/create-databases.sql creates them up front.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
