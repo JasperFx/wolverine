@@ -15,6 +15,13 @@
           holding a Library-typed test application.
         -->
         <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+        <!--
+          NU5104: this stable-versioned package depends on Bobcat, Bobcat.Xunit and Bobcat.Generators, which
+          Wolverine tracks through their prerelease lines (1.0.0-rc.1 today). TreatWarningsAsErrors turns
+          NU5104 into a Pack failure that only shows up in the Publish workflow, which is what stopped 6.51.1.
+          The suppression stays on purpose: it is a test harness, and Bobcat prereleases will keep coming.
+        -->
+        <NoWarn>$(NoWarn);NU5104</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
