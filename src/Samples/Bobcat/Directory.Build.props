@@ -1,0 +1,42 @@
+<Project>
+
+  <!--
+    Shared build settings for the Bobcat samples, which moved here from the Bobcat repository with the
+    Critter Stack vocabulary (GH-5082, JasperFx/bobcat#744).
+
+    Deliberately NOT importing the repository's root Directory.Build.props: these are sample applications
+    written the way a consumer writes one (default language version, no warnings-as-errors, no package
+    metadata), and the Wolverine projects they reference keep the root settings for themselves.
+
+    Every sample spec project is an xUnit v3 test host on Microsoft.Testing.Platform, written in Bobcat's
+    projected (code-first) model, so `dotnet test` and an IDE's Test Explorer see one spec as one test node.
+    xUnit v3 generates its own entry point, so the platform's synthesized one is turned off below.
+
+    Bobcat comes in as PACKAGES (Bobcat, Bobcat.Xunit, Bobcat.Generators), so their buildTransitive props
+    apply exactly as they do for any consumer: the InterceptorsNamespaces opt-in for Bobcat.Generated
+    (BOBCAT037 without it) and Bobcat.Xunit's TestingPlatformBuilderHook. Wolverine, and WolverineFx.Bobcat
+    with the vocabulary, come in as ProjectReferences to this repository's own source, through the paths below.
+  -->
+  <PropertyGroup>
+    <WolverineSource>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..'))</WolverineSource>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Tests'">
+    <IsTestProject>true</IsTestProject>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+
+    <!-- xUnit v3 generates the entry point; the platform's synthesized one would be a second. -->
+    <GenerateTestingPlatformEntryPoint>false</GenerateTestingPlatformEntryPoint>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Tests'">
+    <PackageReference Include="Bobcat" />
+    <PackageReference Include="Bobcat.Xunit" />
+    <PackageReference Include="Bobcat.Generators" />
+    <!-- The Critter Stack vocabulary every sample's spec base uses (CritterStackSpec, ResetEventStoresAsync),
+         which ships in WolverineFx.Bobcat since GH-5082 -->
+    <ProjectReference Include="$(WolverineSource)Bobcat/Wolverine.Bobcat/Wolverine.Bobcat.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -651,8 +651,9 @@ A few things to know:
 
 ### More WolverineFx.Bobcat: several stores, context, and foreign events <Badge type="tip" text="6.50" />
 
-`WolverineSpec` and `WolverineScenario` inherit everything Bobcat's `CritterStackSpec` does, and a few of those steps
-are worth knowing about from the Wolverine side:
+`WolverineSpec` and `WolverineScenario` inherit everything the store-only `CritterStackSpec` does (it ships in WolverineFx.Bobcat
+too, under the same `Bobcat.CritterStack` namespace, since it moved out of Bobcat core), and a few of those steps are worth
+knowing about from the Wolverine side:
 
 * **Several event stores.** On a host with a main store and an ancillary one, such as Marten's
   `AddMartenStore<IInvoicingStore>()`, each Given and Then goes to the store whose registrations claim its type. When the

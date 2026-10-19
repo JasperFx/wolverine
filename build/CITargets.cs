@@ -1045,6 +1045,11 @@ partial class Build
         {
             var tests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Tests" / "Wolverine.Bobcat.Tests.csproj";
             var httpTests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.Http.Tests" / "Wolverine.Bobcat.Http.Tests.csproj";
+            // GH-5082: the store-only Critter Stack vocabulary moved here from Bobcat core, with its tests (Marten on
+            // Postgres, Fisher on SQLite). [PostgresFact] never skips with CI=true, so a missing database fails.
+            var storeOnlyTests = RootDirectory / "src" / "Bobcat" / "Bobcat.CritterStackScenario.Tests" / "Bobcat.CritterStackScenario.Tests.csproj";
+            // GH-5082: the spec writer (write-specs), which moved here from bobcat import-event-model --specs
+            var specWriterTests = RootDirectory / "src" / "Bobcat" / "Wolverine.Bobcat.EventModel.Tests" / "Wolverine.Bobcat.EventModel.Tests.csproj";
 
             // The samples dogfooding the library. Neither ran in any CI lane before, which is how both
             // sat unable to start a host (no runtime compiler since GH-2876, and the test assembly
@@ -1053,14 +1058,14 @@ partial class Build
             var processManager = RootDirectory / "src" / "Samples" / "ProcessManagerViaHandlers" /
                                  "ProcessManagerViaHandlers.Tests" / "ProcessManagerViaHandlers.Tests.csproj";
 
-            BuildTestProjects(tests, httpTests, incidents, processManager);
+            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager);
 
             // The store-agnostic specs (GH-4892, GH-4920, GH-4921) run on Marten, Polecat AND Fisher, and
             // Polecat needs SQL Server. Without it every Polecat fixture fails to start, which surfaced as a
             // NullReferenceException in DisposeAsync rather than as the connection failure it was.
             StartDockerServices("postgresql", "sqlserver");
 
-            RunTestProjects([tests, httpTests, incidents, processManager]);
+            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager]);
         });
 
     Target CIKafka => _ => _
