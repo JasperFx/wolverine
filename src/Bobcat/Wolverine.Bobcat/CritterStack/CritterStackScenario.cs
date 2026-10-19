@@ -208,19 +208,8 @@ public class CritterStackScenario
         if (exceptionsIn(error).OfType<TimeoutException>().FirstOrDefault() is not { } timeout) return;
         if (ScenarioRecorder.CurrentStep is not { Failure: null } step) return;
 
-        failStep(step, timeout as ActTimedOutException ?? new ActTimedOutException(timeout, actTimeoutHint(timeout)));
+        step.Failure = timeout as ActTimedOutException ?? new ActTimedOutException(timeout, actTimeoutHint(timeout));
     }
-
-    // GH-5082: RecordedStep.Failure has an INTERNAL setter in Bobcat core, which this code could reach while it
-    // lived there. Failing the open step WITHOUT closing it (IStepHandle.Fail closes it) has no public spelling yet,
-    // so the setter is invoked by reflection until Bobcat exposes one (a public setter, as Recording.Failure has).
-    private static readonly System.Reflection.MethodInfo stepFailureSetter =
-        typeof(ScenarioRecorder.RecordedStep).GetProperty(nameof(ScenarioRecorder.RecordedStep.Failure))!
-            .GetSetMethod(nonPublic: true)
-        ?? throw new InvalidOperationException("Bobcat's RecordedStep.Failure has no setter");
-
-    private static void failStep(ScenarioRecorder.RecordedStep step, Exception failure)
-        => stepFailureSetter.Invoke(step, [failure]);
 
     /// <summary>
     /// bobcat#673. A sentence on why an act of this scenario may have run out of time, appended to the

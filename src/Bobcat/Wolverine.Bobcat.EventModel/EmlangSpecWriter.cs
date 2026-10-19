@@ -110,7 +110,7 @@ public static class EmlangSpecWriter
 
         foreach (var slice in model.Slices)
         {
-            var scenarios = slice.Specifications?.Scenarios.Where(x => x.SourceOf() is not null).ToList() ?? [];
+            var scenarios = slice.Specifications?.Scenarios.Where(x => x.Source is not null).ToList() ?? [];
             if (scenarios.Count == 0)
             {
                 context.Report.Add($"slice '{slice.Name}': no tests, so no specifications.");
@@ -120,7 +120,7 @@ public static class EmlangSpecWriter
             // A slice and one of its examples often share a name (a view slice and the test of that
             // view), and C# refuses a member named for its enclosing type (CS0542). The class name is
             // not part of the identity, [BobcatFeature] is, so the class gives way, never the method.
-            var methodNames = scenarios.Select(x => MethodName(x.SourceOf()!.Name)).ToHashSet(StringComparer.Ordinal);
+            var methodNames = scenarios.Select(x => MethodName(x.Source!.Name)).ToHashSet(StringComparer.Ordinal);
             var classCandidate = FeatureClassName(slice.Name);
             if (methodNames.Contains(classCandidate)) classCandidate += "_feature";
             var className = unique(classNames, classCandidate);
@@ -155,8 +155,8 @@ public static class EmlangSpecWriter
                 // The import already deduplicated the slice's scenarios by title, and a title
                 // round-trips to exactly one method name, so no method here needs a suffix
                 writer.WriteLine("[Fact]");
-                writer.Write($"BLOCK:public async Task {MethodName(scenario.SourceOf()!.Name)}()");
-                foreach (var line in new TestWriter(context, slice.Name, scenario.SourceChapterOf()!, scenario.SourceOf()!).Lines())
+                writer.Write($"BLOCK:public async Task {MethodName(scenario.Source!.Name)}()");
+                foreach (var line in new TestWriter(context, slice.Name, scenario.SourceChapter!, scenario.Source!).Lines())
                 {
                     if (line.Length == 0) writer.BlankLine();
                     else writer.WriteLine(line);
@@ -176,7 +176,7 @@ public static class EmlangSpecWriter
         // fields the stubs need. It binds to nothing on the model, and the report says so.
         var attached = model.Slices
             .SelectMany(x => x.Specifications?.Scenarios ?? [])
-            .Select(x => x.SourceOf())
+            .Select(x => x.Source)
             .OfType<EmlangTest>()
             .ToHashSet(ReferenceEqualityComparer.Instance);
 
@@ -306,7 +306,7 @@ public static class EmlangSpecWriter
 
         return model.Slices
             .SelectMany(slice => (slice.Specifications?.Scenarios ?? [])
-                .Where(x => x.SourceOf() is { } source && !written.Contains((slice.Name, MethodName(source.Name))))
+                .Where(x => x.Source is { } source && !written.Contains((slice.Name, MethodName(source.Name))))
                 .Select(x => $"{slice.Name} / {x.Name}"))
             .ToList();
     }
@@ -544,7 +544,7 @@ public static class EmlangSpecWriter
 
             var type = name.EndsWith("Id", StringComparison.Ordinal) ? Ids.IdOfMember(typeName, name) ?? "Guid"
                 : sample is List<object> ? CuratedFieldTypes.StringList
-                : CuratedFieldTypes.TryInfer(EventModelInternals.Text(sample), out var inferred) ? inferred
+                : CuratedFieldTypes.TryInfer(EmlangReader.Text(sample), out var inferred) ? inferred
                 : "string";
             extra.Add(new CSharpModelWriter.StubField(name, type));
             return (name, type);
@@ -1247,7 +1247,7 @@ public static class EmlangSpecWriter
 
             case CuratedFieldTypes.StringList:
                 var items = raw is List<object> list
-                    ? list.Select(EventModelInternals.Text)
+                    ? list.Select(EmlangReader.Text)
                     : trimmed.Length == 0 ? [] : [trimmed];
                 var quoted = items.Select(quote).ToList();
                 return quoted.Count == 0 ? "new List<string>()" : $"new List<string> {{ {string.Join(", ", quoted)} }}";
