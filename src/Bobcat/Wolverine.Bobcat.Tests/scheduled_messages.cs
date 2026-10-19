@@ -26,13 +26,17 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
         LastAct.OnlyScheduled.ShouldHaveSingleItem().ShouldBeOfType<ConfirmationOverdue>();
         LastAct.OwnMessages.ShouldHaveSingleItem().ShouldBeOfType<ConfirmationOverdue>();
 
-        // The act's own message is what it dispatched, not what the handling scheduled
-        Should.Throw<SpecificationFailedException>(() => ThenMessageScheduled<ConfirmationOverdue>(4.Days()))
-            .Message.ShouldContain(guard);
+        // The timeout was armed: the act's own message, only scheduled, IS a scheduled message
+        ThenMessageScheduled<ConfirmationOverdue>(4.Days());
+        ThenMessageScheduled(new ConfirmationOverdue(id));
+        ThenMessagesScheduled(typeof(ConfirmationOverdue));
+        Should.Throw<SpecificationFailedException>(() => ThenNoMessageScheduled<ConfirmationOverdue>())
+            .Message.ShouldBe("Expected no ConfirmationOverdue to be scheduled but 1 were. " +
+                              "Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
 
         // The false green of GH-5077, gone
         Should.Throw<SpecificationFailedException>(() => ThenNoMessageSent<EscalateUnconfirmedAppointment>())
-            .Message.ShouldBe($"{guard} Activity: 0 sent, 0 scheduled, 0 executed, 0 failed — see the Message activity report");
+            .Message.ShouldBe($"{guard} Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
         Should.Throw<SpecificationFailedException>(() => ThenNotHandled<EscalateUnconfirmedAppointment>())
             .Message.ShouldStartWith(guard);
         Should.Throw<SpecificationFailedException>(() => ThenNoMessageScheduled<EscalateUnconfirmedAppointment>())
@@ -41,10 +45,24 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
         // A positive step that fails carries the same hint
         Should.Throw<SpecificationFailedException>(() => ThenMessageSent<EscalateUnconfirmedAppointment>())
             .Message.ShouldBe($"Expected a EscalateUnconfirmedAppointment to be sent, but none was. {guard} " +
-                              "Activity: 0 sent, 0 scheduled, 0 executed, 0 failed — see the Message activity report");
+                              "Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
         Should.Throw<SpecificationFailedException>(() => ThenHandled<ConfirmationOverdue>())
             .Message.ShouldBe($"Expected a ConfirmationOverdue to be handled successfully, but it never ran. {guard} " +
-                              "Activity: 0 sent, 0 scheduled, 0 executed, 0 failed — see the Message activity report");
+                              "Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
+    }
+
+    [Fact]
+    public async Task an_armed_timeout_is_scheduled_and_nothing_it_would_do_can_be_judged_yet()
+    {
+        var id = Guid.NewGuid();
+        await GivenEvents<Appointment>(id, new AppointmentScheduled(id, new Patient("Ann", new Address("Austin")), []));
+        await WhenReceived(new CheckInWindowClosed(id));
+
+        ThenMessageScheduled<CheckInWindowClosed>();
+        Should.Throw<SpecificationFailedException>(() => ThenNoEvents())
+            .Message.ShouldBe("The act's CheckInWindowClosed was only scheduled for later, so no handler ran and nothing this " +
+                              "step checks could have happened. To run it, add `await WhenScheduledMessagesAreExecuted();` after " +
+                              "the act. Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
     }
 
     [Fact]

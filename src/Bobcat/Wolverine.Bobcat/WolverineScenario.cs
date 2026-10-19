@@ -1398,21 +1398,35 @@ public class WolverineScenario : CritterStackScenario
         using var step = ScenarioRecorder.Step("Then", $"{describeTypes(types)} {(expected.Length == 1 ? "is" : "are")} scheduled");
         if (!actSucceeded()) return;
 
-        var actual = LastAct.Session is { } session ? scheduledIn(session, LastAct.OwnMessages).Select(x => x.Message!).ToArray() : [];
+        var actual = LastAct.Session is { } session ? scheduledIn(session).Select(x => x.Message!).ToArray() : [];
         var run = ObjectSetVerification.Verify(actual, expected, "message", SetMode.AnyOrder);
         if (Verdicts.Recording) run.Report();
 
         messageFact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "message")));
     }
 
-    /// <summary>The act scheduled no <typeparamref name="T" />.</summary>
+    /// <summary>
+    /// The act scheduled no <typeparamref name="T" />. The act's own message, when only scheduled, is a scheduled message
+    /// like any other, so this step fails on it plainly; for any other type it fails with the GH-5077 guard, since an act
+    /// whose own message never ran could not have scheduled anything.
+    /// </summary>
     public void ThenNoMessageScheduled<T>()
     {
         using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is scheduled");
-        if (!canJudgeAnAbsence($"Expected no {typeof(T).Name} to be scheduled")) return;
+        if (!acted)
+        {
+            Verdicts.Fail($"Expected no {typeof(T).Name} to be scheduled, but no act has run.");
+            return;
+        }
 
         var scheduled = scheduledOf(typeof(T)).ToArray();
-        messageFact(scheduled.Length == 0, $"Expected no {typeof(T).Name} to be scheduled but {scheduled.Length} were.");
+        if (scheduled.Length > 0)
+        {
+            Verdicts.Fail($"Expected no {typeof(T).Name} to be scheduled but {scheduled.Length} were. {activitySummary(LastAct)}");
+            return;
+        }
+
+        canJudgeAnAbsence($"Expected no {typeof(T).Name} to be scheduled");
     }
 
     // ---- assert: handled messages (GH-5076) ----------------------------------------------------
@@ -1582,10 +1596,6 @@ public class WolverineScenario : CritterStackScenario
         => session.Sent.RecordsInOrder().Where(x => !x.WasScheduled && x.Envelope?.Message is not null)
             .Select(x => x.Envelope!).Where(x => !own.Contains(x.Message!, ReferenceEqualityComparer.Instance));
 
-    // A message the handling scheduled, the act's own excepted
-    private static IEnumerable<Envelope> scheduledIn(ITrackedSession session, IReadOnlyList<object> own)
-        => scheduledIn(session).Where(x => !own.Contains(x.Message!, ReferenceEqualityComparer.Instance));
-
     // A message the act scheduled: once each, however many records a transport made of scheduling it
     private static IEnumerable<Envelope> scheduledIn(ITrackedSession session)
         => session.Scheduled.RecordsInOrder().Select(x => x.Envelope).OfType<Envelope>().Where(x => x.Message is not null)
@@ -1595,7 +1605,7 @@ public class WolverineScenario : CritterStackScenario
         => LastAct.Session is { } session ? sentIn(session, LastAct.OwnMessages).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
 
     private IEnumerable<Envelope> scheduledOf(Type messageType)
-        => LastAct.Session is { } session ? scheduledIn(session, LastAct.OwnMessages).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
+        => LastAct.Session is { } session ? scheduledIn(session).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
 
     private static bool destinationMatches(Envelope envelope, string? destination)
         => destination is null ||
@@ -1664,8 +1674,9 @@ public class WolverineScenario : CritterStackScenario
     {
         if (act.Session is not { } session) return "Activity: the act recorded no message activity.";
 
-        // What the handling produced: the act's own message is neither sent nor scheduled by it
-        return $"Activity: {sentIn(session, act.OwnMessages).Count()} sent, {scheduledIn(session, act.OwnMessages).Count()} scheduled, " +
+        // Sent is what the handling produced, never the act's own message; scheduled is everything scheduled, the act's
+        // own message included -- an armed timeout is scheduled
+        return $"Activity: {sentIn(session, act.OwnMessages).Count()} sent, {scheduledIn(session).Count()} scheduled, " +
                $"{session.Executed.RecordsInOrder().Count()} executed, {failedAttempts(session)} failed " +
                "— see the Message activity report";
     }
