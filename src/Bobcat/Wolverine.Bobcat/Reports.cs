@@ -32,7 +32,13 @@ public sealed class MessageActivityReport : TableReport
             : record.MessageEventType.ToString();
 
     /// <summary>Add every record of <paramref name="session" />.</summary>
-    public void Add(ITrackedSession session)
+    public void Add(ITrackedSession session) => Add(session, Array.Empty<object>());
+
+    /// <summary>
+    /// Add every record of <paramref name="session" />, marking the rows of the act's own messages
+    /// (wolverine#5077): what the act dispatched rather than what the handling produced.
+    /// </summary>
+    public void Add(ITrackedSession session, IReadOnlyList<object> ownMessages)
     {
         foreach (var record in session.AllRecordsInOrder())
         {
@@ -51,7 +57,10 @@ public sealed class MessageActivityReport : TableReport
                         Note = record.Exception is { } exception ? $"{exception.GetType().Name}: {exception.Message}" : null
                     }
                     : new CellResult("event", ResultStatus.ok, eventOf(record)),
-                new("message", ResultStatus.ok, record.Message?.GetType().Name ?? record.Envelope?.MessageType ?? ""),
+                new("message", ResultStatus.ok, (record.Message?.GetType().Name ?? record.Envelope?.MessageType ?? "") +
+                                                (record.Message is { } message && ownMessages.Contains(message, ReferenceEqualityComparer.Instance)
+                                                    ? " (the act's own)"
+                                                    : "")),
                 new("destination", ResultStatus.ok, record.Envelope?.Destination?.ToString() ?? ""),
                 new("attempt", ResultStatus.ok, record.AttemptNumber.ToString()),
                 new("service", ResultStatus.ok, record.ServiceName ?? "")

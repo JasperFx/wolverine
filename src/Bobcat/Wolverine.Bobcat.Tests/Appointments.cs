@@ -112,3 +112,14 @@ public static class EscalateUnconfirmedAppointmentHandler
     {
     }
 }
+
+// wolverine#5077: a timeout whose handler appends to the appointment's stream
+public record CheckInWindowClosed(Guid AppointmentId) : TimeoutMessage(TimeSpan.FromHours(1));
+
+public record PatientNoShow(Guid AppointmentId);
+
+public static class CheckInWindowClosedHandler
+{
+    public static Events Handle(CheckInWindowClosed message, [WriteModel] Appointment appointment)
+        => [new PatientNoShow(message.AppointmentId)];
+}

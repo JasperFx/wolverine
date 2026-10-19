@@ -116,8 +116,13 @@ public abstract class WolverineSpec : CritterStackSpec
         DeliveryOptions? options = null)
         => Scenario.GivenReceived(message, configureTracking, options);
 
-    /// <inheritdoc cref="WolverineScenario.WhenTracked" />
+    /// <inheritdoc cref="WolverineScenario.WhenTracked(string, Func{Task}, Func{TrackedSessionConfiguration, TrackedSessionConfiguration}?)" />
     public Task WhenTracked(string description, Func<Task> act,
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+        => Scenario.WhenTracked(description, act, configureTracking);
+
+    /// <inheritdoc cref="WolverineScenario.WhenTracked(string, Func{IMessageBus, Task}, Func{TrackedSessionConfiguration, TrackedSessionConfiguration}?)" />
+    public Task WhenTracked(string description, Func<IMessageBus, Task> act,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
         => Scenario.WhenTracked(description, act, configureTracking);
 

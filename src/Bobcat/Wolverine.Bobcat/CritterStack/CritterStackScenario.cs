@@ -1111,7 +1111,7 @@ public class CritterStackScenario
     {
         var text = asTenant($"{describeEmitted(expected)} on the {nameOf(aggregate)} stream {ScenarioValues.Format(id)} after version {afterVersion}");
         return inStep(ScenarioRecorder.Step("Then", text),
-            () => verifyGained(aggregate, id, afterVersion, expected));
+            () => expected.Length == 0 && !actRanItsHandler() ? Task.CompletedTask : verifyGained(aggregate, id, afterVersion, expected));
     }
 
     private async Task actingOn(Type aggregate, object id, string? description, Func<IServiceProvider, Task> act,
@@ -1395,7 +1395,7 @@ public class CritterStackScenario
     {
         using var step = ScenarioRecorder.Step("Then",
             $"{describeTypes(forbidden.Select(PartialMatching.ExpectedType).ToArray())} {(forbidden.Length == 1 ? "is" : "are")} not emitted");
-        if (!actSucceeded() || !tagsCanBeJudged(forbidden)) return;
+        if (!actSucceeded() || !actRanItsHandler() || !tagsCanBeJudged(forbidden)) return;
 
         var run = ObjectSetVerification.Absent(LastAct.NewEvents.Select(x => x.Data).ToArray(), forbidden, "event",
             tagsOf(LastAct.NewEvents));
@@ -1441,7 +1441,7 @@ public class CritterStackScenario
             ? $"no events are emitted on the {nameOf(aggregate)} stream {ScenarioValues.Format(id)}"
             : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on the {nameOf(aggregate)} stream {ScenarioValues.Format(id)}";
         using var step = ScenarioRecorder.Step("Then", text);
-        if (!actSucceeded() || !tagsCanBeJudged(expected)) return;
+        if (!actSucceeded() || (expected.Length == 0 && !actRanItsHandler()) || !tagsCanBeJudged(expected)) return;
 
         var stream = StrongTypedIds.StreamIdentity(id);
         // The step names the stream, so whatever the act appended there is in scope, attributed or not (bobcat#503)
@@ -1499,7 +1499,7 @@ public class CritterStackScenario
             ? $"no events are emitted on {scope}"
             : $"{describeTypes(expected.Select(PartialMatching.ExpectedType).ToArray())} {(expected.Length == 1 ? "is" : "are")} emitted on {scope}";
         using var step = ScenarioRecorder.Step("Then", text);
-        if (!actSucceeded() || !tagsCanBeJudged(expected, queryByTags: true)) return;
+        if (!actSucceeded() || (expected.Length == 0 && !actRanItsHandler()) || !tagsCanBeJudged(expected, queryByTags: true)) return;
 
         var selected = addressable().Where(x => selects(query, x)).ToList();
         if (expected.Length == 0)
@@ -1541,6 +1541,8 @@ public class CritterStackScenario
             fail("Expected the act to append no events, but no act has run.");
             return;
         }
+
+        if (!actRanItsHandler()) return;
 
         fact(LastAct.NewEvents.Count == 0,
             $"Expected no events but the act appended {ScenarioValues.DescribeAll(LastAct.NewEvents.Select(x => x.Data))}{storesSuffix()}{crossTalkSuffix()}");
@@ -1864,6 +1866,8 @@ public class CritterStackScenario
             return;
         }
 
+        if (!actRanItsHandler()) return;
+
         if (LastAct.Error is { } error)
         {
             fail($"Expected the command to be cleanly refused, but it threw: {error.Message}. " +
@@ -1956,7 +1960,8 @@ public class CritterStackScenario
 
         var sent = LastAct.MessagesSent.OfType<T>().Count();
         cell("sent", sent >= count, count == 1 ? "at least one" : $"at least {count}", sent);
-        fact(sent >= count, $"Expected at least {count} message(s) of type {nameOf(typeof(T))} to be sent, but {sent} were.");
+        fact(sent >= count, $"Expected at least {count} message(s) of type {nameOf(typeof(T))} to be sent, but {sent} were." +
+                            (onlyScheduledGuard() is { } guard ? " " + guard : ""));
     }
 
     // ---- assert: read models -----------------------------------------------------------------
@@ -2079,6 +2084,7 @@ public class CritterStackScenario
 
         await inStep(ScenarioRecorder.Step("Then", asTenant($"there is no {documentNamed<T>(id)}")), async () =>
         {
+            if (!actRanItsHandler()) return;
             var document = await EventStoreAuthoring.LoadDocumentAsync<T>(await storeForAsync(existsText<T>(id), typeof(T)), id, _tenant);
             fact(document is null,
                 $"Expected no {nameOf(typeof(T))} document with id {id}, but there is one: {ScenarioValues.Describe(document)}");
@@ -2322,6 +2328,7 @@ public class CritterStackScenario
 
         await inStep(ScenarioRecorder.Step("Then", asTenant($"there is no {nameOf(typeof(T))}")), async () =>
         {
+            if (!actRanItsHandler()) return;
             var documents = await allDocuments<T>($"there is no {nameOf(typeof(T))}");
             fact(documents.Count == 0,
                 $"Expected no {nameOf(typeof(T))} document, but there {(documents.Count == 1 ? "is one" : $"are {documents.Count}")}: {ScenarioValues.DescribeAll(documents.Cast<object>().ToList())}");
@@ -2730,6 +2737,17 @@ public class CritterStackScenario
     /// exception the act captured. No act at all is a failure too, so a forgotten When cannot pass a step
     /// that looks for nothing.
     /// </summary>
+    /// <summary>
+    /// wolverine#5077. Why the last act did nothing a step could judge, when its own message was only scheduled for later
+    /// and no handler of it ran -- or null. A store-only act always runs, so the base answers null; a scenario whose
+    /// acts dispatch messages (WolverineFx.Bobcat's) answers from its outcome. The steps that would otherwise pass on
+    /// nothing -- the negative event steps, a clean refusal -- fail with it instead.
+    /// </summary>
+    protected virtual string? onlyScheduledGuard() => null;
+
+    // wolverine#5077: an absence judged after an act that did nothing is no evidence, so the step fails saying why
+    private bool actRanItsHandler() => !_state.Acted || onlyScheduledGuard() is not { } guard || fail(guard);
+
     protected bool actSucceeded()
     {
         // Without an act every "what the act did" step would pass on the empty outcome

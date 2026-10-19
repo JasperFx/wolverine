@@ -71,13 +71,20 @@ public sealed record ActOutcome(
     public string? TenantId { get; init; }
 
     /// <summary>
-    /// GH-5077. The act's own messages that Wolverine only scheduled -- a <see cref="TimeoutMessage" />, a
-    /// <c>DelayedFor</c> wrapper's message, a <c>ScheduleAsync</c> inside <c>WhenTracked</c> -- so no handler of them ran
-    /// within the act. Empty when every one was handled, or the act sent none of its own: an HTTP request's endpoint is
-    /// its handler, and a handler's cascades are its output, not the act's own. <c>WhenScheduledMessagesAreExecuted()</c>
-    /// runs them.
+    /// GH-5077. The act's own messages (<see cref="OwnMessages" />) that Wolverine only scheduled -- a
+    /// <see cref="TimeoutMessage" />, a <c>DelayedFor</c> wrapper's message, a <c>ScheduleAsync</c> through the bus
+    /// <c>WhenTracked</c> hands its act -- so no handler of them ran within the act. Empty when every one was handled, or
+    /// the act sent none of its own: what a handler or an HTTP endpoint the act invoked scheduled is what the act caused,
+    /// and never trips this. <c>WhenScheduledMessagesAreExecuted()</c> runs them either way.
     /// </summary>
     public IReadOnlyList<object> OnlyScheduled { get; init; } = Array.Empty<object>();
+
+    /// <summary>
+    /// wolverine#5077. The act's own messages: the one <c>WhenReceived</c> or <c>WhenPublished</c> dispatched, or what the
+    /// act's own code sent through the bus it was handed. Never "sent" in any step or summary -- sent means what the
+    /// handling produced.
+    /// </summary>
+    public IReadOnlyList<object> OwnMessages { get; init; } = Array.Empty<object>();
 }
 
 /// <summary>
@@ -122,6 +129,9 @@ public class WolverineScenario : CritterStackScenario
     // every act and every Wolverine setting is that scenario's
     private readonly WolverineScenario? _origin;
     private WolverineScenario root => _origin ?? this;
+
+    // GH-5077: what the next act's own code sends through the bus it is handed
+    private ActMessages? _actMessages;
 
     // GH-4940: the concurrent append the next act lands between its read and its write
     private object[]? _concurrently;
@@ -375,19 +385,19 @@ public class WolverineScenario : CritterStackScenario
             if (scheduled.Count == 0)
             {
                 throw new SpecCriticalException(
-                    $"The last act scheduled nothing, so there is nothing to execute. {activitySummary(played)}");
+                    $"The last act scheduled nothing, so there is nothing to execute. {activitySummary(previous)}");
             }
 
             foreach (var type in types) recordTouched(type);
 
             // Everything the replay commits is the act's own: there is no one message to tell its work from a cascade's
             _dispatched = null;
-            await executeAsync(_ => replayAsync(played, timeout),
+            await executeAsync(_ => replayAsync(previous, played, timeout),
                 outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
         });
     }
 
-    private static async Task<ITrackedSession> replayAsync(ITrackedSession played, TimeSpan timeout)
+    private static async Task<ITrackedSession> replayAsync(ActOutcome previous, ITrackedSession played, TimeSpan timeout)
     {
         try
         {
@@ -397,7 +407,7 @@ public class WolverineScenario : CritterStackScenario
         {
             // Wolverine replays only what this service scheduled
             throw new SpecCriticalException(
-                $"Wolverine found no message this application scheduled to execute. {activitySummary(played)}", e);
+                $"Wolverine found no message this application scheduled to execute. {activitySummary(previous)}", e);
         }
     }
 
@@ -467,11 +477,35 @@ public class WolverineScenario : CritterStackScenario
     /// service poke — run inside the tracked session, waiting for everything it caused.
     /// </summary>
     /// <param name="description">How the step reads: <c>"the nightly sweep runs"</c>.</param>
+    /// <remarks>
+    /// Whatever the act reaches -- an endpoint, a handler -- sends or schedules is what the act caused. To send a message
+    /// as the act itself, use the overload that hands the act a bus.
+    /// </remarks>
     public Task WhenTracked(string description, Func<Task> act,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
         => root.ActAsync(description,
             tracking => ownCorrelation(configureTracking, tracking, null)
                 .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => act())));
+
+    /// <summary>
+    /// wolverine#5077. An act of its own, handed the tracked session's bus: what it sends, publishes or schedules through
+    /// <c>bus</c> is the act's own message (<see cref="ActOutcome.OwnMessages" />), as <see cref="WhenReceived" />'s is --
+    /// never counted as sent, and when it is only scheduled, a step about what its handler did fails saying so until
+    /// <see cref="WhenScheduledMessagesAreExecuted" /> runs it.
+    /// </summary>
+    /// <param name="description">How the step reads: <c>"the escalation is scheduled"</c>.</param>
+    /// <param name="act">The act, given the bus to send through. The bus carries the act's correlation id.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    public Task WhenTracked(string description, Func<IMessageBus, Task> act,
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+    {
+        ArgumentNullException.ThrowIfNull(act);
+        var messages = new ActMessages();
+        root._actMessages = messages;
+        return root.ActAsync(description,
+            tracking => ownCorrelation(configureTracking, tracking, null)
+                .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(context => act(messages.Wrap(context)))));
+    }
 
     // GH-4940: every act runs under a correlation id of its own, generated per act, and it wins over one a
     // configureTracking or a DeliveryOptions names -- so no other session shares it, which is what lets a concurrent
@@ -513,11 +547,14 @@ public class WolverineScenario : CritterStackScenario
         // Taken before the act, on every store, for the fallback below: none at all without a store
         var marks = await highWaterMarksAsync();
 
+        // GH-5077: what the act's own code sends through the bus it resolves is its own message
+        var messages = new ActMessages();
+        _actMessages = messages;
         var outcome = await executeAsync(
             tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
                 await using var scope = Services.CreateAsyncScope();
-                await act(scope.ServiceProvider);
+                await act(messages.Wrap(scope.ServiceProvider));
             })),
             null);
 
@@ -654,6 +691,8 @@ public class WolverineScenario : CritterStackScenario
         // GH-4931: claimed before the act, so a step that throws before dispatching leaves nothing behind
         var dispatched = _dispatched;
         _dispatched = null;
+        var actMessages = _actMessages;
+        _actMessages = null;
 
         // GH-4939: every act runs under a correlation id of its own, so what it caused past an asynchronous
         // boundary can be found in the store by it. A configureTracking that names its own still wins.
@@ -712,7 +751,10 @@ public class WolverineScenario : CritterStackScenario
         // GH-5077: one rule for every act -- its own messages only scheduled, never handled: a TimeoutMessage, a DelayedFor
         // wrapper's message, a delay in the options, a ScheduleAsync in WhenTracked. Not an error: Wolverine did what it
         // was asked. But no handler ran, so a step about what one did must not pass on it
-        var onlyScheduled = session is null ? Array.Empty<object>() : onlyScheduledOf(session, dispatched);
+        var ownMessages = isMessage(dispatched)
+            ? [messageInside(dispatched!)]
+            : actMessages?.Sent.Select(messageInside).Distinct(ReferenceEqualityComparer.Instance).ToList() ?? [];
+        var onlyScheduled = session is null ? Array.Empty<object>() : onlyScheduledOf(session, ownMessages);
 
         // GH-4931: what the act appended is what the tracked session heard each event-store session commit --
         // never read back from the store, so concurrent work is never counted and the events keep their tags
@@ -727,8 +769,9 @@ public class WolverineScenario : CritterStackScenario
             Appended = commits,
             StartedStreams = own.SelectMany(x => x.StartedStreams).ToList(),
             // GH-5077: sent, never scheduled -- a scheduled message is ThenMessageScheduled's
-            MessagesSent = session is null ? Array.Empty<object>() : sentIn(session).Select(x => x.Message!).ToList(),
+            MessagesSent = session is null ? Array.Empty<object>() : sentIn(session, ownMessages).Select(x => x.Message!).ToList(),
             OnlyScheduled = onlyScheduled,
+            OwnMessages = ownMessages,
             // GH-4940: the boundaries the act's own handler loaded, by the same rule as its own commits
             Boundaries = (session?.LoadedBoundaries ?? Array.Empty<LoadedBoundary>())
                 .Where(x => isTheActsOwn(x.Envelope, dispatched)).ToList(),
@@ -747,7 +790,7 @@ public class WolverineScenario : CritterStackScenario
 
         if (SpecReport.IsRecording)
         {
-            if (session is not null) SpecReport.For<MessageActivityReport>().Add(session);
+            if (session is not null) SpecReport.For<MessageActivityReport>().Add(session, ownMessages);
             if (appended.Count > 0) SpecReport.For<AppendedEventsReport>().Add(appended);
         }
 
@@ -761,25 +804,16 @@ public class WolverineScenario : CritterStackScenario
         return IncludeExternalTransports ? tracking.IncludeExternalTransports() : tracking;
     }
 
-    // GH-5077: the act's own messages -- the one it dispatched, or, for an act that runs code of its own (WhenTracked,
-    // WhenActing), every message that code sent itself, which Wolverine marks as starting its own conversation; never
-    // a cascade from a handler, and nothing for an HTTP request, whose endpoint is the handler -- that were scheduled
-    // and never began executing
-    private static IReadOnlyList<object> onlyScheduledOf(ITrackedSession session, object? dispatched)
+    // GH-5077: the act's own messages that were scheduled and never began executing. Which messages are the act's own
+    // is decided where the act dispatches them -- WhenReceived's message, or what the act's own code sent through the
+    // bus it was handed -- never inferred from the session, where a handler's or an HTTP endpoint's sends look the same
+    private static IReadOnlyList<object> onlyScheduledOf(ITrackedSession session, IReadOnlyList<object> own)
     {
-        IEnumerable<object> own = dispatched switch
-        {
-            null => session.AllRecordsInOrder().Select(x => x.Envelope).OfType<Envelope>()
-                .Where(x => x.Message is not null && x.ConversationId == x.Id).Select(x => x.Message!),
-            _ when ReferenceEquals(dispatched, NoMessage) => [],
-            _ => [messageInside(dispatched)]
-        };
-
         var scheduled = scheduledIn(session).Select(x => x.Message).ToHashSet(ReferenceEqualityComparer.Instance);
         var started = session.AllRecordsInOrder(MessageEventType.ExecutionStarted).Select(x => x.Envelope?.Message)
             .OfType<object>().ToHashSet(ReferenceEqualityComparer.Instance);
 
-        return own.Distinct(ReferenceEqualityComparer.Instance).Where(x => scheduled.Contains(x) && !started.Contains(x)).ToList();
+        return own.Where(x => scheduled.Contains(x) && !started.Contains(x)).ToList();
     }
 
     // The message a DelayedFor / ScheduledAt / WithDeliveryOptions wrapper carries, which is what Wolverine sends; any
@@ -1297,7 +1331,7 @@ public class WolverineScenario : CritterStackScenario
     /// later is not among them.
     /// </summary>
     public IReadOnlyList<object> TheMessagesSent
-        => LastAct.Session is { } session ? sentIn(session).Select(x => x.Message!).ToList() : Array.Empty<object>();
+        => LastAct.Session is { } session ? sentIn(session, LastAct.OwnMessages).Select(x => x.Message!).ToList() : Array.Empty<object>();
 
     // ---- assert: scheduled messages (GH-5077) --------------------------------------------------
 
@@ -1364,7 +1398,7 @@ public class WolverineScenario : CritterStackScenario
         using var step = ScenarioRecorder.Step("Then", $"{describeTypes(types)} {(expected.Length == 1 ? "is" : "are")} scheduled");
         if (!actSucceeded()) return;
 
-        var actual = LastAct.Session is { } session ? scheduledIn(session).Select(x => x.Message!).ToArray() : [];
+        var actual = LastAct.Session is { } session ? scheduledIn(session, LastAct.OwnMessages).Select(x => x.Message!).ToArray() : [];
         var run = ObjectSetVerification.Verify(actual, expected, "message", SetMode.AnyOrder);
         if (Verdicts.Recording) run.Report();
 
@@ -1418,7 +1452,7 @@ public class WolverineScenario : CritterStackScenario
         var others = otherExceptions(messageType);
         Verdicts.Fail($"Expected a {nameOf(messageType)} to be handled successfully, but {story}" +
                       (others.Length == 0 ? "" : $" Other exceptions during the act: {others}.") +
-                      (guarded ? "" : onlyScheduledSuffix()) + " " + activitySummary(session));
+                      (guarded ? "" : onlyScheduledSuffix()) + " " + activitySummary(LastAct));
     }
 
     /// <summary>
@@ -1542,9 +1576,15 @@ public class WolverineScenario : CritterStackScenario
 
     // ---- message activity --------------------------------------------------------------------
 
-    // A message the act sent: a Sent record whose envelope was not scheduled for later
-    private static IEnumerable<Envelope> sentIn(ITrackedSession session)
-        => session.Sent.RecordsInOrder().Where(x => !x.WasScheduled && x.Envelope?.Message is not null).Select(x => x.Envelope!);
+    // A message the handling sent: a Sent record whose envelope was not scheduled for later, and not the act's own
+    // message, which the act dispatched rather than produced
+    private static IEnumerable<Envelope> sentIn(ITrackedSession session, IReadOnlyList<object> own)
+        => session.Sent.RecordsInOrder().Where(x => !x.WasScheduled && x.Envelope?.Message is not null)
+            .Select(x => x.Envelope!).Where(x => !own.Contains(x.Message!, ReferenceEqualityComparer.Instance));
+
+    // A message the handling scheduled, the act's own excepted
+    private static IEnumerable<Envelope> scheduledIn(ITrackedSession session, IReadOnlyList<object> own)
+        => scheduledIn(session).Where(x => !own.Contains(x.Message!, ReferenceEqualityComparer.Instance));
 
     // A message the act scheduled: once each, however many records a transport made of scheduling it
     private static IEnumerable<Envelope> scheduledIn(ITrackedSession session)
@@ -1552,10 +1592,10 @@ public class WolverineScenario : CritterStackScenario
             .Distinct(ReferenceEqualityComparer.Instance).Cast<Envelope>();
 
     private IEnumerable<Envelope> sentOf(Type messageType)
-        => LastAct.Session is { } session ? sentIn(session).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
+        => LastAct.Session is { } session ? sentIn(session, LastAct.OwnMessages).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
 
     private IEnumerable<Envelope> scheduledOf(Type messageType)
-        => LastAct.Session is { } session ? scheduledIn(session).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
+        => LastAct.Session is { } session ? scheduledIn(session, LastAct.OwnMessages).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
 
     private static bool destinationMatches(Envelope envelope, string? destination)
         => destination is null ||
@@ -1590,17 +1630,22 @@ public class WolverineScenario : CritterStackScenario
 
     // GH-5077: a message expectation that fails says what the act's messages did, and why when its own message never ran
     private bool messageFact(bool condition, string because)
-        => condition || Verdicts.Fail(because + onlyScheduledSuffix() + " " + activitySummary(LastAct.Session));
+        => condition || Verdicts.Fail(because + onlyScheduledSuffix() + " " + activitySummary(LastAct));
 
     // GH-5077: an absence is no evidence when the act's own message was only scheduled -- no handler ran, so nothing it
     // would have done could have happened. Such a step fails instead of passing on nothing
     private bool canJudgeAnAbsence(string expectation)
     {
         if (!acted) return Verdicts.Fail($"{expectation}, but no act has run.");
-        if (LastAct.OnlyScheduled.Count == 0) return true;
-
-        return Verdicts.Fail(OnlyScheduledMessage(LastAct.OnlyScheduled) + " " + activitySummary(LastAct.Session));
+        return onlyScheduledGuard() is not { } guard || Verdicts.Fail(guard);
     }
+
+    /// <summary>
+    /// wolverine#5077. The base's negative event steps (<c>ThenNoEvents</c>, <c>ThenNotEmitted</c>, ...) and
+    /// <c>ThenMessagesSent</c> fail with the same sentence when the act's own message was only scheduled.
+    /// </summary>
+    protected override string? onlyScheduledGuard()
+        => LastAct.OnlyScheduled.Count == 0 ? null : OnlyScheduledMessage(LastAct.OnlyScheduled) + " " + activitySummary(LastAct);
 
     private string onlyScheduledSuffix() => LastAct.OnlyScheduled.Count > 0 ? " " + OnlyScheduledMessage(LastAct.OnlyScheduled) : "";
 
@@ -1615,11 +1660,12 @@ public class WolverineScenario : CritterStackScenario
     /// 1 executed, 0 failed — see the Message activity report" — beside the <see cref="MessageActivityReport" /> that
     /// lists every record.
     /// </summary>
-    private static string activitySummary(ITrackedSession? session)
+    private static string activitySummary(ActOutcome act)
     {
-        if (session is null) return "Activity: the act recorded no message activity.";
+        if (act.Session is not { } session) return "Activity: the act recorded no message activity.";
 
-        return $"Activity: {sentIn(session).Count()} sent, {scheduledIn(session).Count()} scheduled, " +
+        // What the handling produced: the act's own message is neither sent nor scheduled by it
+        return $"Activity: {sentIn(session, act.OwnMessages).Count()} sent, {scheduledIn(session, act.OwnMessages).Count()} scheduled, " +
                $"{session.Executed.RecordsInOrder().Count()} executed, {failedAttempts(session)} failed " +
                "— see the Message activity report";
     }

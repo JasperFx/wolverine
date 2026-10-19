@@ -24,11 +24,15 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
         await WhenReceived(new ConfirmationOverdue(id));
 
         LastAct.OnlyScheduled.ShouldHaveSingleItem().ShouldBeOfType<ConfirmationOverdue>();
-        ThenMessageScheduled<ConfirmationOverdue>(4.Days());
+        LastAct.OwnMessages.ShouldHaveSingleItem().ShouldBeOfType<ConfirmationOverdue>();
+
+        // The act's own message is what it dispatched, not what the handling scheduled
+        Should.Throw<SpecificationFailedException>(() => ThenMessageScheduled<ConfirmationOverdue>(4.Days()))
+            .Message.ShouldContain(guard);
 
         // The false green of GH-5077, gone
         Should.Throw<SpecificationFailedException>(() => ThenNoMessageSent<EscalateUnconfirmedAppointment>())
-            .Message.ShouldBe($"{guard} Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
+            .Message.ShouldBe($"{guard} Activity: 0 sent, 0 scheduled, 0 executed, 0 failed — see the Message activity report");
         Should.Throw<SpecificationFailedException>(() => ThenNotHandled<EscalateUnconfirmedAppointment>())
             .Message.ShouldStartWith(guard);
         Should.Throw<SpecificationFailedException>(() => ThenNoMessageScheduled<EscalateUnconfirmedAppointment>())
@@ -37,10 +41,10 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
         // A positive step that fails carries the same hint
         Should.Throw<SpecificationFailedException>(() => ThenMessageSent<EscalateUnconfirmedAppointment>())
             .Message.ShouldBe($"Expected a EscalateUnconfirmedAppointment to be sent, but none was. {guard} " +
-                              "Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
+                              "Activity: 0 sent, 0 scheduled, 0 executed, 0 failed — see the Message activity report");
         Should.Throw<SpecificationFailedException>(() => ThenHandled<ConfirmationOverdue>())
             .Message.ShouldBe($"Expected a ConfirmationOverdue to be handled successfully, but it never ran. {guard} " +
-                              "Activity: 0 sent, 1 scheduled, 0 executed, 0 failed — see the Message activity report");
+                              "Activity: 0 sent, 0 scheduled, 0 executed, 0 failed — see the Message activity report");
     }
 
     [Fact]
@@ -104,10 +108,7 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
     public async Task what_the_acts_own_code_scheduled_is_its_own_message_too()
     {
         var id = Guid.NewGuid();
-        using var scope = app.Host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-
-        await WhenTracked("the escalation is scheduled", () => bus.ScheduleAsync(new EscalateUnconfirmedAppointment(id), 1.Hours()).AsTask());
+        await WhenTracked("the escalation is scheduled", bus => bus.ScheduleAsync(new EscalateUnconfirmedAppointment(id), 1.Hours()).AsTask());
 
         LastAct.OnlyScheduled.ShouldHaveSingleItem().ShouldBeOfType<EscalateUnconfirmedAppointment>();
         Should.Throw<SpecificationFailedException>(() => ThenNotHandled<EscalateUnconfirmedAppointment>())
@@ -129,6 +130,81 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
     }
 
     [Fact]
+    public async Task what_the_act_sends_through_a_bus_it_found_for_itself_is_a_side_effect()
+    {
+        // Not the bus WhenTracked hands the act: indistinguishable from an endpoint's or a service's sends, so not its own
+        var id = Guid.NewGuid();
+        using var scope = app.Host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+
+        await WhenTracked("something schedules an escalation", () => bus.ScheduleAsync(new EscalateUnconfirmedAppointment(id), 1.Hours()).AsTask());
+
+        LastAct.OnlyScheduled.ShouldBeEmpty();
+        ThenMessageScheduled<EscalateUnconfirmedAppointment>();
+        ThenNotHandled<EscalateUnconfirmedAppointment>();
+    }
+
+    [Fact]
+    public async Task what_a_store_only_acts_code_sends_through_the_bus_it_resolves_is_its_own()
+    {
+        var id = Guid.NewGuid();
+        await WhenActing("the escalation is scheduled",
+            services => services.GetRequiredService<IMessageBus>().ScheduleAsync(new EscalateUnconfirmedAppointment(id), 1.Hours()).AsTask());
+
+        LastAct.OnlyScheduled.ShouldHaveSingleItem().ShouldBeOfType<EscalateUnconfirmedAppointment>();
+        Should.Throw<SpecificationFailedException>(() => ThenNotHandled<EscalateUnconfirmedAppointment>());
+    }
+
+    [Fact]
+    public async Task the_acts_own_message_is_never_sent()
+    {
+        var id = Guid.NewGuid();
+        await GivenEvents<Appointment>(id, new AppointmentScheduled(id, new Patient("Ann", new Address("Austin")), []));
+
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await WhenReceived(new ConfirmAppointment(id));
+            ThenNoMessageSent<ConfirmAppointment>();
+            ThenMessageSent<SendConfirmationEmail>();
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        LastAct.OwnMessages.ShouldHaveSingleItem().ShouldBeOfType<ConfirmAppointment>();
+        LastAct.MessagesSent.ShouldHaveSingleItem().ShouldBeOfType<SendConfirmationEmail>();
+        TheMessagesSent.ShouldHaveSingleItem().ShouldBeOfType<SendConfirmationEmail>();
+        Should.Throw<SpecificationFailedException>(() => ThenMessageSent<ConfirmAppointment>())
+            .Message.ShouldBe("Expected a ConfirmAppointment to be sent, but none was. Activity: 1 sent, 0 scheduled, 2 executed, 0 failed — see the Message activity report");
+
+        // Still in the grid, marked as the act's own
+        var activity = recording.Reports.OfType<MessageActivityReport>().Single();
+        activity.Cells.ShouldContain(x => x.Name == "message" && x.DisplayText == "ConfirmAppointment (the act's own)");
+        activity.Cells.ShouldContain(x => x.Name == "message" && x.DisplayText == nameof(SendConfirmationEmail));
+    }
+
+    [Fact]
+    public async Task the_event_steps_that_would_pass_on_nothing_fail_on_an_only_scheduled_act()
+    {
+        var id = Guid.NewGuid();
+        await GivenEvents<Appointment>(id, new AppointmentScheduled(id, new Patient("Ann", new Address("Austin")), []));
+        await WhenReceived(new CheckInWindowClosed(id));
+
+        const string checkInGuard = "The act's CheckInWindowClosed was only scheduled for later, so no handler ran and nothing " +
+                                    "this step checks could have happened. To run it, add `await WhenScheduledMessagesAreExecuted();` after the act.";
+        Should.Throw<SpecificationFailedException>(() => ThenNoEvents()).Message.ShouldStartWith(checkInGuard);
+        Should.Throw<SpecificationFailedException>(() => ThenNotEmitted<PatientNoShow>()).Message.ShouldStartWith(checkInGuard);
+        Should.Throw<SpecificationFailedException>(() => ThenNoEventsOn<Appointment>(id)).Message.ShouldStartWith(checkInGuard);
+        Should.Throw<SpecificationFailedException>(() => ThenCommandRefused()).Message.ShouldStartWith(checkInGuard);
+        Should.Throw<SpecificationFailedException>(() => ThenMessagesSent<PatientArrived>())
+            .Message.ShouldContain(checkInGuard);
+
+        await WhenScheduledMessagesAreExecuted();
+
+        ThenEvents(new PatientNoShow(id));
+        ThenNotEmitted<AppointmentConfirmed>();
+        Should.Throw<SpecificationFailedException>(() => ThenNoEvents());
+    }
+
+    [Fact]
     public async Task with_no_act_before_it_the_replay_fails()
     {
         var thrown = await Should.ThrowAsync<SpecCriticalException>(() => WhenScheduledMessagesAreExecuted());
@@ -143,7 +219,7 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
         await WhenReceived(new ConfirmAppointment(id));
 
         var thrown = await Should.ThrowAsync<SpecCriticalException>(() => WhenScheduledMessagesAreExecuted());
-        thrown.Message.ShouldStartWith("The last act scheduled nothing, so there is nothing to execute. Activity: 2 sent, 0 scheduled, ");
+        thrown.Message.ShouldStartWith("The last act scheduled nothing, so there is nothing to execute. Activity: 1 sent, 0 scheduled, ");
     }
 
     [Fact]
@@ -203,7 +279,7 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
 
         Should.Throw<SpecificationFailedException>(() =>
                 ThenMessagesScheduled(new ConfirmationOverdue(id), typeof(EscalateUnconfirmedAppointment)))
-            .Message.ShouldContain("Activity: 1 sent, 1 scheduled, 1 executed, 0 failed — see the Message activity report");
+            .Message.ShouldContain("Activity: 0 sent, 1 scheduled, 1 executed, 0 failed — see the Message activity report");
         Should.Throw<ArgumentException>(() => ThenMessagesScheduled());
     }
 
@@ -219,7 +295,7 @@ public class scheduled_messages(AppointmentsHost app) : WolverineSpec(app.Host)
         recording.GatheredFailures().ShouldNotBeNull().ShouldContain(guard);
         var activity = recording.Reports.OfType<MessageActivityReport>().Single();
         activity.Visibility.ShouldBe(ReportVisibility.OnFailure);
-        activity.Cells.ShouldContain(x => x.Name == "message" && x.DisplayText == nameof(ConfirmationOverdue));
+        activity.Cells.ShouldContain(x => x.Name == "message" && x.DisplayText == "ConfirmationOverdue (the act's own)");
     }
 }
 
@@ -253,7 +329,7 @@ public class handled_and_scheduled_messages(AppointmentsHost app) : WolverineSpe
 
         Should.Throw<SpecificationFailedException>(() => ThenHandled<PatientArrived>())
             .Message.ShouldBe("Expected a PatientArrived to be handled successfully, but it never appeared in the act's message " +
-                              "activity. Activity: 2 sent, 0 scheduled, 2 executed, 0 failed — see the Message activity report");
+                              "activity. Activity: 1 sent, 0 scheduled, 2 executed, 0 failed — see the Message activity report");
     }
 
     [Fact]
@@ -277,7 +353,7 @@ public class handled_and_scheduled_messages(AppointmentsHost app) : WolverineSpe
         failure.ShouldStartWith("Expected a ConfirmAppointment to be handled successfully, but it ran once and no attempt succeeded: " +
                                 "attempt 1 threw AppointmentAlreadyConfirmed: The appointment is already confirmed.");
         failure.ShouldContain("It was moved to the error queue.");
-        failure.ShouldEndWith("Activity: 1 sent, 0 scheduled, 1 executed, 1 failed — see the Message activity report");
+        failure.ShouldEndWith("Activity: 0 sent, 0 scheduled, 1 executed, 1 failed — see the Message activity report");
 
         // A failed attempt is still a handler that ran
         Should.Throw<SpecificationFailedException>(() => ThenNotHandled<ConfirmAppointment>())

@@ -51,7 +51,8 @@ public class without_an_event_store : IAsyncLifetime
 
         await scenario.WhenPublished(new PatientArrived(Guid.NewGuid()));
 
-        scenario.ThenMessageSent<PatientArrived>();
+        // wolverine#5077: the act's own message is never "sent"; it was handled
+        scenario.ThenHandled<PatientArrived>();
         scenario.ThenNoEvents();
         scenario.LastAct.Error.ShouldBeNull();
     }

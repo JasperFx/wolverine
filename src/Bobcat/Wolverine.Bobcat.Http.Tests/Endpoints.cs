@@ -249,3 +249,27 @@ public static class EscalateEndpoint
             ? Microsoft.AspNetCore.Http.Results.Json(new EscalationResponse(id, by.ToString()))
             : Microsoft.AspNetCore.Http.Results.BadRequest();
 }
+
+// wolverine#5077: an endpoint that schedules a timeout -- what an act calling it caused, never the act's own message
+public record ReminderDue(Guid AppointmentId) : TimeoutMessage(TimeSpan.FromDays(1));
+
+public record ReminderSent(Guid AppointmentId);
+
+public static class RemindLaterEndpoint
+{
+    [WolverinePost("/api/appointments/{id}/remind-later")]
+    [EmptyResponse]
+    public static OutgoingMessages Post(Guid id) => [new ReminderDue(id)];
+}
+
+public static class ReminderDueHandler
+{
+    public static ReminderSent Handle(ReminderDue message) => new(message.AppointmentId);
+}
+
+public static class ReminderSentHandler
+{
+    public static void Handle(ReminderSent message)
+    {
+    }
+}
