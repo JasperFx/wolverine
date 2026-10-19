@@ -17,15 +17,15 @@ public partial class WolverineHttpScenario
     /// the template as a constant, so the generator can read it: the act reaches the Event Model as an HTTP write with
     /// that route, and no command type, since it sends none.
     /// </remarks>
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "POST")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "POST")]
     public Task WhenPostedTo(string route, params object[] routeValues) => bodyLessAsync("POST", route, routeValues);
 
     /// <summary>GH-5076. PUT to <paramref name="route" /> with no body, as for <see cref="WhenPostedTo" />.</summary>
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PUT")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PUT")]
     public Task WhenPutTo(string route, params object[] routeValues) => bodyLessAsync("PUT", route, routeValues);
 
     /// <summary>GH-5076. PATCH <paramref name="route" /> with no body, as for <see cref="WhenPostedTo" />.</summary>
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "PATCH")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PATCH")]
     public Task WhenPatchedTo(string route, params object[] routeValues) => bodyLessAsync("PATCH", route, routeValues);
 
     /// <summary>
@@ -33,7 +33,7 @@ public partial class WolverineHttpScenario
     /// for <see cref="WhenPostedTo" />. <see cref="WhenDeleted(object, string, Action{Alba.Scenario}?)" /> sends a command
     /// as the body instead.
     /// </summary>
-    [EventModelTrigger(TriggerKind.Http, Route = nameof(route), HttpMethod = "DELETE")]
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "DELETE")]
     public Task WhenDeletedAt(string route, params object[] routeValues) => bodyLessAsync("DELETE", route, routeValues);
 
     private Task bodyLessAsync(string verb, string route, object[] routeValues)
