@@ -109,8 +109,21 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(messageType);
     }
 
+    // Called from Endpoint.Compile, so a manual handler registered on one endpoint gets its chain and its
+    // message type up front. Deliberately not done by enumerating every transport's endpoints from
+    // HandlerGraph.Compile: some transports materialize endpoints as a side effect of being enumerated (the
+    // Amazon SQS default dead letter queue, for one) before their listeners' configuration has been applied.
+    internal void RegisterStickyMessageHandlers(Endpoint endpoint)
+    {
+        foreach (var pair in endpoint.AllStickyMessageHandlers())
+        {
+            ensureStickyMessageHandlerChain(pair.Key, pair.Value);
+            RegisterMessageType(pair.Key);
+        }
+    }
+
     // The same chain wiring AddMessageHandler does, for a handler registered on one endpoint. Normally done
-    // in Compile; this also covers an endpoint that first shows up after the graph compiled.
+    // from Endpoint.Compile; HandlerFor(Type, Endpoint) repeats it in case the lookup gets there first.
     private void ensureStickyMessageHandlerChain(Type messageType, IMessageHandler handler)
     {
         if (handler is not MessageHandler { Chain: null } messageHandler || handler is AgentCommandHandler) return;
@@ -409,16 +422,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         compileWithRuntimeScanning(options, logger);
 
         Group(options);
-
-        // Manual handlers registered on a single endpoint get their chain, and their message type, up front
-        foreach (var endpoint in options.Transports.SelectMany(x => x.Endpoints()))
-        {
-            foreach (var pair in endpoint.AllStickyMessageHandlers())
-            {
-                ensureStickyMessageHandlerChain(pair.Key, pair.Value);
-                RegisterMessageType(pair.Key);
-            }
-        }
 
         // GH-3974: the earliest point at which "will this message type be handled?" has a real answer.
         // Discovery has resolved and the chains are grouped, so a consumer no longer has to hand-roll a

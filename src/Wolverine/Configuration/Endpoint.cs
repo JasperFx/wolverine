@@ -398,7 +398,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     /// <remarks>
     /// A <see cref="MessageHandler" /> whose <see cref="MessageHandler.Chain" /> is unset gets a chain of its
-    /// own at startup, exactly as <c>AddMessageHandler</c> does (including <c>MessageHandler&lt;T&gt;.ConfigureChain()</c>),
+    /// own when the endpoint compiles at startup, exactly as <c>AddMessageHandler</c> does (including <c>MessageHandler&lt;T&gt;.ConfigureChain()</c>),
     /// so error handling and logging configured for that chain apply to this endpoint's handling only. A handler
     /// whose chain is already set keeps it.
     /// </remarks>
@@ -843,6 +843,8 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private void compile(IWolverineRuntime runtime)
     {
         Runtime = runtime;
+
+        runtime.Options.HandlerGraph.RegisterStickyMessageHandlers(this);
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies)
         {
