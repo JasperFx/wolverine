@@ -350,7 +350,14 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
 
             if (monitor is not null)
             {
-                return await publishAsync(model, monitor, summary);
+                // GH-5067: say which checkout this half came from, so the monitor can tell it from a stale
+                // half pushed by an older build, another checkout or another repository
+                var contentRoot = host.Services.GetService<IHostEnvironment>()?.ContentRootPath;
+                var origin = EventModelPushOrigin.Detect(contentRoot.IsNotEmpty()
+                    ? contentRoot!
+                    : Directory.GetCurrentDirectory());
+
+                return await publishAsync(model, origin.AppendTo(monitor), summary);
             }
 
             return true;
