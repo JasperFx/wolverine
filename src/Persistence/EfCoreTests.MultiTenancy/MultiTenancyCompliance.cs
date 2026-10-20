@@ -34,6 +34,19 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
     protected string tenant1ConnectionString = null!;
     protected string tenant2ConnectionString = null!;
     protected string tenant3ConnectionString = null!;
+
+    // Data sources a test hands to Wolverine. Wolverine does not dispose a caller's data source, and
+    // NpgsqlConnection.ClearAllPools() never reaches a data source's own pool, so the test disposes them
+    private readonly List<IAsyncDisposable> _ownedDataSources = [];
+
+    /// <summary>
+    /// Register a data source this test creates and gives to Wolverine, so it is disposed with the host
+    /// </summary>
+    protected T OwnedByTheTest<T>(T dataSource) where T : IAsyncDisposable
+    {
+        _ownedDataSources.Add(dataSource);
+        return dataSource;
+    }
     
     protected MultiTenancyCompliance(DatabaseEngine engine)
     {
@@ -101,6 +114,20 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         {
             // Swallow errors from inner WebApplicationFactory dispose
         }
+
+        foreach (var dataSource in _ownedDataSources)
+        {
+            try
+            {
+                await dataSource.DisposeAsync();
+            }
+            catch (Exception)
+            {
+                // Swallow errors disposing a data source the host may already have closed
+            }
+        }
+
+        _ownedDataSources.Clear();
 
         NpgsqlConnection.ClearAllPools();
         SqlConnection.ClearAllPools();
