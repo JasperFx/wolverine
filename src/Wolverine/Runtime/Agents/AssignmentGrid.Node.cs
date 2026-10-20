@@ -36,7 +36,29 @@ public partial class AssignmentGrid
         /// </summary>
         internal bool Declares(Uri agentUri)
         {
-            return (_capabilityLookup ??= _capabilities.ToHashSet()).Contains(agentUri);
+            if ((_capabilityLookup ??= _capabilities.ToHashSet()).Contains(agentUri))
+            {
+                return true;
+            }
+
+            // GH-5098: an event subscription agent is declared by any capability of the same store, database,
+            // projection, shard and version, whatever its tenant. See EventSubscriptionAgentFamily.CapabilityKeyOf
+            var key = EventSubscriptionAgentFamily.CapabilityKeyOf(agentUri);
+            return key != null && (_capabilityKeys ??= buildCapabilityKeys()).Contains(key);
+        }
+
+        private HashSet<string>? _capabilityKeys;
+
+        private HashSet<string> buildCapabilityKeys()
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var capability in _capabilities)
+            {
+                var key = EventSubscriptionAgentFamily.CapabilityKeyOf(capability);
+                if (key != null) keys.Add(key);
+            }
+
+            return keys;
         }
 
         /// <summary>
@@ -48,6 +70,7 @@ public partial class AssignmentGrid
         {
             _capabilities.Fill(agentUris);
             _capabilityLookup = null;
+            _capabilityKeys = null;
             _orderedByScheme.Clear();
             return this;
         }

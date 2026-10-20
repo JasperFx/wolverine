@@ -1053,10 +1053,18 @@ public partial class NodeAgentController
         // One set over every peer's capabilities rather than a list scan per exhausted agent
         var peerCapabilities = peers.SelectMany(p => p.Capabilities).ToHashSet();
 
+        // GH-5098: a peer that advertises the same event subscription shard for another tenant (or store-wide)
+        // can run this one too
+        var peerCapabilityKeys = peerCapabilities
+            .Select(EventSubscriptionAgentFamily.CapabilityKeyOf)
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
+
         var releasable = new List<ReleaseCandidate>();
         foreach (var pair in exhausted)
         {
-            if (peerCapabilities.Contains(pair.Uri))
+            if (peerCapabilities.Contains(pair.Uri) ||
+                EventSubscriptionAgentFamily.CapabilityKeyOf(pair.Uri) is { } key && peerCapabilityKeys.Contains(key))
             {
                 releasable.Add(pair);
             }
