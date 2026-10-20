@@ -429,6 +429,7 @@ public partial class HttpChain
                 Name = querystringVariable.Name,
                 ModelMetadata = new EndpointModelMetadata(variableType),
                 Source = BindingSource.Query,
+                DefaultValue = querystringVariable.DeclaredDefaultValue, // GH-5099
                 Type = variableType,
                 IsRequired = false
             };
@@ -447,6 +448,7 @@ public partial class HttpChain
                 Name = formVariable.Name,
                 ModelMetadata = new EndpointModelMetadata(variableType),
                 Source = BindingSource.Form,
+                DefaultValue = formVariable.DeclaredDefaultValue, // GH-5099
                 ParameterDescriptor = new ParameterDescriptor
                 {
                     Name = formVariable.Name,

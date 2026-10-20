@@ -938,7 +938,23 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return TryFindOrCreateFormValue(parameterType, parameterName!, key);
+        return UseDeclaredDefault(TryFindOrCreateFormValue(parameterType, parameterName!, key), parameter);
+    }
+
+    /// <summary>
+    /// GH-5099: a parameter bound from the query string, form, a header or an optional route value keeps its
+    /// declared C# default value (<c>int limit = 100</c>) when the request omits the value, as in ASP.NET Core
+    /// Minimal APIs.
+    /// </summary>
+    internal static TVariable? UseDeclaredDefault<TVariable>(TVariable? variable, ParameterInfo parameter)
+        where TVariable : Variable
+    {
+        if (variable?.Creator is ReadHttpFrame frame)
+        {
+            frame.UseDeclaredDefaultOf(parameter);
+        }
+
+        return variable;
     }
     
  public HttpElementVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
@@ -1032,7 +1048,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return TryFindOrCreateQuerystringValue(parameterType, parameterName!, key);
+        return UseDeclaredDefault(TryFindOrCreateQuerystringValue(parameterType, parameterName!, key), parameter);
     }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
@@ -1168,6 +1184,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (parameter.ParameterType == typeof(string))
             {
                 variable = new ReadHttpFrame(BindingSource.RouteValue, typeof(string), parameter.Name!, isOptional).Variable;
+                UseDeclaredDefault(variable, parameter);
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -1178,6 +1195,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 if (RouteParameterStrategy.CanParse(inner))
                 {
                     variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name!, isOptional).Variable;
+                    UseDeclaredDefault(variable, parameter);
                     _routeVariables.Add(variable);
                     return true;
                 }
@@ -1186,6 +1204,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
                 variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name!, isOptional).Variable;
+                UseDeclaredDefault(variable, parameter);
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -1240,6 +1259,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             Key = metadata.Name ?? parameter.Name!
         };
         
+        frame.UseDeclaredDefaultOf(parameter);
         _headerVariables.Add(frame.Variable);
         
         return frame.Variable;

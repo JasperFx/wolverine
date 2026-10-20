@@ -432,6 +432,7 @@ public partial class HttpChain
             Key = headerName
         };
 
+        frame.UseDeclaredDefaultOf(parameter); // GH-5099
         _postprocessorHeaderVariables.Add(frame.Variable);
         return frame.Variable;
     }

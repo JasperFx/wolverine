@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -47,6 +48,31 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     }
 
     public HttpElementVariable Variable { get; }
+
+    /// <summary>
+    /// GH-5099: the C# literal of the bound parameter's declared default value, or null for none.
+    /// A value missing from the request keeps it, as in ASP.NET Core Minimal APIs.
+    /// </summary>
+    internal string? DefaultValueCode { get; private set; }
+
+    /// <summary>
+    /// GH-5099: initialize the bound variable with the parameter's declared C# default value
+    /// (<c>int limit = 100</c>) rather than the type's default, so a request that omits the value
+    /// binds the declared default. A present, parseable value still overwrites it.
+    /// </summary>
+    internal void UseDeclaredDefaultOf(ParameterInfo parameter)
+    {
+        // A required route value 404s when missing, so it never needs a default
+        if (_source == BindingSource.RouteValue && !_isOptional) return;
+
+        if (DefaultValueCode != null) return;
+
+        DefaultValueCode = DeclaredDefaultValue.CodeFor(parameter);
+        if (DefaultValueCode != null)
+        {
+            Variable.DeclaredDefaultValue = parameter.DefaultValue;
+        }
+    }
 
     /// <summary>
     /// The query string key, route argument name, or form element name. Mirrors Variable.Name
@@ -261,8 +287,16 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     private void writeStringValue(ISourceWriter writer, GeneratedMethod method)
     {
         var assignTo = Mode == AssignMode.WriteToVariable ? $"var {Variable.Usage}" : _property;
-        
-        writer.Write($"{assignTo} = {rawValueSource()};");
+
+        if (DefaultValueCode != null)
+        {
+            // GH-5099: a missing value keeps the parameter's declared default
+            writer.Write($"{assignTo} = (string?){rawValueSource()} ?? {DefaultValueCode};");
+        }
+        else
+        {
+            writer.Write($"{assignTo} = {rawValueSource()};");
+        }
         
         if (_source == BindingSource.RouteValue)
         {
@@ -285,13 +319,17 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         
         if (Mode == AssignMode.WriteToVariable)
         {
-            writer.Write($"{Variable.VariableType.FullNameInCode()} {Variable.Usage} = default;");
+            // GH-5099: start from the parameter's declared default, so a missing (or, in lenient mode,
+            // unparseable) value keeps it, as ASP.NET Core Minimal APIs do
+            writer.Write($"{Variable.VariableType.FullNameInCode()} {Variable.Usage} = {DefaultValueCode ?? "default"};");
         }
         
         var assignmentLine = Mode == AssignMode.WriteToVariable ? "" : $"{_property} = {Variable.Usage};";
         var outUsage = Mode == AssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
         
-        if (_isNullable)
+        // A failed TryParse writes the type's default into its out argument, and enum/bool parsing runs even
+        // on a missing value, so a declared default (GH-5099) parses into a temporary just like a nullable
+        if (_isNullable || DefaultValueCode != null)
         {
             outUsage = $"var {Variable.Usage}_parsed";
 
