@@ -1,4 +1,3 @@
-using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Logging;
@@ -7,6 +6,12 @@ using Wolverine.Runtime.Agents;
 using Xunit;
 namespace MartenTests.Distribution.Support;
 
+/// <summary>
+///     Writes every <see cref="IWolverineEvent" /> a host's tracker publishes to test output: in practice
+///     <c>ListenerState</c> changes. GH-5078: the agent assignment branch it used to have was dead, because
+///     nothing publishes <c>AgentAssignmentsChanged</c> any more. Assignment history is on
+///     <see cref="IWolverineObserver" />, which has to be wrapped before the host starts.
+/// </summary>
 public class XUnitEventObserver : IObserver<IWolverineEvent>, IDisposable
 {
     private readonly ITestOutputHelper _output;
@@ -40,34 +45,6 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>, IDisposable
 
     public void OnNext(IWolverineEvent value)
     {
-        if (value is AgentAssignmentsChanged changed)
-        {
-            _output.WriteLine($"Host {_assignedId}: Agent assignments determined for known nodes {changed.Assignments.Nodes.Select(x => x.ToString()).Join(", ")}");
-            if (!changed.Commands.Any()) _output.WriteLine("No assignment changes detected");
-
-            foreach (var agent in changed.Assignments.AllAgents)
-            {
-                if (agent.AssignedNode == null)
-                {
-                    _output.WriteLine($"* {agent.Uri} is not assigned");
-                }
-                else if (agent.OriginalNode == null)
-                {
-                    _output.WriteLine($"* {agent.Uri} assigned to node {agent.AssignedNode.AssignedId}");
-                }
-                else if (agent.OriginalNode == agent.AssignedNode)
-                {
-                    _output.WriteLine($"* {agent.Uri} is unchanged on node {agent.AssignedNode.AssignedId}");
-                }
-                else
-                {
-                    _output.WriteLine($"* {agent.Uri} reassigned from node {agent.OriginalNode.AssignedId} to node {agent.AssignedNode.AssignedId}");
-                }
-            }
-        }
-        else
-        {
-            _output.WriteLine($"Host {_assignedId}: {value}");
-        }
+        _output.WriteLine($"Host {_assignedId}: {value}");
     }
 }

@@ -1,4 +1,3 @@
-using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Logging;
 using Wolverine.Runtime.Agents;
@@ -10,10 +9,11 @@ namespace Wolverine.ComplianceTests;
 ///     Writes every <see cref="IWolverineEvent" /> a host's tracker publishes to test output.
 /// </summary>
 /// <remarks>
-///     Nothing in Wolverine publishes <see cref="AgentAssignmentsChanged" /> to the tracker any more, so in
-///     practice this writes <c>ListenerState</c> changes only and the assignment branch below never runs. The
-///     leadership suite's assignment history comes from <c>Telemetry.AgentAssignmentTelemetry</c>, which hears the
-///     runtime's <c>IWolverineObserver</c> instead and is written out only when a specification fails.
+///     The tracker carries <c>ListenerState</c> changes only. GH-5078: this used to have a branch for
+///     <c>AgentAssignmentsChanged</c>, which nothing in Wolverine publishes any more, so it never ran. Agent
+///     assignment history comes from <see cref="IWolverineObserver" /> instead: the leadership suite's
+///     <c>Telemetry.AgentAssignmentTelemetry</c> wraps the runtime's observer before the host starts and is written
+///     out when a specification fails.
 /// </remarks>
 public class XUnitEventObserver : IObserver<IWolverineEvent>
 {
@@ -40,34 +40,6 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
 
     public void OnNext(IWolverineEvent value)
     {
-        if (value is AgentAssignmentsChanged changed)
-        {
-            _output.WriteLine($"Host {_assignedId}: Agent assignments determined for known nodes {changed.Assignments.Nodes.Select(x => x.ToString()).Join(", ")}");
-            if (!changed.Commands.Any()) _output.WriteLine("No assignment changes detected");
-
-            foreach (var agent in changed.Assignments.AllAgents)
-            {
-                if (agent.AssignedNode == null)
-                {
-                    _output.WriteLine($"* {agent.Uri} is not assigned");
-                }
-                else if (agent.OriginalNode == null)
-                {
-                    _output.WriteLine($"* {agent.Uri} assigned to node {agent.AssignedNode.AssignedId}");
-                }
-                else if (agent.OriginalNode == agent.AssignedNode)
-                {
-                    _output.WriteLine($"* {agent.Uri} is unchanged on node {agent.AssignedNode.AssignedId}");
-                }
-                else
-                {
-                    _output.WriteLine($"* {agent.Uri} reassigned from node {agent.OriginalNode.AssignedId} to node {agent.AssignedNode.AssignedId}");
-                }
-            }
-        }
-        else
-        {
-            _output.WriteLine($"Host {_assignedId}: {value}");
-        }
+        _output.WriteLine($"Host {_assignedId}: {value}");
     }
 }

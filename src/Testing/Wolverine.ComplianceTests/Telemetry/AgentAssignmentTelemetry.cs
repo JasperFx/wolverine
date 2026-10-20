@@ -16,8 +16,8 @@ namespace Wolverine.ComplianceTests.Telemetry;
 /// <remarks>
 ///     <para>
 ///         <b>Fed from <see cref="IWolverineObserver" />, not from <c>runtime.Tracker</c>.</b> Nothing in Wolverine
-///         publishes <see cref="AgentAssignmentsChanged" /> to the tracker any more, so the assignment half of
-///         <see cref="XUnitEventObserver" /> never fires: the tracker only carries <c>ListenerState</c>. The
+///         publishes <c>AgentAssignmentsChanged</c> to the tracker any more (GH-5078 retired the dead branch of
+///         <see cref="XUnitEventObserver" /> that listened for it): the tracker only carries <c>ListenerState</c>. The
 ///         observer is where the node controller reports what the leader decided (<c>AssignmentsChanged</c>, on
 ///         every evaluation, changed or not) and what each node actually did (<c>AgentStarted</c>,
 ///         <c>AgentStopped</c>, leadership won and lost). <see cref="Watch" /> wraps the host's observer before the
