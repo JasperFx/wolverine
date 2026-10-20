@@ -69,7 +69,12 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
         // Subscribe to all topics at once — single consumer, multiple topics.
         _consumer.Subscribe(endpoint.TopicNames);
-        _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token);
+        // GH-4330: the same blocking IConsumer.Consume(CancellationToken) as KafkaListener, so the same
+        // dedicated thread rather than a pool worker held for the listener's whole lifetime.
+        _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token)
+        {
+            UsesBlockingIteration = true
+        };
         _loop.Start();
     }
 
