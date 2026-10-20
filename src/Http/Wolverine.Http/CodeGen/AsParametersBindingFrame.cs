@@ -259,15 +259,16 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             _hasForms = true;
             var formName = fatt.Name ?? memberName;
-            variable = chain.TryFindOrCreateFormValue(memberType, memberName!, formName);
+            variable = HttpChain.UseDeclaredDefault(chain.TryFindOrCreateFormValue(memberType, memberName!, formName), parameter);
             return true;
         }
 
         if (parameter.TryGetAttribute<FromQueryAttribute>(out var qatt))
         {
             var queryStringName = qatt.Name ?? memberName;
-            variable =
-                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!);
+            // GH-5099: a constructor parameter's declared default survives a missing value
+            variable = HttpChain.UseDeclaredDefault(
+                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!), parameter);
 
             return true;
         }

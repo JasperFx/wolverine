@@ -16,6 +16,12 @@ public class HttpElementVariable : Variable
     public string Name { get; set; }
 
     /// <summary>
+    /// GH-5099: the bound parameter's declared C# default value, if it has one, which a request that omits
+    /// the value binds and the OpenAPI description advertises
+    /// </summary>
+    public object? DeclaredDefaultValue { get; internal set; }
+
+    /// <summary>
     /// Re-home this variable to a different creating frame. Used when AsParametersBindingFrame
     /// absorbs the original binding frame and generates it inline: any other consumer of the
     /// variable (e.g. a compound handler LoadAsync/Before method binding the same route value)
