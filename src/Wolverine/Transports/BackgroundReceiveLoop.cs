@@ -116,6 +116,12 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     /// from the pool the handler pipeline and every other transport's continuations share.
     ///
     /// <para>
+    /// When set, the loop runs on a dedicated thread for its whole lifetime: each pass is waited on
+    /// rather than awaited, so the loop is back on that thread before it calls the iteration again.
+    /// What a pass awaits, such as the receiver's durable inbox insert, still completes on the pool.
+    /// </para>
+    ///
+    /// <para>
     /// Leave false for genuinely async iterations (SQS, Redis, the database queues): they release
     /// their thread at every await, so a dedicated thread would waste one.
     /// </para>
@@ -133,8 +139,8 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         _status = ReceiveLoopStatus.Running;
 
         _task = UsesBlockingIteration
-            ? Task.Factory.StartNew(runAsync, _cancellation.Token, TaskCreationOptions.LongRunning,
-                TaskScheduler.Default).Unwrap()
+            ? Task.Factory.StartNew(runOnDedicatedThread, _cancellation.Token, TaskCreationOptions.LongRunning,
+                TaskScheduler.Default)
             : Task.Run(runAsync, _cancellation.Token);
     }
 
@@ -142,71 +148,8 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
     {
         try
         {
-            while (!_cancellation.IsCancellationRequested)
+            while (!_cancellation.IsCancellationRequested && await runOnceAsync().ConfigureAwait(false))
             {
-                // Heartbeat: bump before each iteration so a hung iteration shows a stale timestamp.
-                Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
-
-                try
-                {
-                    var didWork = await _iteration(_cancellation.Token).ConfigureAwait(false);
-                    _consecutiveFailures = 0;
-
-                    // GH-4215: a successful iteration clears an EntityMissing streak, so a loop that healed
-                    // reports Running again rather than staying stuck on the diagnosis that got it there.
-                    if (_status == ReceiveLoopStatus.EntityMissing)
-                    {
-                        _status = ReceiveLoopStatus.Running;
-                        _logger.LogInformation("The receive loop for {Uri} is consuming again", _uri);
-                    }
-
-                    if (!didWork)
-                    {
-                        await WaitForWakeupOrTimeoutAsync(_idleDelay, _cancellation.Token).ConfigureAwait(false);
-                    }
-                }
-                catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception e)
-                {
-                    var failures = Interlocked.Increment(ref _consecutiveFailures);
-                    var entityMissing = IsEntityMissing?.Invoke(e) ?? false;
-
-                    if (entityMissing)
-                    {
-                        _status = ReceiveLoopStatus.EntityMissing;
-
-                        // GH-4215: logged on the first failure of a streak and then every 60th, rather than every
-                        // iteration. The old behaviour drowned out everything else the host logged, which is its
-                        // own outage on top of the one being reported.
-                        if (failures == 1 || failures % 60 == 0)
-                        {
-                            _logger.LogWarning(e,
-                                "The broker entity for {Uri} does not exist (consecutive failures: {Count}). Retrying the receive cannot succeed until it is re-declared.",
-                                _uri, failures);
-                        }
-
-                        await tryRedeclareAsync().ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        _logger.LogError(e,
-                            "Error in the receive loop for {Uri} (consecutive failures: {Count}); backing off and retrying",
-                            _uri, failures);
-                    }
-
-                    try
-                    {
-                        await Task.Delay(backoffFor(failures, entityMissing), _cancellation.Token)
-                            .ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                }
             }
 
             _status = ReceiveLoopStatus.Stopped;
@@ -217,10 +160,114 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         }
         catch (Exception e)
         {
-            // The loop scaffolding itself fell over — this is the silent-death case GH-3236 exists to surface.
-            _status = ReceiveLoopStatus.Faulted;
-            _logger.LogError(e, "The receive loop for {Uri} terminated unexpectedly and is no longer consuming", _uri);
+            markFaulted(e);
         }
+    }
+
+    // GH-4330: starting runAsync with LongRunning only kept the loop on its dedicated thread until the first await
+    // that did not complete synchronously. The thread then exited, the loop resumed on whichever pool thread
+    // completed that await, and every later Consume(token) blocked a pool worker after all -- one per Kafka
+    // listener, held for as long as it waited for a record. Waiting on each pass here instead of awaiting it brings
+    // the loop back to this thread before every iteration. The pass's own continuations still run on the pool, and
+    // nothing ever needs this thread to complete them, so the wait cannot deadlock.
+    private void runOnDedicatedThread()
+    {
+        try
+        {
+#pragma warning disable VSTHRD002 // Deliberate: blocking this dedicated thread is what keeps the next iteration on it
+            while (!_cancellation.IsCancellationRequested && runOnceAsync().GetAwaiter().GetResult())
+            {
+            }
+#pragma warning restore VSTHRD002
+
+            _status = ReceiveLoopStatus.Stopped;
+        }
+        catch (OperationCanceledException)
+        {
+            _status = ReceiveLoopStatus.Stopped;
+        }
+        catch (Exception e)
+        {
+            markFaulted(e);
+        }
+    }
+
+    // One pass of the loop: the iteration, then the idle wait or the failure backoff that follows it. Returns false
+    // once the loop has been cancelled and should stop.
+    private async Task<bool> runOnceAsync()
+    {
+        // Heartbeat: bump before each iteration so a hung iteration shows a stale timestamp.
+        Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
+
+        try
+        {
+            var didWork = await _iteration(_cancellation.Token).ConfigureAwait(false);
+            _consecutiveFailures = 0;
+
+            // GH-4215: a successful iteration clears an EntityMissing streak, so a loop that healed
+            // reports Running again rather than staying stuck on the diagnosis that got it there.
+            if (_status == ReceiveLoopStatus.EntityMissing)
+            {
+                _status = ReceiveLoopStatus.Running;
+                _logger.LogInformation("The receive loop for {Uri} is consuming again", _uri);
+            }
+
+            if (!didWork)
+            {
+                await WaitForWakeupOrTimeoutAsync(_idleDelay, _cancellation.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception e)
+        {
+            var failures = Interlocked.Increment(ref _consecutiveFailures);
+            var entityMissing = IsEntityMissing?.Invoke(e) ?? false;
+
+            if (entityMissing)
+            {
+                _status = ReceiveLoopStatus.EntityMissing;
+
+                // GH-4215: logged on the first failure of a streak and then every 60th, rather than every
+                // iteration. The old behaviour drowned out everything else the host logged, which is its
+                // own outage on top of the one being reported.
+                if (failures == 1 || failures % 60 == 0)
+                {
+                    _logger.LogWarning(e,
+                        "The broker entity for {Uri} does not exist (consecutive failures: {Count}). Retrying the receive cannot succeed until it is re-declared.",
+                        _uri, failures);
+                }
+
+                await tryRedeclareAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                _logger.LogError(e,
+                    "Error in the receive loop for {Uri} (consecutive failures: {Count}); backing off and retrying",
+                    _uri, failures);
+            }
+
+            try
+            {
+                await Task.Delay(backoffFor(failures, entityMissing), _cancellation.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void markFaulted(Exception e)
+    {
+        // The loop scaffolding itself fell over — this is the silent-death case GH-3236 exists to surface.
+        _status = ReceiveLoopStatus.Faulted;
+        _logger.LogError(e, "The receive loop for {Uri} terminated unexpectedly and is no longer consuming", _uri);
     }
 
     // Mirrors the historical SQS backoff curve: a gentle ramp, capped at one second.
