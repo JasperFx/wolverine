@@ -109,6 +109,22 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(messageType);
     }
 
+    // The same chain wiring AddMessageHandler does, for a handler registered on one endpoint. Normally done
+    // in Compile; this also covers an endpoint that first shows up after the graph compiled.
+    private void ensureStickyMessageHandlerChain(Type messageType, IMessageHandler handler)
+    {
+        if (handler is not MessageHandler { Chain: null } messageHandler || handler is AgentCommandHandler) return;
+
+        lock (_compilingLock)
+        {
+            if (messageHandler.Chain != null) return;
+
+            var chain = new HandlerChain(messageType, this);
+            messageHandler.ApplyChainConfiguration(chain);
+            messageHandler.Chain = chain;
+        }
+    }
+
     private void assertNotGrouped()
     {
         if (_hasGrouped)
@@ -166,6 +182,14 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
     {
+        // A manual handler registered for this endpoint only (Endpoint.RegisterStickyMessageHandler) wins
+        // over everything else for messages received here. HandlerFor(Type) never looks at it.
+        if (endpoint.TryFindStickyMessageHandler(messageType, out var stickyMessageHandler))
+        {
+            ensureStickyMessageHandlerChain(messageType, stickyMessageHandler);
+            return stickyMessageHandler;
+        }
+
         if (messageType.CanBeCastTo(typeof(IAgentCommand)))
         {
             if (_handlers.TryFind(typeof(IAgentCommand), out var handler))
@@ -385,6 +409,16 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         compileWithRuntimeScanning(options, logger);
 
         Group(options);
+
+        // Manual handlers registered on a single endpoint get their chain, and their message type, up front
+        foreach (var endpoint in options.Transports.SelectMany(x => x.Endpoints()))
+        {
+            foreach (var pair in endpoint.AllStickyMessageHandlers())
+            {
+                ensureStickyMessageHandlerChain(pair.Key, pair.Value);
+                RegisterMessageType(pair.Key);
+            }
+        }
 
         // GH-3974: the earliest point at which "will this message type be handled?" has a real answer.
         // Discovery has resolved and the chains are grouped, so a consumer no longer has to hand-roll a

@@ -1,4 +1,6 @@
-﻿using Wolverine.Runtime.Serialization;
+﻿using JasperFx.Core.Reflection;
+using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
 
@@ -175,6 +177,15 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// <param name="handlerType"></param>
     /// <returns></returns>
     T AddStickyHandler(Type handlerType);
+
+    /// <summary>
+    /// Handle <paramref name="messageType" /> with the pre-built <paramref name="handler" /> on only this
+    /// listening endpoint, while the rest of the application (and <c>InvokeAsync()</c>) keeps using whatever
+    /// handles the type globally. The manual-handler counterpart of <see cref="AddStickyHandler(Type)" />; see
+    /// <see cref="Endpoint.RegisterStickyMessageHandler" />.
+    /// </summary>
+    T AddStickyHandler(Type messageType, IMessageHandler handler)
+        => throw new NotSupportedException($"{GetType().FullNameInCode()} does not support sticky message handlers");
 
     /// <summary>
     /// "Pin" this endpoint so that it is only active on the leader node

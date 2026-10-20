@@ -122,6 +122,26 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L186-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sticky_handlers_by_endpoint_with_fluent_interface' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Sticky Pre-Built Message Handlers <Badge type="tip" text="6.51.2" />
+
+The sticky handlers above are discovered handler types. If you register a pre-built `IMessageHandler` with
+`opts.AddMessageHandler()`, there is only one per message type. To handle the same message type with a
+different pre-built handler on one particular listening endpoint, register it on that endpoint:
+
+<!-- snippet: sample_registering_a_sticky_manual_message_handler -->
+<a id='snippet-sample_registering_a_sticky_manual_message_handler'></a>
+```cs
+opts.LocalQueue("sticky-a").AddStickyHandler(typeof(StickyPing), theStickyHandler);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_manual_message_handlers.cs#L32-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_sticky_manual_message_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A message of that type received on that endpoint runs the sticky handler. Received anywhere else, or
+executed with `InvokeAsync()`, it runs whatever handles the type globally. A `MessageHandler` gets its own
+`HandlerChain` at startup, and `MessageHandler<T>.ConfigureChain()` runs against it, so error handling
+configured there applies to that endpoint only. The same registration is available directly on an endpoint as
+`Endpoint.RegisterStickyMessageHandler(Type, IMessageHandler)`.
+
 ## Configuring Local Queues <Badge type="tip" text="3.7" />
 
 There is a world of reasons why you might want to fine tune the behavior of local queues (sequential ordering? parallelism? circuit breakers?), but the 
