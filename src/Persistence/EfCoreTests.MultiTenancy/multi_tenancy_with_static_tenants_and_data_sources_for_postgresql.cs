@@ -27,12 +27,13 @@ public class multi_tenancy_with_static_tenants_and_data_sources_for_postgresql :
 
     public override void Configure(WolverineOptions opts)
     {
-        opts.PersistMessagesWithPostgresql(NpgsqlDataSource.Create(Servers.PostgresConnectionString), "static_multi_tenancy")
+        // Wolverine does not dispose a data source it is given, so the test owns and disposes these
+        opts.PersistMessagesWithPostgresql(OwnedByTheTest(NpgsqlDataSource.Create(Servers.PostgresConnectionString)), "static_multi_tenancy")
             .RegisterStaticTenantsByDataSource(tenants =>
             {
-                tenants.Register("red", NpgsqlDataSource.Create(tenant1ConnectionString));
-                tenants.Register("blue", NpgsqlDataSource.Create(tenant2ConnectionString));
-                tenants.Register("green", NpgsqlDataSource.Create(tenant3ConnectionString));
+                tenants.Register("red", OwnedByTheTest(NpgsqlDataSource.Create(tenant1ConnectionString)));
+                tenants.Register("blue", OwnedByTheTest(NpgsqlDataSource.Create(tenant2ConnectionString)));
+                tenants.Register("green", OwnedByTheTest(NpgsqlDataSource.Create(tenant3ConnectionString)));
             });
         
         // Little weird, but we have to remove this DbContext to use

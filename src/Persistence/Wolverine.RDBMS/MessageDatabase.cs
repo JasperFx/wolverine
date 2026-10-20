@@ -91,10 +91,21 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     private string _schemaName;
 
     protected MessageDatabase(DatabaseSettings databaseSettings, DbDataSource dataSource, DurabilitySettings settings,
-        ILogger logger, Migrator migrator, IDatabaseProvider provider) : base(new MigrationLogger(logger),
+        ILogger logger, Migrator migrator, IDatabaseProvider provider) : this(databaseSettings, dataSource, settings,
+        logger, migrator, provider, true)
+    {
+    }
+
+    /// <summary>
+    /// Pass <c>ownsDataSource: false</c> when the data source belongs to the caller, so that disposing this store
+    /// leaves it alone. See <see cref="OwnsDataSource"/>
+    /// </summary>
+    protected MessageDatabase(DatabaseSettings databaseSettings, DbDataSource dataSource, DurabilitySettings settings,
+        ILogger logger, Migrator migrator, IDatabaseProvider provider, bool ownsDataSource) : base(new MigrationLogger(logger),
         databaseSettings.AutoCreate, migrator,
         "WolverineEnvelopeStorage", () => (T)dataSource.CreateConnection())
     {
+        OwnsDataSource = ownsDataSource;
         Provider = provider;
         _settings = databaseSettings;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
@@ -303,6 +314,14 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public DbDataSource DataSource { get; }
 
+    /// <summary>
+    /// Does this store own the lifetime of its <see cref="DataSource"/>? When <c>false</c>, the data source was
+    /// supplied by the caller (or belongs to Marten) and <see cref="DisposeAsync"/> will NOT dispose it -- disposing
+    /// an <c>NpgsqlDataSource</c> aborts every physical connection rented from it, including those still in use
+    /// elsewhere. Defaults to <c>true</c> for backwards compatibility.
+    /// </summary>
+    public bool OwnsDataSource { get; }
+
     public string OutgoingFullName { get; private set; }
 
     public string IncomingFullName { get; private set; }
@@ -464,13 +483,17 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             await _batcher.DisposeAsync();
         }
 
-        try
+        // A data source the caller supplied may still be in use elsewhere, so it is the caller's to dispose
+        if (OwnsDataSource)
         {
-            await DataSource.DisposeAsync();
-        }
-        catch
-        {
-            // Not letting this fail out of here
+            try
+            {
+                await DataSource.DisposeAsync();
+            }
+            catch
+            {
+                // Not letting this fail out of here
+            }
         }
 
         HasDisposed = true;

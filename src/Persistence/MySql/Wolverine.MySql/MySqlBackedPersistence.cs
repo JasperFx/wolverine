@@ -94,7 +94,8 @@ public interface IMySqlBackedPersistence
 
     /// <summary>
     /// Opt into using static per-tenant database multi-tenancy with MySqlDataSource. With this option, Wolverine is assuming that
-    /// there the number of tenant databases is static and does not change at runtime
+    /// there the number of tenant databases is static and does not change at runtime. The data sources are owned by
+    /// the caller, and Wolverine does not dispose them
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -110,7 +111,7 @@ public interface IMySqlBackedPersistence
 
     /// <summary>
     /// Opt into multi-tenancy with separate databases using your own strategy for finding the right connection string
-    /// for a given tenant id
+    /// for a given tenant id. The data sources it returns are owned by the caller, and Wolverine does not dispose them
     /// </summary>
     /// <param name="tenantSource"></param>
     /// <returns></returns>
@@ -225,13 +226,16 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
 
         var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();
 
+        // Only a data source built here from the connection string is Wolverine's to dispose. One passed to
+        // PersistMessagesWithMySql(MySqlDataSource) belongs to the caller
+        var ownsMainSource = DataSource == null;
         var mainSource = DataSource ?? MySqlDataSourceFactory.Create(ConnectionString!);
         var logger = runtime.LoggerFactory.CreateLogger<MySqlMessageStore>();
 
         if (UseMasterTableTenancy)
         {
             var defaultStore = new MySqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
-                logger, sagaTables);
+                logger, sagaTables, ownsMainSource);
 
             ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
 
@@ -242,14 +246,14 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
         if (ConnectionStringTenancy != null || DataSourceTenancy != null)
         {
             var defaultStore = new MySqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
-                logger, sagaTables);
+                logger, sagaTables, ownsMainSource);
 
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new MySqlTenantedMessageStore(runtime, this, sagaTables));
         }
 
         return new MySqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
-            logger, sagaTables);
+            logger, sagaTables, ownsMainSource);
     }
 
     public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;

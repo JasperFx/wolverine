@@ -103,8 +103,9 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
             SchemaName = _persistence.EnvelopeStorageSchemaName
         };
 
+        // The tenant's data source was registered by the caller, who owns it
         store = new PostgresqlMessageStore(settings, _runtime.Options.Durability, source,
-            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), _sagaTables);
+            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), _sagaTables, ownsDataSource: false);
 
         // Same naming as the connection string path. Left unset, every tenant database registered by
         // NpgsqlDataSource kept the "default" name, and MultiTenantedQueueListener / MultiTenantedQueueSender

@@ -97,7 +97,7 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
-        ILogger<PostgresqlMessageStore> logger) : this(databaseSettings, settings, GetPrimaryNpgsqlNodeIfPossible(dataSource), logger, Array.Empty<SagaTableDefinition>())
+        ILogger<PostgresqlMessageStore> logger, bool ownsDataSource = true) : this(databaseSettings, settings, GetPrimaryNpgsqlNodeIfPossible(dataSource), logger, Array.Empty<SagaTableDefinition>(), ownsDataSource)
     {
         // ReSharper disable once VirtualMemberCallInConstructor
         var descriptor = Describe();
@@ -120,8 +120,8 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "DatabaseSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
-        ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
-        settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance)
+        ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes, bool ownsDataSource = true) : base(databaseSettings, dataSource,
+        settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance, ownsDataSource)
     {
         // The incoming table's key shape follows MessageIdentity: received_at joins the primary key only
         // under IdAndDestination (see IncomingEnvelopeTable), and EnableInboxPartitioning then adds status

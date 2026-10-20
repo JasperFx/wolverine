@@ -69,7 +69,7 @@ public static class PostgresqlConfigurationExtensions
     ///     Register Postgresql backed message persistence to a known connection string
     /// </summary>
     /// <param name="options"></param>
-    /// <param name="dataSource"></param>
+    /// <param name="dataSource">Owned by the caller. Wolverine does not dispose it, so it can be shared with the rest of the application</param>
     /// <param name="schemaName">Optional schema name for the Wolverine envelope storage. This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
     /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, NpgsqlDataSource dataSource,

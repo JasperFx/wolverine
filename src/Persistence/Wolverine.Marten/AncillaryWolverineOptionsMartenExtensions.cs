@@ -49,7 +49,8 @@ public class AncillaryMartenIntegration
     ///     In the case of Marten using a database per tenant, you may wish to
     ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
     ///     This does not have to be one of the tenant databases
-    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    ///     Wolverine will try to use the master database from the Marten configuration when possible.
+    ///     Wolverine does not dispose this data source; the caller owns it
     /// </summary>
     public NpgsqlDataSource? MainDataSource { get; set; }
     
@@ -205,8 +206,12 @@ public static class AncillaryWolverineOptionsMartenExtensions
         };
 
         var dataSource = findMasterDataSource(store, mainSettings);
+
+        // Wolverine owns the master data source only when it built it from the connection string. One from
+        // Marten's tenancy belongs to Marten, and MainDataSource belongs to the caller
+        var ownsDataSource = store.Tenancy is not ITenancyWithMasterDatabase && masterDataSource == null;
         var master = new PostgresqlMessageStore(mainSettings, runtime.Options.Durability, dataSource,
-            runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
+            runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), ownsDataSource)
         {
             Name = "Master",
             SubjectUri = new Uri($"wolverine://messages/{typeof(T).Name.ToLowerInvariant()}")
@@ -236,7 +241,9 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
 
-        var messageStore = new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger);
+        // Marten's data source, so Marten disposes it when it should
+        var messageStore = new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger,
+            ownsDataSource: false);
         messageStore.SubjectUri = new Uri($"wolverine://messages/{typeof(T).Name.ToLowerInvariant()}");
 
         return new(typeof(T), messageStore);

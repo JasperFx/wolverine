@@ -60,8 +60,8 @@ internal partial class SqliteMessageStore : MessageDatabase<SqliteConnection>, I
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "DatabaseSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
     public SqliteMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, DbDataSource dataSource,
-        ILogger<SqliteMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(asTablePrefixed(databaseSettings), dataSource,
-        settings, logger, new SqliteMigrator(), SqliteProvider.Instance)
+        ILogger<SqliteMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes, bool ownsDataSource = true) : base(asTablePrefixed(databaseSettings), dataSource,
+        settings, logger, new SqliteMigrator(), SqliteProvider.Instance, ownsDataSource)
     {
         _reassignIncomingSql =
             $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id IN (@ids)";
