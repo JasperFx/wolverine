@@ -437,20 +437,34 @@ public static class EventModelRoles
     }
 
     // Per handler assembly, read once: diagnostic surface only, never per message
-    private static readonly ConcurrentDictionary<Assembly, ILookup<(Type HandlerType, string MethodName), Type>> _emittedFromSource = new();
+    private static readonly ConcurrentDictionary<Assembly, ILookup<(Type HandlerType, string MethodName), EmittedEventsAttribute>> _emittedFromSource = new();
 
     /// <summary>
     ///     The events the source generator's <see cref="EmittedEventsAttribute" /> manifest lists for this
     ///     handler method (jasperfx#990). Empty for an assembly the generator never ran on.
     /// </summary>
+    /// <remarks>
+    ///     GH-5089 / jasperfx#1021: the generator writes one entry per overload, told apart by
+    ///     <see cref="EmittedEventsAttribute.ParameterTypes" />, so a handler class with a <c>Handle</c> per
+    ///     command no longer credits every command with every overload's events. The entries whose parameter
+    ///     types are this method's win; only when there are none do the entries without parameter types apply
+    ///     -- an older manifest, or an overload the generator could not name from assembly scope.
+    /// </remarks>
     private static IEnumerable<Type> emittedFromSource(MethodCall call)
     {
         var manifest = _emittedFromSource.GetOrAdd(call.HandlerType.Assembly, static assembly => assembly
             .GetCustomAttributes<EmittedEventsAttribute>()
-            .SelectMany(x => x.EventTypes.Select(e => (Key: (x.HandlerType, x.MethodName), Event: e)))
-            .ToLookup(x => x.Key, x => x.Event));
+            .ToLookup(x => (x.HandlerType, x.MethodName)));
 
-        return manifest[(call.HandlerType, call.Method.Name)];
+        var entries = manifest[(call.HandlerType, call.Method.Name)].ToArray();
+        if (entries.Length == 0) return [];
+
+        var parameterTypes = call.Method.GetParameters().Select(x => x.ParameterType).ToArray();
+        var exact = entries.Where(x => x.ParameterTypes != null && x.ParameterTypes.SequenceEqual(parameterTypes))
+            .ToArray();
+
+        return (exact.Length > 0 ? exact : entries.Where(x => x.ParameterTypes == null))
+            .SelectMany(x => x.EventTypes);
     }
 
     /// <summary>
