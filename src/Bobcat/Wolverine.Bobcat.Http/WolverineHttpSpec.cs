@@ -137,4 +137,42 @@ public abstract class WolverineHttpSpec : WolverineSpec
     /// <inheritdoc cref="WolverineHttpScenario.ThenRefusedWithProblem" />
     public Task<Microsoft.AspNetCore.Mvc.ProblemDetails?> ThenRefusedWithProblem(object? expected = null)
         => HttpScenario.ThenRefusedWithProblem(expected);
+
+    // ---- body-less acts (GH-5076) -------------------------------------------------------------
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPostedTo(string, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "POST")]
+    public Task WhenPostedTo(string route, params object[] routeValues) => HttpScenario.WhenPostedTo(route, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPostedTo(string, Action{Scenario}, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "POST")]
+    public Task WhenPostedTo(string route, Action<Scenario> configure, params object[] routeValues)
+        => HttpScenario.WhenPostedTo(route, configure, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPutTo(string, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PUT")]
+    public Task WhenPutTo(string route, params object[] routeValues) => HttpScenario.WhenPutTo(route, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPutTo(string, Action{Scenario}, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PUT")]
+    public Task WhenPutTo(string route, Action<Scenario> configure, params object[] routeValues)
+        => HttpScenario.WhenPutTo(route, configure, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPatchedTo(string, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PATCH")]
+    public Task WhenPatchedTo(string route, params object[] routeValues) => HttpScenario.WhenPatchedTo(route, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenPatchedTo(string, Action{Scenario}, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "PATCH")]
+    public Task WhenPatchedTo(string route, Action<Scenario> configure, params object[] routeValues)
+        => HttpScenario.WhenPatchedTo(route, configure, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenDeletedAt(string, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "DELETE")]
+    public Task WhenDeletedAt(string route, params object[] routeValues) => HttpScenario.WhenDeletedAt(route, routeValues);
+
+    /// <inheritdoc cref="WolverineHttpScenario.WhenDeletedAt(string, Action{Scenario}, object[])" />
+    [EventModelTrigger(ActTrigger.Http, Route = nameof(route), HttpMethod = "DELETE")]
+    public Task WhenDeletedAt(string route, Action<Scenario> configure, params object[] routeValues)
+        => HttpScenario.WhenDeletedAt(route, configure, routeValues);
 }

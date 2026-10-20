@@ -209,3 +209,67 @@ public static class AppointmentCommandEndpoints
     public static AppointmentWithdrawn Delete(WithdrawAppointment command, [WriteModel] Appointment appointment)
         => new(command.AppointmentId, command.Reason);
 }
+
+// GH-5076: body-less acts -- each endpoint takes everything from its route
+public record PatientArrivedAtDesk(Guid AppointmentId);
+
+public record AppointmentHeld(Guid AppointmentId);
+
+public record AppointmentFlagged(Guid AppointmentId);
+
+public record AppointmentUnconfirmed(Guid AppointmentId);
+
+public static class BodyLessEndpoints
+{
+    [WolverinePost("/api/appointments/{id}/arrive")]
+    [EmptyResponse]
+    public static PatientArrivedAtDesk Arrive([WriteModel] Appointment appointment) => new(appointment.Id);
+
+    [WolverinePut("/api/appointments/{id}/hold")]
+    [EmptyResponse]
+    public static AppointmentHeld Hold([WriteModel] Appointment appointment) => new(appointment.Id);
+
+    [WolverinePatch("/api/appointments/{id}/flag")]
+    [EmptyResponse]
+    public static AppointmentFlagged Flag([WriteModel] Appointment appointment) => new(appointment.Id);
+
+    [WolverineDelete("/api/appointments/{id}/confirmation")]
+    [EmptyResponse]
+    public static AppointmentUnconfirmed Unconfirm([WriteModel] Appointment appointment) => new(appointment.Id);
+}
+
+// GH-5076: a body-less endpoint that needs a header, for the configure overloads
+public record EscalationResponse(Guid Id, string By);
+
+public static class EscalateEndpoint
+{
+    [WolverinePost("/api/appointments/{id}/escalate")]
+    public static Microsoft.AspNetCore.Http.IResult Post(Guid id, Microsoft.AspNetCore.Http.HttpRequest request)
+        => request.Headers.TryGetValue("x-escalated-by", out var by)
+            ? Microsoft.AspNetCore.Http.Results.Json(new EscalationResponse(id, by.ToString()))
+            : Microsoft.AspNetCore.Http.Results.BadRequest();
+}
+
+// wolverine#5077: an endpoint that schedules a timeout -- what an act calling it caused, never the act's own message
+public record ReminderDue(Guid AppointmentId) : TimeoutMessage(TimeSpan.FromDays(1));
+
+public record ReminderSent(Guid AppointmentId);
+
+public static class RemindLaterEndpoint
+{
+    [WolverinePost("/api/appointments/{id}/remind-later")]
+    [EmptyResponse]
+    public static OutgoingMessages Post(Guid id) => [new ReminderDue(id)];
+}
+
+public static class ReminderDueHandler
+{
+    public static ReminderSent Handle(ReminderDue message) => new(message.AppointmentId);
+}
+
+public static class ReminderSentHandler
+{
+    public static void Handle(ReminderSent message)
+    {
+    }
+}

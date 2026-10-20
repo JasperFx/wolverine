@@ -27,7 +27,7 @@ namespace Wolverine.Bobcat.Http;
 /// overrides — headers, authentication, a status expectation of your own — on top.
 /// </para>
 /// </remarks>
-public class WolverineHttpScenario : WolverineScenario
+public partial class WolverineHttpScenario : WolverineScenario
 {
     public WolverineHttpScenario(IAlbaHost host, string? storeName = null) : base(host, storeName)
     {
@@ -229,6 +229,11 @@ public class WolverineHttpScenario : WolverineScenario
                     switch (verb)
                     {
                         case "GET": x.Get.Url(route); break;
+                        // GH-5076: a body-less act sends no body at all, never an empty object
+                        case "PUT" when built is null: x.Put.Url(route); break;
+                        case "PATCH" when built is null: x.Patch.Url(route); break;
+                        case "DELETE" when built is null: x.Delete.Url(route); break;
+                        case "POST" when built is null: x.Post.Url(route); break;
                         case "PUT": x.Put.Json(built!).ToUrl(route); break;
                         case "PATCH": x.Patch.Json(built!).ToUrl(route); break;
                         case "DELETE": x.Delete.Json(built!).ToUrl(route); break;

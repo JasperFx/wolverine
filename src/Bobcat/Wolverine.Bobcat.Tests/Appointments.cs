@@ -88,3 +88,38 @@ public static class PatientArrivedHandler
     {
     }
 }
+
+// GH-5077: a timeout whose handler escalates, and a command whose handler schedules it
+public record ConfirmationOverdue(Guid AppointmentId) : TimeoutMessage(TimeSpan.FromDays(5));
+
+public record EscalateUnconfirmedAppointment(Guid AppointmentId);
+
+public record AwaitConfirmation(Guid AppointmentId);
+
+public static class AwaitConfirmationHandler
+{
+    public static ConfirmationOverdue Handle(AwaitConfirmation command) => new(command.AppointmentId);
+}
+
+public static class ConfirmationOverdueHandler
+{
+    public static EscalateUnconfirmedAppointment Handle(ConfirmationOverdue message) => new(message.AppointmentId);
+}
+
+public static class EscalateUnconfirmedAppointmentHandler
+{
+    public static void Handle(EscalateUnconfirmedAppointment message)
+    {
+    }
+}
+
+// wolverine#5077: a timeout whose handler appends to the appointment's stream
+public record CheckInWindowClosed(Guid AppointmentId) : TimeoutMessage(TimeSpan.FromHours(1));
+
+public record PatientNoShow(Guid AppointmentId);
+
+public static class CheckInWindowClosedHandler
+{
+    public static Events Handle(CheckInWindowClosed message, [WriteModel] Appointment appointment)
+        => [new PatientNoShow(message.AppointmentId)];
+}

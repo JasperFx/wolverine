@@ -157,7 +157,9 @@ public class given_when_then(AppointmentsHost app) : WolverineSpec(app.Host)
         var id = Guid.NewGuid();
         await WhenPublished(new PatientArrived(id));
 
-        ThenMessageSent<PatientArrived>("local://");
+        // wolverine#5077: the act's own message is what it dispatched, never "sent"; what it did is that it was handled
+        ThenHandled<PatientArrived>();
+        ThenNoMessageSent<PatientArrived>();
         ThenNoEvents();
     }
 }

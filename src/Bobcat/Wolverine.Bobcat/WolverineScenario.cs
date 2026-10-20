@@ -69,6 +69,22 @@ public sealed record ActOutcome(
     /// else the one tenant every message it caused carried. Null for an act with no tenant.
     /// </summary>
     public string? TenantId { get; init; }
+
+    /// <summary>
+    /// GH-5077. The act's own messages (<see cref="OwnMessages" />) that Wolverine only scheduled -- a
+    /// <see cref="TimeoutMessage" />, a <c>DelayedFor</c> wrapper's message, a <c>ScheduleAsync</c> through the bus
+    /// <c>WhenTracked</c> hands its act -- so no handler of them ran within the act. Empty when every one was handled, or
+    /// the act sent none of its own: what a handler or an HTTP endpoint the act invoked scheduled is what the act caused,
+    /// and never trips this. <c>WhenScheduledMessagesAreExecuted()</c> runs them either way.
+    /// </summary>
+    public IReadOnlyList<object> OnlyScheduled { get; init; } = Array.Empty<object>();
+
+    /// <summary>
+    /// wolverine#5077. The act's own messages: the one <c>WhenReceived</c> or <c>WhenPublished</c> dispatched, or what the
+    /// act's own code sent through the bus it was handed. Never "sent" in any step or summary -- sent means what the
+    /// handling produced.
+    /// </summary>
+    public IReadOnlyList<object> OwnMessages { get; init; } = Array.Empty<object>();
 }
 
 /// <summary>
@@ -113,6 +129,9 @@ public class WolverineScenario : CritterStackScenario
     // every act and every Wolverine setting is that scenario's
     private readonly WolverineScenario? _origin;
     private WolverineScenario root => _origin ?? this;
+
+    // GH-5077: what the next act's own code sends through the bus it is handed
+    private ActMessages? _actMessages;
 
     // GH-4940: the concurrent append the next act lands between its read and its write
     private object[]? _concurrently;
@@ -291,13 +310,19 @@ public class WolverineScenario : CritterStackScenario
     /// GH-4962. How the message is sent: <c>new DeliveryOptions { TenantId = "red" }</c> sends it for a tenant, which
     /// the act then carries (<see cref="ActOutcome.TenantId" />).
     /// </param>
+    /// <remarks>
+    /// GH-5077. The message is sent exactly as given, as Wolverine sends it: a <see cref="TimeoutMessage" />, a
+    /// <c>DelayedFor</c> / <c>ScheduledAt</c> wrapper or <paramref name="options" /> with a schedule is only
+    /// <b>scheduled</b>, and its handler does not run within the act. Add <see cref="WhenScheduledMessagesAreExecuted" />
+    /// after the act to run it. Until then a step about what the handler did fails rather than passing on nothing.
+    /// </remarks>
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenReceived(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
         DeliveryOptions? options = null)
     {
         // Built before the act, so a partial object the type cannot take fails the spec, not the act
-        var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is received");
+        var built = Build(message, $"{nameOf(PartialMatching.ExpectedType(message))} is received");
         root._dispatched = built;
         return root.ActAsync("{0} is received", message,
             tracking => ownCorrelation(configureTracking, tracking, options).SendMessageAndWaitAsync(built, options));
@@ -307,15 +332,144 @@ public class WolverineScenario : CritterStackScenario
     /// <param name="message">The message, whole or partial.</param>
     /// <param name="configureTracking">Adjusts the tracked session.</param>
     /// <param name="options">GH-4962. How the message is published, a tenant included.</param>
+    /// <remarks>GH-5077. A delayed message is only scheduled, as for <see cref="WhenReceived" />.</remarks>
     [EventModelRole(SliceRole.Command, nameof(message))]
     public Task WhenPublished(object message,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
         DeliveryOptions? options = null)
     {
-        var built = Build(message, $"{PartialMatching.ExpectedType(message).Name} is published");
+        var built = Build(message, $"{nameOf(PartialMatching.ExpectedType(message))} is published");
         root._dispatched = built;
         return root.ActAsync("{0} is published", message,
             tracking => ownCorrelation(configureTracking, tracking, options).PublishMessageAndWaitAsync(built, options));
+    }
+
+    /// <summary>
+    /// GH-5077. The messages the last act scheduled for later are executed now, through Wolverine's
+    /// <see cref="ITrackedSession.PlayScheduledMessagesAsync" />, and this is the new act: <see cref="LastAct" /> is
+    /// what the replay did, so the Then steps after it judge the handlers of the scheduled messages — a saga's timeout,
+    /// a <c>DelayedFor</c> reminder, a <see cref="TimeoutMessage" /> sent with <see cref="WhenReceived" />.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every message the last act scheduled is executed, a local one inline and any other sent to its destination.
+    /// The replay keeps the scheduled messages' correlation id, so <see cref="ThenEventuallyCaused(object[])" /> still
+    /// finds what they caused.
+    /// </para>
+    /// <para>
+    /// With no act before it, or an act that scheduled nothing, the step fails and stops the scenario, saying what
+    /// the last act did instead. No Event Model role or trigger: which messages are scheduled is known only at run
+    /// time, and the slice a spec describes is the one its command (or <c>[BobcatSpec(...)]</c>) names.
+    /// </para>
+    /// </remarks>
+    /// <param name="timeout">How long the replay waits for everything it caused to settle. <see cref="Timeout" /> by default.</param>
+    public Task WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null) => root.playScheduledAsync(timeout ?? Timeout);
+
+    private async Task playScheduledAsync(TimeSpan timeout)
+    {
+        var previous = acted ? LastAct : null;
+        var scheduled = previous?.Session is { } session ? scheduledIn(session).ToList() : [];
+        var types = scheduled.Select(x => x.Message?.GetType()).OfType<Type>().Distinct().ToArray();
+        var text = types.Length == 0
+            ? "the scheduled messages are executed"
+            : $"the scheduled {describeTypes(types)} {(scheduled.Count == 1 ? "is" : "are")} executed";
+
+        await inStep(ScenarioRecorder.Step("When", text), async () =>
+        {
+            if (previous?.Session is not { } played)
+            {
+                throw new SpecCriticalException(
+                    "There is no act whose scheduled messages could be executed: WhenScheduledMessagesAreExecuted follows the When step that scheduled them.");
+            }
+
+            if (scheduled.Count == 0)
+            {
+                throw new SpecCriticalException(
+                    $"The last act scheduled nothing, so there is nothing to execute. {activitySummary(previous)}");
+            }
+
+            foreach (var type in types) recordTouched(type);
+
+            // Everything the replay commits is the act's own: there is no one message to tell its work from a cascade's
+            _dispatched = null;
+            await executeAsync(_ => replayAsync(previous, played, timeout),
+                outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
+        });
+    }
+
+    private static async Task<ITrackedSession> replayAsync(ActOutcome previous, ITrackedSession played, TimeSpan timeout)
+    {
+        try
+        {
+            return await played.PlayScheduledMessagesAsync(timeout);
+        }
+        catch (Exception e) when (e.Message.Contains("No scheduled messages recorded", StringComparison.Ordinal))
+        {
+            // Wolverine replays only what this service scheduled
+            throw new SpecCriticalException(
+                $"Wolverine found no message this application scheduled to execute. {activitySummary(previous)}", e);
+        }
+    }
+
+    /// <summary>
+    /// GH-5076. Arrange by handling <paramref name="message" />: it is sent through Wolverine and the scenario waits
+    /// for everything it caused, exactly as for <see cref="WhenReceived" />, but the step is a <b>Given</b> and it is
+    /// not the act. <see cref="LastAct" /> is left alone, so a Then step still judges the When that follows, and
+    /// whatever the handlers appended is arranged history: the streams they wrote are this specification's own.
+    /// </summary>
+    /// <remarks>
+    /// A handler that throws fails the step and stops the scenario, since there is nothing to judge an act against, and
+    /// so does a message that is only scheduled, which arranges nothing. No Event Model role: a <c>Command</c> role here
+    /// would make the arranging message the slice's act.
+    /// </remarks>
+    /// <param name="message">The message, whole or partial.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    /// <param name="options">How the message is sent, a tenant included.</param>
+    // An arranged message is run evidence, never the act: the Document role puts its type in the specification's resolved
+    // types only -- no canvas element -- and, unlike a Command role or a trigger, does not make this call the slice's act
+    [EventModelRole(SliceRole.Document, nameof(message))]
+    public Task GivenReceived(object message,
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null,
+        DeliveryOptions? options = null)
+        => root.arrangeAsync(message, configureTracking, options);
+
+    private async Task arrangeAsync(object message,
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking, DeliveryOptions? options)
+    {
+        var built = Build(message, $"{nameOf(PartialMatching.ExpectedType(message))} has already been received");
+        var (described, inline) = describe([message]);
+        var text = $"{described} has already been received";
+
+        await inStep(ScenarioRecorder.Step("Given", text), async () =>
+        {
+            if (!inline) recordValues("message", [message]);
+            recordTouched(built.GetType());
+
+            HandlerWarmUp.WarmBeforeTracking(Services);
+            var tracking = trackActivity();
+            tracking = configureTracking?.Invoke(tracking) ?? tracking;
+
+            // Thrown, not captured: an arrangement that failed leaves nothing for the act to be judged against
+            var session = await tracking.SendMessageAndWaitAsync(built, options);
+            if (session.AllExceptions().FirstOrDefault() is { } error)
+            {
+                throw new SpecCriticalException(
+                    $"'{text}': handling it failed, so it arranged nothing: {error.GetType().Name}: {error.Message}", error);
+            }
+
+            var own = messageInside(built);
+            if (session.Executed.Envelopes().All(x => !ReferenceEquals(x.Message, own)) &&
+                scheduledIn(session).Any(x => ReferenceEquals(x.Message, own)))
+            {
+                throw new SpecCriticalException(
+                    $"'{text}': it was only scheduled for later, so its handler never ran and it arranged nothing. Send it without a delay.");
+            }
+
+            // What the handlers appended is the specification's arranged history, as GivenEvents' is
+            var appended = session.AppendedEvents.SelectMany(x => x.Events).ToList();
+            foreach (var e in appended) claimStream(e.StreamKey ?? (object)e.StreamId);
+            recordTouched(appended.Select(x => x.Data));
+        });
     }
 
     /// <summary>
@@ -323,11 +477,35 @@ public class WolverineScenario : CritterStackScenario
     /// service poke — run inside the tracked session, waiting for everything it caused.
     /// </summary>
     /// <param name="description">How the step reads: <c>"the nightly sweep runs"</c>.</param>
+    /// <remarks>
+    /// Whatever the act reaches -- an endpoint, a handler -- sends or schedules is what the act caused. To send a message
+    /// as the act itself, use the overload that hands the act a bus.
+    /// </remarks>
     public Task WhenTracked(string description, Func<Task> act,
         Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
         => root.ActAsync(description,
             tracking => ownCorrelation(configureTracking, tracking, null)
                 .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => act())));
+
+    /// <summary>
+    /// wolverine#5077. An act of its own, handed the tracked session's bus: what it sends, publishes or schedules through
+    /// <c>bus</c> is the act's own message (<see cref="ActOutcome.OwnMessages" />), as <see cref="WhenReceived" />'s is --
+    /// never counted as sent, and when it is only scheduled, a step about what its handler did fails saying so until
+    /// <see cref="WhenScheduledMessagesAreExecuted" /> runs it.
+    /// </summary>
+    /// <param name="description">How the step reads: <c>"the escalation is scheduled"</c>.</param>
+    /// <param name="act">The act, given the bus to send through. The bus carries the act's correlation id.</param>
+    /// <param name="configureTracking">Adjusts the tracked session.</param>
+    public Task WhenTracked(string description, Func<IMessageBus, Task> act,
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration>? configureTracking = null)
+    {
+        ArgumentNullException.ThrowIfNull(act);
+        var messages = new ActMessages();
+        root._actMessages = messages;
+        return root.ActAsync(description,
+            tracking => ownCorrelation(configureTracking, tracking, null)
+                .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(context => act(messages.Wrap(context)))));
+    }
 
     // GH-4940: every act runs under a correlation id of its own, generated per act, and it wins over one a
     // configureTracking or a DeliveryOptions names -- so no other session shares it, which is what lets a concurrent
@@ -369,11 +547,14 @@ public class WolverineScenario : CritterStackScenario
         // Taken before the act, on every store, for the fallback below: none at all without a store
         var marks = await highWaterMarksAsync();
 
+        // GH-5077: what the act's own code sends through the bus it resolves is its own message
+        var messages = new ActMessages();
+        _actMessages = messages;
         var outcome = await executeAsync(
             tracking => tracking.ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
                 await using var scope = Services.CreateAsyncScope();
-                await act(scope.ServiceProvider);
+                await act(messages.Wrap(scope.ServiceProvider));
             })),
             null);
 
@@ -510,15 +691,15 @@ public class WolverineScenario : CritterStackScenario
         // GH-4931: claimed before the act, so a step that throws before dispatching leaves nothing behind
         var dispatched = _dispatched;
         _dispatched = null;
+        var actMessages = _actMessages;
+        _actMessages = null;
 
         // GH-4939: every act runs under a correlation id of its own, so what it caused past an asynchronous
         // boundary can be found in the store by it. A configureTracking that names its own still wins.
         var correlationId = Guid.NewGuid().ToString();
         ActCorrelationId = correlationId;
 
-        var tracking = (_host is null ? Services.TrackActivity() : _host.TrackActivity()).Timeout(Timeout).DoNotAssertOnExceptionsDetected()
-            .WithCorrelationId(correlationId);
-        if (IncludeExternalTransports) tracking = tracking.IncludeExternalTransports();
+        var tracking = trackActivity().WithCorrelationId(correlationId);
 
         // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
         var concurrent = _concurrently;
@@ -562,6 +743,19 @@ public class WolverineScenario : CritterStackScenario
                 "(IntegrateWithWolverine()). A session the act opens straight from the store carries none.");
         }
 
+        // GH-4940: executions of the act's own message, a retry's included
+        var attempts = session?.AllRecordsInOrder(MessageEventType.ExecutionStarted)
+            .Where(x => x.Envelope is not null && isMessage(dispatched) && ReferenceEquals(x.Envelope.Message, dispatched))
+            .Count() ?? 0;
+
+        // GH-5077: one rule for every act -- its own messages only scheduled, never handled: a TimeoutMessage, a DelayedFor
+        // wrapper's message, a delay in the options, a ScheduleAsync in WhenTracked. Not an error: Wolverine did what it
+        // was asked. But no handler ran, so a step about what one did must not pass on it
+        var ownMessages = isMessage(dispatched)
+            ? [messageInside(dispatched!)]
+            : actMessages?.Sent.Select(messageInside).Distinct(ReferenceEqualityComparer.Instance).ToList() ?? [];
+        var onlyScheduled = session is null ? Array.Empty<object>() : onlyScheduledOf(session, ownMessages);
+
         // GH-4931: what the act appended is what the tracked session heard each event-store session commit --
         // never read back from the store, so concurrent work is never counted and the events keep their tags
         var commits = session?.AppendedEvents ?? Array.Empty<AppendedEvents>();
@@ -574,16 +768,15 @@ public class WolverineScenario : CritterStackScenario
             AllNewEvents = all,
             Appended = commits,
             StartedStreams = own.SelectMany(x => x.StartedStreams).ToList(),
-            MessagesSent = session?.Sent.AllMessages().ToList() ?? (IReadOnlyList<object>)Array.Empty<object>(),
+            // GH-5077: sent, never scheduled -- a scheduled message is ThenMessageScheduled's
+            MessagesSent = session is null ? Array.Empty<object>() : sentIn(session, ownMessages).Select(x => x.Message!).ToList(),
+            OnlyScheduled = onlyScheduled,
+            OwnMessages = ownMessages,
             // GH-4940: the boundaries the act's own handler loaded, by the same rule as its own commits
             Boundaries = (session?.LoadedBoundaries ?? Array.Empty<LoadedBoundary>())
                 .Where(x => isTheActsOwn(x.Envelope, dispatched)).ToList(),
             CorrelationId = session?.CorrelationId ?? correlationId,
-            // GH-4940: executions of the act's own message, a retry's included
-            Attempts = session?.AllRecordsInOrder(MessageEventType.ExecutionStarted)
-                .Where(x => x.Envelope is not null && dispatched is not null && !ReferenceEquals(dispatched, NoMessage) &&
-                            ReferenceEquals(x.Envelope.Message, dispatched))
-                .Count() ?? 0,
+            Attempts = attempts,
             ConcurrentAppendLanded = landed,
             TenantId = tenantOf(session, own, dispatched)
         };
@@ -597,12 +790,47 @@ public class WolverineScenario : CritterStackScenario
 
         if (SpecReport.IsRecording)
         {
-            if (session is not null) SpecReport.For<MessageActivityReport>().Add(session);
+            if (session is not null) SpecReport.For<MessageActivityReport>().Add(session, ownMessages);
             if (appended.Count > 0) SpecReport.For<AppendedEventsReport>().Add(appended);
         }
 
         return outcome;
     }
+
+    // The tracked session every act and every arranging message runs in
+    private TrackedSessionConfiguration trackActivity()
+    {
+        var tracking = (_host is null ? Services.TrackActivity() : _host.TrackActivity()).Timeout(Timeout).DoNotAssertOnExceptionsDetected();
+        return IncludeExternalTransports ? tracking.IncludeExternalTransports() : tracking;
+    }
+
+    // GH-5077: the act's own messages that were scheduled and never began executing. Which messages are the act's own
+    // is decided where the act dispatches them -- WhenReceived's message, or what the act's own code sent through the
+    // bus it was handed -- never inferred from the session, where a handler's or an HTTP endpoint's sends look the same
+    private static IReadOnlyList<object> onlyScheduledOf(ITrackedSession session, IReadOnlyList<object> own)
+    {
+        var scheduled = scheduledIn(session).Select(x => x.Message).ToHashSet(ReferenceEqualityComparer.Instance);
+        var started = session.AllRecordsInOrder(MessageEventType.ExecutionStarted).Select(x => x.Envelope?.Message)
+            .OfType<object>().ToHashSet(ReferenceEqualityComparer.Instance);
+
+        return own.Where(x => scheduled.Contains(x) && !started.Contains(x)).ToList();
+    }
+
+    // The message a DelayedFor / ScheduledAt / WithDeliveryOptions wrapper carries, which is what Wolverine sends; any
+    // other message is itself
+    private static object messageInside(object message)
+    {
+        for (var type = message.GetType(); type is not null; type = type.BaseType)
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DeliveryMessage<>))
+                return type.GetProperty(nameof(DeliveryMessage<object>.Message))!.GetValue(message) ?? message;
+        }
+
+        return message;
+    }
+
+    // Whether an act dispatched a message of its own, which an HTTP request and WhenTracked do not
+    private static bool isMessage(object? dispatched) => dispatched is not null && !ReferenceEquals(dispatched, NoMessage);
 
     // GH-4962: the act's tenant, from the act itself. Its own commits first -- an HTTP endpoint's tenant detection
     // lands there, and so does the entry message's tenant -- then the entry message's envelope, then the one tenant
@@ -1023,11 +1251,14 @@ public class WolverineScenario : CritterStackScenario
             : $"{condition.EventType.Name} tagged {ScenarioValues.Format(condition.TagValue)}";
 
     // ---- assert: cascaded messages (GH-4837) -------------------------------------------------
+    //
+    // GH-5077: sent and scheduled are two grammars over two disjoint sets. A message scheduled for later -- even one
+    // a transport records as sent -- is only ever ThenMessageScheduled's, and a sent one only ThenMessageSent's
 
     /// <summary>
     /// The act sent or published a <typeparamref name="T" /> — to <paramref name="destination" /> when
     /// one is given, matched as a prefix of the destination URI (<c>"rabbitmq://queue/billing"</c>,
-    /// <c>"local://"</c>).
+    /// <c>"local://"</c>). A message scheduled for later is not sent: see <see cref="ThenMessageScheduled{T}" />.
     /// </summary>
     [EventModelRole(SliceRole.Message, nameof(T))]
     public void ThenMessageSent<T>(string? destination = null)
@@ -1040,9 +1271,9 @@ public class WolverineScenario : CritterStackScenario
         var matching = sent.Where(x => destinationMatches(x, destination)).ToArray();
 
         Verdicts.Check("sent", matching.Length > 0 ? "yes" : "no", "yes");
-        Verdicts.Fact(matching.Length > 0, sent.Length == 0
-            ? $"Expected a {typeof(T).Name} to be sent, but none was{(scheduledOf(typeof(T)).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "")}. Sent: {describeSent()}"
-            : $"Expected a {typeof(T).Name} to be sent to {destination}, but it went to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)"))}");
+        messageFact(matching.Length > 0, sent.Length == 0
+            ? $"Expected a {typeof(T).Name} to be sent, but none was{(scheduledOf(typeof(T)).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "")}."
+            : $"Expected a {typeof(T).Name} to be sent to {destination}, but it went to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)"))}.");
     }
 
     /// <summary>The act sent a <typeparamref name="T" /> to a local queue in this application.</summary>
@@ -1057,20 +1288,22 @@ public class WolverineScenario : CritterStackScenario
         if (!actSucceeded()) return;
 
         var external = sentOf(typeof(T)).Where(x => x.Destination?.Scheme is { } scheme && scheme != "local").ToArray();
-        Verdicts.Fact(external.Length > 0,
-            $"Expected a {typeof(T).Name} to be sent to an external transport. Sent: {describeSent()}");
+        messageFact(external.Length > 0, $"Expected a {typeof(T).Name} to be sent to an external transport.");
     }
 
     /// <summary>
     /// The act sent or published a message structurally equal to <paramref name="expected" /> — or an
-    /// <see cref="Expect.Value{T}" /> with members to ignore.
+    /// <see cref="Expect.Value{T}" /> with members to ignore, or a partial object judged on only the members it names.
     /// </summary>
     [EventModelRole(SliceRole.Message, nameof(expected))]
     public void ThenMessageSent(object expected)
     {
         if (expected is IPartialObject partial)
         {
-            thenPartialMessageSent(partial);
+            using var partialStep = ScenarioRecorder.Step("Then", $"{partial.Type.Name} is sent");
+            if (!actSucceeded()) return;
+            judgeMessage(partial, sentOf(partial.Type).Select(x => x.Message!).ToArray(), "sent",
+                scheduledOf(partial.Type).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "");
             return;
         }
 
@@ -1078,43 +1311,35 @@ public class WolverineScenario : CritterStackScenario
         using var step = ScenarioRecorder.Step("Then", $"{value.GetType().Name} is sent");
         if (!actSucceeded()) return;
 
-        var candidates = sentOf(value.GetType()).Select(x => x.Message).ToArray();
-        if (candidates.Length == 0)
-        {
-            Verdicts.Fail($"Expected a {value.GetType().Name} to be sent, but none was. Sent: {describeSent()}");
-            return;
-        }
-
-        var ignored = (expected as IExpectedValue)?.IgnoredPaths;
-        var comparisons = candidates.Select(x => ObjectComparison.Compare(x, value, ignored)).ToArray();
-        var best = comparisons.FirstOrDefault(x => x.All(leaf => leaf.Matched)) ?? comparisons[0];
-
-        Verdicts.Row(best, 0);
-        Verdicts.Fact(best.All(x => x.Matched),
-            $"No {value.GetType().Name} sent matched the expectation: {Verdicts.Describe(best)}");
+        judgeMessage(expected, sentOf(value.GetType()).Select(x => x.Message!).ToArray(), "sent",
+            scheduledOf(value.GetType()).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "");
     }
 
-    // A partial message: sent among whatever else was, judged and shown on only the members it names
-    private void thenPartialMessageSent(IPartialObject expected)
+    /// <summary>The act sent no <typeparamref name="T" /> anywhere.</summary>
+    public void ThenNoMessageSent<T>()
     {
-        using var step = ScenarioRecorder.Step("Then", $"{expected.Type.Name} is sent");
-        if (!actSucceeded()) return;
+        using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is sent");
+        if (!canJudgeAnAbsence($"Expected no {typeof(T).Name} to be sent")) return;
 
-        var candidates = sentOf(expected.Type).Select(x => x.Message!).ToArray();
-        if (candidates.Length == 0)
-        {
-            Verdicts.Fail($"Expected a {expected.Type.Name} to be sent, but none was. Sent: {describeSent()}");
-            return;
-        }
-
-        verifySet("message", candidates, [expected], SetMode.Contains);
+        var sent = sentOf(typeof(T)).ToArray();
+        messageFact(sent.Length == 0,
+            $"Expected no {typeof(T).Name} but {sent.Length} were sent, to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)"))}.");
     }
 
     /// <summary>
+    /// Every message the act sent or published, for a test that wants to look for itself. A message scheduled for
+    /// later is not among them.
+    /// </summary>
+    public IReadOnlyList<object> TheMessagesSent
+        => LastAct.Session is { } session ? sentIn(session, LastAct.OwnMessages).Select(x => x.Message!).ToList() : Array.Empty<object>();
+
+    // ---- assert: scheduled messages (GH-5077) --------------------------------------------------
+
+    /// <summary>
     /// The act scheduled a <typeparamref name="T" /> for later — <c>DelayedFor</c>, <c>ScheduledAt</c>,
-    /// <c>OutgoingMessages.Delay</c>. A scheduled message is not sent within the act, so
-    /// <see cref="ThenMessageSent{T}" /> does not see it. With <paramref name="delay" />, the message
-    /// is due no sooner than that long after the act.
+    /// <c>OutgoingMessages.Delay</c>, a <see cref="TimeoutMessage" />. A scheduled message is not sent within the act,
+    /// so <see cref="ThenMessageSent{T}" /> does not see it. With <paramref name="delay" />, the message is due no
+    /// sooner than that long after the act. <see cref="WhenScheduledMessagesAreExecuted" /> runs it.
     /// </summary>
     [EventModelRole(SliceRole.Message, nameof(T))]
     public void ThenMessageScheduled<T>(TimeSpan? delay = null)
@@ -1125,20 +1350,66 @@ public class WolverineScenario : CritterStackScenario
 
         var scheduled = scheduledOf(typeof(T)).ToArray();
         Verdicts.Check("scheduled", scheduled.Length > 0 ? "yes" : "no", "yes");
-        if (!Verdicts.Fact(scheduled.Length > 0,
-                $"Expected a {typeof(T).Name} to be scheduled, but none was. Sent: {describeSent()}")) return;
+        if (!messageFact(scheduled.Length > 0,
+                $"Expected a {typeof(T).Name} to be scheduled, but none was{(sentOf(typeof(T)).Any() ? " (one was SENT within the act: use ThenMessageSent)" : "")}.")) return;
 
         if (delay is { } minimum && scheduled[0].ScheduledTime is { } due)
         {
             // measured from now, after the act: the message was due at least `minimum` after it was scheduled
             var remaining = due - DateTimeOffset.UtcNow;
             Verdicts.Value("due", due);
-            Verdicts.Fact(remaining > minimum - TimeSpan.FromMinutes(1),
-                $"Expected {typeof(T).Name} to be due in about {minimum}, but it is due at {due:O}");
+            messageFact(remaining > minimum - TimeSpan.FromMinutes(1),
+                $"Expected {typeof(T).Name} to be due in about {minimum}, but it is due at {due:O}.");
         }
     }
 
-    /// <summary>The act scheduled no <typeparamref name="T" />.</summary>
+    /// <summary>
+    /// GH-5076. The act scheduled a message structurally equal to <paramref name="expected" /> for later — or an
+    /// <see cref="Expect.Value{T}" /> with members to ignore, or a partial object judged on only the members it names.
+    /// Its values are judged as <see cref="ThenMessageSent(object)" /> judges a sent message's;
+    /// <see cref="ThenMessageScheduled{T}" /> checks when it is due.
+    /// </summary>
+    [EventModelRole(SliceRole.Message, nameof(expected))]
+    public void ThenMessageScheduled(object expected)
+    {
+        var type = PartialMatching.ExpectedType(expected);
+        var (described, inline) = describe([expected is IPartialObject ? expected : unwrap(expected)]);
+        using var step = ScenarioRecorder.Step("Then", $"{(inline ? described : nameOf(type))} is scheduled");
+        if (!actSucceeded()) return;
+
+        judgeMessage(expected, scheduledOf(type).Select(x => x.Message!).ToArray(), "scheduled",
+            sentOf(type).Any() ? " (one was SENT within the act: use ThenMessageSent)" : "");
+    }
+
+    /// <summary>
+    /// GH-5077. The act scheduled exactly these messages for later, in any order, and nothing else — whole objects,
+    /// <see cref="Expect.Value{T}" />s, partial objects, types (any one of them, whatever its values), or the rows of
+    /// <c>PartialObjects.FromTable</c>. A message sent within the act is not among them. The scheduled side's
+    /// counterpart of <c>ThenEventsInAnyOrder</c>: what a timeout-setting handler scheduled is judged as a whole.
+    /// </summary>
+    [EventModelRole(SliceRole.Message, nameof(messages))]
+    public void ThenMessagesScheduled(params object[] messages)
+    {
+        var expected = flatten(messages).Select(x => x is Type type ? anyOf(type) : x).ToArray();
+        if (expected.Length == 0)
+            throw new ArgumentException("Name the messages the act scheduled; ThenNoMessageScheduled<T>() says none was.", nameof(messages));
+
+        var types = expected.Select(PartialMatching.ExpectedType).ToArray();
+        using var step = ScenarioRecorder.Step("Then", $"{describeTypes(types)} {(expected.Length == 1 ? "is" : "are")} scheduled");
+        if (!actSucceeded()) return;
+
+        var actual = LastAct.Session is { } session ? scheduledIn(session).Select(x => x.Message!).ToArray() : [];
+        var run = ObjectSetVerification.Verify(actual, expected, "message", SetMode.AnyOrder);
+        if (Verdicts.Recording) run.Report();
+
+        messageFact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "message")));
+    }
+
+    /// <summary>
+    /// The act scheduled no <typeparamref name="T" />. The act's own message, when only scheduled, is a scheduled message
+    /// like any other, so this step fails on it plainly; for any other type it fails with the GH-5077 guard, since an act
+    /// whose own message never ran could not have scheduled anything.
+    /// </summary>
     public void ThenNoMessageScheduled<T>()
     {
         using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is scheduled");
@@ -1149,46 +1420,264 @@ public class WolverineScenario : CritterStackScenario
         }
 
         var scheduled = scheduledOf(typeof(T)).ToArray();
-        Verdicts.Fact(scheduled.Length == 0, $"Expected no {typeof(T).Name} to be scheduled but {scheduled.Length} were");
-    }
-
-    private IEnumerable<Envelope> scheduledOf(Type messageType)
-        => LastAct.Session?.Scheduled.Envelopes().Where(x => x.Message is not null && messageType.IsInstanceOfType(x.Message))
-           ?? Enumerable.Empty<Envelope>();
-
-    /// <summary>The act sent no <typeparamref name="T" /> anywhere.</summary>
-    public void ThenNoMessageSent<T>()
-    {
-        using var step = ScenarioRecorder.Step("Then", $"no {typeof(T).Name} is sent");
-        if (!acted)
+        if (scheduled.Length > 0)
         {
-            Verdicts.Fail($"Expected no {typeof(T).Name} to be sent, but no act has run.");
+            Verdicts.Fail($"Expected no {typeof(T).Name} to be scheduled but {scheduled.Length} were. {activitySummary(LastAct)}");
             return;
         }
 
-        var sent = sentOf(typeof(T)).ToArray();
-        Verdicts.Fact(sent.Length == 0,
-            $"Expected no {typeof(T).Name} but {sent.Length} were sent, to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)"))}");
+        canJudgeAnAbsence($"Expected no {typeof(T).Name} to be scheduled");
     }
 
-    /// <summary>Every message the act sent or published, for a test that wants to look for itself.</summary>
-    public IReadOnlyList<object> TheMessagesSent
-        => LastAct.Session?.Sent.AllMessages().ToList() ?? (IReadOnlyList<object>)Array.Empty<object>();
+    // ---- assert: handled messages (GH-5076) ----------------------------------------------------
+
+    /// <summary>
+    /// GH-5076. A <typeparamref name="T" /> was handled <b>successfully</b> while the act ran — the act's own message, or
+    /// one it caused: at least one execution of it completed without an exception, read from the tracked session's
+    /// <c>MessageSucceeded</c> records, which is what Wolverine itself means by handled.
+    /// </summary>
+    /// <remarks>
+    /// Judged whether or not the act failed, since an act's failure may be exactly the story: when the step fails, it
+    /// says what happened to <typeparamref name="T" /> instead — never received or executed (sent elsewhere, scheduled,
+    /// routed nowhere, or never seen at all), or executed with every attempt failing, each attempt's exception named —
+    /// and lists every other exception the act's tracked session captured. A message only scheduled was not handled;
+    /// <see cref="WhenScheduledMessagesAreExecuted" /> runs it.
+    /// </remarks>
+    public void ThenHandled<T>() => ThenHandled(typeof(T));
+
+    /// <summary>GH-5076. A message of <paramref name="messageType" /> was handled successfully while the act ran. See <see cref="ThenHandled{T}" />.</summary>
+    public void ThenHandled(Type messageType)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        using var step = ScenarioRecorder.Step("Then", $"{nameOf(messageType)} is handled");
+        if (!acted)
+        {
+            Verdicts.Fail($"Expected a {nameOf(messageType)} to be handled, but no act has run.");
+            return;
+        }
+
+        var session = LastAct.Session;
+        var succeeded = successesOf(messageType);
+        Verdicts.Check("handled", succeeded > 0 ? "yes" : "no", "yes");
+        if (succeeded > 0) return;
+
+        var story = whatHappenedTo(messageType, out var guarded);
+        var others = otherExceptions(messageType);
+        Verdicts.Fail($"Expected a {nameOf(messageType)} to be handled successfully, but {story}" +
+                      (others.Length == 0 ? "" : $" Other exceptions during the act: {others}.") +
+                      (guarded ? "" : onlyScheduledSuffix()) + " " + activitySummary(LastAct));
+    }
+
+    /// <summary>
+    /// GH-5076. No <typeparamref name="T" /> was handled while the act ran: no execution of it even started, so a
+    /// failed attempt still counts as handled — its handler ran. See <see cref="ThenHandled{T}" />.
+    /// </summary>
+    public void ThenNotHandled<T>() => ThenNotHandled(typeof(T));
+
+    /// <summary>GH-5076. No message of <paramref name="messageType" /> was handled while the act ran. See <see cref="ThenNotHandled{T}" />.</summary>
+    public void ThenNotHandled(Type messageType)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        using var step = ScenarioRecorder.Step("Then", $"no {nameOf(messageType)} is handled");
+        if (!canJudgeAnAbsence($"Expected no {nameOf(messageType)} to be handled")) return;
+
+        var ran = recordsOf(MessageEventType.ExecutionStarted, messageType).Count;
+        if (ran == 0) return;
+
+        var succeeded = successesOf(messageType);
+        var failures = failuresOf(messageType);
+        messageFact(false,
+            $"Expected no {nameOf(messageType)} to be handled, but its handler ran {times(ran)}: " +
+            $"{succeeded} succeeded, {failures.Count} failed{(failures.Count == 0 ? "" : $" ({describeFailures(failures)})")}.");
+    }
+
+    // What became of a message that was never handled successfully, as the tail of a sentence. Says whether it
+    // carried the GH-5077 hint itself, so the step does not add it twice
+    private string whatHappenedTo(Type messageType, out bool guarded)
+    {
+        guarded = false;
+        var ran = recordsOf(MessageEventType.ExecutionStarted, messageType).Count;
+        if (ran > 0)
+        {
+            var failures = failuresOf(messageType);
+            var deadLettered = recordsOf(MessageEventType.MovedToErrorQueue, messageType).Count > 0;
+            return $"it ran {times(ran)} and no attempt succeeded" +
+                   (failures.Count == 0 ? "." : $": {describeFailures(failures)}.") +
+                   (deadLettered ? " It was moved to the error queue." : "");
+        }
+
+        if (LastAct.OnlyScheduled.Any(messageType.IsInstanceOfType))
+        {
+            guarded = true;
+            return "it never ran. " + OnlyScheduledMessage(LastAct.OnlyScheduled);
+        }
+
+        if (scheduledOf(messageType).Any())
+        {
+            guarded = true;
+            return "it never ran: it was SCHEDULED for later, and a scheduled message is not handled within the act. " +
+                   "To run it, add `await WhenScheduledMessagesAreExecuted();` after the act.";
+        }
+
+        if (recordsOf(MessageEventType.NoRoutes, messageType).Count > 0 || recordsOf(MessageEventType.NoHandlers, messageType).Count > 0)
+            return "it never ran: Wolverine found no route or handler for it.";
+
+        var sent = sentOf(messageType).ToArray();
+        if (sent.Length > 0)
+        {
+            return $"it never ran here: it was sent to {string.Join(", ", sent.Select(x => x.Destination?.ToString() ?? "(no destination)").Distinct())}, " +
+                   "and no handler of it executed within the act.";
+        }
+
+        return "it never appeared in the act's message activity.";
+    }
+
+    // Executions of a message that succeeded: Wolverine's MessageSucceeded, which a listener records, or -- for one
+    // invoked inline, as WhenScheduledMessagesAreExecuted replays a local message -- an execution that finished with
+    // no exception recorded against that attempt
+    private int successesOf(Type messageType)
+    {
+        var failed = failuresOf(messageType).Select(x => (x.Envelope, x.AttemptNumber)).ToHashSet();
+        return recordsOf(MessageEventType.MessageSucceeded, messageType)
+            .Concat(recordsOf(MessageEventType.ExecutionFinished, messageType).Where(x => x.Exception is null))
+            .Select(x => (x.Envelope, x.AttemptNumber))
+            .Where(x => !failed.Contains(x))
+            .Distinct()
+            .Count();
+    }
+
+    private IReadOnlyList<EnvelopeRecord> recordsOf(MessageEventType eventType, Type messageType)
+        => LastAct.Session?.AllRecordsInOrder(eventType).Where(x => x.Message is not null && messageType.IsInstanceOfType(x.Message)).ToList()
+           ?? (IReadOnlyList<EnvelopeRecord>)Array.Empty<EnvelopeRecord>();
+
+    // Each failed attempt once, however many records -- failed, moved to the error queue -- carry its exception
+    private IReadOnlyList<EnvelopeRecord> failuresOf(Type messageType)
+        => LastAct.Session?.AllRecordsInOrder()
+               .Where(x => x.Exception is not null && x.Message is not null && messageType.IsInstanceOfType(x.Message))
+               .DistinctBy(x => (x.Envelope, x.AttemptNumber, x.Exception))
+               .ToList()
+           ?? (IReadOnlyList<EnvelopeRecord>)Array.Empty<EnvelopeRecord>();
+
+    private static string describeFailures(IEnumerable<EnvelopeRecord> failures)
+        => string.Join("; ", failures.Select(x => $"attempt {x.AttemptNumber} threw {x.Exception!.GetType().Name}: {x.Exception.Message}"));
+
+    // Every exception the act's tracked session captured that is not this message type's own
+    private string otherExceptions(Type messageType)
+    {
+        var session = LastAct.Session;
+        if (session is null) return "";
+
+        var records = session.AllRecordsInOrder().Where(x => x.Exception is not null).ToList();
+        var mine = records.Where(x => x.Message is not null && messageType.IsInstanceOfType(x.Message))
+            .Select(x => x.Exception!).ToHashSet(ReferenceEqualityComparer.Instance);
+
+        return string.Join("; ", session.AllExceptions().Distinct(ReferenceEqualityComparer.Instance).Cast<Exception>()
+            .Where(x => !mine.Contains(x))
+            .Select(e =>
+            {
+                var owner = records.FirstOrDefault(x => ReferenceEquals(x.Exception, e))?.Message;
+                return $"{(owner is null ? "" : nameOf(owner.GetType()) + " threw ")}{e.GetType().Name}: {e.Message}";
+            }));
+    }
+
+    // Failed attempts, each once, however many records -- failed, moved to the error queue -- carry its exception
+    private static int failedAttempts(ITrackedSession session)
+        => session.AllRecordsInOrder().Where(x => x.Exception is not null).DistinctBy(x => (x.Envelope, x.AttemptNumber)).Count();
+
+    private static string times(int count) => count == 1 ? "once" : $"{count} times";
+
+    // ---- message activity --------------------------------------------------------------------
+
+    // A message the handling sent: a Sent record whose envelope was not scheduled for later, and not the act's own
+    // message, which the act dispatched rather than produced
+    private static IEnumerable<Envelope> sentIn(ITrackedSession session, IReadOnlyList<object> own)
+        => session.Sent.RecordsInOrder().Where(x => !x.WasScheduled && x.Envelope?.Message is not null)
+            .Select(x => x.Envelope!).Where(x => !own.Contains(x.Message!, ReferenceEqualityComparer.Instance));
+
+    // A message the act scheduled: once each, however many records a transport made of scheduling it
+    private static IEnumerable<Envelope> scheduledIn(ITrackedSession session)
+        => session.Scheduled.RecordsInOrder().Select(x => x.Envelope).OfType<Envelope>().Where(x => x.Message is not null)
+            .Distinct(ReferenceEqualityComparer.Instance).Cast<Envelope>();
 
     private IEnumerable<Envelope> sentOf(Type messageType)
-        => LastAct.Session?.Sent.Envelopes().Where(x => x.Message is not null && messageType.IsInstanceOfType(x.Message))
-           ?? Enumerable.Empty<Envelope>();
+        => LastAct.Session is { } session ? sentIn(session, LastAct.OwnMessages).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
+
+    private IEnumerable<Envelope> scheduledOf(Type messageType)
+        => LastAct.Session is { } session ? scheduledIn(session).Where(x => messageType.IsInstanceOfType(x.Message)) : [];
 
     private static bool destinationMatches(Envelope envelope, string? destination)
         => destination is null ||
            (envelope.Destination?.ToString().StartsWith(destination, StringComparison.OrdinalIgnoreCase) ?? false);
 
-    private string describeSent()
+    // One expected message among the candidates: values compared structurally, or a partial on the members it names
+    private void judgeMessage(object expected, object[] candidates, string verb, string elsewhere)
     {
-        var sent = LastAct.Session?.Sent.Envelopes().ToArray() ?? Array.Empty<Envelope>();
-        return sent.Length == 0
-            ? "nothing"
-            : string.Join(", ", sent.Select(x => $"{(x.Message is null ? x.MessageType : ScenarioValues.Describe(x.Message))} to {x.Destination}"));
+        var type = PartialMatching.ExpectedType(expected);
+        if (candidates.Length == 0)
+        {
+            messageFact(false, $"Expected a {nameOf(type)} to be {verb}, but none was{elsewhere}.");
+            return;
+        }
+
+        if (expected is IPartialObject partial)
+        {
+            var run = ObjectSetVerification.Verify(candidates, [partial], "message", SetMode.Contains);
+            if (Verdicts.Recording) run.Report();
+            messageFact(run.Succeeded, string.Join(Environment.NewLine, ObjectSetVerification.Problems(run, "message")));
+            return;
+        }
+
+        var value = unwrap(expected);
+        var ignored = (expected as IExpectedValue)?.IgnoredPaths;
+        var comparisons = candidates.Select(x => ObjectComparison.Compare(x, value, ignored)).ToArray();
+        var best = comparisons.FirstOrDefault(x => x.All(leaf => leaf.Matched)) ?? comparisons[0];
+
+        Verdicts.Row(best, 0);
+        messageFact(best.All(x => x.Matched), $"No {nameOf(type)} {verb} matched the expectation: {Verdicts.Describe(best)}");
     }
 
+    // GH-5077: a message expectation that fails says what the act's messages did, and why when its own message never ran
+    private bool messageFact(bool condition, string because)
+        => condition || Verdicts.Fail(because + onlyScheduledSuffix() + " " + activitySummary(LastAct));
+
+    // GH-5077: an absence is no evidence when the act's own message was only scheduled -- no handler ran, so nothing it
+    // would have done could have happened. Such a step fails instead of passing on nothing
+    private bool canJudgeAnAbsence(string expectation)
+    {
+        if (!acted) return Verdicts.Fail($"{expectation}, but no act has run.");
+        return onlyScheduledGuard() is not { } guard || Verdicts.Fail(guard);
+    }
+
+    /// <summary>
+    /// wolverine#5077. The base's negative event steps (<c>ThenNoEvents</c>, <c>ThenNotEmitted</c>, ...) and
+    /// <c>ThenMessagesSent</c> fail with the same sentence when the act's own message was only scheduled.
+    /// </summary>
+    protected override string? onlyScheduledGuard()
+        => LastAct.OnlyScheduled.Count == 0 ? null : OnlyScheduledMessage(LastAct.OnlyScheduled) + " " + activitySummary(LastAct);
+
+    private string onlyScheduledSuffix() => LastAct.OnlyScheduled.Count > 0 ? " " + OnlyScheduledMessage(LastAct.OnlyScheduled) : "";
+
+    /// <summary>GH-5077. What a message step says when the act's own messages were only scheduled, so no handler of them ran.</summary>
+    internal static string OnlyScheduledMessage(IReadOnlyList<object> messages)
+        => $"The act's {describeTypes(messages.Select(x => x.GetType()).Distinct().ToArray())} " +
+           $"{(messages.Count == 1 ? "was" : "were")} only scheduled for later, so no handler ran and nothing this step " +
+           "checks could have happened. To run it, add `await WhenScheduledMessagesAreExecuted();` after the act.";
+
+    /// <summary>
+    /// GH-5077. The act's message activity in one line, for a failed message step — "Activity: 2 sent, 1 scheduled,
+    /// 1 executed, 0 failed — see the Message activity report" — beside the <see cref="MessageActivityReport" /> that
+    /// lists every record.
+    /// </summary>
+    private static string activitySummary(ActOutcome act)
+    {
+        if (act.Session is not { } session) return "Activity: the act recorded no message activity.";
+
+        // Sent is what the handling produced, never the act's own message; scheduled is everything scheduled, the act's
+        // own message included -- an armed timeout is scheduled
+        return $"Activity: {sentIn(session, act.OwnMessages).Count()} sent, {scheduledIn(session).Count()} scheduled, " +
+               $"{session.Executed.RecordsInOrder().Count()} executed, {failedAttempts(session)} failed " +
+               "— see the Message activity report";
+    }
 }
