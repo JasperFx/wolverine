@@ -34,6 +34,18 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public bool UseFastEventForwarding { get; set; }
 
+    /// <summary>
+    ///     Run this store's async projections and subscriptions as Wolverine agents
+    ///     (<see cref="Wolverine.Runtime.Agents.EventSubscriptionAgentFamily" />), the way
+    ///     <c>UseWolverineManagedEventSubscriptionDistribution</c> does for Marten and Polecat. A Fisher store is
+    ///     one SQLite file, so this does not spread projections over several nodes. What it buys is one operator
+    ///     surface across the three stores: tooling such as CritterWatch pauses, restarts, rebuilds and rewinds a
+    ///     Fisher projection through the agent family exactly as it does a Marten one. Replaces Fisher's own
+    ///     <c>AddAsyncDaemon(DaemonMode.Solo)</c>, which the host refuses alongside it. Applies to ancillary
+    ///     Fisher stores as well. Default is false.
+    /// </summary>
+    public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
+
 
     public void Configure(WolverineOptions options)
     {
@@ -223,10 +235,9 @@ internal class FisherOverrides : IConfigureFisher
         options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
 
         // The Marten and Polecat twins nudge DaemonSettings.AsyncMode to ExternallyManaged when
-        // Wolverine takes over hosting the daemon. Wolverine.Fisher never does - see the note in
-        // WolverineOptionsFisherExtensions on why subscription distribution has no meaning over a
-        // single SQLite file - so Fisher's own AddAsyncDaemon() choice is left exactly as the caller
-        // made it.
+        // Wolverine takes over hosting the daemon. Fisher has no such setting: AddAsyncDaemon() registers
+        // its hosted daemon or nothing, so under UseWolverineManagedEventSubscriptionDistribution (GH-5094)
+        // ManagedDistributionDaemonModeValidator refuses an AddAsyncDaemon(DaemonMode.Solo) at host start.
     }
 }
 

@@ -5,6 +5,8 @@ using JasperFx.Events;
 using JasperFx.Events.Subscriptions;
 using Fisher;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Fisher.Distribution;
@@ -97,12 +99,22 @@ public static class AncillaryWolverineOptionsFisherExtensions
             return BuildSingleSqliteMessageStore<T>(schemaName, integration.AutoCreate, store, runtime, logger);
         });
 
-        // Always Fisher's own coordinator, never a Wolverine-managed distributed one: distributing
-        // subscriptions across nodes presupposes several nodes sharing one event store, and an
-        // ancillary Fisher store is a file like any other. GH-3907.
+        // Fisher's own coordinator unless the main integration opts into Wolverine-managed subscription
+        // distribution (GH-5094, mirroring Polecat). That never spreads an ancillary store's projections
+        // across nodes either -- the store is a file like any other (GH-3907) -- but gives its projections
+        // the same agent-based operator surface as the main store's.
+        expression.Services.TryAddSingleton<EventSubscriptionAgentFamily>();
         expression.Services.AddSingleton<IProjectionCoordinator<T>>(s =>
-            new ProjectionCoordinator<T>(s.GetRequiredService<T>(),
-                s.GetRequiredService<ILogger<IProjectionCoordinator>>()));
+        {
+            var store = s.GetRequiredService<T>();
+            if (s.GetService<FisherIntegration>() is { UseWolverineManagedEventSubscriptionDistribution: true })
+            {
+                return new WolverineProjectionCoordinator<T>(s.GetRequiredService<EventSubscriptionAgentFamily>(), store);
+            }
+
+            return new ProjectionCoordinator<T>(store, s.GetRequiredService<ILogger<IProjectionCoordinator>>());
+        });
+        expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator<T>>();
 
         expression.Services.AddSingleton<OutboxedSessionFactory<T>>();
 
@@ -299,8 +311,7 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
         // messages.
         options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
 
-        // No DaemonSettings.AsyncMode nudge, unlike the Marten and Polecat twins. Those flip to
-        // ExternallyManaged when Wolverine takes over hosting the daemon; Wolverine.Fisher never
-        // does, so the caller's own AddAsyncDaemon() choice for this ancillary store is left alone.
+        // No DaemonSettings.AsyncMode nudge, unlike the Marten and Polecat twins: Fisher has no such
+        // setting, and the caller's own AddAsyncDaemon() choice for this ancillary store is left alone.
     }
 }
