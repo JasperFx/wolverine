@@ -423,6 +423,18 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
             .ToLowerInvariant();
     }
 
+    /// <summary>
+    /// GH-5098: the key a node's capability for an agent of this scheme is matched on, which is the
+    /// <see cref="TenantNeutralKeyOf" /> of the URI. Tenants are data, not code: a node that can run a
+    /// store's <c>…/{shard}</c> agent can run <c>…/{shard}/{tenant}</c> for any tenant of that store, and a
+    /// node that started before a tenant existed still advertises the pre-tenant set. Matching capabilities
+    /// on the exact URI made such a node look like a different (blue/green) release and kept the new
+    /// tenant's agents off it. A new projection, or a new version of one, still changes this key. Null for
+    /// a URI of any other scheme, or one that does not parse as this scheme's grammar.
+    /// </summary>
+    internal static string? CapabilityKeyOf(Uri uri)
+        => uri.Scheme.Equals(SchemeName, StringComparison.OrdinalIgnoreCase) ? TenantNeutralKeyOf(uri) : null;
+
     private static bool IsVersionSegment(string segment)
         => segment.Length >= 2 && (segment[0] == 'v' || segment[0] == 'V') &&
            segment.Skip(1).All(char.IsAsciiDigit);

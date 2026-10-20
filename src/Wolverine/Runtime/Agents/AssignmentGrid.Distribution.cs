@@ -768,6 +768,16 @@ public partial class AssignmentGrid
             return false;
         }
 
+        // GH-5098: event subscription capabilities compare tenant-neutrally. A node that started before a
+        // tenant was added advertises the store-global agent (or the old tenants) and a node that started
+        // after advertises the per-tenant agents; that is the same release, and judging it different put
+        // every new tenant's agents on the newer nodes only.
+        if (scheme.EqualsIgnoreCase(EventSubscriptionAgentFamily.SchemeName))
+        {
+            var goldKeys = capabilityKeysFor(_nodes[0], scheme, filter);
+            return _nodes.Skip(1).All(node => goldKeys.SequenceEqual(capabilityKeysFor(node, scheme, filter)));
+        }
+
         var gold = _nodes[0].OrderedCapabilitiesForScheme(scheme).Where(filter);
 
         foreach (var node in _nodes.Skip(1))
@@ -781,6 +791,16 @@ public partial class AssignmentGrid
         }
 
         return true;
+    }
+
+    private static List<string> capabilityKeysFor(Node node, string scheme, Func<Uri, bool> filter)
+    {
+        return node.OrderedCapabilitiesForScheme(scheme)
+            .Where(filter)
+            .Select(x => EventSubscriptionAgentFamily.CapabilityKeyOf(x) ?? x.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToList();
     }
 
     /// <summary>
