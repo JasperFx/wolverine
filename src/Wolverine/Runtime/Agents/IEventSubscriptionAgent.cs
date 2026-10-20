@@ -20,8 +20,9 @@ public interface IEventSubscriptionAgent : IAgent
     /// <summary>
     /// Rewinds this subscription/projection to a point and lets it run forward from there. Because
     /// the agent is per-shard (and per-tenant under partitioning), this rewinds exactly this shard's
-    /// progression. Under Wolverine-managed event-subscription distribution this is the ONLY rewind
-    /// path — the Marten/Polecat <c>IProjectionCoordinator.DaemonForDatabase()</c> throws. Default
+    /// progression. Under Wolverine-managed event-subscription distribution this is the rewind path
+    /// that works from any node: the Marten/Polecat <c>IProjectionCoordinator.DaemonForDatabase()</c> only
+    /// answers for a database this node is running agents for (GH-5092). Default
     /// throws so existing <see cref="IEventSubscriptionAgent" /> implementations are unaffected.
     /// </summary>
     /// <param name="sequenceFloor">Sequence to rewind to (0 = beginning). Ignored when <paramref name="timestamp"/> is supplied.</param>

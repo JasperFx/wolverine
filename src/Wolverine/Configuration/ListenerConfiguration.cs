@@ -2,6 +2,7 @@ using System.Text.Json;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
@@ -385,6 +386,13 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     {
         // This needs to be done eagerly
         _endpoint!.StickyHandlers.Add(handlerType);
+        return this.As<TSelf>();
+    }
+
+    public TSelf AddStickyHandler(Type messageType, IMessageHandler handler)
+    {
+        // Eagerly too, so HandlerGraph.Compile sees it
+        _endpoint!.RegisterStickyMessageHandler(messageType, handler);
         return this.As<TSelf>();
     }
 

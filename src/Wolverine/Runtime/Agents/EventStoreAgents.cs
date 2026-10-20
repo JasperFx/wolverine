@@ -525,52 +525,141 @@ public class EventStoreAgents : IAsyncDisposable
         }
     }
     
-    public async ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
+    /// <summary>
+    /// GH-5092: the projection daemons this node is running right now, without building or subscribing
+    /// anything. A daemon counts as running here when this node runs at least one subscription agent for its
+    /// database, or when its high water loop is running (a daemon started wholesale through
+    /// <see cref="StartAllAsync" />, which bypasses the agents). A database this node holds no agent for is
+    /// left out even if a daemon for it is still cached from an earlier assignment.
+    /// </summary>
+    /// <remarks>
+    /// The high water loop is node-local: every node holding an agent for a database runs its own loop for
+    /// it. So this is the read a monitoring caller wants for that loop's health (<c>IsRunning</c>,
+    /// <c>IsHighWaterStale</c>, <c>HighWaterLastPolledAt</c>) and for restarting it
+    /// (<c>RestartHighWaterAgentAsync</c>).
+    /// </remarks>
+    public IReadOnlyList<IProjectionDaemon> RunningDaemons()
     {
-        // GH-5002: the database topology is all this needs
-        var databases = await _store.TryDescribeDatabasesAsync(CancellationToken.None);
-        if (databases == null)
-        {
-            return [];
-        }
+        var counts = _runningAgentCounts;
 
-        var list = new List<IProjectionDaemon>();
-        
-        foreach (var database in databases.Databases)
-        {
-            var id = new DatabaseId(database.ServerName, database.DatabaseName);
-            var daemon = await FindDaemonAsync(id);
-
-            list.Add(daemon);
-        }
-
-        if (databases.MainDatabase != null && databases.Cardinality == DatabaseCardinality.Single)
-        {
-            var id = new DatabaseId(databases.MainDatabase.ServerName, databases.MainDatabase.DatabaseName);
-            var daemon = await FindDaemonAsync(id);
-
-            list.Add(daemon);
-        }
-
-        return list;
+        return _daemons.Enumerate()
+            .Where(entry => isRunningHere(counts, entry.Key, entry.Value))
+            .Select(entry => entry.Value)
+            .ToList();
     }
 
+    /// <summary>
+    /// GH-5092: the daemon this node is running for <paramref name="databaseIdentifier" />, or null when this
+    /// node is not running one for that database. Never builds a daemon. The identifier matches the daemon's
+    /// <c>Tracker.DatabaseIdentifier</c> (the store's own identifier for the database), or the
+    /// <see cref="DatabaseId.Identity" /> or database name Wolverine distributes agents by, ignoring case.
+    /// </summary>
+    public IProjectionDaemon? TryFindRunningDaemon(string databaseIdentifier)
+    {
+        if (string.IsNullOrWhiteSpace(databaseIdentifier)) return null;
+
+        var counts = _runningAgentCounts;
+        foreach (var entry in _daemons.Enumerate())
+        {
+            if (!isRunningHere(counts, entry.Key, entry.Value)) continue;
+
+            if (string.Equals(entry.Value.Tracker?.DatabaseIdentifier, databaseIdentifier, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Key.Identity, databaseIdentifier, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Key.Name, databaseIdentifier, StringComparison.OrdinalIgnoreCase))
+            {
+                return entry.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool isRunningHere(ImHashMap<DatabaseId, int> counts, DatabaseId databaseId, IProjectionDaemon daemon)
+    {
+        return (counts.TryFind(databaseId, out var count) && count > 0) || daemon.IsRunning;
+    }
+
+    /// <summary>
+    /// The daemons this node is running, exactly as <see cref="RunningDaemons" />. GH-5092: this used to
+    /// build, cache and subscribe observers to a daemon for EVERY database the store describes, including the
+    /// databases this node runs no agent for, which undid the observer release that happens when a
+    /// database's last local agent stops (GH-3376) and, on a sharded store, built hundreds of daemons per
+    /// monitoring poll. The JasperFx contract for <c>IProjectionCoordinator.AllDaemonsAsync</c> is "all
+    /// daemons currently running", and Marten's projection statuses and CritterWatch both read it as a call
+    /// that only observes.
+    /// </summary>
+    public ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
+    {
+        return new ValueTask<IReadOnlyList<IProjectionDaemon>>(RunningDaemons());
+    }
+
+    /// <summary>
+    /// GH-5092: the daemon this node is running for a single-database store. Under Wolverine-managed
+    /// distribution there is no daemon to hand back otherwise, and this never builds one, so it throws
+    /// <see cref="DaemonNotRunningOnThisNodeException" /> when this node runs nothing for the store, or when
+    /// the store has more than one database (use <see cref="DaemonForMainDatabaseAsync" /> there).
+    /// </summary>
     public IProjectionDaemon DaemonForMainDatabase()
     {
-        throw new NotSupportedException("This method is not supported with the Wolverine managed projection/subscription distribution");
+        var running = RunningDaemons();
+        if (_store.DatabaseCardinality == DatabaseCardinality.Single && running.Count == 1)
+        {
+            return running[0];
+        }
+
+        throw new DaemonNotRunningOnThisNodeException(_store.Identity, "the main database");
     }
 
-    // Async sibling for store coordinators (e.g. Polecat's IProjectionCoordinator) whose interface
-    // exposes the async signature. Same managed-distribution semantics as DaemonForMainDatabase().
-    public ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
+    /// <summary>
+    /// GH-5092: the daemon this node is running for the store's main database (or its only database).
+    /// Throws <see cref="DaemonNotRunningOnThisNodeException" /> when this node runs nothing there; never
+    /// builds a daemon.
+    /// </summary>
+    public async ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
     {
-        throw new NotSupportedException("This method is not supported with the Wolverine managed projection/subscription distribution");
+        var databases = await _store.TryDescribeDatabasesAsync(CancellationToken.None);
+        var main = databases?.MainDatabase ?? (databases?.Cardinality == DatabaseCardinality.Single
+            ? databases.Databases.FirstOrDefault()
+            : null);
+
+        if (main != null && _daemons.TryFind(new DatabaseId(main.ServerName, main.DatabaseName), out var daemon)
+                         && isRunningHere(_runningAgentCounts, new DatabaseId(main.ServerName, main.DatabaseName), daemon))
+        {
+            return daemon;
+        }
+
+        throw new DaemonNotRunningOnThisNodeException(_store.Identity, "the main database");
     }
 
+    /// <summary>
+    /// GH-5092: the daemon this node is running for <paramref name="databaseIdentifier" /> (matched as in
+    /// <see cref="TryFindRunningDaemon" />). Under Wolverine-managed distribution the agents for a database
+    /// may be running on another node, and this never builds or starts a daemon to fill the gap, so it
+    /// throws <see cref="DaemonNotRunningOnThisNodeException" /> when this node is not running one there.
+    /// </summary>
     public ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier)
     {
-        throw new NotSupportedException("This method is not supported with the Wolverine managed projection/subscription distribution");
+        var daemon = TryFindRunningDaemon(databaseIdentifier);
+        return daemon != null
+            ? new ValueTask<IProjectionDaemon>(daemon)
+            : throw new DaemonNotRunningOnThisNodeException(_store.Identity, $"database '{databaseIdentifier}'");
+    }
+}
+
+/// <summary>
+/// GH-5092: thrown by a Wolverine-managed projection coordinator's <c>DaemonForDatabase</c> /
+/// <c>DaemonForMainDatabase</c> when this node is not running a daemon for that database. Under managed
+/// distribution the database's agents may be running on another node, and the coordinator will not build
+/// or start a daemon here to answer. Derives from <see cref="NotSupportedException" /> because that is what
+/// these members threw unconditionally before, so existing handlers keep catching it.
+/// </summary>
+public class DaemonNotRunningOnThisNodeException : NotSupportedException
+{
+    public DaemonNotRunningOnThisNodeException(EventStoreIdentity store, string database)
+        : base($"This node is not running a projection daemon for {database} of event store {store}. Under Wolverine-managed projection/subscription distribution only the daemons this node runs agents for are available here; the agents for that database may be running on another node.")
+    {
+        Store = store;
     }
 
-
+    public EventStoreIdentity Store { get; }
 }

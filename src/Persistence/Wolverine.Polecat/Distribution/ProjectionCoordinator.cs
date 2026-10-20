@@ -50,6 +50,15 @@ internal class ProjectionCoordinator : IProjectionCoordinator
         return _daemon;
     }
 
+    // GH-5092: the JasperFx IProjectionCoordinator member, now that this interface extends it. The daemon
+    // is built asynchronously, by StartAsync in the normal course, so the synchronous member can only hand
+    // back one that already exists.
+    IProjectionDaemon JasperFx.Events.Daemon.IProjectionCoordinator.DaemonForMainDatabase()
+    {
+        return _daemon ?? throw new InvalidOperationException(
+            "The Polecat projection daemon has not been built yet because the projection coordinator has not started. Use DaemonForMainDatabaseAsync() instead.");
+    }
+
     public async ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier)
     {
         var documentStore = _store.As<DocumentStore>();

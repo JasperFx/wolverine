@@ -109,6 +109,35 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(messageType);
     }
 
+    // Called from Endpoint.Compile, so a manual handler registered on one endpoint gets its chain and its
+    // message type up front. Deliberately not done by enumerating every transport's endpoints from
+    // HandlerGraph.Compile: some transports materialize endpoints as a side effect of being enumerated (the
+    // Amazon SQS default dead letter queue, for one) before their listeners' configuration has been applied.
+    internal void RegisterStickyMessageHandlers(Endpoint endpoint)
+    {
+        foreach (var pair in endpoint.AllStickyMessageHandlers())
+        {
+            ensureStickyMessageHandlerChain(pair.Key, pair.Value);
+            RegisterMessageType(pair.Key);
+        }
+    }
+
+    // The same chain wiring AddMessageHandler does, for a handler registered on one endpoint. Normally done
+    // from Endpoint.Compile; HandlerFor(Type, Endpoint) repeats it in case the lookup gets there first.
+    private void ensureStickyMessageHandlerChain(Type messageType, IMessageHandler handler)
+    {
+        if (handler is not MessageHandler { Chain: null } messageHandler || handler is AgentCommandHandler) return;
+
+        lock (_compilingLock)
+        {
+            if (messageHandler.Chain != null) return;
+
+            var chain = new HandlerChain(messageType, this);
+            messageHandler.ApplyChainConfiguration(chain);
+            messageHandler.Chain = chain;
+        }
+    }
+
     private void assertNotGrouped()
     {
         if (_hasGrouped)
@@ -166,6 +195,14 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
     {
+        // A manual handler registered for this endpoint only (Endpoint.RegisterStickyMessageHandler) wins
+        // over everything else for messages received here. HandlerFor(Type) never looks at it.
+        if (endpoint.TryFindStickyMessageHandler(messageType, out var stickyMessageHandler))
+        {
+            ensureStickyMessageHandlerChain(messageType, stickyMessageHandler);
+            return stickyMessageHandler;
+        }
+
         if (messageType.CanBeCastTo(typeof(IAgentCommand)))
         {
             if (_handlers.TryFind(typeof(IAgentCommand), out var handler))

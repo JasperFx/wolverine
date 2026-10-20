@@ -41,6 +41,11 @@ public abstract class MessageHandler : IMessageHandler
 {
     public HandlerChain? Chain { get; set; }
 
+    // Lets HandlerGraph run MessageHandler<T>.ConfigureChain for a chain it assigns itself, without knowing T
+    internal virtual void ApplyChainConfiguration(HandlerChain chain)
+    {
+    }
+
     public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
 
     public virtual Type MessageType => Chain!.MessageType;
@@ -118,6 +123,11 @@ public abstract class MessageHandler<T> : MessageHandler
     public virtual void ConfigureChain(HandlerChain chain)
     {
         // Nothing
+    }
+
+    internal sealed override void ApplyChainConfiguration(HandlerChain chain)
+    {
+        ConfigureChain(chain);
     }
 
     protected abstract Task HandleAsync(T message, MessageContext context, CancellationToken cancellation);

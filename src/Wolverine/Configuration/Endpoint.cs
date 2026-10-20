@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
@@ -384,6 +385,40 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     [IgnoreDescription]
     public List<Type> StickyHandlers { get; } = new();
+
+    private ImHashMap<Type, IMessageHandler> _stickyMessageHandlers = ImHashMap<Type, IMessageHandler>.Empty;
+
+    /// <summary>
+    /// Handle <paramref name="messageType" /> with a pre-built <paramref name="handler" /> on this listening
+    /// endpoint only, the manual counterpart of <see cref="StickyHandlers" /> for handlers registered the
+    /// way <see cref="WolverineOptions.AddMessageHandler(Type, IMessageHandler)" /> registers them. A message
+    /// of that type received here runs this handler; everywhere else, including <c>InvokeAsync()</c>, it runs
+    /// whatever handles the type globally. Registering a second handler for the same type on the same
+    /// endpoint replaces the first.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="MessageHandler" /> whose <see cref="MessageHandler.Chain" /> is unset gets a chain of its
+    /// own when the endpoint compiles at startup, exactly as <c>AddMessageHandler</c> does (including <c>MessageHandler&lt;T&gt;.ConfigureChain()</c>),
+    /// so error handling and logging configured for that chain apply to this endpoint's handling only. A handler
+    /// whose chain is already set keeps it.
+    /// </remarks>
+    public void RegisterStickyMessageHandler(Type messageType, IMessageHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+        ArgumentNullException.ThrowIfNull(handler);
+
+        _stickyMessageHandlers = _stickyMessageHandlers.AddOrUpdate(messageType, handler);
+    }
+
+    internal bool TryFindStickyMessageHandler(Type messageType, out IMessageHandler handler)
+    {
+        return _stickyMessageHandlers.TryFind(messageType, out handler!);
+    }
+
+    internal IEnumerable<KeyValuePair<Type, IMessageHandler>> AllStickyMessageHandlers()
+    {
+        return _stickyMessageHandlers.Enumerate().Select(x => new KeyValuePair<Type, IMessageHandler>(x.Key, x.Value));
+    }
 
     /// <summary>
     /// Governs whether this endpoint should be "per tenant" or global in the case of using
@@ -808,6 +843,8 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private void compile(IWolverineRuntime runtime)
     {
         Runtime = runtime;
+
+        runtime.Options.HandlerGraph.RegisterStickyMessageHandlers(this);
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies)
         {

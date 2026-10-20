@@ -103,26 +103,83 @@ ORDER BY {_queueOrderBy} LIMIT @count FOR UPDATE SKIP LOCKED
 
     public async ValueTask DisposeAsync()
     {
-        await _cancellation.CancelAsync();
-        _task.SafeDispose();
-        _scheduledTask.SafeDispose();
+        await stopWorkersAsync();
     }
 
     public Uri Address { get; }
 
     public async ValueTask StopAsync()
     {
-        await _cancellation.CancelAsync();
+        await stopWorkersAsync();
+    }
 
-        _task?.SafeDispose();
-        _scheduledTask?.SafeDispose();
+    /// <summary>
+    /// GH-5087. Cancels both polling workers and waits for them to finish, up to
+    /// <see cref="DurabilitySettings.DrainTimeout" />, the same bound the SQL Server and PostgreSQL listeners
+    /// put on their receive loops. <c>SafeDispose()</c> on a Task joins nothing, so StopAsync used to return
+    /// while the dequeue worker could still be handing envelopes to the receiver. Every pause in both workers
+    /// observes the token, so an idle listener stops at once; the bound only matters for a worker that is
+    /// really busy, inside the receiver or a database call.
+    /// </summary>
+    private async Task stopWorkersAsync()
+    {
+        if (!_cancellation.IsCancellationRequested)
+        {
+            await _cancellation.CancelAsync();
+        }
+
+        var workers = new[] { _task, _scheduledTask }.OfType<Task>().ToArray();
+        if (workers.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // We own both tasks (created in StartAsync)
+#pragma warning disable VSTHRD003
+            await Task.WhenAll(workers).WaitAsync(_settings.DrainTimeout);
+#pragma warning restore VSTHRD003
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning(
+                "The polling workers for MySQL queue {Queue} did not stop within {Timeout} during shutdown",
+                _queueName, _settings.DrainTimeout);
+        }
+        catch (OperationCanceledException)
+        {
+            // A worker cancelled before Task.Run ever started it
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "A polling worker for MySQL queue {Queue} terminated unexpectedly", _queueName);
+        }
+    }
+
+    /// <summary>
+    /// GH-5087. A pause that ends early when the listener stops. Returns false once it is stopping, which ends
+    /// the calling loop.
+    /// </summary>
+    private async Task<bool> pauseAsync(TimeSpan time)
+    {
+        try
+        {
+            await Task.Delay(time, _cancellation.Token);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     private async Task lookForScheduledMessagesAsync()
     {
-        // Little bit of randomness to keep each node from hammering the
-        // table at the exact same time
-        await Task.Delay(_settings.ScheduledJobFirstExecution);
+        if (!await pauseAsync(_settings.ScheduledJobFirstExecution))
+        {
+            return;
+        }
 
         var failedCount = 0;
 
@@ -136,26 +193,33 @@ ORDER BY {_queueOrderBy} LIMIT @count FOR UPDATE SKIP LOCKED
                     _logger.LogInformation("Propagated {Number} scheduled messages to MySQL-backed queue {Queue}", count, _queueName);
                 }
 
-                await DeleteExpiredAsync(CancellationToken.None);
+                await DeleteExpiredAsync(_cancellation.Token);
 
                 failedCount = 0;
-
-                await Task.Delay(_pollingInterval);
+            }
+            catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception e)
             {
-                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
-                {
-                    break;
-                }
-
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
                 _logger.LogError(e, "Error while trying to propagate scheduled messages from MySQL Queue {Name}",
                     _queueName);
 
-                await Task.Delay(pauseTime);
+                if (!await pauseAsync(pauseTime))
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (!await pauseAsync(_pollingInterval))
+            {
+                break;
             }
         }
     }
@@ -258,39 +322,45 @@ WHERE id IN (SELECT id FROM {_tempMoveTable})");
 
                 failedCount = 0;
 
+                TimeSpan pause;
                 if (messages.Any())
                 {
+                    // GH-5087. The whole batch goes to the receiver even if a stop arrives part way through:
+                    // these rows have already left the queue table. StopAsync waits for this, and the receiver
+                    // is not latched until it returns, so a shutdown drain defers whatever it is still holding.
                     await _receiver.ReceivedAsync(this, messages.ToArray());
 
-                    if (messages.Count > _queue.MaximumMessagesToReceive)
-                    {
-                        await Task.Delay(250.Milliseconds());
-                    }
-                    else
-                    {
-                        await Task.Delay(_pollingInterval);
-                    }
+                    pause = messages.Count > _queue.MaximumMessagesToReceive
+                        ? 250.Milliseconds()
+                        : _pollingInterval;
                 }
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(_pollingInterval);
+                    pause = _pollingInterval;
                 }
-            }
-            catch (Exception e)
-            {
-                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
+
+                if (!await pauseAsync(pause))
                 {
                     break;
                 }
-
+            }
+            catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception e)
+            {
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
                 _logger.LogError(e, "Error while trying to retrieve messages from MySQL Queue {Name}",
                     _queueName);
 
-                await Task.Delay(pauseTime);
+                if (!await pauseAsync(pauseTime))
+                {
+                    break;
+                }
             }
         }
     }
