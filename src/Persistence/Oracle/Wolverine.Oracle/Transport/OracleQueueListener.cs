@@ -85,7 +85,10 @@ internal class OracleQueueListener : IListener
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        await _sender.SendAsync(envelope, _cancellation.Token);
+        // GH-5087. Not the listener's token: ListeningAgent stops the listener BEFORE it latches and drains the
+        // receiver, and the drain hands every envelope the receiver still holds back through here. With the
+        // stop token every one of those sends failed, and a buffered queue had already deleted the row.
+        await _sender.SendAsync(envelope, CancellationToken.None);
     }
 
     public async ValueTask DisposeAsync()
