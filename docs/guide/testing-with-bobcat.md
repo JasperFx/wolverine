@@ -235,7 +235,8 @@ happened. To run it, add `await WhenScheduledMessagesAreExecuted();` after the a
 
 That covers the positive message steps (`ThenMessageSent`, `ThenHandled`, …), the negative ones (`ThenNoMessageSent`,
 `ThenNoMessageScheduled<T>` for any other type, `ThenNotHandled`), `ThenMessagesSent`, and the store steps that judge
-an absence: `ThenNoEvents`, `ThenNotEmitted` and `ThenCommandRefused`. `ThenTheActSucceeded` still passes, because
+an absence: `ThenNoEvents`, `ThenNotEmitted`, `ThenNoEventsOn` (by stream, from a version, or by tag query),
+`ThenNoReadModel` and `ThenCommandRefused`. `ThenTheActSucceeded` still passes, because
 scheduling the message did succeed.
 
 The act's own message is the one `WhenReceived` or `WhenPublished` dispatched, or what `WhenTracked`'s `bus` or
