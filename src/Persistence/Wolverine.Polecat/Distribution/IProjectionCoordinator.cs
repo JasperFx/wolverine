@@ -1,5 +1,4 @@
 using JasperFx.Events.Daemon;
-using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Polecat.Distribution;
 
@@ -7,13 +6,19 @@ namespace Wolverine.Polecat.Distribution;
 ///     Coordinates the lifecycle of projection daemons across databases.
 ///     Port of Marten's IProjectionCoordinator for use with Polecat.
 /// </summary>
-public interface IProjectionCoordinator : IHostedService
+/// <remarks>
+///     GH-5092: extends the JasperFx <see cref="JasperFx.Events.Daemon.IProjectionCoordinator" /> so a
+///     store-agnostic caller (CritterWatch, Marten-style diagnostics) finds a Polecat coordinator through
+///     the same interface as a Marten one. The members are redeclared so code compiled against the
+///     earlier shape of this interface keeps binding to them.
+/// </remarks>
+public interface IProjectionCoordinator : JasperFx.Events.Daemon.IProjectionCoordinator
 {
     ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync();
-    ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier);
-    ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync();
-    Task PauseAsync();
-    Task ResumeAsync();
+    new ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier);
+    new ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync();
+    new Task PauseAsync();
+    new Task ResumeAsync();
 }
 
 public interface IProjectionCoordinator<T> : IProjectionCoordinator where T : global::Polecat.IDocumentStore

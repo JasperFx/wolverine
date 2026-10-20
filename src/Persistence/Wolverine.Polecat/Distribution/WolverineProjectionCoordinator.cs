@@ -42,6 +42,12 @@ internal class WolverineProjectionCoordinator : IProjectionCoordinator
         return _storeAgents.DaemonForMainDatabaseAsync();
     }
 
+    // GH-5092: the JasperFx IProjectionCoordinator member, now that this interface extends it
+    public IProjectionDaemon DaemonForMainDatabase()
+    {
+        return _storeAgents.DaemonForMainDatabase();
+    }
+
     public ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier)
     {
         return _storeAgents.DaemonForDatabase(databaseIdentifier);

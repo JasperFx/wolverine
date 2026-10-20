@@ -202,7 +202,8 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     {
         // The per-tenant overload delegates to the store-global path when TenantId is null, so this
         // covers both store-global and per-tenant rewinds. This is the agent-level rewind path
-        // CritterWatch needs because DaemonForDatabase() throws under Wolverine-managed distribution.
+        // CritterWatch needs, because under Wolverine-managed distribution DaemonForDatabase() only answers
+        // for a database this node is running agents for (GH-5092).
         await _daemon.RewindSubscriptionAsync(_shardName.Name, _shardName.TenantId, cancellationToken,
             sequenceFloor, timestamp);
 
