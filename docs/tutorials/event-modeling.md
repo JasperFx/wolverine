@@ -362,7 +362,7 @@ settles it. That's what makes the import usable from an AI agent or from Stoat. 
 
 ## Generated Specifications
 
-Wolverine's `write-specs` command writes one [WolverineFx.Bobcat](https://bobcat.jasperfx.net/integrations/wolverine)
+Wolverine's `write-specs` command writes one [WolverineFx.Bobcat](/guide/testing-with-bobcat)
 specification per example on the board into a sibling `CritterCrush.Specs` project, with a folder per chapter, and the
 spec project itself when there is none yet. It comes with the `WolverineFx.Bobcat.EventModel` package (it was
 `bobcat import-event-model --specs` before the spec writer moved to Wolverine). Reference that package from the
@@ -448,7 +448,7 @@ model.Command<ConfirmAppointment>()
 ```
 
 If those identities ever drift apart, a slice can look "unproven" with every one of its specs green, so Bobcat has a
-[gate that checks spec identities against the model](https://bobcat.jasperfx.net/spec-identities#checking-identities-against-the-model)
+[gate that checks spec identities against the model](/guide/testing-with-bobcat#spec-identity-audit)
 that you'll want in your build.
 
 ### Expected Objects, and Why Member Checks Want C# 14
@@ -688,7 +688,8 @@ Hopefully that gives you a feel for how the pieces fit together. For the details
 |-------|-----------|
 | The builder API | [Declaring the Model in Code](https://shared-libs.jasperfx.net/event-modeling/declaring) (JasperFx) |
 | Importing a board, generated specs, expected objects | [The `bobcat` Tool](https://bobcat.jasperfx.net/bobcat-tool#import-event-model) (Bobcat) |
-| Spec identities and the gate | [Spec Identities](https://bobcat.jasperfx.net/spec-identities) (Bobcat) |
+| The WolverineFx.Bobcat vocabulary | [Specifications with Bobcat](/guide/testing-with-bobcat) |
+| Spec identities and the gate | [Checking spec identities against the model](/guide/testing-with-bobcat#spec-identity-audit), [Spec Identities](https://bobcat.jasperfx.net/spec-identities) (Bobcat) |
 | `event-model`, `describe-event-model`, `[Emits]`, `[SlicePattern]`, domains | [Exporting the Event Model](/guide/command-line#exporting-the-event-model) |
 | `wolverine scaffold` | [Scaffolding Declared Slices](/guide/command-line#scaffolding-declared-slices) |
 | Plans and agents | [From an event model to a plan](https://stoat.jasperfx.net/guide/plan-from-model) (Stoat) |

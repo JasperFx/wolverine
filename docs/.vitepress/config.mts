@@ -140,6 +140,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Health Checks', link: '/guide/health-checks'},
                         {text: 'Serverless Hosting', link: '/guide/serverless'},          
                         {text: 'Test Automation Support', link: '/guide/testing'},
+                        {text: 'Specifications with Bobcat', link: '/guide/testing-with-bobcat'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Aspire Dashboard Integration', link: '/guide/aspire'},
                         {text: 'Code Generation', link: '/guide/codegen'},
