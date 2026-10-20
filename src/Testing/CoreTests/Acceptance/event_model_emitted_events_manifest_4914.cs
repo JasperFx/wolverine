@@ -1,3 +1,5 @@
+using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Events;
 using Wolverine.Attributes;
 using Wolverine.Configuration.EventModeling;
@@ -12,6 +14,17 @@ using Xunit;
     typeof(CoreTests.Acceptance.EventModel4914.AccountOpened))]
 [assembly: EmittedEvents(typeof(CoreTests.Acceptance.EventModel4914.DepositHandler), "Handle",
     typeof(CoreTests.Acceptance.EventModel4914.FundsDeposited), typeof(CoreTests.Acceptance.EventModel4914.BalanceChecked))]
+
+// GH-5089 / jasperfx#1021: one entry per overload, told apart by ParameterTypes, plus the name-only entry
+// the generator falls back to for an overload whose parameter types it cannot name from assembly scope
+[assembly: EmittedEvents(typeof(CoreTests.Acceptance.EventModel4914.ClaimHandler), "Handle",
+    typeof(CoreTests.Acceptance.EventModel4914.NodeClaimed), typeof(CoreTests.Acceptance.EventModel4914.ClaimRenewed),
+    ParameterTypes = new[] { typeof(CoreTests.Acceptance.EventModel4914.ClaimNode), typeof(IEventStream<CoreTests.Acceptance.EventModel4914.Claim>) })]
+[assembly: EmittedEvents(typeof(CoreTests.Acceptance.EventModel4914.ClaimHandler), "Handle",
+    typeof(CoreTests.Acceptance.EventModel4914.ClaimReleased),
+    ParameterTypes = new[] { typeof(CoreTests.Acceptance.EventModel4914.ReleaseNode), typeof(IEventStream<CoreTests.Acceptance.EventModel4914.Claim>) })]
+[assembly: EmittedEvents(typeof(CoreTests.Acceptance.EventModel4914.ClaimHandler), "Handle",
+    typeof(CoreTests.Acceptance.EventModel4914.QuestionAsked))]
 
 namespace CoreTests.Acceptance.EventModel4914;
 
@@ -47,6 +60,65 @@ public class emitted_events_from_the_source_generators_manifest_4914
 
         slice.EmittedEvents.ShouldBeEmpty();
     }
+
+    // HandlerChain.For(Type, string) cannot pick one overload out of several, so the chain is built from the
+    // overload's own MethodInfo
+    private static HandlerChain chainForOverload(Type messageType)
+    {
+        var method = typeof(ClaimHandler).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Single(x => x.Name == "Handle" && x.GetParameters()[0].ParameterType == messageType);
+
+        return new HandlerChain(new MethodCall(typeof(ClaimHandler), method), new HandlerGraph(), []);
+    }
+
+    [Theory]
+    [InlineData(typeof(ClaimNode), new[] { nameof(NodeClaimed), nameof(ClaimRenewed) })]
+    [InlineData(typeof(ReleaseNode), new[] { nameof(ClaimReleased) })]
+    public void each_overload_gets_only_the_events_its_own_entry_lists_5089(Type messageType, string[] expected)
+    {
+        var slice = EventModelRoles.ForHandlerChain(chainForOverload(messageType));
+
+        slice.EmittedEvents.Select(x => x.Name).ShouldBe(expected, ignoreOrder: true);
+    }
+
+    [Fact]
+    public void an_overload_with_no_entry_of_its_own_falls_back_to_the_name_only_entries_5089()
+    {
+        // The generator writes a name-only entry for an overload it could not describe; the overloads that
+        // have their own entry never see it
+        var slice = EventModelRoles.ForHandlerChain(chainForOverload(typeof(AskPerson)));
+
+        slice.EmittedEvents.Select(x => x.Name).ShouldBe(new[] { nameof(QuestionAsked) });
+    }
+}
+
+public record ClaimNode(Guid Id);
+public record ReleaseNode(Guid Id);
+public record AskPerson(Guid Id);
+
+public record NodeClaimed;
+public record ClaimRenewed;
+public record ClaimReleased;
+public record QuestionAsked;
+
+public class Claim
+{
+    public Guid Id { get; set; }
+}
+
+// Stoat's shape (jasperfx#1021): one handler class with a Handle overload per command
+[WolverineIgnore]
+public static class ClaimHandler
+{
+    public static void Handle(ClaimNode command, IEventStream<Claim> stream)
+    {
+        stream.AppendOne(new NodeClaimed());
+        stream.AppendOne(new ClaimRenewed());
+    }
+
+    public static void Handle(ReleaseNode command, IEventStream<Claim> stream) => stream.AppendOne(new ClaimReleased());
+
+    public static void Handle(AskPerson command, IEventStream<Claim> stream) => stream.AppendOne(new QuestionAsked());
 }
 
 public record OpenAccount(Guid Id);
