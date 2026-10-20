@@ -152,7 +152,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     ///     In the case of Marten using a database per tenant, you may wish to
     ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
     ///     This does not have to be one of the tenant databases
-    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    ///     Wolverine will try to use the master database from the Marten configuration when possible.
+    ///     Wolverine does not dispose this data source; the caller owns it
     /// </summary>
     public NpgsqlDataSource? MasterDataSource { get; set; }
 

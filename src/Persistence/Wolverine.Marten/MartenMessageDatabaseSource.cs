@@ -206,9 +206,10 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
             DataSource = database.As<PostgresqlDatabase>().DataSource
         };
 
+        // The tenant database's data source is Marten's, so Marten disposes it when it should
         var store = new PostgresqlMessageStore(settings, _runtime.Options.Durability,
             database.As<PostgresqlDatabase>().DataSource,
-            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
+            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), ownsDataSource: false)
         {
             Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database!
         };

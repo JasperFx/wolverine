@@ -317,8 +317,12 @@ public static class WolverineOptionsMartenExtensions
         };
 
         var dataSource = findMasterDataSource(store, runtime, masterSettings, serviceProvider);
+
+        // Wolverine owns the master data source only when it built it from the connection string. One from
+        // Marten's tenancy belongs to Marten, and MasterDataSource belongs to the caller
+        var ownsDataSource = store.Tenancy is not ITenancyWithMasterDatabase && masterDataSource == null;
         var main = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability, dataSource,
-            runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
+            runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), ownsDataSource)
         {
             Name = "Main"
         };
@@ -349,7 +353,9 @@ public static class WolverineOptionsMartenExtensions
 
         var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
 
-        return new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger);
+        // Marten's data source, so Marten disposes it when it should
+        return new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger,
+            ownsDataSource: false);
     }
 
     internal static MartenIntegration? FindMartenIntegration(this IServiceCollection services)

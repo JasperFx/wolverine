@@ -212,13 +212,16 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
 
         var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();
 
+        // Only a data source built here from the connection string is Wolverine's to dispose. One passed to
+        // PersistMessagesWithSqlite(DbDataSource) belongs to the caller
+        var ownsMainSource = DataSource == null;
         var mainSource = DataSource ?? new WolverineSqliteDataSource(ConnectionString!);
         var logger = runtime.LoggerFactory.CreateLogger<SqliteMessageStore>();
 
         if (UseMasterTableTenancy)
         {
             var defaultStore = new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
-                logger, sagaTables);
+                logger, sagaTables, ownsMainSource);
 
             ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
 
@@ -229,14 +232,14 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
         if (ConnectionStringTenancy != null)
         {
             var defaultStore = new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
-                logger, sagaTables);
+                logger, sagaTables, ownsMainSource);
 
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new SqliteTenantedMessageStore(runtime, this, sagaTables));
         }
 
         return new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
-            logger, sagaTables);
+            logger, sagaTables, ownsMainSource);
     }
 
     public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;

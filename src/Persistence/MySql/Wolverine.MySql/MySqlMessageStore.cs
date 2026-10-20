@@ -79,9 +79,9 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
         Justification = "DatabaseSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
     public MySqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings,
         MySqlDataSource dataSource,
-        ILogger<MySqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings,
+        ILogger<MySqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes, bool ownsDataSource = true) : base(databaseSettings,
         dataSource,
-        settings, logger, new MySqlMigrator(), MySqlProvider.Instance)
+        settings, logger, new MySqlMigrator(), MySqlProvider.Instance, ownsDataSource)
     {
         _findAtLargeEnvelopesSql =
             $"SELECT {DatabaseConstants.IncomingFields} FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE owner_id = {TransportConstants.AnyNode} AND status = '{EnvelopeStatus.Incoming}' AND {DatabaseConstants.ReceivedAt} = @address LIMIT @limit";

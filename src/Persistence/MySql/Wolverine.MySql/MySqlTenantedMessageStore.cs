@@ -112,8 +112,9 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
             SchemaName = schemaNameFor(source.ConnectionString)
         };
 
+        // The tenant's data source was registered by the caller, who owns it
         var store = new MySqlMessageStore(settings, _runtime.Options.Durability, source,
-            _runtime.LoggerFactory.CreateLogger<MySqlMessageStore>(), _sagaTables);
+            _runtime.LoggerFactory.CreateLogger<MySqlMessageStore>(), _sagaTables, ownsDataSource: false);
 
         // Same naming as the connection string path above. Left unset, every tenant registered by
         // MySqlDataSource kept the "default" name -- and both MultiTenantedQueueListener and
