@@ -9,6 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using JasperFx.Events.Documents;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Wolverine.Fisher.Distribution;
+using Wolverine.Runtime.Agents;
 using Wolverine.Fisher.Publishing;
 using Wolverine.Fisher.Subscriptions;
 using Wolverine.Persistence;
@@ -129,10 +132,23 @@ public static class WolverineOptionsFisherExtensions
         // integrations each learned this the expensive way (GH-3133 / GH-3219); Fisher inherits the
         // conclusion rather than the detour.
 
-        // No Wolverine-managed subscription distribution here, unlike the Marten and Polecat twins.
-        // Distributing subscriptions across nodes presupposes several nodes sharing one event store,
-        // and a Fisher store is a single SQLite file - Fisher itself refuses DaemonMode.HotCold for
-        // the same reason. Run the daemon in Solo mode via Fisher's own AddAsyncDaemon().
+        // GH-5094: Wolverine-managed subscription distribution is opt-in. A Fisher store is a single SQLite
+        // file, so there is nothing to spread across nodes (Fisher itself refuses DaemonMode.HotCold for the
+        // same reason), and Fisher's own AddAsyncDaemon(DaemonMode.Solo) stays the default. The agent family
+        // gives operator tooling the same pause / restart / rebuild / rewind surface it has on Marten and
+        // Polecat.
+        if (integration.UseWolverineManagedEventSubscriptionDistribution)
+        {
+            expression.Services.AddSingleton<WolverineProjectionCoordinator>();
+            expression.Services.TryAddSingleton<EventSubscriptionAgentFamily>();
+            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
+            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s =>
+                s.GetRequiredService<EventSubscriptionAgentFamily>());
+            expression.Services.AddSingleton<IProjectionCoordinator>(s =>
+                s.GetRequiredService<WolverineProjectionCoordinator>());
+
+            expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator>();
+        }
 
         return expression;
     }
