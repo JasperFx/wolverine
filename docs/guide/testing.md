@@ -8,6 +8,12 @@ See Jeremy's blog post [How Wolverine allows for easier testing](https://jeremyd
 
 Also see [Wolverine Best Practices](/introduction/best-practices) for other helpful tips.
 
+::: tip Specifications with Bobcat
+For Given/When/Then specifications of Wolverine handlers, HTTP endpoints and event-sourced slices, built on the
+tracked sessions described below, see [Specifications with Bobcat](/guide/testing-with-bobcat), the reference for
+WolverineFx.Bobcat and WolverineFx.Bobcat.Http.
+:::
+
 ::: warning Standing up multiple Wolverine hosts in one test process
 Wolverine resolves the *application assembly* it scans for handlers once per process and caches it in a static, so
 whichever host runs first can pin handler discovery for every later host that doesn't set one explicitly. If handlers
@@ -581,6 +587,8 @@ Polecat there is nothing to pass along yet. Marten does.
 
 #### With WolverineFx.Bobcat
 
+The full WolverineFx.Bobcat vocabulary is in [Specifications with Bobcat](/guide/testing-with-bobcat).
+
 If you're writing specifications with WolverineFx.Bobcat, every act already runs under a correlation id of its own,
 and the `ThenEventuallyCaused()` step does the waiting and the querying for you. It waits for the async daemons to
 catch up, queries the event store for every event recorded with the act's correlation id, and keeps looking for a
@@ -650,6 +658,10 @@ A few things to know:
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
 
 ### More WolverineFx.Bobcat: several stores, context, and foreign events <Badge type="tip" text="6.50" />
+
+This section and the next are highlights; [Specifications with Bobcat](/guide/testing-with-bobcat) is the whole
+reference, including [several event stores](/guide/testing-with-bobcat#several-event-stores) and
+[scheduled messages](/guide/testing-with-bobcat#scheduled-messages).
 
 `WolverineSpec` and `WolverineScenario` inherit everything the store-only `CritterStackSpec` does (it ships in WolverineFx.Bobcat
 too, under the same `Bobcat.CritterStack` namespace, since it moved out of Bobcat core), and a few of those steps are worth
