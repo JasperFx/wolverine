@@ -102,15 +102,17 @@ values (@id, @body, @type, @time)
         await writeToScheduledTableAsync(envelope, cancellationToken, conn);
     }
 
-    private async Task writeToScheduledTableAsync(Envelope envelope, CancellationToken cancellationToken, DbConnection conn)
+    private async Task writeToScheduledTableAsync(Envelope envelope, CancellationToken cancellationToken, DbConnection conn,
+        DbTransaction? tx = null)
     {
         var scheduledTime = envelope.ScheduledTime ?? DateTimeOffset.UtcNow;
-        await conn.CreateCommand(_writeDirectlyToTheScheduledTable)
+        var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable)
             .With("id", $"{envelope.Id:D}")
             .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("type", envelope.MessageType!)
-            .With("time", scheduledTime.UtcDateTime.ToString(SqliteDateTimeFormat))
-            .ExecuteNonQueryAsync(cancellationToken);
+            .With("time", scheduledTime.UtcDateTime.ToString(SqliteDateTimeFormat));
+        cmd.Transaction = tx;
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async ValueTask SendAsync(Envelope envelope, CancellationToken cancellation)
@@ -127,14 +129,16 @@ values (@id, @body, @type, @time)
         }
     }
 
-    private async Task sendAsync(Envelope envelope, DbConnection conn, CancellationToken cancellation)
+    private async Task sendAsync(Envelope envelope, DbConnection conn, CancellationToken cancellation,
+        DbTransaction? tx = null)
     {
-        await conn.CreateCommand(_writeDirectlyToQueueTableSql)
+        var cmd = conn.CreateCommand(_writeDirectlyToQueueTableSql)
             .With("id", $"{envelope.Id:D}")
             .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("type", envelope.MessageType!)
-            .With("expires", (envelope.DeliverBy?.UtcDateTime.ToString(SqliteDateTimeFormat))!)
-            .ExecuteNonQueryAsync(cancellation);
+            .With("expires", (envelope.DeliverBy?.UtcDateTime.ToString(SqliteDateTimeFormat))!);
+        cmd.Transaction = tx;
+        await cmd.ExecuteNonQueryAsync(cancellation);
     }
 
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
@@ -162,10 +166,43 @@ values (@id, @body, @type, @time)
                 await MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
             }
         }
+        else if (_queue.Mode == EndpointMode.Durable)
+        {
+            await MoveOrWriteToQueueAsync(envelope, CancellationToken.None);
+        }
         else
         {
             await SendAsync(envelope, CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    ///     GH-5107. Puts an envelope on the queue (or the scheduled table) and deletes its outbox row, if it has
+    ///     one, in a single transaction. The envelope's outbox row may exist even though WasPersistedInOutbox is
+    ///     false: the EF Core outbox writes it through its own unit of work, and outbox recovery reads it back
+    ///     without the flag. Doing both in one transaction means a node dying in between can't leave a row
+    ///     behind for recovery to send again
+    /// </summary>
+    public async Task MoveOrWriteToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+        {
+            await writeToScheduledTableAsync(envelope, cancellationToken, conn, tx);
+        }
+        else
+        {
+            await sendAsync(envelope, conn, cancellationToken, tx);
+        }
+
+        var delete = conn.CreateCommand($"DELETE FROM {_outgoingTable} WHERE lower({DatabaseConstants.Id}) = lower(@id)")
+            .With("id", $"{envelope.Id:D}");
+        delete.Transaction = tx;
+        await delete.ExecuteNonQueryAsync(cancellationToken);
+
+        await tx.CommitAsync(cancellationToken);
     }
 
     public async Task MoveFromOutgoingToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
