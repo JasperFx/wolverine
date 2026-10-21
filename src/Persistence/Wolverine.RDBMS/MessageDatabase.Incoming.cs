@@ -126,7 +126,13 @@ public abstract partial class MessageDatabase<T>
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        if (HasDisposed) return;
+        // GH-5116. Never return quietly here: callers settle the message with the broker once this returns, so a
+        // dead letter "written" to a disposed store would be completed and lost
+        if (HasDisposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName,
+                $"The message store is disposed, so envelope {envelope.Id} could not be moved to dead letter storage");
+        }
 
         if (Durability.DeadLetterQueueExpirationEnabled && envelope.DeliverBy == null)
         {
