@@ -238,8 +238,16 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return new RdbmsDeduplicationStore(_dataSource,
             QuotedTableNameFor(DeduplicationTableNameFor(Durability)), IsUniqueConstraintViolation,
             BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize,
-            Durability.MessageDeduplicationMode);
+            Durability.MessageDeduplicationMode, DeduplicationClaimConflictClause);
     }
+
+    /// <summary>
+    /// GH-5108. Appended to the deduplication claim INSERT when it runs inside a caller's own transaction
+    /// (see <see cref="ITransactionalDeduplicationStore" />), so that an id that is already claimed inserts
+    /// nothing rather than raising. Only needed on an engine where a failed statement aborts the whole
+    /// transaction; null leaves the duplicate-key error to be classified as usual.
+    /// </summary>
+    protected virtual string? DeduplicationClaimConflictClause => null;
 
     /// <inheritdoc />
     public IDeduplicationStore Deduplication { get; private set; } = NullDeduplicationStore.Instance;

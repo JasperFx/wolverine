@@ -3,9 +3,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
@@ -186,6 +188,47 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             
             return false;
         }
+    }
+
+    /// <summary>
+    ///     GH-5108. Claim a logical deduplication id on this DbContext's own connection and transaction, so the
+    ///     claim commits with the handler's work and rolls back with it -- including when the process dies
+    ///     before the commit, which the claim-and-release path cannot survive. Called from generated code
+    ///     after the transaction has begun and before the handler runs.
+    /// </summary>
+    /// <param name="deduplicationId">The logical id</param>
+    /// <param name="window">The chain's own window, or null for <see cref="DurabilitySettings.DeduplicationWindow" /></param>
+    /// <param name="cancellation"></param>
+    /// <returns><see langword="true" /> when this execution holds the claim, <see langword="false" /> for a duplicate</returns>
+    public async Task<bool> TryClaimDeduplicationIdAsync(string deduplicationId, TimeSpan? window,
+        CancellationToken cancellation)
+    {
+        if (_database.Deduplication is not ITransactionalDeduplicationStore store || !_database.Deduplication.Enabled)
+        {
+            throw new InvalidOperationException(
+                $"Logical message deduplication is enabled, but the message store backing this chain does not implement it. See {nameof(IDeduplicationStore)} for the providers that do. GH-4180");
+        }
+
+        if (DbContext.Database.CurrentTransaction == null)
+        {
+            await DbContext.Database.BeginTransactionAsync(cancellation);
+        }
+
+        var lifetime = window ?? _messaging.Runtime.Options.Durability.DeduplicationWindow;
+        var claimed = await store.TryClaimAsync(DbContext.Database.GetDbConnection(),
+            DbContext.Database.CurrentTransaction!.GetDbTransaction(), deduplicationId,
+            DateTimeOffset.UtcNow.Add(lifetime), cancellation);
+
+        if (!claimed)
+        {
+            // Same message and level as MessageDeduplicator: a duplicate that vanishes silently is
+            // indistinguishable from a message that was lost
+            _messaging.Runtime.LoggerFactory.CreateLogger<EfCoreEnvelopeTransaction>().LogInformation(
+                "Discarding duplicate work for logical deduplication id '{DeduplicationId}'; it was already claimed within the {Window} deduplication window",
+                deduplicationId, lifetime);
+        }
+
+        return claimed;
     }
 
     public ValueTask CommitAsync(CancellationToken cancellation) => CommitAsync(cancellation, true);

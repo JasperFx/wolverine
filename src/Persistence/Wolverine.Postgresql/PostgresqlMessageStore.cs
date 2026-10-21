@@ -255,6 +255,12 @@ internal partial class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection
             $"(select ctid from {table} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= :now limit {batchSize});";
     }
 
+    /// <summary>
+    /// GH-5108. A duplicate-key error aborts a PostgreSQL transaction, so a claim written inside the handler's
+    /// own transaction has to report a conflict as zero rows instead.
+    /// </summary>
+    protected override string? DeduplicationClaimConflictClause => "on conflict do nothing";
+
     public override string? BatchedDeleteExpiredDeduplicationClaimsSql(int batchSize)
     {
         // GH-4757: whichever table the configured mode provisioned.

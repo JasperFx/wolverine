@@ -435,6 +435,14 @@ would be riding the wrong transaction. Wolverine refuses it and uses the compens
 instead — which means a handler that throws *did* claim, and relies on the release to undo it.
 :::
 
+EF Core chains get the same treatment when the EF Core middleware runs in its default
+`TransactionMiddlewareMode.Eager` mode against a single, non-tenanted `DbContext` and a relational message
+store. The claim is written on the `DbContext`'s own connection, inside the transaction the middleware
+began, before your handler runs. Because EF Core already holds the transaction at that point, a
+concurrent caller with the same key waits on the first one's uncommitted claim and is refused once it
+commits, rather than doing its work and losing at commit time. `Lightweight` mode, a database-per-tenant
+`DbContext`, and EF Core sagas keep the compensating path below.
+
 The one case this cannot decide up front is two genuinely concurrent callers under the same key.
 Neither one's claim is committed yet, so neither is visible to the other, and both proceed. The
 deduplication table's primary key settles it at commit time: one transaction wins, and the loser is

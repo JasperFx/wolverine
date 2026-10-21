@@ -18,6 +18,7 @@ using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -846,6 +847,49 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         // See applyEagerCommitOrLightweightFlush + the no-entity overload above (GH-2917).
         applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbType,
             tenantedLightweight, lightweightEnlisted);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-5108. Only for the shape where the DbContext's own transaction provably reaches the deduplication
+    ///     table: <see cref="TransactionMiddlewareMode.Eager" /> with a single, non-tenanted DbContext
+    ///     (<see cref="EnrollDbContextInTransaction" /> begins the transaction and
+    ///     <see cref="CommitEfCoreEnvelopeTransaction" /> commits it), against one relational message database.
+    ///     That is the same assumption the EF Core outbox already makes when it writes Wolverine's envelope
+    ///     rows through the DbContext's connection.
+    ///     <para>
+    ///     Everything else keeps claim-and-release: Lightweight mode has no transaction to ride, a
+    ///     database-per-tenant DbContext or message store commits somewhere other than the main store, and a
+    ///     saga's EF Core transaction is applied after deduplication is woven.
+    ///     </para>
+    /// </remarks>
+    public bool TryBuildTransactionalDeduplication(IChain chain, Variable deduplicationId,
+        DeduplicationRequirement requirement, IServiceContainer container,
+        [NotNullWhen(true)] out TransactionalDeduplication? deduplication)
+    {
+        deduplication = null;
+
+        if (!chain.Middleware.OfType<EnrollDbContextInTransaction>().Any()) return false;
+        if (!chain.Postprocessors.OfType<CommitEfCoreEnvelopeTransaction>().Any()) return false;
+
+        var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
+        var dbContextType = DetermineDbContextType(chain, container);
+        var store = runtime.Stores.HasAncillaryStoreFor(dbContextType)
+            ? runtime.Stores.FindAncillaryStore(dbContextType)
+            : runtime.Storage;
+
+        if (store is not IMessageDatabase { Deduplication: ITransactionalDeduplicationStore }) return false;
+
+        var claim = new ClaimDeduplicationIdInEfCoreTransactionFrame(deduplicationId, requirement.Window);
+
+        deduplication = new TransactionalDeduplication
+        {
+            Check = claim,
+            IsDuplicate = claim.Variable,
+            Claim = new EfCoreDeduplicationClaimHeldFrame(claim.Variable)
+        };
+
+        return true;
     }
 
     public bool CanApply(IChain chain, IServiceContainer container)
