@@ -34,7 +34,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     // awaits it). Null when DurabilitySettings.MarkAsHandledBatchSize is 1, the escape hatch back to
     // one UPDATE per message.
     private readonly InboxCompletionCoalescer? _completionCoalescer;
-    private readonly RetryBlock<Envelope> _moveToErrors;
+    private readonly RetryBlock<Envelope> _rescheduleAfterFailedDeadLetter;
     private readonly IBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly IWolverineRuntime _runtime;
@@ -261,30 +261,22 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
             _logger, _settings.Cancellation);
 
-        if (endpoint is IDatabaseBackedEndpoint db)
-        {
-            _scheduleExecution = new RetryBlock<Envelope>((e, _) => db.ScheduleRetryAsync(e, _settings.Cancellation),
-                _logger, _settings.Cancellation);
-        }
-        else
-        {
-            _scheduleExecution = new RetryBlock<Envelope>((e, _) => _inbox.ScheduleExecutionAsync(e),
-                _logger, _settings.Cancellation);
-        }
-
-        _moveToErrors = new RetryBlock<Envelope>(
-            async (envelope, _) =>
-            {
-                if (_deadLetterSender != null)
-                {
-                    await _deadLetterSender.SendAsync(envelope).ConfigureAwait(false);
-                    return;
-                }
-
-                var report = new ErrorReport(envelope, envelope.Failure!);
-                await _inbox.MoveToDeadLetterStorageAsync(report.Envelope, report.Exception).ConfigureAwait(false);
-            }, _logger,
+        _scheduleExecution = new RetryBlock<Envelope>((e, _) => scheduleExecutionAsync(e), _logger,
             _settings.Cancellation);
+
+        // GH-5105. A dead-letter write that could not be made hands the inbox row back to be executed again. The
+        // row is durable and still owned by this node, so -- as with mark-as-handled (GH-4664) -- keep trying
+        // until the store comes back or the host shuts down, at which point DrainAsync releases the ownership
+        _rescheduleAfterFailedDeadLetter = new RetryBlock<Envelope>((e, _) => scheduleExecutionAsync(e), _logger,
+            _settings.Cancellation)
+        {
+            MaximumAttempts = int.MaxValue,
+            Pauses =
+            [
+                50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds(), 1.Seconds(), 2.Seconds(), 5.Seconds(),
+                10.Seconds(), 30.Seconds()
+            ]
+        };
 
         _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
 
@@ -381,15 +373,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _incrementAttempts.Dispose();
         _scheduleExecution.Dispose();
         _markAsHandled.Dispose();
-        _moveToErrors.Dispose();
+        _rescheduleAfterFailedDeadLetter.Dispose();
         _receivingOne.Dispose();
 
         if (_deadLetterSender is IDisposable d)
         {
             d.SafeDispose();
         }
-
-        _moveToErrors.Dispose();
 
         _completeBlock.Dispose();
         _deferBlock.Dispose();
@@ -627,7 +617,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         await _scheduleExecution.DrainAsync().ConfigureAwait(false);
         await flushMarkAsHandledBatchAsync().ConfigureAwait(false);
         await _markAsHandled.DrainAsync().ConfigureAwait(false);
-        await _moveToErrors.DrainAsync().ConfigureAwait(false);
+        await _rescheduleAfterFailedDeadLetter.DrainAsync().ConfigureAwait(false);
         await _receivingOne.DrainAsync().ConfigureAwait(false);
 
         await _completeBlock.DrainAsync().ConfigureAwait(false);
@@ -740,12 +730,112 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _deferBlock.Dispose();
     }
 
-    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    /// <summary>
+    ///     GH-5105. The pauses between attempts at one dead-letter write before the move is given up on. The write is
+    ///     awaited by whoever asked for the move, so this budget is kept short.
+    /// </summary>
+    internal TimeSpan[] DeadLetterWritePauses { get; set; } =
+        [50.Milliseconds(), 250.Milliseconds(), 1.Seconds(), 2.Seconds()];
+
+    /// <summary>
+    ///     GH-5105. How long an envelope that could not be dead lettered waits before it is executed again
+    /// </summary>
+    internal TimeSpan DeadLetterRedeliveryDelay { get; set; } = 30.Seconds();
+
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         envelope.Failure = exception;
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
 
-        return _moveToErrors.PostAsync(envelope);
+        // GH-5105. This used to post the write to a background RetryBlock and return, so the caller completed the
+        // envelope -- marking the inbox row, the only copy, handled -- and reported it as dead lettered before
+        // anything was written. A write that kept failing was then discarded with one line at Information.
+        var failure = await tryWriteDeadLetterAsync(envelope).ConfigureAwait(false);
+        if (failure == null) return;
+
+        // Nothing was dead lettered, so hand the row back to be executed again rather than leaving it Incoming
+        // and owned by this live node, which nothing reclaims until the node restarts (GH-4664)
+        envelope.OwnerId = TransportConstants.AnyNode;
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.Add(DeadLetterRedeliveryDelay);
+        envelope.Status = EnvelopeStatus.Scheduled;
+        await _rescheduleAfterFailedDeadLetter.PostAsync(envelope).ConfigureAwait(false);
+
+        _logger.LogError(failure,
+            "Could not move envelope {EnvelopeId} ({MessageType}, tenant {TenantId}) received at {Uri} to dead letter storage. It was NOT dead lettered, and will be executed again after {Delay}",
+            envelope.Id, envelope.MessageType, envelope.TenantId, Uri, DeadLetterRedeliveryDelay);
+
+        throw new DeadLetterMoveFailedException(
+            $"Envelope {envelope.Id} could not be moved to dead letter storage; it was scheduled to be executed again in {DeadLetterRedeliveryDelay}",
+            failure);
+    }
+
+    /// <summary>
+    ///     An envelope dead lettered as it arrives never reached the inbox, so the broker delivery is its only copy:
+    ///     settle it only once the dead-letter write has been made, and otherwise hand it back to the broker
+    /// </summary>
+    private async Task deadLetterOnReceiptAsync(Envelope envelope)
+    {
+        var failure = await tryWriteDeadLetterAsync(envelope).ConfigureAwait(false);
+        if (failure == null)
+        {
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+
+        _logger.LogError(failure,
+            "Could not move envelope {EnvelopeId} ({MessageType}, tenant {TenantId}) received at {Uri} to dead letter storage. It was NOT dead lettered, and is handed back to the transport to be delivered again",
+            envelope.Id, envelope.MessageType, envelope.TenantId, Uri);
+
+        if (envelope.Listener != null)
+        {
+            await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
+        }
+    }
+
+    /// <returns>Null if the dead-letter write was made, or the last failure if it could not be</returns>
+    private async Task<Exception?> tryWriteDeadLetterAsync(Envelope envelope)
+    {
+        var pauses = DeadLetterWritePauses;
+        for (var attempt = 0;; attempt++)
+        {
+            try
+            {
+                if (_deadLetterSender != null)
+                {
+                    await _deadLetterSender.SendAsync(envelope).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _inbox.MoveToDeadLetterStorageAsync(envelope, envelope.Failure).ConfigureAwait(false);
+                }
+
+                return null;
+            }
+            catch (Exception e)
+            {
+                if (attempt >= pauses.Length || _settings.Cancellation.IsCancellationRequested) return e;
+
+                _logger.LogWarning(e,
+                    "Error moving envelope {EnvelopeId} received at {Uri} to dead letter storage on attempt {Attempt}; trying again",
+                    envelope.Id, Uri, attempt + 1);
+
+                try
+                {
+                    await Task.Delay(pauses[attempt], _settings.Cancellation).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return e;
+                }
+            }
+        }
+    }
+
+    private Task scheduleExecutionAsync(Envelope envelope)
+    {
+        return _endpoint is IDatabaseBackedEndpoint db
+            ? db.ScheduleRetryAsync(envelope, _settings.Cancellation)
+            : _inbox.ScheduleExecutionAsync(envelope);
     }
 
     public bool NativeDeadLetterQueueEnabled => true;
@@ -884,8 +974,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
                     envelope.MessageType ??= $"unknown/{e.GetType().Name}";
                     envelope.Failure = e;
-                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
-                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    await deadLetterOnReceiptAsync(envelope).ConfigureAwait(false);
                     return;
                 }
 
@@ -898,8 +987,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 if (envelope.MessageType.IsEmpty())
                 {
                     _logger.LogInformation("Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
-                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
-                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    await deadLetterOnReceiptAsync(envelope).ConfigureAwait(false);
                     return;
                 }
 
@@ -1162,8 +1250,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
                     envelope.MessageType ??= $"unknown/{e.GetType().Name}";
                     envelope.Failure = e;
-                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
-                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    await deadLetterOnReceiptAsync(envelope).ConfigureAwait(false);
                     continue;
                 }
 
@@ -1177,8 +1264,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     _logger.LogInformation(
                         "Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue",
                         envelope.Id, envelope.Destination);
-                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
-                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    await deadLetterOnReceiptAsync(envelope).ConfigureAwait(false);
                     continue;
                 }
             }

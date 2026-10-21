@@ -636,9 +636,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             if (Envelope.Batch != null)
             {
+                // GH-5105. A member that cannot be moved must not stop the rest: stopping at the first left every
+                // later member unmoved and, for a durable receiver, Incoming and owned by this node
+                DeadLetterMoveFailedException? moveFailure = null;
                 foreach (var envelope in Envelope.Batch)
                 {
-                    await deadLetterQueue.MoveToErrorsAsync(envelope, exception).ConfigureAwait(false);
+                    try
+                    {
+                        await deadLetterQueue.MoveToErrorsAsync(envelope, exception).ConfigureAwait(false);
+                    }
+                    catch (DeadLetterMoveFailedException e)
+                    {
+                        moveFailure ??= e;
+                    }
+                }
+
+                if (moveFailure != null)
+                {
+                    throw moveFailure;
                 }
             }
             else
