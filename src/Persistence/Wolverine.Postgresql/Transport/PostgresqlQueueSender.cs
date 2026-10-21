@@ -22,6 +22,8 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
 
     private readonly string _moveFromOutgoingToQueueSql;
     private readonly string _moveFromOutgoingToScheduledSql;
+    private readonly string _moveOrWriteToQueueTableSql;
+    private readonly string _moveOrWriteToScheduledTableSql;
     private readonly string _writeDirectlyToQueueTableSql;
     private readonly string _writeDirectlyToTheScheduledTable;
     private readonly string _schemaName;
@@ -65,6 +67,36 @@ FROM
 WHERE {DatabaseConstants.Id} = :id;
 DELETE FROM {quotedStorageSchema}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
 ";
+
+        // GH-5107. The envelope's outbox row may exist even though WasPersistedInOutbox is false: the Marten
+        // and EF Core outboxes write it through their own unit of work, and outbox recovery reads it back
+        // without the flag. Take the row out of the outbox in the same statement that puts the envelope on
+        // the queue, so a node dying in between can't leave a row behind for recovery to send again. With
+        // no outbox row, this is the plain insert.
+        _moveOrWriteToQueueTableSql = $@"
+WITH moved AS (
+    DELETE FROM {quotedStorageSchema}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id
+    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy}
+)
+INSERT into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil})
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} FROM moved
+UNION ALL
+SELECT :id, :body, :type, :expires WHERE NOT EXISTS (SELECT 1 FROM moved)
+ON CONFLICT ({DatabaseConstants.Id}) DO NOTHING;
+".Trim();
+
+        _moveOrWriteToScheduledTableSql = $@"
+WITH moved AS (
+    DELETE FROM {quotedStorageSchema}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id
+    RETURNING {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy}
+)
+INSERT into {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil})
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, :time, {DatabaseConstants.DeliverBy} FROM moved
+UNION ALL
+SELECT :id, :body, :type, :time, :expires WHERE NOT EXISTS (SELECT 1 FROM moved)
+ON CONFLICT ({DatabaseConstants.Id})
+DO UPDATE SET {DatabaseConstants.Body} = excluded.{DatabaseConstants.Body}, {DatabaseConstants.MessageType} = excluded.{DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil} = excluded.{DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime} = excluded.{DatabaseConstants.ExecutionTime};
+".Trim();
 
         _writeDirectlyToQueueTableSql =
             $@"insert into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (:id, :body, :type, :expires)";
@@ -144,9 +176,50 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                 await MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
             }
         }
+        else if (_queue.Mode == EndpointMode.Durable)
+        {
+            await MoveOrWriteToQueueAsync(envelope, CancellationToken.None);
+        }
         else
         {
             await SendAsync(envelope, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5107. Puts an envelope on the queue (or the scheduled table) and deletes its outbox row, if it has
+    ///     one, in a single statement
+    /// </summary>
+    public async Task MoveOrWriteToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+            {
+                await conn.CreateCommand(_moveOrWriteToScheduledTableSql)
+                    .With("id", envelope.Id)
+                    .With("body", EnvelopeSerializer.Serialize(envelope))
+                    .With("type", envelope.MessageType!)
+                    .With("expires", envelope.DeliverBy!)
+                    .With("time", envelope.ScheduledTime!)
+                    .ExecuteNonQueryAsync(cancellationToken);
+            }
+            else
+            {
+                await conn.CreateCommand(_moveOrWriteToQueueTableSql)
+                    .With("id", envelope.Id)
+                    .With("body", EnvelopeSerializer.Serialize(envelope))
+                    .With("type", envelope.MessageType!)
+                    .With("expires", envelope.DeliverBy!)
+                    .ExecuteNonQueryAsync(cancellationToken);
+
+                await publishQueueNotificationAsync(conn, cancellationToken);
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
     }
 
