@@ -89,9 +89,65 @@ internal class OracleQueueSender : IOracleQueueSender
                 await MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
             }
         }
+        else if (_queue.Mode == EndpointMode.Durable)
+        {
+            await MoveOrWriteToQueueAsync(envelope, CancellationToken.None);
+        }
         else
         {
             await SendAsync(envelope, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5107. Puts an envelope on the queue (or the scheduled table) and deletes its outbox row, if it has
+    ///     one, in a single transaction. The envelope's outbox row may exist even though WasPersistedInOutbox is
+    ///     false: the EF Core outbox writes it through its own unit of work, and outbox recovery reads it back
+    ///     without the flag. Doing both in one transaction means a node dying in between can't leave a row
+    ///     behind for recovery to send again
+    /// </summary>
+    public async Task MoveOrWriteToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+
+        try
+        {
+            await using var tx = (OracleTransaction)await conn.BeginTransactionAsync(cancellationToken);
+
+            if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+            {
+                await writeToScheduledTableAsync(envelope, cancellationToken, conn, tx);
+            }
+            else
+            {
+                try
+                {
+                    await using var insertCmd = conn.CreateCommand(_writeDirectlyToQueueTableSql);
+                    insertCmd.Transaction = tx;
+                    insertCmd.With("id", envelope.Id);
+                    insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
+                    insertCmd.With("type", envelope.MessageType!);
+                    insertCmd.Parameters.Add(new OracleParameter("expires", OracleDbType.TimeStampTZ) { Value = (object?)envelope.DeliverBy ?? DBNull.Value });
+                    await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+                catch (OracleException e) when (e.Number == 1) // ORA-00001: unique constraint violated
+                {
+                    // A duplicate send. Oracle only rolls back the failed statement, so carry on and take the
+                    // outbox row out with the rest of the transaction
+                }
+            }
+
+            await using var deleteCmd = conn.CreateCommand(
+                $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id");
+            deleteCmd.Transaction = tx;
+            deleteCmd.With("id", envelope.Id);
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
     }
 
@@ -259,9 +315,11 @@ internal class OracleQueueSender : IOracleQueueSender
         }
     }
 
-    private async Task writeToScheduledTableAsync(Envelope envelope, CancellationToken cancellationToken, OracleConnection conn)
+    private async Task writeToScheduledTableAsync(Envelope envelope, CancellationToken cancellationToken, OracleConnection conn,
+        OracleTransaction? tx = null)
     {
         await using var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable);
+        cmd.Transaction = tx;
         cmd.With("id", envelope.Id);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
         cmd.With("type", envelope.MessageType!);
