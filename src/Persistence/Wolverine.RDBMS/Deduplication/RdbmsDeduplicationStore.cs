@@ -38,11 +38,13 @@ namespace Wolverine.RDBMS.Deduplication;
 /// duplicate-key classifier rather than growing a second one.
 /// </para>
 /// </summary>
-internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
+internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactionalDeduplicationStore
 {
     private readonly DbDataSource _dataSource;
     private readonly Func<Exception, bool> _isUniqueConstraintViolation;
     private readonly string _insertSql;
+    private readonly string _insertInTransactionSql;
+    private readonly bool _insertInTransactionReportsConflicts;
     private readonly string _deleteSql;
     private readonly string _deleteExpiredSql;
     private readonly Func<int, string?> _batchedDeleteExpiredSql;
@@ -68,13 +70,20 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
     /// <see cref="MessageDeduplicationMode.None" /> — the caller only builds a real store at all when
     /// deduplication is on.
     /// </param>
+    /// <param name="conflictClause">
+    /// GH-5108. A clause appended to the claim INSERT when it runs inside a caller's transaction, making a
+    /// conflicting id insert nothing instead of raising -- PostgreSQL's <c>on conflict do nothing</c>. Matters
+    /// there because a failed statement aborts the whole transaction. Null on engines where a duplicate-key
+    /// error leaves the transaction usable; the violation is classified exactly as on the other path.
+    /// </param>
     public RdbmsDeduplicationStore(
         DbDataSource dataSource,
         string table,
         Func<Exception, bool> isUniqueConstraintViolation,
         Func<int, string?> batchedDeleteExpiredSql,
         int batchSize,
-        MessageDeduplicationMode mode)
+        MessageDeduplicationMode mode,
+        string? conflictClause = null)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _isUniqueConstraintViolation = isUniqueConstraintViolation
@@ -98,6 +107,9 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
         }
 
         _deleteExpiredSql = $"delete from {table} where {DatabaseConstants.Expires} <= @now";
+
+        _insertInTransactionReportsConflicts = conflictClause.IsNotEmpty();
+        _insertInTransactionSql = _insertInTransactionReportsConflicts ? $"{_insertSql} {conflictClause}" : _insertSql;
     }
 
     public async Task<bool> TryClaimAsync(string deduplicationId, DateTimeOffset expires,
@@ -127,6 +139,31 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore
             // claim can outlive its expiry by up to DeduplicationCleanupPollingTime. Treating that as
             // still-claimed is the conservative reading and errs toward refusing work that was already
             // done, which is the direction this feature exists to err in.
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryClaimAsync(DbConnection connection, DbTransaction? transaction,
+        string deduplicationId, DateTimeOffset expires, CancellationToken cancellation = default)
+    {
+        if (deduplicationId.IsEmpty()) throw new ArgumentNullException(nameof(deduplicationId));
+
+        await using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = _insertInTransactionSql;
+        cmd.With("id", deduplicationId).With("expires", expires);
+        if (_compareByHash) cmd.With("hash", DeduplicationHash.For(deduplicationId), DbType.Binary);
+
+        try
+        {
+            var inserted = await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
+
+            // With a conflict clause a duplicate is zero rows rather than an exception
+            return !_insertInTransactionReportsConflicts || inserted > 0;
+        }
+        catch (Exception e) when (_isUniqueConstraintViolation(e))
+        {
             return false;
         }
     }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Deduplication;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
@@ -505,5 +506,72 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
         // that, rather than "no", is the safe direction for a misconfigured host.
         (await store.TryClaimAsync("anything", anHourFromNow, TestContext.Current.CancellationToken))
             .ShouldBeTrue();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // GH-5108 -- claiming inside the caller's own transaction
+    // ---------------------------------------------------------------------------------------------
+
+    private static async Task<bool> claimInTransactionAsync(IHost host, string id, bool commit)
+    {
+        var database = (IMessageDatabase)host.GetRuntime().Storage;
+        var store = database.Deduplication.ShouldBeAssignableTo<ITransactionalDeduplicationStore>()!;
+
+        await using var conn = await database.DataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
+        await using var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
+
+        var claimed = await store.TryClaimAsync(conn, tx, id, anHourFromNow, TestContext.Current.CancellationToken);
+
+        // Committing after a refusal as well: a duplicate must leave the caller's transaction usable
+        if (commit)
+        {
+            await tx.CommitAsync(TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            await tx.RollbackAsync(TestContext.Current.CancellationToken);
+        }
+
+        return claimed;
+    }
+
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task a_claim_in_a_rolled_back_transaction_was_never_made(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+
+        (await claimInTransactionAsync(host, "rolled-back", commit: false)).ShouldBeTrue();
+
+        (await storeFor(host).TryClaimAsync("rolled-back", anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue("the rollback should have taken the claim with it");
+    }
+
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task a_claim_in_a_committed_transaction_refuses_the_next_one(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+
+        (await claimInTransactionAsync(host, "committed", commit: true)).ShouldBeTrue();
+
+        (await storeFor(host).TryClaimAsync("committed", anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task an_already_claimed_id_is_refused_in_a_transaction_that_can_still_commit(
+        MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+
+        (await storeFor(host).TryClaimAsync("taken", anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        (await claimInTransactionAsync(host, "taken", commit: true)).ShouldBeFalse();
     }
 }
