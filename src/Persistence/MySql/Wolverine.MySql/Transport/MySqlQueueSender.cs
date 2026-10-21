@@ -16,6 +16,8 @@ internal class MySqlQueueSender : IMySqlQueueSender
     private readonly string _moveFromOutgoingToScheduledSql;
     private readonly string _writeDirectlyToQueueTableSql;
     private readonly string _writeDirectlyToTheScheduledTable;
+    private readonly string _moveOrWriteToQueueTableSql;
+    private readonly string _moveOrWriteToScheduledTableSql;
     private readonly string _schemaName;
 
     // Strictly for testing
@@ -62,6 +64,20 @@ INSERT INTO {scheduledTable} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, 
 VALUES (@id, @body, @type, @expires, @time)
 ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.MessageType} = @type, {DatabaseConstants.KeepUntil} = @expires, {DatabaseConstants.ExecutionTime} = @time
 ".Trim();
+
+        // GH-5107. The envelope's outbox row may exist even though WasPersistedInOutbox is false: the EF Core
+        // outbox writes it through its own unit of work, and outbox recovery reads it back without the flag.
+        // Take the row out of the outbox in the same transaction that puts the envelope on the queue, so a
+        // node dying in between can't leave a row behind for recovery to send again. With no outbox row,
+        // this is the plain insert. A duplicate send is a no-op update rather than an error, so the
+        // transaction still commits the delete.
+        var deleteFromOutgoing =
+            $"DELETE FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;";
+
+        _moveOrWriteToQueueTableSql =
+            $"{_writeDirectlyToQueueTableSql} ON DUPLICATE KEY UPDATE {DatabaseConstants.Id} = {DatabaseConstants.Id};\n{deleteFromOutgoing}";
+
+        _moveOrWriteToScheduledTableSql = $"{_writeDirectlyToTheScheduledTable};\n{deleteFromOutgoing}";
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -125,9 +141,48 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
                 await MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
             }
         }
+        else if (_queue.Mode == EndpointMode.Durable)
+        {
+            await MoveOrWriteToQueueAsync(envelope, CancellationToken.None);
+        }
         else
         {
             await SendAsync(envelope, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5107. Puts an envelope on the queue (or the scheduled table) and deletes its outbox row, if it has
+    ///     one, in a single transaction
+    /// </summary>
+    public async Task MoveOrWriteToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+
+        try
+        {
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+            var scheduled = envelope.IsScheduledForLater(DateTimeOffset.UtcNow);
+            var cmd = conn.CreateCommand(scheduled ? _moveOrWriteToScheduledTableSql : _moveOrWriteToQueueTableSql)
+                .With("id", envelope.Id)
+                .With("body", EnvelopeSerializer.Serialize(envelope))
+                .With("type", envelope.MessageType)
+                .With("expires", envelope.DeliverBy);
+
+            if (scheduled)
+            {
+                cmd.With("time", envelope.ScheduledTime);
+            }
+
+            cmd.Transaction = tx;
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
     }
 
