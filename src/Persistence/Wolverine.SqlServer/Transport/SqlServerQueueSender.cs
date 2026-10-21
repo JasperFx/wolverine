@@ -17,6 +17,8 @@ internal class SqlServerQueueSender : ISqlServerQueueSender
     private readonly string _writeDirectlyToQueueTableSql;
     private readonly string _writeDirectlyToTheScheduledTable;
     private readonly string _deleteFromIncomingAndScheduleSql;
+    private readonly string _moveOrWriteToQueueTableSql;
+    private readonly string _moveOrWriteToScheduledTableSql;
 
     // Strictly for testing
     public SqlServerQueueSender(SqlServerQueue queue) : this(queue, queue.Parent.Settings.ConnectionString!, null)
@@ -63,6 +65,37 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
         _deleteFromIncomingAndScheduleSql =
             $"delete from {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = @id;" +
             _writeDirectlyToTheScheduledTable;
+
+        // GH-5107. The envelope's outbox row may exist even though WasPersistedInOutbox is false: the EF Core
+        // outbox writes it through its own unit of work, and outbox recovery reads it back without the flag.
+        // Take the row out of the outbox in the same transaction that puts the envelope on the queue, so a
+        // node dying in between can't leave a row behind for recovery to send again. With no outbox row,
+        // this is the plain insert.
+        var deleteFromOutgoing =
+            $"DELETE FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;";
+
+        _moveOrWriteToQueueTableSql = inTransaction($@"
+IF NOT EXISTS (SELECT 1 FROM {queue.QueueTable.Identifier} WHERE {DatabaseConstants.Id} = @id)
+    {_writeDirectlyToQueueTableSql};
+{deleteFromOutgoing}
+");
+
+        _moveOrWriteToScheduledTableSql = inTransaction(_writeDirectlyToTheScheduledTable + deleteFromOutgoing);
+    }
+
+    private static string inTransaction(string sql)
+    {
+        return $@"
+BEGIN TRY
+    BEGIN TRANSACTION;
+{sql.Trim()}
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+";
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -114,9 +147,51 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
                 await MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
             }
         }
+        else if (_queue.Mode == EndpointMode.Durable)
+        {
+            await MoveOrWriteToQueueAsync(envelope, CancellationToken.None);
+        }
         else
         {
             await SendAsync(envelope, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5107. Puts an envelope on the queue (or the scheduled table) and deletes its outbox row, if it has
+    ///     one, in a single transaction
+    /// </summary>
+    public async Task MoveOrWriteToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        try
+        {
+            var scheduled = envelope.IsScheduledForLater(DateTimeOffset.UtcNow);
+            await using var cmd = conn.CreateCommand(scheduled ? _moveOrWriteToScheduledTableSql : _moveOrWriteToQueueTableSql)
+                .With("id", envelope.Id)
+                .With("body", EnvelopeSerializer.Serialize(envelope))
+                .With("type", envelope.MessageType!)
+                .With("expires", envelope.DeliverBy!);
+
+            if (scheduled)
+            {
+                cmd.With("time", envelope.ScheduledTime!);
+            }
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (SqlException e)
+        {
+            // A concurrent duplicate send won the insert. The transaction rolled back, so the outbox row is still
+            // there for DurableSendingAgent to delete, as it always has been
+            if (e.Number is 2627 or 2601) return;
+            throw;
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
     }
 
