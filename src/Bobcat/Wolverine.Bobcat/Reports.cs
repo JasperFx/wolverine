@@ -20,6 +20,13 @@ namespace Wolverine.Bobcat;
 /// <c>at (ms)</c> is the session's own clock (<see cref="EnvelopeRecord.SessionTime" />). A failed
 /// execution or a dead-lettered envelope is a red cell inside the otherwise informational table.
 /// </para>
+/// <para>
+/// GH-5106. The trailing columns are the identifiers the rest of the system's telemetry is keyed on, so a
+/// reader (a coding agent above all) can go from a row to the OpenTelemetry trace, the handler's logs and the
+/// exception detail: the envelope's <c>message id</c>, its <c>correlation id</c>, the <c>causation id</c> of
+/// the message that caused it (blank for a message the act sent itself), the <c>saga id</c> where there is
+/// one, and the <c>trace id</c> and <c>activity id</c> of the OpenTelemetry activity the record was made in.
+/// </para>
 /// </remarks>
 public sealed class MessageActivityReport : TableReport
 {
@@ -63,10 +70,23 @@ public sealed class MessageActivityReport : TableReport
                                                     : "")),
                 new("destination", ResultStatus.ok, record.Envelope?.Destination?.ToString() ?? ""),
                 new("attempt", ResultStatus.ok, record.AttemptNumber.ToString()),
-                new("service", ResultStatus.ok, record.ServiceName ?? "")
+                new("service", ResultStatus.ok, record.ServiceName ?? ""),
+                new("message id", ResultStatus.ok, record.Envelope is { } envelope ? envelope.Id.ToString() : ""),
+                new("correlation id", ResultStatus.ok, record.Envelope?.CorrelationId ?? ""),
+                new("causation id", ResultStatus.ok, causationOf(record.Envelope)),
+                new("saga id", ResultStatus.ok, record.Envelope?.SagaId ?? ""),
+                new("trace id", ResultStatus.ok, record.RootId ?? ""),
+                new("activity id", ResultStatus.ok, record.ActivityId ?? "")
             });
         }
     }
+
+    // A message caused by another carries that message's id as its conversation id; one that starts a chain
+    // carries its own, or none at all
+    private static string causationOf(Envelope? envelope)
+        => envelope is null || envelope.ConversationId == Guid.Empty || envelope.ConversationId == envelope.Id
+            ? ""
+            : envelope.ConversationId.ToString();
 }
 
 /// <summary>

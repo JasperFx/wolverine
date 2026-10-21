@@ -151,6 +151,9 @@ public class posting_commands(AppHost app) : WolverineHttpSpec(app.Host)
         report.Visibility.ShouldBe(ReportVisibility.OnFailure);
         report.Cells.ShouldContain(x => x.Name == "route" && x.DisplayText == "/api/appointments/confirm");
         report.Cells.ShouldContain(x => x.Name == "response" && x.DisplayText.Contains("Confirmed"));
+
+        // GH-5106: the correlation id the request carried, which lines it up with the messages it caused
+        report.Cells.ShouldContain(x => x.Name == "correlation id" && x.DisplayText == ActCorrelationId);
     }
 }
 

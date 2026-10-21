@@ -53,10 +53,41 @@ public class cascaded_messages(AppointmentsHost app) : WolverineSpec(app.Host)
 
         var report = recording.Reports.OfType<MessageActivityReport>().Single();
         report.Visibility.ShouldBe(ReportVisibility.OnFailure);
-        report.Columns.ShouldBe(new[] { "at (ms)", "event", "message", "destination", "attempt", "service" });
+        report.Columns.ShouldBe(new[]
+        {
+            "at (ms)", "event", "message", "destination", "attempt", "service",
+            "message id", "correlation id", "causation id", "saga id", "trace id", "activity id"
+        });
         report.Cells.ShouldContain(x => x.Name == "message" && x.DisplayText == nameof(SendConfirmationEmail));
 
         var events = recording.Reports.OfType<AppendedEventsReport>().Single();
         events.Cells.ShouldContain(x => x.Name == "event" && x.DisplayText == nameof(AppointmentConfirmed));
+    }
+
+    // GH-5106: every row carries the ids the rest of the system's telemetry is keyed on, and they join up --
+    // the act's correlation id throughout, and a cascaded message names the act's message as its cause
+    [Fact]
+    public async Task the_message_activity_carries_the_ids_that_join_it_to_the_telemetry()
+    {
+        var recording = await Recordings.RecordAsync(async () => await confirmedAppointment());
+
+        var report = recording.Reports.OfType<MessageActivityReport>().Single();
+        var rows = report.Cells.Chunk(report.Columns.Count)
+            .Select(row => row.ToDictionary(x => x.Name, x => x.DisplayText))
+            .ToList();
+
+        var act = rows.First(x => x["message"] == $"{nameof(ConfirmAppointment)} (the act's own)");
+        Guid.TryParse(act["message id"], out var actId).ShouldBeTrue();
+        act["correlation id"].ShouldBe(ActCorrelationId);
+        act["causation id"].ShouldBe("");
+
+        var cascaded = rows.Where(x => x["message"] == nameof(SendConfirmationEmail)).ToList();
+        cascaded.ShouldNotBeEmpty();
+        foreach (var row in cascaded)
+        {
+            row["correlation id"].ShouldBe(ActCorrelationId);
+            row["causation id"].ShouldBe(actId.ToString());
+            row["message id"].ShouldNotBe(act["message id"]);
+        }
     }
 }

@@ -436,7 +436,10 @@ Activity: 2 sent, 1 scheduled, 1 executed, 0 failed — see the Message activity
 `failed` counts failed attempts. The **Message activity** report it points to is every envelope record of the act's
 tracked session, in order, with the session's clock in ms, the event, the message type (the act's own messages
 marked `(the act's own)`), destination, attempt and service. A failed execution or a dead-lettered envelope is a red
-row carrying the exception's type and message. An *Events appended* report sits beside it.
+row carrying the exception's type and message. Every row also carries the envelope's message id, correlation id,
+causation id (the id of the message that caused it), saga id, and the OpenTelemetry trace and activity ids, which
+are the keys for finding the same message in your traces and logs. An *Events appended* report sits beside it, and
+an HTTP specification's *HTTP exchanges* report carries the correlation id the request sent.
 
 Like every Bobcat scenario report, these are written out **only when the scenario fails** (`ReportVisibility.OnFailure`),
 so a green suite pays nothing for them, and each is capped at 200 rows with "…and N more" rather than a silent cut.
