@@ -265,7 +265,8 @@ public partial class WolverineHttpScenario : WolverineScenario
             if (SpecReport.IsRecording)
             {
                 SpecReport.For<HttpExchangeReport>().Add(verb, route, status,
-                    built is null ? null : System.Text.Json.JsonSerializer.Serialize(built, built.GetType()), responseBody);
+                    built is null ? null : System.Text.Json.JsonSerializer.Serialize(built, built.GetType()), responseBody,
+                    ActCorrelationId);
             }
 
             return status switch
