@@ -238,7 +238,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return new RdbmsDeduplicationStore(_dataSource,
             QuotedTableNameFor(DeduplicationTableNameFor(Durability)), IsUniqueConstraintViolation,
             BatchedDeleteExpiredDeduplicationClaimsSql, Durability.DeduplicationCleanupBatchSize,
-            Durability.MessageDeduplicationMode, DeduplicationClaimConflictClause);
+            Durability.MessageDeduplicationMode, DeduplicationClaimConflictClause, Logger);
     }
 
     /// <summary>

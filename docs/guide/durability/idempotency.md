@@ -505,6 +505,12 @@ A couple of things you might want to know about this:
   `CompareByString` and `CompareByHash` shapes). If you already have the table, your next schema migration
   just adds that column, and nothing else about the table changes. Claims written before the upgrade have no
   envelope recorded, so they keep the old behaviour and refuse everything until they expire.
+* <!-- DRAFT: for Jeremy's review --> If you run with `AutoCreate.None` and haven't applied that migration yet,
+  nothing breaks. The first time a deduplicated handler claims an id, Wolverine checks whether the table has the
+  `envelope_id` column, once per process. If it doesn't, your claims work exactly the way they did before the
+  upgrade, and Wolverine logs a single warning telling you the table should be migrated to get crash-safe
+  claims. That check isn't repeated, so after you apply the migration by hand, restart the application to pick
+  the column up.
 * Taking a claim over is about the envelope, not about whether the work finished. If the node died *after*
   your handler did its work but before the inbox marked the message as handled, the recovered copy will take
   the claim over and run again. That's the usual at-least-once promise of the durable inbox on a plain
