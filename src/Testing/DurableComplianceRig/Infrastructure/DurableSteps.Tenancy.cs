@@ -70,6 +70,7 @@ public sealed partial class DurableSteps
     public async Task EverythingIsInItsTenantsDatabase()
     {
         var invariants = new Invariants(await Store.SnapshotAsync(), _expected);
+        foreach (var row in invariants.Snapshot.Ledger.OrderBy(x => x.RecordedAt)) _output.WriteLine($"ledger: {row}");
 
         SpecAssert.Check("effects committed in another tenant's database",
             describe(invariants.MisroutedEffects(tenant => tenancyStore.LabelFor(tenant))
@@ -161,6 +162,19 @@ public sealed partial class DurableSteps
         SpecLog.Write($"{offlineRan} handler run(s) of {tenant}'s messages started while its database was offline");
     }
 
+    /// <summary>
+    /// A disposed host's handler is still parked in this process; a real crash would have killed it. Its runs are
+    /// finished here, so the checker does not read them as still running alongside the recovered run.
+    /// </summary>
+    [When("the runs node {node} had in flight died with it")]
+    public void TheRunsInFlightDiedWithTheNode(int node)
+    {
+        foreach (var execution in Script.Log.Where(x => x.Node == $"node {node}" && x.FinishedAt == null))
+        {
+            execution.Finish("died with the node");
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------------
     // Error policies per tenant
 
@@ -250,5 +264,92 @@ public sealed partial class DurableSteps
     {
         // The loop notices within one period; nothing waits on it
         await _rigHeartbeatStop.CancelAsync();
+    }
+}
+
+public sealed partial class DurableSteps
+{
+    /// <summary>
+    /// Not a step: a diagnostic. Writes every change of a message's inbox row (status, owner, attempts) to the test
+    /// output for <paramref name="duration" />, in the background, so a row that ends in the wrong state can be traced.
+    /// </summary>
+    public void TraceInboxRow(int number, TimeSpan duration)
+    {
+        var id = MessageNumbered(number);
+        var database = Store.Databases.Single(x => x.Label == databaseOfOrMain(id));
+        _ = Task.Run(async () =>
+        {
+            string? last = null;
+            var deadline = DateTimeOffset.UtcNow.Add(duration);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                try
+                {
+                    var snapshot = new RigSnapshot();
+                    await database.ReadIntoAsync(snapshot);
+                    var row = snapshot.Inbox.FirstOrDefault(x => x.Id == id);
+                    var state = row == null ? "no row" : $"{row.Status} owner={row.OwnerId} attempts={row.Attempts}";
+                    if (state != last) _output.WriteLine($"{DateTimeOffset.UtcNow:HH:mm:ss.fff} message {number} row: {state}");
+                    last = state;
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine($"{DateTimeOffset.UtcNow:HH:mm:ss.fff} message {number} row: {e.GetType().Name}");
+                }
+
+                await Task.Delay(50);
+            }
+        });
+    }
+
+    private string databaseOfOrMain(Guid id) => Store is TenancyStoreProfile ? databaseOf(id) : Store.Databases[0].Label;
+}
+
+public sealed partial class DurableSteps
+{
+    /// <summary>
+    /// Not a step: a diagnostic for SQL Server (<c>RIG_TRACE_BLOCKING=1</c>). Writes every blocked request on the
+    /// server -- who blocks whom, and the statements on both sides -- to the test output for <paramref name="duration" />.
+    /// </summary>
+    public void TraceSqlServerBlockingIfAsked(TimeSpan duration)
+    {
+        if (Environment.GetEnvironmentVariable("RIG_TRACE_BLOCKING") != "1" || Store.Databases[0].Dialect != Dialect.SqlServer) return;
+
+        var database = Store.Databases[0];
+        _ = Task.Run(async () =>
+        {
+            var seen = new HashSet<string>();
+            var deadline = DateTimeOffset.UtcNow.Add(duration);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                try
+                {
+                    await using var conn = database.Connect();
+                    await conn.OpenAsync();
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = """
+                        select r.session_id, r.blocking_session_id, db_name(r.database_id), r.wait_type, t.text,
+                               (select top 1 bt.text from sys.dm_exec_connections c
+                                  cross apply sys.dm_exec_sql_text(c.most_recent_sql_handle) bt
+                                  where c.session_id = r.blocking_session_id)
+                        from sys.dm_exec_requests r cross apply sys.dm_exec_sql_text(r.sql_handle) t
+                        where r.blocking_session_id <> 0
+                        """;
+                    await using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        var line = $"session {reader.GetValue(0)} in {reader.GetValue(2)} blocked by {reader.GetValue(1)} ({reader.GetValue(3)}): " +
+                                   $"{reader.GetValue(4)} || blocker last ran: {reader.GetValue(5)}";
+                        if (seen.Add(line)) _output.WriteLine($"{DateTimeOffset.UtcNow:HH:mm:ss.fff} BLOCKED {line}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine($"blocking trace: {e.Message}");
+                }
+
+                await Task.Delay(250);
+            }
+        });
     }
 }

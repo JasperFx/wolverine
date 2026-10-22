@@ -114,6 +114,30 @@ public abstract class TenancyCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// A node crashes while a tenant's message is running. The row is in the tenant's database; another node has to
+    /// recover it from there, run it, and settle it there.
+    /// </summary>
+    [BobcatSpec]
+    public async Task a_message_recovered_after_a_crash_settles_in_its_tenants_database()
+    {
+        the.ConfigureNodes(opts => opts.OnException<RigFailure>().RetryTimes(3));
+        await the.ANodeStarts();
+        the.MessagesToSendForEachTenant(2);
+        the.MessageWaitsForGate(3, "never");
+        the.TraceSqlServerBlockingIfAsked(60.Seconds());
+
+        await the.TheMessagesAreSentWithTheirTenants(1);
+        await the.MessageHasStarted(3);
+        the.TraceInboxRow(3, 90.Seconds());
+        the.NodeCrashes(1);
+        the.TheRunsInFlightDiedWithTheNode(1);
+        await the.ANodeStarts();
+
+        await the.TheDurableInvariantsHold();
+        await the.EverythingIsInItsTenantsDatabase();
+    }
+
+    /// <summary>
     /// GH-4435/4658/4659: one tenant's database going away must not stop the listener for the others, and the
     /// stranded tenant's messages must survive until it comes back.
     /// </summary>

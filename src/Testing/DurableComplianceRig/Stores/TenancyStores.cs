@@ -136,6 +136,34 @@ public class EfCoreTenancyStore() : TenancyStoreProfile(new SqlServerTenancyData
 }
 
 /// <summary>
+/// <see cref="EfCoreStore" /> plus <see cref="TenancyHoldInterceptor" />: the one-database control for the per-tenant
+/// crash scenario. Same schema and database as <see cref="EfCoreStore" />, so never run the two at once.
+/// </summary>
+public class EfCoreHoldStore : StoreProfile
+{
+    private readonly RigDatabase _database = new EfCoreStore().Databases[0];
+
+    public override string Name => "EF Core on SQL Server (with a post-commit hold)";
+    public override string Key => "ef";
+    public override EffectSemantics Semantics => EffectSemantics.ExactlyOnce;
+    public override IReadOnlyList<RigDatabase> Databases => [_database];
+
+    public override void ConfigurePersistence(WolverineOptions opts, bool withDatabaseQueues)
+    {
+        SqlServerQueues.PersistMessages(opts, EfCoreStore.Schema, withDatabaseQueues);
+        opts.Services.AddDbContextWithWolverineIntegration<RigDbContext>(
+            x => x.UseSqlServer(IntegrationTests.Servers.SqlServerConnectionString)
+                .AddInterceptors(RigEfInterceptor.Instance, TenancyHoldInterceptor.Instance), EfCoreStore.Schema);
+        opts.UseEntityFrameworkCoreTransactions();
+        opts.Policies.AutoApplyTransactions();
+        opts.Discovery.IncludeType(typeof(EfCoreRigHandlers));
+    }
+
+    public override void ConfigureDatabaseQueue(WolverineOptions opts, string queueName) =>
+        SqlServerQueues.Configure(opts, queueName);
+}
+
+/// <summary>
 /// Holds an EF Core handler after its commit and before the durable receiver settles the row, through the same
 /// <see cref="MartenRigHooks" /> holds the Marten ledger uses -- the window a crash has to hit to tell a row marked
 /// inside the transaction apart from one marked after it.
@@ -144,11 +172,47 @@ public class TenancyHoldInterceptor : DbTransactionInterceptor
 {
     public static readonly TenancyHoldInterceptor Instance = new();
 
+    /// <summary>
+    /// The decisive experiment for the per-tenant EF Core crash (<c>RIG_EF_TENANT_MARK_IN_TX=1</c>): mark the inbox
+    /// row Handled on the committing tenant transaction, and set the envelope Handled so the receiver skips its own
+    /// mark -- exactly what <c>EfCoreEnvelopeTransaction.CommitAsync</c> does on the one-database path, and what the
+    /// multi-tenant commit frame (<c>CommitTenantedDbContextTransaction</c>) never calls. If the duplicate goes away,
+    /// the missing in-transaction mark is the whole mechanism.
+    /// </summary>
+    public override async ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction,
+        TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+    {
+        if (Environment.GetEnvironmentVariable("RIG_EF_TENANT_MARK_IN_TX") != "1") return result;
+        if (eventData.Context is not RigDbContext { Envelope: { WasPersistedInInbox: true } envelope }) return result;
+
+        await using var cmd = transaction.Connection!.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText =
+            $"update {EfCoreStore.Schema}.wolverine_incoming_envelopes set status = 'Handled', keep_until = @keep where id = @id";
+        var id = cmd.CreateParameter();
+        id.ParameterName = "@id";
+        id.Value = envelope.Id;
+        cmd.Parameters.Add(id);
+        var keep = cmd.CreateParameter();
+        keep.ParameterName = "@keep";
+        keep.Value = DateTimeOffset.UtcNow.AddMinutes(5);
+        cmd.Parameters.Add(keep);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+        envelope.Status = EnvelopeStatus.Handled;
+        return result;
+    }
+
     public override async Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
         CancellationToken cancellationToken = default)
     {
         if (eventData.Context is not RigDbContext context) return;
-        foreach (var execution in context.Pending) await MartenRigHooks.HoldAfterCommitAsync(execution.MessageId);
+        // The first attempt only: the hold stays registered until it is released, so a recovered run on another
+        // node would otherwise park behind the same hold and never reach the receiver's own mark
+        foreach (var execution in context.Pending.Where(x => x.Attempt == 1))
+        {
+            await MartenRigHooks.HoldAfterCommitAsync(execution.MessageId);
+        }
     }
 }
 
