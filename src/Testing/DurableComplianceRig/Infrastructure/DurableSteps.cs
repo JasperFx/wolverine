@@ -202,6 +202,15 @@ public sealed partial class DurableSteps : IAsyncDisposable
         if (!started) throw new SpecCriticalException($"Message {number} never started; the rest of the scenario depends on it");
     }
 
+    [When("message {number} has committed its effect")]
+    public async Task MessageHasCommitted(int number)
+    {
+        var id = MessageNumbered(number);
+        var committed = await pollAsync(async () => (await Store.SnapshotAsync()).Ledger.Any(x => x.MessageId == id),
+            30.Seconds());
+        if (!committed) throw new SpecCriticalException($"Message {number} never committed; the rest of the scenario depends on it");
+    }
+
     // ---------------------------------------------------------------------------------------------------------
     // Invariants
 

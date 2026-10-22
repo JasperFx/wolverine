@@ -51,15 +51,6 @@ public sealed partial class DurableSteps
     [Given("the inbox row is read on each EF Core transaction just before it commits")]
     public void TheInboxIsObservedAtCommit() => EfScript.ObserveInbox = true;
 
-    [When("message {number} has committed its effect")]
-    public async Task MessageHasCommitted(int number)
-    {
-        var id = MessageNumbered(number);
-        var committed = await pollAsync(async () => (await Store.SnapshotAsync()).Ledger.Any(x => x.MessageId == id),
-            30.Seconds());
-        if (!committed) throw new SpecCriticalException($"Message {number} never committed; the rest of the scenario depends on it");
-    }
-
     /// <summary>The same message id, so <see cref="RigIds.Stamp" /> gives the copy the same envelope id: a redelivery.</summary>
     [When("message {number} is delivered again from node {node}")]
     public async Task MessageIsDeliveredAgain(int number, int node)
