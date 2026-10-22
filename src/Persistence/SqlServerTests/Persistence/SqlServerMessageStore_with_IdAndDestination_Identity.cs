@@ -26,13 +26,31 @@ namespace SqlServerTests.Persistence;
 
 public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStoreCompliance
 {
-    public override async Task<IHost> BuildCleanHost()
+    // The schema is dropped so it is rebuilt with the IdAndDestination primary key, and once per test
+    // process is enough for that. Dropping it before EVERY test rebuilt the whole Wolverine schema 78
+    // times: a median of 2.7s a test against 0.4s for the identical compliance suite in
+    // SqlServerMessageStoreTests, ~180s of the CISqlServer budget. ClearAllAsync below resets the rows.
+    private static readonly object _schemaLock = new();
+    private static Task? _schemaDropped;
+
+    private static async Task dropSchemaAsync()
     {
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync("receiver2");
         await conn.CloseAsync();
-        
+    }
+
+    public override async Task<IHost> BuildCleanHost()
+    {
+        Task schemaDropped;
+        lock (_schemaLock)
+        {
+            schemaDropped = _schemaDropped ??= dropSchemaAsync();
+        }
+
+        await schemaDropped;
+
         #region sample_configuring_message_identity_to_use_id_and_destination
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

@@ -767,25 +767,55 @@ partial class Build
             RunTestProject(inMemoryTests);
         });
 
+    // SqlServerTests outgrew one job. Profiled 2026-08-01 it was 931s of test time; by 2026-10-22 it was 658
+    // tests and ~2300s, so even a perfectly balanced 2-lane run (hosted runners clamp 4 workers to 2) is
+    // ~19m of tests plus ~2m of setup against the 20 minute cap, and it had sat at 16-19.9m with regular
+    // cancellations since 2026-10-12. Split the way CIPolecat and CIMarten are: one named shard lists its
+    // namespaces, and CISqlServer is the NEGATION of that list, so a brand new namespace still runs.
+    //
+    // Measured by namespace from the lane log of the cancelled #5122 run: Transport 660s, Agents 187s,
+    // ScheduledJobs 67s, Sagas 62s, MultiTenancy 29s (~1000s) here; the root namespace 593s and
+    // Persistence 586s (~1180s) in CISqlServer. Each shard is ~10m of tests on 2 lanes.
+
+    AbsolutePath SqlServerTests => RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
+
+    static readonly string[] SqlServerTransportNamespaces =
+    [
+        "SqlServerTests.Transport",
+        "SqlServerTests.Agents",
+        "SqlServerTests.ScheduledJobs",
+        "SqlServerTests.Sagas",
+        "SqlServerTests.MultiTenancy"
+    ];
+
+    void runSqlServerShard(Func<WorkerTest, bool> testFilter)
+    {
+        // SQL Server's boot is one of the slower container starts; overlap it with the compile
+        // instead of paying the two serially.
+        LaunchDockerServices("sqlserver");
+        BuildTestProjects(SqlServerTests);
+        AwaitDockerServices("sqlserver");
+
+        // The sibling databases the multi-tenancy and NSB dedicated-db suites create are lane-scoped via
+        // LaneDatabases.Name, so lanes cannot collide on them.
+        RunTestProject(SqlServerTests, testFilter: testFilter, workers: 4, sqlServerDatabasePerLane: true);
+    }
+
+    /// <summary>
+    /// SQL Server shard 1: the database-backed transport, agents and node persistence, scheduled jobs, sagas
+    /// and multi-tenancy.
+    /// </summary>
+    Target CISqlServerTransport => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runSqlServerShard(includeNamespaces(SqlServerTransportNamespaces)));
+
+    /// <summary>
+    /// SQL Server shard 2: everything not claimed by CISqlServerTransport -- the message store compliance
+    /// suites, the root namespace, and any newly added namespace, which lands here by default.
+    /// </summary>
     Target CISqlServer => _ => _
         .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var sqlServerTests = RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
-
-            // SQL Server's boot is one of the slower container starts; overlap it with the compile
-            // instead of paying the two serially.
-            LaunchDockerServices("sqlserver");
-            BuildTestProjects(sqlServerTests);
-            AwaitDockerServices("sqlserver");
-
-            // Profiled 2026-08-01 (TRX over the full suite, local M-series): 60 classes, 931s of
-            // test time, largest class 167s -> a 5.6x ceiling. Hosted runners clamp 4 workers to 2,
-            // where the LPT bound is ~470s of test wall clock against ~860s sequential. The sibling
-            // databases the multi-tenancy and NSB dedicated-db suites create are lane-scoped via
-            // LaneDatabases.Name, so lanes cannot collide on them.
-            RunTestProject(sqlServerTests, workers: 4, sqlServerDatabasePerLane: true);
-        });
+        .Executes(() => runSqlServerShard(excludeNamespaces(SqlServerTransportNamespaces)));
 
     // MartenTests was the 18m long pole of the matrix (#3752). It was first attacked with worker lanes —
     // four processes, each on its own database via its own connection string — and that halved the wall clock but

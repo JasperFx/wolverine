@@ -97,7 +97,10 @@ jobs:
           - CIRavenDb
           - CIRedis
           - CISqlite
+          # SqlServerTests is sharded by namespace: CISqlServerTransport lists its namespaces and CISqlServer
+          # is the "everything else" shard. It sat at 16-19.9m of the 20 minute cap as one job (2026-10-22).
           - CISqlServer
+          - CISqlServerTransport
           - CICircuitBreaking
           - CIClaimCheck
           - CIAotSmoke
