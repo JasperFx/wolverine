@@ -59,6 +59,10 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
+        // R2: the handled row rides the handler's own transaction, so nothing is written until it commits
+        (await runtime.Storage.Admin.AllIncomingAsync()).ShouldNotContain(x => x.Id == envelope.Id);
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted!.Data!.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
@@ -83,6 +87,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
 
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;

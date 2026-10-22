@@ -49,6 +49,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     // complete it. See CompleteAsync
     private bool _rescheduled;
 
+    // R2/E1: the eager idempotency check put a Handled row into the handler's own transaction and stamped the
+    // envelope as if it were already persisted. Both stand only if that transaction commits, so a failed attempt
+    // puts the envelope back the way the check found it. See ClearAllAsync
+    private bool _eagerIdempotencyStamped;
+    private EnvelopeStatus _statusBeforeEagerIdempotency;
+
     /// <summary>
     /// Has this context already flushed its outgoing messages? When true, any
     /// envelope enqueued afterward will be dropped by the default
@@ -134,6 +140,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             return;
         }
 
+        // R2/E1: every store puts the Handled row into the handler's own transaction, so it commits or rolls back
+        // with the work it records. Remember what the envelope looked like first, so a rollback can undo the stamp
+        var statusBefore = Envelope.Status;
         var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation).ConfigureAwait(false);
         if (!check)
         {
@@ -141,6 +150,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         Envelope.WasPersistedInInbox = true;
+        _statusBeforeEagerIdempotency = statusBefore;
+        _eagerIdempotencyStamped = true;
+    }
+
+    /// <summary>
+    ///     R2/E1. The attempt failed, so the handler's transaction -- and the Handled row the eager idempotency check
+    ///     put into it -- rolled back. Left stamped, the envelope skipped the check on its retry and its commit
+    ///     marked a row that no longer existed, so no record of completion survived and a later redelivery ran the
+    ///     message again
+    /// </summary>
+    private void undoEagerIdempotencyStamp()
+    {
+        if (!_eagerIdempotencyStamped) return;
+        _eagerIdempotencyStamped = false;
+
+        if (Envelope == null) return;
+        Envelope.WasPersistedInInbox = false;
+        Envelope.Status = _statusBeforeEagerIdempotency;
     }
 
     public async Task PersistHandledAsync()
@@ -931,6 +958,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
         }
 
+        undoEagerIdempotencyStamp();
+
         Transaction = null;
     }
 
@@ -1192,6 +1221,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Transaction = null;
         _sagaId = null;
         _rescheduled = false;
+        _eagerIdempotencyStamped = false;
         Tracker = null;
     }
 
@@ -1221,6 +1251,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
         _rescheduled = false;
+        _eagerIdempotencyStamped = false;
         TenantId = originalEnvelope.TenantId;
 
         // GH-4640. The setter above runs the value through Durability.TenantIdStyle, so the context is

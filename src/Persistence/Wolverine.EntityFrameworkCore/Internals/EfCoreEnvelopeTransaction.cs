@@ -154,38 +154,54 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (envelope.WasPersistedInInbox) return true;
 
         // GH-4630: only the raw ADO branch of PersistIncomingAsync needs a transaction of its own -- a
-        // Wolverine-mapped DbContext just tracks an entity and the SaveChangesAsync below opens its own
-        // implicit transaction for it. Forcing an explicit one unconditionally made this check
-        // impossible in Lightweight mode, where nothing downstream would ever commit it and the whole
-        // point of the mode is to stay compatible with EnableRetryOnFailure. In Eager mode a
-        // transaction is always already open by the time this runs, so this is a no-op there.
+        // Wolverine-mapped DbContext just tracks an entity. Forcing an explicit one unconditionally made this check
+        // impossible in Lightweight mode, where nothing downstream would ever commit it and the whole point of the
+        // mode is to stay compatible with EnableRetryOnFailure. In Eager mode a transaction is always already open
+        // by the time this runs, so this is a no-op there.
         if (DbContext.Database.CurrentTransaction == null && !DbContext.IsWolverineEnabled())
         {
             await DbContext.Database.BeginTransactionAsync(cancellation);
         }
 
+        var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
+
+        // R2: Lightweight mode on a Wolverine-mapped DbContext has no transaction to write the Handled row into yet.
+        // This used to commit it with a SaveChangesAsync of its own, BEFORE the handler ran, so a handler that then
+        // failed left a record of completion behind and the redelivery of a message that was never handled was
+        // thrown away as a duplicate of itself. Refuse a delivery the inbox already finished now, and leave the row
+        // tracked so it commits with the handler's own SaveChangesAsync, or not at all
+        if (DbContext.Database.CurrentTransaction == null)
+        {
+            if (await _database.Inbox.ExistsAsync(envelope, cancellation))
+            {
+                return false;
+            }
+
+            await PersistIncomingAsync(copy);
+            return true;
+        }
+
+        // With a transaction open the row is written into it right away: still the handler's own transaction, so it
+        // commits or rolls back with the work, and a concurrent duplicate meets it at the primary key now rather than
+        // after the handler has run. MessageContext owns the envelope's flags, and puts them back if this rolls back
         try
         {
-            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
             await PersistIncomingAsync(copy);
-            
-            // Gotta flush the call to the database!
+
             if (DbContext.IsWolverineEnabled())
             {
                 await DbContext.SaveChangesAsync(cancellation);
             }
-            
-            envelope.WasPersistedInInbox = true;
-            envelope.Status = EnvelopeStatus.Handled;
+
             return true;
         }
-        catch (Exception )
+        catch (Exception)
         {
             if (DbContext.Database.CurrentTransaction != null)
             {
                 await DbContext.Database.CurrentTransaction.RollbackAsync(cancellation);
             }
-            
+
             return false;
         }
     }
@@ -260,6 +276,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             await scraper.ScrapeEvents(DbContext, _messaging);
         }
         
+        var markedHandled = false;
+
         // F13: a handler that rescheduled its envelope handed the inbox row back as Scheduled. Neither marking that
         // row Handled nor inserting a Handled one is this execution's to do
         if (_messaging.Envelope != null && _messaging.Envelope.Destination != null && !_messaging.HasRescheduledEnvelope)
@@ -285,7 +303,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
                     await _database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, _messaging.Envelope,
                         keepUntil, cancellation);
 
-                    _messaging.Envelope.Status = EnvelopeStatus.Handled;
+                    markedHandled = true;
                 }
             }
 
@@ -296,7 +314,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
                 var envelope = Envelope.ForPersistedHandled(_messaging.Envelope, DateTimeOffset.UtcNow, _messaging.Runtime.Options.Durability);
                 await PersistIncomingAsync(envelope);
 
-                _messaging.Envelope.Status = EnvelopeStatus.Handled;
+                markedHandled = true;
             }
         }
 
@@ -319,6 +337,14 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (DbContext.Database.CurrentTransaction != null)
         {
             await DbContext.Database.CurrentTransaction.CommitAsync(cancellation);
+        }
+
+        // F25: Handled only once the mark has actually committed, as Marten and Polecat do. DurableReceiver skips
+        // its own mark for a Handled envelope, so flipping this before a commit that then failed -- and an error
+        // policy that discarded the message -- left the row Incoming, to run again after a restart
+        if (markedHandled)
+        {
+            _messaging.Envelope!.Status = EnvelopeStatus.Handled;
         }
 
         if (flushOutgoingMessages)
