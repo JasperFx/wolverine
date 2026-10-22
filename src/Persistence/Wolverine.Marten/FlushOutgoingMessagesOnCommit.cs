@@ -42,7 +42,8 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
         // Mark as handled!
         if (_context.Envelope.Destination != null)
         {
-            if (_context.Envelope.WasPersistedInInbox)
+            // F13: a handler that rescheduled its envelope handed the row back as Scheduled; marking it here lost the run
+            if (_context.Envelope.WasPersistedInInbox && !_context.HasRescheduledEnvelope)
             {
                 // Determine which store's incoming table to update. The envelope may have been
                 // persisted in the ancillary store (if on a different database) or the

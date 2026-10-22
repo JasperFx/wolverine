@@ -45,6 +45,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private bool _hasFlushed;
     private object? _sagaId;
 
+    // F13: this execution already settled its envelope by rescheduling it, so the success path must not then
+    // complete it. See CompleteAsync
+    private bool _rescheduled;
+
+    // R2/E1: the eager idempotency check put a Handled row into the handler's own transaction and stamped the
+    // envelope as if it were already persisted. Both stand only if that transaction commits, so a failed attempt
+    // puts the envelope back the way the check found it. See ClearAllAsync
+    private bool _eagerIdempotencyStamped;
+    private EnvelopeStatus _statusBeforeEagerIdempotency;
+
     /// <summary>
     /// Has this context already flushed its outgoing messages? When true, any
     /// envelope enqueued afterward will be dropped by the default
@@ -130,6 +140,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             return;
         }
 
+        // R2/E1: every store puts the Handled row into the handler's own transaction, so it commits or rolls back
+        // with the work it records. Remember what the envelope looked like first, so a rollback can undo the stamp
+        var statusBefore = Envelope.Status;
         var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation).ConfigureAwait(false);
         if (!check)
         {
@@ -137,6 +150,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         Envelope.WasPersistedInInbox = true;
+        _statusBeforeEagerIdempotency = statusBefore;
+        _eagerIdempotencyStamped = true;
+    }
+
+    /// <summary>
+    ///     R2/E1. The attempt failed, so the handler's transaction -- and the Handled row the eager idempotency check
+    ///     put into it -- rolled back. Left stamped, the envelope skipped the check on its retry and its commit
+    ///     marked a row that no longer existed, so no record of completion survived and a later redelivery ran the
+    ///     message again
+    /// </summary>
+    private void undoEagerIdempotencyStamp()
+    {
+        if (!_eagerIdempotencyStamped) return;
+        _eagerIdempotencyStamped = false;
+
+        if (Envelope == null) return;
+        Envelope.WasPersistedInInbox = false;
+        Envelope.Status = _statusBeforeEagerIdempotency;
     }
 
     public async Task PersistHandledAsync()
@@ -556,6 +587,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // receiver's completion is the inbox row, not the broker, so it must still run. GH-5119.
         if (Envelope.HasBeenAcked && _channel is not DurableReceiver) return;
 
+        // F13: a handler that called ReScheduleAsync and then returned normally already handed its inbox row back
+        // as Scheduled. Completing it now marked that row Handled -- the mark-as-handled UPDATE matches on the
+        // identity alone -- and the rescheduled run was lost. The reschedule IS this execution's settlement
+        if (_rescheduled && _channel is DurableReceiver) return;
+
         await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
         Envelope.HasBeenAcked = true;
     }
@@ -590,7 +626,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via durable inbox to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope).ConfigureAwait(false);
         }
+
+        _rescheduled = true;
     }
+
+    /// <summary>
+    ///     F13. Has this execution settled its envelope by rescheduling it? Transactional middleware must not then
+    ///     mark the same inbox row Handled inside the handler's transaction
+    /// </summary>
+    internal bool HasRescheduledEnvelope => _rescheduled;
 
     private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
     {
@@ -914,6 +958,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
         }
 
+        undoEagerIdempotencyStamp();
+
         Transaction = null;
     }
 
@@ -1174,6 +1220,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope = null;
         Transaction = null;
         _sagaId = null;
+        _rescheduled = false;
+        _eagerIdempotencyStamped = false;
         Tracker = null;
     }
 
@@ -1202,6 +1250,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         ConversationId = originalEnvelope.Id;
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
+        _rescheduled = false;
+        _eagerIdempotencyStamped = false;
         TenantId = originalEnvelope.TenantId;
 
         // GH-4640. The setter above runs the value through Durability.TenantIdStyle, so the context is
