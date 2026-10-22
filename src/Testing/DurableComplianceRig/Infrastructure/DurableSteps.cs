@@ -123,9 +123,13 @@ public sealed partial class DurableSteps : IAsyncDisposable
         _somethingWasInterrupted = true;
     }
 
-    /// <summary>Dispose without StopAsync: no drain, no release. As close to a crash as a test process gets.</summary>
-    [When("node {node} crashes")]
-    public void NodeCrashes(int node)
+    /// <summary>
+    /// NOT a crash. <c>IHost.Dispose</c> runs <c>WolverineRuntime.DisposeAsync</c> -> <c>StopAsync</c>, which drains,
+    /// releases every row the node owns and deletes its node record -- a graceful stop by another road. For a real
+    /// kill use <see cref="NodeIsKilled" /> on a store that implements <see cref="IKillableStore" />.
+    /// </summary>
+    [When("node {node} is disposed, which stops it gracefully")]
+    public void NodeIsDisposed(int node)
     {
         var host = Node(node);
         host.Dispose();

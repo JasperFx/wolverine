@@ -65,7 +65,8 @@ public abstract class MartenLifecycleCompliance : IAsyncLifetime
 
         await the.TheMessagesAreSent(1);
         await the.MessageIsHeldAfterCommit(2);
-        the.NodeCrashes(1);
+        // Graceful, not a crash (see NodeIsDisposed). A real kill needs a Marten IKillableStore -- follow-up
+        the.NodeIsDisposed(1);
         await the.ANodeStarts();
 
         await the.TheDurableInvariantsHold();
