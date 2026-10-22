@@ -292,7 +292,6 @@ There are just a few things to know:
 * Wolverine's internal reply or control queues will still be declared as "classic" so they can be non-durable
 * Streams cannot be purged, and Wolverine ignores the `AutoPurgeOnStartup()` setting for streams
 
-<!-- DRAFT: for Jeremy's review -->
 ## Quorum Queues and the Durable Inbox
 
 If you're using quorum queues behind a [durable inbox](/guide/durability/), there's one Rabbit MQ setting you

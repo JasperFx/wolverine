@@ -102,7 +102,6 @@ you to "opt in." First though, the idempotency check in this case can be done in
 1. `Eager` -- just means that Wolverine will apply some middleware around the handler such that it checks for, and claims, a skeleton placeholder in the transactional inbox storage *before* your handler runs
 2. `Optimistic` -- Wolverine would try to insert the skeleton message information as part of the message handling transaction to try to avoid extra database round trips
 
-<!-- DRAFT: for Jeremy's review -->
 ::: info
 The `Eager` placeholder is written into the **same** transaction as your handler's own work, so it commits or rolls back right
 along with everything else. That matters more than it sounds. Before this, the placeholder was committed up front on its own, so

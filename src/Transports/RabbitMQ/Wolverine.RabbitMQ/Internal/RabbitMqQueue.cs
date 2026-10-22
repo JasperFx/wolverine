@@ -454,7 +454,6 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     private bool isDurableListener() => IsListener && Mode == EndpointMode.Durable;
 
-    // DRAFT: for Jeremy's review -- user-facing log text, GH-5123
     internal const string MissingDeliveryLimitWarning =
         "The durable listener at {Uri} uses the quorum queue '{Queue}', which Wolverine declared without an x-delivery-limit. " +
         "RabbitMQ 4 drops a quorum queue message (or dead letters it, if the queue has a dead letter exchange) on its 21st return to the queue, " +

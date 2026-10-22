@@ -244,7 +244,6 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
 
         if (Interlocked.CompareExchange(ref _envelopeColumnState, present ? 1 : 2, 0) == 0 && !present)
         {
-            // DRAFT: for Jeremy's review
             _logger.LogWarning(
                 "The logical deduplication table {Table} predates the {Column} column, so [Deduplicated] claims cannot record the envelope that took them. Claims still work as they did before, but a claim stranded by a node that dies mid-handler will refuse the recovered message until it expires. Apply Wolverine's schema migration to add the column, then restart, to get crash-safe claims",
                 _table, DatabaseConstants.DeduplicationEnvelopeId);

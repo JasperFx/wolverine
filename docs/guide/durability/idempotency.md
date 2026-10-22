@@ -61,7 +61,6 @@ Each of those is a *different* delivery of the *same intent*, so each carries a 
 `Envelope.Id` and every one of them gets through. What is needed is an identity for the intent, and
 that is what `DeduplicationId` is.
 
-<!-- DRAFT: for Jeremy's review -->
 `Envelope.DeduplicationId` is a `string`, it is set by your application, and it round-trips on every
 transport Wolverine supports under the `deduplication-id` wire header. The transports that carry the whole
 serialized envelope (SQS, SNS, the database-backed queues, local queues, TCP) get it from Wolverine's own
@@ -472,7 +471,6 @@ the key back, and the release is registered to run before the response is flushe
 cannot beat it. A 2xx or a 3xx keeps it, so an idempotency key means "this succeeded once" rather than
 "this was attempted once".
 
-<!-- DRAFT: for Jeremy's review -->
 For a handler that fails and gets retried, the guarantee you see is the same either way. The difference is
 cost: the transactional path pays one round trip, shared with whatever read your handler was already doing,
 where the compensating path pays one to claim and another to release. Where the two paths do differ is when
@@ -480,7 +478,6 @@ the process dies in the middle of your handler, and that's the next section.
 
 ### When a node dies mid-handler
 
-<!-- DRAFT: for Jeremy's review -->
 On the compensating path, the claim is already committed before your handler starts, and the only thing that
 gives it back is the release Wolverine runs when the handler fails. If the node is killed outright in the
 middle of your handler -- a pod eviction, an out of memory kill, somebody pulling the plug -- that release
@@ -505,7 +502,7 @@ A couple of things you might want to know about this:
   `CompareByString` and `CompareByHash` shapes). If you already have the table, your next schema migration
   just adds that column, and nothing else about the table changes. Claims written before the upgrade have no
   envelope recorded, so they keep the old behaviour and refuse everything until they expire.
-* <!-- DRAFT: for Jeremy's review --> If you run with `AutoCreate.None` and haven't applied that migration yet,
+* If you run with `AutoCreate.None` and haven't applied that migration yet,
   nothing breaks. The first time a deduplicated handler claims an id, Wolverine checks whether the table has the
   `envelope_id` column, once per process. If it doesn't, your claims work exactly the way they did before the
   upgrade, and Wolverine logs a single warning telling you the table should be migrated to get crash-safe
