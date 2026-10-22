@@ -125,8 +125,10 @@ public class Execution(Guid messageId, int attempt, string node, DateTimeOffset 
     public DateTimeOffset? FinishedAt { get; private set; }
     public string? Outcome { get; private set; }
 
+    /// <summary>The first finish wins: a run killed with its node must not be revived by its zombie finishing later.</summary>
     public void Finish(string outcome)
     {
+        if (FinishedAt != null) return;
         FinishedAt = DateTimeOffset.UtcNow;
         Outcome = outcome;
     }
