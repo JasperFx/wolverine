@@ -587,8 +587,42 @@ public class Samples
                 // single queue, and the explicit configuration will win
                 // out over any policy or convention
                 .QueueType(QueueType.quorum);
-            
-            
+
+
+        });
+
+        #endregion
+    }
+
+    public static async Task configure_delivery_limit_for_durable_quorum_queues()
+    {
+        #region sample_delivery_limit_for_durable_quorum_queues
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts
+                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit")!)
+                .AutoProvision()
+                .UseQuorumQueues()
+
+                // Every quorum queue that Wolverine declares for a listener
+                // using the durable inbox gets this x-delivery-limit.
+                // -1 turns the limit off on RabbitMQ 4
+                .DeliveryLimitForDurableQuorumQueues(-1);
+
+            opts.ListenToRabbitQueue("incoming")
+                .UseDurableInbox();
+
+            opts.ListenToRabbitQueue("payments")
+                .UseDurableInbox()
+
+                // Or set the limit for just one queue, and this
+                // wins over the transport wide setting
+                .DeliveryLimit(100)
+
+                // Optional, but this lets in flight deliveries reach
+                // the inbox on a stop instead of being handed back
+                .DrainWaitForPrefetch();
         });
 
         #endregion
