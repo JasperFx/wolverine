@@ -228,6 +228,12 @@ un-settled in the message store; only when the assembled batch message completes
 handled together. On inline and buffered listeners there is no inbox to defer to, so the member is settled as
 soon as the batching handler absorbs it.
 
+Until its batch is finished with it, a member also stays in the hands of the durable listener it arrived on. Pausing
+or restarting that listener doesn't hand the member's row back to the cluster while the batch is still pending, and
+if you're using `InboxStaleTime`, the row's clock keeps running for as long as the batch takes. If the batch's own
+queue is paused or stopped with a batch retry still waiting, the members' rows are handed back so another pass can
+pick them up rather than leaving them stuck on a live node.
+
 ### The lock window caveat (lock-based transports)
 
 On transports that hand out a time-bounded lock or lease per message — Azure Service Bus peek-lock, Amazon SQS

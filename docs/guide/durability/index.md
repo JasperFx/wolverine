@@ -161,7 +161,9 @@ ones. That means a message bouncing through durable retries isn't going to get r
 Wolverine also keeps the clock running for any message a node is still holding onto, whether it's sitting in a durable
 listener's local queue or its handler is actually running. A few times per `InboxStaleTime` window, each durable
 listener tells the database "I've still got these," so a handler that legitimately takes longer than `InboxStaleTime`
-or a big local backlog isn't going to get a second copy started out from under it. A message a node has genuinely lost
+or a big local backlog isn't going to get a second copy started out from under it. That goes for a message that's been
+handed off to a [batch](/guide/handlers/batching) too -- its row is kept alive until the whole batch is finished with
+it -- and it works the same way when every tenant has its own database. A message a node has genuinely lost
 track of gets no such heartbeat, and that's exactly the kind of stuck message this setting exists to bump.
 
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
