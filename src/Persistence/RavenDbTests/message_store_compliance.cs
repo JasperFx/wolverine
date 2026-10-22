@@ -113,22 +113,9 @@ public class message_store_compliance : MessageStoreCompliance
 
     }
 
-    [Fact]
-    public async Task bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException()
-    {
-        // Reproduces the on-startup race where ASB redelivers the same envelope twice
-        // in a single prefetched batch. The bulk Inbox.StoreIncomingAsync used to leak
-        // RavenDB's NonUniqueObjectException; DurableReceiver then mistook that for an
-        // inbox-unavailable signal and paused the listener.
-        var envelope = ObjectMother.Envelope();
-        envelope.Destination = new Uri("stub://incoming");
-        envelope.Status = EnvelopeStatus.Incoming;
-
-        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
-        {
-            await thePersistence.Inbox.StoreIncomingAsync(new[] { envelope, envelope });
-        });
-    }
+    // bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException lived here (the ASB on-startup race
+    // where the same envelope arrived twice in one prefetched batch and RavenDB's NonUniqueObjectException leaked). It is
+    // a MessageStoreCompliance fact for every store now, GH-5123.
 
     [Fact]
     public async Task does_not_save_earlier_claims_if_a_later_candidate_fails_to_load()
