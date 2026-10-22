@@ -45,6 +45,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private bool _hasFlushed;
     private object? _sagaId;
 
+    // F13: this execution already settled its envelope by rescheduling it, so the success path must not then
+    // complete it. See CompleteAsync
+    private bool _rescheduled;
+
     /// <summary>
     /// Has this context already flushed its outgoing messages? When true, any
     /// envelope enqueued afterward will be dropped by the default
@@ -556,6 +560,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // receiver's completion is the inbox row, not the broker, so it must still run. GH-5119.
         if (Envelope.HasBeenAcked && _channel is not DurableReceiver) return;
 
+        // F13: a handler that called ReScheduleAsync and then returned normally already handed its inbox row back
+        // as Scheduled. Completing it now marked that row Handled -- the mark-as-handled UPDATE matches on the
+        // identity alone -- and the rescheduled run was lost. The reschedule IS this execution's settlement
+        if (_rescheduled && _channel is DurableReceiver) return;
+
         await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
         Envelope.HasBeenAcked = true;
     }
@@ -590,7 +599,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via durable inbox to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope).ConfigureAwait(false);
         }
+
+        _rescheduled = true;
     }
+
+    /// <summary>
+    ///     F13. Has this execution settled its envelope by rescheduling it? Transactional middleware must not then
+    ///     mark the same inbox row Handled inside the handler's transaction
+    /// </summary>
+    internal bool HasRescheduledEnvelope => _rescheduled;
 
     private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
     {
@@ -1174,6 +1191,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope = null;
         Transaction = null;
         _sagaId = null;
+        _rescheduled = false;
         Tracker = null;
     }
 
@@ -1202,6 +1220,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         ConversationId = originalEnvelope.Id;
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
+        _rescheduled = false;
         TenantId = originalEnvelope.TenantId;
 
         // GH-4640. The setter above runs the value through Durability.TenantIdStyle, so the context is

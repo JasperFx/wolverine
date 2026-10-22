@@ -260,7 +260,9 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             await scraper.ScrapeEvents(DbContext, _messaging);
         }
         
-        if (_messaging.Envelope != null && _messaging.Envelope.Destination != null)
+        // F13: a handler that rescheduled its envelope handed the inbox row back as Scheduled. Neither marking that
+        // row Handled nor inserting a Handled one is this execution's to do
+        if (_messaging.Envelope != null && _messaging.Envelope.Destination != null && !_messaging.HasRescheduledEnvelope)
         {
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();

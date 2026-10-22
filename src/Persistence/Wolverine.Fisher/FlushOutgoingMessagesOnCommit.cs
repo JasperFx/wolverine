@@ -44,7 +44,8 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
         // Mark as handled!
         if (_context.Envelope.Destination != null)
         {
-            if (_context.Envelope.WasPersistedInInbox)
+            // F13: a handler that rescheduled its envelope handed the row back as Scheduled; marking it here lost the run
+            if (_context.Envelope.WasPersistedInInbox && !_context.HasRescheduledEnvelope)
             {
                 // GH-5045: only when THIS store's database holds the row. Checking for a null Envelope.Store let
                 // an envelope persisted in the main store (a handler registered with AddMessageHandler is not
@@ -109,7 +110,8 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
     public async Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
     {
         // Mark incoming as handled if needed
-        if (_context.Envelope?.Destination != null && _context.Envelope.WasPersistedInInbox)
+        // F13: see FlushOutgoingMessagesOnCommit
+        if (_context.Envelope?.Destination != null && _context.Envelope.WasPersistedInInbox && !_context.HasRescheduledEnvelope)
         {
             // GH-5045: see FlushOutgoingMessagesOnCommit
             if (!_context.Envelope.InboxRowIsIn(_messageStore, _context.Runtime.Storage))
