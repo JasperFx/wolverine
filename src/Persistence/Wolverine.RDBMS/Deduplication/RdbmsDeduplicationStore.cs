@@ -37,12 +37,24 @@ namespace Wolverine.RDBMS.Deduplication;
 /// classify-the-violation pattern, reusing <see cref="MessageDatabase{T}" />'s existing per-provider
 /// duplicate-key classifier rather than growing a second one.
 /// </para>
+///
+/// <para>
+/// D1. <b>The claim records the envelope that took it.</b> This store's claim is committed before the handler
+/// runs and only the compensating release gives it back, so a node that dies mid-handler strands it. Through
+/// <see cref="IEnvelopeAwareDeduplicationStore" /> a copy of that same envelope -- the one inbox recovery brings
+/// back -- takes the claim over with a conditional UPDATE keyed on the id AND the envelope id, while any other
+/// envelope is still refused. The envelope column is nullable and additive, and a row without one (the
+/// envelope-less claim, or a claim written before the column existed) can never be taken over.
+/// </para>
 /// </summary>
-internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactionalDeduplicationStore
+internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactionalDeduplicationStore,
+    IEnvelopeAwareDeduplicationStore
 {
     private readonly DbDataSource _dataSource;
     private readonly Func<Exception, bool> _isUniqueConstraintViolation;
     private readonly string _insertSql;
+    private readonly string _insertForEnvelopeSql;
+    private readonly string _takeOverSql;
     private readonly string _insertInTransactionSql;
     private readonly bool _insertInTransactionReportsConflicts;
     private readonly string _deleteSql;
@@ -97,12 +109,20 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
         {
             _insertSql =
                 $"insert into {table} ({DatabaseConstants.DeduplicationHash}, {DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@hash, @id, @expires)";
+            _insertForEnvelopeSql =
+                $"insert into {table} ({DatabaseConstants.DeduplicationHash}, {DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}, {DatabaseConstants.DeduplicationEnvelopeId}) values (@hash, @id, @expires, @envelope)";
+            _takeOverSql =
+                $"update {table} set {DatabaseConstants.Expires} = @expires where {DatabaseConstants.DeduplicationHash} = @hash and {DatabaseConstants.DeduplicationEnvelopeId} = @envelope";
             _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationHash} = @hash";
         }
         else
         {
             _insertSql =
                 $"insert into {table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}) values (@id, @expires)";
+            _insertForEnvelopeSql =
+                $"insert into {table} ({DatabaseConstants.DeduplicationId}, {DatabaseConstants.Expires}, {DatabaseConstants.DeduplicationEnvelopeId}) values (@id, @expires, @envelope)";
+            _takeOverSql =
+                $"update {table} set {DatabaseConstants.Expires} = @expires where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.DeduplicationEnvelopeId} = @envelope";
             _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id";
         }
 
@@ -141,6 +161,47 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
             // done, which is the direction this feature exists to err in.
             return false;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryClaimAsync(string deduplicationId, Guid envelopeId, DateTimeOffset expires,
+        CancellationToken cancellation = default)
+    {
+        if (deduplicationId.IsEmpty()) throw new ArgumentNullException(nameof(deduplicationId));
+
+        try
+        {
+            await using var cmd = _dataSource.CreateCommand(_insertForEnvelopeSql)
+                .With("id", deduplicationId)
+                .With("expires", expires)
+                .With("envelope", envelopeId);
+
+            if (_compareByHash) cmd.With("hash", DeduplicationHash.For(deduplicationId), DbType.Binary);
+
+            await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception e) when (_isUniqueConstraintViolation(e))
+        {
+            // Held already. Ours to take over only if it was THIS envelope that took it, which is what a node dying
+            // mid-handler leaves behind for inbox recovery to bring back. One conditional UPDATE, so two envelopes
+            // can never both come away holding it.
+        }
+
+        await using var takeOver = _dataSource.CreateCommand(_takeOverSql)
+            .With("expires", expires)
+            .With("envelope", envelopeId);
+
+        if (_compareByHash)
+        {
+            takeOver.With("hash", DeduplicationHash.For(deduplicationId), DbType.Binary);
+        }
+        else
+        {
+            takeOver.With("id", deduplicationId);
+        }
+
+        return await takeOver.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false) > 0;
     }
 
     /// <inheritdoc />

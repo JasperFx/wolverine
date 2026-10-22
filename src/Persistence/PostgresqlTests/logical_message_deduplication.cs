@@ -50,6 +50,14 @@ public class logical_message_deduplication : IAsyncLifetime
                 // Discard rather than retry, so each Send is exactly one handler attempt and the
                 // poison-check assertion below is a count rather than a race.
                 opts.OnException<DivideByZeroException>().Discard();
+
+                // D1: each copy's envelope id is the message's own, so a test can put a second copy of the SAME
+                // envelope through the handler, the way inbox recovery brings one back after a crash
+                opts.LocalQueue("stranded-claims").MaximumParallelMessages(5).CustomizeOutgoing(e =>
+                {
+                    if (e.Message is StrandedClaimMessage message) e.Id = message.Id;
+                });
+                opts.PublishMessage<StrandedClaimMessage>().ToLocalQueue("stranded-claims");
             }).StartAsync();
 
         await theHost.RebuildAllEnvelopeStorageAsync();
@@ -59,6 +67,7 @@ public class logical_message_deduplication : IAsyncLifetime
         DerivedIdentityHandler.Received.Clear();
         ShortWindowDeduplicatedHandler.Received.Clear();
         FailingDeduplicatedHandler.Attempts = 0;
+        StrandedClaimHandler.Reset();
     }
 
     public async ValueTask DisposeAsync()
@@ -273,6 +282,65 @@ public class logical_message_deduplication : IAsyncLifetime
         return await reader.GetFieldValueAsync<DateTimeOffset>(0, TestContext.Current.CancellationToken);
     }
 
+    /// <summary>
+    /// D1 (durable compliance findings, 2026-10-22). On the plain RDBMS stores the claim is committed on its own
+    /// connection before the handler runs, and only the release in the generated <c>finally</c> gives it back. A node
+    /// that dies mid-handler never reaches that <c>finally</c>, so the claim is stranded, and when inbox recovery
+    /// brings the SAME envelope back on another node it used to be discarded as a duplicate of its own earlier
+    /// attempt: the work was lost for the whole deduplication window. The first copy is held in its handler here to
+    /// stand in for the dead node; the second copy carries the same envelope id, as the recovered one does.
+    /// </summary>
+    [Fact]
+    public async Task a_copy_of_the_same_envelope_takes_over_the_claim_its_stranded_attempt_left_behind()
+    {
+        var id = Guid.NewGuid();
+        StrandedClaimHandler.HoldFirstRun = true;
+
+        try
+        {
+            await theHost.MessageBus().SendAsync(new StrandedClaimMessage(id),
+                new DeliveryOptions { DeduplicationId = "stranded-claim" });
+            await StrandedClaimHandler.FirstRunEntered.Task.WaitAsync(30.Seconds(), TestContext.Current.CancellationToken);
+
+            await theHost.TrackActivity().Timeout(30.Seconds())
+                .SendMessageAndWaitAsync(new StrandedClaimMessage(id),
+                    new DeliveryOptions { DeduplicationId = "stranded-claim" });
+
+            StrandedClaimHandler.Completed.ShouldBe(1);
+        }
+        finally
+        {
+            StrandedClaimHandler.LetGo();
+        }
+    }
+
+    /// <summary>
+    /// D1, the other half: taking the claim over is for the envelope that took it, and nothing else. A different
+    /// envelope with the same logical id is still refused while the claim is held.
+    /// </summary>
+    [Fact]
+    public async Task a_different_envelope_with_the_same_logical_id_is_still_refused_while_the_claim_is_held()
+    {
+        StrandedClaimHandler.HoldFirstRun = true;
+
+        try
+        {
+            await theHost.MessageBus().SendAsync(new StrandedClaimMessage(Guid.NewGuid()),
+                new DeliveryOptions { DeduplicationId = "held-claim" });
+            await StrandedClaimHandler.FirstRunEntered.Task.WaitAsync(30.Seconds(), TestContext.Current.CancellationToken);
+
+            await theHost.TrackActivity().Timeout(30.Seconds())
+                .SendMessageAndWaitAsync(new StrandedClaimMessage(Guid.NewGuid()),
+                    new DeliveryOptions { DeduplicationId = "held-claim" });
+
+            StrandedClaimHandler.Completed.ShouldBe(0);
+        }
+        finally
+        {
+            StrandedClaimHandler.LetGo();
+        }
+    }
+
     [Fact]
     public async Task concurrent_claims_of_the_same_id_produce_exactly_one_winner()
     {
@@ -360,5 +428,43 @@ public static class FailingDeduplicatedHandler
     {
         Attempts++;
         throw new DivideByZeroException("nope");
+    }
+}
+
+public record StrandedClaimMessage(Guid Id);
+
+public static class StrandedClaimHandler
+{
+    private static TaskCompletionSource _hold = newSource();
+    private static int _completed;
+
+    public static bool HoldFirstRun;
+    public static TaskCompletionSource FirstRunEntered { get; private set; } = newSource();
+    public static int Completed => _completed;
+
+    private static TaskCompletionSource newSource() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public static void Reset()
+    {
+        _hold.TrySetResult();
+        _hold = newSource();
+        FirstRunEntered = newSource();
+        HoldFirstRun = false;
+        _completed = 0;
+    }
+
+    public static void LetGo() => _hold.TrySetResult();
+
+    [Deduplicated]
+    public static async Task Handle(StrandedClaimMessage message)
+    {
+        if (HoldFirstRun && FirstRunEntered.TrySetResult())
+        {
+            // The claim is taken; this run never gets further while the test holds it
+            await _hold.Task;
+            return;
+        }
+
+        Interlocked.Increment(ref _completed);
     }
 }

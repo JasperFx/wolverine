@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Codegen;
 
@@ -82,7 +83,13 @@ public static class ChainDeduplicationExtensions
             return;
         }
 
-        var claim = new ClaimDeduplicationIdFrame(id, chain.AncillaryStoreType, window: requirement.Window);
+        // D1. A message handler claims on behalf of its envelope, so the copy inbox recovery brings back after a
+        // node died mid-handler takes over the claim that node stranded, instead of being refused as a duplicate of
+        // itself. HTTP and gRPC chains have no envelope and claim as before.
+        var claim = new ClaimDeduplicationIdFrame(id, chain.AncillaryStoreType, window: requirement.Window)
+        {
+            ClaimForEnvelope = chain is HandlerChain
+        };
         frames.Add(claim);
         frames.AddRange(
             chain.BuildDeduplicationStopCondition(claim.Variable, DeduplicationOutcome.Duplicate, requirement));

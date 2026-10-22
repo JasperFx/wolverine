@@ -343,13 +343,18 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
     // quietly get the new one
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The original shape, plus only the nullable envelope column D1 added -- an additive migration that leaves the
+    /// key, and therefore the comparison, exactly as it was.
+    /// </summary>
     [Fact]
-    public async Task string_comparison_provisions_only_the_original_two_column_shape()
+    public async Task string_comparison_provisions_only_the_original_shape_plus_the_envelope_column()
     {
         var host = await startHostAsync(MessageDeduplicationMode.CompareByString);
 
         (await columnsAsync(host, deduplicationTableName))
-            .ShouldBe([DatabaseConstants.DeduplicationId, DatabaseConstants.Expires], ignoreOrder: true);
+            .ShouldBe([DatabaseConstants.DeduplicationId, DatabaseConstants.Expires, DatabaseConstants.DeduplicationEnvelopeId],
+                ignoreOrder: true);
 
         var declared = declaredObjectNamesFor(host);
         declared.ShouldContain(x => x.EndsWith(DatabaseConstants.DeduplicationTableName));
@@ -573,5 +578,173 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
             .ShouldBeTrue();
 
         (await claimInTransactionAsync(host, "taken", commit: true)).ShouldBeFalse();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // D1 -- the claim records the envelope that took it
+    // ---------------------------------------------------------------------------------------------
+
+    private static IEnvelopeAwareDeduplicationStore envelopeAwareStoreFor(IHost host)
+        => storeFor(host).ShouldBeAssignableTo<IEnvelopeAwareDeduplicationStore>()!;
+
+    /// <summary>
+    /// D1 (durable compliance findings, 2026-10-22). This store's claim is committed ahead of the handler and given
+    /// back only by the compensating release, which a node that dies mid-handler never reaches. Inbox recovery then
+    /// brings the SAME envelope back, and it used to be refused as a duplicate of its own stranded claim: the work
+    /// was lost for the whole deduplication window. The same envelope now takes its claim over.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task the_same_envelope_takes_over_a_claim_it_left_behind(MessageDeduplicationMode mode)
+    {
+        var store = envelopeAwareStoreFor(await startHostAsync(mode));
+        var envelopeId = Guid.NewGuid();
+
+        (await store.TryClaimAsync("stranded", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        (await store.TryClaimAsync("stranded", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue("the copy inbox recovery brings back is the envelope that took the claim");
+    }
+
+    /// <summary>
+    /// D1, the half that keeps the feature: taking a claim over is only for the envelope that took it. A different
+    /// envelope with the same logical id is a genuine duplicate and is still refused.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task a_different_envelope_is_still_refused(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+        var store = envelopeAwareStoreFor(host);
+
+        (await store.TryClaimAsync("held", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        (await store.TryClaimAsync("held", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+
+        // And the envelope-less claim is refused too, as it always was
+        (await storeFor(host).TryClaimAsync("held", anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// D1. A claim with no envelope recorded -- written through the envelope-less claim, or before the column
+    /// existed -- keeps the original behaviour: nobody can take it over.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task a_claim_recorded_without_an_envelope_is_never_taken_over(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+
+        (await storeFor(host).TryClaimAsync("anonymous", anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        (await envelopeAwareStoreFor(host).TryClaimAsync("anonymous", Guid.NewGuid(), anHourFromNow,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// D1. Taking a claim over renews its expiry, so the recovered attempt holds the claim for a full window rather
+    /// than whatever was left of the dead attempt's, and the reaper does not take it out from under the handler.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task taking_a_claim_over_renews_its_expiry(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+        var store = envelopeAwareStoreFor(host);
+        var envelopeId = Guid.NewGuid();
+
+        await store.TryClaimAsync("renewed", envelopeId, DateTimeOffset.UtcNow.Subtract(1.Hours()),
+            TestContext.Current.CancellationToken);
+        (await store.TryClaimAsync("renewed", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        (await storeFor(host).DeleteExpiredAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken))
+            .ShouldBe(0);
+        (await store.TryClaimAsync("renewed", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// D1. The release still gives the claim back whoever took it, so a failed attempt does not poison the id for
+    /// a later, different envelope.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task releasing_an_envelope_claim_lets_another_envelope_claim_the_id(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+        var store = envelopeAwareStoreFor(host);
+
+        await store.TryClaimAsync("released", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken);
+        await storeFor(host).ReleaseAsync("released", TestContext.Current.CancellationToken);
+
+        (await store.TryClaimAsync("released", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// D1. The race the feature exists for, through the envelope-aware claim: twenty different envelopes, one id,
+    /// exactly one winner. Taking over must not open a door for a different envelope.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task concurrent_envelope_claims_of_one_id_produce_exactly_one_winner(MessageDeduplicationMode mode)
+    {
+        var store = envelopeAwareStoreFor(await startHostAsync(mode));
+        var expires = anHourFromNow;
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 20)
+            .Select(_ => store.TryClaimAsync("contended", Guid.NewGuid(), expires,
+                TestContext.Current.CancellationToken)));
+
+        results.Count(x => x).ShouldBe(1);
+    }
+
+    /// <summary>
+    /// D1's upgrade guarantee. The envelope column is additive and nullable, so a deployment that already has the
+    /// deduplication table, with live claims in it and no envelope column, migrates without losing a claim, and
+    /// those claims keep refusing every envelope.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task an_existing_table_without_the_envelope_column_migrates_and_keeps_its_claims(
+        MessageDeduplicationMode mode)
+    {
+        var before = await startHostAsync(mode);
+        var table = mode == MessageDeduplicationMode.CompareByHash
+            ? hashedDeduplicationTableName
+            : deduplicationTableName;
+
+        await storeFor(before).TryClaimAsync("pre-upgrade", anHourFromNow, TestContext.Current.CancellationToken);
+
+        var database = (IMessageDatabase)before.GetRuntime().Storage;
+        await using (var drop = database.DataSource.CreateCommand(
+                         $"alter table {table} drop column {DatabaseConstants.DeduplicationEnvelopeId}"))
+        {
+            await drop.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        await before.StopAsync(TestContext.Current.CancellationToken);
+
+        var after = await startHostAsync(mode, rebuild: false);
+        await after.GetRuntime().Storage.Admin.MigrateAsync();
+
+        (await columnsAsync(after, table)).ShouldContain(DatabaseConstants.DeduplicationEnvelopeId);
+        (await storedIdsAsync(after, table)).ShouldBe(["pre-upgrade"]);
+
+        (await envelopeAwareStoreFor(after).TryClaimAsync("pre-upgrade", Guid.NewGuid(), anHourFromNow,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 }

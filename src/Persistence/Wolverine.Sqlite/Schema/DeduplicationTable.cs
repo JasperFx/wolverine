@@ -16,5 +16,10 @@ internal class DeduplicationTable : Table
         // GH-3943: a SQLite "schema" is a table-name prefix, not a namespace, hence TablePrefixing above.
         AddColumn(DatabaseConstants.DeduplicationId, "TEXT").NotNull().AsPrimaryKey();
         AddColumn(DatabaseConstants.Expires, "TEXT").NotNull();
+
+        // D1. The envelope that took the claim, so the copy inbox recovery brings back after a node died
+        // mid-handler can take its own stranded claim over. Nullable, so adding it is a plain additive migration
+        // and an existing row keeps the original refuse-everything behaviour.
+        AddColumn(DatabaseConstants.DeduplicationEnvelopeId, "TEXT");
     }
 }
