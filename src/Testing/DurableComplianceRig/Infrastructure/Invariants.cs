@@ -90,6 +90,16 @@ public class Invariants(RigSnapshot snapshot, IReadOnlyDictionary<Guid, Outcome>
         .Where(x => databaseForTenant(x.Tenant) != x.Database)
         .ToArray();
 
+    /// <summary>An inbox row of one of the run's messages in a different database than the one its tenant owns.</summary>
+    public IReadOnlyList<InboxRow> MisroutedInboxRows(Func<Guid, string> databaseForMessage) => Snapshot.Inbox
+        .Where(x => isOurs(x.Id) && databaseForMessage(x.Id) != x.Database)
+        .ToArray();
+
+    /// <summary>A dead letter of one of the run's messages in a different database than the one its tenant owns.</summary>
+    public IReadOnlyList<DeadLetterRow> MisroutedDeadLetters(Func<Guid, string> databaseForMessage) => Snapshot.DeadLetters
+        .Where(x => isOurs(x.Id) && databaseForMessage(x.Id) != x.Database)
+        .ToArray();
+
     private bool isOurs(Guid id) => expected.ContainsKey(id);
 
     /// <summary>Every message has reached its expected outcome, so waiting longer cannot change the verdict.</summary>
