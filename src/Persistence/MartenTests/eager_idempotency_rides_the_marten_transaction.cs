@@ -31,7 +31,8 @@ public class eager_idempotency_rides_the_marten_transaction : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(FailsTheFirstTimeHandler));
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(FailsTheFirstTimeHandler))
+                    .IncludeType(typeof(SavesNothingHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
 
@@ -82,6 +83,18 @@ public class eager_idempotency_rides_the_marten_transaction : IAsyncLifetime
         FailsTheFirstTimeHandler.Handled(id).ShouldBe(1);
     }
 
+    [Fact]
+    public async Task a_handler_that_saves_nothing_still_leaves_a_record_of_completion()
+    {
+        // The check opens the session's transaction; it has to commit even when the handler gave it nothing else
+        var tracked = await _host.SendMessageAndWaitAsync(new SavesNothing(Guid.NewGuid()));
+        var envelope = tracked.Executed.SingleEnvelope<SavesNothing>();
+        var circuit = _host.GetRuntime().Endpoints.FindListenerCircuit(envelope.Destination!)!;
+
+        var duplicate = await redeliverAsync(circuit, envelope);
+        duplicate.Discarded.SingleEnvelope<SavesNothing>().ShouldNotBeNull();
+    }
+
     private Task<ITrackedSession> redeliverAsync(IListenerCircuit circuit, Envelope envelope)
     {
         return _host.TrackActivity()
@@ -97,6 +110,16 @@ public class eager_idempotency_rides_the_marten_transaction : IAsyncLifetime
 }
 
 public record FailsTheFirstTime(Guid Id);
+
+public record SavesNothing(Guid Id);
+
+public static class SavesNothingHandler
+{
+    // Taking the session is what makes the chain transactional
+    public static void Handle(SavesNothing message, IDocumentSession session)
+    {
+    }
+}
 
 public class FirstAttemptFailure : Exception;
 
