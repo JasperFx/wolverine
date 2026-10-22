@@ -234,6 +234,56 @@ public class BatchingPendingCountsTests
         new BatchingPendingCounts().PendingForBatchedMessage<string>().ShouldBe(0);
     }
 
+    /// <summary>
+    /// F8 (durable compliance findings). <c>MoveToErrorQueue</c> rewrites the envelope's MessageType from the
+    /// message before it completes it, and the batch chain's TypeName is not the array's message type name. Looked
+    /// up by MessageType alone, every batch that was dead lettered or requeued into the error queue never released
+    /// its members, and the pipeline's count stayed up for good.
+    /// </summary>
+    [Fact]
+    public void a_batch_settles_its_pipeline_after_its_message_type_is_rewritten()
+    {
+        var counts = new BatchingPendingCounts();
+        var pipeline = counts.RegisterPipeline(typeof(PendingItem), BatchType);
+        pipeline.Increment();
+        pipeline.Increment();
+
+        var batch = countedBatch(new Envelope(new PendingItem("one")), new Envelope(new PendingItem("two")));
+        batch.MessageType = "CoreTests.Runtime.Batching.PendingItem[]";
+
+        counts.SettleBatch(batch);
+
+        counts.PendingForBatchedMessage<PendingItem>().ShouldBe(0);
+    }
+
+    [Fact]
+    public void settling_some_members_early_leaves_the_rest_to_the_batch_terminal()
+    {
+        var counts = new BatchingPendingCounts();
+        var pipeline = counts.RegisterPipeline(typeof(PendingItem), BatchType);
+        var address = new Uri("stub://one");
+        var members = new[] { envelopeFrom(address), envelopeFrom(address), envelopeFrom(address) };
+        foreach (var member in members)
+        {
+            pipeline.Increment();
+            counts.Increment(address);
+        }
+
+        var batch = countedBatch(members);
+
+        // A member handed back after its dead letter write failed leaves the batch early
+        counts.SettleMembers(batch, [members[1]]);
+        BatchReplay.Detach(batch, [members[1]]);
+
+        counts.PendingForBatchedMessage<PendingItem>().ShouldBe(2);
+        counts.PendingFor(address).ShouldBe(2);
+
+        counts.SettleBatch(batch);
+
+        counts.PendingForBatchedMessage<PendingItem>().ShouldBe(0);
+        counts.PendingFor(address).ShouldBe(0);
+    }
+
     private static Envelope countedBatch(params Envelope[] members)
     {
         return new Envelope(new PendingItem[members.Length], members)
