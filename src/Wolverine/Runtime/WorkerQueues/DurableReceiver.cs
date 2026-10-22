@@ -83,6 +83,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private readonly TimeSpan _heartbeatPeriod;
     private int _heartbeating;
 
+    // F18. The heartbeat runs only while something is held: started by the first envelope taken into custody, and
+    // stopped by the first tick that finds custody empty. Guarded by _heartbeatLock, read without it on the hot path.
+    private readonly object _heartbeatLock = new();
+    private int _heartbeatRunning;
+    private bool _heartbeatDisposed;
+
+    // F18. Set by Dispose/DisposeAsync: the timer is disposed for good once custody is empty, rather than stopped
+    private volatile bool _disposed;
+
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _endpoint = endpoint;
@@ -103,7 +112,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         if (heartbeat && _settings.InboxStaleTime is { } staleTime)
         {
             _heartbeatPeriod = TimeSpan.FromTicks(Math.Max(staleTime.Ticks / 3, TimeSpan.FromMilliseconds(50).Ticks));
-            _heartbeat = new Timer(_ => _ = restartHeldStaleClocksAsync(), null, _heartbeatPeriod, _heartbeatPeriod);
+            _heartbeat = new Timer(_ => _ = restartHeldStaleClocksAsync(), null, Timeout.InfiniteTimeSpan,
+                Timeout.InfiniteTimeSpan);
         }
 
         ShouldPersistBeforeProcessing = !(endpoint is IDatabaseBackedEndpoint);
@@ -183,8 +193,17 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                         else if (_receiver != null)
                         {
                             // Still held: the requeue is counted in before this execution counts out below
-                            _custody.Enter(envelope, DateTimeOffset.UtcNow);
-                            await _receiver.PostAsync(envelope).ConfigureAwait(false);
+                            enterCustody(envelope);
+                            try
+                            {
+                                await _receiver.PostAsync(envelope).ConfigureAwait(false);
+                            }
+                            catch
+                            {
+                                // The requeue never reached the block, so it never counts out on its own
+                                _custody.Leave(envelope);
+                                throw;
+                            }
                         }
 
                         // This *should* never happen, but of course it will
@@ -430,17 +449,95 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         finally
         {
             Volatile.Write(ref _heartbeating, 0);
+            stopHeartbeatIfIdle();
+        }
+    }
+
+    /// <summary>
+    /// Take <paramref name="envelope" /> into custody, and make sure the heartbeat is running for it
+    /// </summary>
+    private void enterCustody(Envelope envelope)
+    {
+        _custody.Enter(envelope, DateTimeOffset.UtcNow);
+        startHeartbeatIfStopped();
+    }
+
+    private void startHeartbeatIfStopped()
+    {
+        if (_heartbeat == null || Volatile.Read(ref _heartbeatRunning) == 1) return;
+
+        lock (_heartbeatLock)
+        {
+            if (_heartbeatDisposed || _heartbeatRunning == 1) return;
+
+            Volatile.Write(ref _heartbeatRunning, 1);
+            _heartbeat.Change(_heartbeatPeriod, _heartbeatPeriod);
+        }
+    }
+
+    /// <summary>
+    /// F18. Stop the heartbeat once custody is empty, and dispose it for good once the receiver is disposed too or the
+    /// host is stopping. An envelope taken into custody concurrently either sees the heartbeat stopped and starts it
+    /// again, or is seen here and keeps it running.
+    /// </summary>
+    private void stopHeartbeatIfIdle()
+    {
+        if (_heartbeat == null) return;
+
+        lock (_heartbeatLock)
+        {
+            if (_heartbeatDisposed) return;
+
+            var wasRunning = Volatile.Read(ref _heartbeatRunning) == 1;
+            Volatile.Write(ref _heartbeatRunning, 0);
+            Interlocked.MemoryBarrier();
+
+            var stopping = _settings.Cancellation.IsCancellationRequested;
+            if (!stopping && !_custody.IsEmpty)
+            {
+                // Still holding something: batch members waiting on a batch above all, even after a dispose
+                Volatile.Write(ref _heartbeatRunning, 1);
+                if (!wasRunning) _heartbeat.Change(_heartbeatPeriod, _heartbeatPeriod);
+                return;
+            }
+
+            if (_disposed || stopping)
+            {
+                _heartbeatDisposed = true;
+                _heartbeat.Dispose();
+            }
+            else
+            {
+                _heartbeat.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Test seam: is the InboxStaleTime heartbeat timer scheduled?
+    /// </summary>
+    internal bool HeartbeatIsRunning
+    {
+        get
+        {
+            if (_heartbeat == null) return false;
+            lock (_heartbeatLock)
+            {
+                return !_heartbeatDisposed && _heartbeatRunning == 1;
+            }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
         _draining = true;
-        if (_heartbeat != null) await _heartbeat.DisposeAsync().ConfigureAwait(false);
-        _custody.Clear();
         _batchRetries.Dispose();
 
         await _receiver.WaitForCompletionAsync().ConfigureAwait(false);
+
+        // F18. Batch members that arrived here stay in custody, with their heartbeat, until their batch settles them
+        _disposed = true;
+        stopHeartbeatIfIdle();
 
         _incrementAttempts.Dispose();
         _scheduleExecution.Dispose();
@@ -593,9 +690,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 return;
             }
 
-            _activated = true;
-            _custody.Enter(envelope, DateTimeOffset.UtcNow);
-            _receiver.Post(envelope);
+            // The rows behind a synchronous enqueue were claimed before they got here, so there is nothing to wait for
+            if (!_activated) _ = ActivateAsync();
+
+            enterCustody(envelope);
+            try
+            {
+                _receiver.Post(envelope);
+            }
+            catch
+            {
+                _custody.Leave(envelope);
+                throw;
+            }
         }
         finally
         {
@@ -605,6 +712,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask EnqueueAsync(Envelope envelope)
     {
+        if (!_activated) return activateThenEnqueueAsync(envelope);
+
         envelope.WasPersistedInInbox = true;
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
         // See note on Enqueue — same reason. The scheduled-jobs poller in
@@ -626,9 +735,14 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             return ValueTask.CompletedTask;
         }
 
-        _activated = true;
-        _custody.Enter(envelope, DateTimeOffset.UtcNow);
+        enterCustody(envelope);
         return postAsync(envelope);
+    }
+
+    private async ValueTask activateThenEnqueueAsync(Envelope envelope)
+    {
+        await ActivateAsync().ConfigureAwait(false);
+        await EnqueueAsync(envelope).ConfigureAwait(false);
     }
 
     private async ValueTask postAsync(Envelope envelope)
@@ -636,6 +750,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         try
         {
             await _receiver.PostAsync(envelope).ConfigureAwait(false);
+        }
+        catch
+        {
+            _custody.Leave(envelope);
+            throw;
         }
         finally
         {
@@ -659,10 +778,29 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {
-        _activated = true;
+        if (!_activated) return activateThenReceiveAsync(listener, messages);
+
         var now = DateTimeOffset.UtcNow;
 
         return ProcessReceivedMessagesAsync(now, listener, messages);
+    }
+
+    private async ValueTask activateThenReceiveAsync(IListener listener, Envelope[] messages)
+    {
+        await ActivateAsync().ConfigureAwait(false);
+        await ProcessReceivedMessagesAsync(DateTimeOffset.UtcNow, listener, messages).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Count as working at this receiver's addresses from now on, so a drained receiver at the same address hands
+    /// back only the rows it abandoned rather than every row this node owns there -- and first wait out any such
+    /// blanket release already in flight, so nothing claimed for this receiver afterwards can be caught by it. Called
+    /// by a listener (or a resumed durable local queue) before it can claim anything for this receiver, and on the
+    /// first receipt otherwise. See <see cref="DurableReceiverRegistry" />.
+    /// </summary>
+    internal Task ActivateAsync()
+    {
+        return DurableReceiverRegistry.ActivateAsync(_runtime, this, () => _activated = true);
     }
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
@@ -677,7 +815,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new ArgumentNullException(nameof(envelope));
         }
 
-        _activated = true;
+        if (!_activated) await ActivateAsync().ConfigureAwait(false);
 
         if (_latched && !envelope.IsFromLocalDurableQueue())
         {
@@ -841,8 +979,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     /// </summary>
     private async Task releaseAfterDrainAsync()
     {
-        if (_custody.BatchMemberCount == 0 &&
-            !DurableReceiverRegistry.AnyOtherHoldsWorkAt(_runtime, this, releaseAddresses()))
+        // Checked and registered under one lock, and held until the release statements are over: a receiver that
+        // activates at this address meanwhile waits for it before it claims anything. See DurableReceiverRegistry.
+        using var blanket = _custody.BatchMemberCount == 0
+            ? DurableReceiverRegistry.TryBeginBlanketRelease(_runtime, this, releaseAddresses())
+            : null;
+
+        if (blanket != null)
         {
             // The blanket release covers everything abandoned so far at this receiver's own addresses. Members of a
             // cancelled batch are owned where they arrived, which is usually somewhere else, so they keep their turn
@@ -856,6 +999,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             foreach (var envelope in elsewhere) _abandoned.Enqueue(envelope);
 
             await releaseIncomingAsync().ConfigureAwait(false);
+            blanket.Dispose();
         }
         else
         {
@@ -1033,6 +1177,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // Might need to drain the block
         _batchRetries.Dispose();
         _receiver.Complete();
+
+        // F18. Stops the heartbeat now if nothing is held, or once whatever is still held settles
+        _disposed = true;
+        stopHeartbeatIfIdle();
 
         _completeBlock.Dispose();
         _deferBlock.Dispose();
@@ -1714,22 +1862,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _logger.IncomingBatchReceived(Uri, envelopes);
     }
 
-    public Task ClearInFlightIncomingAsync()
+    public async Task ClearInFlightIncomingAsync()
     {
         // F16. A listener builds a new receiver on every restart -- after a pause, a forced restart, a circuit
         // breaker, or InboxHealthRestarter -- and this blanket release ran every time. The previous receiver at
         // this address is often still finishing a handler then (GH-4797 holds its rows for exactly that reason),
         // or still holding batch members, and this handed all of those rows to AnyNode underneath it. That
         // receiver hands back what it abandoned itself once its work is done, so skip the sweep here.
-        if (DurableReceiverRegistry.AnyOtherHoldsWorkAt(_runtime, this, [Uri]))
+        using var blanket = DurableReceiverRegistry.TryBeginBlanketRelease(_runtime, this, [Uri]);
+        if (blanket == null)
         {
             _logger.LogDebug(
                 "Not releasing the in-flight inbox rows at {Uri}: a previous receiver at this address is still working on some of them, and releases its own when it finishes",
                 Uri);
-            return Task.CompletedTask;
+            return;
         }
 
-        return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
+        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri))
+            .ConfigureAwait(false);
     }
 
     public void Latch()

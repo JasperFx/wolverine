@@ -230,6 +230,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             AlsoReleaseIncomingAt = _partitionSlotUri
         };
 
+        // Counts as working at this address before the queue can claim a row for it, and waits out a blanket release
+        // by the paused receiver that is still in flight, so that release cannot catch a row claimed for this one
+        await receiver.ActivateAsync();
+
         List<Envelope>? held;
         lock (_receiverLock)
         {
