@@ -7,6 +7,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
+using Wolverine.Runtime.WorkerQueues;
 using JasperFx;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
@@ -550,7 +551,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (Envelope.HasBeenAcked) return;
+        // HasBeenAcked means the BROKER delivery is settled. For a durable endpoint that already happened
+        // before the handler ran (GH-4026), and SQS records it on the flag (GH-4489) -- but the durable
+        // receiver's completion is the inbox row, not the broker, so it must still run. GH-5119.
+        if (Envelope.HasBeenAcked && _channel is not DurableReceiver) return;
 
         await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
         Envelope.HasBeenAcked = true;
