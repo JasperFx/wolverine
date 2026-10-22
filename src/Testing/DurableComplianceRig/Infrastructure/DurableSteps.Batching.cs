@@ -143,9 +143,6 @@ public sealed partial class DurableSteps
         if (!named) throw new SpecCriticalException("No batch ever threw ApplyItemException; the rest of the scenario depends on it");
     }
 
-    [When("{seconds} second(s) pass")]
-    public Task SecondsPass(int seconds) => Task.Delay(seconds.Seconds());
-
     [When("every item expected to be handled has committed its effect")]
     public async Task EveryHandledItemHasCommitted()
     {
@@ -160,19 +157,20 @@ public sealed partial class DurableSteps
     }
 
     /// <summary>
-    /// A crash in a test process cannot kill the crashed node's handler, which sits on its gate until the scenario
-    /// ends. It never commits, so its run is over as far as the checker is concerned: without this, every rerun on
-    /// the next node would be reported as overlapping it.
+    /// Disposes the node, which is a GRACEFUL stop (see <see cref="NodeIsDisposed" />), not a crash. Its gated handler
+    /// cannot be killed in-process and sits on its gate until the scenario ends; it never commits, so its run is over
+    /// as far as the checker is concerned. Without this, every rerun on the next node would be reported as
+    /// overlapping it.
     /// </summary>
-    [When("node {node} crashes while its batch is still running")]
-    public void NodeCrashesMidBatch(int node)
+    [When("node {node} is disposed while its batch is still running")]
+    public void NodeIsDisposedMidBatch(int node)
     {
-        NodeCrashes(node);
+        NodeIsDisposed(node);
 
         var name = $"node {node}";
         foreach (var execution in Script.Log.Where(x => x.Node == name && x.FinishedAt == null))
         {
-            execution.Finish("abandoned by the crash");
+            execution.Finish("abandoned when its node was disposed");
         }
     }
 

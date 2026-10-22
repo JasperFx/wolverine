@@ -218,9 +218,9 @@ public abstract class BatchingCompliance : IAsyncLifetime
     // ---------------------------------------------------------------------------------------------------------
     // Leads from the findings ledger
 
-    /// <summary>The control for the F1 crash scenario below: an ordinary batch caught by a crash runs again.</summary>
+    /// <summary>The control for the F1 scenario below: an ordinary batch caught by a node stop runs again.</summary>
     [BobcatSpec]
-    public async Task a_batch_interrupted_by_a_crash_runs_again_on_restart()
+    public async Task a_batch_interrupted_by_a_node_stop_runs_again_on_restart()
     {
         await the.ANodeStarts();
         the.MessagesToSend(5);
@@ -228,7 +228,7 @@ public abstract class BatchingCompliance : IAsyncLifetime
 
         await the.TheMessagesAreSentAsItems(1);
         await the.MessageHasStarted(1);
-        the.NodeCrashesMidBatch(1);
+        the.NodeIsDisposedMidBatch(1);
         await the.ANodeStarts();
 
         await the.TheDurableInvariantsHold();
@@ -237,10 +237,10 @@ public abstract class BatchingCompliance : IAsyncLifetime
 
     /// <summary>
     /// F1. The survivors of an ApplyItemException ride a fresh in-memory batch, while their original rows are marked
-    /// Handled before it runs. A crash before the replay finishes should leave them to be recovered, not lost.
+    /// Handled before it runs. A node stop (here a graceful one) before the replay finishes should leave them to be recovered, not lost.
     /// </summary>
     [BobcatSpec]
-    public async Task apply_item_survivors_still_waiting_on_their_replay_survive_a_crash()
+    public async Task apply_item_survivors_still_waiting_on_their_replay_survive_a_node_stop()
     {
         await the.ANodeStarts();
         the.MessagesToSend(5);
@@ -251,7 +251,7 @@ public abstract class BatchingCompliance : IAsyncLifetime
 
         await the.TheMessagesAreSentAsItems(1);
         await the.MessageHasStarted(1);
-        the.NodeCrashesMidBatch(1);
+        the.NodeIsDisposedMidBatch(1);
         await the.ANodeStarts();
 
         await the.TheDurableInvariantsHold();
