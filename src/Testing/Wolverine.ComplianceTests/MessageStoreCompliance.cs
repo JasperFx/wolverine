@@ -306,6 +306,26 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         ex.Duplicates.Single().Id.ShouldBe(existing.Id);
     }
 
+    /// <summary>
+    /// GH-5123. The same envelope twice in ONE batch, with no row for it yet: a broker redelivery after an outage
+    /// (or the outbox resending a publish it never saw confirmed) puts both copies in one micro-batch. The batched
+    /// insert hits the primary key, the existence check finds nothing -- the duplicate is inside the batch, not in
+    /// the table -- and the RDBMS stores rethrew the raw provider exception. The receiver then mistook a duplicate
+    /// for an unavailable inbox and paused the listener, and MultiTenantedMessageStore tripped the tenant write
+    /// brake, which deferred both copies back to the broker in a loop. RavenDB already reported this as a
+    /// duplicate (its own test of the same name); this holds every store to it.
+    /// </summary>
+    [Fact]
+    public async Task bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming-intra-batch");
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(
+            () => thePersistence.Inbox.StoreIncomingAsync(new[] { envelope, envelope }));
+    }
+
     [Fact]
     public async Task store_a_single_outgoing_envelope()
     {
