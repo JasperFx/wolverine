@@ -13,9 +13,10 @@ namespace Wolverine.RabbitMQ.Tests.Bugs;
 /// deliveries, and with no dead letter exchange the broker drops it.
 ///
 /// <para>
-/// The report suggested basic.nack instead, on the reading that a nack does not count. On RabbitMQ 4.2.5 it does:
-/// both are dropped on the 21st give-back. These facts pin what the broker actually does, so whichever fix is
-/// chosen is judged against the real semantics rather than the documentation's.
+/// The report suggested basic.nack instead, on the reading that a nack does not count. That depends on the broker:
+/// RabbitMQ 4.2.5 counted a nack exactly like a reject (both dropped on the 21st give-back), while the newer 4.x
+/// broker CI pulls for the floating rabbitmq:4 tag gave a nacked message back 60 times without dropping it. A
+/// nack is never worse, so the listener now uses one. These facts pin that relationship rather than one version.
 /// </para>
 /// </summary>
 public class Bug_5123_quorum_queue_delivery_limit
@@ -32,10 +33,12 @@ public class Bug_5123_quorum_queue_delivery_limit
     }
 
     [Fact]
-    public async Task nacking_with_requeue_spends_the_delivery_limit_too()
+    public async Task nacking_with_requeue_never_spends_more_of_the_delivery_limit_than_rejecting()
     {
-        (await giveBacksUntilDroppedAsync((channel, tag) => channel.BasicNackAsync(tag, false, true, Token)))
-            .ShouldBe(DefaultDeliveryLimit + 1);
+        var nacks = await giveBacksUntilDroppedAsync((channel, tag) => channel.BasicNackAsync(tag, false, true, Token));
+
+        // Dropped on the 21st on RabbitMQ 4.2.5; never dropped (the loop's 60 cap) on newer 4.x brokers
+        nacks.ShouldBeGreaterThanOrEqualTo(DefaultDeliveryLimit + 1);
     }
 
     /// <summary>Gives one message on a fresh quorum queue back until the broker stops delivering it.</summary>

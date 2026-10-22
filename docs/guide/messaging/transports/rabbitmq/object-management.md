@@ -305,8 +305,11 @@ to the queue:
 
 * A listener that is stopping, pausing, or restarting with messages still prefetched in memory
 * A channel or connection that closes during a network blip or a broker restart
-* A reject or a nack with requeue. We checked this against Rabbit MQ 4.2.5, and a reject, a nack and a closed
-  channel all count against the limit the exact same way
+* A reject with requeue, which counts on every Rabbit MQ 4 version we've tried
+* A nack with requeue -- at least on Rabbit MQ 4.2.5, where a reject, a nack and a closed channel all counted against
+  the limit the exact same way. Newer 4.x releases stopped counting the nack, and Wolverine now hands transient
+  deliveries back with a nack for exactly that reason, but you shouldn't bet your messages on which broker version
+  you happen to be running
 
 None of those mean your message is poison. With the durable inbox, Wolverine acknowledges a message to Rabbit MQ
 just as soon as it's safely stored in your database, and from then on Wolverine's own [error handling
