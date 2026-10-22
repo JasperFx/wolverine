@@ -136,6 +136,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.DeliverBy!, EnvelopeConstants.DeliverByKey);
 
         MapPropertyToHeader(x => x.Attempts, EnvelopeConstants.AttemptsKey);
+
+        // D2: the logical deduplication id rode only EnvelopeSerializer's wire format, so every broker built on
+        // this mapper (RabbitMQ, Azure Service Bus, Kafka, NATS, Pulsar, GCP Pub/Sub, Redis) dropped it, and a
+        // [Deduplicated] handler dead-lettered every copy with MissingDeduplicationIdException. Same header name
+        // as EnvelopeSerializer, so either reader understands either writer.
+        MapPropertyToHeader(x => x.DeduplicationId!, EnvelopeConstants.DeduplicationIdKey);
     }
 
     public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming)
