@@ -79,20 +79,37 @@ public class deduplication_window_on_the_attribute
 
         // The window sits between the id and the (absent) ancillary store marker
         source.ShouldContain($", System.TimeSpan.FromTicks({TimeSpan.FromMinutes(10).Ticks}), null, ");
-        source.ShouldContain(nameof(IMessageDeduplicator.TryClaimAsync));
+        source.ShouldContain(nameof(MessageDeduplicatorExtensions.TryClaimForEnvelopeAsync));
     }
 
     [Fact]
-    public async Task a_chain_without_a_window_generates_the_same_claim_as_before()
+    public async Task a_chain_without_a_window_claims_for_the_host_wide_window()
     {
-        // Pre-generated handler code from before WindowInSeconds existed calls the overload without a
-        // window, and a chain that sets none keeps generating exactly that.
+        // Pre-generated handler code from before WindowInSeconds existed calls the overload without a window, and
+        // still compiles against it. A chain generated now passes a null window, which is the host-wide one.
         using var host = await hostFor(typeof(DefaultWindowDeduplicationHandler));
 
         var source = sourceFor<DefaultWindowDeduplicationMessage>(host);
 
-        source.ShouldContain(nameof(IMessageDeduplicator.TryClaimAsync));
+        source.ShouldContain(nameof(MessageDeduplicatorExtensions.TryClaimForEnvelopeAsync));
         source.ShouldNotContain("System.TimeSpan.FromTicks(");
+    }
+
+    /// <summary>
+    /// D1 (durable compliance findings, 2026-10-22). A message handler claims on behalf of the envelope it is
+    /// handling, so the copy inbox recovery brings back after a node died mid-handler can take over the claim that
+    /// node stranded, instead of being refused as a duplicate of its own earlier attempt.
+    /// </summary>
+    [Fact]
+    public async Task a_message_handler_claims_on_behalf_of_its_envelope()
+    {
+        using var host = await hostFor(typeof(DefaultWindowDeduplicationHandler));
+
+        var source = sourceFor<DefaultWindowDeduplicationMessage>(host);
+
+        source.ShouldContain(
+            $"{typeof(MessageDeduplicatorExtensions).FullName}.{nameof(MessageDeduplicatorExtensions.TryClaimForEnvelopeAsync)}(");
+        source.ShouldContain(", context.Envelope, null, null, ");
     }
 }
 

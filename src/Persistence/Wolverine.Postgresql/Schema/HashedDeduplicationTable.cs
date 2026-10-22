@@ -43,6 +43,11 @@ internal class HashedDeduplicationTable : Table
 
         AddColumn<DateTimeOffset>(DatabaseConstants.Expires).NotNull();
 
+        // D1. The envelope that took the claim, so the copy inbox recovery brings back after a node died
+        // mid-handler can take its own stranded claim over. Nullable, so adding it is a plain additive migration
+        // and an existing row keeps the original refuse-everything behaviour.
+        AddColumn<Guid>(DatabaseConstants.DeduplicationEnvelopeId);
+
         // The reaper's only predicate. Without it, every cleanup cycle is a full scan of a table whose
         // whole purpose is to be large.
         Indexes.Add(new IndexDefinition(

@@ -79,7 +79,21 @@ internal class MessageDeduplicator : IMessageDeduplicator
         CancellationToken cancellation)
         => TryClaimAsync(deduplicationId, null, ancillaryStoreMarker, cancellation);
 
-    public async ValueTask<bool> TryClaimAsync(string deduplicationId, TimeSpan? window,
+    public ValueTask<bool> TryClaimAsync(string deduplicationId, TimeSpan? window,
+        Type? ancillaryStoreMarker, CancellationToken cancellation)
+        => tryClaimAsync(deduplicationId, null, window, ancillaryStoreMarker, cancellation);
+
+    /// <summary>
+    /// D1. Claim on behalf of the envelope being handled, so that a copy of the same envelope -- the one inbox
+    /// recovery brings back after a node died mid-handler -- can take over the claim its earlier attempt left
+    /// behind. Falls back to the envelope-less claim on a store that does not implement
+    /// <see cref="IEnvelopeAwareDeduplicationStore" />.
+    /// </summary>
+    internal ValueTask<bool> TryClaimAsync(string deduplicationId, Guid envelopeId, TimeSpan? window,
+        Type? ancillaryStoreMarker, CancellationToken cancellation)
+        => tryClaimAsync(deduplicationId, envelopeId, window, ancillaryStoreMarker, cancellation);
+
+    private async ValueTask<bool> tryClaimAsync(string deduplicationId, Guid? envelopeId, TimeSpan? window,
         Type? ancillaryStoreMarker, CancellationToken cancellation)
     {
         var store = storeFor(ancillaryStoreMarker);
@@ -99,7 +113,11 @@ internal class MessageDeduplicator : IMessageDeduplicator
         var lifetime = window ?? _runtime.Options.Durability.DeduplicationWindow;
         var expires = DateTimeOffset.UtcNow.Add(lifetime);
 
-        var claimed = await store.TryClaimAsync(deduplicationId, expires, cancellation).ConfigureAwait(false);
+        var claimed = envelopeId.HasValue && envelopeId.Value != Guid.Empty &&
+                      store is IEnvelopeAwareDeduplicationStore envelopeAware
+            ? await envelopeAware.TryClaimAsync(deduplicationId, envelopeId.Value, expires, cancellation)
+                .ConfigureAwait(false)
+            : await store.TryClaimAsync(deduplicationId, expires, cancellation).ConfigureAwait(false);
 
         if (!claimed)
         {
@@ -140,5 +158,33 @@ internal class MessageDeduplicator : IMessageDeduplicator
             : _runtime.Stores.FindAncillaryStore(ancillaryStoreMarker);
 
         return store.Deduplication;
+    }
+}
+
+/// <summary>
+/// D1. The claim call generated message handlers make. Public only because generated code calls it.
+/// </summary>
+public static class MessageDeduplicatorExtensions
+{
+    /// <summary>
+    /// Claim <paramref name="deduplicationId" /> on behalf of <paramref name="envelope" />. With Wolverine's own
+    /// <see cref="IMessageDeduplicator" /> and a store that implements
+    /// <see cref="IEnvelopeAwareDeduplicationStore" />, a copy of the envelope that took the claim takes it over
+    /// instead of being refused as a duplicate of itself. Anything else is the ordinary claim.
+    /// </summary>
+    public static ValueTask<bool> TryClaimForEnvelopeAsync(this IMessageDeduplicator deduplicator,
+        string deduplicationId, Envelope? envelope, TimeSpan? window, Type? ancillaryStoreMarker,
+        CancellationToken cancellation)
+    {
+        if (envelope != null && deduplicator is MessageDeduplicator builtIn)
+        {
+            return builtIn.TryClaimAsync(deduplicationId, envelope.Id, window, ancillaryStoreMarker, cancellation);
+        }
+
+        // A custom deduplicator keeps exactly the calls it had before: the window-less overload when there is no
+        // window, so an implementation that never overrode the window overload behaves as it always did
+        return window.HasValue
+            ? deduplicator.TryClaimAsync(deduplicationId, window, ancillaryStoreMarker, cancellation)
+            : deduplicator.TryClaimAsync(deduplicationId, ancillaryStoreMarker, cancellation);
     }
 }
