@@ -18,6 +18,7 @@ public static class EfCoreRigHandlers
 
     private static async Task recordAsync(RigDbContext db, Envelope envelope, IReadOnlyList<Guid> ids, RigNodeName node)
     {
+        db.Envelope = envelope;
         var begun = new List<(Step step, Execution execution)>();
         foreach (var id in ids)
         {

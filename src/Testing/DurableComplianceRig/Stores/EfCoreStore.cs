@@ -84,6 +84,9 @@ public class RigDbContext(DbContextOptions<RigDbContext> options) : DbContext(op
     /// <summary>The executions whose ledger rows this context will commit, finished by the interceptor.</summary>
     public List<Execution> Pending { get; } = [];
 
+    /// <summary>The envelope being handled, so the F25 diagnostic can see (and undo) what the middleware set on it.</summary>
+    public Envelope? Envelope { get; set; }
+
     public DbSet<LedgerEntry> Ledger => Set<LedgerEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -151,6 +154,9 @@ public static class EfScript
     /// <summary>The message's inbox status read on the committing transaction, per message id, most recent last.</summary>
     public static readonly ConcurrentDictionary<Guid, ConcurrentQueue<string>> InboxStatusAtCommit = new();
 
+    /// <summary>The envelope's in-memory status when a scripted commit failure was thrown, per message id.</summary>
+    public static readonly ConcurrentQueue<string> StatusAtFailedCommit = new();
+
     /// <summary>Off by default: one extra query per commit.</summary>
     public static volatile bool ObserveInbox;
 
@@ -158,6 +164,7 @@ public static class EfScript
     {
         _faults.Clear();
         InboxStatusAtCommit.Clear();
+        StatusAtFailedCommit.Clear();
         ObserveInbox = false;
     }
 
@@ -192,19 +199,35 @@ public class RigEfInterceptor : DbTransactionInterceptor
 
         foreach (var execution in context.Pending)
         {
-            switch (EfScript.FaultFor(execution.MessageId, execution.Attempt))
-            {
-                case EfFault.FailCommitDiscarded:
-                    context.FinishPending("commit failed (discard)");
-                    throw new RigCommitFailure($"Scripted commit failure of {execution.MessageId} on attempt {execution.Attempt}");
+            var fault = EfScript.FaultFor(execution.MessageId, execution.Attempt);
+            if (fault is not (EfFault.FailCommitDiscarded or EfFault.FailCommit)) continue;
 
-                case EfFault.FailCommit:
-                    context.FinishPending("commit failed");
-                    throw new RigFailure($"Scripted commit failure of {execution.MessageId} on attempt {execution.Attempt}");
+            failingCommit(context, execution);
+            if (fault == EfFault.FailCommitDiscarded)
+            {
+                context.FinishPending("commit failed (discard)");
+                throw new RigCommitFailure($"Scripted commit failure of {execution.MessageId} on attempt {execution.Attempt}");
             }
+
+            context.FinishPending("commit failed");
+            throw new RigFailure($"Scripted commit failure of {execution.MessageId} on attempt {execution.Attempt}");
         }
 
         return result;
+    }
+
+    // F25 diagnostic. Records the envelope status the middleware left as this commit is about to fail, and with
+    // RIG_EF_UNDO_HANDLED=1 puts it back to Incoming -- if the stranded row then settles, the premature Handled
+    // status is the whole mechanism
+    private static void failingCommit(RigDbContext context, Execution execution)
+    {
+        if (context.Envelope == null) return;
+
+        EfScript.StatusAtFailedCommit.Enqueue($"{execution.MessageId} attempt {execution.Attempt}: {context.Envelope.Status}");
+        if (Environment.GetEnvironmentVariable("RIG_EF_UNDO_HANDLED") == "1" && context.Envelope.Status == EnvelopeStatus.Handled)
+        {
+            context.Envelope.Status = EnvelopeStatus.Incoming;
+        }
     }
 
     public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
@@ -217,7 +240,20 @@ public class RigEfInterceptor : DbTransactionInterceptor
     public override Task TransactionRolledBackAsync(DbTransaction transaction, TransactionEndEventData eventData,
         CancellationToken cancellationToken = default)
     {
-        (eventData.Context as RigDbContext)?.FinishPending("rolled back");
+        if (eventData.Context is not RigDbContext context) return Task.CompletedTask;
+
+        context.FinishPending("rolled back");
+
+        // Idempotency diagnostic. The eager check's Handled row was just rolled back, but the envelope still says
+        // WasPersistedInInbox/Handled, so a retry skips the check and marks a row that no longer exists. With
+        // RIG_EF_RESET_INBOX_FLAG=1 the rollback forgets that too; if redeliveries are then refused, those two flags
+        // are the whole mechanism. Never set for a durable endpoint, whose row really is persisted
+        if (Environment.GetEnvironmentVariable("RIG_EF_RESET_INBOX_FLAG") == "1" && context.Envelope != null)
+        {
+            context.Envelope.WasPersistedInInbox = false;
+            context.Envelope.Status = EnvelopeStatus.Incoming;
+        }
+
         return Task.CompletedTask;
     }
 
