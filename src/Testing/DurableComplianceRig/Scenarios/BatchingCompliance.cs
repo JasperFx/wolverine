@@ -303,24 +303,24 @@ public abstract class BatchingCompliance : IAsyncLifetime
         the.NoErrorsSettlingBatchMembers();
     }
 
-    /// <summary>The control for F2: a whole batch whose dead letter write fails is executed again and dead lettered later.</summary>
+    /// <summary>
+    /// The control for F2: a one-member batch whose dead letter write fails is executed again and dead lettered later.
+    /// One member, because each member that could not be dead lettered is redelivered on its own clock and the
+    /// innocent ones then rightly succeed in a batch without the poison.
+    /// </summary>
     [BobcatSpec]
     public async Task a_batch_whose_dead_letter_write_fails_is_dead_lettered_later()
     {
         the.SettleTimeout = 90.Seconds();
         the.FailedBatchesAreDeadLettered();
         await the.ANodeStarts();
-        the.MessagesToSend(5);
-        the.MessageAlwaysFails(3);
-        the.EveryItemIsDeadLetteredWithTheBatch();
+        the.MessagesToSend(1);
+        the.MessageAlwaysFails(1);
         await the.DeadLetterStorageRefusesWrites();
 
         await the.TheMessagesAreSentAsItems(1);
-        await the.MessageHasStarted(3);
-
-        // Each member's write is tried for about 3.3 seconds, one member after another: refuse long enough that
-        // every member's write fails, so all five come back together and fail together
-        await the.SecondsPass(25);
+        await the.MessageHasStarted(1);
+        await the.SecondsPass(8);
         await the.DeadLetterStorageAcceptsWrites();
 
         await the.TheDurableInvariantsHold();
