@@ -168,7 +168,7 @@ public sealed partial class DurableSteps
     public async Task NodeCrashesWithACopyInFlight(int node)
     {
         DeduplicationHooks.NodeCrashed($"node {node}");
-        NodeCrashes(node);
+        NodeIsDisposed(node); // graceful, but the held handler never reaches its release, as in a crash
 
         // Decisive experiment for a claim stranded by the crash: give it back by hand, as the release would have
         if (Environment.GetEnvironmentVariable("RIG_DEDUP_RELEASE_ON_CRASH") == "1")

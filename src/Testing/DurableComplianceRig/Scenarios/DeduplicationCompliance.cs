@@ -230,7 +230,7 @@ public abstract class DeduplicationCompliance : IAsyncLifetime
         await the.CopyIsSent(1, 1);
         if (marten) await the.MessageIsHeldAfterCommit(1);
         else await the.MessageHasCommitted(1);
-        the.NodeCrashes(1);
+        the.NodeIsDisposed(1); // a graceful stop, not a crash (see NodeIsDisposed)
         await the.ANodeStarts();
         await the.CopyIsSent(2, 2);
         await the.EveryCopyHasSettled();
