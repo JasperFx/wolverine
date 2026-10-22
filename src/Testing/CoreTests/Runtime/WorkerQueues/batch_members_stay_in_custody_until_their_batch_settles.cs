@@ -193,4 +193,53 @@ public class batch_members_stay_in_custody_until_their_batch_settles : IAsyncLif
         await theBatchReceiver.CompleteAsync(aCarrierFor(members));
         theItemReceiver.HeldBatchMemberCount.ShouldBe(0);
     }
+
+    /// <summary>
+    /// The same-queue topology: items and their batches share one durable local queue, so the receiver the members
+    /// arrived on is the one that pauses. Its drain must not release members still waiting on their batch, and a
+    /// carrier the paused queue held and handed to its NEXT receiver on resume still settles them.
+    /// </summary>
+    [Fact]
+    public async Task pausing_a_queue_that_batches_its_own_items_keeps_the_members_until_the_resumed_batch_settles()
+    {
+        var members = await membersAreAcceptedIntoABatch(3);
+
+        theItemReceiver.Latch();
+        await theItemReceiver.DrainAsync();
+
+        await theRuntime.Storage.Inbox.DidNotReceive().ReleaseIncomingAsync(Arg.Any<int>(), Arg.Any<Uri>());
+        await theRuntime.Storage.DidNotReceive()
+            .ReassignIncomingAsync(Arg.Any<int>(), Arg.Is<IReadOnlyList<Envelope>>(x => x.Any(members.Contains)));
+        theItemReceiver.HeldBatchMemberCount.ShouldBe(3);
+
+        // The queue resumes with a new receiver, and the held carrier runs there
+        var resumed = new DurableReceiver(theItemEndpoint, theRuntime, theBatchPipeline);
+        _receivers.Add(resumed);
+        await resumed.ClearInFlightIncomingAsync();
+        await theRuntime.Storage.Inbox.DidNotReceive().ReleaseIncomingAsync(Arg.Any<int>(), Arg.Any<Uri>());
+
+        await resumed.CompleteAsync(aCarrierFor(members));
+
+        theItemReceiver.HeldBatchMemberCount.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// An enqueue that read the old receiver just before a paused queue swapped it out posts into a drained receiver,
+    /// whose completed block dropped it in memory and left its row owned by this node. It is handed back instead.
+    /// </summary>
+    [Fact]
+    public async Task an_envelope_posted_into_a_drained_receiver_is_handed_back_rather_than_dropped()
+    {
+        theItemReceiver.Latch();
+        await theItemReceiver.DrainAsync();
+
+        var late = ObjectMother.Envelope();
+        late.Destination = theItemEndpoint.Uri;
+        await theItemReceiver.EnqueueAsync(late);
+
+        await waitForAsync(() => theRuntime.Storage.ReceivedCalls().Any(x =>
+                x.GetMethodInfo().Name == nameof(IMessageStore.ReassignIncomingAsync) &&
+                ((IReadOnlyList<Envelope>)x.GetArguments()[1]!).Contains(late)),
+            "The envelope posted after the drain was dropped and its row never handed back");
+    }
 }

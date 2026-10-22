@@ -57,6 +57,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     // F15/F16. Set when DrainAsync starts: nothing posted after this point will execute here
     private volatile bool _draining;
 
+    // Posts in progress. A post that read _draining as false before the drain set it must reach the block before the
+    // drain completes it: a completed block drops a post without a word, which would lose the envelope in memory
+    // and strand its row. See waitForPostsInProgressAsync.
+    private int _posting;
+
     // F15/F16. Set once anything has been received or enqueued, so a receiver that was built and never used
     // (a listener's receiver replaced by a partition bridge) does not count as working at its address
     private volatile bool _activated;
@@ -578,16 +583,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // A batch retry coming due
         if (envelope.Batch != null) _pendingBatchRetries.TryRemove(envelope.Id, out _);
 
-        if (_draining)
+        Interlocked.Increment(ref _posting);
+        try
         {
-            // A drained block drops a post without a word, which would strand the row owned by this node
-            abandon(envelope);
-            return;
-        }
+            if (_draining)
+            {
+                // A drained block drops a post without a word, which would strand the row owned by this node
+                abandon(envelope);
+                return;
+            }
 
-        _activated = true;
-        _custody.Enter(envelope, DateTimeOffset.UtcNow);
-        _receiver.Post(envelope);
+            _activated = true;
+            _custody.Enter(envelope, DateTimeOffset.UtcNow);
+            _receiver.Post(envelope);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _posting);
+        }
     }
 
     public ValueTask EnqueueAsync(Envelope envelope)
@@ -601,16 +614,47 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // ProcessReceivedMessagesAsync. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
 
+        Interlocked.Increment(ref _posting);
         if (_draining)
         {
-            // A drained block drops a post without a word, which would strand the row owned by this node
+            Interlocked.Decrement(ref _posting);
+
+            // A drained block drops a post without a word, which would strand the row owned by this node. Handed
+            // back instead, through its row: the drain's release (or a release by id, if that already ran) gives
+            // it to any node.
             abandon(envelope);
             return ValueTask.CompletedTask;
         }
 
         _activated = true;
         _custody.Enter(envelope, DateTimeOffset.UtcNow);
-        return _receiver.PostAsync(envelope);
+        return postAsync(envelope);
+    }
+
+    private async ValueTask postAsync(Envelope envelope)
+    {
+        try
+        {
+            await _receiver.PostAsync(envelope).ConfigureAwait(false);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _posting);
+        }
+    }
+
+    /// <summary>
+    /// Let a post that started before the drain did reach the block before it is completed, so the latch skips it
+    /// (and abandons it) rather than the completed block dropping it. Bounded: a bounded block can make a post wait
+    /// for room, and the frame waiting here may be the only one that would make it.
+    /// </summary>
+    private async Task waitForPostsInProgressAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (Volatile.Read(ref _posting) > 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(5).ConfigureAwait(false);
+        }
     }
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
@@ -694,6 +738,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             abandon(carrier);
         }
 
+        await waitForPostsInProgressAsync().ConfigureAwait(false);
         _receiver.Complete();
 
         // GH-4797. Non-null only when the bounded wait below gave up with work still running, and it is then
