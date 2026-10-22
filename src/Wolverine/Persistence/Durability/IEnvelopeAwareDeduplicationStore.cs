@@ -34,6 +34,12 @@ public interface IEnvelopeAwareDeduplicationStore
     /// The same atomicity rules as <see cref="IDeduplicationStore.TryClaimAsync" />: the claim is arbitrated by the
     /// database's unique constraint, never a SELECT followed by an INSERT. Taking a claim over is a conditional
     /// UPDATE keyed on both the id and the envelope id, so it cannot hand a claim to the wrong envelope either.
+    ///
+    /// <para>
+    /// A store that cannot record the envelope right now -- Wolverine's relational stores against a table that
+    /// predates the column -- degrades to <see cref="IDeduplicationStore.TryClaimAsync" /> exactly: the claim is
+    /// recorded with no envelope, and a repeat from the same envelope is refused like any other.
+    /// </para>
     /// </remarks>
     Task<bool> TryClaimAsync(string deduplicationId, Guid envelopeId, DateTimeOffset expires,
         CancellationToken cancellation = default);

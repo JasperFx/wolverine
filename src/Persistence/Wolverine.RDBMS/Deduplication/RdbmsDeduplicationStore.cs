@@ -1,6 +1,8 @@
 using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 
@@ -46,6 +48,15 @@ namespace Wolverine.RDBMS.Deduplication;
 /// envelope is still refused. The envelope column is nullable and additive, and a row without one (the
 /// envelope-less claim, or a claim written before the column existed) can never be taken over.
 /// </para>
+///
+/// <para>
+/// D1 follow-up. <b>The column is detected, not assumed.</b> An application on <c>AutoCreate.None</c> that
+/// upgrades without migrating still has the table without <c>envelope_id</c>, and an INSERT naming it would fail
+/// every <c>[Deduplicated]</c> handler. So the first envelope-aware claim checks, once per store instance, whether
+/// the column is there. Without it, the envelope-aware claim degrades to the original envelope-less claim, with
+/// its original SQL, and one warning is logged. The answer is cached for the life of the process: after a manual
+/// migration, a restart picks the column up.
+/// </para>
 /// </summary>
 internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactionalDeduplicationStore,
     IEnvelopeAwareDeduplicationStore
@@ -55,6 +66,13 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
     private readonly string _insertSql;
     private readonly string _insertForEnvelopeSql;
     private readonly string _takeOverSql;
+    private readonly string _probeEnvelopeColumnSql;
+    private readonly string _probeTableSql;
+    private readonly string _table;
+    private readonly ILogger _logger;
+
+    // 0 = not checked yet, 1 = envelope_id present, 2 = absent. Checked once, then a plain read on every claim.
+    private int _envelopeColumnState;
     private readonly string _insertInTransactionSql;
     private readonly bool _insertInTransactionReportsConflicts;
     private readonly string _deleteSql;
@@ -95,8 +113,14 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
         Func<int, string?> batchedDeleteExpiredSql,
         int batchSize,
         MessageDeduplicationMode mode,
-        string? conflictClause = null)
+        string? conflictClause = null,
+        ILogger? logger = null)
     {
+        _table = table;
+        _logger = logger ?? NullLogger.Instance;
+        _probeEnvelopeColumnSql = $"select {DatabaseConstants.DeduplicationEnvelopeId} from {table} where 1 = 0";
+        _probeTableSql = $"select 1 from {table} where 1 = 0";
+
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _isUniqueConstraintViolation = isUniqueConstraintViolation
                                        ?? throw new ArgumentNullException(nameof(isUniqueConstraintViolation));
@@ -169,6 +193,12 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
     {
         if (deduplicationId.IsEmpty()) throw new ArgumentNullException(nameof(deduplicationId));
 
+        // A table that predates envelope_id gets exactly the original claim, so an unmigrated database keeps working
+        if (!await hasEnvelopeColumnAsync(cancellation).ConfigureAwait(false))
+        {
+            return await TryClaimAsync(deduplicationId, expires, cancellation).ConfigureAwait(false);
+        }
+
         try
         {
             await using var cmd = _dataSource.CreateCommand(_insertForEnvelopeSql)
@@ -202,6 +232,43 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
         }
 
         return await takeOver.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false) > 0;
+    }
+
+    private async ValueTask<bool> hasEnvelopeColumnAsync(CancellationToken cancellation)
+    {
+        var state = Volatile.Read(ref _envelopeColumnState);
+        if (state != 0) return state == 1;
+
+        // Two concurrent first claims may both probe. Harmless: they reach the same answer.
+        var present = await probeEnvelopeColumnAsync(cancellation).ConfigureAwait(false);
+
+        if (Interlocked.CompareExchange(ref _envelopeColumnState, present ? 1 : 2, 0) == 0 && !present)
+        {
+            // DRAFT: for Jeremy's review
+            _logger.LogWarning(
+                "The logical deduplication table {Table} predates the {Column} column, so [Deduplicated] claims cannot record the envelope that took them. Claims still work as they did before, but a claim stranded by a node that dies mid-handler will refuse the recovered message until it expires. Apply Wolverine's schema migration to add the column, then restart, to get crash-safe claims",
+                _table, DatabaseConstants.DeduplicationEnvelopeId);
+        }
+
+        return present;
+    }
+
+    private async Task<bool> probeEnvelopeColumnAsync(CancellationToken cancellation)
+    {
+        try
+        {
+            await using var probe = _dataSource.CreateCommand(_probeEnvelopeColumnSql);
+            await using var reader = await probe.ExecuteReaderAsync(cancellation).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception) when (!cancellation.IsCancellationRequested)
+        {
+            // Either the column is missing, or the database could not be reached at all. Only the first is an
+            // answer worth caching, so ask a question that fails only for the second: if this throws, it throws.
+            await using var table = _dataSource.CreateCommand(_probeTableSql);
+            await using var reader = await table.ExecuteReaderAsync(cancellation).ConfigureAwait(false);
+            return false;
+        }
     }
 
     /// <inheritdoc />

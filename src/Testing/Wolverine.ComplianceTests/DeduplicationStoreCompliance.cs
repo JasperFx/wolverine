@@ -747,4 +747,83 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
         (await envelopeAwareStoreFor(after).TryClaimAsync("pre-upgrade", Guid.NewGuid(), anHourFromNow,
             TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
+
+    private string tableFor(MessageDeduplicationMode mode) => mode == MessageDeduplicationMode.CompareByHash
+        ? hashedDeduplicationTableName
+        : deduplicationTableName;
+
+    /// <summary>The table the way it was before D1: no envelope column.</summary>
+    private static async Task dropEnvelopeColumnAsync(IHost host, string table)
+    {
+        var database = (IMessageDatabase)host.GetRuntime().Storage;
+        await using var drop = database.DataSource.CreateCommand(
+            $"alter table {table} drop column {DatabaseConstants.DeduplicationEnvelopeId}");
+        await drop.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// D1 follow-up. An application on <c>AutoCreate.None</c> that upgrades without migrating still has the table
+    /// without <c>envelope_id</c>. Its claims have to keep working exactly as they did before -- no exception, and
+    /// the original semantics, including a repeat from the same envelope being refused -- rather than failing every
+    /// <c>[Deduplicated]</c> handler on an INSERT naming a column that is not there.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task an_unmigrated_table_keeps_the_original_claim_semantics(MessageDeduplicationMode mode)
+    {
+        var host = await startHostAsync(mode);
+        await dropEnvelopeColumnAsync(host, tableFor(mode));
+
+        var store = envelopeAwareStoreFor(host);
+        var envelopeId = Guid.NewGuid();
+
+        (await store.TryClaimAsync("unmigrated", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+
+        // The original semantics: nothing records the envelope, so nothing can take the claim over
+        (await store.TryClaimAsync("unmigrated", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+        (await store.TryClaimAsync("unmigrated", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+        (await storeFor(host).TryClaimAsync("unmigrated", anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+
+        await storeFor(host).ReleaseAsync("unmigrated", TestContext.Current.CancellationToken);
+        (await store.TryClaimAsync("unmigrated", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// D1 follow-up. The column is detected once per process, so the store picks it up after the migration has been
+    /// applied and the application restarted -- here, a second host against the same, now migrated, database.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task after_the_migration_and_a_restart_claims_record_the_envelope(MessageDeduplicationMode mode)
+    {
+        var before = await startHostAsync(mode);
+        await dropEnvelopeColumnAsync(before, tableFor(mode));
+
+        // Detected as absent, and the claim still works
+        (await envelopeAwareStoreFor(before).TryClaimAsync("pre-migration", Guid.NewGuid(), anHourFromNow,
+            TestContext.Current.CancellationToken)).ShouldBeTrue();
+        await before.StopAsync(TestContext.Current.CancellationToken);
+
+        var after = await startHostAsync(mode, rebuild: false);
+        await after.GetRuntime().Storage.Admin.MigrateAsync();
+
+        var store = envelopeAwareStoreFor(after);
+        var envelopeId = Guid.NewGuid();
+
+        (await store.TryClaimAsync("post-migration", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue();
+        (await store.TryClaimAsync("post-migration", envelopeId, anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeTrue("the migrated table records the envelope, so the same envelope takes its claim over");
+
+        // The claim made before the migration has no envelope recorded and is never taken over
+        (await store.TryClaimAsync("pre-migration", Guid.NewGuid(), anHourFromNow, TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+    }
 }
