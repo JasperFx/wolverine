@@ -27,6 +27,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private DurableReceiver? _receiver;
     private Restarter? _restarter;
 
+    // F6. What reached this queue while it was paused -- a batch carrier assembled while its batch queue was paused,
+    // above all -- held here until the queue resumes. Guarded by _receiverLock, together with the swap of _receiver.
+    private readonly object _receiverLock = new();
+    private List<Envelope>? _heldWhilePaused;
+
+    // L1. The drain of the receiver a pause took away, when that pause did not wait for it. The restart waits for it
+    // so the old receiver's release can never hand back rows the new receiver has already taken.
+    private Task? _pausedDrain;
+
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
         Uri = endpoint.Uri;
@@ -94,15 +103,33 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     async Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
-        if (_receiver == null)
-        {
-            return;
-        }
+        // F17. Every caller of this has already claimed these rows for this node -- the scheduled poller, inbox
+        // recovery -- and the only thing that can give them back is that caller, on an exception (GH-3680, GH-4822).
+        // Returning quietly from a paused queue left them Incoming and owned by a live node, which nothing reclaims.
+        // Same answer ListeningAgent gives when it has no receiver.
+        var receiver = _receiver ?? throw new InvalidOperationException(
+            $"The durable local queue at {Uri} is paused and cannot accept recovered or scheduled messages until it resumes");
 
-        foreach (var envelope in envelopes) await _receiver.EnqueueAsync(envelope);
+        foreach (var envelope in envelopes) await receiver.EnqueueAsync(envelope);
     }
 
-    public async ValueTask PauseAsync(TimeSpan pauseTime)
+    public ValueTask PauseAsync(TimeSpan pauseTime)
+    {
+        // L1. Usually raised from inside this queue's own handler pipeline (AndPauseProcessing, PauseThenRequeue),
+        // so it must not wait for the queue to drain: the frame that asked for the pause is part of what the drain
+        // waits for, and it sat out the whole DrainTimeout waiting on itself. The drain still latches first and
+        // still waits for running handlers before it releases their rows (GH-4797) -- it just does so in the
+        // background, where the frame that asked for it can finish.
+        return pauseCoreAsync(pauseTime, waitForDrain: false);
+    }
+
+    public ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
+    {
+        // Only ever called from outside the pipeline (the circuit breaker), so waiting here is safe.
+        return pauseCoreAsync(pauseTime, waitForDrain: true);
+    }
+
+    private async ValueTask pauseCoreAsync(TimeSpan pauseTime, bool waitForDrain)
     {
         Latched = true;
         // GH-3832 — remember that this latch is a timed pause so Status reports Paused rather than
@@ -110,20 +137,29 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         // installed at the end of this method; TooBusy is released by the queue draining.
         _paused = true;
 
-        if (_receiver != null)
+        DurableReceiver? receiver;
+        lock (_receiverLock)
         {
-            try
-            {
-                _receiver.Latch();
-                await _receiver.DrainAsync();
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error trying to drain in flight messages for {Uri}", Destination);
-            }
+            receiver = _receiver;
+            _receiver = null;
         }
 
-        _receiver = null;
+        if (receiver != null)
+        {
+            // Latched BEFORE the drain, which is what makes DurableReceiver.DrainAsync wait for the handlers still
+            // running before it releases their rows
+            receiver.Latch();
+
+            var drain = drainPausedReceiverAsync(receiver);
+            if (waitForDrain)
+            {
+                await drain;
+            }
+            else
+            {
+                _pausedDrain = drain;
+            }
+        }
 
         CircuitBreaker?.Reset();
 
@@ -132,16 +168,26 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
 
+        // A second pause while paused -- a sibling handler failing the same way -- restarts the clock instead of
+        // leaving two restarters behind
+        _restarter?.Dispose();
         _restarter = new Restarter(this, pauseTime);
     }
 
-    public async ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
+    private Task drainPausedReceiverAsync(DurableReceiver receiver)
     {
-        // DurableLocalQueue.PauseAsync already fully drains. The behavioral split
-        // between PauseAsync and PauseWithDrainAsync is important for BufferedReceiver
-        // (which skips the drain in PauseAsync to avoid deadlocking when called from
-        // within the handler pipeline). For the durable local queue, both are identical.
-        await PauseAsync(pauseTime);
+        // Task.Run, so nothing of the drain runs on the caller's frame, which may be a handler of this very queue
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await receiver.DrainAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to drain in flight messages for {Uri}", Destination);
+            }
+        });
     }
 
     private Uri? _partitionSlotUri;
@@ -166,19 +212,60 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
     }
 
-    public ValueTask StartAsync()
+    public async ValueTask StartAsync()
     {
-        _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline)
+        // L1. A pause that did not wait for its drain leaves it here. The drain ends in a release of every row this
+        // node owns at this address, so it has to be over before a new receiver starts taking rows at the same one.
+        // It cannot throw, and once the handlers running at pause time finish it is quick.
+        var pausedDrain = Interlocked.Exchange(ref _pausedDrain, null);
+        if (pausedDrain != null)
+        {
+#pragma warning disable VSTHRD003 // started by the pause, and awaiting it is the whole point
+            await pausedDrain;
+#pragma warning restore VSTHRD003
+        }
+
+        var receiver = new DurableReceiver(Endpoint, _runtime, Pipeline)
         {
             AlsoReleaseIncomingAt = _partitionSlotUri
         };
+
+        List<Envelope>? held;
+        lock (_receiverLock)
+        {
+            _receiver = receiver;
+            held = _heldWhilePaused;
+            _heldWhilePaused = null;
+        }
+
         Latched = false;
         _paused = false;
-        _runtime.Tracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName,
+        _runtime.Tracker.Publish(new ListenerState(receiver.Uri, Endpoint.EndpointName,
             ListeningStatus.Accepting));
         _restarter?.Dispose();
         _restarter = null;
-        return ValueTask.CompletedTask;
+
+        if (held != null)
+        {
+            foreach (var envelope in held) await receiver.EnqueueAsync(envelope);
+        }
+    }
+
+    /// <summary>
+    /// F6. Hold an envelope that reached this queue while it was paused, or answer the receiver to hand it to.
+    /// </summary>
+    private DurableReceiver? receiverOrHold(Envelope envelope)
+    {
+        var receiver = _receiver;
+        if (receiver != null) return receiver;
+
+        lock (_receiverLock)
+        {
+            if (_receiver != null) return _receiver;
+
+            (_heldWhilePaused ??= []).Add(envelope);
+            return null;
+        }
     }
 
     private bool _paused;
@@ -227,14 +314,18 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             await receiver.DrainAsync();
     }
 
+    // F6. While paused there is no receiver. What is enqueued meanwhile -- a batch carrier above all, whose members'
+    // rows depend on it reaching a terminal -- is held and runs when the queue resumes, rather than thrown away
+    // (Enqueue) or thrown at a caller with no way to give it back (EnqueueAsync, the batching processor).
     void ILocalReceiver.Enqueue(Envelope envelope)
     {
-        _receiver?.Enqueue(envelope);
+        receiverOrHold(envelope)?.Enqueue(envelope);
     }
 
     ValueTask ILocalReceiver.EnqueueAsync(Envelope envelope)
     {
-        return _receiver!.EnqueueAsync(envelope);
+        var receiver = receiverOrHold(envelope);
+        return receiver == null ? ValueTask.CompletedTask : receiver.EnqueueAsync(envelope);
     }
 
     int IHasQueueDepth.QueueCount => _receiver?.QueueCount ?? 0;
@@ -259,7 +350,9 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         _messageLogger.Sent(envelope);
 
-        await _receiver!.EnqueueAsync(envelope);
+        // A pause can land between the check above and here
+        var receiver = receiverOrHold(envelope);
+        if (receiver != null) await receiver.EnqueueAsync(envelope);
     }
 
     public ValueTask StoreAndForwardAsync(Envelope envelope)
@@ -351,7 +444,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            await _receiver!.EnqueueAsync(envelope);
+            // The row was written owned by this node, so a pause that landed during the write must not lose it:
+            // held, it runs when the queue resumes
+            var receiver = receiverOrHold(envelope);
+            if (receiver != null) await receiver.EnqueueAsync(envelope);
         }
     }
 
