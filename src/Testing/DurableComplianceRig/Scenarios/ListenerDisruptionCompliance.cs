@@ -298,4 +298,25 @@ public abstract class ListenerDisruptionCompliance : IAsyncLifetime
 
         await the.TheDurableInvariantsHold();
     }
+
+    /// <summary>
+    /// F12's mechanism, from the other side: the stranded row is Incoming and owned by a live node, which only
+    /// InboxStaleTime reclaims. With it set, the same blip is recovered.
+    /// </summary>
+    [BobcatSpec]
+    public async Task a_database_blip_while_scheduling_a_retry_is_recovered_by_the_inbox_stale_time()
+    {
+        the.SettleTimeout = 45.Seconds();
+        the.TheClusterReactsWithinSeconds();
+        the.TheInboxStaleTimeIs(3);
+        the.MessagesToSend(3);
+        the.AFailureIsRetriedInlineThenScheduled(1, 1500, 2);
+        await the.ANodeStarts();
+        the.MessageFailsFirst(1, 2);
+
+        await the.TheMessagesAreSent(1);
+        await the.TheDatabaseCutsWritesToTheRow(1, 3000);
+
+        await the.TheDurableInvariantsHold();
+    }
 }
