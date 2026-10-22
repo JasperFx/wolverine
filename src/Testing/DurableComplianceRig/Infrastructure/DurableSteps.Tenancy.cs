@@ -2,7 +2,9 @@ using System.Data.Common;
 using Bobcat;
 using Bobcat.Engine;
 using DurableComplianceRig.Stores;
+using Microsoft.Extensions.Hosting;
 using Wolverine;
+using Wolverine.RabbitMQ;
 
 namespace DurableComplianceRig.Infrastructure;
 
@@ -15,6 +17,7 @@ public sealed partial class DurableSteps
 {
     private readonly Dictionary<Guid, string?> _tenantOf = [];
     private readonly HashSet<string> _offline = [];
+    private readonly List<Guid> _refused = [];
 
     private TenancyStoreProfile tenancyStore => Store as TenancyStoreProfile
         ?? throw new SpecCriticalException($"{Store} has no database per tenant");
@@ -55,6 +58,7 @@ public sealed partial class DurableSteps
             {
                 // The sender saw the failure, so the message is the caller's to retry, not the inbox's to lose
                 refused.Add($"{id} ({tenant}): {e.GetType().Name}: {e.Message}");
+                _refused.Add(id);
                 _expected.Remove(id);
             }
         }
@@ -71,6 +75,7 @@ public sealed partial class DurableSteps
     {
         var invariants = new Invariants(await Store.SnapshotAsync(), _expected);
         foreach (var row in invariants.Snapshot.Ledger.OrderBy(x => x.RecordedAt)) _output.WriteLine($"ledger: {row}");
+        while (TenantRdbmsLedger.UnscriptedFailures.TryDequeue(out var failure)) _output.WriteLine($"unscripted failure: {failure}");
 
         SpecAssert.Check("effects committed in another tenant's database",
             describe(invariants.MisroutedEffects(tenant => tenancyStore.LabelFor(tenant))
@@ -115,6 +120,44 @@ public sealed partial class DurableSteps
         await tenancyStore.Tenancy.BringOnlineAsync(tenant);
         _offline.Remove(tenant);
         SpecLog.Write($"{tenancyStore.Tenancy.NameFor(tenant)} is back online");
+    }
+
+    [Then("the sends of {count} messages for tenant {tenant} were refused to the caller")]
+    public void TheSendsForTenantWereRefused(string tenant, int count)
+    {
+        SpecAssert.Check($"sends for {tenant} refused to the caller", _refused.Count(id => TenantOf(id) == tenant), count);
+        SpecAssert.Check("sends refused for any other tenant",
+            describe(_refused.Where(id => TenantOf(id) != tenant).Select(id => $"{id} ({TenantOf(id)})")), "none");
+    }
+
+    /// <summary>
+    /// Sends from a host with no message store at all, straight to the broker, so the tenant's messages reach the
+    /// listener whatever state the tenant's database is in. RabbitMQ only: a local queue has no outside.
+    /// </summary>
+    [When("the messages are sent with their tenant ids from a sender with no message store")]
+    public async Task TheMessagesAreSentFromABareSender()
+    {
+        if (Transport is not RabbitMqTransport)
+        {
+            throw new SpecCriticalException($"A sender outside the cluster needs a broker, not {Transport}");
+        }
+
+        using var sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "durable-rig-sender";
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
+                opts.PublishMessage<RigMessage>().ToRabbitQueue(QueueName).CustomizeOutgoing(RigIds.Stamp);
+            }).StartAsync();
+
+        var bus = sender.MessageBus();
+        foreach (var id in _messages)
+        {
+            await bus.PublishAsync(new RigMessage(id), new DeliveryOptions { TenantId = TenantOf(id) });
+        }
+
+        await sender.StopAsync();
     }
 
     /// <summary>Not a step: puts back any database a failed scenario left offline, so the next one can start.</summary>

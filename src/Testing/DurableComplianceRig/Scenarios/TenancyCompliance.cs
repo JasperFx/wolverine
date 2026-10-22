@@ -138,11 +138,12 @@ public abstract class TenancyCompliance : IAsyncLifetime
     }
 
     /// <summary>
-    /// GH-4435/4658/4659: one tenant's database going away must not stop the listener for the others, and the
-    /// stranded tenant's messages must survive until it comes back.
+    /// A node sending for a tenant whose database is down: the send itself touches the tenant's database (the durable
+    /// local queue stores the row; the RabbitMQ sender too), so the caller is told and nothing is accepted that could
+    /// be lost. The other tenants keep flowing. The receiving side of an outage is <see cref="TenantOutageCompliance" />.
     /// </summary>
     [BobcatSpec]
-    public async Task one_tenant_database_offline_stops_nobody_else_and_loses_nothing()
+    public async Task a_send_for_an_offline_tenant_is_refused_and_the_others_flow()
     {
         the.SettleTimeout = 2.Minutes();
         the.ConfigureNodes(opts => opts.OnException<RigFailure>().RetryTimes(3));
@@ -151,6 +152,7 @@ public abstract class TenancyCompliance : IAsyncLifetime
 
         await the.TenantDatabaseGoesOffline("blue");
         await the.TheMessagesAreSentWithTheirTenants(1);
+        the.TheSendsForTenantWereRefused("blue", 5);
         await the.OtherTenantsAreHandledWhileOffline("blue");
         await the.TenantDatabaseComesBack("blue");
 

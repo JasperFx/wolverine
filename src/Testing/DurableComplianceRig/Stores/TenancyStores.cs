@@ -223,6 +223,9 @@ public class TenancyHoldInterceptor : DbTransactionInterceptor
 /// </summary>
 public class TenantRdbmsLedger(TenancyStoreProfile profile)
 {
+    /// <summary>Every failure the script did not ask for, with its stack, for the test output.</summary>
+    public static readonly System.Collections.Concurrent.ConcurrentQueue<string> UnscriptedFailures = new();
+
     public async Task RecordAsync(IMessageContext context, Envelope envelope, Guid id, RigNodeName node)
     {
         var (step, execution) = await Script.BeginAsync(id, node.Name, envelope.Id);
@@ -270,6 +273,7 @@ public class TenantRdbmsLedger(TenancyStoreProfile profile)
         catch (Exception e)
         {
             if (execution.FinishedAt == null) execution.Finish($"failed: {e.GetType().Name}");
+            if (e is not RigFailure) UnscriptedFailures.Enqueue($"{id} attempt {execution.Attempt}: {e}");
             throw;
         }
         finally
