@@ -83,18 +83,23 @@ public abstract partial class MessageDatabase<T>
             $"{set} {identity} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}';";
     }
 
-    public Task ScheduleExecutionAsync(Envelope envelope)
+    public async Task ScheduleExecutionAsync(Envelope envelope)
     {
         Logger.LogDebug("Persisting envelope {EnvelopeId} ({MessageType}) as Scheduled in database inbox at {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
 
         _scheduleExecutionSql ??= ScheduleExecutionSql();
 
-        return CreateCommand(_scheduleExecutionSql)
+        var rowsAffected = await CreateCommand(_scheduleExecutionSql)
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
             .With("uri", envelope.Destination!.ToString())
-            .ExecuteNonQueryAsync(_cancellation);
+            .ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
+
+        if (rowsAffected == 0)
+        {
+            InboxSchedulingLog.MatchedNothing(Logger, envelope);
+        }
     }
 
     public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)

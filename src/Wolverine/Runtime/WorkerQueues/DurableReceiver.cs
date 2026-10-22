@@ -6,6 +6,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Partitioning;
+using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -39,6 +40,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly IWolverineRuntime _runtime;
     private readonly RetryBlock<Envelope> _scheduleExecution;
+
+    // GH-5120. A batch carrier has no inbox row of its own -- only its members do -- so its scheduled retry
+    // is held in memory, the same way BufferedReceiver schedules everything. See MoveToScheduledUntilAsync.
+    private readonly InMemoryScheduledJobProcessor _batchRetries;
     private readonly DurabilitySettings _settings;
 
     // These members are for draining
@@ -280,6 +285,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
 
+        _batchRetries = new InMemoryScheduledJobProcessor(this, _logger);
+
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
             _deadLetterSender = dlq;
@@ -367,6 +374,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         if (_heartbeat != null) await _heartbeat.DisposeAsync().ConfigureAwait(false);
         _custody?.Clear();
+        _batchRetries.Dispose();
 
         await _receiver.WaitForCompletionAsync().ConfigureAwait(false);
 
@@ -579,6 +587,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // execute function is still on the call stack.
         var waitForCompletion = _latched;
         _latched = true;
+
+        // GH-5120. A batch retry still pending must not fire after the release below hands its members' rows to
+        // another node, or both would execute them. Cancelled, the members are simply recovered from their rows.
+        await _batchRetries.EmptyAllAsync().ConfigureAwait(false);
+
         _receiver.Complete();
 
         // GH-4797. Non-null only when the bounded wait below gave up with work still running, and it is then
@@ -724,6 +737,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public void Dispose()
     {
         // Might need to drain the block
+        _batchRetries.Dispose();
         _receiver.Complete();
 
         _completeBlock.Dispose();
@@ -842,6 +856,18 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
+        if (envelope.Batch != null)
+        {
+            // GH-5120. Rescheduling by the carrier's id updated nothing -- the carrier has no row -- so the retry
+            // was silently lost and the members sat 'Incoming', owned by this live node. The members' rows stay
+            // exactly as they are: owned here while the retry is pending, and released by the drain or found by
+            // recovery if this node goes away. The same carrier comes back, so its Attempts keeps counting
+            // toward the error policy's limit.
+            _logger.LogDebug("Scheduling batch envelope {EnvelopeId} ({MessageType}) for retry in memory at {ScheduledTime} in durable receiver", envelope.Id, envelope.MessageType, time);
+            _batchRetries.Enqueue(time, envelope);
+            return Task.CompletedTask;
+        }
+
         _logger.LogDebug("Moving envelope {EnvelopeId} ({MessageType}) to scheduled status until {ScheduledTime} in durable receiver", envelope.Id, envelope.MessageType, time);
         envelope.OwnerId = TransportConstants.AnyNode;
         envelope.ScheduledTime = time;
