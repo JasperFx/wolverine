@@ -54,7 +54,7 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
-        var duplicates = new List<Envelope>();
+        var hitDuplicate = false;
 
         foreach (var envelope in envelopes)
         {
@@ -83,17 +83,37 @@ internal partial class OracleMessageStore
             }
             catch (OracleException e) when (e.Number == 1)
             {
+                hitDuplicate = true;
+                break;
+            }
+        }
+
+        if (!hitDuplicate)
+        {
+            await tx.CommitAsync(_cancellation);
+            await conn.CloseAsync();
+            return;
+        }
+
+        // GH-5123. All or nothing, like every other RDBMS store. Oracle rolls back only the failed statement, so
+        // this used to commit the rest of the batch and report just the duplicates. DurableReceiver then re-ran the
+        // whole batch one envelope at a time, the committed ones read as duplicates of themselves, and they were
+        // settled with the broker without ever being handled. Roll everything back, and let the per-envelope path
+        // sort out which copy is new.
+        await tx.RollbackAsync(_cancellation);
+        await conn.CloseAsync();
+
+        var duplicates = new List<Envelope>();
+        foreach (var envelope in envelopes)
+        {
+            if (await ExistsAsync(envelope, _cancellation))
+            {
                 duplicates.Add(envelope);
             }
         }
 
-        await tx.CommitAsync(_cancellation);
-        await conn.CloseAsync();
-
-        if (duplicates.Count > 0)
-        {
-            throw new DuplicateIncomingEnvelopeException(duplicates);
-        }
+        // No existing row means the duplicate is inside the batch itself; report the whole batch then
+        throw new DuplicateIncomingEnvelopeException(duplicates.Count > 0 ? duplicates : envelopes);
     }
 
     public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)

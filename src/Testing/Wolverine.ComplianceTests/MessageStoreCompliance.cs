@@ -326,6 +326,40 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
             () => thePersistence.Inbox.StoreIncomingAsync(new[] { envelope, envelope }));
     }
 
+    /// <summary>
+    /// GH-5123. When a batch insert reports a duplicate, DurableReceiver re-runs EVERY envelope of the batch through
+    /// the one-at-a-time path, which stores each one again unless it is marked WasPersistedInInbox. So a store may
+    /// either roll the whole batch back, or mark the envelopes it did commit, but never leave a fresh envelope
+    /// committed and unmarked: its second store reads as a duplicate, and a duplicate is settled with the broker
+    /// without ever reaching a handler. Oracle inserted row by row and committed the survivors, unmarked.
+    /// </summary>
+    [Fact]
+    public async Task a_batch_with_a_duplicate_never_leaves_a_fresh_envelope_stored_but_unmarked()
+    {
+        var existing = ObjectMother.Envelope();
+        existing.Destination = new Uri("stub://incoming-bulk-partial");
+        existing.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(existing);
+
+        var fresh = ObjectMother.Envelope();
+        fresh.Destination = existing.Destination;
+        fresh.Status = EnvelopeStatus.Incoming;
+
+        var copy = ObjectMother.Envelope();
+        copy.Id = existing.Id;
+        copy.Destination = existing.Destination;
+        copy.Status = EnvelopeStatus.Incoming;
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(
+            () => thePersistence.Inbox.StoreIncomingAsync(new[] { fresh, copy }));
+
+        if (await thePersistence.Inbox.ExistsAsync(fresh, CancellationToken.None))
+        {
+            fresh.WasPersistedInInbox.ShouldBeTrue(
+                "the store committed this envelope, so the receiver must not store it a second time");
+        }
+    }
+
     [Fact]
     public async Task store_a_single_outgoing_envelope()
     {

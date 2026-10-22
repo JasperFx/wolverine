@@ -492,15 +492,18 @@ public abstract partial class MessageDatabase<T>
                     }
                 }
 
-                if (duplicates.Count == 0)
-                {
-                    // Backend reported a duplicate-key error but no envelope id
-                    // matches an existing row. Surface the original failure
-                    // rather than silently swallowing it.
-                    throw;
-                }
-
-                throw new DuplicateIncomingEnvelopeException(duplicates);
+                // GH-5123. A duplicate-key error with no matching row means the duplicate is INSIDE the batch:
+                // two copies of one message in the same micro-batch, which is what a broker redelivery plus an
+                // outbox resend after an outage looks like. That is still a duplicate, and rethrowing the raw
+                // provider exception made the receiver pause the listener for an "unavailable" inbox (and
+                // MultiTenantedMessageStore trip the tenant's write brake). Report the whole batch, the way
+                // RavenDB does: the transaction rolled back, so nothing landed, and the receiver's per-envelope
+                // path stores the first copy and settles the second as the duplicate it is.
+                //
+                // Deduplicating the batch here before the insert would be wrong rather than just slower: the
+                // caller marks every envelope it passed as persisted and hands all of them to the handlers, so
+                // the copy dropped here would run anyway.
+                throw new DuplicateIncomingEnvelopeException(duplicates.Count > 0 ? duplicates : envelopes);
             }
         }
         finally
