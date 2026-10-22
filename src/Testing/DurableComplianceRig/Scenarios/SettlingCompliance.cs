@@ -78,6 +78,23 @@ public abstract class SettlingCompliance : IAsyncLifetime
         await the.TheDurableInvariantsHold();
     }
 
+    /// <summary>
+    /// GH-5123. Two copies of one message in one micro-batch, neither in the inbox yet. The batched insert reported the
+    /// duplicate as a raw unique violation, so the receiver paused the listener for an "unavailable" inbox. Each copy
+    /// should simply be one run and one duplicate.
+    /// </summary>
+    [BobcatSpec]
+    public async Task two_copies_of_each_message_arriving_together_commit_once_without_stopping_the_listener()
+    {
+        await the.ANodeStarts();
+        the.MessagesToSend(10);
+
+        await the.EachMessageIsSentTwice(1);
+
+        await the.TheDurableInvariantsHold();
+        the.TheListenerNeverStopped(1);
+    }
+
     [BobcatSpec]
     public async Task a_message_that_always_fails_is_dead_lettered_and_settled()
     {
