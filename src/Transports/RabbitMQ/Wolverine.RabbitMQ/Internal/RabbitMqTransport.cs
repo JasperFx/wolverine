@@ -21,6 +21,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
     public const string QueueTypeHeader = "x-queue-type";
 
+    /// <summary>
+    /// The quorum queue argument that caps how many times RabbitMQ returns a message to the queue before it is
+    /// dead lettered, or dropped when the queue has no dead letter exchange. See GH-5123.
+    /// </summary>
+    public const string DeliveryLimitHeader = "x-delivery-limit";
+
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
 
@@ -421,6 +427,14 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     /// native RabbitMQ dead letter exchange mechanisms.
     /// </summary>
     public bool UseEnhancedDeadLettering { get; set; }
+
+    /// <summary>
+    /// GH-5123. When set, every quorum queue that Wolverine declares for a durable (inbox-backed) listener is
+    /// declared with this <c>x-delivery-limit</c>, unless the queue sets its own
+    /// <see cref="RabbitMqQueue.DeliveryLimit"/> or already has the argument. Null, the default, declares no
+    /// limit at all and leaves the broker's own default in place.
+    /// </summary>
+    public int? DurableQuorumQueueDeliveryLimit { get; set; }
 
     /// <summary>
     /// Opt into making Wolverine "auto ping" new listeners by trying to send a fake Wolverine "ping" message

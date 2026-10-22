@@ -503,6 +503,25 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
+    /// GH-5123. Declare every quorum queue that a durable (inbox-backed) listener uses with this
+    /// <c>x-delivery-limit</c>. A durable listener settles a message as soon as it is in the inbox, and
+    /// Wolverine's own error policies deal with poison messages after that, so the broker's limit only ever
+    /// counts the times a delivery was handed back -- by restarts, reconnects and shutdowns. RabbitMQ 4 drops
+    /// a quorum queue message on its 21st return by default. Use -1 to turn the limit off on RabbitMQ 4.
+    /// <para>
+    /// Only applies to queues Wolverine declares. RabbitMQ refuses to redeclare an existing queue with
+    /// different arguments, so for a queue that already exists either delete it first or set the limit
+    /// with a RabbitMQ policy instead.
+    /// </para>
+    /// </summary>
+    /// <param name="limit">The delivery limit, or -1 for no limit on RabbitMQ 4</param>
+    public RabbitMqTransportExpression DeliveryLimitForDurableQuorumQueues(int limit)
+    {
+        Transport.DurableQuorumQueueDeliveryLimit = limit;
+        return this;
+    }
+
+    /// <summary>
     /// All application Rabbit MQ queues declared by this application should be quorum queues unless explicitly
     /// overridden. Wolverine's internal queues will still be "classic"
     /// </summary>

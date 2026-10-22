@@ -85,6 +85,23 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     }
 
     /// <summary>
+    /// GH-5123. Declare this queue with an <c>x-delivery-limit</c>. Only applies when the queue is a quorum queue
+    /// and Wolverine declares it. RabbitMQ 4 drops a quorum queue message on its 21st return to the queue by
+    /// default, and every listener restart or reconnect returns the deliveries still in flight, so a durable
+    /// listener is usually better off with a higher limit, or -1 for no limit on RabbitMQ 4.
+    /// <para>
+    /// RabbitMQ refuses to redeclare an existing queue with different arguments, so for a queue that already
+    /// exists either delete it first or set the limit with a RabbitMQ policy instead.
+    /// </para>
+    /// </summary>
+    /// <param name="limit">The delivery limit, or -1 for no limit on RabbitMQ 4</param>
+    public RabbitMqListenerConfiguration DeliveryLimit(int limit)
+    {
+        add(e => e.DeliveryLimit = limit);
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>
