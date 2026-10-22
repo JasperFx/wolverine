@@ -17,10 +17,20 @@ public class RdbmsLedger(RigDatabase database)
     public async Task RecordAsync(IMessageContext context, Envelope envelope, IReadOnlyList<Guid> ids, RigNodeName node)
     {
         var begun = new List<(Guid id, Step step, Execution execution)>();
-        foreach (var id in ids)
+        try
         {
-            var (step, execution) = await Script.BeginAsync(id, node.Name, envelope.Message is RigItem[] ? null : envelope.Id);
-            begun.Add((id, step, execution));
+            foreach (var id in ids)
+            {
+                var (step, execution) = await Script.BeginAsync(id, node.Name, envelope.Message is RigItem[] ? null : envelope.Id);
+                begun.Add((id, step, execution));
+            }
+        }
+        catch (Exception e)
+        {
+            // One batch member's scripted failure fails the whole batch. The members begun before it have to be
+            // finished too, or the checker sees them as still running and reports every retry as overlapping them
+            foreach (var (_, _, execution) in begun) execution.Finish($"abandoned: {e.GetType().Name}");
+            throw;
         }
 
         await using var conn = database.Connect();
@@ -101,5 +111,9 @@ public static class RdbmsRigHandler
         RdbmsLedger ledger) => ledger.RecordAsync(context, envelope, [message.Id], node);
 
     public static Task Handle(RigItem[] items, Envelope envelope, IMessageContext context, RigNodeName node,
-        RdbmsLedger ledger) => ledger.RecordAsync(context, envelope, items.Select(x => x.Id).ToArray(), node);
+        RdbmsLedger ledger)
+    {
+        BatchItemScript.ThrowIfAnyIsPoison(items);
+        return ledger.RecordAsync(context, envelope, items.Select(x => x.Id).ToArray(), node);
+    }
 }
