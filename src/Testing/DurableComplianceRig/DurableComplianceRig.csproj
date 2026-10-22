@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Durable receiver compliance rig (2026-10-22). Exercises the durable inbox end to end across
+         stores, transports, idempotency, deduplication, batching and per-tenant stores, and judges every
+         run with an invariant checker. Deliberately NOT part of either .slnx solution or CI: it is long
+         running and needs every broker. Build and run standalone via rig.sh in this folder. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit.v3" />
+        <!-- The rig is written as Bobcat specifications: Bobcat.Xunit opens a scenario around every test in a
+             [BobcatFeature] class, and the generator intercepts the step calls. Without the generator the suite
+             passes with no specification at all. -->
+        <PackageReference Include="Bobcat.Xunit" />
+        <PackageReference Include="Bobcat.Generators" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+        <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
+        <ProjectReference Include="..\..\Transports\AWS\Wolverine.AmazonSqs\Wolverine.AmazonSqs.csproj" />
+    </ItemGroup>
+
+</Project>
