@@ -15,9 +15,16 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
         _database = database;
     }
 
+    /// <summary>
+    ///     Deliberately does NOT dispose the <see cref="DbTransaction" />: whoever began it owns it. Every caller,
+    ///     the documented outbox pattern and Wolverine's own saga storage alike, finishes the transaction and
+    ///     disposes it, or its connection, itself. This runs much later, when the <see cref="MessageContext" />
+    ///     goes back to its pool, and Npgsql reuses one transaction object per pooled physical connection -- so
+    ///     disposing it here killed the live transaction of whichever handler had rented that connection since.
+    ///     Kept so that existing <c>using</c> blocks still compile. R1 in the durable compliance rig.
+    /// </summary>
     public void Dispose()
     {
-        _tx.Dispose();
     }
 
     public Task PersistOutgoingAsync(Envelope envelope)
