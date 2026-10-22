@@ -176,8 +176,14 @@ internal partial class OracleMessageStore
         cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
         cmd.With("attempts", envelope.Attempts);
         cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
-        await cmd.ExecuteNonQueryAsync(_cancellation);
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(_cancellation);
         await conn.CloseAsync();
+
+        // GH-5120: an update that matched nothing is a retry that will not run, unless the message already completed
+        if (rowsAffected == 0)
+        {
+            InboxSchedulingLog.MatchedNothing(_logger, envelope);
+        }
     }
 
     public async Task DeleteIncomingEnvelopeAsync(Envelope envelope)
