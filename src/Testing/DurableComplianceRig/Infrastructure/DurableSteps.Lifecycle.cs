@@ -313,6 +313,53 @@ public sealed partial class DurableSteps
         narrate($"{circuit.Endpoint.Uri} on node {node} is {circuit.Status}");
     }
 
+    /// <summary>A pause that does not wait for running handlers, as one raised from inside the handler pipeline.</summary>
+    [When("the listener on node {node} pauses for {seconds} s without waiting for its running handlers")]
+    public async Task TheListenerPausesWithoutWaiting(int node, int seconds)
+    {
+        var circuit = listenerOn(node);
+        await circuit.PauseAsync(seconds.Seconds());
+        narrate($"{circuit.Endpoint.Uri} on node {node} is {circuit.Status}");
+    }
+
+    /// <summary>A pause that latches and waits for running handlers first, as the circuit breaker's.</summary>
+    [When("the listener on node {node} pauses for {seconds} s after draining its running handlers")]
+    public async Task TheListenerPausesAfterDraining(int node, int seconds)
+    {
+        var circuit = listenerOn(node);
+        var stopwatch = Stopwatch.StartNew();
+        await circuit.PauseWithDrainAsync(seconds.Seconds());
+        narrate($"{circuit.Endpoint.Uri} on node {node} is {circuit.Status} after {stopwatch.ElapsedMilliseconds} ms");
+    }
+
+    /// <summary>The first half of a rebuild: latch, drain, stop -- and nothing else.</summary>
+    [When("the listener on node {node} stops and drains")]
+    public async Task TheListenerStopsAndDrains(int node)
+    {
+        var circuit = listenerOn(node);
+        var stopwatch = Stopwatch.StartNew();
+        if (circuit is IListeningAgent agent)
+        {
+            await agent.StopAndDrainAsync();
+        }
+        else
+        {
+            // A local queue has no stop of its own; its pause latches and drains the same way
+            await circuit.PauseWithDrainAsync(1.Hours());
+        }
+
+        narrate($"{circuit.Endpoint.Uri} on node {node} is {circuit.Status} after {stopwatch.ElapsedMilliseconds} ms");
+    }
+
+    /// <summary>The second half of a rebuild.</summary>
+    [When("the listener on node {node} starts")]
+    public async Task TheListenerStarts(int node)
+    {
+        var circuit = listenerOn(node);
+        await circuit.StartAsync();
+        narrate($"{circuit.Endpoint.Uri} on node {node} is {circuit.Status}");
+    }
+
     private IListenerCircuit listenerOn(int node)
     {
         var runtime = Node(node).GetRuntime();
@@ -475,6 +522,24 @@ public sealed partial class DurableSteps
         var runs = Script.Log.Where(x => x.MessageId == id).ToArray();
         if (runs.Length > 1) narrate(runs.Select(x => x.ToString()).Join("; "));
         SpecAssert.Check($"runs of message {number}", runs.Length, 1);
+    }
+
+    [Then("attempt {attempt} of message {number} started within {seconds} s of the attempt before it")]
+    public void AttemptStartedWithin(int attempt, int number, int seconds)
+    {
+        var id = MessageNumbered(number);
+        var runs = Script.Log.Where(x => x.MessageId == id).OrderBy(x => x.Attempt).ToArray();
+        var before = runs.FirstOrDefault(x => x.Attempt == attempt - 1);
+        var after = runs.FirstOrDefault(x => x.Attempt == attempt);
+        if (before == null || after == null)
+        {
+            SpecAssert.Fact(false, $"message {number} has no attempts {attempt - 1} and {attempt}");
+            return;
+        }
+
+        var gap = after.StartedAt - before.StartedAt;
+        narrate($"attempt {attempt} of message {number} started {gap.TotalMilliseconds:0} ms after attempt {attempt - 1}");
+        SpecAssert.Check($"attempt {attempt} started within {seconds}s", gap <= seconds.Seconds(), true);
     }
 
     [Then("no message ran more than once")]

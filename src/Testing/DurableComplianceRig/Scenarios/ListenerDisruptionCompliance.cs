@@ -85,6 +85,166 @@ public abstract class ListenerDisruptionCompliance : IAsyncLifetime
         await the.TheRowStayedOwnedWhileItsHandlerRan(1);
     }
 
+    /// <summary>
+    /// F15's decisive pair, with the pipeline taken out: the same pause from outside, once without waiting for
+    /// running handlers (what a pause raised from inside the pipeline does) and once after draining them (what the
+    /// circuit breaker does). Only the first should hand the running handler's row back. The pause is long, so no
+    /// restart (and so no F16) happens inside the scenario.
+    /// </summary>
+    [BobcatSpec]
+    public async Task a_pause_that_does_not_wait_does_not_release_a_row_still_running()
+    {
+        the.Mode = DurabilityMode.Balanced;
+        the.TheClusterReactsWithinSeconds();
+        the.ListenersRunInParallel(4);
+        await the.ANodeStarts();
+        the.MessagesToSend(2);
+        the.MessageWaitsForGate(1, "a");
+
+        await the.TheMessageIsSent(1, 1);
+        await the.MessageHasStarted(1);
+        the.TheInboxRowIsWatched(1);
+        await the.TheListenerPausesWithoutWaiting(1, 60);
+        await the.ANodeStarts();
+        await the.UpToSecondsPassForARerun(15, 1);
+        the.GateOpens("a");
+        await the.TheMessageIsSent(2, 2);
+
+        await the.TheDurableInvariantsHold();
+        await the.TheRowStayedOwnedWhileItsHandlerRan(1);
+    }
+
+    [BobcatSpec]
+    public async Task a_pause_that_drains_first_holds_a_row_still_running()
+    {
+        the.Mode = DurabilityMode.Balanced;
+        the.TheClusterReactsWithinSeconds();
+        the.TheDrainTimeoutIs(1000);
+        the.ListenersRunInParallel(4);
+        await the.ANodeStarts();
+        the.MessagesToSend(2);
+        the.MessageWaitsForGate(1, "a");
+
+        await the.TheMessageIsSent(1, 1);
+        await the.MessageHasStarted(1);
+        the.TheInboxRowIsWatched(1);
+        await the.TheListenerPausesAfterDraining(1, 60);
+        await the.ANodeStarts();
+        await the.UpToSecondsPassForARerun(15, 1);
+        the.GateOpens("a");
+        await the.TheMessageIsSent(2, 2);
+
+        await the.TheDurableInvariantsHold();
+        await the.TheRowStayedOwnedWhileItsHandlerRan(1);
+    }
+
+    /// <summary>
+    /// F16's decisive half: a rebuild split in two. Stopping and draining alone holds the running handler's row
+    /// (GH-4797); starting again while it still runs is what releases it.
+    /// </summary>
+    [BobcatSpec]
+    public async Task a_stopped_listener_holds_a_row_still_running_until_it_starts_again()
+    {
+        the.Mode = DurabilityMode.Balanced;
+        the.TheClusterReactsWithinSeconds();
+        the.TheDrainTimeoutIs(1000);
+        the.ListenersRunInParallel(4);
+        await the.ANodeStarts();
+        the.MessagesToSend(2);
+        the.MessageWaitsForGate(1, "a");
+
+        await the.TheMessageIsSent(1, 1);
+        await the.MessageHasStarted(1);
+        the.TheInboxRowIsWatched(1);
+        await the.TheListenerStopsAndDrains(1);
+        await the.ANodeStarts();
+        await the.UpToSecondsPassForARerun(10, 1);
+        the.GateOpens("a");
+        await the.SecondsPass(2);
+        await the.TheListenerStarts(1);
+        await the.TheMessageIsSent(2, 2);
+
+        await the.TheDurableInvariantsHold();
+        await the.TheRowStayedOwnedWhileItsHandlerRan(1);
+    }
+
+    /// <summary>
+    /// F17. A scheduled retry that comes due while its listener is paused is claimed by this node and handed to a
+    /// receiver that is not there. A durable local queue returns without a word, so nothing ever releases the row.
+    /// </summary>
+    [BobcatSpec]
+    public async Task a_retry_coming_due_while_its_listener_is_paused_is_not_dropped()
+    {
+        the.SettleTimeout = 45.Seconds();
+        the.TheClusterReactsWithinSeconds();
+        the.TheDrainTimeoutIs(2000);
+        the.MessagesToSend(3);
+        the.AFailureIsScheduledForRetry(2, 4);
+        the.AFailureRequeuesAndPauses(3, 8);
+        await the.ANodeStarts();
+        the.MessageFailsFirst(2, 1);
+        the.MessageFailsFirst(3, 1);
+
+        await the.TheMessagesAreSent(1);
+
+        await the.TheDurableInvariantsHold();
+    }
+
+    /// <summary>F17's control: the same retry, coming due after the listener has resumed.</summary>
+    [BobcatSpec]
+    public async Task a_retry_coming_due_after_its_listener_resumes_settles()
+    {
+        the.SettleTimeout = 45.Seconds();
+        the.TheClusterReactsWithinSeconds();
+        the.TheDrainTimeoutIs(2000);
+        the.MessagesToSend(3);
+        the.AFailureIsScheduledForRetry(2, 16);
+        the.AFailureRequeuesAndPauses(3, 8);
+        await the.ANodeStarts();
+        the.MessageFailsFirst(2, 1);
+        the.MessageFailsFirst(3, 1);
+
+        await the.TheMessagesAreSent(1);
+
+        await the.TheDurableInvariantsHold();
+    }
+
+    /// <summary>
+    /// A pause raised from inside the handler pipeline of a durable local queue drains with a latch, so it waits for
+    /// its own execution until DrainTimeout gives up. A two second pause then lasts DrainTimeout plus two seconds.
+    /// </summary>
+    [BobcatSpec]
+    public async Task a_two_second_pause_raised_by_a_failure_lasts_about_two_seconds()
+    {
+        the.TheClusterReactsWithinSeconds();
+        the.MessagesToSend(2);
+        the.AFailureRequeuesAndPauses(1, 2);
+        await the.ANodeStarts();
+        the.MessageFailsFirst(1, 1);
+
+        await the.TheMessagesAreSent(1);
+
+        await the.TheDurableInvariantsHold();
+        the.AttemptStartedWithin(2, 1, 10);
+    }
+
+    /// <summary>The control for the pause above: if the stall is the drain waiting on itself, DrainTimeout sets it.</summary>
+    [BobcatSpec]
+    public async Task a_two_second_pause_raised_by_a_failure_with_a_five_second_drain_timeout_lasts_about_seven()
+    {
+        the.TheClusterReactsWithinSeconds();
+        the.TheDrainTimeoutIs(5000);
+        the.MessagesToSend(2);
+        the.AFailureRequeuesAndPauses(1, 2);
+        await the.ANodeStarts();
+        the.MessageFailsFirst(1, 1);
+
+        await the.TheMessagesAreSent(1);
+
+        await the.TheDurableInvariantsHold();
+        the.AttemptStartedWithin(2, 1, 10);
+    }
+
     /// <summary>The control for the blip below: the same policy and script with a healthy database.</summary>
     [BobcatSpec]
     public async Task a_message_retried_inline_and_then_scheduled_settles()
