@@ -10,7 +10,14 @@ public enum Outcome
     DeadLettered,
 
     /// <summary>Discarded by an error policy: no effect, no dead letter, a settled row.</summary>
-    Discarded
+    Discarded,
+
+    /// <summary>
+    /// One copy of an intent several copies share a logical deduplication id with. Which copy runs is not known up
+    /// front, so per message this only requires no duplicate effect and a settled row; the copies' effects and dead
+    /// letters are judged together, per intent, by the deduplication steps.
+    /// </summary>
+    Deduplicated
 }
 
 /// <summary>
@@ -37,14 +44,14 @@ public class Invariants(RigSnapshot snapshot, IReadOnlyDictionary<Guid, Outcome>
 
     /// <summary>An effect committed for a message that should have been dead lettered or discarded.</summary>
     public IReadOnlyList<Guid> UnexpectedEffects() => expected
-        .Where(x => x.Value != Outcome.Handled && effectsOf(x.Key) > 0)
+        .Where(x => x.Value is not (Outcome.Handled or Outcome.Deduplicated) && effectsOf(x.Key) > 0)
         .Select(x => x.Key).ToArray();
 
     /// <summary>Dead lettered when it should not have been, missing when it should, or dead lettered twice.</summary>
     public IReadOnlyList<string> DeadLetterMismatches()
     {
         var wrong = new List<string>();
-        foreach (var (id, outcome) in expected)
+        foreach (var (id, outcome) in expected.Where(x => x.Value != Outcome.Deduplicated))
         {
             var count = deadLettersOf(id);
             if (outcome == Outcome.DeadLettered && count != 1) wrong.Add($"{id}: {count} dead letter rows, expected 1");
