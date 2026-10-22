@@ -31,7 +31,7 @@ public class BatchReplayTests
 
     private async Task<Envelope> replay(Envelope batch, params object[] items)
     {
-        await BatchReplay.EnqueueReducedBatchAsync(theRuntime, batch, items);
+        await BatchReplay.EnqueueReducedBatchAsync(theRuntime, batch, items.Select(x => new Envelope(x)).ToArray());
 
         var enqueued = theQueue.ReceivedCalls()
             .Where(x => x.GetMethodInfo().Name == nameof(ILocalQueue.EnqueueAsync))

@@ -21,7 +21,9 @@ namespace Wolverine.Runtime.WorkerQueues;
 /// the custody of the receiver it arrived on: the heartbeat keeps its row's clock running, and a drain of that
 /// receiver does not release it. The contract for whoever executes the batch is
 /// <see cref="SettleBatchMembers" /> (or <see cref="TrySettleBatchMember" /> for one member) once the batch is
-/// finished with a member -- marked handled, dead lettered, rescheduled, discarded or released.</para>
+/// finished with a member -- marked handled, dead lettered, rescheduled, discarded or released. A member whose
+/// <see cref="Envelope.InBatch" /> has been cleared by its batch's terminal is treated as settled too, so a terminal
+/// that only clears the flag (the buffered batch queue's) releases it as well.</para>
 /// </remarks>
 internal sealed class InboxCustody
 {
@@ -141,7 +143,43 @@ internal sealed class InboxCustody
     {
         get
         {
-            lock (_gate) return _batchMemberCount;
+            lock (_gate)
+            {
+                pruneSettledBatchMembers();
+                return _batchMemberCount;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A batch's terminal clears <see cref="Envelope.InBatch" /> on every member it settles, wherever that terminal
+    /// runs -- the buffered batch queue's included, which never calls <see cref="SettleBatchMembers" />. A member
+    /// no longer in a batch is not held for one. Call under <c>_gate</c>.
+    /// </summary>
+    private void pruneSettledBatchMembers()
+    {
+        if (_batchMemberCount == 0) return;
+
+        List<Envelope>? settled = null;
+        foreach (var (envelope, holding) in _held)
+        {
+            if (holding.IsBatchMember && !envelope.InBatch) (settled ??= new List<Envelope>()).Add(envelope);
+        }
+
+        if (settled == null) return;
+
+        foreach (var member in settled)
+        {
+            var holding = _held[member];
+            holding.IsBatchMember = false;
+            _batchMemberCount--;
+            leave(member);
+
+            if (_batchMembers.TryGetValue(member, out var owner) && ReferenceEquals(owner, this))
+            {
+                _batchMembers.Remove(member);
+                Interlocked.Decrement(ref _heldBatchMembers);
+            }
         }
     }
 
@@ -192,6 +230,8 @@ internal sealed class InboxCustody
     {
         lock (_gate)
         {
+            pruneSettledBatchMembers();
+
             List<Envelope>? due = null;
             foreach (var (envelope, holding) in _held)
             {

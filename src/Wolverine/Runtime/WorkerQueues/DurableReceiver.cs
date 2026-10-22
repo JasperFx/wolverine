@@ -887,6 +887,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
             foreach (var member in envelope.Batch)
             {
+                // No longer in a batch: nothing here will run it again, and its row is handed back below
+                member.InBatch = false;
                 InboxCustody.TrySettleBatchMember(member);
                 _abandoned.Enqueue(member);
             }

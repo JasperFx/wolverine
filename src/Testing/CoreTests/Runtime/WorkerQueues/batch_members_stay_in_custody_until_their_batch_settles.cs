@@ -242,4 +242,23 @@ public class batch_members_stay_in_custody_until_their_batch_settles : IAsyncLif
                 ((IReadOnlyList<Envelope>)x.GetArguments()[1]!).Contains(late)),
             "The envelope posted after the drain was dropped and its row never handed back");
     }
+
+    /// <summary>
+    /// A batch on the default, buffered queue settles its members in BatchMemberInbox, which only clears InBatch. That
+    /// is a terminal too: the receiver the members arrived on must stop holding them, or its address would look busy
+    /// forever and its drains could never use the blanket release again.
+    /// </summary>
+    [Fact]
+    public async Task a_member_whose_batch_terminal_only_clears_in_batch_is_no_longer_held()
+    {
+        var members = await membersAreAcceptedIntoABatch(2);
+
+        foreach (var member in members) member.InBatch = false;
+
+        theItemReceiver.HeldBatchMemberCount.ShouldBe(0);
+
+        theItemReceiver.Latch();
+        await theItemReceiver.DrainAsync();
+        await theRuntime.Storage.Inbox.Received().ReleaseIncomingAsync(Arg.Any<int>(), theItemEndpoint.Uri);
+    }
 }

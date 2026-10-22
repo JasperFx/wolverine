@@ -12,6 +12,7 @@ using JasperFx;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -679,85 +680,151 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
-        if (deadLetterQueue is not null)
+        if (Envelope.Batch != null)
         {
-            if (Envelope.Batch != null)
-            {
-                // GH-5105. A member that cannot be moved must not stop the rest: stopping at the first left every
-                // later member unmoved and, for a durable receiver, Incoming and owned by this node
-                DeadLetterMoveFailedException? moveFailure = null;
-                foreach (var envelope in Envelope.Batch)
-                {
-                    try
-                    {
-                        await deadLetterQueue.MoveToErrorsAsync(envelope, exception).ConfigureAwait(false);
-                    }
-                    catch (DeadLetterMoveFailedException e)
-                    {
-                        moveFailure ??= e;
-                    }
-                }
-
-                if (moveFailure != null)
-                {
-                    throw moveFailure;
-                }
-            }
-            else
-            {
-                await deadLetterQueue.MoveToErrorsAsync(Envelope, exception).ConfigureAwait(false);
-            }
-
+            await moveBatchToDeadLetterQueueAsync(Envelope, exception).ConfigureAwait(false);
             return;
         }
 
-        if (Envelope.Batch != null)
+        var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
+        if (deadLetterQueue is not null)
         {
-            foreach (var envelope in Envelope.Batch)
-            {
-                var ex = await interceptDeadLetterAsync(envelope, exception).ConfigureAwait(false);
-                await Storage.Inbox.MoveToDeadLetterStorageAsync(envelope, ex).ConfigureAwait(false);
-            }
+            await deadLetterQueue.MoveToErrorsAsync(Envelope, exception).ConfigureAwait(false);
+            return;
         }
-        else
-        {
-            // If persistable, persist
-            var ex = await interceptDeadLetterAsync(Envelope, exception).ConfigureAwait(false);
-            await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, ex).ConfigureAwait(false);
-        }
+
+        // If persistable, persist
+        var intercepted = await interceptDeadLetterAsync(Envelope, exception).ConfigureAwait(false);
+        await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, intercepted).ConfigureAwait(false);
 
         // If this is Inline
         await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
     }
 
-    // Dead-letter a specific SUBSET of a batch's member envelopes without touching the other members
-    // or completing the batch envelope. Used by the batch item-isolation continuations to move only the
-    // poison items to the DLQ while the survivors are acked or replayed. The batch envelope itself is
-    // settled afterwards by the caller's CompleteAsync(). GH-3289.
-    internal async Task MoveBatchMembersToDeadLetterQueueAsync(IReadOnlyList<Envelope> members, Exception exception)
+    /// <summary>
+    ///     Dead letter every member of a batch, each under its own identity
+    /// </summary>
+    private async Task moveBatchToDeadLetterQueueAsync(Envelope batch, Exception exception)
+    {
+        // GH-5105. A member that cannot be moved must not stop the rest: stopping at the first left every later
+        // member unmoved and, for a durable receiver, Incoming and owned by this node
+        var handedBack = await MoveBatchMembersToDeadLetterQueueAsync(batch.Batch!, exception).ConfigureAwait(false);
+
+        var pendingCounts = (Runtime as WolverineRuntime)?.BatchingPendingCounts;
+
+        if (handedBack.Count == 0)
+        {
+            if (tryGetDeadLetterQueue(_channel, batch) is not null)
+            {
+                // F8. The caller completes the batch after a native move, but release the members' pending counts
+                // here all the same, whoever the caller is: a batch that never reaches its completion would
+                // otherwise hold its listener's QueueCount, which back-pressure reads, up for good
+                pendingCounts?.SettleBatch(batch);
+            }
+            else
+            {
+                await _channel!.CompleteAsync(batch).ConfigureAwait(false);
+
+                // The batch is settled; the caller's own completion must not settle its members a second time
+                batch.HasBeenAcked = true;
+            }
+
+            return;
+        }
+
+        // F2 / F8. The members that could not be moved were handed back to be executed again on their own. Take them
+        // out of the batch without settling their inbox rows, and settle everything else now: the caller does not
+        // complete an envelope whose dead-letter move failed, which used to leak every member's pending count
+        BatchReplay.HandBack(Runtime, batch, handedBack);
+        await _channel!.CompleteAsync(batch).ConfigureAwait(false);
+        batch.HasBeenAcked = true;
+
+        throw new DeadLetterMoveFailedException(
+            $"{handedBack.Count} of the members of batch {batch.Id} could not be moved to dead letter storage; they were handed back to be executed again",
+            null);
+    }
+
+    /// <summary>
+    ///     Dead-letter a specific SUBSET of a batch's member envelopes without touching the other members
+    ///     or completing the batch envelope. Used by the batch item-isolation continuations to move only the
+    ///     poison items to the DLQ while the survivors are acked or replayed. The batch envelope itself is
+    ///     settled afterwards by the caller's CompleteAsync(). GH-3289.
+    /// </summary>
+    /// <returns>
+    ///     F2. The members that could NOT be dead lettered and were handed back to be executed again on their own
+    ///     instead. The caller must take them out of the batch (<see cref="BatchReplay.Detach" />) before it
+    ///     completes the batch, or the completion would settle, and so lose, them
+    /// </returns>
+    internal async Task<IReadOnlyList<Envelope>> MoveBatchMembersToDeadLetterQueueAsync(IReadOnlyList<Envelope> members,
+        Exception exception)
     {
         if (_channel == null || Envelope == null)
         {
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
+        List<Envelope>? handedBack = null;
+
         var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
-        if (deadLetterQueue is not null)
-        {
-            foreach (var member in members)
-            {
-                await deadLetterQueue.MoveToErrorsAsync(member, exception).ConfigureAwait(false);
-            }
-
-            return;
-        }
-
         foreach (var member in members)
         {
-            var ex = await interceptDeadLetterAsync(member, exception).ConfigureAwait(false);
-            await Storage.Inbox.MoveToDeadLetterStorageAsync(member, ex).ConfigureAwait(false);
+            if (deadLetterQueue is not null)
+            {
+                try
+                {
+                    await deadLetterQueue.MoveToErrorsAsync(member, exception).ConfigureAwait(false);
+                }
+                catch (DeadLetterMoveFailedException)
+                {
+                    // The durable receiver already handed the member's row back and logged it (GH-5105)
+                    (handedBack ??= []).Add(member);
+                }
+            }
+            else if (!await tryMoveBatchMemberToDeadLetterStorageAsync(member, exception).ConfigureAwait(false))
+            {
+                (handedBack ??= []).Add(member);
+            }
         }
+
+        return handedBack ?? (IReadOnlyList<Envelope>)Array.Empty<Envelope>();
+    }
+
+    /// <returns>False if the member could not be dead lettered and was handed back to be executed again</returns>
+    private async Task<bool> tryMoveBatchMemberToDeadLetterStorageAsync(Envelope member, Exception exception)
+    {
+        var intercepted = await interceptDeadLetterAsync(member, exception).ConfigureAwait(false);
+
+        // Only a batch on a buffered local queue gets here: a durable one is its own dead letter queue
+        if (_channel is not BufferedReceiver buffered)
+        {
+            await Storage.Inbox.MoveToDeadLetterStorageAsync(member, intercepted).ConfigureAwait(false);
+            return true;
+        }
+
+        var failure = await buffered.BatchMembers
+            .TryMoveToDeadLetterStorageAsync(member, intercepted, Runtime.Cancellation).ConfigureAwait(false);
+        if (failure == null) return true;
+
+        // B2. A member that arrived on a durable listener still has its inbox row. Hand it back to be executed again
+        // later rather than settle it with the batch, which used to leave it Incoming on this live node for good
+        if (BatchMemberInbox.HasUnsettledRow(member))
+        {
+            await buffered.BatchMembers.HandBackAsync(member).ConfigureAwait(false);
+
+            Runtime.Logger.LogError(failure,
+                "Could not move batch member {EnvelopeId} ({MessageType}, tenant {TenantId}) to dead letter storage. It was NOT dead lettered, and will be executed again after {Delay}",
+                member.Id, member.MessageType, member.TenantId, buffered.BatchMembers.DeadLetterRedeliveryDelay);
+
+            return false;
+        }
+
+        // Nothing durable holds this member any more -- it arrived on a buffered listener, or was sent locally -- so
+        // there is nothing to hand back
+        Runtime.Logger.LogError(failure,
+            "Could not move batch member {EnvelopeId} ({MessageType}, tenant {TenantId}) to dead letter storage, and it has no inbox row to be executed again from",
+            member.Id, member.MessageType, member.TenantId);
+
+        return true;
     }
 
     // Give registered IDeadLetterInterceptor implementations a chance to mutate the envelope
