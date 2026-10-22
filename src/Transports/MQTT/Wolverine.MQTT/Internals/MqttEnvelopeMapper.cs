@@ -78,6 +78,13 @@ public class MqttEnvelopeMapper : IMqttEnvelopeMapper
             message.UserProperties.Add(new MqttUserProperty(EnvelopeConstants.ParentIdKey, envelope.ParentId));
         }
 
+        // D2: the logical deduplication id, under the header EnvelopeSerializer uses. The incoming side
+        // already reads it through EnvelopeSerializer.ReadDataElement.
+        if (envelope.DeduplicationId.IsNotEmpty())
+        {
+            message.UserProperties.Add(new MqttUserProperty(EnvelopeConstants.DeduplicationIdKey, envelope.DeduplicationId));
+        }
+
         if (envelope.AckRequested)
         {
             message.UserProperties.Add(new MqttUserProperty(EnvelopeConstants.AckRequestedKey, true.ToString()));

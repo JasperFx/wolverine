@@ -415,7 +415,8 @@ public class lightweight_ef_core_chains_keep_claim_and_release_5108
         var code = runtime.Handlers.ChainFor<RecordPayment5108>()!.SourceCode!;
         _output.WriteLine(code);
 
-        code.ShouldContain("_messageDeduplicator.TryClaimAsync(");
+        // D1: message handler chains claim on behalf of their envelope, still up front and released on failure
+        code.ShouldContain(nameof(MessageDeduplicatorExtensions.TryClaimForEnvelopeAsync) + "(_messageDeduplicator");
         code.ShouldContain("ReleaseAsync");
         code.ShouldNotContain("TryClaimDeduplicationIdAsync");
     }

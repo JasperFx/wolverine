@@ -42,18 +42,29 @@ internal class RabbitMqEnvelope : Envelope
         Acknowledged = true;
     }
 
+    // Set once the copy is on the broker, so a retry of a deferral whose ack failed does not publish it again
+    private bool _deferredCopyPublished;
+
     internal async ValueTask DeferAsync()
     {
-        // ACK the original delivery to release the prefetch slot,
-        // then send a new copy to the queue for later processing.
-        // Without ACKing first, the original message stays "in-flight" in RabbitMQ
-        // and consumes a prefetch slot (blocking PreFetchCount(1) entirely).
+        // Send a new copy to the queue for later processing, then ACK the original delivery to release its
+        // prefetch slot. The ack still has to happen: without it the original stays "in-flight" in RabbitMQ and
+        // consumes a prefetch slot (blocking PreFetchCount(1) entirely).
+        //
+        // GH-5123. The copy goes FIRST. This used to ack and then publish, so a copy that could not be published
+        // -- a channel or connection that was not usable -- left the message nowhere at all. Publishing first
+        // costs at worst a duplicate (the copy landed, the ack did not, and the broker redelivers the original),
+        // which the durable inbox deduplicates. Publishing needs no prefetch slot, so this cannot block on one.
+        if (!_deferredCopyPublished)
+        {
+            await RabbitMqListener.PublishDeferredCopyAsync(this);
+            _deferredCopyPublished = true;
+        }
+
         if (!Acknowledged)
         {
             await RabbitMqListener.CompleteAsync(this);
             Acknowledged = true;
         }
-
-        await RabbitMqListener.RequeueAsync(this);
     }
 }

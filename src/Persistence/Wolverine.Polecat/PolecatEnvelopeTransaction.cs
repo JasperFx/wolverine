@@ -69,21 +69,21 @@ internal class PolecatEnvelopeTransaction : IEnvelopeTransaction
     {
         if (envelope.WasPersistedInInbox) return true;
 
-        try
-        {
-            // Might need to reset!
-            _context.MultiFlushMode = MultiFlushMode.AllowMultiples;
-            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
-            await PersistIncomingAsync(copy);
-            await Session.SaveChangesAsync(cancellation);
-
-            envelope.WasPersistedInInbox = true;
-            envelope.Status = EnvelopeStatus.Handled;
-            return true;
-        }
-        catch (Exception)
+        // R2: a delivery this inbox already finished is refused before the handler runs, which is what Eager
+        // promises a handler with side effects outside its transaction
+        if (await _context.Storage.Inbox.ExistsAsync(envelope, cancellation))
         {
             return false;
         }
+
+        // ...but the Handled row itself goes into the handler's own session rather than being committed here, so it
+        // commits or rolls back with the work it records. Committed up front, a handler that then failed left a
+        // record of completion behind, and the broker's redelivery of a message that was never handled was thrown
+        // away as a duplicate of itself. Two deliveries racing past the check above meet at the row's primary key
+        // when they commit, and the loser's work rolls back with it. MessageContext owns the envelope's flags
+        var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
+        await PersistIncomingAsync(copy);
+
+        return true;
     }
 }

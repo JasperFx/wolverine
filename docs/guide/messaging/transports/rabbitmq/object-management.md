@@ -292,6 +292,95 @@ There are just a few things to know:
 * Wolverine's internal reply or control queues will still be declared as "classic" so they can be non-durable
 * Streams cannot be purged, and Wolverine ignores the `AutoPurgeOnStartup()` setting for streams
 
+## Quorum Queues and the Durable Inbox
+
+If you're using quorum queues behind a [durable inbox](/guide/durability/), there's one Rabbit MQ setting you
+really want to know about before your first broker outage, and that's the quorum queue *delivery limit*.
+
+Starting with Rabbit MQ 4, every quorum queue has a delivery limit of 20 by default. Every time a message goes
+back to the queue without being acknowledged, the broker counts it, and on the 21st return the broker dead letters
+the message -- or just drops it on the floor if the queue doesn't have a dead letter exchange. That sounds like a
+reasonable poison message guard, and for a lot of systems it is. But think about what actually hands a message back
+to the queue:
+
+* A listener that is stopping, pausing, or restarting with messages still prefetched in memory
+* A channel or connection that closes during a network blip or a broker restart
+* A reject with requeue, which counts on every Rabbit MQ 4 version we've tried
+* A nack with requeue -- at least on Rabbit MQ 4.2.5, where a reject, a nack and a closed channel all counted against
+  the limit the exact same way. Newer 4.x releases stopped counting the nack, and Wolverine now hands transient
+  deliveries back with a nack for exactly that reason, but you shouldn't bet your messages on which broker version
+  you happen to be running
+
+None of those mean your message is poison. With the durable inbox, Wolverine acknowledges a message to Rabbit MQ
+just as soon as it's safely stored in your database, and from then on Wolverine's own [error handling
+policies](/guide/handlers/error-handling) decide what happens to a message that keeps failing. So the only thing the
+broker's delivery limit is really counting for a durable listener is how many times your system was disrupted while
+that message was in flight. A long enough outage with enough reconnects, and you can lose a perfectly good message
+without a single exception in your logs.
+
+To get out in front of that, you can opt into an `x-delivery-limit` for the quorum queues that Wolverine declares,
+either for every durable listener at once or queue by queue:
+
+<!-- snippet: sample_delivery_limit_for_durable_quorum_queues -->
+<a id='snippet-sample_delivery_limit_for_durable_quorum_queues'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts
+        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit")!)
+        .AutoProvision()
+        .UseQuorumQueues()
+
+        // Every quorum queue that Wolverine declares for a listener
+        // using the durable inbox gets this x-delivery-limit.
+        // -1 turns the limit off on RabbitMQ 4
+        .DeliveryLimitForDurableQuorumQueues(-1);
+
+    opts.ListenToRabbitQueue("incoming")
+        .UseDurableInbox();
+
+    opts.ListenToRabbitQueue("payments")
+        .UseDurableInbox()
+
+        // Or set the limit for just one queue, and this
+        // wins over the transport wide setting
+        .DeliveryLimit(100)
+
+        // Optional, but this lets in flight deliveries reach
+        // the inbox on a stop instead of being handed back
+        .DrainWaitForPrefetch();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L599-L628' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_limit_for_durable_quorum_queues' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A couple of things to know:
+
+* Neither setting changes anything unless you opt in. Wolverine declares your queues exactly the way it always has
+  by default.
+* `DeliveryLimitForDurableQuorumQueues()` only applies to quorum queues that are listened to with the durable inbox.
+  Inline or buffered listeners don't have the inbox to fall back on, so the broker's limit is still doing real work
+  for them.
+* The limit is only applied when Wolverine is the one declaring the queue. If you mark a queue as externally owned or
+  let some other process create it, Wolverine stays out of it.
+* `-1` turns the limit off on Rabbit MQ 4. If you'd rather keep a backstop, pick a number big enough to ride out
+  your worst outage.
+
+::: warning
+Rabbit MQ will not let you redeclare an existing queue with different arguments, so adding a delivery limit to a
+queue that already exists will make Wolverine fail at startup with a "inequivalent arg" error. For an existing queue,
+either delete the queue and let Wolverine recreate it, or set the delivery limit with a Rabbit MQ
+[policy](https://www.rabbitmq.com/docs/parameters#policies) instead, which applies to existing queues without
+redeclaring anything.
+:::
+
+::: tip
+If Wolverine declares a quorum queue for a durable listener without any delivery limit, you'll see a warning in your
+logs when that listener starts up. That's your cue to either opt in like the sample above, or confirm that a Rabbit
+MQ policy is taking care of it for you.
+:::
+
 ## Inside of Wolverine Extensions
 
 If you need to declare Rabbit MQ queues, exchanges, or bindings within a [Wolverine extension](/guide/extensions),

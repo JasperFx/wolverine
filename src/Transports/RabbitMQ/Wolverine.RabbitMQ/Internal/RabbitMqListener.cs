@@ -294,6 +294,9 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
             }
         }
 
+        // GH-5123. Once per queue, and only for a queue Wolverine declared (here, at start up, or by resource setup)
+        Queue.WarnIfDurableQuorumQueueHasNoDeliveryLimit(Logger);
+
         try
         {
             var result = await channel.QueueDeclarePassiveAsync(Queue.QueueName, _cancellation);
@@ -507,6 +510,15 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         }
 
         await _sender.Value.SendAsync(envelope);
+    }
+
+    /// <summary>
+    /// GH-5123. Publish a deferred delivery's copy back to this queue, without settling the original. See
+    /// <see cref="RabbitMqEnvelope.DeferAsync" /> for why the copy has to land before the original is acked.
+    /// </summary>
+    internal ValueTask PublishDeferredCopyAsync(RabbitMqEnvelope envelope)
+    {
+        return _sender.Value.SendAsync(envelope);
     }
 
     public Task CompleteAsync(RabbitMqEnvelope envelope)

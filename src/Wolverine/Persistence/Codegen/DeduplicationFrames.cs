@@ -83,6 +83,7 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
     private readonly TimeSpan? _window;
     private Variable? _deduplicator;
     private Variable? _cancellation;
+    private Variable? _envelope;
 
     /// <param name="deduplicatorUsage">
     /// Explicit expression for the <see cref="IMessageDeduplicator" />, or null to resolve it as an
@@ -118,6 +119,14 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
     /// </summary>
     public Variable Variable { get; }
 
+    /// <summary>
+    /// D1. Claim on behalf of the <see cref="Envelope" /> being handled, so a copy of the same envelope can take
+    /// over a claim its earlier attempt stranded (see <see cref="Durability.IEnvelopeAwareDeduplicationStore" />).
+    /// Only message handler chains have an envelope to hand; HTTP and gRPC chains leave this off and generate
+    /// exactly what they always did.
+    /// </summary>
+    public bool ClaimForEnvelope { get; init; }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var marker = _ancillaryStoreMarker == null
@@ -126,8 +135,22 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
 
         writer.Write($"var {Variable.Usage} = false;");
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
-        writer.Write(
-            $"{Variable.Usage} = !(await {deduplicatorUsage}.{nameof(IMessageDeduplicator.TryClaimAsync)}({_deduplicationId.Usage}, {DeduplicationWindowRendering.ArgumentFor(_window)}{marker}, {cancellationUsage}).ConfigureAwait(false));");
+
+        if (ClaimForEnvelope)
+        {
+            var window = _window.HasValue
+                ? $"{typeof(TimeSpan).FullNameInCode()}.{nameof(TimeSpan.FromTicks)}({_window.Value.Ticks})"
+                : "null";
+
+            writer.Write(
+                $"{Variable.Usage} = !(await {typeof(MessageDeduplicatorExtensions).FullNameInCode()}.{nameof(MessageDeduplicatorExtensions.TryClaimForEnvelopeAsync)}({deduplicatorUsage}, {_deduplicationId.Usage}, {_envelope!.Usage}, {window}, {marker}, {cancellationUsage}).ConfigureAwait(false));");
+        }
+        else
+        {
+            writer.Write(
+                $"{Variable.Usage} = !(await {deduplicatorUsage}.{nameof(IMessageDeduplicator.TryClaimAsync)}({_deduplicationId.Usage}, {DeduplicationWindowRendering.ArgumentFor(_window)}{marker}, {cancellationUsage}).ConfigureAwait(false));");
+        }
+
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);
@@ -147,6 +170,12 @@ internal class ClaimDeduplicationIdFrame : AsyncFrame
         {
             _cancellation = chain.FindVariable(typeof(CancellationToken));
             yield return _cancellation;
+        }
+
+        if (ClaimForEnvelope)
+        {
+            _envelope = chain.FindVariable(typeof(Envelope));
+            yield return _envelope;
         }
     }
 }

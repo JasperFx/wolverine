@@ -306,6 +306,60 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         ex.Duplicates.Single().Id.ShouldBe(existing.Id);
     }
 
+    /// <summary>
+    /// GH-5123. The same envelope twice in ONE batch, with no row for it yet: a broker redelivery after an outage
+    /// (or the outbox resending a publish it never saw confirmed) puts both copies in one micro-batch. The batched
+    /// insert hits the primary key, the existence check finds nothing -- the duplicate is inside the batch, not in
+    /// the table -- and the RDBMS stores rethrew the raw provider exception. The receiver then mistook a duplicate
+    /// for an unavailable inbox and paused the listener, and MultiTenantedMessageStore tripped the tenant write
+    /// brake, which deferred both copies back to the broker in a loop. RavenDB already reported this as a
+    /// duplicate (its own test of the same name); this holds every store to it.
+    /// </summary>
+    [Fact]
+    public async Task bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming-intra-batch");
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(
+            () => thePersistence.Inbox.StoreIncomingAsync(new[] { envelope, envelope }));
+    }
+
+    /// <summary>
+    /// GH-5123. When a batch insert reports a duplicate, DurableReceiver re-runs EVERY envelope of the batch through
+    /// the one-at-a-time path, which stores each one again unless it is marked WasPersistedInInbox. So a store may
+    /// either roll the whole batch back, or mark the envelopes it did commit, but never leave a fresh envelope
+    /// committed and unmarked: its second store reads as a duplicate, and a duplicate is settled with the broker
+    /// without ever reaching a handler. Oracle inserted row by row and committed the survivors, unmarked.
+    /// </summary>
+    [Fact]
+    public async Task a_batch_with_a_duplicate_never_leaves_a_fresh_envelope_stored_but_unmarked()
+    {
+        var existing = ObjectMother.Envelope();
+        existing.Destination = new Uri("stub://incoming-bulk-partial");
+        existing.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(existing);
+
+        var fresh = ObjectMother.Envelope();
+        fresh.Destination = existing.Destination;
+        fresh.Status = EnvelopeStatus.Incoming;
+
+        var copy = ObjectMother.Envelope();
+        copy.Id = existing.Id;
+        copy.Destination = existing.Destination;
+        copy.Status = EnvelopeStatus.Incoming;
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(
+            () => thePersistence.Inbox.StoreIncomingAsync(new[] { fresh, copy }));
+
+        if (await thePersistence.Inbox.ExistsAsync(fresh, CancellationToken.None))
+        {
+            fresh.WasPersistedInInbox.ShouldBeTrue(
+                "the store committed this envelope, so the receiver must not store it a second time");
+        }
+    }
+
     [Fact]
     public async Task store_a_single_outgoing_envelope()
     {

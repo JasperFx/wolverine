@@ -61,11 +61,21 @@ Each of those is a *different* delivery of the *same intent*, so each carries a 
 `Envelope.Id` and every one of them gets through. What is needed is an identity for the intent, and
 that is what `DeduplicationId` is.
 
-`Envelope.DeduplicationId` is a `string`, it is set by your application, and it already round-trips on
-every transport Wolverine supports — it is written to and read from the `deduplication-id` wire header
-by Wolverine's own serialization, so it survives Rabbit MQ, Kafka, Azure Service Bus, SQS, and the
-rest without any transport-specific configuration. (Two transports also consume it natively: SQS/SNS
-FIFO queues and topics, and GCP Pub/Sub.)
+`Envelope.DeduplicationId` is a `string`, it is set by your application, and it round-trips on every
+transport Wolverine supports under the `deduplication-id` wire header. The transports that carry the whole
+serialized envelope (SQS, SNS, the database-backed queues, local queues, TCP) get it from Wolverine's own
+serialization, and the brokers that map Wolverine's envelope onto native headers -- Rabbit MQ, Azure Service
+Bus, Kafka, NATS, Pulsar, Redis, GCP Pub/Sub and MQTT -- write and read the same header, so you don't need
+any transport-specific configuration. (Two transports also consume it natively: SQS/SNS FIFO queues and
+topics, and GCP Pub/Sub.)
+
+::: warning
+Before this release, the header-mapping brokers dropped the id on the floor. If you put a `[Deduplicated]`
+handler behind Rabbit MQ (or any of the brokers above) on an older Wolverine version, every copy arrived
+without its id and went straight to the dead letter queue with a `MissingDeduplicationIdException`. Reading
+the id off the message itself with `[Deduplicated(ValueSource.InputMember, ...)]` or
+`[DeduplicationIdentity]` side-stepped the problem, because then the id never has to cross the wire at all.
+:::
 
 ::: info
 We probably should have added this feature ages ago, but we did so in 6.31 to get ready for Wolverine to have a first
@@ -461,9 +471,48 @@ the key back, and the release is registered to run before the response is flushe
 cannot beat it. A 2xx or a 3xx keeps it, so an idempotency key means "this succeeded once" rather than
 "this was attempted once".
 
-Either way the guarantee you see is the same. The difference is cost: the transactional path pays one
-round trip, shared with whatever read your handler was already doing, where the compensating path pays
-one to claim and another to release.
+For a handler that fails and gets retried, the guarantee you see is the same either way. The difference is
+cost: the transactional path pays one round trip, shared with whatever read your handler was already doing,
+where the compensating path pays one to claim and another to release. Where the two paths do differ is when
+the process dies in the middle of your handler, and that's the next section.
+
+### When a node dies mid-handler
+
+On the compensating path, the claim is already committed before your handler starts, and the only thing that
+gives it back is the release Wolverine runs when the handler fails. If the node is killed outright in the
+middle of your handler -- a pod eviction, an out of memory kill, somebody pulling the plug -- that release
+never runs, and the claim is left sitting in the deduplication table.
+
+If you're using the durable inbox, Wolverine isn't going to lose that message, and another node will recover it
+from the inbox and run it again. That recovered copy is the *same* envelope, with the same `Envelope.Id`, as
+the one that died. To keep the stranded claim from refusing that recovered copy as a duplicate of itself,
+Wolverine records which envelope took each claim. When a copy of that same envelope comes back, it takes the
+claim over and runs. A *different* envelope with the same deduplication id is still refused, exactly as before,
+so the operator double-click is still caught.
+
+::: tip
+This is automatic for message handlers on the PostgreSQL, SQL Server, MySQL and SQLite message stores. Marten,
+EF Core in its `Eager` mode, Polecat and Fisher don't need it at all, because their claim rides your
+transaction: a crash before the commit takes the claim away with it.
+:::
+
+A couple of things you might want to know about this:
+
+* The envelope is recorded in a new, nullable `envelope_id` column on the deduplication table (in both the
+  `CompareByString` and `CompareByHash` shapes). If you already have the table, your next schema migration
+  just adds that column, and nothing else about the table changes. Claims written before the upgrade have no
+  envelope recorded, so they keep the old behaviour and refuse everything until they expire.
+* If you run with `AutoCreate.None` and haven't applied that migration yet,
+  nothing breaks. The first time a deduplicated handler claims an id, Wolverine checks whether the table has the
+  `envelope_id` column, once per process. If it doesn't, your claims work exactly the way they did before the
+  upgrade, and Wolverine logs a single warning telling you the table should be migrated to get crash-safe
+  claims. That check isn't repeated, so after you apply the migration by hand, restart the application to pick
+  the column up.
+* Taking a claim over is about the envelope, not about whether the work finished. If the node died *after*
+  your handler did its work but before the inbox marked the message as handled, the recovered copy will take
+  the claim over and run again. That's the usual at-least-once promise of the durable inbox on a plain
+  relational store, and the same thing an idempotent handler already has to cope with.
+* HTTP endpoints and gRPC methods have no envelope, so they keep the original behaviour.
 
 ### Why a separate table
 

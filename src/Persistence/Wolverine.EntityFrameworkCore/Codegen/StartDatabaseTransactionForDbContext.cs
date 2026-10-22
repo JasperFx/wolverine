@@ -99,9 +99,10 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
 /// path, the multi-tenant DbContext is created at runtime inside
 /// <see cref="Wolverine.EntityFrameworkCore.Internals.IDbContextBuilder{T}.BuildAndEnrollAsync" />, so the
 /// enlisted <see cref="Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction" /> is never
-/// surfaced as a codegen variable and its <c>CommitAsync</c> is not in the generated chain. The scrape
-/// loop is therefore inlined here so that <c>PublishDomainEventsFromEntityFrameworkCore</c> works under
-/// managed multi-tenancy too.
+/// surfaced as a codegen variable. <see cref="EfCoreTenantedTransaction.CommitAsync" /> finds it on the
+/// <see cref="MessageContext" /> at runtime and commits through it, which runs the scrapers and -- E3 -- marks a
+/// durable inbox row Handled inside the tenant transaction. It falls back to scraping and committing the DbContext
+/// directly, as this frame used to inline, when the context is enlisted with something else.
 /// </remarks>
 internal class CommitTenantedDbContextTransaction : AsyncFrame
 {
@@ -118,26 +119,13 @@ internal class CommitTenantedDbContextTransaction : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        // E3: commit through the EfCoreEnvelopeTransaction the tenant DbContext was enlisted with, so the durable
+        // inbox row is marked Handled inside this transaction exactly as on the single-database path. The helper
+        // still scrapes domain events first and saves what the scrape tracked (GH-3744) before committing
         writer.WriteComment(
-            "Scrape any domain events out of the tenant DbContext before committing (mirrors EfCoreEnvelopeTransaction.CommitAsync)");
-        writer.Write($"BLOCK:foreach (var scraper in {_scrapers.Usage})");
-        writer.Write($"await scraper.{nameof(IDomainEventScraper.ScrapeEvents)}({_dbContext.Usage}, {_context.Usage}).ConfigureAwait(false);");
-        writer.FinishBlock();
-
-        // GH-3744: this scrape runs as a postprocessor AFTER the SaveChangesAsync that
-        // EFCorePersistenceFrameProvider emits, and a durable route persists its envelope by adding an
-        // OutgoingMessage/IncomingMessage entity to the change tracker
-        // (EfCoreEnvelopeTransaction.PersistOutgoingAsync on a Wolverine-enabled DbContext). Committing
-        // straight after the scrape therefore committed the aggregate but dropped every envelope the
-        // scrape had just produced -- the domain event was still *published* in memory, so tracked-session
-        // assertions passed while the durable row was silently missing. Flush the tracker again so the
-        // envelopes land inside this transaction. A no-op when the scrape produced nothing.
-        writer.WriteComment("GH-3744: persist any envelopes the scrape just tracked, inside this transaction");
-        writer.Write($"await {_dbContext.Usage}.SaveChangesAsync({_cancellation.Usage}).ConfigureAwait(false);");
-
-        writer.WriteComment(
-            "Commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)");
-        writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+            "Scrape domain events, mark the inbox row handled and commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)");
+        writer.Write(
+            $"await {typeof(EfCoreTenantedTransaction).FullNameInCode()}.{nameof(EfCoreTenantedTransaction.CommitAsync)}({_dbContext.Usage}, {_context.Usage}, {_scrapers.Usage}, {_cancellation.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 

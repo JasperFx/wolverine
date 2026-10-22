@@ -1,4 +1,6 @@
 ﻿using Marten;
+using Npgsql;
+using Wolverine.RDBMS;
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
@@ -70,21 +72,39 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
     {
         if (envelope.WasPersistedInInbox) return true;
 
+        // R2: the Handled row goes into the handler's own transaction rather than being committed here, so it commits
+        // or rolls back with the work it records. Committed up front, a handler that then failed left a record of
+        // completion behind, and the broker's redelivery of a message that was never handled was thrown away as a
+        // duplicate of itself.
+        //
+        // The transaction is opened now and the row written into it now, not queued for SaveChangesAsync: a
+        // delivery the inbox already finished is refused by the primary key before the handler runs, which is what
+        // Eager promises a handler with side effects outside its transaction, and a duplicate delivered alongside
+        // the original waits on the original's uncommitted row instead of running the handler at the same time.
+        // MessageContext owns the envelope's flags, and puts them back if this rolls back
+        await Session.BeginTransactionAsync(cancellation);
+
+        var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
+        var builder = Store.ToCommandBuilder();
+        DatabasePersistence.BuildIncomingStorageCommand(Store, builder, copy);
+
+        // Npgsql runs a command in its connection's open transaction, which is the session's
+        await using var command = builder.Compile();
+        command.Connection = Session.Connection;
+
         try
         {
-            // Might need to reset!
-            _context.MultiFlushMode = MultiFlushMode.AllowMultiples;
-            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
-            await PersistIncomingAsync(copy);
-            await Session.SaveChangesAsync(cancellation);
-            
-            envelope.WasPersistedInInbox = true;
-            envelope.Status = EnvelopeStatus.Handled;
-            return true;
+            await command.ExecuteNonQueryAsync(cancellation);
         }
-        catch (Exception )
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             return false;
         }
+
+        // SaveChangesAsync skips a session with nothing queued, and would then leave the transaction holding the
+        // Handled row uncommitted -- a handler that saves nothing still has to leave its record of completion
+        Session.QueueSqlCommand("select 1");
+
+        return true;
     }
 }

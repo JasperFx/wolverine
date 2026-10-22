@@ -146,13 +146,18 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     {
         if (_latched || _cancellation.IsCancellationRequested || !_listener.IsConnected)
         {
-            // Reject on the DELIVERING channel, not on whatever the listener currently holds. One of the
+            // Give it back on the DELIVERING channel, not on whatever the listener currently holds. One of the
             // conditions above is !IsConnected, which is exactly when the listener's channel has been
             // torn down and nulled -- dereferencing it here threw a NullReferenceException. The tag is
             // channel-scoped anyway, so the listener's channel would have been the wrong one regardless.
+            //
+            // GH-5123. A nack, not a reject: on a quorum queue every requeued reject counts against the
+            // delivery limit (20 by default since RabbitMQ 4), so a listener giving the same message back
+            // through an outage could run it out of deliveries. Newer 4.x brokers no longer count a nack;
+            // 4.2.5 still did, so this is no worse there. See Bug_5123_quorum_queue_delivery_limit.
             if (Channel.IsOpen)
             {
-                await Channel.BasicRejectAsync(deliveryTag, true, _cancellation);
+                await Channel.BasicNackAsync(deliveryTag, false, true, _cancellation);
             }
 
             return;

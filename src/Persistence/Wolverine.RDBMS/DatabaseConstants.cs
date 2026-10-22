@@ -120,6 +120,14 @@ public class DatabaseConstants
     public const string Expires = "expires";
 
     /// <summary>
+    /// D1. The envelope that took a logical deduplication claim, on both <see cref="DeduplicationTableName"/> and
+    /// <see cref="HashedDeduplicationTableName"/>. Nullable and additive: a copy of the same envelope (the one inbox
+    /// recovery brings back after a node died mid-handler) may take the claim over, and a row with no envelope here
+    /// keeps the original behaviour of refusing everything.
+    /// </summary>
+    public const string DeduplicationEnvelopeId = "envelope_id";
+
+    /// <summary>
     /// GH-4742. Claims for <c>[DeduplicatedWithResponse]</c> HTTP endpoints: the id, expiry, request
     /// fingerprint and, once answered, the response. Separate from <see cref="DeduplicationTableName"/> so
     /// that table never migrates for this feature. Provisioned only when

@@ -95,6 +95,17 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
         if (duplicates.Count > 0)
         {
+            // GH-5123. There is no transaction across partitions, so the fresh envelopes above are already stored.
+            // DurableReceiver re-runs the whole batch one envelope at a time after this exception, and storing one
+            // of those a second time reads as a duplicate of itself: settled with the broker, never handled. Mark
+            // what landed so that path acknowledges and handles it instead. An intra-batch copy of a fresh
+            // envelope is in duplicates, so it stays unmarked and is settled as the duplicate it is.
+            // By reference: Envelope equality is by id, and the copy and the original share one
+            foreach (var envelope in envelopes)
+            {
+                if (!duplicates.Any(x => ReferenceEquals(x, envelope))) envelope.WasPersistedInInbox = true;
+            }
+
             // Surface so DurableReceiver completes only the actual duplicates at the
             // listener and re-pipelines the fresh ones; silently swallowing would
             // route every envelope (including the duplicate) to the handler.

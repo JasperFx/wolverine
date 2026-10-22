@@ -59,6 +59,16 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     internal bool HasDeclared { get; private set; }
 
     /// <summary>
+    /// GH-5123. The <c>x-delivery-limit</c> to declare this queue with when it is a quorum queue. Null, the
+    /// default, declares no limit and leaves the broker's default in place (20 on RabbitMQ 4), unless
+    /// <see cref="RabbitMqTransport.DurableQuorumQueueDeliveryLimit"/> applies. -1 means no limit on
+    /// RabbitMQ 4. Ignored for classic queues and streams, and only used when Wolverine declares the queue.
+    /// </summary>
+    public int? DeliveryLimit { get; set; }
+
+    private bool _warnedAboutDeliveryLimit;
+
+    /// <summary>
     /// For durable (inbox-backed) listeners, the maximum number of prefetched deliveries the
     /// consumer will coalesce into one batched inbox insert (with a 5ms max accumulation age).
     /// 1 reverts to strict message-at-a-time persistence. Ignored for Buffered/Inline
@@ -370,6 +380,8 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         {
             Arguments[RabbitMqTransport.QueueTypeHeader] = QueueType.ToString();
         }
+
+        applyDeliveryLimit();
         
         if (DeadLetterQueue is { Mode: DeadLetterQueueMode.Native } && QueueType != QueueType.stream)
         {
@@ -417,6 +429,54 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         }
 
         HasDeclared = true;
+    }
+
+    /// <summary>
+    /// GH-5123. Both ways in are opt-in: with neither set, the declared arguments are exactly what they were, which
+    /// matters because RabbitMQ refuses to redeclare an existing queue with different arguments.
+    /// </summary>
+    private void applyDeliveryLimit()
+    {
+        if (QueueType != QueueType.quorum) return;
+
+        if (DeliveryLimit.HasValue)
+        {
+            Arguments[RabbitMqTransport.DeliveryLimitHeader] = DeliveryLimit.Value;
+            return;
+        }
+
+        if (isDurableListener() && _parent.DurableQuorumQueueDeliveryLimit is { } limit &&
+            !Arguments.ContainsKey(RabbitMqTransport.DeliveryLimitHeader))
+        {
+            Arguments[RabbitMqTransport.DeliveryLimitHeader] = limit;
+        }
+    }
+
+    private bool isDurableListener() => IsListener && Mode == EndpointMode.Durable;
+
+    internal const string MissingDeliveryLimitWarning =
+        "The durable listener at {Uri} uses the quorum queue '{Queue}', which Wolverine declared without an x-delivery-limit. " +
+        "RabbitMQ 4 drops a quorum queue message (or dead letters it, if the queue has a dead letter exchange) on its 21st return to the queue, " +
+        "and every listener restart, reconnect or shutdown returns the messages still in flight. The durable inbox already protects these messages, " +
+        "so consider DeliveryLimit(-1) on this listener or DeliveryLimitForDurableQuorumQueues(-1) on the transport. " +
+        "See the Rabbit MQ quorum queue section of the Wolverine documentation";
+
+    /// <summary>
+    /// GH-5123. Warn, once, when Wolverine itself declared a quorum queue for a durable listener and left the broker's
+    /// delivery limit in place. A queue Wolverine did not declare may well have a limit set by a policy, which this
+    /// cannot see, so it stays quiet about those.
+    /// </summary>
+    internal void WarnIfDurableQuorumQueueHasNoDeliveryLimit(ILogger logger)
+    {
+        if (_warnedAboutDeliveryLimit || !HasDeclared || QueueType != QueueType.quorum || !isDurableListener())
+        {
+            return;
+        }
+
+        if (Arguments.ContainsKey(RabbitMqTransport.DeliveryLimitHeader)) return;
+
+        _warnedAboutDeliveryLimit = true;
+        logger.LogWarning(MissingDeliveryLimitWarning, Uri, QueueName);
     }
 
     /// <summary>
