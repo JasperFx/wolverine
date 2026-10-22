@@ -99,8 +99,22 @@ proven to be too buggy to be useful.
 Idempotency checking within message handlers executing within `Buffered` or more likely `Inline` listeners will require
 you to "opt in." First though, the idempotency check in this case can be done in one of two modes:
 
-1. `Eager` -- just means that Wolverine will apply some middleware around the handler such that it will make an early database call to try to insert a skeleton placeholder in the transactional inbox storage
+1. `Eager` -- just means that Wolverine will apply some middleware around the handler such that it checks for, and claims, a skeleton placeholder in the transactional inbox storage *before* your handler runs
 2. `Optimistic` -- Wolverine would try to insert the skeleton message information as part of the message handling transaction to try to avoid extra database round trips
+
+<!-- DRAFT: for Jeremy's review -->
+::: info
+The `Eager` placeholder is written into the **same** transaction as your handler's own work, so it commits or rolls back right
+along with everything else. That matters more than it sounds. Before this, the placeholder was committed up front on its own, so
+a handler that failed and got requeued or retried came back to find a "handled" record for work that never actually committed --
+and Wolverine refused the retry as a duplicate of itself. Now a failed attempt leaves nothing behind, and only an attempt that really
+committed makes the next copy a duplicate.
+
+Marten goes one step further and takes the placeholder row as soon as the check runs, so a second copy of the same message arriving
+at the same moment waits on the first one rather than running alongside it. Polecat, Fisher, and EF Core in `Lightweight` mode can't
+open their transaction that early, so two copies landing at exactly the same moment can both run the handler -- but only one of them
+can commit.
+:::
 
 `Optimistic` was the more optimal of the two on paper, but as the warning above says, it is **not currently reachable**. Every
 provider -- EF Core, Marten, Polecat, and Fisher alike -- emits the `Eager` check for any handler configured with either style,
