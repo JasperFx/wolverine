@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 
 namespace Wolverine.Runtime.Batching;
@@ -53,7 +54,14 @@ internal class ProbeIndividuallyContinuation : IContinuation
         // case: a multi-item batch is probed into singletons, and each failing singleton lands here.
         if (batch is null || members is null || members.Length <= 1)
         {
-            await lifecycle.MoveToDeadLetterQueueAsync(_exception).ConfigureAwait(false);
+            // F2. A member whose dead-letter write failed was handed back to be executed again; completing it now
+            // would settle, and so lose, it
+            if (!await BatchDeadLetters.TryMoveToDeadLetterQueueAsync(lifecycle, runtime, _exception)
+                    .ConfigureAwait(false))
+            {
+                return;
+            }
+
             await lifecycle.CompleteAsync().ConfigureAwait(false);
             if (batch is not null)
             {
@@ -75,14 +83,27 @@ internal class ProbeIndividuallyContinuation : IContinuation
 
         // Re-run each member as its own size-1 batch (via the shared re-execution primitive) so only the
         // member carrying the bad element fails and dead-letters; the healthy members succeed. Bounded
-        // and one-time: the singletons cannot be split further (handled by the guard above).
-        foreach (var member in members)
+        // and one-time: the singletons cannot be split further (handled by the guard above). F1: each singleton
+        // carries the ORIGINAL member, taken out of this batch, so it is settled only at the end of its own run and
+        // a poison member is dead lettered as itself
+        var originals = members.ToArray();
+        BatchReplay.Detach(batch, originals);
+        foreach (var member in originals)
         {
-            await BatchReplay.EnqueueReducedBatchAsync(runtime, batch, new[] { member.Message! })
-                .ConfigureAwait(false);
+            try
+            {
+                await BatchReplay.EnqueueReducedBatchAsync(runtime, batch, [member]).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                // Leave its inbox row, if it has one, as it is to be recovered. Settling it would lose it
+                runtime.Logger.LogError(e,
+                    "Unable to replay batch member {EnvelopeId} on its own while probing batch {BatchId}",
+                    member.Id, batch.Id);
+            }
         }
 
-        // Settle the original batch; every member is now re-represented as its own singleton batch.
+        // Settle the original batch, which no longer holds any member: each one rides its own singleton batch.
         await lifecycle.CompleteAsync().ConfigureAwait(false);
 
         runtime.MessageTracking.MessageFailed(batch, _exception);

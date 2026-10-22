@@ -1,8 +1,5 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using Wolverine.ErrorHandling;
-using Wolverine.Runtime.WorkerQueues;
-using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime.Batching;
 
@@ -47,7 +44,12 @@ internal class ApplyItemContinuation : IContinuation
         // isolate, so fall back to dead-lettering the whole envelope.
         if (batch is null || members is null || members.Length == 0)
         {
-            await lifecycle.MoveToDeadLetterQueueAsync(_exception).ConfigureAwait(false);
+            if (!await BatchDeadLetters.TryMoveToDeadLetterQueueAsync(lifecycle, runtime, _exception)
+                    .ConfigureAwait(false))
+            {
+                return;
+            }
+
             await lifecycle.CompleteAsync().ConfigureAwait(false);
             if (batch is not null)
             {
@@ -90,12 +92,17 @@ internal class ApplyItemContinuation : IContinuation
             _ => survivors
         };
 
-        // 1. Dead-letter ONLY the poison members (the final CompleteAsync then settles them too).
+        // 1. Dead-letter ONLY the poison members, each under its own identity
         if (poison.Count > 0)
         {
             if (lifecycle is MessageContext context)
             {
-                await context.MoveBatchMembersToDeadLetterQueueAsync(poison, _exception).ConfigureAwait(false);
+                // F2. A poison member whose dead-letter write failed has been handed back to be executed again on
+                // its own. It must not be settled with this batch, and it must not stop the survivors being replayed
+                var handedBack = await context.MoveBatchMembersToDeadLetterQueueAsync(poison, _exception)
+                    .ConfigureAwait(false);
+
+                BatchReplay.HandBack(runtime, batch, handedBack);
             }
             else
             {
@@ -104,20 +111,17 @@ internal class ApplyItemContinuation : IContinuation
             }
         }
 
-        // 2. Replay the survivors we are re-running as a fresh, reduced batch on the same local queue.
+        // 2. Replay the survivors we are re-running as a fresh, reduced batch on the same local queue. F1: these are
+        //    the ORIGINAL member envelopes, taken out of this batch so that each is settled only when its own replay
+        //    reaches its terminal, and not here while the replay exists only in memory
         if (replay.Length > 0)
         {
-            var items = new object[replay.Length];
-            for (var i = 0; i < replay.Length; i++)
-            {
-                items[i] = replay[i].Message!;
-            }
-
-            await BatchReplay.EnqueueReducedBatchAsync(runtime, batch, items).ConfigureAwait(false);
+            BatchReplay.Detach(batch, replay);
+            await BatchReplay.EnqueueReducedBatchAsync(runtime, batch, replay).ConfigureAwait(false);
         }
 
-        // 3. Settle every ORIGINAL member (ack survivors, the now-dead-lettered poison, and the
-        //    replayed originals whose work now rides on the fresh reduced batch) plus the batch itself.
+        // 3. Settle the members left in this batch -- the dead-lettered poison and any survivors acked as they are --
+        //    and the batch itself
         await lifecycle.CompleteAsync().ConfigureAwait(false);
 
         runtime.MessageTracking.MessageFailed(batch, _exception);
@@ -140,76 +144,5 @@ internal class ApplyItemContinuation : IContinuation
         }
 
         return false;
-    }
-}
-
-/// <summary>
-/// Shared re-execution primitive for the batch item-isolation features (GH-3289): re-enqueue a reduced
-/// batch (a subset of the original items) onto the batch's own local queue so the batch handler runs
-/// again over only those items. No separate single-element handler is needed.
-/// </summary>
-internal static class BatchReplay
-{
-    // Array.CreateInstance closes over the runtime batch element type, same reflective shape as the rest
-    // of the batching subsystem (DefaultMessageBatcher / BatchingOptions). AOT-clean apps supply their
-    // own IMessageBatcher and run pre-generated handlers in TypeLoadMode.Static - see the AOT guide.
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Reduced-batch array closed over runtime element type; AOT consumers register batchers explicitly. See AOT guide.")]
-    public static async ValueTask EnqueueReducedBatchAsync(IWolverineRuntime runtime, Envelope batchEnvelope,
-        IReadOnlyList<object> items)
-    {
-        if (items.Count == 0)
-        {
-            return;
-        }
-
-        var destination = batchEnvelope.Destination
-            ?? throw new InvalidOperationException(
-                "The batch envelope has no Destination local queue to replay a reduced batch onto");
-
-        if (runtime.Endpoints.AgentForLocalQueue(destination) is not ILocalQueue queue)
-        {
-            throw new InvalidOperationException(
-                $"Unable to resolve local queue '{destination}' to replay a reduced batch onto");
-        }
-
-        // Rebuild the typed T[] the batch handler expects from the batch message's element type.
-        var elementType = batchEnvelope.Message?.GetType().GetElementType() ?? items[0].GetType();
-        var typedArray = Array.CreateInstance(elementType, items.Count);
-        var members = new Envelope[items.Count];
-        for (var i = 0; i < items.Count; i++)
-        {
-            typedArray.SetValue(items[i], i);
-
-            // Fresh member envelopes carry the items BY REFERENCE so a subsequent ApplyItemException on
-            // the replayed batch can still map thrown items back to their members.
-            members[i] = new Envelope(items[i]);
-        }
-
-        var reduced = new Envelope(typedArray, members)
-        {
-            Destination = destination,
-            MessageType = batchEnvelope.MessageType,
-            TenantId = batchEnvelope.TenantId,
-
-            // GH-3867 — carry the group id, or the reduced batch draws a RANDOM partition slot on the
-            // way back in and a poison probe scatters the original batch's items across slots.
-            GroupId = batchEnvelope.GroupId
-        };
-
-        // GH-4397 — a reduced batch is still work its pipeline owes, so it counts as pending until its own
-        // terminal. The original batch's terminal releases the original members; these are new ones.
-        var pendingCounts = (runtime as WolverineRuntime)?.BatchingPendingCounts;
-        pendingCounts?.CountReplayedBatch(reduced);
-
-        try
-        {
-            await queue.EnqueueAsync(reduced).ConfigureAwait(false);
-        }
-        catch
-        {
-            pendingCounts?.SettleBatch(reduced);
-            throw;
-        }
     }
 }

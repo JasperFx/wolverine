@@ -228,6 +228,19 @@ un-settled in the message store; only when the assembled batch message completes
 handled together. On inline and buffered listeners there is no inbox to defer to, so the member is settled as
 soon as the batching handler absorbs it.
 
+It's the listener the messages arrive on that matters here, not the local queue the batches run on. If your
+messages come in through a durable listener but the batches execute on the default, buffered local queue for
+the batched message type, each member still keeps its own row in the inbox, and Wolverine marks those rows as
+handled when the batch finishes.
+
+The item isolation features further down this page don't change any of this either. When an
+`ApplyItemException` or `IsolateBatchMembers()` re-runs some of the members as a smaller batch, those are the
+very same messages with the very same inbox rows, and each one is only marked as handled once the smaller batch
+it's re-run in finishes. If your node shuts down before that replay gets its turn, the messages are still
+sitting in the inbox and will be picked up again. And if a poison message can't be moved to the dead letter
+queue because the database is having a bad moment, Wolverine doesn't mark it as handled and lose it. That one
+message is handed back to the inbox to be tried again a little later, and the rest of the batch carries on.
+
 ### The lock window caveat (lock-based transports)
 
 On transports that hand out a time-bounded lock or lease per message — Azure Service Bus peek-lock, Amazon SQS
