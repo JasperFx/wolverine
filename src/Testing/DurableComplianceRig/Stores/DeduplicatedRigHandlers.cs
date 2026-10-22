@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DurableComplianceRig.Infrastructure;
 using Marten;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine;
 using Wolverine.AmazonSqs;
@@ -212,16 +213,16 @@ public static class DeduplicationHooks
     private static CancellationTokenSource crashFor(string node) => _crashedNodes.GetOrAdd(node, _ => new CancellationTokenSource());
 
     /// <summary>Called by every deduplicated rig handler first thing, which is after the claim.</summary>
-    /// <param name="abortOnCrash">
+    /// <param name="onCrash">
     /// A disposed host does not kill its in-flight handlers. Where the claim is a row lock held by the handler's own
     /// open transaction (EF Core), that zombie would block the recovered copy's claim for as long as it waits, which a
-    /// real crash never does: the database rolls a dead connection back. So that handler throws when its node
-    /// "crashes", and its transaction rolls back. The other stores hold nothing open while waiting, and their zombies
-    /// must NOT throw: on the claim-and-release path a throw would run the compensating release that a real crash never
-    /// gets to run.
+    /// real crash never does: the database rolls a dead connection back. So that handler closes its connection when
+    /// its node "crashes", and keeps waiting. It must not throw: the zombie runtime would run its error policy and
+    /// dead letter a message a real crash leaves alone, and on the claim-and-release path a throw would also run the
+    /// compensating release that a real crash never gets to run. The other stores hold nothing open while waiting.
     /// </param>
     public static async Task BeforeHandlingAsync(RigDeduplicatedMessage message, RigNodeName node, DeduplicationProbe probe,
-        bool abortOnCrash)
+        Func<Task>? onCrash = null)
     {
         if (ProbeClaims && !_claimsSeenWhileRunning.ContainsKey(message.Id))
         {
@@ -234,9 +235,10 @@ public static class DeduplicationHooks
         try
         {
             var crashed = crashFor(node.Name).Token;
-            if (abortOnCrash)
+            if (onCrash != null)
             {
-                await hold.Task.WaitAsync(TimeSpan.FromMinutes(2), crashed);
+                await using var registration = crashed.Register(() => _ = onCrash());
+                await hold.Task.WaitAsync(TimeSpan.FromMinutes(2));
             }
             else
             {
@@ -261,7 +263,7 @@ public static class RdbmsDeduplicatedHandler
     internal static async Task HandleAsync(RigDeduplicatedMessage message, Envelope envelope, IMessageContext context,
         RigNodeName node, RdbmsLedger ledger, DeduplicationProbe probe)
     {
-        await DeduplicationHooks.BeforeHandlingAsync(message, node, probe, abortOnCrash: false);
+        await DeduplicationHooks.BeforeHandlingAsync(message, node, probe);
         await ledger.RecordAsync(context, envelope, [message.Id], node);
     }
 }
@@ -285,7 +287,7 @@ public static class MartenDeduplicatedHandler
     internal static async Task HandleAsync(RigDeduplicatedMessage message, Envelope envelope, IDocumentSession session,
         IMessageContext context, RigNodeName node, MartenLedger ledger, DeduplicationProbe probe)
     {
-        await DeduplicationHooks.BeforeHandlingAsync(message, node, probe, abortOnCrash: false);
+        await DeduplicationHooks.BeforeHandlingAsync(message, node, probe);
         await ledger.RecordAsync(session, context, envelope, [message.Id], node);
     }
 }
@@ -311,7 +313,8 @@ public static class EfCoreDeduplicatedHandler
     internal static async Task HandleAsync(RigDeduplicatedMessage message, Envelope envelope, RigDbContext db,
         RigNodeName node, DeduplicationProbe probe)
     {
-        await DeduplicationHooks.BeforeHandlingAsync(message, node, probe, abortOnCrash: true);
+        await DeduplicationHooks.BeforeHandlingAsync(message, node, probe,
+            () => db.Database.GetDbConnection().CloseAsync());
 
         db.Envelope = envelope;
         var (step, execution) = await Script.BeginAsync(message.Id, node.Name, envelope.Id);

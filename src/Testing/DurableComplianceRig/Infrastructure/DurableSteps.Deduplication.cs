@@ -92,7 +92,9 @@ public sealed partial class DurableSteps
     private async Task sendCopyAsync(Guid id, int node)
     {
         await Node(node).MessageBus().PublishAsync(new RigDeduplicatedMessage(id, _keyOf[id]));
-        _sentCopies.Add(id);
+
+        // Two nodes send at once
+        lock (_sentCopies) _sentCopies.Add(id);
     }
 
     [When("the copies are sent from node {node}")]

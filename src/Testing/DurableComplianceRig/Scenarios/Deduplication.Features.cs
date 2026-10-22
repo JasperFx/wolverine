@@ -68,3 +68,35 @@ public class dedup_efcore_rabbitmq_hash(ITestOutputHelper output)
 [BobcatFeature("Logical deduplication: EF Core on SQL Server over RabbitMQ, CompareByString")]
 public class dedup_efcore_rabbitmq_string(ITestOutputHelper output)
     : DeduplicationCompliance(new EfCoreStore(), new RabbitMqTransport(), MessageDeduplicationMode.CompareByString, output);
+
+[BobcatFeature("Logical deduplication: PostgreSQL over Amazon SQS, CompareByHash")]
+public class dedup_postgresql_sqs_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new PostgresqlStore(), new SqsTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: PostgreSQL over a database-backed queue, CompareByHash")]
+public class dedup_postgresql_database_queue_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new PostgresqlStore(), new DatabaseQueueTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: SQL Server over Amazon SQS, CompareByHash")]
+public class dedup_sqlserver_sqs_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new SqlServerStore(), new SqsTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: SQL Server over a database-backed queue, CompareByHash")]
+public class dedup_sqlserver_database_queue_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new SqlServerStore(), new DatabaseQueueTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: Marten over Amazon SQS, CompareByHash")]
+public class dedup_marten_sqs_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new MartenStore(), new SqsTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: Marten over a database-backed queue, CompareByHash")]
+public class dedup_marten_database_queue_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new MartenStore(), new DatabaseQueueTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: EF Core on SQL Server over Amazon SQS, CompareByHash")]
+public class dedup_efcore_sqs_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new EfCoreStore(), new SqsTransport(), MessageDeduplicationMode.CompareByHash, output);
+
+[BobcatFeature("Logical deduplication: EF Core on SQL Server over a database-backed queue, CompareByHash")]
+public class dedup_efcore_database_queue_hash(ITestOutputHelper output)
+    : DeduplicationCompliance(new EfCoreStore(), new DatabaseQueueTransport(), MessageDeduplicationMode.CompareByHash, output);
