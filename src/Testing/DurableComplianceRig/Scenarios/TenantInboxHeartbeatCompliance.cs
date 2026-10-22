@@ -52,7 +52,12 @@ public abstract class InboxHeartbeatCompliance : IAsyncLifetime
         await the.StopRigHeartbeatAsync();
         await the.DisposeAsync();
     }
+}
 
+/// <summary>An untenanted message, whose row is in the main database.</summary>
+public abstract class MainDatabaseHeartbeatCompliance(StoreProfile store, TransportProfile transport, ITestOutputHelper output)
+    : InboxHeartbeatCompliance(store, transport, output)
+{
     /// <summary>An untenanted message: its row is in the main database.</summary>
     [BobcatSpec]
     public async Task a_handler_slower_than_the_inbox_stale_time_runs_once()
@@ -89,21 +94,44 @@ public abstract class TenantInboxHeartbeatCompliance(TenancyStoreProfile store, 
     }
 }
 
+/// <summary>
+/// Both: a tenant's message, and an untenanted one in the main database. Not for Marten, whose
+/// <c>MultiTenantedDatabases</c> has no database for a message without a tenant (it is dead lettered).
+/// </summary>
+public abstract class TenantAndMainHeartbeatCompliance(TenancyStoreProfile store, TransportProfile transport, ITestOutputHelper output)
+    : TenantInboxHeartbeatCompliance(store, transport, output)
+{
+    /// <summary>The composite store fronts the main database too, so its rows get no heartbeat either.</summary>
+    [BobcatSpec]
+    public async Task an_untenanted_handler_slower_than_the_inbox_stale_time_runs_once()
+    {
+        await the.ANodeStarts();
+        await the.ANodeStarts();
+        the.MessagesToSend(3);
+        the.MessageIsSlow(2, 20_000);
+        the.RestartStaleClocksForTheReceiverIfAsked(StaleTime);
+
+        await the.TheMessagesAreSentWithTheirTenants(1);
+
+        await the.TheDurableInvariantsHold();
+    }
+}
+
 [BobcatFeature("Inbox heartbeat (F19): PostgreSQL, one database, over a durable local queue (control)")]
 public class heartbeat_postgresql_local(ITestOutputHelper output)
-    : InboxHeartbeatCompliance(new PostgresqlStore(), new LocalQueueTransport(), output);
+    : MainDatabaseHeartbeatCompliance(new PostgresqlStore(), new LocalQueueTransport(), output);
 
 [BobcatFeature("Inbox heartbeat (F19): PostgreSQL, a database per tenant, over a durable local queue")]
 public class heartbeat_tenancy_postgresql_local(ITestOutputHelper output)
-    : TenantInboxHeartbeatCompliance(new PostgresqlTenancyStore(), new LocalQueueTransport(), output);
+    : TenantAndMainHeartbeatCompliance(new PostgresqlTenancyStore(), new LocalQueueTransport(), output);
 
 [BobcatFeature("Inbox heartbeat (F19): PostgreSQL, a database per tenant, over RabbitMQ")]
 public class heartbeat_tenancy_postgresql_rabbitmq(ITestOutputHelper output)
-    : TenantInboxHeartbeatCompliance(new PostgresqlTenancyStore(), new RabbitMqTransport(), output);
+    : TenantAndMainHeartbeatCompliance(new PostgresqlTenancyStore(), new RabbitMqTransport(), output);
 
 [BobcatFeature("Inbox heartbeat (F19): SQL Server, a database per tenant, over a durable local queue")]
 public class heartbeat_tenancy_sqlserver_local(ITestOutputHelper output)
-    : TenantInboxHeartbeatCompliance(new SqlServerTenancyStore(), new LocalQueueTransport(), output);
+    : TenantAndMainHeartbeatCompliance(new SqlServerTenancyStore(), new LocalQueueTransport(), output);
 
 [BobcatFeature("Inbox heartbeat (F19): Marten, a database per tenant, over a durable local queue")]
 public class heartbeat_tenancy_marten_local(ITestOutputHelper output)
@@ -111,4 +139,4 @@ public class heartbeat_tenancy_marten_local(ITestOutputHelper output)
 
 [BobcatFeature("Inbox heartbeat (F19): EF Core, a database per tenant, over a durable local queue")]
 public class heartbeat_tenancy_efcore_local(ITestOutputHelper output)
-    : TenantInboxHeartbeatCompliance(new EfCoreTenancyStore(), new LocalQueueTransport(), output);
+    : TenantAndMainHeartbeatCompliance(new EfCoreTenancyStore(), new LocalQueueTransport(), output);

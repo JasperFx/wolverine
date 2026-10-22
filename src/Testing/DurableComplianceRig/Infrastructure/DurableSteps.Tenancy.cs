@@ -159,7 +159,11 @@ public sealed partial class DurableSteps
             describe(waiting.Select(id => $"{id} ({TenantOf(id)})")), "none");
 
         var offlineRan = Script.Log.Count(x => TenantOf(x.MessageId) == tenant);
-        SpecLog.Write($"{offlineRan} handler run(s) of {tenant}'s messages started while its database was offline");
+        var stranded = _expected.Keys.Count(id => TenantOf(id) == tenant);
+        var line = $"{stranded} of {tenant}'s messages accepted for delivery while its database was offline; " +
+                   $"{offlineRan} handler run(s) of them started before it came back";
+        SpecLog.Write(line);
+        _output.WriteLine(line);
     }
 
     /// <summary>
