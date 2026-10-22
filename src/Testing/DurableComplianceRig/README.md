@@ -32,6 +32,6 @@ plain RDBMS stores, `EffectSemantics.AtLeastOnce`) and something crashed or was 
 ## Running
 
     docker compose up -d postgresql sqlserver rabbitmq localstack
-    ./rig.sh "*settling_postgresql*"
+    ./rig.sh "FullyQualifiedName~settling_postgresql"
 
 Findings are recorded in `DURABLE-COMPLIANCE-FINDINGS-2026-10-22.md` (repository root, untracked).
