@@ -42,7 +42,7 @@ public abstract class TenancyTransactionCompliance : IAsyncLifetime
         await the.TheMessagesAreSentWithTheirTenants(1);
         await the.MessageIsHeldAfterCommit(3);
         the.TraceInboxRow(3, 90.Seconds());
-        the.NodeCrashes(1);
+        the.NodeIsDisposed(1); // a graceful stop, not a crash (see NodeIsDisposed)
         await the.ANodeStarts();
 
         await the.TheDurableInvariantsHold();
@@ -122,7 +122,7 @@ public abstract class EfCoreCrashControl : IAsyncLifetime
         await the.TheMessagesAreSent(1);
         await the.MessageIsHeldAfterCommit(3);
         the.TraceInboxRow(3, 90.Seconds());
-        the.NodeCrashes(1);
+        the.NodeIsDisposed(1); // a graceful stop, not a crash (see NodeIsDisposed)
         await the.ANodeStarts();
 
         await the.TheDurableInvariantsHold();

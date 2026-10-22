@@ -129,7 +129,7 @@ public abstract class TenancyCompliance : IAsyncLifetime
         await the.TheMessagesAreSentWithTheirTenants(1);
         await the.MessageHasStarted(3);
         the.TraceInboxRow(3, 90.Seconds());
-        the.NodeCrashes(1);
+        the.NodeIsDisposed(1); // a graceful stop, not a crash (see NodeIsDisposed)
         the.TheRunsInFlightDiedWithTheNode(1);
         await the.ANodeStarts();
 
