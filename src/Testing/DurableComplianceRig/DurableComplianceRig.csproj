@@ -11,7 +11,8 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
-        <InvariantGlobalization>true</InvariantGlobalization>
+        <!-- SqlClient refuses to open a connection in invariant globalization mode -->
+        <InvariantGlobalization>false</InvariantGlobalization>
     </PropertyGroup>
 
     <ItemGroup>
