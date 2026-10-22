@@ -224,16 +224,21 @@ public class DeadLetterQueueListener : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        // Cleared as they are disposed, so a second stop of the host is a no-op rather than an ObjectDisposedException
         if (_channel is not null)
         {
-            await _channel.CloseAsync(cancellationToken);
-            _channel.Dispose();
+            var channel = _channel;
+            _channel = null;
+            await channel.CloseAsync(cancellationToken);
+            channel.Dispose();
         }
 
         if (_connection is not null)
         {
-            await _connection.CloseAsync(cancellationToken);
-            _connection.Dispose();
+            var connection = _connection;
+            _connection = null;
+            await connection.CloseAsync(cancellationToken);
+            connection.Dispose();
         }
 
         await base.StopAsync(cancellationToken);
