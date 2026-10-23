@@ -677,6 +677,182 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
             dle.Replayable.ShouldBeTrue();
         }
     }
+
+    // GH-5164: filtering dead letters by envelope header, e.g. the header that every occurrence
+    // of a recurring schedule carries
+
+    private async Task loadDeadLettersFromSchedules()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+
+        // 7 dead letters from the "nightly-report" schedule
+        theGenerator.Headers[RecurringMessage.HeaderKey] = "nightly-report";
+        await load(7, FiveHoursAgo);
+
+        // 5 from the "hourly-cleanup" schedule
+        theGenerator.Headers[RecurringMessage.HeaderKey] = "hourly-cleanup";
+        await load(5, SixHoursAgo);
+
+        // and 6 that did not come from any schedule
+        theGenerator.Headers.Clear();
+        await load(6, SevenHoursAgo);
+    }
+
+    [Fact]
+    public async Task query_by_header()
+    {
+        await loadDeadLettersFromSchedules();
+
+        var query = new DeadLetterEnvelopeQuery { PageSize = 1000 }
+            .Header(RecurringMessage.HeaderKey, "nightly-report");
+
+        var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
+
+        results.TotalCount.ShouldBe(7);
+        results.Envelopes.Count.ShouldBe(7);
+        results.Envelopes.ShouldAllBe(x => x.Envelope.Headers[RecurringMessage.HeaderKey] == "nightly-report");
+
+        // No header filter at all is the default, and does not filter anything
+        var all = await theDeadLetters.QueryAsync(new DeadLetterEnvelopeQuery { PageSize = 1000 },
+            CancellationToken.None);
+        all.TotalCount.ShouldBe(18);
+        new DeadLetterEnvelopeQuery().Headers.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task query_by_header_composes_with_other_filters()
+    {
+        await loadDeadLettersFromSchedules();
+
+        withTargetMessage2();
+        theGenerator.Headers[RecurringMessage.HeaderKey] = "nightly-report";
+        await load(4, FourHoursAgo);
+
+        var bothTypes = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery { PageSize = 1000 }.Header(RecurringMessage.HeaderKey, "nightly-report"),
+            CancellationToken.None);
+        bothTypes.TotalCount.ShouldBe(11);
+
+        var onlyTargetMessage2 = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery { PageSize = 1000, MessageType = typeof(TargetMessage2).ToMessageTypeName() }
+                .Header(RecurringMessage.HeaderKey, "nightly-report"),
+            CancellationToken.None);
+        onlyTargetMessage2.TotalCount.ShouldBe(4);
+        onlyTargetMessage2.Envelopes.Count.ShouldBe(4);
+
+        // Every required header has to match
+        var noSuchCombination = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery { PageSize = 1000 }
+                .Header(RecurringMessage.HeaderKey, "nightly-report")
+                .Header("tenant-region", "emea"),
+            CancellationToken.None);
+        noSuchCombination.TotalCount.ShouldBe(0);
+        noSuchCombination.Envelopes.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task paging_and_totals_with_a_header_filter()
+    {
+        withTargetMessage1();
+
+        // Interleave matching and non-matching rows so that paging over the raw rows would give
+        // short or wrong pages
+        for (var i = 0; i < 5; i++)
+        {
+            theGenerator.Headers[RecurringMessage.HeaderKey] = "nightly-report";
+            await load(5, FiveHoursAgo.AddMinutes(i * 20));
+
+            theGenerator.Headers.Clear();
+            await load(3, FiveHoursAgo.AddMinutes(i * 20 + 10));
+        }
+
+        var pages = new List<DeadLetterEnvelopeResults>();
+        for (var pageNumber = 1; pageNumber <= 3; pageNumber++)
+        {
+            var query = new DeadLetterEnvelopeQuery { PageSize = 10, PageNumber = pageNumber }
+                .Header(RecurringMessage.HeaderKey, "nightly-report");
+            pages.Add(await theDeadLetters.QueryAsync(query, CancellationToken.None));
+        }
+
+        pages.ShouldAllBe(x => x.TotalCount == 25);
+        pages.Select(x => x.Envelopes.Count).ToArray().ShouldBe([10, 10, 5]);
+        pages.Select(x => x.PageNumber).ToArray().ShouldBe([1, 2, 3]);
+
+        var ids = pages.SelectMany(x => x.Envelopes).Select(x => x.Id).ToArray();
+        ids.Distinct().Count().ShouldBe(25);
+        pages.SelectMany(x => x.Envelopes)
+            .ShouldAllBe(x => x.Envelope.Headers[RecurringMessage.HeaderKey] == "nightly-report");
+    }
+
+    [Fact]
+    public async Task discard_by_header()
+    {
+        await loadDeadLettersFromSchedules();
+
+        await theDeadLetters.DiscardAsync(
+            new DeadLetterEnvelopeQuery().Header(RecurringMessage.HeaderKey, "nightly-report"),
+            CancellationToken.None);
+
+        await loadAllEnvelopes();
+        allEnvelopes.Envelopes.Count.ShouldBe(11);
+        allEnvelopes.Envelopes.ShouldAllBe(x =>
+            !x.Envelope.Headers.ContainsKey(RecurringMessage.HeaderKey) ||
+            x.Envelope.Headers[RecurringMessage.HeaderKey] == "hourly-cleanup");
+    }
+
+    [Fact]
+    public async Task discard_by_header_that_matches_nothing_discards_nothing()
+    {
+        await loadDeadLettersFromSchedules();
+
+        await theDeadLetters.DiscardAsync(
+            new DeadLetterEnvelopeQuery().Header(RecurringMessage.HeaderKey, "no-such-schedule"),
+            CancellationToken.None);
+
+        await loadAllEnvelopes();
+        allEnvelopes.Envelopes.Count.ShouldBe(18);
+    }
+
+    [Fact]
+    public async Task discard_by_message_ids_and_header()
+    {
+        await loadDeadLettersFromSchedules();
+        await loadAllEnvelopes();
+
+        // Every id is named, but only the "hourly-cleanup" ones match the header
+        var ids = allEnvelopes.Envelopes.Select(x => x.Id).ToArray();
+        await theDeadLetters.DiscardAsync(
+            new DeadLetterEnvelopeQuery(ids).Header(RecurringMessage.HeaderKey, "hourly-cleanup"),
+            CancellationToken.None);
+
+        await loadAllEnvelopes();
+        allEnvelopes.Envelopes.Count.ShouldBe(13);
+    }
+
+    [Fact]
+    public async Task replay_by_header()
+    {
+        await loadDeadLettersFromSchedules();
+
+        await theDeadLetters.ReplayAsync(
+            new DeadLetterEnvelopeQuery().Header(RecurringMessage.HeaderKey, "nightly-report"),
+            CancellationToken.None);
+
+        var replayable = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery { Replayable = true, PageSize = 1000 }, CancellationToken.None);
+        replayable.TotalCount.ShouldBe(7);
+        replayable.Envelopes.ShouldAllBe(x => x.Envelope.Headers[RecurringMessage.HeaderKey] == "nightly-report");
+
+        // A header filter that matches nothing marks nothing
+        await theDeadLetters.ReplayAsync(
+            new DeadLetterEnvelopeQuery().Header(RecurringMessage.HeaderKey, "no-such-schedule"),
+            CancellationToken.None);
+
+        var stillStuck = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery { Replayable = false, PageSize = 1000 }, CancellationToken.None);
+        stillStuck.TotalCount.ShouldBe(11);
+    }
 }
 
 public record TargetMessage1(Guid Id, int Number, string Color);

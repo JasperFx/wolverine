@@ -95,11 +95,36 @@ public partial class CosmosDbMessageStore : IDeadLetters
                 }
             }
 
+            envelopes = envelopes.Where(e => query.MatchesHeaders(e.Envelope)).ToList();
+
             return new DeadLetterEnvelopeResults
             {
                 PageNumber = 1,
                 TotalCount = envelopes.Count,
                 Envelopes = envelopes,
+                DatabaseUri = Uri
+            };
+        }
+
+        if (query.HasHeaderFilter())
+        {
+            // GH-5164: headers only exist inside the serialized envelope body, so the header criteria
+            // are applied in memory and paging / the total count are computed over the header matches
+            if (query.PageNumber <= 0) query.PageNumber = 1;
+            var matches = (await LoadDeadLettersByQuery(query, token))
+                .OrderBy(x => x.SentAt)
+                .ThenBy(x => x.EnvelopeId)
+                .Select(x => x.ToEnvelope())
+                .Where(x => query.MatchesHeaders(x.Envelope))
+                .ToList();
+
+            var offset = (query.PageNumber - 1) * query.PageSize;
+
+            return new DeadLetterEnvelopeResults
+            {
+                PageNumber = query.PageNumber,
+                TotalCount = matches.Count,
+                Envelopes = query.PageSize > 0 ? matches.Skip(offset).Take(query.PageSize).ToList() : matches,
                 DatabaseUri = Uri
             };
         }
@@ -191,6 +216,24 @@ public partial class CosmosDbMessageStore : IDeadLetters
 
     public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
+        if (query.HasHeaderFilter())
+        {
+            foreach (var message in await findHeaderMatchesAsync(query, token))
+            {
+                try
+                {
+                    await _container.DeleteItemAsync<DeadLetterMessage>(message.Id,
+                        new PartitionKey(DocumentTypes.DeadLetterPartition), cancellationToken: token);
+                }
+                catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+                {
+                    // Already gone
+                }
+            }
+
+            return;
+        }
+
         if (query.MessageIds != null && query.MessageIds.Any())
         {
             foreach (var id in query.MessageIds)
@@ -226,6 +269,18 @@ public partial class CosmosDbMessageStore : IDeadLetters
 
     public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
+        if (query.HasHeaderFilter())
+        {
+            foreach (var message in await findHeaderMatchesAsync(query, token))
+            {
+                message.Replayable = true;
+                await _container.ReplaceItemAsync(message, message.Id,
+                    new PartitionKey(DocumentTypes.DeadLetterPartition), cancellationToken: token);
+            }
+
+            return;
+        }
+
         if (query.MessageIds != null && query.MessageIds.Any())
         {
             foreach (var id in query.MessageIds)
@@ -277,6 +332,35 @@ public partial class CosmosDbMessageStore : IDeadLetters
         }
     }
 
+    // GH-5164: resolve a header-filtered query to the documents it matches, honouring MessageIds too
+    private async Task<List<DeadLetterMessage>> findHeaderMatchesAsync(DeadLetterEnvelopeQuery query,
+        CancellationToken token)
+    {
+        var candidates = new List<DeadLetterMessage>();
+        if (query.MessageIds != null && query.MessageIds.Any())
+        {
+            foreach (var id in query.MessageIds)
+            {
+                try
+                {
+                    var response = await _container.ReadItemAsync<DeadLetterMessage>(DlqId(id),
+                        new PartitionKey(DocumentTypes.DeadLetterPartition), cancellationToken: token);
+                    candidates.Add(response.Resource);
+                }
+                catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+                {
+                    // Skip missing
+                }
+            }
+        }
+        else
+        {
+            candidates = await LoadDeadLettersByQuery(query, token);
+        }
+
+        return candidates.Where(x => query.MatchesHeaders(x.ToEnvelope().Envelope)).ToList();
+    }
+
     private async Task<List<DeadLetterMessage>> LoadDeadLettersByQuery(DeadLetterEnvelopeQuery query,
         CancellationToken token)
     {
@@ -285,6 +369,7 @@ public partial class CosmosDbMessageStore : IDeadLetters
         if (query.Range.From.HasValue) conditions.Add("c.sentAt >= @from");
         if (query.Range.To.HasValue) conditions.Add("c.sentAt <= @to");
         if (query.ExceptionType.IsNotEmpty()) conditions.Add("c.exceptionType = @exceptionType");
+        if (query.ExceptionMessage.IsNotEmpty()) conditions.Add("STARTSWITH(c.exceptionMessage, @exceptionMessage)");
         if (query.MessageType.IsNotEmpty()) conditions.Add("c.messageType = @messageType");
         if (query.ReceivedAt.IsNotEmpty()) conditions.Add("c.receivedAt = @receivedAt");
         if (query.Replayable.HasValue) conditions.Add("c.replayable = @replayable");

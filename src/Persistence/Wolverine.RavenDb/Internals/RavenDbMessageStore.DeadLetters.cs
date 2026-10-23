@@ -3,6 +3,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Session;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime.Serialization;
@@ -60,18 +61,10 @@ public partial class RavenDbMessageStore : IDeadLetters
 
     public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        using var session = _store.OpenAsyncSession();
-        var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
-
         // If MessageIds are specified, they take precedence
         if (query.MessageIds != null && query.MessageIds.Any())
         {
-            var ids = query.MessageIds.Select(dlqId).ToArray();
-            var messages = await session.LoadAsync<DeadLetterMessage>(ids, token);
-            var envelopes = messages.Values
-                .Where(m => m != null)
-                .Select(m => m!.ToEnvelope())
-                .ToList();
+            var envelopes = await loadByIdsAsync(query, token);
 
             return new DeadLetterEnvelopeResults
             {
@@ -82,7 +75,72 @@ public partial class RavenDbMessageStore : IDeadLetters
             };
         }
 
-        // Apply filters
+        if (query.PageNumber <= 0) query.PageNumber = 1;
+        var skip = (query.PageNumber - 1) * query.PageSize;
+
+        using var session = _store.OpenAsyncSession();
+        var queryable = buildDeadLetterQuery(session, query);
+
+        if (query.HasHeaderFilter())
+        {
+            // GH-5164: headers only exist inside the serialized envelope body, so the header criteria
+            // are applied in memory and paging / the total count are computed over the header matches
+            var matches = await findHeaderMatchesAsync(queryable, query, token);
+
+            return new DeadLetterEnvelopeResults
+            {
+                PageNumber = query.PageNumber,
+                TotalCount = matches.Count,
+                Envelopes = query.PageSize > 0 ? matches.Skip(skip).Take(query.PageSize).ToList() : matches,
+                DatabaseUri = Uri
+            };
+        }
+
+        // Get total count
+        var totalCount = await queryable.CountAsync(token);
+
+        // A PageSize of 0 means "no paging", as it does for the relational stores
+        var ordered = queryable.OrderBy(x => x.SentAt);
+        var pagedMessages = query.PageSize > 0
+            ? await ordered.Skip(skip).Take(query.PageSize).ToListAsync(token)
+            : await ordered.ToListAsync(token);
+
+        return new DeadLetterEnvelopeResults
+        {
+            PageNumber = query.PageNumber,
+            TotalCount = totalCount,
+            Envelopes = pagedMessages.Select(m => m.ToEnvelope()).ToList(),
+            DatabaseUri = Uri
+        };
+    }
+
+    private async Task<List<DeadLetterEnvelope>> loadByIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        using var session = _store.OpenAsyncSession();
+        var ids = query.MessageIds.Select(dlqId).ToArray();
+        var messages = await session.LoadAsync<DeadLetterMessage>(ids, token);
+        return messages.Values
+            .Where(m => m != null)
+            .Select(m => m!.ToEnvelope())
+            .Where(e => query.MatchesHeaders(e.Envelope))
+            .ToList();
+    }
+
+    private static async Task<List<DeadLetterEnvelope>> findHeaderMatchesAsync(
+        IRavenQueryable<DeadLetterMessage> queryable, DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        var messages = await queryable.OrderBy(x => x.SentAt).ThenBy(x => x.EnvelopeId).ToListAsync(token);
+        return messages
+            .Select(m => m.ToEnvelope())
+            .Where(e => query.MatchesHeaders(e.Envelope))
+            .ToList();
+    }
+
+    private static IRavenQueryable<DeadLetterMessage> buildDeadLetterQuery(IAsyncDocumentSession session,
+        DeadLetterEnvelopeQuery query)
+    {
+        var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
+
         if (query.Range.From.HasValue)
         {
             queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.SentAt >= query.Range.From.Value);
@@ -120,30 +178,43 @@ public partial class RavenDbMessageStore : IDeadLetters
             queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.Replayable == replayable);
         }
 
-        // Get total count
-        var totalCount = await queryable.CountAsync(token);
+        return queryable;
+    }
 
-        // Apply paging
-        if (query.PageNumber <= 0) query.PageNumber = 1;
-        var skip = (query.PageNumber - 1) * query.PageSize;
+    // The RQL used by the bulk delete / patch operations below cannot express a header filter (headers
+    // live in the serialized body), and BuildWhereClause has never expressed ExceptionMessage either.
+    // Either criteria is resolved to the matching document ids first, then acted on by id, rather than
+    // silently widening "discard / replay what matches" into a broader set.
+    private static bool needsClientSideSelection(DeadLetterEnvelopeQuery query)
+    {
+        return query.HasHeaderFilter() ||
+               ((query.MessageIds == null || query.MessageIds.Length == 0) && query.ExceptionMessage.IsNotEmpty());
+    }
 
-        var pagedMessages = await queryable
-            .OrderBy(x => x.SentAt)
-            .Skip(skip)
-            .Take(query.PageSize)
-            .ToListAsync(token);
-
-        return new DeadLetterEnvelopeResults
+    private async Task<Guid[]> findMatchingIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        if (query.MessageIds != null && query.MessageIds.Any())
         {
-            PageNumber = query.PageNumber,
-            TotalCount = totalCount,
-            Envelopes = pagedMessages.Select(m => m.ToEnvelope()).ToList(),
-            DatabaseUri = Uri
-        };
+            return (await loadByIdsAsync(query, token)).Select(x => x.Id).ToArray();
+        }
+
+        using var session = _store.OpenAsyncSession();
+        var matches = await findHeaderMatchesAsync(buildDeadLetterQuery(session, query), query, token);
+        return matches.Select(x => x.Id).ToArray();
     }
 
     public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
+        if (needsClientSideSelection(query))
+        {
+            var ids = await findMatchingIdsAsync(query, token);
+
+            // Nothing matched. Do NOT fall through to the unfiltered delete below
+            if (ids.Length == 0) return;
+
+            query = new DeadLetterEnvelopeQuery { MessageIds = ids };
+        }
+
         // If MessageIds are specified, delete those specific messages
         if (query.MessageIds != null && query.MessageIds.Any())
         {
@@ -171,6 +242,16 @@ public partial class RavenDbMessageStore : IDeadLetters
 
     public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
+        if (needsClientSideSelection(query))
+        {
+            var ids = await findMatchingIdsAsync(query, token);
+
+            // Nothing matched. Do NOT fall through to the unfiltered patch below
+            if (ids.Length == 0) return;
+
+            query = new DeadLetterEnvelopeQuery { MessageIds = ids };
+        }
+
         // If MessageIds are specified, mark those specific messages
         if (query.MessageIds != null && query.MessageIds.Any())
         {

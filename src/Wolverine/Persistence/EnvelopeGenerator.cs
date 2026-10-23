@@ -31,6 +31,11 @@ public class EnvelopeGenerator
 
     public string SourceServiceName { get; set; } = "UpstreamService1";
 
+    /// <summary>
+    /// Headers written onto every generated envelope
+    /// </summary>
+    public Dictionary<string, string> Headers { get; } = new();
+
     public Envelope BuildEnvelope()
     {
         var envelope = new Envelope(MessageSource())
@@ -45,6 +50,11 @@ public class EnvelopeGenerator
         };
         
         envelope.Data = envelope.Serializer.WriteMessage(envelope.Message!);
+
+        foreach (var header in Headers)
+        {
+            envelope.Headers[header.Key] = header.Value;
+        }
         
         if (Random.Shared.Next(0, 10) < 2)
         {

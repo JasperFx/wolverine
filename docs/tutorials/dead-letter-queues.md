@@ -282,6 +282,24 @@ var stillStuck = await store.DeadLetters.QueryAsync(
 // envelopes already marked for replay.
 ```
 
+You can also filter on envelope header values with `Header(name, value)` (or the `Headers` dictionary). Every
+occurrence of a recurring schedule carries the `RecurringMessage.HeaderKey` header, so this finds -- or replays,
+or discards -- the dead letters produced by one schedule:
+
+```cs
+var query = new DeadLetterEnvelopeQuery { MessageType = "NightlyReport" }
+    .Header(RecurringMessage.HeaderKey, "nightly-report");
+
+var fromTheSchedule = await store.DeadLetters.QueryAsync(query, CancellationToken.None);
+
+// The same query works for the bulk operations
+await store.DeadLetters.ReplayAsync(query, CancellationToken.None);
+```
+
+Headers are stored inside the serialized envelope rather than in their own column, so the header filter is applied
+after the other criteria by reading every candidate dead letter. `TotalCount` and paging are still computed over
+the header matches. Narrow the query with a message type or time range where you can.
+
 ## Keeping the dead letter table from growing forever
 
 A busy system can accumulate a lot of dead letters, and an oversized table will eventually drag on performance.
