@@ -14,6 +14,8 @@ namespace Internal.Generated.WolverineHandlers
 
             // Application-specific Open Telemetry auditing
             System.Diagnostics.Activity.Current?.SetTag("Id", advanceAotSaga.Id);
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotSaga");
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotSaga");
             await using var sagaStorageOfGuidAndAotSaga = await Wolverine.RDBMS.Sagas.RelationalSagaStorage.EnrollAndFetchSagaStorage<System.Guid, AotSaga>(context, static (definition, settings) => new Wolverine.Sqlite.Internals.DatabaseSagaSchema<AotSaga, System.Guid>(definition, settings));
             var sagaStorageOfGuidAndAotSaga_Slim = sagaStorageOfGuidAndAotSaga;
             System.Guid sagaId = advanceAotSaga.Id;
