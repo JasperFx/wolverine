@@ -640,6 +640,46 @@ using var host = await Host.CreateDefaultBuilder()
 Note that custom actions would *always* be applied to exceptions thrown in asynchronous message handling. 
 
 
+### Do this, then retry
+
+A common reason for a custom action is to do some recovery work -- warm a cache, refresh a token, reset a connection -- and then
+try the message again. Doing that by hand is awkward because the same custom action runs for both a message received from a
+queue, where the retry is `lifecycle.RetryExecutionNowAsync()`, and a message executed inline through `IMessageBus.InvokeAsync()`,
+where `RetryExecutionNowAsync()` throws and the retry has to come from returning `InvokeResult.TryAgain`.
+
+`DoThenRetry()` does both for you:
+
+<!-- snippet: sample_do_then_retry -->
+<a id='snippet-sample_do_then_retry'></a>
+```cs
+_host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Discovery.DisableConventionalDiscovery();
+        opts.Discovery.IncludeType(typeof(PriceLookupHandler));
+        opts.Services.AddSingleton(theCache);
+
+        // When the price cache has gone cold, warm it back up and then try the
+        // message again. This works the same way whether the message came from
+        // a queue or is being executed inline through IMessageBus.InvokeAsync().
+        // After 3 total attempts, the message is dead lettered if it came from a
+        // queue, or the exception is thrown to the caller of InvokeAsync()
+        opts.OnException<PriceCacheIsColdException>()
+            .DoThenRetry(async (runtime, lifecycle, ex) =>
+            {
+                var cache = runtime.Services.GetRequiredService<PriceCache>();
+                await cache.WarmAsync();
+            }, maxAttempts: 3);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/do_then_retry.cs#L20-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_do_then_retry' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`maxAttempts` counts the original attempt, just like `Requeue(maxAttempts)`, so `maxAttempts: 3` runs the recovery action at most twice.
+Once the attempts are used up, the message is handled the same way as when `RetryTimes()` runs out: it is moved to the dead letter
+queue if it came from a queue, and the exception is thrown to the caller of `InvokeAsync()`. You can chain another policy after it
+with `Then`, and `DoThenRetry()` is also available on an individual handler chain through `chain.OnException<T>()`.
+
 ## Fault Events
 
 Wolverine ships an opt-in mechanism that auto-publishes a strongly-typed
