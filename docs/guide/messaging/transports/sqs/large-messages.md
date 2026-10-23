@@ -7,9 +7,9 @@ InvalidParameterValue - Message must be shorter than 262144 bytes. (SenderFault:
 ```
 
 `SenderFault: true` means SQS is telling you the request itself is wrong, so the identical request will
-fail identically forever. Wolverine treats an oversized message accordingly: it is **logged and
-discarded** rather than retried, so a message that outgrew the limit produces one error rather than an
-endless flood of them.
+fail identically forever. Wolverine treats an oversized message accordingly: it is **logged and moved to
+dead letter storage** (when the application has a message store, otherwise it is only logged) rather than
+retried, so a message that outgrew the limit produces one error rather than an endless flood of them.
 
 If you want the message to actually get through, there are two answers.
 
@@ -106,7 +106,7 @@ opts.MessagePartitioning.GlobalPartitioned(topology =>
   where it was always going to land. Only a message with no group id at all gets a synthesized one, purely
   to hold the set together.
 
-* **There is a ceiling.** A message needing more than 10 fragments is discarded with an error pointing at
+* **There is a ceiling.** A message needing more than 10 fragments is dead lettered with an error pointing at
   claim checks. At that size this is a storage problem, not a framing one.
 
 * **On a FIFO queue** each fragment gets a distinct `MessageDeduplicationId` (the envelope's, suffixed with

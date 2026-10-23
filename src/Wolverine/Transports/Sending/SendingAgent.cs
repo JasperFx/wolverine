@@ -78,18 +78,45 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
     /// <summary>
     ///     The envelopes in this batch can never be sent to this destination -- the transport has already
-    ///     decided that retrying would fail identically forever. Log them and let them go. A buffered
-    ///     agent is done at that point; a durable one also has to clear them out of the outgoing table,
-    ///     which is why this is virtual.
+    ///     decided that retrying would fail identically forever, like an envelope its mapper cannot turn into
+    ///     a broker message. GH-5055: they are moved to dead letter storage when the application has a message
+    ///     store, so they can be seen and replayed, rather than only logged. A durable agent also has to clear
+    ///     them out of the outgoing table, which is why this is virtual.
     /// </summary>
-    public virtual Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
+    public virtual async Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
+    {
+        await MoveUnsendableToDeadLetterStorageAsync(outgoing);
+    }
+
+    /// <summary>
+    ///     GH-5055. Move what the transport can never send to dead letter storage. Answers the envelopes whose dead
+    ///     letter could not be written, which a durable agent leaves in its outbox. Without a message store there is
+    ///     nowhere to move them, so they are only logged, as before
+    /// </summary>
+    internal async Task<IReadOnlyList<Envelope>> MoveUnsendableToDeadLetterStorageAsync(OutgoingMessageBatch outgoing)
     {
         _logger.OutgoingBatchFailed(outgoing);
-        var exception = new Exception("Serialization failure with outgoing envelopes " +
-                                      outgoing.Messages.Select(x => x.ToString()).Join(", "));
-        _logger.LogError(exception, "Serialization failure");
 
-        return Task.CompletedTask;
+        if (_runtime == null || _runtime.Storage is NullMessageStore)
+        {
+            var exception = new Exception("Serialization failure with outgoing envelopes " +
+                                          outgoing.Messages.Select(x => x.ToString()).Join(", "));
+            _logger.LogError(exception, "Serialization failure");
+            return [];
+        }
+
+        List<Envelope>? notMoved = null;
+        foreach (var envelope in outgoing.Messages)
+        {
+            var exception = new UnsendableEnvelopeException(envelope, outgoing.Destination);
+            if (!await UnsendableOutgoingEnvelopes.TryMoveToDeadLetterStorageAsync(_runtime,
+                    envelope.Store ?? _runtime.Storage, envelope, exception, _logger))
+            {
+                (notMoved ??= new()).Add(envelope);
+            }
+        }
+
+        return notMoved ?? (IReadOnlyList<Envelope>)[];
     }
 
     Task ISenderCallback.MarkQueueDoesNotExistAsync(OutgoingMessageBatch outgoing)

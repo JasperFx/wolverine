@@ -7,8 +7,8 @@ namespace Wolverine.Persistence.Durability;
 ///     GH-5047. What the <see cref="DurabilityMode.ServerlessWithOutbox" /> inline send and durability pass do with an
 ///     outgoing envelope the transport reported as a serialization failure, such as an SQS message over the size limit
 ///     without fragmenting. Sending it again can never succeed, so it is moved to dead letter storage, where it can be
-///     seen, rather than retried by every pass. In every other mode a durable sending agent deletes such a row
-///     (<see cref="DurableSendingAgent.MarkSerializationFailureAsync" />)
+///     seen, rather than retried by every pass. GH-5055: a sending agent does the same in every other mode
+///     (<see cref="Transports.Sending.SendingAgent.MarkSerializationFailureAsync" />)
 /// </summary>
 internal static class UnsendableOutgoingEnvelopes
 {
@@ -37,5 +37,17 @@ internal static class UnsendableOutgoingEnvelopes
         runtime.MessageTracking.MovedToErrorQueue(envelope, exception);
 
         return true;
+    }
+}
+
+/// <summary>
+///     GH-5055. Recorded with the dead letter of an outgoing envelope its transport reported as one it can never send,
+///     like an envelope the transport's mapper threw on. The transport logged the original error when it happened
+/// </summary>
+internal class UnsendableEnvelopeException : Exception
+{
+    public UnsendableEnvelopeException(Envelope envelope, Uri destination) : base(
+        $"The transport for {destination} can never send envelope {envelope}, because it could not be mapped or serialized to a broker message. The transport's error log has the original exception")
+    {
     }
 }

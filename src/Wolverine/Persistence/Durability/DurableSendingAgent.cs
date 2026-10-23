@@ -221,12 +221,22 @@ internal class DurableSendingAgent : SendingAgent
     ///     GH-3926: an envelope the transport has judged permanently unsendable has to leave the outgoing
     ///     table as well as the in-memory queue. Logging it and stopping there leaves the row behind, and
     ///     the durability agent re-reads and re-sends it on every recovery sweep -- which is precisely the
-    ///     endless retry this path exists to break.
+    ///     endless retry this path exists to break. GH-5055: it is moved to dead letter storage first, and
+    ///     a row whose dead letter could not be written stays in the outbox for a later recovery sweep, so
+    ///     nothing is lost
     /// </summary>
     public override async Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
     {
-        await base.MarkSerializationFailureAsync(outgoing);
-        await _deleteOutgoingMany.PostAsync(outgoing.Messages.ToArray());
+        var notMoved = await MoveUnsendableToDeadLetterStorageAsync(outgoing);
+
+        var toDelete = notMoved.Count == 0
+            ? outgoing.Messages.ToArray()
+            : outgoing.Messages.Where(x => !notMoved.Contains(x)).ToArray();
+
+        if (toDelete.Length > 0)
+        {
+            await _deleteOutgoingMany.PostAsync(toDelete);
+        }
     }
 
     public override Task MarkSuccessfulAsync(Envelope outgoing)
@@ -265,25 +275,43 @@ internal class DurableSendingAgent : SendingAgent
     // next durability pass to recover
     private async Task sendInlineAsync(Envelope envelope)
     {
-        try
+        // The grouped send never throws, and tells a send that failed apart from one that never can succeed
+        var result = await _sender.SendToBrokerAsync([envelope]);
+
+        if (!result.WasAccepted(envelope))
         {
-            await _sender.SendToBrokerAsync(envelope);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e,
+            // GH-5055. The transport can never send it, like an envelope its mapper throws on, so it goes to dead
+            // letter storage now rather than failing again in every later durability pass
+            if (result.IsSerializationFailure(envelope, out _))
+            {
+                var notMoved = await MoveUnsendableToDeadLetterStorageAsync(
+                    new OutgoingMessageBatch(envelope.Destination ?? Destination, [envelope]));
+                if (notMoved.Count == 0)
+                {
+                    await deleteInlineSentAsync(envelope);
+                }
+
+                return;
+            }
+
+            _logger.LogError(result.Exception,
                 "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
                 envelope, envelope.Destination);
             return;
         }
 
+        await deleteInlineSentAsync(envelope);
+    }
+
+    private async Task deleteInlineSentAsync(Envelope envelope)
+    {
         try
         {
             await _outbox.DeleteOutgoingAsync(envelope);
         }
         catch (Exception e)
         {
-            // The message was sent, so the worst case is a duplicate send by a later durability pass
+            // The message was sent (or dead lettered), so the worst case is a duplicate send by a later durability pass
             _logger.LogError(e,
                 "Unable to delete the outbox row of message {Envelope} that was already sent inline. A later durability pass may send it again",
                 envelope);

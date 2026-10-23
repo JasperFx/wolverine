@@ -47,6 +47,20 @@ internal class SnsSenderProtocol :ISenderProtocol
     {
         var snsBatch = new OutgoingSnsBatch(_topic, _logger, batch.Messages);
 
+        // GH-5055. Mapping it again can never succeed, so it is dead lettered rather than retried, and it is not
+        // reported as sent with the rest, which it used to be
+        if (snsBatch.MappingFailures.Count > 0)
+        {
+            await callback.MarkSerializationFailureAsync(
+                new OutgoingMessageBatch(batch.Destination, snsBatch.MappingFailures));
+
+            // PublishBatch refuses a request without entries
+            if (snsBatch.Request.PublishBatchRequestEntries.Count == 0) return;
+
+            batch = new OutgoingMessageBatch(batch.Destination,
+                batch.Messages.Where(x => !snsBatch.MappingFailures.Contains(x)).ToList());
+        }
+
         try
         {
             var response = await _sns.PublishBatchAsync(snsBatch.Request);
@@ -64,8 +78,13 @@ internal class OutgoingSnsBatch
 {
     private readonly Dictionary<string, Envelope> _envelopes = new();
     private readonly List<Envelope> _mappingFailures = new();
-    
+
     public PublishBatchRequest Request { get; }
+
+    /// <summary>
+    ///     Envelopes the topic's mapper threw on. They are not in the request, and can never be sent
+    /// </summary>
+    public IReadOnlyList<Envelope> MappingFailures => _mappingFailures;
 
     public OutgoingSnsBatch(AmazonSnsTopic topic, ILogger logger, IEnumerable<Envelope> envelopes)
     {
@@ -104,7 +123,8 @@ internal class OutgoingSnsBatch
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Error while mapping envelope {Envelope} to an SQS SendMessageBatchRequestEntry",
+                logger.LogError(e,
+                    "Error while mapping envelope {Envelope} to an SNS PublishBatchRequestEntry. It can never be sent, so it is reported as a serialization failure",
                     envelope);
                 _mappingFailures.Add(envelope);
             }
@@ -144,8 +164,10 @@ internal class OutgoingSnsBatch
                 }
             }
 
-            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination,
-                successes.Concat(_mappingFailures).ToList()));
+            if (successes.Count > 0)
+            {
+                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, successes));
+            }
 
             await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
         }

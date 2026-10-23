@@ -29,6 +29,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
         await _endpoint.InitializeAsync(_logger);
 
         var messages = new List<(Envelope Envelope, ServiceBusMessage Message)>(batch.Messages.Count);
+        List<Envelope>? unmappable = null;
 
         foreach (var envelope in batch.Messages)
         {
@@ -41,9 +42,21 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             catch (Exception e)
             {
                 _logger.LogError(e,
-                    "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. Message will be discarded.",
+                    "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. It can never be sent, so it is reported as a serialization failure",
                     envelope);
+                (unmappable ??= new()).Add(envelope);
             }
+        }
+
+        // GH-5055. Mapping it again can never succeed, so it is dead lettered rather than retried. It is also left
+        // out of what is reported sent below, which used to be the whole original batch
+        if (unmappable != null)
+        {
+            await callback.MarkSerializationFailureAsync(new OutgoingMessageBatch(batch.Destination, unmappable));
+
+            if (messages.Count == 0) return;
+
+            batch = new OutgoingMessageBatch(batch.Destination, messages.Select(x => x.Envelope).ToList());
         }
 
         if (_endpoint.IsPartitioned)
