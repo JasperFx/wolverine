@@ -37,7 +37,15 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     {
         await theHost.StopAsync();
         theHost.Dispose();
+
+        await afterHostDisposedAsync();
     }
+
+    /// <summary>
+    /// Runs after each test's host is gone. A store that leaves its tables in a shape another test class
+    /// cannot migrate from (IdAndDestination's wider inbox key, with rows sharing an id) cleans up here.
+    /// </summary>
+    protected virtual Task afterHostDisposedAsync() => Task.CompletedTask;
     
     [Fact]
     public async Task get_counts()
