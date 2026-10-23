@@ -794,6 +794,32 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
+    /// GH-5133. Every chain in the graph: each message type's root chain -- including the empty placeholder
+    /// that <see cref="Wolverine.MultipleHandlerBehavior.Separated"/> leaves behind when it moves every handler
+    /// out -- followed by its per-endpoint (separated or sticky) chains. <see cref="Chains"/> only has the
+    /// roots, so anything that inspects chain configuration has to read this instead.
+    /// </summary>
+    internal IEnumerable<HandlerChain> EveryChain()
+    {
+        foreach (var chain in Chains)
+        {
+            yield return chain;
+
+            foreach (var separated in chain.ByEndpoint)
+            {
+                yield return separated;
+            }
+        }
+    }
+
+    /// <summary>
+    /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain --
+    /// including the per-endpoint chains built under Separated?
+    /// </summary>
+    internal bool AnyRequeuePolicies()
+        => Failures.AnyRequeuePolicies() || EveryChain().Any(x => x.Failures.AnyRequeuePolicies());
+
+    /// <summary>
     /// GH-5133. The chains that hold handlers from more than one handler class for the same message type,
     /// which only the obsolete ClassicCombineIntoOneLogicalHandler mode builds. Several methods of one
     /// class (a saga's Start and Handle) are one handler type and do not count.

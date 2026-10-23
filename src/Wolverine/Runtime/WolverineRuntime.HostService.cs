@@ -962,8 +962,8 @@ public partial class WolverineRuntime
         // GH-4060. Requeue policies are configured on the handler graph -- globally and per chain -- rather than on
         // an endpoint, so the endpoint-scoped rules cannot see them. Handlers.Compile() has already run by this
         // point, so both levels are settled and this is a straight read.
-        var requeuePoliciesConfigured = Handlers.Failures.AnyRequeuePolicies()
-                                        || Handlers.Chains.Any(x => x.Failures.AnyRequeuePolicies());
+        // GH-5133: through every chain, so a requeue policy on a Separated handler's own chain counts too.
+        var requeuePoliciesConfigured = Handlers.AnyRequeuePolicies();
 
         ListenerConfigurationValidator.AssertValid(listeners, Logger, requeuePoliciesConfigured);
     }
