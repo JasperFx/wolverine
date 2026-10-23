@@ -400,6 +400,129 @@ warm-up node, so you'll want to walk through this checklist yourself:
 * **Inline side effects in an `EventProjection`.** Rebuild mode stops `RaiseSideEffects()`, but anything your own
   projection code does directly inside an `Apply()` method runs regardless of the mode.
 
+## Memory at Scale: Tenants x Projections <Badge type="tip" text="6.x" />
+
+If you combine this distribution with per-tenant event partitioning or lots of tenant databases, Wolverine ends
+up running one agent per projection per tenant. 2,000 tenants times 20 async projections is 40,000 agents spread
+across your cluster, and it's natural to assume that the agent count is what's eating your memory. It mostly isn't.
+
+An idle, caught up agent is cheap. We measured roughly 13 KB of live objects per agent, and only about 1.3 KB of that
+is Wolverine's own bookkeeping. The rest is the async daemon's per-shard machinery, and Wolverine-managed
+distribution and Marten's own `AddAsyncDaemon()` use the same memory for the same set of shards.
+
+What costs real memory is a shard that is *behind*. A shard that's behind keeps loading pages of events ahead of
+itself until it holds `MaximumHopperSize` events in memory, and that's **5,000 events by default no matter what
+your `BatchSize` is**. Those pages sit in the shard's queue while it waits for one of the per-database batch write
+slots (`MaxConcurrentBatchWritesPerDatabase`, 4 by default). Nothing caps the total across shards, so the rough math
+for your peak memory is:
+
+```
+(number of shards behind) x MaximumHopperSize x (size of one deserialized event)
+```
+
+The easiest way to get a lot of shards behind at the same time is to bump the version of a projection in a
+multi-tenant system, because the new version starts over from zero for *every* tenant at once. As one example, a
+test with 100 tenants rebuilding one projection while database writes were the bottleneck peaked at about 1.2 GB
+of live heap. That's roughly 12 MB per rebuilding shard, or 5,000 events of about 2.4 KB each. More tenants or
+bigger events scale that up linearly.
+
+### Set MaximumHopperSize to about 2 x BatchSize
+
+The fix is to bound the prefetch on every async projection. Setting `MaximumHopperSize` to about twice the
+`BatchSize` gives each shard one page being worked and one page ready to go:
+
+<!-- snippet: sample_size_the_projection_hopper_for_many_tenants -->
+<a id='snippet-sample_size_the_projection_hopper_for_many_tenants'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddMarten(m =>
+            {
+                m.Connection(Servers.PostgresConnectionString);
+
+                // Keep the in-memory prefetch at about 2 x BatchSize
+                // for every async projection
+                m.Projections.Add<TripProjection>(ProjectionLifecycle.Async, o =>
+                {
+                    o.BatchSize = 250;
+                    o.MaximumHopperSize = 500;
+                });
+
+                m.Projections.Add<DayProjection>(ProjectionLifecycle.Async, o =>
+                {
+                    o.BatchSize = 250;
+                    o.MaximumHopperSize = 500;
+                });
+
+                // These are per database, and they pace work rather than
+                // bound memory. 4 is the default for both
+                m.Projections.MaxConcurrentEventLoadsPerDatabase = 4;
+                m.Projections.MaxConcurrentBatchWritesPerDatabase = 4;
+            })
+            .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L134-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_size_the_projection_hopper_for_many_tenants' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+If you'd rather keep that next to the projection itself, the same `AsyncOptions` are available as `Options` inside
+the projection's constructor:
+
+```csharp
+public class TripProjection : SingleStreamProjection<Trip, Guid>
+{
+    public TripProjection()
+    {
+        Options.BatchSize = 250;
+        Options.MaximumHopperSize = 500;
+    }
+}
+```
+
+In the same test from above, a hopper of 1,000 took the peak from about 1.2 GB down to about 340 MB, and a batch
+size of 100 with a hopper of 200 brought it under 200 MB. We didn't see any throughput cost in the write-bound case
+either. When the writes are the bottleneck, a deeper prefetch doesn't buy you anything anyway.
+
+::: warning
+Don't just shrink `BatchSize` by itself. The hopper stays at 5,000 events, so a shard holds 50 small pages instead
+of 10 big ones, and it drains more slowly with the extra per-page overhead. In our testing, dropping `BatchSize` to
+100 without touching `MaximumHopperSize` actually *raised* peak memory.
+:::
+
+::: info
+A future JasperFx release plans to derive the default `MaximumHopperSize` from `BatchSize` instead of using a flat
+5,000 ([jasperfx#1076](https://github.com/JasperFx/jasperfx/issues/1076)). Until then, set it explicitly.
+:::
+
+### The other knobs, and what they do and don't bound
+
+Most of the other daemon settings pace the work rather than cap how much of it sits in memory:
+
+* `MaxConcurrentBatchWritesPerDatabase` (on `StoreOptions.Projections`, default 4) is the throttle that loaded
+  pages queue up behind. It's per *database*, so 500 databases means up to 2,000 concurrent writes across the
+  cluster. Raising it only helps if your database server can keep up, and it doesn't bound memory
+* `MaxConcurrentEventLoadsPerDatabase` (default 4) bounds how many loads run at once, not how many loaded pages a
+  shard keeps. Lowering it slows down how fast the hoppers fill, but they still fill
+* `MaxConcurrentSideEffectGateWarmupsPerDatabase` (default 0, meaning unbounded) only applies to projections that
+  opt into `GateSideEffectsBehindPriorVersion = true` on their `AsyncOptions`. With that on, it caps how many
+  new-version shards per database warm up and load at the same time, which is the closest thing today to "only
+  keep N rebuilding shards in memory at once"
+* `CacheLimitPerTenant` (per projection, default 0) turns on an aggregate cache per tenant. Keep it at 0 or very
+  small, because whatever you set gets multiplied by tenants times projections
+* `RebuildFlushThreshold` (per projection, default 0) only matters in rebuild mode, and it defers writes by
+  holding documents in memory per shard. Leave it at 0 for this kind of workload
+* `opts.Durability.MaxAgentStartParallelism` made no measurable difference to peak memory in our testing
+
+### Move the warm-up off your serving nodes
+
+If the shards that are behind are the new versions of projections in a blue/green rollout, you can also keep them
+off the nodes that serve your traffic altogether. Start the new release as warm-up nodes with
+`opts.Durability.NodeRole = NodeRole.Warmup` as described in
+[Warming Up a New Release on Its Own Nodes](#warming-up-a-new-release-on-its-own-nodes), and the rebuilding shards'
+hoppers live on those nodes instead of on blue. You still want the hopper sizing above on the warm-up nodes, but now
+a big warm-up can't take down the nodes that are serving your users.
+
 ## Agent Start Retries <Badge type="tip" text="6.x" />
 
 An agent's very first assignment can race the subsystems it depends on coming up — an event-subscription
