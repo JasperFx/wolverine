@@ -520,6 +520,8 @@ internal sealed class SimulatedCluster : IAsyncDisposable
         var commands = await _controller.EvaluateAssignmentsAsync(_nodes.ToList(), new AgentRestrictions());
         _evaluationTimes.Add(stopwatch.Elapsed);
 
+        AssertEveryUnplacedAgentHasAReason(_controller.LastAssignments);
+
         if (Traced != null)
         {
             foreach (var command in commands)
@@ -804,6 +806,24 @@ internal sealed class SimulatedCluster : IAsyncDisposable
 
         return _dispatchers.Values.All(entry =>
             entry.Dispatcher.LaneStates.All(x => x.Executing == null && x.Queued == 0));
+    }
+
+    /// <summary>
+    ///     GH-5163 follow-up. Whatever the scenario, a full evaluation never leaves an agent without a node and
+    ///     without saying why: CritterWatch reads <see cref="AssignmentGrid.Agent.UnplacedReason" /> off this
+    ///     grid, and a null there is a gap in the leader's reporting, not a state an operator can act on.
+    ///     Checked after every round of every simulated-cluster test.
+    /// </summary>
+    internal static void AssertEveryUnplacedAgentHasAReason(AssignmentGrid? grid)
+    {
+        if (grid == null) return;
+
+        var unexplained = grid.UnassignedAgents.Where(x => x.UnplacedReason == null).ToArray();
+        if (unexplained.Length == 0) return;
+
+        throw new InvalidOperationException(
+            $"{unexplained.Length} agent(s) were left unassigned with no UnplacedReason: "
+            + string.Join(", ", unexplained.Take(10).Select(x => x.Uri)));
     }
 
     public async ValueTask DisposeAsync()

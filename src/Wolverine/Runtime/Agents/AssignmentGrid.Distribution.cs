@@ -64,10 +64,13 @@ public partial class AssignmentGrid
             // durability agents and daemon shards with it. An overloaded node still running its work
             // is strictly better than that.
             //
-            // GH-5163: say why, so a monitor can tell "waiting on capacity" from "never started".
+            // GH-5163: say why, so a monitor can tell "waiting on capacity" from "never started". With no
+            // serving node at all -- only warm-up nodes, which never take this work whatever their load -- that
+            // is not a capacity problem, and more headroom would not place anything.
+            var reason = _nodes.Any(x => !x.IsWarmup) ? UnplacedReason.AwaitingCapacity : UnplacedReason.NoCapableNode;
             foreach (var agent in agents)
             {
-                if (agent.AssignedNode == null) agent.UnplacedReason = UnplacedReason.AwaitingCapacity;
+                if (agent.AssignedNode == null) agent.UnplacedReason = reason;
             }
 
             return;
@@ -279,6 +282,7 @@ public partial class AssignmentGrid
         // unassigned rather than spill into the other pool.
         if (agents.Count == 0 || nodes.Count == 0)
         {
+            noNodeInThePool(agents);
             return;
         }
 
@@ -578,6 +582,25 @@ public partial class AssignmentGrid
     }
 
     /// <summary>
+    ///     GH-5163 follow-up. A pool with no nodes leaves its agents unassigned with no node of the pool to run
+    ///     them, which is <see cref="UnplacedReason.NoCapableNode" />. Today an empty pool only happens with
+    ///     warm-up nodes present, which forces the capability-matching path (see
+    ///     <see cref="AllNodesHaveSameCapabilities(string, Func{Uri, bool})" />), and that path has already
+    ///     stamped every agent with no candidate. This keeps the early returns from ever being the place a
+    ///     reason goes missing if that coupling changes. A reason an earlier pass recorded is kept.
+    /// </summary>
+    private static void noNodeInThePool(IEnumerable<Agent> agents)
+    {
+        foreach (var agent in agents)
+        {
+            if (agent.AssignedNode == null && agent.UnplacedReason == null)
+            {
+                agent.UnplacedReason = UnplacedReason.NoCapableNode;
+            }
+        }
+    }
+
+    /// <summary>
     /// Stable identity of the set of nodes that declare an agent as a capability, used to sub-partition a
     /// group in <see cref="DistributeByGroupAffinity(string, Func{Uri, string}, Func{Uri, bool})" />. Agents
     /// with the same key can share a host; agents with different keys generally cannot, which is exactly the
@@ -871,6 +894,7 @@ public partial class AssignmentGrid
     {
         if (agents.Count == 0 || nodes.Count == 0)
         {
+            noNodeInThePool(agents);
             return;
         }
 

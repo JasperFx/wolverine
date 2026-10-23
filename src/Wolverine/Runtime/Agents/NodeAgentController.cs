@@ -18,6 +18,13 @@ public partial class NodeAgentController
     /// </summary>
     public static readonly Uri WarmupRoleUri = new("wolverine://node-role/warmup");
 
+    /// <summary>
+    ///     GH-5163 follow-up. Whether a capability is a node-level marker such as <see cref="WarmupRoleUri" />
+    ///     rather than an agent. Every marker uses the <c>wolverine</c> scheme, which no agent family
+    ///     distributes (see <see cref="AssignmentGrid.FindDelta" />).
+    /// </summary>
+    internal static bool IsNodeMarker(Uri capability) => capability.Scheme == LeaderUri.Scheme;
+
     private readonly Dictionary<string, IAgentFamily>
         _agentFamilies = new();
 

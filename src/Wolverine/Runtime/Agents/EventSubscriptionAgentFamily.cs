@@ -332,6 +332,9 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
             // what makes TryBuildAssignmentCommand emit a StopRemoteAgent to wherever it runs. The
             // distribution passes exclude retired URIs so nothing re-assigns them.
             agent.Detach();
+
+            // GH-5163 follow-up: stopped on purpose, so a monitor must not report it as waiting for a node
+            agent.UnplacedReason = UnplacedReason.Superseded;
         }
 
         return retired;
