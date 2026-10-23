@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using MassTransit;
@@ -44,15 +45,40 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     // GH-5120. A batch carrier has no inbox row of its own -- only its members do -- so its scheduled retry
     // is held in memory, the same way BufferedReceiver schedules everything. See MoveToScheduledUntilAsync.
     private readonly InMemoryScheduledJobProcessor _batchRetries;
+
+    // F4. The carriers waiting in _batchRetries, so a drain that cancels them can hand their members back
+    private readonly ConcurrentDictionary<Guid, Envelope> _pendingBatchRetries = new();
     private readonly DurabilitySettings _settings;
 
     // These members are for draining
     private bool _latched;
     private int _inboxUnavailableSignaled;
 
-    // The InboxStaleTime heartbeat: the envelopes this receiver holds in memory, and the timer that restarts their
-    // rows' stale clock. Both null unless InboxStaleTime is set and the inbox supports it.
-    private readonly InboxCustody? _custody;
+    // F15/F16. Set when DrainAsync starts: nothing posted after this point will execute here
+    private volatile bool _draining;
+
+    // Posts in progress. A post that read _draining as false before the drain set it must reach the block before the
+    // drain completes it: a completed block drops a post without a word, which would lose the envelope in memory
+    // and strand its row. See waitForPostsInProgressAsync.
+    private int _posting;
+
+    // F15/F16. Set once anything has been received or enqueued, so a receiver that was built and never used
+    // (a listener's receiver replaced by a partition bridge) does not count as working at its address
+    private volatile bool _activated;
+
+    // F15/F16. Set once the drain's release has run. Anything abandoned after that is released on its own
+    private volatile bool _released;
+
+    // F15/F16. Envelopes this receiver took ownership of and will never execute: skipped by the latch, deferred
+    // while latched, posted after the drain started, or members of a batch whose retry the drain cancelled. When
+    // the drain cannot use the blanket release, because another receiver at the same address is still working,
+    // exactly these rows are handed back. See releaseAfterDrainAsync.
+    private readonly ConcurrentQueue<Envelope> _abandoned = new();
+
+    // The envelopes this receiver holds in memory. With InboxStaleTime set (and an inbox that supports the
+    // heartbeat) that is everything queued or running here, and the timer restarts their rows' stale clock.
+    // Otherwise only batch members waiting on their batch are tracked, and there is no timer.
+    private readonly InboxCustody _custody;
     private readonly Timer? _heartbeat;
     private readonly TimeSpan _heartbeatPeriod;
     private int _heartbeating;
@@ -72,9 +98,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // The stale sweep releases an owned inbox row once its clock is older than InboxStaleTime. A row this
         // receiver is still holding -- queued here, or running in a handler -- is not stuck, so its clock is
         // restarted three times per InboxStaleTime while it is held.
-        if (_settings.InboxStaleTime is { } staleTime && _inbox is IMessageInboxHeartbeat)
+        var heartbeat = _settings.InboxStaleTime.HasValue && _inbox is IMessageInboxHeartbeat;
+        _custody = new InboxCustody(heartbeat);
+        if (heartbeat && _settings.InboxStaleTime is { } staleTime)
         {
-            _custody = new InboxCustody();
             _heartbeatPeriod = TimeSpan.FromTicks(Math.Max(staleTime.Ticks / 3, TimeSpan.FromMilliseconds(50).Ticks));
             _heartbeat = new Timer(_ => _ = restartHeldStaleClocksAsync(), null, _heartbeatPeriod, _heartbeatPeriod);
         }
@@ -118,10 +145,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
         {
+            var heldForBatch = false;
             try
             {
                 if (_latched)
                 {
+                    // Owned here and never going to run here: handed back by the drain's release
+                    abandon(envelope);
                     return;
                 }
 
@@ -129,7 +159,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 {
                     envelope.ContentType ??= EnvelopeConstants.JsonContentType;
 
+                    var wasInBatch = envelope.InBatch;
                     await pipeline.InvokeAsync(envelope, this).ConfigureAwait(false);
+
+                    // F4/F5. The batching pipeline accepted this envelope as a batch member. Its execution ends
+                    // here, but its row stays Incoming and owned at this address until the batch finishes with it,
+                    // so it stays in this receiver's custody until then -- see InboxCustody
+                    heldForBatch = !wasInBatch && envelope.InBatch && envelope.Batch == null;
                 }
                 catch (Exception? e)
                 {
@@ -139,10 +175,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     // memory pressure that caused the original failure.
                     try
                     {
-                        if (_receiver != null)
+                        if (_draining)
+                        {
+                            // A drained block silently drops a post, which would strand the row
+                            abandon(envelope);
+                        }
+                        else if (_receiver != null)
                         {
                             // Still held: the requeue is counted in before this execution counts out below
-                            _custody?.Enter(envelope, DateTimeOffset.UtcNow);
+                            _custody.Enter(envelope, DateTimeOffset.UtcNow);
                             await _receiver.PostAsync(envelope).ConfigureAwait(false);
                         }
 
@@ -158,7 +199,14 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             finally
             {
-                _custody?.Leave(envelope);
+                if (heldForBatch)
+                {
+                    _custody.HoldForBatch(envelope, DateTimeOffset.UtcNow);
+                }
+                else
+                {
+                    _custody.Leave(envelope);
+                }
             }
         };
         
@@ -266,8 +314,21 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
             _logger, _settings.Cancellation);
 
+        // F12. The same GH-4664 reasoning as mark-as-handled above. A failure handed to ScheduleRetry, or a
+        // RetryWithCooldown that ends in one, writes the row back as Scheduled for any node. With the default
+        // budget of 3 retries over ~400ms, a longer database blip discarded that write and left the row Incoming
+        // and owned by this live node, which nothing reclaims. The row is durable and still owned here, so keep
+        // trying until the store comes back or the host shuts down.
         _scheduleExecution = new RetryBlock<Envelope>((e, _) => scheduleExecutionAsync(e), _logger,
-            _settings.Cancellation);
+            _settings.Cancellation)
+        {
+            MaximumAttempts = int.MaxValue,
+            Pauses =
+            [
+                50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds(), 1.Seconds(), 2.Seconds(), 5.Seconds(),
+                10.Seconds(), 30.Seconds()
+            ]
+        };
 
         // GH-5105. A dead-letter write that could not be made hands the inbox row back to be executed again. The
         // row is durable and still owned by this node, so -- as with mark-as-handled (GH-4664) -- keep trying
@@ -291,6 +352,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             _deadLetterSender = dlq;
         }
+
+        DurableReceiverRegistry.Register(runtime, this);
     }
 
     public bool ShouldPersistBeforeProcessing { get; set; }
@@ -339,7 +402,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     /// </summary>
     private async Task restartHeldStaleClocksAsync()
     {
-        if (_custody == null || Interlocked.Exchange(ref _heartbeating, 1) == 1) return;
+        if (_heartbeat == null || Interlocked.Exchange(ref _heartbeating, 1) == 1) return;
 
         try
         {
@@ -372,8 +435,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async ValueTask DisposeAsync()
     {
+        _draining = true;
         if (_heartbeat != null) await _heartbeat.DisposeAsync().ConfigureAwait(false);
-        _custody?.Clear();
+        _custody.Clear();
         _batchRetries.Dispose();
 
         await _receiver.WaitForCompletionAsync().ConfigureAwait(false);
@@ -418,10 +482,16 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
 
             await Task.WhenAll(completions).ConfigureAwait(false);
+
+            // F4/F5. The batch is finished with its members, so the receivers they arrived on stop holding them
+            InboxCustody.SettleBatchMembers(envelope);
         }
         else
         {
             await markAsHandledAsync(envelope).ConfigureAwait(false);
+
+            // A batch member replayed on its own (item isolation) is finished with here
+            InboxCustody.TrySettleBatchMember(envelope);
         }
     }
 
@@ -482,6 +552,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             }
 
+            // The row is still owned here and nothing here will run it again, so the drain's release hands it
+            // back -- the blanket release always did, and abandon() keeps that true when the drain cannot use it
+            abandon(envelope);
             return;
         }
 
@@ -506,8 +579,28 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // sure the ancillary-store routing is applied here too so the
         // mark-as-handled SQL goes to the correct store. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
-        _custody?.Enter(envelope, DateTimeOffset.UtcNow);
-        _receiver.Post(envelope);
+
+        // A batch retry coming due
+        if (envelope.Batch != null) _pendingBatchRetries.TryRemove(envelope.Id, out _);
+
+        Interlocked.Increment(ref _posting);
+        try
+        {
+            if (_draining)
+            {
+                // A drained block drops a post without a word, which would strand the row owned by this node
+                abandon(envelope);
+                return;
+            }
+
+            _activated = true;
+            _custody.Enter(envelope, DateTimeOffset.UtcNow);
+            _receiver.Post(envelope);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _posting);
+        }
     }
 
     public ValueTask EnqueueAsync(Envelope envelope)
@@ -520,12 +613,53 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // through the assignAncillaryStoreIfNeeded calls in receiveOneAsync /
         // ProcessReceivedMessagesAsync. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
-        _custody?.Enter(envelope, DateTimeOffset.UtcNow);
-        return _receiver.PostAsync(envelope);
+
+        Interlocked.Increment(ref _posting);
+        if (_draining)
+        {
+            Interlocked.Decrement(ref _posting);
+
+            // A drained block drops a post without a word, which would strand the row owned by this node. Handed
+            // back instead, through its row: the drain's release (or a release by id, if that already ran) gives
+            // it to any node.
+            abandon(envelope);
+            return ValueTask.CompletedTask;
+        }
+
+        _activated = true;
+        _custody.Enter(envelope, DateTimeOffset.UtcNow);
+        return postAsync(envelope);
+    }
+
+    private async ValueTask postAsync(Envelope envelope)
+    {
+        try
+        {
+            await _receiver.PostAsync(envelope).ConfigureAwait(false);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _posting);
+        }
+    }
+
+    /// <summary>
+    /// Let a post that started before the drain did reach the block before it is completed, so the latch skips it
+    /// (and abandons it) rather than the completed block dropping it. Bounded: a bounded block can make a post wait
+    /// for room, and the frame waiting here may be the only one that would make it.
+    /// </summary>
+    private async Task waitForPostsInProgressAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(1);
+        while (Volatile.Read(ref _posting) > 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(5).ConfigureAwait(false);
+        }
     }
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {
+        _activated = true;
         var now = DateTimeOffset.UtcNow;
 
         return ProcessReceivedMessagesAsync(now, listener, messages);
@@ -542,6 +676,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             throw new ArgumentNullException(nameof(envelope));
         }
+
+        _activated = true;
 
         if (_latched && !envelope.IsFromLocalDurableQueue())
         {
@@ -587,11 +723,22 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // execute function is still on the call stack.
         var waitForCompletion = _latched;
         _latched = true;
+        _draining = true;
 
         // GH-5120. A batch retry still pending must not fire after the release below hands its members' rows to
-        // another node, or both would execute them. Cancelled, the members are simply recovered from their rows.
+        // another node, or both would execute them. Cancelled, the members are recovered from their rows -- but
+        // only if something hands those rows back. F4: they are owned at the address each member ARRIVED on, which
+        // is usually not this one, so the blanket release below never touched them and they sat Incoming and owned
+        // by this live node. They are abandoned instead, which releases them by id.
+        var cancelled = _pendingBatchRetries.Values.ToArray();
+        _pendingBatchRetries.Clear();
         await _batchRetries.EmptyAllAsync().ConfigureAwait(false);
+        foreach (var carrier in cancelled)
+        {
+            abandon(carrier);
+        }
 
+        await waitForPostsInProgressAsync().ConfigureAwait(false);
         _receiver.Complete();
 
         // GH-4797. Non-null only when the bounded wait below gave up with work still running, and it is then
@@ -625,6 +772,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 _logger.LogDebug(e, "Error waiting for in-flight message processing to complete at {Uri}", Uri);
             }
         }
+        else
+        {
+            // F15. An unlatched drain -- a pause raised from inside the handler pipeline -- cannot wait here for
+            // the work still running, because the execution that raised it is on this call stack. It used to
+            // release straight away instead, which handed every sibling handler's row to AnyNode while it was still
+            // running, and another node ran it alongside. Same answer as GH-4797: hold the release until the work
+            // finishes, on a continuation rather than on this frame.
+            var completion = _receiver.WaitForCompletionAsync();
+            if (!completion.IsCompleted)
+            {
+                stillRunning = completion;
+            }
+        }
 
         await _incrementAttempts.DrainAsync().ConfigureAwait(false);
         await _scheduleExecution.DrainAsync().ConfigureAwait(false);
@@ -638,11 +798,145 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (stillRunning == null)
         {
-            await releaseIncomingAsync().ConfigureAwait(false);
+            await releaseAfterDrainAsync().ConfigureAwait(false);
             return;
         }
 
         deferReleaseUntilIdleAsync(stillRunning);
+    }
+
+    /// <summary>
+    /// Is this receiver still working on rows at its address: executing or queued, holding batch members for a
+    /// batch that has not finished with them, or simply live and receiving? Used by another receiver at the same
+    /// address before it hands that address's rows back. See <see cref="DurableReceiverRegistry" />.
+    /// </summary>
+    internal bool HoldsWork => _receiver.Count > 0 || _custody.BatchMemberCount > 0 || (_activated && !_draining);
+
+    /// <summary>
+    /// Drained, and nothing left that another receiver needs to know about
+    /// </summary>
+    internal bool IsRetired => _draining && !HoldsWork;
+
+    /// <summary>
+    /// How many batch members that arrived here are still waiting on a batch that has not finished with them
+    /// </summary>
+    internal int HeldBatchMemberCount => _custody.BatchMemberCount;
+
+    /// <summary>
+    /// Whether this receiver restarts the InboxStaleTime clock of the rows it holds
+    /// </summary>
+    internal bool HasInboxHeartbeat => _heartbeat != null;
+
+    internal bool AnswersTo(Uri address) => address == Uri || address == AlsoReleaseIncomingAt;
+
+    private IReadOnlyList<Uri> releaseAddresses() =>
+        AlsoReleaseIncomingAt == null ? [Uri] : [Uri, AlsoReleaseIncomingAt];
+
+    /// <summary>
+    /// The drain's release, once nothing this receiver was running is still running. The blanket release by
+    /// address is only safe when nothing else is still working on rows at that address: it hands back EVERY row
+    /// this node owns there. F16: after a pause or a restart the old receiver is often still finishing a handler
+    /// when the new one starts receiving, and holding batch members means some rows are waiting on a batch
+    /// elsewhere (F4). In either case only the rows this receiver abandoned are handed back, by id.
+    /// </summary>
+    private async Task releaseAfterDrainAsync()
+    {
+        if (_custody.BatchMemberCount == 0 &&
+            !DurableReceiverRegistry.AnyOtherHoldsWorkAt(_runtime, this, releaseAddresses()))
+        {
+            // The blanket release covers everything abandoned so far at this receiver's own addresses. Members of a
+            // cancelled batch are owned where they arrived, which is usually somewhere else, so they keep their turn
+            // in the release by id below.
+            var elsewhere = new List<Envelope>();
+            while (_abandoned.TryDequeue(out var abandoned))
+            {
+                if (abandoned.Destination == null || !AnswersTo(abandoned.Destination)) elsewhere.Add(abandoned);
+            }
+
+            foreach (var envelope in elsewhere) _abandoned.Enqueue(envelope);
+
+            await releaseIncomingAsync().ConfigureAwait(false);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "Releasing only the inbox rows abandoned by the drain at {Uri}: other work at this address is still in progress on this node",
+                Uri);
+            await releaseAbandonedAsync().ConfigureAwait(false);
+        }
+
+        _released = true;
+
+        // Anything abandoned while the release above was running
+        await releaseAbandonedAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Track an envelope this receiver owns but will never execute, so its row is handed back. A batch carrier has
+    /// no row: what it abandons are its members, owned at the addresses they arrived on.
+    /// </summary>
+    private void abandon(Envelope envelope)
+    {
+        if (envelope.Batch != null)
+        {
+            // The pending counts settle with the batch's terminal, and this is one
+            if (_runtime is WolverineRuntime runtime)
+            {
+                runtime.BatchingPendingCounts.SettleBatch(envelope);
+            }
+
+            foreach (var member in envelope.Batch)
+            {
+                // No longer in a batch: nothing here will run it again, and its row is handed back below
+                member.InBatch = false;
+                InboxCustody.TrySettleBatchMember(member);
+                _abandoned.Enqueue(member);
+            }
+        }
+        else
+        {
+            _abandoned.Enqueue(envelope);
+        }
+
+        if (_released)
+        {
+            _ = releaseAbandonedInBackgroundAsync();
+        }
+    }
+
+    private async Task releaseAbandonedInBackgroundAsync()
+    {
+        try
+        {
+            await releaseAbandonedAsync().ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error releasing abandoned inbox rows at {Uri}", Uri);
+        }
+    }
+
+    /// <summary>
+    /// Hand the rows of abandoned envelopes back to any node, by id and address
+    /// </summary>
+    private async Task releaseAbandonedAsync()
+    {
+        List<Envelope>? abandoned = null;
+        while (_abandoned.TryDequeue(out var envelope))
+        {
+            if (envelope.Destination == null || envelope.Id == Guid.Empty) continue;
+            (abandoned ??= new List<Envelope>()).Add(envelope);
+        }
+
+        if (abandoned == null) return;
+
+        // ReassignIncomingAsync on a multi-tenanted store takes one tenant at a time
+        foreach (var group in abandoned.DistinctBy(x => x.Id).GroupBy(x => (Store: x.Store ?? _runtime.Storage, x.TenantId)))
+        {
+            var envelopes = group.ToArray();
+            await executeWithRetriesAsync(() =>
+                group.Key.Store.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -716,7 +1010,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
             try
             {
-                await releaseIncomingAsync().ConfigureAwait(false);
+                await releaseAfterDrainAsync().ConfigureAwait(false);
 
                 _logger.LogInformation(
                     "Released the held inbox rows for {Uri} now that the work outstanding at drain time has finished. See GH-4797",
@@ -765,7 +1059,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // envelope -- marking the inbox row, the only copy, handled -- and reported it as dead lettered before
         // anything was written. A write that kept failing was then discarded with one line at Information.
         var failure = await tryWriteDeadLetterAsync(envelope).ConfigureAwait(false);
-        if (failure == null) return;
+        if (failure == null)
+        {
+            // A batch member dead lettered on its own is finished with by its batch
+            InboxCustody.TrySettleBatchMember(envelope);
+            return;
+        }
 
         // Nothing was dead lettered, so hand the row back to be executed again rather than leaving it Incoming
         // and owned by this live node, which nothing reclaims until the node restarts (GH-4664)
@@ -773,6 +1072,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         envelope.ScheduledTime = DateTimeOffset.UtcNow.Add(DeadLetterRedeliveryDelay);
         envelope.Status = EnvelopeStatus.Scheduled;
         await _rescheduleAfterFailedDeadLetter.PostAsync(envelope).ConfigureAwait(false);
+        InboxCustody.TrySettleBatchMember(envelope);
 
         _logger.LogError(failure,
             "Could not move envelope {EnvelopeId} ({MessageType}, tenant {TenantId}) received at {Uri} to dead letter storage. It was NOT dead lettered, and will be executed again after {Delay}",
@@ -860,20 +1160,39 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             // GH-5120. Rescheduling by the carrier's id updated nothing -- the carrier has no row -- so the retry
             // was silently lost and the members sat 'Incoming', owned by this live node. The members' rows stay
-            // exactly as they are: owned here while the retry is pending, and released by the drain or found by
-            // recovery if this node goes away. The same carrier comes back, so its Attempts keeps counting
-            // toward the error policy's limit.
+            // exactly as they are: owned by this node, at the address each member arrived on, while the retry is
+            // pending. If this receiver drains first, it hands them back by id (F4) -- a blanket release of this
+            // address would miss every member that arrived on a broker listener -- and recovery finds them if this
+            // node goes away. The same carrier comes back, so its Attempts keeps counting toward the error
+            // policy's limit.
             _logger.LogDebug("Scheduling batch envelope {EnvelopeId} ({MessageType}) for retry in memory at {ScheduledTime} in durable receiver", envelope.Id, envelope.MessageType, time);
+
+            if (_draining)
+            {
+                // Nothing scheduled here would ever fire: hand the members back now
+                abandon(envelope);
+                return Task.CompletedTask;
+            }
+
+            _pendingBatchRetries[envelope.Id] = envelope;
             _batchRetries.Enqueue(time, envelope);
             return Task.CompletedTask;
         }
 
+        return scheduleAsync(envelope, time);
+    }
+
+    private async Task scheduleAsync(Envelope envelope, DateTimeOffset time)
+    {
         _logger.LogDebug("Moving envelope {EnvelopeId} ({MessageType}) to scheduled status until {ScheduledTime} in durable receiver", envelope.Id, envelope.MessageType, time);
         envelope.OwnerId = TransportConstants.AnyNode;
         envelope.ScheduledTime = time;
         envelope.Status = EnvelopeStatus.Scheduled;
 
-        return _scheduleExecution.PostAsync(envelope);
+        await _scheduleExecution.PostAsync(envelope).ConfigureAwait(false);
+
+        // A batch member rescheduled on its own is finished with by its batch
+        InboxCustody.TrySettleBatchMember(envelope);
     }
 
     /// <summary>
@@ -1397,6 +1716,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public Task ClearInFlightIncomingAsync()
     {
+        // F16. A listener builds a new receiver on every restart -- after a pause, a forced restart, a circuit
+        // breaker, or InboxHealthRestarter -- and this blanket release ran every time. The previous receiver at
+        // this address is often still finishing a handler then (GH-4797 holds its rows for exactly that reason),
+        // or still holding batch members, and this handed all of those rows to AnyNode underneath it. That
+        // receiver hands back what it abandoned itself once its work is done, so skip the sweep here.
+        if (DurableReceiverRegistry.AnyOtherHoldsWorkAt(_runtime, this, [Uri]))
+        {
+            _logger.LogDebug(
+                "Not releasing the in-flight inbox rows at {Uri}: a previous receiver at this address is still working on some of them, and releases its own when it finishes",
+                Uri);
+            return Task.CompletedTask;
+        }
+
         return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
 

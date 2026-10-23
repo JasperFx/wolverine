@@ -40,8 +40,9 @@ namespace Wolverine.Runtime.Batching;
 /// branches in <c>BufferedReceiver</c>/<c>DurableReceiver</c> — guarded by
 /// <c>Envelope.BatchPendingSettled</c> so a double-complete can't drive either count negative. The
 /// pipeline count only releases batches marked <c>Envelope.BatchPipelineCounted</c> by whoever counted
-/// them, because a reduced batch replayed by <c>ApplyItemException</c> carries new member envelopes the
-/// original batch's terminal has already released.
+/// them. A reduced batch replayed by <c>ApplyItemException</c> or member isolation carries the ORIGINAL
+/// member envelopes, which are taken out of the original batch first, so their counts move with them and
+/// are released once, at the reduced batch's own terminal (F1).
 /// </para>
 /// </remarks>
 public class BatchingPendingCounts
@@ -85,6 +86,27 @@ public class BatchingPendingCounts
         if (batchEnvelope.BatchPipelineCounted && findPipeline(batchEnvelope) is { } pipeline)
         {
             pipeline.Release(batchEnvelope.Batch.Length);
+        }
+    }
+
+    /// <summary>
+    /// F8. Settle just these members of a grouped batch envelope, for a member that leaves the batch before the
+    /// batch's own terminal -- a poison member whose dead-letter write failed and was handed back to be executed
+    /// again. The caller then takes the members out of <see cref="Envelope.Batch"/> (see
+    /// <see cref="BatchReplay.Detach"/>) so the batch's terminal cannot settle them a second time.
+    /// </summary>
+    internal void SettleMembers(Envelope batchEnvelope, IReadOnlyList<Envelope> members)
+    {
+        if (members.Count == 0 || batchEnvelope.BatchPendingSettled) return;
+
+        foreach (var member in members)
+        {
+            Decrement(member.Listener?.Address);
+        }
+
+        if (batchEnvelope.BatchPipelineCounted && findPipeline(batchEnvelope) is { } pipeline)
+        {
+            pipeline.Release(members.Count);
         }
     }
 
@@ -169,6 +191,15 @@ public class BatchingPendingCounts
 
     private BatchPipelineCounter? findPipeline(Envelope batchEnvelope)
     {
+        // F8. The element type first: it cannot change. MessageType can -- MoveToErrorQueue rewrites it from the
+        // message before it completes the batch, and the array's message type name is not the batch chain's
+        // TypeName -- so every batch dead lettered that way used to leave its members counted for good
+        if (batchEnvelope.Message?.GetType().GetElementType() is { } elementType &&
+            _pipelinesByElementType.TryFind(elementType, out var byElement))
+        {
+            return byElement;
+        }
+
         return batchEnvelope.MessageType != null &&
                _pipelinesByBatchType.TryFind(batchEnvelope.MessageType, out var pipeline)
             ? pipeline

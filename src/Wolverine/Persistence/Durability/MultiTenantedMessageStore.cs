@@ -13,12 +13,13 @@ using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
 public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin,
-    IDeadLetters, ISagaSupport, INodeAgentPersistence
+    IDeadLetters, ISagaSupport, INodeAgentPersistence, IMessageInboxHeartbeat
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
@@ -447,6 +448,61 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
 
         if (failures.Count > 0)
+        {
+            throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
+        }
+    }
+
+    /// <summary>
+    /// F19. Every tenant database runs its own stale sweep, so every tenant database needs the heartbeat too.
+    /// Without this, a <see cref="DurableReceiver" /> behind a composite store built no heartbeat at all, and with
+    /// <see cref="DurabilitySettings.InboxStaleTime" /> set a handler that outlived it -- tenanted or not -- had its
+    /// row released underneath it and ran a second time on another node. Each envelope's clock is restarted in the
+    /// database that holds its row. A database that refuses does not stop the others; the receiver retries all of
+    /// them on its next tick.
+    /// </summary>
+    async Task IMessageInboxHeartbeat.RestartStaleClockAsync(int ownerId, IReadOnlyList<Envelope> envelopes)
+    {
+        if (envelopes.Count == 0) return;
+
+        var groups = new Dictionary<IMessageStore, List<Envelope>>();
+        List<Exception>? failures = null;
+
+        foreach (var byTenant in envelopes.GroupBy(x => x.TenantId))
+        {
+            try
+            {
+                var store = await GetDatabaseAsync(byTenant.Key);
+                if (groups.TryGetValue(store, out var list))
+                {
+                    list.AddRange(byTenant);
+                }
+                else
+                {
+                    groups[store] = byTenant.ToList();
+                }
+            }
+            catch (Exception e)
+            {
+                (failures ??= new List<Exception>()).Add(e);
+            }
+        }
+
+        foreach (var (store, batch) in groups)
+        {
+            if (store.Inbox is not IMessageInboxHeartbeat heartbeat) continue;
+
+            try
+            {
+                await heartbeat.RestartStaleClockAsync(ownerId, batch);
+            }
+            catch (Exception e)
+            {
+                (failures ??= new List<Exception>()).Add(e);
+            }
+        }
+
+        if (failures != null)
         {
             throw failures.Count == 1 ? failures[0] : new AggregateException(failures);
         }

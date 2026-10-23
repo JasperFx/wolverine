@@ -339,7 +339,9 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// When <c>false</c> (pause triggered from within the handler pipeline, e.g. rate limiting),
     /// the receiver is <em>not</em> pre-latched, so <see cref="IReceiver.DrainAsync"/> sees
     /// <c>_latched == false</c> and returns immediately — avoiding a deadlock caused by the
-    /// current message's execute frame being on the call stack.
+    /// current message's execute frame being on the call stack. A durable receiver still holds its
+    /// inbox rows until the handlers running at that moment finish (F15), on a continuation rather than
+    /// on this frame.
     /// </summary>
     /// <param name="drainCompanionQueue">
     /// GH-4777. True only when this is a real stop -- an exclusive-listener agent handing its slot to
@@ -887,6 +889,9 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             case EndpointMode.Durable:
                 var receiver = new DurableReceiver(Endpoint, _runtime, _pipeline);
+
+                // F16. Skips the sweep while the previous receiver at this address is still finishing work after
+                // a pause or restart; that receiver hands back what it abandoned itself
                 await receiver.ClearInFlightIncomingAsync();
                 return receiver;
 

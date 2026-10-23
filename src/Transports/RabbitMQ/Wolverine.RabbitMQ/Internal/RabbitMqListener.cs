@@ -502,14 +502,14 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         return true;
     }
 
-    public async ValueTask RequeueAsync(RabbitMqEnvelope envelope)
+    public ValueTask RequeueAsync(RabbitMqEnvelope envelope)
     {
-        if (!envelope.Acknowledged && CanSettle(envelope))
-        {
-            await envelope.DeliveredOn.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
-        }
-
-        await _sender.Value.SendAsync(envelope);
+        // N1. This nacked the original with requeue: false and THEN published the copy. A nack without requeue is
+        // what sends a delivery through the queue's x-dead-letter-exchange, so on a queue with native dead
+        // lettering (the default) every requeue dead lettered the original as well as putting a copy back -- and a
+        // copy that could not be published left the message in the dead letter queue only. A requeue is a deferral
+        // as far as the broker is concerned: publish the copy, then ACK the original, which never dead letters it.
+        return envelope.DeferAsync();
     }
 
     /// <summary>

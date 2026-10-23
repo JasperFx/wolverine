@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
@@ -35,6 +36,13 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     /// </summary>
     private readonly IIncomingIdempotencyGuard? _idempotency;
     private bool _latched;
+
+    // Set once DrainAsync has completed the receiving block, which from then on drops anything posted to it
+    private bool _drained;
+
+    // F3. Built on first use, by the first batch to reach its terminal here
+    private readonly object _batchMembersLock = new();
+    private BatchMemberInbox? _batchMembers;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
         : this(endpoint, runtime, pipeline, Block<Envelope>.DefaultBoundedCapacity)
@@ -200,6 +208,23 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
+    /// <summary>
+    /// F3. Settles the inbox rows of the members of a batch executing on this queue. A buffered queue has no inbox of
+    /// its own, but a member that arrived on a durable listener has a row all the same.
+    /// </summary>
+    internal BatchMemberInbox BatchMembers
+    {
+        get
+        {
+            if (_batchMembers != null) return _batchMembers;
+
+            lock (_batchMembersLock)
+            {
+                return _batchMembers ??= new BatchMemberInbox(_runtime, _logger, _settings.Cancellation);
+            }
+        }
+    }
+
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
         // When the durability agent recovers a persisted envelope and dispatches it to a
@@ -216,9 +241,18 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         // queue settles its members' pending-count against their originating listeners, so the
         // listeners' back-pressure accounting sees the batching pipeline drain. All terminals
         // (success, dead-letter move, discard) funnel through this channel callback.
-        if (envelope.Batch != null && _runtime is WolverineRuntime runtime)
+        if (envelope.Batch != null)
         {
-            runtime.BatchingPendingCounts.SettleBatch(envelope);
+            if (_runtime is WolverineRuntime runtime)
+            {
+                runtime.BatchingPendingCounts.SettleBatch(envelope);
+            }
+
+            // F3. A member that arrived on a durable listener has its own inbox row, owned by this node. This is the
+            // member's terminal as much as the batch's: without it every member stayed Incoming and ran again after
+            // the next restart. A replayed member is not here -- it was taken out of this batch and rides its
+            // reduced batch to that batch's own terminal (F1)
+            return BatchMembers.MarkMembersAsHandledAsync(envelope);
         }
 
         return ValueTask.CompletedTask;
@@ -286,8 +320,15 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             }
         }
 
+        _drained = true;
+
         await _completeBlock.DrainAsync().ConfigureAwait(false);
         await _deferBlock.DrainAsync().ConfigureAwait(false);
+
+        if (_batchMembers != null)
+        {
+            await _batchMembers.DrainAsync().ConfigureAwait(false);
+        }
 
         if (_moveToErrors != null)
         {
@@ -297,7 +338,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public void Enqueue(Envelope envelope)
     {
-        if (envelope.IsPing())
+        if (envelope.IsPing() || droppedBatchAfterDrain(envelope))
         {
             return;
         }
@@ -309,7 +350,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public async ValueTask EnqueueAsync(Envelope envelope)
     {
-        if (envelope.IsPing())
+        if (envelope.IsPing() || droppedBatchAfterDrain(envelope))
         {
             return;
         }
@@ -317,6 +358,32 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
         await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
         activity?.Stop();
+    }
+
+    /// <summary>
+    /// F8. A drained receiving block silently drops whatever is posted to it. A batch dropped that way -- assembled
+    /// after the drain, or requeued by a failure as the queue stopped -- never reaches a terminal, so release its
+    /// members' pending counts here. Members with inbox rows are not settled: the listener that holds them
+    /// releases them to be recovered.
+    /// </summary>
+    private bool droppedBatchAfterDrain(Envelope envelope)
+    {
+        if (!_drained || envelope.Batch == null) return false;
+
+        if (_runtime is WolverineRuntime runtime)
+        {
+            runtime.BatchingPendingCounts.SettleBatch(envelope);
+        }
+
+        foreach (var member in envelope.Batch)
+        {
+            member.InBatch = false;
+        }
+
+        _logger.LogDebug("Dropping batch envelope {EnvelopeId} ({MessageType}) enqueued after {Uri} was drained",
+            envelope.Id, envelope.MessageType, Uri);
+
+        return true;
     }
 
     async ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
@@ -403,6 +470,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
 
         _moveToErrors?.Dispose();
+        _batchMembers?.Dispose();
     }
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
