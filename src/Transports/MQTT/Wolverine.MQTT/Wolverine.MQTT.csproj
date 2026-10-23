@@ -18,4 +18,10 @@
         <PackageReference Include="MQTTnet.Extensions.ManagedClient" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- MQTTnet 4 keeps the client option builders in MQTTnet.Client; MQTTnet 5 moved them into MQTTnet.
+             Source shared with Wolverine.Mqtt5 imports MQTTnet, so the MQTTnet 4 build adds this one. -->
+        <Using Include="MQTTnet.Client" />
+    </ItemGroup>
+
 </Project>
