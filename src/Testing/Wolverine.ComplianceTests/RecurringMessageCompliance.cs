@@ -412,7 +412,8 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         var second = await buildHost(opts =>
         {
             opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("restartable-compliance",
-                "*/10 * * * * *", _ => new RecurringComplianceMessage());
+                "*/10 * * * * *", _ => new RecurringComplianceMessage())
+                .UseScheduledMessages(); // GH-5168: this compliance tier is the pre-scheduled path
         }, clean: false);
 
         var store = second.Services.GetRequiredService<IMessageStore>();
@@ -460,7 +461,8 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         var first = await buildHost(opts =>
         {
             opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("adopted-compliance",
-                "*/15 * * * * *", _ => new RecurringComplianceMessage());
+                "*/15 * * * * *", _ => new RecurringComplianceMessage())
+                .UseScheduledMessages(); // GH-5168: this compliance tier is the pre-scheduled path
         });
 
         var firstStore = first.Services.GetRequiredService<IMessageStore>();
@@ -473,7 +475,8 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         var second = await buildHost(opts =>
         {
             opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("adopted-compliance",
-                "*/15 * * * * *", _ => new RecurringComplianceMessage());
+                "*/15 * * * * *", _ => new RecurringComplianceMessage())
+                .UseScheduledMessages(); // GH-5168: this compliance tier is the pre-scheduled path
         }, clean: false);
 
         var deadline = DateTimeOffset.UtcNow.AddSeconds(60);
