@@ -436,6 +436,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Group(options);
 
+        assignDeduplicationScopes();
+
         // GH-3974: the earliest point at which "will this message type be handled?" has a real answer.
         // Discovery has resolved and the chains are grouped, so a consumer no longer has to hand-roll a
         // mirror of Wolverine's own discovery convention to ask it.
@@ -803,6 +805,31 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
             _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
             _replyTypes = _replyTypes.Add(messageType);
+        }
+    }
+
+    // GH-5133. A message type with more than one chain that runs handlers -- one per handler type under
+    // Separated, or sticky handlers -- would otherwise have every chain claim the same logical deduplication
+    // id, so the first claim wins and the rest drop the message. Give each such chain its own scope. Done
+    // here, straight after grouping, because SagaChain clears its handler calls when it generates code.
+    private void assignDeduplicationScopes()
+    {
+        foreach (var root in Chains)
+        {
+            if (root.ByEndpoint.Count == 0) continue;
+
+            var running = root.ByEndpoint.Where(x => x.Handlers.Any()).ToList();
+            if (root.Handlers.Any()) running.Insert(0, root);
+
+            if (running.Count < 2) continue;
+
+            foreach (var chain in running)
+            {
+                var handlerTypes = chain.Handlers.Select(x => x.HandlerType.FullNameInCode()).Distinct()
+                    .OrderBy(x => x).Join("+");
+
+                chain.DeduplicationScope = Persistence.Codegen.ScopeHandlerDeduplicationIdFrame.SuffixFor(handlerTypes);
+            }
         }
     }
 

@@ -550,6 +550,10 @@ The claims live in `wolverine_deduplication` rather than as a column on
   claims are kept in the main database, as `[DeduplicatedWithResponse]` claims are, and under
   conjoined (single-database) tenancy they share the one database. Either way an id is global across
   tenants, so include the tenant in it if two tenants can legitimately use the same one.
+- **Several handlers of one message:** when a message type has more than one handler chain -- one per
+  handler type under `MultipleHandlerBehavior.Separated`, or sticky handlers -- each chain claims the id
+  for itself (6.52), so one handler running does not make the others discard the message as a duplicate.
+  A message type with a single handler chain stores its ids exactly as before.
 - **Fire-and-forget only.** Replaying the *original response* of a deduplicated `InvokeAsync<T>` is
   Stripe-style idempotency-key machinery — storing and returning the prior result — and is not part
   of this feature. HTTP endpoints get a useful answer regardless, because a status code is a
