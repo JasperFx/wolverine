@@ -315,9 +315,16 @@ public class MessagePartitioningRules
 
         foreach (var chain in handlerGraph.Chains)
         {
-            if (chain.TryInferMessageIdentity(out var property))
+            // GH-5133. Under MultipleHandlerBehavior.Separated the root chain of a message type with several
+            // handlers is an empty placeholder, and the saga or aggregate that gives away the identity is in
+            // one of its per-endpoint chains. The first chain that can infer it wins.
+            foreach (var candidate in chain.ByEndpoint.Prepend(chain))
             {
-                ByMessage(chain.MessageType, property!);
+                if (candidate.TryInferMessageIdentity(out var property))
+                {
+                    ByMessage(chain.MessageType, property!);
+                    break;
+                }
             }
 
             // For messages implementing SequencedMessage, use Order as the group id

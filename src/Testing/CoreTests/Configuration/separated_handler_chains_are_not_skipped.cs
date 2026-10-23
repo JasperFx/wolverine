@@ -121,3 +121,75 @@ public class RequeueForHandlerType : IHandlerPolicy
         }
     }
 }
+
+/// <summary>
+/// GH-5133. Two saga types that handle the same messages: under Separated each gets its own chain in
+/// ByEndpoint and the root chain of each message type is routing-only.
+/// </summary>
+public class separated_saga_chains_are_not_skipped : IAsyncLifetime
+{
+    private IHost _host = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<FirstSharedWorkSaga>()
+                    .IncludeType<SecondSharedWorkSaga>();
+
+                opts.MessagePartitioning.UseInferredMessageGrouping();
+            }).StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _host.StopAsync();
+        _host.Dispose();
+    }
+
+    private WolverineRuntime theRuntime => _host.GetRuntime();
+
+    [Fact]
+    public void inferred_grouping_finds_the_saga_identity_in_a_separated_chain()
+    {
+        var id = Guid.NewGuid();
+
+        theRuntime.Options.MessagePartitioning
+            .DetermineGroupId(new Envelope(new SharedWorkStep(id)))
+            .ShouldBe(id.ToString());
+    }
+}
+
+public record StartSharedWork(Guid Id);
+
+public record SharedWorkStep(Guid Id);
+
+// Hidden from conventional discovery so it cannot leak into every other host in this assembly
+[Wolverine.Attributes.WolverineIgnore]
+public class FirstSharedWorkSaga : Saga
+{
+    public Guid Id { get; set; }
+
+    public static FirstSharedWorkSaga Start(StartSharedWork message) => new() { Id = message.Id };
+
+    public void Handle(SharedWorkStep message)
+    {
+    }
+}
+
+// Hidden from conventional discovery so it cannot leak into every other host in this assembly
+[Wolverine.Attributes.WolverineIgnore]
+public class SecondSharedWorkSaga : Saga
+{
+    public Guid Id { get; set; }
+
+    public static SecondSharedWorkSaga Start(StartSharedWork message) => new() { Id = message.Id };
+
+    public void Handle(SharedWorkStep message)
+    {
+    }
+}
