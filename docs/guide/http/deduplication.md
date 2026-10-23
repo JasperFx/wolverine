@@ -267,6 +267,46 @@ Don't call `SaveChangesAsync` yourself in such an endpoint as well. Your own com
 before the middleware's commit writes the claim, so a crash between them, or a concurrent repeat, runs
 the work twice.
 
+#### Turning it on for every endpoint
+
+`ClaimInTransaction` is off by default. To make it the default for every `[DeduplicatedWithResponse]`
+endpoint in your application, set `DefaultClaimInTransaction` when you map the endpoints:
+
+<!-- snippet: sample_default_claim_in_transaction -->
+<a id='snippet-sample_default_claim_in_transaction'></a>
+```cs
+// Every [DeduplicatedWithResponse] endpoint that doesn't say otherwise
+// writes its claim inside its own transaction where it can
+opts.DefaultClaimInTransaction = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L53-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An endpoint that doesn't set `ClaimInTransaction` takes that default. An endpoint that sets it, either
+way, keeps its own choice:
+
+<!-- snippet: sample_override_default_claim_in_transaction -->
+<a id='snippet-sample_override_default_claim_in_transaction'></a>
+```cs
+// Takes WolverineHttpOptions.DefaultClaimInTransaction
+[DeduplicatedWithResponse(DeduplicationScope.User)]
+[WolverinePost("/claim-default/unset")]
+public static DeduplicatedOrderCreated PostUnset(DeduplicatedOrder request, IDocumentSession session)
+    => store(request, session);
+
+// Keeps claim-and-release whatever the application default is
+[DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = false)]
+[WolverinePost("/claim-default/off")]
+public static DeduplicatedOrderCreated PostOff(DeduplicatedOrder request, IDocumentSession session)
+    => store(request, session);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L146-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Endpoints that can't claim inside their transaction keep claim-and-release, as above. When they only
+inherited the default instead of asking for it, Wolverine logs that at debug level rather than as a
+warning.
+
 #### Claim-and-release
 
 The key is claimed before the endpoint runs. The response is recorded on the claim after the endpoint

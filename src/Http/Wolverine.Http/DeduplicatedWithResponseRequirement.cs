@@ -38,8 +38,30 @@ public sealed class DeduplicatedWithResponseRequirement
     /// that arrives while the first is running runs the endpoint too, instead of getting 409, and is answered from
     /// the first's claim when its own commit fails. Work outside the transaction runs for both. An endpoint that
     /// cannot take this path keeps claim-and-release, and the host logs a warning naming it.
+    ///
+    /// <para>
+    /// Unset, an endpoint takes <see cref="WolverineHttpOptions.DefaultClaimInTransaction" />; this reports false
+    /// either way. See <see cref="ExplicitClaimInTransaction" />.
+    /// </para>
     /// </remarks>
-    public bool ClaimInTransaction { get; init; }
+    public bool ClaimInTransaction
+    {
+        get => _claimInTransaction ?? false;
+        init => _claimInTransaction = value;
+    }
+
+    private readonly bool? _claimInTransaction;
+
+    /// <summary>
+    /// Whether <see cref="ClaimInTransaction" /> was actually chosen here, as opposed to falling through to
+    /// <see cref="WolverineHttpOptions.DefaultClaimInTransaction" />. The same split as
+    /// <c>DeduplicationRequirement.ExplicitDuplicateStatusCode</c>.
+    /// </summary>
+    internal bool? ExplicitClaimInTransaction
+    {
+        get => _claimInTransaction;
+        init => _claimInTransaction = value;
+    }
 
     internal string KeyName => Key ?? DeduplicationRequirement.DefaultHeaderName;
 
@@ -50,7 +72,7 @@ public sealed class DeduplicatedWithResponseRequirement
             : $"DeduplicatedWithResponse by {Source} '{Key}' (Scope = {Scope}, Required = {Required}";
 
         if (Window.HasValue) description += $", Window = {Window.Value}";
-        if (ClaimInTransaction) description += ", ClaimInTransaction";
+        if (_claimInTransaction.HasValue) description += $", ClaimInTransaction = {_claimInTransaction.Value}";
 
         return description + ")";
     }

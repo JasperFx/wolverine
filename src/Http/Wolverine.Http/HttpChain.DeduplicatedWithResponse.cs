@@ -190,12 +190,14 @@ public partial class HttpChain
     private bool tryApplyTransactionalDeduplicatedWithResponse(DeduplicatedWithResponseRequirement requirement,
         Variable scoped, Variable fingerprint, GenerationRules rules, IServiceContainer container, List<Frame> frames)
     {
-        if (!requirement.ClaimInTransaction) return false;
+        // The endpoint's own choice, either way, else the application-wide default
+        if (!(requirement.ExplicitClaimInTransaction ?? _parent.DefaultClaimInTransaction)) return false;
+        var asked = requirement.ExplicitClaimInTransaction.HasValue;
 
         if (rules.GetPersistenceProviders(this, container) is not ITransactionalReplayableDeduplicationProvider
             provider)
         {
-            warnClaimInTransactionFallsBack(container,
+            warnClaimInTransactionFallsBack(container, asked,
                 "its persistence cannot write the claim inside its transaction; only Marten can today");
             return false;
         }
@@ -209,7 +211,7 @@ public partial class HttpChain
         if (!provider.TryBuildTransactionalReplayableDeduplication(this, storageId.Variable, requirement.Required,
                 prepare.Variable, container, out var transactional))
         {
-            warnClaimInTransactionFallsBack(container,
+            warnClaimInTransactionFallsBack(container, asked,
                 "it does not commit through Wolverine's Marten transactional middleware on a single-database store with the PostgreSQL message store in the same database");
             return false;
         }
@@ -221,7 +223,7 @@ public partial class HttpChain
         // commit would pull that read ahead of the commit, and answer with the aggregate before this request's events
         if (resource.Creator != null && Postprocessors.IndexOf(resource.Creator) > commit)
         {
-            warnClaimInTransactionFallsBack(container,
+            warnClaimInTransactionFallsBack(container, asked,
                 "its response is only produced after the commit (UpdatedAggregate, say), and the claim has to be written before it");
             return false;
         }
@@ -251,13 +253,27 @@ public partial class HttpChain
     private static readonly MethodInfo MarkDatabaseCommittedMethod =
         typeof(HttpHandler).GetMethod(nameof(HttpHandler.MarkDeduplicatedDatabaseCommitted))!;
 
-    private void warnClaimInTransactionFallsBack(IServiceContainer container, string reason)
+    /// <param name="asked">
+    /// The endpoint asked for it itself. One that only inherited <see cref="WolverineHttpOptions.DefaultClaimInTransaction" />
+    /// is logged at debug level: a global default is expected to miss endpoints on other stores.
+    /// </param>
+    private void warnClaimInTransactionFallsBack(IServiceContainer container, bool asked, string reason)
     {
         try
         {
-            container.GetInstance<ILogger<HttpGraph>>().LogWarning(
-                "[DeduplicatedWithResponse(ClaimInTransaction = true)] on {Endpoint} keeps claim-and-release, because {Reason}. See GH-5160",
-                RoutePattern?.RawText ?? Description, reason);
+            var logger = container.GetInstance<ILogger<HttpGraph>>();
+            if (asked)
+            {
+                logger.LogWarning(
+                    "[DeduplicatedWithResponse(ClaimInTransaction = true)] on {Endpoint} keeps claim-and-release, because {Reason}. See GH-5160",
+                    RoutePattern?.RawText ?? Description, reason);
+            }
+            else
+            {
+                logger.LogDebug(
+                    "[DeduplicatedWithResponse] on {Endpoint} keeps claim-and-release despite WolverineHttpOptions.DefaultClaimInTransaction, because {Reason}. See GH-5160",
+                    RoutePattern?.RawText ?? Description, reason);
+            }
         }
         catch (Exception)
         {

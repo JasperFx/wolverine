@@ -56,7 +56,19 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
     public int WindowInSeconds { get; set; }
 
     /// <inheritdoc cref="DeduplicatedWithResponseRequirement.ClaimInTransaction" />
-    public bool ClaimInTransaction { get; set; }
+    /// <remarks>
+    /// Left unset, the endpoint takes <see cref="WolverineHttpOptions.DefaultClaimInTransaction" />. Set it either way
+    /// to override that default for this endpoint.
+    /// </remarks>
+    public bool ClaimInTransaction
+    {
+        get => _claimInTransaction ?? false;
+        set => _claimInTransaction = value;
+    }
+
+    // Null until somebody actually writes ClaimInTransaction on the attribute, so an endpoint that said nothing can
+    // inherit WolverineHttpOptions.DefaultClaimInTransaction while one that said false keeps false
+    private bool? _claimInTransaction;
 
     public override void Modify(HttpChain chain, GenerationRules rules)
     {
@@ -74,7 +86,7 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
             Key = Key,
             Required = Required,
             Window = WindowInSeconds == 0 ? null : TimeSpan.FromSeconds(WindowInSeconds),
-            ClaimInTransaction = ClaimInTransaction
+            ExplicitClaimInTransaction = _claimInTransaction
         };
     }
 }

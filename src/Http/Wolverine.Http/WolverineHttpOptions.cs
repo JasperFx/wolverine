@@ -183,6 +183,26 @@ public class WolverineHttpOptions
     public int DefaultDuplicateStatusCode { get; set; } = DeduplicationRequirement.DefaultDuplicateStatusCode;
 
     /// <summary>
+    ///     The application-wide default for <c>[DeduplicatedWithResponse(ClaimInTransaction = ...)]</c> on endpoints
+    ///     that do not set it themselves. Defaults to false: the claim is taken up front and the response recorded
+    ///     after the commit (claim-and-release).
+    ///
+    ///     <para>
+    ///     Set to true to have every <c>[DeduplicatedWithResponse]</c> endpoint that can write its claim inside its own
+    ///     transaction do so, which today means an endpoint committing through a Marten session. An endpoint that sets
+    ///     <c>ClaimInTransaction</c> on its attribute always wins, including when it sets false. Endpoints that cannot
+    ///     take the transactional path keep claim-and-release; unlike an explicit opt-in, that is logged at debug
+    ///     level rather than as a warning, since a global default is expected to miss some endpoints.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     It changes what a concurrent repeat does: rather than 409, it runs too, and is answered from the first
+    ///     request's claim when its own commit fails, so work outside the transaction runs for both. See GH-5160.
+    ///     </para>
+    /// </summary>
+    public bool DefaultClaimInTransaction { get; set; }
+
+    /// <summary>
     ///     Apply DataAnnotations Validation middleware to all Wolverine HTTP endpoints
     /// </summary>
     /// <param name="httpOptions"></param>
