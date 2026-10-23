@@ -106,6 +106,86 @@ await host.StartAsync();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L139-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_sns_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you're developing locally under [.NET Aspire](/guide/aspire) against an AWS emulator. The LocalStack
+(`AddLocalStack()`) and CommunityToolkit Floci (`AddFlociAws()`) hosting integrations put the emulator's service URL,
+something like `http://localhost:4566`, at `ConnectionStrings:<resource name>`:
+
+```csharp
+// In the AppHost
+var aws = builder.AddLocalStack("aws");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(aws)
+    .WaitFor(aws);
+```
+
+In your Wolverine service, you just use the resource name. Since you'll almost certainly be listening through SQS as
+well, this sample connects both transports to the same emulator:
+
+<!-- snippet: sample_amazon_sns_using_named_connection -->
+<a id='snippet-sample_amazon_sns_using_named_connection'></a>
+```cs
+// "aws" is the name of the LocalStack resource in the Aspire AppHost,
+// i.e. builder.AddLocalStack("aws"), referenced by this project
+opts.UseAmazonSqsTransportUsingNamedConnection("aws")
+    .AutoProvision();
+
+opts.UseAmazonSnsTransportUsingNamedConnection("aws")
+    .AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/named_connection_5126.cs#L85-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_amazon_sns_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine applies that value as the `ServiceURL` of the SNS config, and also to the paired SQS config that Wolverine
+uses to provision topic subscriptions unless you've already given that one its own `ServiceURL`. Unless you configure
+credentials yourself, Wolverine uses the same placeholder credentials as `UseAmazonSnsTransportLocally()`. If you need
+to configure both the SNS and SQS configs, there's an overload that takes an
+`Action<AmazonSimpleNotificationServiceConfig, AmazonSQSConfig>`. And if you have a second emulator, there's a named
+broker version too:
+
+<!-- snippet: sample_amazon_sns_named_broker_using_named_connection -->
+<a id='snippet-sample_amazon_sns_named_broker_using_named_connection'></a>
+```cs
+opts.UseAmazonSnsTransportUsingNamedConnection("aws");
+
+// A second emulator, i.e. builder.AddLocalStack("aws2") in the AppHost
+opts.AddNamedAmazonSnsBrokerUsingNamedConnection(new BrokerName("other"), "aws2");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/named_connection_5126.cs#L148-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_amazon_sns_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+The named connection string is only for emulators. Real AWS doesn't have a connection string under Aspire at all.
+`Aspire.Hosting.AWS` passes the profile and region to your service as the `AWS_PROFILE` and `AWS_REGION` environment
+variables, and the AWS SDK already reads those on its own. For real AWS, use `UseAmazonSnsTransport()` or the
+container option just below.
+:::
+
+If you'd rather set up the AWS SDK the normal .NET way with `services.AddAWSService<IAmazonSimpleNotificationService>()`
+from AWSSDK.Extensions.NETCore.Setup, you can tell Wolverine to use the clients from your IoC container instead of
+building its own:
+
+<!-- snippet: sample_amazon_sns_with_clients_from_container -->
+<a id='snippet-sample_amazon_sns_with_clients_from_container'></a>
+```cs
+// Use the IAmazonSQS and IAmazonSimpleNotificationService registered in the
+// container, e.g. by services.AddAWSService<IAmazonSQS>()
+opts.UseAmazonSqsTransportWithClientFromContainer().AutoProvision();
+opts.UseAmazonSnsTransportWithClientsFromContainer().AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/named_connection_5126.cs#L247-L254' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_amazon_sns_with_clients_from_container' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The SQS client Wolverine needs to provision SNS-to-SQS subscriptions is also taken from the container when there's an
+`IAmazonSQS` registered, and otherwise Wolverine builds one from the paired SQS config. Wolverine resolves the clients
+when the transport connects, and it does not dispose them. Both `UseAmazonSnsTransportWithClientsFromContainer()` and
+`AddNamedAmazonSnsBrokerWithClientsFromContainer()` let you pass functions to pick the clients out of the container
+if you're using keyed services.
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
 ## Publishing
 
 Configuring subscriptions through Amazon SNS topics is done with the `ToSnsTopic()` extension method

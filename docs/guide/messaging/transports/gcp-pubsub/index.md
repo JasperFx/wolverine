@@ -64,6 +64,63 @@ opts.UsePubsub("your-project-id")
 
 The credential manages its own token refresh lifecycle, so no additional background task is required. For more control over the underlying GCP client builders, see [Customisation](/guide/messaging/transports/gcp-pubsub/customisation).
 
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you're developing locally under [.NET Aspire](/guide/aspire) against a Pub/Sub emulator like the
+CommunityToolkit Floci GCP emulator. Your AppHost declares the emulator and references it from your Wolverine
+service:
+
+```csharp
+// In the AppHost
+var gcp = builder.AddFlociGcp("gcp");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(gcp)
+    .WaitFor(gcp);
+```
+
+Aspire hands your service the emulator endpoint, something like `http://localhost:8085`, at `ConnectionStrings:gcp`,
+and you tell Wolverine that name along with your project id:
+
+<!-- snippet: sample_pubsub_using_named_connection -->
+<a id='snippet-sample_pubsub_using_named_connection'></a>
+```cs
+// Points Wolverine at the Pub/Sub emulator whose endpoint (e.g. "http://localhost:8085")
+// is the "gcp" connection string in IConfiguration
+opts.UsePubsubUsingNamedConnection("wolverine", "gcp")
+    .AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/named_connection_5126.cs#L161-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The value can be a URL (`http://host:port`, or `https://host:port` for TLS) or a bare `host:port` in the same format as
+the `PUBSUB_EMULATOR_HOST` environment variable. Wolverine points all of its Pub/Sub clients at that endpoint. Don't
+combine this with `UseEmulatorDetection()`.
+
+You might be wondering why you still have to pass the project id yourself. That's because Wolverine bakes the project
+id into every Pub/Sub endpoint's `Uri` (`pubsub://{projectId}/{topic}`) as the endpoints are configured, and that
+happens before Wolverine can read `IConfiguration`.
+
+There's a named broker version as well:
+
+<!-- snippet: sample_pubsub_named_broker_using_named_connection -->
+<a id='snippet-sample_pubsub_named_broker_using_named_connection'></a>
+```cs
+// A second, named Pub/Sub broker on another project, whose emulator endpoint is the
+// "gcp2" connection string
+opts.AddNamedPubsubBrokerUsingNamedConnection(new BrokerName("secondary"), "wolverine-named", "gcp2")
+    .AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/named_connection_5126.cs#L170-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+This is strictly for the Pub/Sub emulator. Production Google Cloud Pub/Sub doesn't have a connection string, so use
+`UsePubsub(projectId)` there.
+:::
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
 ## Multiple / Named Brokers
 
 You can connect to more than one GCP Pub/Sub broker (typically a different GCP project) from a single Wolverine application by registering an additional, *named* broker alongside the default one. Endpoints are then pinned to the named broker with the `...OnNamedBroker` overloads:
@@ -153,7 +210,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.ListenToPubsubTopic("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L91-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L107-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's project, stamp the tenant id on the send:

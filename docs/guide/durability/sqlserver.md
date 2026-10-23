@@ -122,9 +122,86 @@ opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
 An explicit `opts.EnvelopeIdGeneration` always wins over all of this. See
 [envelope ID generation](/guide/messages#envelope-id-generation) for all the options.
 
-## Aspire Integration
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-The recommended way to integrate Wolverine with .NET Aspire for SQL Server is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`.
+Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares a SQL Server
+database and references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var database = builder.AddSqlServer("server").AddDatabase("wolverinedb");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(database)
+    .WaitFor(database);
+```
+
+Aspire hands your service the connection string at `ConnectionStrings:wolverinedb`, and all you need to tell Wolverine
+is that name. In the sample below, the in memory configuration is just standing in for what Aspire would supply:
+
+<!-- snippet: sample_sqlserver_persistence_using_named_connection -->
+<a id='snippet-sample_sqlserver_persistence_using_named_connection'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        // Under Aspire, builder.AddSqlServer("server").AddDatabase("wolverinedb") plus
+        // .WithReference(...) in the AppHost supplies this
+        ["ConnectionStrings:wolverinedb"] = Servers.SqlServerConnectionString
+    }))
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        // Resolve the "wolverinedb" connection string from IConfiguration
+        opts.PersistMessagesWithSqlServerUsingNamedConnection("wolverinedb", "named5127");
+    })
+    .UseResourceSetupOnStartup()
+    .StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/named_connection_5127.cs#L54-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlserver_persistence_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+There's no need to pull the connection string out of `IConfiguration` yourself. Wolverine resolves it once the
+application's container exists, but before the message store is built. If the name is missing, Wolverine fails at
+startup with a single error that lists every missing connection string the application asked for.
+
+There's also an overload of `PersistMessagesWithSqlServerUsingNamedConnection()` that takes the same
+`optimizeEnvelopeIdsForSqlServer` flag described in [Optimized Envelope IDs for SQL Server](#optimized-envelope-ids-for-sql-server).
+
+If you're using [multi-tenancy with a database per tenant](#multi-tenancy), the static tenant databases can be
+resolved by name too:
+
+<!-- snippet: sample_sqlserver_static_tenants_using_named_connections -->
+<a id='snippet-sample_sqlserver_static_tenants_using_named_connections'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ConnectionStrings:wolverinedb"] = Servers.SqlServerConnectionString,
+        ["ConnectionStrings:tenant1db"] = Servers.SqlServerConnectionString
+    }))
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        opts.PersistMessagesWithSqlServerUsingNamedConnection("wolverinedb", "named5127")
+            .RegisterStaticTenantsUsingNamedConnections(tenants =>
+            {
+                // tenant id, then the name of its connection string
+                tenants.Register("tenant1", "tenant1db");
+            });
+    })
+    .StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/named_connection_5127.cs#L93-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlserver_static_tenants_using_named_connections' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
+### Reading the Connection String Yourself
+
+If you'd rather read the connection string that Aspire injects yourself through `IConfiguration.GetConnectionString()`, that works too:
 
 **AppHost** (`Aspire.Hosting.SqlServer` NuGet):
 ```csharp

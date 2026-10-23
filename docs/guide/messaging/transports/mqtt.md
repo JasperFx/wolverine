@@ -87,6 +87,72 @@ The MQTT transport does not really support the "Requeue" error handling policy i
 effectively an inline "Retry"
 :::
 
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you're running your system under [.NET Aspire](/guide/aspire) with the CommunityToolkit Mosquitto
+integration, and your AppHost declares the broker and references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var mqtt = builder.AddMosquitto("mqtt");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(mqtt)
+    .WaitFor(mqtt);
+```
+
+Aspire hands your service a broker URI like `mqtt://localhost:1883` at `ConnectionStrings:mqtt`, and all you need to
+tell Wolverine is that name. This works the same way with either the MQTTnet 4 or MQTTnet 5 flavor of the Wolverine
+package:
+
+<!-- snippet: sample_mqtt_using_named_connection -->
+<a id='snippet-sample_mqtt_using_named_connection'></a>
+```cs
+// Reads the broker URI (e.g. "mqtt://localhost:1883") from the "mqtt"
+// connection string in IConfiguration
+opts.UseMqttUsingNamedConnection("mqtt");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/named_connection_5126.cs#L177-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_mqtt_using_named_connection-1'></a>
+```cs
+// Reads the broker URI (e.g. "mqtt://localhost:1883") from the "mqtt"
+// connection string in IConfiguration
+opts.UseMqttUsingNamedConnection("mqtt");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.Mqtt5.Tests/named_connection_5126.cs#L177-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_using_named_connection-1' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine understands a few different shapes of broker URI:
+
+* `mqtt://host:port` or `tcp://host:port` connects over TCP
+* `mqtts://`, `ssl://`, or `tls://` connects over TCP with TLS
+* `ws://` or `wss://` connects over a web socket
+* A bare `host` or `host:port` is treated as TCP
+
+The port defaults to 1883, or 8883 for TLS, and any `user:password@` in the URI becomes the client credentials.
+`UseMqttUsingNamedConnection()` also takes an optional `Action<MqttClientOptionsBuilder>` for things like the client
+id or TLS settings, and that's applied after the connection from the named connection string. It takes the same
+`MqttJwtAuthenticationOptions` as `UseMqtt()` if you're using [OAuth2 authentication](#authentication-via-oauth2).
+
+If you're connecting to more than one MQTT broker, there's a named broker version too:
+
+<!-- snippet: sample_mqtt_named_broker_using_named_connection -->
+<a id='snippet-sample_mqtt_named_broker_using_named_connection'></a>
+```cs
+// A second MQTT broker, whose connection comes from the "mqtt2" connection string
+opts.AddNamedMqttBrokerUsingNamedConnection(new BrokerName("secondary"), "mqtt2");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/named_connection_5126.cs#L185-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_mqtt_named_broker_using_named_connection-1'></a>
+```cs
+// A second MQTT broker, whose connection comes from the "mqtt2" connection string
+opts.AddNamedMqttBrokerUsingNamedConnection(new BrokerName("secondary"), "mqtt2");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.Mqtt5.Tests/named_connection_5126.cs#L185-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_named_broker_using_named_connection-1' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
 ## Connecting to Multiple MQTT Brokers
 
 If a single Wolverine application needs to talk to more than one MQTT broker, register the additional broker(s)

@@ -24,7 +24,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L110-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L109-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -54,7 +54,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L131-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L130-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -72,7 +72,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSqsTransportLocally();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L96-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L95-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you want to explicitly supply an access and secret key for your credentials to SQS, you can use this syntax:
@@ -106,8 +106,81 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L160-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L159-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you're developing locally under [.NET Aspire](/guide/aspire) against an AWS emulator. The LocalStack
+(`AddLocalStack()`) and CommunityToolkit Floci (`AddFlociAws()`) hosting integrations put the emulator's service URL,
+something like `http://localhost:4566`, at `ConnectionStrings:<resource name>`:
+
+```csharp
+// In the AppHost
+var aws = builder.AddLocalStack("aws");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(aws)
+    .WaitFor(aws);
+```
+
+In your Wolverine service, you just use the resource name:
+
+<!-- snippet: sample_amazon_sqs_using_named_connection -->
+<a id='snippet-sample_amazon_sqs_using_named_connection'></a>
+```cs
+// "aws" is the name of the LocalStack resource in the Aspire AppHost,
+// i.e. builder.AddLocalStack("aws"), referenced by this project
+opts.UseAmazonSqsTransportUsingNamedConnection("aws")
+    .AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/named_connection_5126.cs#L82-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_amazon_sqs_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine applies that value as the `ServiceURL` of its `AmazonSQSConfig`, and unless you configure credentials
+yourself, it uses the same placeholder credentials as `UseAmazonSqsTransportLocally()`. There's an optional
+`Action<AmazonSQSConfig>` argument for anything else you need to configure. If you have a second emulator, there's a
+named broker version too:
+
+<!-- snippet: sample_amazon_sqs_named_broker_using_named_connection -->
+<a id='snippet-sample_amazon_sqs_named_broker_using_named_connection'></a>
+```cs
+opts.UseAmazonSqsTransportUsingNamedConnection("aws");
+
+// A second emulator, i.e. builder.AddLocalStack("aws2") in the AppHost
+opts.AddNamedAmazonSqsBrokerUsingNamedConnection(new BrokerName("other"), "aws2");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/named_connection_5126.cs#L114-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_amazon_sqs_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+The named connection string is only for emulators. Real AWS doesn't have a connection string under Aspire at all.
+`Aspire.Hosting.AWS` passes the profile and region to your service as the `AWS_PROFILE` and `AWS_REGION` environment
+variables, and the AWS SDK already reads those on its own. For real AWS, use `UseAmazonSqsTransport()` or the
+container option just below.
+:::
+
+If you'd rather set up the AWS SDK the normal .NET way with `services.AddAWSService<IAmazonSQS>()` from
+AWSSDK.Extensions.NETCore.Setup, you can tell Wolverine to use the `IAmazonSQS` client from your IoC container
+instead of building its own:
+
+<!-- snippet: sample_amazon_sqs_with_client_from_container -->
+<a id='snippet-sample_amazon_sqs_with_client_from_container'></a>
+```cs
+// Use the IAmazonSQS registered in the container, e.g. by
+// services.AddAWSService<IAmazonSQS>()
+opts.UseAmazonSqsTransportWithClientFromContainer()
+    .AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/named_connection_5126.cs#L210-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_amazon_sqs_with_client_from_container' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine resolves the client when the transport connects, and it does not dispose it because the container owns it.
+`UseAmazonSqsTransportWithClientFromContainer()` takes an optional `Func<IServiceProvider, IAmazonSQS>` if you need
+to pick out something like a keyed service, and `AddNamedAmazonSqsBrokerWithClientFromContainer(brokerName, clientSource)`
+does the same thing for a named broker.
+
+See [Aspire Integration](/guide/aspire) for the full picture.
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
 
@@ -143,7 +216,7 @@ using var host = await Host.CreateDefaultBuilder()
         // Other configuration
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L20-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_sqs_brokers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L19-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_sqs_brokers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Amazon SQS broker is the name that you supply
@@ -198,7 +271,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToSqsQueue("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L53-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L52-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's connection, stamp the tenant id on the send:

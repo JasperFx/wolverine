@@ -28,8 +28,8 @@ return await Host.CreateDefaultBuilder(args)
         // named "rabbit" from IConfiguration. This is *a* way to use
         // Wolverine + Rabbit MQ using Aspire
         opts.UseRabbitMqUsingNamedConnection("rabbit")
-            // Lets Wolverine check for and create declared Rabbit MQ objects
-            // on demand as they are needed
+            // Directs Wolverine to build any declared queues, exchanges, or
+            // bindings with the Rabbit MQ broker as needed
             .AutoProvision();
 
         // Adds an IHostedService that sets up *all* known JasperFx resources
@@ -42,7 +42,7 @@ return await Host.CreateDefaultBuilder(args)
         opts.Services.AddHostedService<PingerService>();
     }).RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L7-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
@@ -211,7 +211,8 @@ builder.UseWolverine(opts =>
 
 `UseRabbitMqUsingNamedConnection` reads from `IConfiguration.GetConnectionString("rabbitmq")`.
 Aspire populates this automatically — it handles both URI-format strings (e.g., `amqp://guest:guest@localhost:5672`)
-and the key=value format.
+and the key=value format. See [Aspire Integration](/guide/aspire) for how the named connection strings work across
+every Wolverine transport and message store.
 
 ### Alternative: Using Aspire.RabbitMQ.Client
 
@@ -367,7 +368,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L718-L744' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L752-L778' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This creates RabbitMQ queues named `sequenced1` through `sequenced5` with companion local queues `global-sequenced1` through `global-sequenced5`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
