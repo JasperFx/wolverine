@@ -45,6 +45,36 @@ public static class NamedConnectionStringExtensions
     }
 
     /// <summary>
+    /// GH-5126. Declare a connection string this application resolves by name from <c>IConfiguration</c>
+    /// (exactly as <see cref="RequireNamedConnectionString"/> does, so it joins the aggregated startup check),
+    /// <b>and</b> hand the resolved value to <paramref name="apply"/> once the container is built -- before the
+    /// message store initializes, before any transport connects, and before the <c>resources</c> commands
+    /// touch a broker.
+    ///
+    /// <para>
+    /// This is the shared plumbing behind the <c>Use{Transport}UsingNamedConnection(name)</c> and
+    /// <c>AddNamed{Transport}BrokerUsingNamedConnection(broker, name)</c> APIs. A transport's configuration is
+    /// built before <c>IConfiguration</c> can be read, so the callback is how the value reaches the transport
+    /// -- typically by setting the same property the transport's <c>UseX(string connectionString)</c>
+    /// overload sets. Because the callback captures the transport instance, it works for named brokers too.
+    /// </para>
+    /// </summary>
+    /// <param name="kind">What needs it, for the message -- e.g. "Azure Service Bus".</param>
+    /// <param name="connectionStringName">The connection string key.</param>
+    /// <param name="aspireResourceMethod">The Aspire AppHost builder method that registers this resource.</param>
+    /// <param name="apply">Receives the resolved, non-empty connection string value.</param>
+    public static WolverineOptions ApplyNamedConnectionString(this WolverineOptions options, string kind,
+        string connectionStringName, string? aspireResourceMethod, Action<string> apply)
+    {
+        ArgumentNullException.ThrowIfNull(apply);
+        options.RequireNamedConnectionString(kind, connectionStringName, aspireResourceMethod);
+        options.NamedConnectionStringBindings.Add(new NamedConnectionStringBinding(
+            new NamedConfigurationDependency(kind, connectionStringName, aspireResourceMethod), apply));
+
+        return options;
+    }
+
+    /// <summary>
     /// The single-dependency failure, built the same way the aggregated startup check builds its multi-name
     /// one, so the environment check, the startup check and the DI factory backstop all read identically.
     /// </summary>
