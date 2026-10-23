@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine;
 using Wolverine.Configuration;
+using Wolverine.Diagnostics;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -85,6 +86,16 @@ public class separated_handler_chains_are_not_skipped : IAsyncLifetime
     {
         var root = theGraph.ChainFor<ModuleEvent>()!;
         root.ByEndpoint.ShouldAllBe(x => x.SuccessLogLevel == LogLevel.Information);
+    }
+
+    [Fact]
+    public void describe_routing_lists_the_separated_handlers()
+    {
+        var lines = WolverineDiagnosticsCommand.DescribeLocalHandlers(theGraph.ChainFor<ModuleEvent>()!);
+
+        lines.Count.ShouldBe(2);
+        lines.ShouldContain(x => x.StartsWith(typeof(InventoryModuleHandler).FullNameInCode() + ".Handle") && x.Contains("local://"));
+        lines.ShouldContain(x => x.StartsWith(typeof(ReportingModuleHandler).FullNameInCode() + ".Handle") && x.Contains("local://"));
     }
 
     [Fact]
