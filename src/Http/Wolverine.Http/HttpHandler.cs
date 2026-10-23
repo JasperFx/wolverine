@@ -220,7 +220,10 @@ public abstract class HttpHandler
         }
 
         context.Response.ContentType = "text/plain";
-        context.Response.ContentLength = text.Length;
+
+        // WriteAsync encodes as UTF-8, so the header is the encoded byte count. text.Length counts chars, which
+        // undercounts any non-ASCII text and makes Kestrel abort the response with a Content-Length mismatch
+        context.Response.ContentLength = Encoding.UTF8.GetByteCount(text);
         return context.Response.WriteAsync(text, context.RequestAborted);
     }
 
