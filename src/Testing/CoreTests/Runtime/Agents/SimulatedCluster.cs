@@ -133,6 +133,11 @@ internal sealed class SimulatedCluster : IAsyncDisposable
     }
 
     public WolverineOptions Options { get; private set; }
+
+    /// <summary>
+    ///     The grid the leader built on its most recent evaluation.
+    /// </summary>
+    public AssignmentGrid? LastAssignments => _controller.LastAssignments;
     public int Seed { get; }
 
     /// <summary>

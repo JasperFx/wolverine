@@ -218,6 +218,13 @@ public partial class AssignmentGrid
             {
                 agent.CandidateNodes.RemoveAll(x => x.IsWarmup);
             }
+
+            // GH-5163. Only visible while the agent stays unassigned; a later placement (the GH-3341 rescue,
+            // say) hides it again.
+            if (agent.CandidateNodes.Count == 0)
+            {
+                agent.UnplacedReason = UnplacedReason.NoCapableNode;
+            }
         }
 
         detachFromIneligibleWarmupNodes(agents);
@@ -389,6 +396,7 @@ public partial class AssignmentGrid
             }
 
             agent.IsPaused = true;
+            agent.UnplacedReason = UnplacedReason.Paused;
             if (agent.AssignedNode != null)
             {
                 agent.Detach();

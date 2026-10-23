@@ -63,6 +63,13 @@ public partial class AssignmentGrid
             // to zero (3 -> 2 -> 1 -> 0) and stay there for as long as the pressure held, taking the
             // durability agents and daemon shards with it. An overloaded node still running its work
             // is strictly better than that.
+            //
+            // GH-5163: say why, so a monitor can tell "waiting on capacity" from "never started".
+            foreach (var agent in agents)
+            {
+                if (agent.AssignedNode == null) agent.UnplacedReason = UnplacedReason.AwaitingCapacity;
+            }
+
             return;
         }
 
@@ -647,6 +654,7 @@ public partial class AssignmentGrid
 
         if (capableNodes.Count == 0)
         {
+            foreach (var agent in agents) agent.UnplacedReason = UnplacedReason.NoCapableNode;
             return;
         }
 

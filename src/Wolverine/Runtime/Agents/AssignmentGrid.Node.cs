@@ -258,6 +258,7 @@ public partial class AssignmentGrid
             }
 
             agent.AssignedNode = this;
+            agent.UnplacedReason = null;
             add(agent);
         }
 
@@ -274,6 +275,7 @@ public partial class AssignmentGrid
             }
 
             agent.AssignedNode = this;
+            agent.UnplacedReason = null;
             add(agent);
         }
 

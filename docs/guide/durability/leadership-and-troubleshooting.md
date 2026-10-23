@@ -207,6 +207,9 @@ receive line were the same number, a node sitting right at the threshold would s
 immediately look like a valid target again, and get the agent right back on the next evaluation. The band gives the
 reading somewhere to settle.
 
+If 10 points is the wrong band for you, set `NodeAcceptThreshold` to the load below which a node receives agents again.
+Leave it null to keep the default of `NodeOverloadThreshold - 10`, and keep it below the overload threshold.
+
 `OverloadShedBatchSize` (1 by default) caps how many agents per scheme come off an overloaded node in any one
 evaluation. Shedding only ever happens when some *other* node can take the work, too. An overloaded node with nowhere
 to shed to keeps what it's running, because a node that's struggling is still better than no node at all.
@@ -239,6 +242,12 @@ onto a node that's already struggling.
 That's the right call, but be aware that it's a *quiet* symptom compared to a crash loop. Nothing is throwing, nothing
 is restarting, and the only outward sign is that some work isn't happening. If you're enabling this feature, it's worth
 setting up an alert on agents that stay unassigned across several evaluations.
+
+To make that easier to tell apart from other problems, the leader logs an Information message naming the agents waiting
+for capacity (once per change in that count, not on every evaluation), and each waiting agent in the `AssignmentGrid`
+handed to `IWolverineObserver.AssignmentsChanged()` carries `UnplacedReason.AwaitingCapacity`. An agent with no node
+that can run it shows `NoCapableNode`, a paused one `Paused`, and one held back by a newly elected leader
+`TakeoverHold`.
 
 ### Which Databases Support This
 
