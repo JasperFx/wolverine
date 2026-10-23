@@ -1,9 +1,12 @@
 ﻿using JasperFx.Core;
 using Npgsql;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Transport;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime.Partitioning;
 
 
@@ -90,6 +93,102 @@ public static class PostgresqlConfigurationExtensions
         options.Include(persistence);
 
         persistence.AlreadyIncluded = true;
+
+        return persistence;
+    }
+
+    internal static NamedConfigurationDependency NamedConnectionDependency(string connectionStringName) =>
+        new("PostgreSQL", connectionStringName, "AddPostgres") { Usage = "message store" };
+
+    /// <summary>
+    ///     Register PostgreSQL backed message persistence to the named connection string from IConfiguration. This
+    ///     option is useful for Aspire integration, where the AppHost's <c>builder.AddPostgres("server").AddDatabase("name")</c>
+    ///     plus <c>.WithReference(...)</c> supplies <c>ConnectionStrings:name</c>. The value is resolved once the
+    ///     application's container exists, before the message store is built; a missing name fails startup together
+    ///     with every other missing named connection string.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage. This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
+    /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
+    public static IPostgresqlBackedPersistence PersistMessagesWithPostgresqlUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        var dependency = NamedConnectionDependency(connectionStringName);
+        var persistence = new PostgresqlBackedPersistence(options.Durability, options)
+        {
+            NamedConnection = dependency,
+            AlreadyIncluded = true,
+            Role = role
+        };
+
+        if (schemaName.IsNotEmpty())
+        {
+            schemaName.AssertValidSchemaName();
+            persistence.EnvelopeStorageSchemaName = schemaName;
+        }
+
+        options.ApplyNamedConnectionString(dependency, value => persistence.ConnectionString = value);
+
+        persistence.Configure(options);
+
+        return persistence;
+    }
+
+    /// <summary>
+    ///     Register PostgreSQL backed message persistence to an <see cref="NpgsqlDataSource"/> registered in the
+    ///     application's container -- e.g. by Aspire's <c>builder.AddNpgsqlDataSource("name")</c> client integration.
+    ///     The data source is resolved when the message store is built, and is owned by the container: Wolverine does
+    ///     not dispose it.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="dataSourceSource">How to find the data source. Defaults to resolving <see cref="NpgsqlDataSource"/>; pass e.g. <c>s => s.GetRequiredKeyedService&lt;NpgsqlDataSource&gt;("name")</c> for a keyed registration</param>
+    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage. This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
+    /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
+    public static IPostgresqlBackedPersistence PersistMessagesWithPostgresqlUsingDataSourceFromContainer(
+        this WolverineOptions options, Func<IServiceProvider, NpgsqlDataSource>? dataSourceSource = null,
+        string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
+    {
+        var persistence = new PostgresqlBackedPersistence(options.Durability, options)
+        {
+            DataSourceSource = dataSourceSource ?? (s => s.GetRequiredService<NpgsqlDataSource>()),
+            Role = role
+        };
+
+        if (schemaName.IsNotEmpty())
+        {
+            schemaName.AssertValidSchemaName();
+            persistence.EnvelopeStorageSchemaName = schemaName;
+        }
+
+        options.Include(persistence);
+
+        persistence.AlreadyIncluded = true;
+
+        return persistence;
+    }
+
+    /// <summary>
+    ///     Opt into static per-tenant database multi-tenancy where each tenant database's connection string is
+    ///     resolved by name from IConfiguration -- e.g. one Aspire database resource per tenant, each referenced
+    ///     from this project. Every name joins the aggregated startup check.
+    /// </summary>
+    /// <param name="persistence"></param>
+    /// <param name="configure">Register each tenant id and the name of its connection string</param>
+    public static IPostgresqlBackedPersistence RegisterStaticTenantsUsingNamedConnections(
+        this IPostgresqlBackedPersistence persistence, Action<NamedConnectionStringTenants> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var tenants = new NamedConnectionStringTenants();
+        configure(tenants);
+
+        StaticConnectionStringSource source = null!;
+        persistence.RegisterStaticTenants(x => source = x);
+
+        tenants.ApplyTo(((PostgresqlBackedPersistence)persistence).Options, source, "PostgreSQL", "AddPostgres");
 
         return persistence;
     }

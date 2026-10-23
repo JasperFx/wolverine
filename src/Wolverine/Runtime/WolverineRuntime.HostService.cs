@@ -453,12 +453,24 @@ public partial class WolverineRuntime
     /// <summary>
     /// GH-5126. Validate every named connection string (see <see cref="assertNamedConnectionStringsExist"/>),
     /// then push each resolved value registered through
-    /// <see cref="NamedConnectionStringExtensions.ApplyNamedConnectionString"/> into whatever asked for it.
+    /// <c>NamedConnectionStringExtensions.ApplyNamedConnectionString</c> into whatever asked for it.
     /// Idempotent: host startup and the <c>resources</c> commands both call it, and either may come first.
     /// </summary>
     internal void ApplyNamedConnectionStrings()
     {
         if (_namedConnectionStringsApplied) return;
+
+        lock (_namedConnectionStringsLock)
+        {
+            if (_namedConnectionStringsApplied) return;
+            applyNamedConnectionStrings();
+        }
+    }
+
+    private readonly object _namedConnectionStringsLock = new();
+
+    private void applyNamedConnectionStrings()
+    {
 
         assertNamedConnectionStringsExist();
 

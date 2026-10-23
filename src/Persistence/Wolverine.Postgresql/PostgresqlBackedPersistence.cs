@@ -10,6 +10,7 @@ using Npgsql;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -166,9 +167,42 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     
     internal bool AlreadyIncluded { get; set; }
 
+    internal WolverineOptions Options => _options;
+
     // Gotta have one or the other. Maybe even just DbDataSource here
     public NpgsqlDataSource? DataSource { get; set; }
     public string? ConnectionString { get; set; }
+
+    /// <summary>
+    /// GH-5127. Set by PersistMessagesWithPostgresqlUsingNamedConnection(): the connection string is resolved from
+    /// IConfiguration once the container exists, so <see cref="ConnectionString"/> is still empty at configuration time
+    /// </summary>
+    internal NamedConfigurationDependency? NamedConnection { get; set; }
+
+    /// <summary>
+    /// GH-5127. Set by PersistMessagesWithPostgresqlUsingDataSourceFromContainer(): the NpgsqlDataSource is resolved
+    /// from the application's container (e.g. registered by Aspire's AddNpgsqlDataSource()) when the store is built.
+    /// The container owns it, so Wolverine does not dispose it
+    /// </summary>
+    internal Func<IServiceProvider, NpgsqlDataSource>? DataSourceSource { get; set; }
+
+    /// <summary>
+    /// The connection information is not known until the container exists
+    /// </summary>
+    private bool resolvesConnectionLater => NamedConnection != null || DataSourceSource != null;
+
+    private void resolveDeferredConnection(IServiceProvider services)
+    {
+        if (NamedConnection != null)
+        {
+            services.GetService<IWolverineRuntime>()?.EnsureNamedConnectionStringsApplied();
+        }
+
+        if (DataSource == null && DataSourceSource != null)
+        {
+            DataSource = DataSourceSource(services);
+        }
+    }
     
     private string _envelopeStorageSchemaName = null!;
 
@@ -217,7 +251,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
     public void Configure(WolverineOptions options)
     {
-        if (ConnectionString.IsEmpty() && DataSource == null)
+        if (ConnectionString.IsEmpty() && DataSource == null && !resolvesConnectionLater)
         {
             throw new InvalidOperationException(
                 "The PostgreSQL backed persistence needs to at least have either a connection string or NpgsqlDataSource defined for the main envelope database");
@@ -228,7 +262,19 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             .Discard();
         
         // This needs to stay in to help w/ EF Core customization
-        options.Services.AddSingleton(buildMainDatabaseSettings());
+        if (resolvesConnectionLater)
+        {
+            // GH-5127. The connection information only exists once the container does
+            options.Services.AddSingleton(s =>
+            {
+                resolveDeferredConnection(s);
+                return buildMainDatabaseSettings();
+            });
+        }
+        else
+        {
+            options.Services.AddSingleton(buildMainDatabaseSettings());
+        }
         options.CodeGeneration.AddPersistenceStrategy<LightweightSagaPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
@@ -268,12 +314,14 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)
     {
+        resolveDeferredConnection(runtime.Services);
         var settings = buildMainDatabaseSettings();
 
         var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();
         
         // Only a data source built here from the connection string is Wolverine's to dispose. One passed to
-        // PersistMessagesWithPostgresql(NpgsqlDataSource) belongs to the caller
+        // PersistMessagesWithPostgresql(NpgsqlDataSource) belongs to the caller, and one taken from the container
+        // belongs to the container (GH-5127)
         var ownsMainSource = DataSource == null;
         var mainSource = DataSource ?? NpgsqlDataSource.Create(ConnectionString!);
         var logger = runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>();

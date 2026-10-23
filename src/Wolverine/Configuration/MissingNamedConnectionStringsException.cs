@@ -48,14 +48,14 @@ public class MissingNamedConnectionStringsException : InvalidOperationException
         {
             var only = missing[0];
             writer.Append(
-                $"The connection string named '{only.Name}' required by the {only.Kind} transport is missing from configuration.");
+                $"The connection string named '{only.Name}' required by the {only.Kind} {only.Usage} is missing from configuration.");
         }
         else
         {
             writer.AppendLine($"{missing.Count} connection strings required by this Wolverine application are missing from configuration:");
             foreach (var dependency in missing)
             {
-                writer.AppendLine($"  * '{dependency.Name}', required by the {dependency.Kind} transport");
+                writer.AppendLine($"  * '{dependency.Name}', required by the {dependency.Kind} {dependency.Usage}");
             }
         }
 

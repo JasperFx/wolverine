@@ -260,11 +260,11 @@ internal class WolverineSystemPart : SystemPartBase
         
             // These have to run first. Right now, the only options are for building multi-tenanted
             // databases with EF Core
-            list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
-
-            // GH-5126. The resources commands build transports without starting the host, so a transport
-            // configured by connection-string name has to receive its value here too.
+            // GH-5126/5127. The resources commands build transports and message stores without starting the
+            // host, so anything configured by connection-string name has to receive its value here, first.
             _runtime.ApplyNamedConnectionStrings();
+
+            list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
 
             if (!_runtime.Options.ExternalTransportsAreStubbed)
             {
