@@ -209,7 +209,11 @@ public partial class NodeAgentController
         var grid = new AssignmentGrid();
         grid.OverloadShedBatchSize = Math.Max(1, _runtime.Options.Durability.OverloadShedBatchSize);
 
-        var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
+        // GH-5163 follow-up: a node's wolverine:// capabilities are markers about the node itself (durability
+        // agents enabled, the warm-up role), not agents. Seeded as agents they sat in every grid as permanently
+        // unassigned agents with no UnplacedReason, which a monitor reading the grid can only call unknown. The
+        // nodes still carry them, which is all Node.Declares and the capability checks read.
+        var capabilities = nodes.SelectMany(x => x.Capabilities).Where(x => !IsNodeMarker(x)).Distinct().ToArray();
         grid.WithAgents(capabilities);
 
         var capacityAware = _runtime.Options.Durability.CapacityAwareAssignment;

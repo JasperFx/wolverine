@@ -79,7 +79,15 @@ public abstract class SingularAgent : IAgent, IAgentFamily
 
         var serving = assignments.Nodes.Where(x => !x.IsWarmup).ToList();
         var node = serving.FirstOrDefault(x => !x.IsLeader) ?? serving.FirstOrDefault();
-        node?.Assign(agent);
+        if (node == null)
+        {
+            // GH-5163 follow-up: only warm-up nodes, none of which may run it
+            agent.UnplacedReason = UnplacedReason.NoCapableNode;
+        }
+        else
+        {
+            node.Assign(agent);
+        }
 
         return new ValueTask();
     }
