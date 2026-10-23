@@ -1,4 +1,6 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using MQTTnet;
 using MQTTnet.Extensions.ManagedClient;
 using Wolverine.Configuration;
 using Wolverine.MQTT.Internals;
@@ -77,6 +79,142 @@ public static class MqttTransportExtensions
         {
             builder.WithClientOptions(opts => { opts.WithTcpServer("127.0.0.1", port); });
         });
+    }
+
+    /// <summary>
+    /// Direct Wolverine to connect to MQTT using the named connection string from IConfiguration.
+    /// This option is useful for Aspire integration between Wolverine and Aspire
+    ///
+    /// <para>
+    /// The value is a broker URI. <c>mqtt://host:port</c> (what the CommunityToolkit Aspire Mosquitto integration
+    /// supplies) and <c>tcp://host:port</c> connect over TCP, <c>mqtts://</c> (or <c>ssl://</c> / <c>tls://</c>) over
+    /// TCP with TLS, and <c>ws://</c> / <c>wss://</c> over a web socket. A bare <c>host</c> or <c>host:port</c> is
+    /// treated as TCP. The port defaults to 1883 (8883 for TLS), and <c>user:password@</c> in the URI becomes the
+    /// client credentials.
+    /// </para>
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configureClient">Optional extra configuration of the MQTT client options (client id, TLS, credentials
+    /// etc.), applied after the connection from the named connection string</param>
+    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH2-JWT -- or whatever
+    /// <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/> is set to -- and uses the callback to fetch a token.</param>
+    /// <returns></returns>
+    public static MqttTransportExpression UseMqttUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, Action<MqttClientOptionsBuilder>? configureClient = null,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        var transport = options.MqttTransport();
+        applyNamedConnection(options, transport, connectionStringName, configureClient, jwtAuthenticationOptions);
+
+        return new MqttTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Configure a connection to a secondary, named MQTT broker using the named connection string from
+    /// IConfiguration. This is the Aspire-friendly form of <c>AddNamedMqttBroker</c> for applications that talk
+    /// to two or more MQTT brokers. The value formats are the same as <see cref="UseMqttUsingNamedConnection"/>.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional MQTT broker</param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configureClient">Optional extra configuration of the MQTT client options, applied after the
+    /// connection from the named connection string</param>
+    /// <param name="jwtAuthenticationOptions">Optional bearer token authentication for the additional broker</param>
+    public static MqttTransportExpression AddNamedMqttBrokerUsingNamedConnection(this WolverineOptions options,
+        BrokerName name, string connectionStringName, Action<MqttClientOptionsBuilder>? configureClient = null,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions = null)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        var transport = options.MqttTransport(name);
+        applyNamedConnection(options, transport, connectionStringName, configureClient, jwtAuthenticationOptions);
+
+        return new MqttTransportExpression(transport, options);
+    }
+
+    private static void applyNamedConnection(WolverineOptions options, MqttTransport transport,
+        string connectionStringName, Action<MqttClientOptionsBuilder>? configureClient,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions)
+    {
+        transport.JwtAuthenticationOptions = jwtAuthenticationOptions;
+
+        // GH-5126: MqttTransport.Options is only consumed when the transport connects (ConnectAsync), which is
+        // after the named connection string is resolved and applied at the top of host startup. The extra
+        // client configuration continues on the same MqttClientOptionsBuilder, so it can add to -- or override --
+        // what the connection string set. (The MQTTnet 5 ManagedMqttClientOptionsBuilder shim replaces the whole
+        // client options on every WithClientOptions call, so everything goes through this single call.)
+        options.ApplyNamedConnectionString("MQTT", connectionStringName, "AddMosquitto", value =>
+        {
+            transport.Options = new ManagedMqttClientOptionsBuilder()
+                .WithClientOptions(client =>
+                {
+                    ApplyConnectionString(client, value);
+                    configureClient?.Invoke(client);
+                })
+                .Build();
+        });
+    }
+
+    /// <summary>
+    /// Apply an MQTT connection string (a broker URI or a bare host[:port]) to the client options builder
+    /// </summary>
+    internal static void ApplyConnectionString(MqttClientOptionsBuilder builder, string connectionString)
+    {
+        var value = connectionString.Trim();
+        if (!value.Contains("://"))
+        {
+            value = "mqtt://" + value;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Host.IsEmpty())
+        {
+            throw new ArgumentOutOfRangeException(nameof(connectionString),
+                $"'{connectionString}' is not a valid MQTT connection string. Expected something like 'mqtt://localhost:1883'");
+        }
+
+        var scheme = uri.Scheme.ToLowerInvariant();
+        switch (scheme)
+        {
+            case "mqtt":
+            case "tcp":
+                builder.WithTcpServer(uri.Host, uri.IsDefaultPort || uri.Port <= 0 ? 1883 : uri.Port);
+                break;
+
+            case "mqtts":
+            case "ssl":
+            case "tls":
+                builder.WithTcpServer(uri.Host, uri.IsDefaultPort || uri.Port <= 0 ? 8883 : uri.Port);
+                builder.WithTlsOptions(tls => tls.UseTls());
+                break;
+
+            case "ws":
+            case "wss":
+                // Credentials ride on the MQTT CONNECT packet, not on the web socket URI
+                var socketUri = new UriBuilder(uri) { UserName = string.Empty, Password = string.Empty }.Uri.ToString();
+                builder.WithWebSocketServer(ws => ws.WithUri(socketUri));
+                if (scheme == "wss")
+                {
+                    builder.WithTlsOptions(tls => tls.UseTls());
+                }
+
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(connectionString),
+                    $"Unsupported MQTT connection string scheme '{uri.Scheme}'. Use mqtt://, mqtts://, tcp://, ws:// or wss://");
+        }
+
+        if (uri.UserInfo.IsNotEmpty())
+        {
+            var parts = uri.UserInfo.Split(':', 2);
+            var userName = Uri.UnescapeDataString(parts[0]);
+            var password = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+            builder.WithCredentials(userName, password);
+        }
     }
 
     /// <summary>

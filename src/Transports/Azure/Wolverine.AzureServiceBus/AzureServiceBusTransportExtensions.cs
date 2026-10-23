@@ -1,7 +1,9 @@
 using Azure;
 using Azure.Core;
+using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -127,6 +129,167 @@ public static class AzureServiceBusTransportExtensions
         configure?.Invoke(transport.ClientOptions);
 
         return new AzureServiceBusConfiguration(transport, endpoints);
+    }
+
+    /// <summary>
+    /// Direct Wolverine to connect to Azure Service Bus using the named connection string from IConfiguration.
+    /// This option is useful for Aspire integration between Wolverine and Aspire, where the AppHost's
+    /// <c>builder.AddAzureServiceBus("name")</c> plus <c>.WithReference(...)</c> supplies <c>ConnectionStrings:name</c>.
+    ///
+    /// <para>
+    /// The value is resolved once the application starts, and either of the two shapes Aspire supplies is accepted:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>
+    /// A full connection string -- anything with an <c>Endpoint=</c> segment and a key, which is what Aspire hands out
+    /// for the Azure Service Bus emulator (<c>Endpoint=sb://...;SharedAccessKeyName=...;SharedAccessKey=...;UseDevelopmentEmulator=true;</c>).
+    /// It is used as the connection string, exactly as <c>UseAzureServiceBus(connectionString)</c> would.
+    /// </item>
+    /// <item>
+    /// Just the namespace -- what Aspire hands out for a real Azure namespace, the namespace's service bus endpoint
+    /// (e.g. <c>https://myns.servicebus.windows.net:443/</c>), or a bare <c>myns.servicebus.windows.net</c>, or an
+    /// <c>Endpoint=</c> segment with no key. The host name becomes the fully qualified namespace, secured through
+    /// <paramref name="tokenCredential"/>, or a <c>DefaultAzureCredential</c> (managed identity, environment, Azure CLI
+    /// and so on) when that is null.
+    /// </item>
+    /// </list>
+    ///
+    /// <para>
+    /// An <c>EntityPath</c> segment (what Aspire adds when you reference a single queue or topic resource rather than
+    /// the namespace) is dropped, because Wolverine addresses every queue and topic through one client.
+    /// </para>
+    ///
+    /// <para>
+    /// A missing connection string fails application startup, together with every other missing named connection
+    /// string, naming the Aspire <c>AddAzureServiceBus</c> remedy.
+    /// </para>
+    ///
+    /// <para>
+    /// The Azure Service Bus emulator serves its management (HTTP) API on a different port than messaging, and
+    /// Aspire's emulator connection string only names the messaging port. If you want Wolverine to provision queues and
+    /// topics against the emulator (<c>AutoProvision()</c>), also set <see cref="AzureServiceBusTransport.ManagementConnectionString"/>;
+    /// otherwise declare the entities in the AppHost.
+    /// </para>
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configure">Optional extra configuration of the ServiceBusClientOptions</param>
+    /// <param name="tokenCredential">
+    /// The credential used when the configured value is a namespace rather than a full connection string. Defaults
+    /// to a <c>DefaultAzureCredential</c>. Ignored when the value is a connection string.
+    /// </param>
+    /// <returns></returns>
+    public static AzureServiceBusConfiguration UseAzureServiceBusUsingNamedConnection(this WolverineOptions endpoints,
+        string connectionStringName, Action<ServiceBusClientOptions>? configure = null,
+        TokenCredential? tokenCredential = null)
+    {
+        ArgumentNullException.ThrowIfNull(connectionStringName);
+
+        var transport = endpoints.AzureServiceBusTransport();
+        return useNamedConnection(endpoints, transport, connectionStringName, configure, tokenCredential);
+    }
+
+    /// <summary>
+    /// Add a named Azure Service Bus broker connected through the named connection string from IConfiguration.
+    /// This option is useful for Aspire integration between Wolverine and Aspire when an application talks to more
+    /// than one Azure Service Bus namespace. The connection string value is interpreted exactly as it is by
+    /// <see cref="UseAzureServiceBusUsingNamedConnection"/>: a full connection string, or a namespace secured through
+    /// <paramref name="tokenCredential"/> (a <c>DefaultAzureCredential</c> when null).
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="brokerName"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configure">Optional extra configuration of the ServiceBusClientOptions</param>
+    /// <param name="tokenCredential">
+    /// The credential used when the configured value is a namespace rather than a full connection string. Defaults
+    /// to a <c>DefaultAzureCredential</c>. Ignored when the value is a connection string.
+    /// </param>
+    /// <returns></returns>
+    public static AzureServiceBusConfiguration AddNamedAzureServiceBusBrokerUsingNamedConnection(
+        this WolverineOptions endpoints, BrokerName brokerName, string connectionStringName,
+        Action<ServiceBusClientOptions>? configure = null, TokenCredential? tokenCredential = null)
+    {
+        ArgumentNullException.ThrowIfNull(brokerName);
+        ArgumentNullException.ThrowIfNull(connectionStringName);
+
+        var transport = endpoints.AzureServiceBusTransport(brokerName);
+        return useNamedConnection(endpoints, transport, connectionStringName, configure, tokenCredential);
+    }
+
+    private static AzureServiceBusConfiguration useNamedConnection(WolverineOptions endpoints,
+        AzureServiceBusTransport transport, string connectionStringName, Action<ServiceBusClientOptions>? configure,
+        TokenCredential? tokenCredential)
+    {
+        // The clients are built lazily on first use (connect, provision, or the resources commands), all of which
+        // come after the core hook applies the value, so only the connection information waits for IConfiguration.
+        configure?.Invoke(transport.ClientOptions);
+
+        endpoints.ApplyNamedConnectionString("Azure Service Bus", connectionStringName, "AddAzureServiceBus",
+            value => ApplyNamedConnectionValue(transport, value, tokenCredential));
+
+        return new AzureServiceBusConfiguration(transport, endpoints);
+    }
+
+    /// <summary>
+    /// Push a connection string value resolved by name (GH-5126) into the transport: a full connection string goes to
+    /// <see cref="AzureServiceBusTransport.ConnectionString"/>, a namespace (bare, as a URI, or as a key-less
+    /// <c>Endpoint=</c> segment) to <see cref="AzureServiceBusTransport.FullyQualifiedNamespace"/> plus a TokenCredential.
+    /// </summary>
+    internal static void ApplyNamedConnectionValue(AzureServiceBusTransport transport, string value,
+        TokenCredential? tokenCredential)
+    {
+        var segments = value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        string? endpoint = null;
+        var hasEntityPath = false;
+        var kept = new List<string>();
+        foreach (var segment in segments)
+        {
+            // Only split on the FIRST '=' -- SharedAccessKey values are base64 and carry '=' padding
+            var pair = segment.Split('=', 2);
+            var key = pair[0].Trim();
+
+            if (pair.Length == 2 && key.EqualsIgnoreCase("EntityPath"))
+            {
+                hasEntityPath = true;
+                continue;
+            }
+
+            if (pair.Length == 2 && key.EqualsIgnoreCase("Endpoint"))
+            {
+                endpoint = pair[1].Trim();
+            }
+
+            kept.Add(segment);
+        }
+
+        if (endpoint == null)
+        {
+            // No Endpoint= at all: Aspire's value for a real Azure namespace
+            useNamespace(transport, value.Trim(), tokenCredential);
+            return;
+        }
+
+        if (kept.Count == 1)
+        {
+            // Endpoint= and nothing else to authenticate with (Aspire's form when a queue or topic is referenced)
+            useNamespace(transport, endpoint, tokenCredential);
+            return;
+        }
+
+        transport.ConnectionString = hasEntityPath ? string.Join(';', kept) + ";" : value;
+    }
+
+    private static void useNamespace(AzureServiceBusTransport transport, string value, TokenCredential? tokenCredential)
+    {
+        // "https://myns.servicebus.windows.net:443/" or "sb://myns.servicebus.windows.net/" -> the host name. A bare
+        // "myns.servicebus.windows.net" is not an absolute URI; "localhost:5672" parses as one with no host.
+        var fullyQualifiedNamespace = Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Host.IsNotEmpty()
+            ? uri.Host
+            : value.TrimEnd('/');
+
+        transport.FullyQualifiedNamespace = fullyQualifiedNamespace;
+        transport.TokenCredential = tokenCredential ?? new DefaultAzureCredential();
     }
 
 

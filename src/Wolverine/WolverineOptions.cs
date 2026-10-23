@@ -560,6 +560,12 @@ public sealed partial class WolverineOptions
     public List<NamedConfigurationDependency> NamedConfigurationDependencies { get; } = new();
 
     /// <summary>
+    /// GH-5126. Named connection strings whose resolved value is pushed into a transport (or store) once the
+    /// container is built. See <see cref="NamedConnectionStringExtensions.ApplyNamedConnectionString"/>.
+    /// </summary>
+    internal List<NamedConnectionStringBinding> NamedConnectionStringBindings { get; } = new();
+
+    /// <summary>
     /// GH-3001 extension point. Factories for codegen frames that prime a handler's service-location
     /// child scope with an already-resolved "singleton-per-message" instance (e.g. Marten's
     /// outbox-enrolled IDocumentSession), so service-located dependencies resolve to that instance

@@ -108,6 +108,13 @@ public partial class WolverineRuntime
 
             await ApplyAsyncExtensions();
 
+            // GH-4527 / GH-5126. Fail the deploy here, naming every missing connection string at once, before
+            // the message store initializes or migrates and before any transport connects -- rather than one
+            // missing name at a time from inside whichever DI factory happens to be resolved first. Then hand
+            // each resolved value to the transport or store that asked for it by name. Runs after the async
+            // extensions because those may register more named connections.
+            ApplyNamedConnectionStrings();
+
             // Run after async extensions (which may mutate the options) and
             // before any listener is started so an early-arriving message
             // can't race the publish.
@@ -252,11 +259,8 @@ public partial class WolverineRuntime
             // listener starts.
             Handlers.AssertPreBuiltTypesExist(Options);
 
-            // GH-4527. Same intent as the line above: fail the deploy here, before storage migration or any
-            // transport connects, rather than one missing name at a time from inside whichever DI factory
-            // happens to be resolved first. A host with two missing Aspire references used to fail twice, on
-            // two deploys, each time after persistence had already migrated.
-            assertNamedConnectionStringsExist();
+            // GH-4527: missing named connection strings were already reported by ApplyNamedConnectionStrings()
+            // at the top of startup, before the message store initialized.
 
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
@@ -444,6 +448,41 @@ public partial class WolverineRuntime
     /// the thrown message now spells out.
     /// </para>
     /// </summary>
+    private bool _namedConnectionStringsApplied;
+
+    /// <summary>
+    /// GH-5126. Validate every named connection string (see <see cref="assertNamedConnectionStringsExist"/>),
+    /// then push each resolved value registered through
+    /// <see cref="NamedConnectionStringExtensions.ApplyNamedConnectionString"/> into whatever asked for it.
+    /// Idempotent: host startup and the <c>resources</c> commands both call it, and either may come first.
+    /// </summary>
+    internal void ApplyNamedConnectionStrings()
+    {
+        if (_namedConnectionStringsApplied) return;
+
+        assertNamedConnectionStringsExist();
+
+        if (Options.NamedConnectionStringBindings.Any())
+        {
+            // Without IConfiguration there is nothing to resolve against, and a transport configured only by
+            // name has no other way to find its broker, so this is a failure rather than a silent skip.
+            var configuration = Services.GetService<IConfiguration>()
+                                ?? throw new MissingNamedConnectionStringsException(
+                                    Options.NamedConnectionStringBindings.Select(x => x.Dependency).Distinct().ToArray(),
+                                    []);
+
+            foreach (var binding in Options.NamedConnectionStringBindings)
+            {
+                var value = configuration.GetConnectionString(binding.Dependency.Name);
+                if (value.IsEmpty()) throw binding.Dependency.MissingException(configuration);
+
+                binding.Apply(value!);
+            }
+        }
+
+        _namedConnectionStringsApplied = true;
+    }
+
     private void assertNamedConnectionStringsExist()
     {
         if (!Options.NamedConfigurationDependencies.Any()) return;

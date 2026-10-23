@@ -262,6 +262,10 @@ internal class WolverineSystemPart : SystemPartBase
             // databases with EF Core
             list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
 
+            // GH-5126. The resources commands build transports without starting the host, so a transport
+            // configured by connection-string name has to receive its value here too.
+            _runtime.ApplyNamedConnectionStrings();
+
             if (!_runtime.Options.ExternalTransportsAreStubbed)
             {
                 foreach (var transport in _runtime.Options.Transports.ToArray())
