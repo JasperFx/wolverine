@@ -174,13 +174,16 @@ public sealed class MartenDeduplicatedResponses
         session.QueueOperation(new ClaimDeduplicatedResponse(tableFor(session, ancillaryStoreMarker), claim));
     }
 
-    private ImHashMap<NpgsqlDataSource, string> _tables = ImHashMap<NpgsqlDataSource, string>.Empty;
+    private ImHashMap<(NpgsqlDataSource DataSource, Type? Marker), string> _tables =
+        ImHashMap<(NpgsqlDataSource DataSource, Type? Marker), string>.Empty;
 
     private string tableFor(IDocumentSession session, Type? ancillaryStoreMarker)
     {
-        // A session's data source belongs to one store, and so to one marker
+        // By store as well as data source: an application can hand one NpgsqlDataSource to its main and ancillary
+        // stores, whose message stores keep their claims in different schemas
         var sessionDataSource = session.Database.As<PostgresqlDatabase>().DataSource;
-        if (_tables.TryFind(sessionDataSource, out var table)) return table;
+        var key = (sessionDataSource, ancillaryStoreMarker);
+        if (_tables.TryFind(key, out var table)) return table;
 
         var store = MessageStoreFor(_runtime, ancillaryStoreMarker) ?? throw new InvalidOperationException(
             $"[DeduplicatedWithResponse] needs {nameof(DurabilitySettings)}.{nameof(DurabilitySettings.EnableDeduplicatedResponses)} = true on the PostgreSQL message store this Marten store integrates with. See GH-4742");
@@ -194,7 +197,7 @@ public sealed class MartenDeduplicatedResponses
         }
 
         table = store.DeduplicatedResponsesFullName;
-        _tables = _tables.AddOrUpdate(sessionDataSource, table);
+        _tables = _tables.AddOrUpdate(key, table);
         return table;
     }
 

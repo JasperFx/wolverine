@@ -6,6 +6,7 @@ using JasperFx.Events;
 using JasperFx.Resources;
 using Marten;
 using Marten.Events;
+using Marten.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +55,9 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = SchemaName;
             m.DisableNpgsqlLogging = true;
+
+            // Fails a commit after the database has committed it, for one endpoint only
+            m.Listeners.Add(new FailAfterCommitListener());
         }).IntegrateWithWolverine().UseLightweightSessions();
 
         builder.Services.AddWolverineHttp();
@@ -339,6 +343,26 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_failure_inside_the_commit_after_the_database_commit_is_rethrown_and_its_retry_replays()
+    {
+        // On Marten the outbox flush and session listeners run inside SaveChangesAsync, after the database commit,
+        // so this request's own claim is already committed when it fails: not a lost race to answer as a success
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("after-commit-" + key);
+
+        await failingPostAsync("/marten-deduplicated-response/after-commit-failure", request, key);
+
+        (await findClaimAsync(key)).ShouldNotBeNull().Response.ShouldNotBeNull().StatusCode.ShouldBe(201);
+
+        await postAsync("/marten-deduplicated-response/after-commit-failure", request, key, 201);
+        MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+
+        await using var session = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        (await session.Query<DeduplicatedOrderDocument>().CountAsync(x => x.Name == request.Name,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task an_endpoint_that_commits_nothing_keeps_claim_and_release()
     {
         await postAsync("/marten-deduplicated-response/tenant", new DeduplicatedOrder("warm"),
@@ -481,6 +505,26 @@ public record IncrementDeduplicatedCounter(Guid DeduplicatedCounterId, string No
 
 public record DeduplicatedCounterAnswer(int Count);
 
+public class FailAfterCommitMarker
+{
+    public Guid Id { get; set; }
+}
+
+// Throws from AfterCommitAsync, which Marten runs inside SaveChangesAsync once the database has committed, for any
+// commit that wrote a FailAfterCommitMarker. Store() is an upsert, so the marker shows up as updated
+public class FailAfterCommitListener : DocumentSessionListenerBase
+{
+    public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        if (commit.Inserted.Concat(commit.Updated).OfType<FailAfterCommitMarker>().Any())
+        {
+            throw new InvalidOperationException("A session listener failed after the database commit");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
 public class UnserializableDeduplicatedAnswer
 {
     public string Value => throw new InvalidOperationException("This response cannot be serialized");
@@ -609,6 +653,16 @@ public static class MartenDeduplicatedResponseEndpoints
 
         // Bounded, so a regression fails the assertions rather than hanging the test
         await Task.WhenAny(barrier.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/marten-deduplicated-response/after-commit-failure")]
+    public static DeduplicatedOrderCreated PostAfterCommitFailure(DeduplicatedOrder request,
+        IDocumentSession session)
+    {
+        var created = PostOrder(request, session);
+        session.Store(new FailAfterCommitMarker { Id = Guid.NewGuid() });
+        return created;
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
