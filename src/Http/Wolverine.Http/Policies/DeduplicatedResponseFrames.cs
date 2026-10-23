@@ -426,39 +426,63 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
 }
 
 /// <summary>
-/// GH-5160. For a chain whose claim is written inside its own transaction: answers a request whose key an earlier request
-/// already committed (the stored response, 422 or 409) and stops. Nothing is claimed here; the claim is written
-/// with the work, by <see cref="PrepareDeduplicatedResponseClaimFrame" /> and the provider's claim frame.
+/// GH-5160. The id the store keys a claim by, for a provider's lookup and claim: the hash
+/// <see cref="DeduplicatedResponses.StorageIdFor" /> makes, or null when the request has no key.
 /// </summary>
-internal class FindDeduplicatedResponseFrame : AsyncFrame
+internal class DeduplicationStorageIdFrame : SyncFrame
 {
     private readonly Variable _deduplicationId;
-    private readonly Variable _fingerprint;
-    private readonly Type? _ancillaryStoreMarker;
-    private readonly string _keyName;
-    private Variable? _responses;
-    private Variable? _httpContext;
 
-    public FindDeduplicatedResponseFrame(Variable deduplicationId, Variable fingerprint, Type? ancillaryStoreMarker,
-        string keyName)
+    public DeduplicationStorageIdFrame(Variable deduplicationId)
     {
         _deduplicationId = deduplicationId;
-        _fingerprint = fingerprint;
-        _ancillaryStoreMarker = ancillaryStoreMarker;
-        _keyName = keyName;
-        Variable = new Variable(typeof(DeduplicatedResponseClaim), "deduplicatedResponseClaim", this);
+        Variable = new Variable(typeof(string), "deduplicationStorageId", this);
+        uses.Add(deduplicationId);
     }
 
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.Write(
+            $"var {Variable.Usage} = string.IsNullOrWhiteSpace({_deduplicationId.Usage}) ? null : {typeof(DeduplicatedResponses).FullNameInCode()}.{nameof(DeduplicatedResponses.StorageIdFor)}({_deduplicationId.Usage});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{Variable.FSharpAssignmentUsage} = if System.String.IsNullOrWhiteSpace({_deduplicationId.FSharpUsage}) then null else {typeof(DeduplicatedResponses).FSharpName()}.{nameof(DeduplicatedResponses.StorageIdFor)}({_deduplicationId.FSharpUsage})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+}
+
+/// <summary>
+/// GH-5160. For a chain whose claim is written inside its own transaction: answers a request whose key an earlier
+/// request already committed (the stored response, 422 or 409) and stops, from the claim the provider's lookup read.
+/// The refusal half of GH-4505's check-then-refuse. Nothing is claimed here; the claim is written with the work, by
+/// <see cref="PrepareDeduplicatedResponseClaimFrame" /> and the provider's claim frame.
+/// </summary>
+internal class AnswerExistingDeduplicatedResponseFrame : AsyncFrame
+{
+    private readonly Variable _existingClaim;
+    private readonly Variable _fingerprint;
+    private readonly string _keyName;
+    private Variable? _httpContext;
+
+    public AnswerExistingDeduplicatedResponseFrame(Variable existingClaim, Variable fingerprint, string keyName)
+    {
+        _existingClaim = existingClaim;
+        _fingerprint = fingerprint;
+        _keyName = keyName;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
         writer.WriteComment("GH-5160: answer from an earlier request's committed claim; this one claims inside its own transaction");
+        writer.Write($"BLOCK:if ({_existingClaim.Usage} != null)");
         writer.Write(
-            $"var {Variable.Usage} = await {_responses!.Usage}.{nameof(DeduplicatedResponses.FindAsync)}({_deduplicationId.Usage}, {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
-        writer.Write($"BLOCK:if ({Variable.Usage} != null)");
-        writer.Write(
-            $"await {nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.Usage}, {Variable.Usage}, {_fingerprint.Usage}, {Constant.For(_keyName).Usage}).ConfigureAwait(false);");
+            $"await {nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.Usage}, {_existingClaim.Usage}, {_fingerprint.Usage}, {Constant.For(_keyName).Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
 
@@ -468,13 +492,11 @@ internal class FindDeduplicatedResponseFrame : AsyncFrame
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("GH-5160: answer from an earlier request's committed claim; this one claims inside its own transaction");
-        writer.Write(
-            $"let! {Variable.Usage} = {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.FindAsync)}({_deduplicationId.FSharpUsage}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)})");
 
         // No early `return` in F#: the rest of the chain goes in the `else`, as in ClaimDeduplicatedResponseFrame.
-        writer.Write($"BLOCK:if not (isNull {Variable.FSharpUsage}) then");
+        writer.Write($"BLOCK:if not (isNull {_existingClaim.FSharpUsage}) then");
         writer.Write(
-            $"do! this.{nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage}, {_fingerprint.FSharpUsage}, {Constant.For(_keyName).Usage})");
+            $"do! this.{nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.FSharpUsage}, {_existingClaim.FSharpUsage}, {_fingerprint.FSharpUsage}, {Constant.For(_keyName).Usage})");
         writer.FinishBlock();
 
         writer.Write("BLOCK:else");
@@ -492,11 +514,8 @@ internal class FindDeduplicatedResponseFrame : AsyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        yield return _deduplicationId;
+        yield return _existingClaim;
         yield return _fingerprint;
-
-        _responses = chain.FindVariable(typeof(DeduplicatedResponses));
-        yield return _responses;
 
         _httpContext = chain.FindVariable(typeof(HttpContext));
         yield return _httpContext;

@@ -113,7 +113,7 @@ public partial class HttpChain
     {
         if (DeduplicatedWithResponse is not { } requirement) return;
         if (Middleware.OfType<ClaimDeduplicatedResponseFrame>().Any()) return;
-        if (Middleware.OfType<FindDeduplicatedResponseFrame>().Any()) return;
+        if (Middleware.OfType<AnswerExistingDeduplicatedResponseFrame>().Any()) return;
 
         // Again: a policy may have set either requirement since construction.
         assertDeduplicatedWithResponseIsValid(requirement);
@@ -192,9 +192,11 @@ public partial class HttpChain
         var resource = ResourceVariable ?? Method.Creates.First();
         var prepare = new PrepareDeduplicatedResponseClaimFrame(scoped, fingerprint, resource,
             MissingResponseBodyStatusCode, requirement.Window);
+        var storageId = new DeduplicationStorageIdFrame(scoped);
 
-        if (!provider.TryBuildTransactionalReplayableDeduplication(this, prepare.Variable, container,
-                out var transactional))
+        // As [Deduplicated] on Marten: the lookup may join a batch only when the key is required
+        if (!provider.TryBuildTransactionalReplayableDeduplication(this, storageId.Variable, requirement.Required,
+                prepare.Variable, container, out var transactional))
         {
             warnClaimInTransactionFallsBack(container,
                 "it does not commit through Wolverine's Marten transactional middleware on a single-database store with the PostgreSQL message store in the same database");
@@ -216,7 +218,11 @@ public partial class HttpChain
         // The store the provider writes the claim to, so the claim is read back from the same one.
         var marker = this.DetermineAncillaryStoreType();
 
-        frames.Add(new FindDeduplicatedResponseFrame(scoped, fingerprint, marker, requirement.KeyName));
+        // The provider's lookup, then the answer from it: GH-4505's check-then-refuse, with a replay for the refusal
+        frames.Add(storageId);
+        frames.Add(transactional.Check);
+        frames.Add(new AnswerExistingDeduplicatedResponseFrame(transactional.ExistingClaim, fingerprint,
+            requirement.KeyName));
 
         // After IHttpAware has set the status and Location: the claim, then the commit it rides, wrapped so a commit
         // that a concurrent repeat won is answered from the winner's claim

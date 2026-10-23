@@ -5,6 +5,7 @@ using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Linq.QueryHandlers;
 using Marten.Services.BatchQuerying;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Codegen;
 
 namespace Wolverine.Marten.Codegen;
@@ -212,7 +213,7 @@ internal class QueueMartenDeduplicatedResponseClaimFrame : SyncFrame
     {
         writer.WriteComment("GH-5160: claim the key, with its response, inside this Marten transaction");
         writer.Write(
-            $"{_responses!.Usage}.{nameof(MartenDeduplicatedResponses.QueueClaim)}({_session!.Usage}, {_claim.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
+            $"{_responses!.Usage}.{nameof(IMartenDeduplicatedResponses.QueueClaim)}({_session!.Usage}, {_claim.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
 
         Next?.GenerateCode(method, writer);
     }
@@ -221,7 +222,7 @@ internal class QueueMartenDeduplicatedResponseClaimFrame : SyncFrame
     {
         writer.WriteComment("GH-5160: claim the key, with its response, inside this Marten transaction");
         writer.Write(
-            $"{_responses!.FSharpUsage}.{nameof(MartenDeduplicatedResponses.QueueClaim)}({_session!.FSharpUsage}, {_claim.FSharpUsage}, {MartenDeduplicationRendering.FSharpMarkerUsage(_ancillaryStoreMarker)})");
+            $"{_responses!.FSharpUsage}.{nameof(IMartenDeduplicatedResponses.QueueClaim)}({_session!.FSharpUsage}, {_claim.FSharpUsage}, {MartenDeduplicationRendering.FSharpMarkerUsage(_ancillaryStoreMarker)})");
 
         Next?.GenerateFSharpCode(method, writer);
     }
@@ -233,7 +234,106 @@ internal class QueueMartenDeduplicatedResponseClaimFrame : SyncFrame
         _session = chain.FindVariable(typeof(IDocumentSession));
         yield return _session;
 
-        _responses = chain.FindVariable(typeof(MartenDeduplicatedResponses));
+        _responses = chain.FindVariable(typeof(IMartenDeduplicatedResponses));
         yield return _responses;
+    }
+}
+
+/// <summary>
+/// GH-5160. Reads an earlier request's committed <c>[DeduplicatedWithResponse]</c> claim THROUGH the Marten session,
+/// producing the claim a repeat is answered from. The twin of <see cref="MartenDeduplicationClaimExistsFrame" />, and
+/// batchable on the same terms: <see cref="MartenBatchingPolicy" /> sweeps it into the chain's batched query, so with
+/// <c>[WriteAggregate]</c> the lookup and <c>FetchForWriting</c> share one round trip. A chain whose key is optional
+/// opts out (<see cref="CanBatch" />), so a request without one costs no round trip at all.
+/// </summary>
+internal class MartenDeduplicatedResponseClaimFrame : AsyncFrame, IBatchableFrame
+{
+    private readonly Variable _deduplicationId;
+    private readonly Type? _ancillaryStoreMarker;
+    private Variable? _session;
+    private Variable? _responses;
+    private Variable? _cancellation;
+    private Variable? _batchQuery;
+    private Variable? _batchQueryItem;
+
+    /// <param name="deduplicationId">Already hashed; null at runtime for a request without a key.</param>
+    public MartenDeduplicatedResponseClaimFrame(Variable deduplicationId, Type? ancillaryStoreMarker, bool canBatch)
+    {
+        _deduplicationId = deduplicationId;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+        CanBatch = canBatch;
+        Variable = new Variable(typeof(DeduplicatedResponseClaim), "deduplicatedResponseClaim", this);
+    }
+
+    /// <summary>The claim an earlier request committed, or null.</summary>
+    public Variable Variable { get; }
+
+    /// <summary>
+    /// Whether <see cref="MartenBatchingPolicy" /> may fold this lookup into a shared batched query. False when the key
+    /// is optional.
+    /// </summary>
+    public bool CanBatch { get; }
+
+    public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteLine(
+            $"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.{nameof(IBatchedQuery.AddItem)}({_responses!.Usage}.{nameof(IMartenDeduplicatedResponses.ClaimQuery)}({_session!.Usage}, {_deduplicationId.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)}));");
+    }
+
+    public void EnlistInBatchQuery(Variable batchQuery)
+    {
+        _batchQueryItem = new Variable(typeof(Task<DeduplicatedResponseClaim>), Variable.Usage + "_BatchItem", this);
+        _batchQuery = batchQuery;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: has an earlier request already committed this key, and with what?");
+
+        if (_batchQueryItem != null)
+        {
+            writer.Write($"var {Variable.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
+        }
+        else
+        {
+            writer.Write($"{typeof(DeduplicatedResponseClaim).FullNameInCode()}? {Variable.Usage} = null;");
+            writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
+            writer.Write(
+                $"{Variable.Usage} = await {_responses!.Usage}.{nameof(IMartenDeduplicatedResponses.FindClaimAsync)}({_session!.Usage}, {_deduplicationId.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)}, {_cancellation!.Usage}).ConfigureAwait(false);");
+            writer.FinishBlock();
+        }
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: has an earlier request already committed this key, and with what?");
+
+        // Batch enlistment has no F# emitter (WriteCodeToEnlistInBatchQuery is C#), so the F# form is always the
+        // standalone lookup, guarded as in C#
+        writer.Write(
+            $"let! {Variable.Usage} = if System.String.IsNullOrWhiteSpace({_deduplicationId.FSharpUsage}) then System.Threading.Tasks.Task.FromResult<{typeof(DeduplicatedResponseClaim).FSharpName()}>(null) else {_responses!.FSharpUsage}.{nameof(IMartenDeduplicatedResponses.FindClaimAsync)}({_session!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {MartenDeduplicationRendering.FSharpMarkerUsage(_ancillaryStoreMarker)}, {_cancellation!.FSharpUsage})");
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+
+        _responses = chain.FindVariable(typeof(IMartenDeduplicatedResponses));
+        yield return _responses;
+
+        _cancellation = chain.FindVariable(typeof(CancellationToken));
+        yield return _cancellation;
+
+        if (_batchQuery != null)
+        {
+            yield return _batchQuery;
+        }
     }
 }

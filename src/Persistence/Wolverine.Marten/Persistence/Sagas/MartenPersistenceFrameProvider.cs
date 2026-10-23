@@ -141,8 +141,9 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
     ///     commits to: a host that keeps its message store elsewhere would otherwise write the claim where it is
     ///     never read. Anything else keeps claim-and-release.
     /// </remarks>
-    public bool TryBuildTransactionalReplayableDeduplication(IChain chain, Variable claim,
-        IServiceContainer container, [NotNullWhen(true)] out TransactionalReplayableDeduplication? deduplication)
+    public bool TryBuildTransactionalReplayableDeduplication(IChain chain, Variable deduplicationId, bool canBatch,
+        Variable claim, IServiceContainer container,
+        [NotNullWhen(true)] out TransactionalReplayableDeduplication? deduplication)
     {
         deduplication = null;
 
@@ -161,8 +162,12 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
             return false;
         }
 
+        var check = new MartenDeduplicatedResponseClaimFrame(deduplicationId, marker, canBatch);
+
         deduplication = new TransactionalReplayableDeduplication
         {
+            Check = check,
+            ExistingClaim = check.Variable,
             Claim = new QueueMartenDeduplicatedResponseClaimFrame(claim, marker),
             Commit = commit
         };

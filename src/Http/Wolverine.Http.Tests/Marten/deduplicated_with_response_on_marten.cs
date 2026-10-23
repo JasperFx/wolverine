@@ -110,7 +110,8 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
 
         var source = sourceFor("/marten-deduplicated-response/orders");
 
-        var find = source.IndexOf(".FindAsync(", StringComparison.Ordinal);
+        // Through the Marten session, as [Deduplicated] checks its claim (GH-4505)
+        var find = source.IndexOf(".FindClaimAsync(", StringComparison.Ordinal);
         var queue = source.IndexOf(".QueueClaim(", StringComparison.Ordinal);
         var commit = source.IndexOf("SaveChangesAsync", StringComparison.Ordinal);
         var write = source.IndexOf("WriteJsonAsync", StringComparison.Ordinal);
@@ -125,6 +126,33 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         source.ShouldNotContain(".RecordResponseAsync(");
         source.ShouldNotContain(".ReleaseUnansweredAsync(");
         source.ShouldNotContain("ReleaseDeduplicatedResponseBeforeFailureResponse");
+    }
+
+    [Fact]
+    public async Task with_a_write_aggregate_the_claim_lookup_shares_the_batched_query()
+    {
+        // One round trip for the lookup and FetchForWriting, as [Deduplicated] batches its check (GH-4505)
+        var counterId = Guid.NewGuid();
+        await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
+        {
+            session.Events.StartStream<DeduplicatedCounter>(counterId, new DeduplicatedCounterStarted());
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var key = Guid.NewGuid().ToString();
+        var command = new IncrementDeduplicatedCounter(counterId, "batched-" + key);
+
+        // Both arrive, so the barrier in the endpoint lets them through
+        var first = await Task.WhenAll(
+            postAsync("/marten-deduplicated-response/counter-race", command, key, 200),
+            postAsync("/marten-deduplicated-response/counter-race", command, key, 200));
+        var repeat = await postAsync("/marten-deduplicated-response/counter-race", command, key, 200);
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first[0].ReadAsTextAsync());
+
+        var source = sourceFor("/marten-deduplicated-response/counter-race");
+        source.ShouldContain(".CreateBatchQuery()");
+        source.ShouldContain(".ClaimQuery(");
+        source.ShouldNotContain(".FindClaimAsync(");
     }
 
     [Fact]

@@ -40,13 +40,22 @@ internal interface ITransactionalReplayableDeduplicationProvider
     /// which does not check where the message store lives.
     /// </remarks>
     /// <param name="chain">The chain being woven.</param>
+    /// <param name="deduplicationId">
+    /// The id the store keys the claim by, already hashed; null at runtime when the request has no key.
+    /// </param>
+    /// <param name="canBatch">
+    /// Whether the check may join a batched query the chain was already running. False when the key is optional, as
+    /// for <see cref="IPersistenceFrameProvider.TryBuildTransactionalDeduplication" />: a request without one must cost
+    /// no round trip.
+    /// </param>
     /// <param name="claim">
     /// A <see cref="Durability.PendingDeduplicatedResponseClaim" />, null at runtime when there is nothing to
     /// claim: no key, or the endpoint failed.
     /// </param>
     /// <param name="container">Active codegen service container.</param>
     /// <param name="deduplication">The frames, when this provider owns the claim.</param>
-    bool TryBuildTransactionalReplayableDeduplication(IChain chain, Variable claim, IServiceContainer container,
+    bool TryBuildTransactionalReplayableDeduplication(IChain chain, Variable deduplicationId, bool canBatch,
+        Variable claim, IServiceContainer container,
         [NotNullWhen(true)] out TransactionalReplayableDeduplication? deduplication);
 }
 
@@ -56,6 +65,19 @@ internal interface ITransactionalReplayableDeduplicationProvider
 /// </summary>
 internal sealed class TransactionalReplayableDeduplication
 {
+    /// <summary>
+    /// Reads an earlier request's committed claim, through the provider's own session, producing
+    /// <see cref="ExistingClaim" />. As <see cref="TransactionalDeduplication.Check" />: optimistic, since a claim not
+    /// yet committed is invisible, and free to join a batched query the chain was already running.
+    /// </summary>
+    public required Frame Check { get; init; }
+
+    /// <summary>
+    /// A <see cref="Durability.DeduplicatedResponseClaim" />, or null when there is none: what a repeat is answered
+    /// from before any work happens.
+    /// </summary>
+    public required Variable ExistingClaim { get; init; }
+
     /// <summary>
     /// Enlists the claim in the provider's unit of work. Must not write anything on its own: the claim lands if
     /// and only if <see cref="Commit" /> does.

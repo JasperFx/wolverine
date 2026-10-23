@@ -149,29 +149,77 @@ internal class MartenDeduplicator : IMartenDeduplicator
 /// the Marten session's transaction. See <see cref="ITransactionalReplayableDeduplicationProvider" />.
 ///
 /// <para>
-/// A class of its own rather than a member on <see cref="IMartenDeduplicator" />, which an application may have
-/// implemented, so nothing it declares changes.
+/// The <c>[DeduplicatedWithResponse]</c> twin of <see cref="IMartenDeduplicator" />, and an interface of its own
+/// rather than new members on that one, which an application may have implemented, so nothing it declares changes.
 /// </para>
 /// </summary>
-public sealed class MartenDeduplicatedResponses
+public interface IMartenDeduplicatedResponses
 {
-    private readonly IWolverineRuntime _runtime;
+    /// <summary>
+    /// An earlier request's committed claim on <paramref name="deduplicationId" />, or null, asked through
+    /// <paramref name="session" />. Optimistic, as <see cref="IMartenDeduplicator.HasClaimAsync" /> is: a claim not
+    /// yet committed is invisible.
+    /// </summary>
+    /// <param name="deduplicationId">Already hashed; null for a request without a key, which finds nothing.</param>
+    Task<DeduplicatedResponseClaim?> FindClaimAsync(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker, CancellationToken cancellation);
 
-    public MartenDeduplicatedResponses(IWolverineRuntime runtime)
-    {
-        _runtime = runtime;
-    }
+    /// <summary>
+    /// The same lookup as <see cref="FindClaimAsync" />, as a query handler to be enlisted in a batch the chain was
+    /// already running, so a <c>[WriteAggregate]</c> endpoint pays one round trip for the lookup and the aggregate
+    /// load together.
+    /// </summary>
+    IQueryHandler<DeduplicatedResponseClaim?> ClaimQuery(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker);
 
     /// <summary>
     /// Queue <paramref name="claim" /> onto <paramref name="session" />'s unit of work. Null queues nothing.
     /// Nothing is written until <c>SaveChangesAsync</c>.
     /// </summary>
+    void QueueClaim(IDocumentSession session, PendingDeduplicatedResponseClaim? claim, Type? ancillaryStoreMarker);
+}
+
+internal class MartenDeduplicatedResponses : IMartenDeduplicatedResponses
+{
+    private readonly IWolverineRuntime _runtime;
+    private readonly ILogger<MartenDeduplicatedResponses> _logger;
+
+    public MartenDeduplicatedResponses(IWolverineRuntime runtime, ILogger<MartenDeduplicatedResponses> logger)
+    {
+        _runtime = runtime;
+        _logger = logger;
+    }
+
+    public async Task<DeduplicatedResponseClaim?> FindClaimAsync(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker, CancellationToken cancellation)
+    {
+        // Through a one-item batch rather than a second code path, as MartenDeduplicator.HasClaimAsync
+        var batch = session.CreateBatchQuery();
+        var item = batch.AddItem(ClaimQuery(session, deduplicationId, ancillaryStoreMarker));
+        await batch.Execute(cancellation).ConfigureAwait(false);
+
+        return await item.ConfigureAwait(false);
+    }
+
+    public IQueryHandler<DeduplicatedResponseClaim?> ClaimQuery(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker)
+        => new DeduplicatedResponseClaimHandler(tableFor(session, ancillaryStoreMarker), deduplicationId,
+            logFound);
+
     public void QueueClaim(IDocumentSession session, PendingDeduplicatedResponseClaim? claim,
         Type? ancillaryStoreMarker)
     {
         if (claim == null) return;
 
         session.QueueOperation(new ClaimDeduplicatedResponse(tableFor(session, ancillaryStoreMarker), claim));
+    }
+
+    private void logFound(string deduplicationId)
+    {
+        // As DeduplicatedResponses.TryClaimAsync logs on claim-and-release
+        _logger.LogInformation(
+            "Answering a repeat of deduplicated id '{DeduplicationId}' from its first request's claim",
+            deduplicationId);
     }
 
     private ImHashMap<(NpgsqlDataSource DataSource, Type? Marker), string> _tables =
