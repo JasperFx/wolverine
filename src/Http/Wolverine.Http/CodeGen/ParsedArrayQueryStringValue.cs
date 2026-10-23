@@ -12,7 +12,8 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 
     public ParsedArrayQueryStringValue(Type parameterType, string parameterName, bool rejectUnparseableValue = false)
     {
-        Variable = new HttpElementVariable(parameterType, parameterName!, this);
+        // The query string key can hold characters like '-' or '.' that are not legal in a C# identifier
+        Variable = new HttpElementVariable(parameterType, parameterName!.SanitizeFormNameForVariable(), this);
 
         // GH-3398 strict query string binding for collections: only meaningful for parsed
         // (non-string) elements. The 400 + ProblemDetails short circuit writes the response
@@ -41,11 +42,11 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
         {
             if (Mode == AssignMode.WriteToVariable)
             {
-                writer.Write($"var {Variable.Usage} = httpContext.Request.Query[\"{Variable.Usage}\"].ToArray();");
+                writer.Write($"var {Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].ToArray();");
             }
             else
             {
-                writer.Write($"{_property} = httpContext.Request.Query[\"{Variable.Usage}\"].ToArray();");
+                writer.Write($"{_property} = httpContext.Request.Query[\"{Variable.Name}\"].ToArray();");
             }
         }
         else
@@ -55,7 +56,7 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 
             writer.Write($"var {Variable.Usage}_List = new {collectionAlias}();");
             
-            writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Query[\"{Variable.Usage}\"])");
+            writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Query[\"{Variable.Name}\"])");
 
             // Enum names parse case-insensitively, matching the scalar binder
             writer.Write($"BLOCK:if ({ParsingCode.TryParse(elementType!, $"{Variable.Usage}Value", $"var {Variable.Usage}ValueParsed")})");
