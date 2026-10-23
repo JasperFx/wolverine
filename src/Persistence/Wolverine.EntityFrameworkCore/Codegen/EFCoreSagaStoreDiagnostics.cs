@@ -217,8 +217,7 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
             }
 
             var container = _runtime.Options.HandlerGraph.Container;
-            var sagaTypes = _runtime.Options.HandlerGraph.Chains
-                .OfType<global::Wolverine.Persistence.Sagas.SagaChain>()
+            var sagaTypes = _runtime.Options.HandlerGraph.SagaChains() // GH-5133: includes Separated saga chains
                 .Select(c => c.SagaType)
                 .Distinct();
 

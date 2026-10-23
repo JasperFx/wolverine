@@ -84,8 +84,7 @@ public class CosmosDbSagaSerializationValidator : IHostedService
     {
         var rules = _options.CodeGeneration;
 
-        return _handlers.Chains
-            .OfType<SagaChain>()
+        return _handlers.SagaChains() // GH-5133: includes Separated saga chains
             .Where(chain => rules.GetPersistenceProviders(chain, _container) is CosmosDbPersistenceFrameProvider)
             .Select(chain => chain.SagaType)
             .Distinct();

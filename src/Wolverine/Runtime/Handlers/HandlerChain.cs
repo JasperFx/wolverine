@@ -524,14 +524,27 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </remarks>
     public override Variable ResolveDeduplicationId(DeduplicationRequirement requirement)
     {
-        if (requirement.Source != ValueSource.Anything)
+        var id = requirement.Source != ValueSource.Anything
+            ? base.ResolveDeduplicationId(requirement)
+            : new DeduplicationIdFromEnvelopeFrame().Variable;
+
+        // GH-5133. One of several chains for this message type: scope the id to this chain so the handlers
+        // do not deduplicate each other
+        if (DeduplicationScope != null)
         {
-            return base.ResolveDeduplicationId(requirement);
+            return new ScopeHandlerDeduplicationIdFrame(id, DeduplicationScope).Variable;
         }
 
-        var frame = new DeduplicationIdFromEnvelopeFrame();
-        return frame.Variable;
+        return id;
     }
+
+    /// <summary>
+    /// GH-5133. Set at bootstrap when this chain is one of several handler chains for its message type (one per
+    /// handler type under Separated, or sticky handlers). The suffix that keeps this chain's logical
+    /// deduplication claims apart from its siblings' claims for the same id. Null for the ordinary single chain,
+    /// whose deduplication ids are left exactly as they are.
+    /// </summary>
+    internal string? DeduplicationScope { get; set; }
 
     /// <inheritdoc />
     public override Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,

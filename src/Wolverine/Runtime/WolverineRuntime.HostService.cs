@@ -235,6 +235,10 @@ public partial class WolverineRuntime
             // Warn loudly (or throw, if opted in) so the shadowing is not a silent surprise. GH-3289.
             warnOrAssertBatchHandlerConflicts();
 
+            // GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete and gone in 7.0. Say which message
+            // types it actually combined (once), or throw if the application opted into the assertion.
+            warnOrAssertCombinedHandlers();
+
             // Apply BatchMessagesOf<T>(b => b.ProbeIndividuallyAfter(N)) as a failure rule on the batch
             // handler chain. GH-3289.
             applyBatchProbePolicies();
@@ -958,8 +962,8 @@ public partial class WolverineRuntime
         // GH-4060. Requeue policies are configured on the handler graph -- globally and per chain -- rather than on
         // an endpoint, so the endpoint-scoped rules cannot see them. Handlers.Compile() has already run by this
         // point, so both levels are settled and this is a straight read.
-        var requeuePoliciesConfigured = Handlers.Failures.AnyRequeuePolicies()
-                                        || Handlers.Chains.Any(x => x.Failures.AnyRequeuePolicies());
+        // GH-5133: through every chain, so a requeue policy on a Separated handler's own chain counts too.
+        var requeuePoliciesConfigured = Handlers.AnyRequeuePolicies();
 
         ListenerConfigurationValidator.AssertValid(listeners, Logger, requeuePoliciesConfigured);
     }
@@ -1091,6 +1095,38 @@ public partial class WolverineRuntime
             // Wolverine's own reassignment, not a user choice — see SetDefaultLocalExecutionQueueName.
             batch.SetDefaultLocalExecutionQueueName(batchQueue.EndpointName);
         }
+    }
+
+    private void warnOrAssertCombinedHandlers()
+    {
+        var combined = Handlers.CombinedHandlerChains();
+        if (combined.Length == 0) return;
+
+        var message = CombinedHandlersMessage(combined);
+
+        if (Options.AssertsNoCombinedHandlers)
+        {
+            throw new InvalidOperationException(message);
+        }
+
+        Logger.LogWarning(message);
+    }
+
+    internal static string CombinedHandlersMessage(IReadOnlyList<HandlerChain> combined)
+    {
+        var lines = combined
+            .Select(chain => $"{Environment.NewLine}  {chain.MessageType.FullNameInCode()}: " +
+                             chain.Handlers.Select(x => x.HandlerType).Distinct()
+                                 .Select(x => x.FullNameInCode()).Join(", "));
+
+        return $"Wolverine combined the handlers of {combined.Count} message type(s) into one logical handler each, because " +
+               "MultipleHandlerBehavior is ClassicCombineIntoOneLogicalHandler (the 6.x default). That mode is obsolete and " +
+               "is removed in Wolverine 7.0, where each handler type gets its own handler chain and its own local queue, as " +
+               "MultipleHandlerBehavior.Separated does today. After the upgrade these handlers no longer share one transaction, " +
+               "one error handling policy or one middleware pipeline, and IMessageBus.InvokeAsync() no longer runs them together. " +
+               "Set opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated to switch now, or merge the handlers into one " +
+               "class where they have to stay atomic. Call opts.AssertNoCombinedHandlers() to make this a startup failure. " +
+               "Combined message types:" + string.Concat(lines);
     }
 
     private void warnOrAssertBatchHandlerConflicts()

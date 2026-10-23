@@ -197,17 +197,19 @@ public static class HandlerWarmUp
 
         foreach (var chain in concrete.Handlers.Chains)
         {
+            var warmedForMessageType = false;
+
             try
             {
                 // Compiles the chain on first call, under Wolverine's own lock; a no-op afterwards.
                 concrete.Handlers.HandlerFor(chain.MessageType);
                 warmed++;
+                warmedForMessageType = true;
             }
             catch (NoHandlerForEndpointException)
             {
-                // Only endpoint-specific handlers: there is no default handler to compile, and the
-                // sticky ones compile per endpoint when a message arrives there.
-                skipped.Add(chain.MessageType);
+                // Only endpoint-specific handlers: there is no default handler to compile. Those are
+                // compiled per endpoint below.
             }
             catch (Exception e)
             {
@@ -215,6 +217,39 @@ public static class HandlerWarmUp
             }
 
             // One compiled chain is enough to have started the compiler.
+            if (!allHandlers && warmed > 0) break;
+
+            // GH-5133. Under MultipleHandlerBehavior.Separated -- and for sticky handlers -- the handlers
+            // of the message type live in per-endpoint chains, each compiled for the endpoint it is bound
+            // to. Without this, warming skipped every message type with more than one Separated handler.
+            foreach (var separated in chain.ByEndpoint)
+            {
+                var endpoint = separated.Endpoints.FirstOrDefault();
+                if (endpoint == null) continue;
+
+                try
+                {
+                    concrete.Handlers.HandlerFor(chain.MessageType, endpoint);
+                    warmed++;
+                    warmedForMessageType = true;
+                }
+                catch (NoHandlerForEndpointException)
+                {
+                    // Nothing compilable for this endpoint
+                }
+                catch (Exception e)
+                {
+                    failures.Add((chain.MessageType, e));
+                }
+
+                if (!allHandlers && warmed > 0) break;
+            }
+
+            if (!warmedForMessageType && failures.All(x => x.Item1 != chain.MessageType))
+            {
+                skipped.Add(chain.MessageType);
+            }
+
             if (!allHandlers && warmed > 0) break;
         }
 

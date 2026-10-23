@@ -767,10 +767,9 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
         if (chain != null)
         {
             AnsiConsole.MarkupLine("[bold]Local Handler:[/]");
-            foreach (var handler in chain.Handlers)
+            foreach (var line in DescribeLocalHandlers(chain))
             {
-                AnsiConsole.MarkupLine(
-                    $"  [cyan]{handler.HandlerType.FullNameInCode().EscapeMarkup()}.{handler.Method.Name}[/]");
+                AnsiConsole.MarkupLine($"  [cyan]{line.EscapeMarkup()}[/]");
             }
         }
         else
@@ -834,6 +833,27 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
 
         AnsiConsole.Write(table);
         return true;
+    }
+
+    /// <summary>
+    /// GH-5133. The handlers of a message type, one line each. Under MultipleHandlerBehavior.Separated (and for
+    /// sticky handlers) they live in the root chain's per-endpoint chains, so those are listed too, with the
+    /// endpoint(s) each one is bound to.
+    /// </summary>
+    internal static IReadOnlyList<string> DescribeLocalHandlers(HandlerChain chain)
+    {
+        var lines = chain.Handlers
+            .Select(handler => $"{handler.HandlerType.FullNameInCode()}.{handler.Method.Name}")
+            .ToList();
+
+        foreach (var separated in chain.ByEndpoint)
+        {
+            var endpoints = separated.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
+            lines.AddRange(separated.Handlers.Select(handler =>
+                $"{handler.HandlerType.FullNameInCode()}.{handler.Method.Name} ({endpoints})"));
+        }
+
+        return lines;
     }
 
     internal static Type? FindMessageType(string search, IReadOnlyList<Type> messageTypes, HandlerGraph handlerGraph)

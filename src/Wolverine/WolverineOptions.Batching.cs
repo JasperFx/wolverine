@@ -23,6 +23,26 @@ public sealed partial class WolverineOptions
         AssertsNoBatchHandlerConflicts = true;
     }
 
+    internal bool AssertsNoCombinedHandlers { get; private set; }
+
+    /// <summary>
+    /// GH-5133. Make Wolverine throw at startup if any message type has handlers from more than one
+    /// handler class combined into one logical handler, which only happens under the obsolete
+    /// <c>MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler</c> mode (the 6.x default).
+    /// Wolverine 7.0 always gives each handler type its own handler chain, so this is a way to find
+    /// the message types the upgrade changes -- in a test or a CI build -- before upgrading. Without
+    /// this, Wolverine only logs a warning listing them.
+    /// </summary>
+    /// <remarks>
+    /// Several methods on ONE handler class for the same message type (a saga's <c>Start</c> and
+    /// <c>Handle</c>, for example) are not "combined handlers" and do not trip this. Has no effect under
+    /// <see cref="MultipleHandlerBehavior.Separated"/>, where nothing is combined.
+    /// </remarks>
+    public void AssertNoCombinedHandlers()
+    {
+        AssertsNoCombinedHandlers = true;
+    }
+
     internal bool AssertsBatchExecutionIsSequenced { get; private set; }
 
     /// <summary>

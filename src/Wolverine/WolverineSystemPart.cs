@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CommandLine.Descriptions;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Extensions.Configuration;
@@ -11,6 +12,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
@@ -296,13 +298,26 @@ internal class WolverineSystemPart : SystemPartBase
 
         writeTree(_runtime.Options.HandlerGraph.Failures, "Global Failure Rules");
 
-        foreach (var chain in _runtime.Handlers.Chains.Where(x => x.Failures.Any()))
+        // GH-5133: EveryChain() rather than Chains, so the failure rules of Separated (and sticky) handler
+        // chains are shown too
+        foreach (var chain in _runtime.Handlers.EveryChain().Where(x => x.Failures.Any()))
         {
             AnsiConsole.WriteLine();
-            writeTree(chain.Failures, $"Message: {chain.MessageType.FullNameInCode()}");
+            writeTree(chain.Failures, ErrorHandlingTitleFor(chain));
         }
     }
     
+
+    internal static string ErrorHandlingTitleFor(HandlerChain chain)
+    {
+        var title = $"Message: {chain.MessageType.FullNameInCode()}";
+        if (!chain.Endpoints.Any()) return title;
+
+        var handlerTypes = chain.Handlers.Select(x => x.HandlerType).Distinct().Select(x => x.FullNameInCode()).Join(", ");
+        if (handlerTypes.IsEmpty()) handlerTypes = chain.TypeName;
+
+        return $"{title}, Handler: {handlerTypes} ({chain.Endpoints.Select(x => x.Uri.ToString()).Join(", ")})";
+    }
 
     public override async ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
     {

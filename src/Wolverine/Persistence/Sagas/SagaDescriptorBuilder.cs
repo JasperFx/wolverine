@@ -114,17 +114,7 @@ internal static class SagaDescriptorBuilder
     /// sub-chains, leaving the outer chain routing-only — we still want
     /// the inner chains' roles.
     /// </summary>
-    public static IEnumerable<SagaChain> CollectSagaChains(HandlerGraph graph)
-    {
-        foreach (var chain in graph.Chains.OfType<SagaChain>())
-        {
-            yield return chain;
-            foreach (var inner in chain.ByEndpoint.OfType<SagaChain>())
-            {
-                yield return inner;
-            }
-        }
-    }
+    public static IEnumerable<SagaChain> CollectSagaChains(HandlerGraph graph) => graph.SagaChains();
 
     /// <summary>
     /// Unwrap a saga-id MemberInfo to its declared type. Used to populate

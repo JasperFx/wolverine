@@ -84,6 +84,12 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         ConfigureHandlerForMessage(typeof(T), configure);
     }
 
+    /// <summary>
+    /// Customize the handler chain(s) for a message type after discovery and policies have run. When the
+    /// message type has more than one chain -- one per handler type under
+    /// <see cref="Wolverine.MultipleHandlerBehavior.Separated"/>, or sticky handlers -- the configuration is
+    /// applied to every one of them
+    /// </summary>
     public void ConfigureHandlerForMessage(Type messageType, Action<HandlerChain> configure)
     {
         _configurations.Add(() =>
@@ -92,6 +98,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             if (chain != null)
             {
                 configure(chain);
+
+                // GH-5133. Under Separated the root chain of a message type with several handlers is an empty
+                // placeholder; the handlers that actually run are in the per-endpoint chains.
+                foreach (var separated in chain.ByEndpoint)
+                {
+                    configure(separated);
+                }
             }
         });
     }
@@ -422,6 +435,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         compileWithRuntimeScanning(options, logger);
 
         Group(options);
+
+        assignDeduplicationScopes();
 
         // GH-3974: the earliest point at which "will this message type be handled?" has a real answer.
         // Discovery has resolved and the chains are grouped, so a consumer no longer has to hand-roll a
@@ -791,6 +806,81 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
             _replyTypes = _replyTypes.Add(messageType);
         }
+    }
+
+    // GH-5133. A message type with more than one chain that runs handlers -- one per handler type under
+    // Separated, or sticky handlers -- would otherwise have every chain claim the same logical deduplication
+    // id, so the first claim wins and the rest drop the message. Give each such chain its own scope. Done
+    // here, straight after grouping, because SagaChain clears its handler calls when it generates code.
+    private void assignDeduplicationScopes()
+    {
+        foreach (var root in Chains)
+        {
+            if (root.ByEndpoint.Count == 0) continue;
+
+            var running = root.ByEndpoint.Where(x => x.Handlers.Any()).ToList();
+            if (root.Handlers.Any()) running.Insert(0, root);
+
+            if (running.Count < 2) continue;
+
+            foreach (var chain in running)
+            {
+                var handlerTypes = chain.Handlers.Select(x => x.HandlerType.FullNameInCode()).Distinct()
+                    .OrderBy(x => x).Join("+");
+
+                chain.DeduplicationScope = Persistence.Codegen.ScopeHandlerDeduplicationIdFrame.SuffixFor(handlerTypes);
+            }
+        }
+    }
+
+    /// <summary>
+    /// GH-5133. Every chain in the graph: each message type's root chain -- including the empty placeholder
+    /// that <see cref="Wolverine.MultipleHandlerBehavior.Separated"/> leaves behind when it moves every handler
+    /// out -- followed by its per-endpoint (separated or sticky) chains. <see cref="Chains"/> only has the
+    /// roots, so anything that inspects chain configuration has to read this instead.
+    /// </summary>
+    internal IEnumerable<HandlerChain> EveryChain()
+    {
+        foreach (var chain in Chains)
+        {
+            yield return chain;
+
+            foreach (var separated in chain.ByEndpoint)
+            {
+                yield return separated;
+            }
+        }
+    }
+
+    /// <summary>
+    /// GH-5133. Every saga chain, including the per-saga-type chains Separated builds when more than one saga
+    /// type handles the same message. Saga store diagnostics and validators read this so that a saga type
+    /// whose messages are all shared with another saga is not missed.
+    /// </summary>
+    internal IEnumerable<SagaChain> SagaChains() => EveryChain().OfType<SagaChain>();
+
+    /// <summary>
+    /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain --
+    /// including the per-endpoint chains built under Separated?
+    /// </summary>
+    internal bool AnyRequeuePolicies()
+        => Failures.AnyRequeuePolicies() || EveryChain().Any(x => x.Failures.AnyRequeuePolicies());
+
+    /// <summary>
+    /// GH-5133. The chains that hold handlers from more than one handler class for the same message type,
+    /// which only the obsolete ClassicCombineIntoOneLogicalHandler mode builds. Several methods of one
+    /// class (a saga's Start and Handle) are one handler type and do not count.
+    /// </summary>
+    internal HandlerChain[] CombinedHandlerChains()
+    {
+#pragma warning disable CS0618 // the obsolete value is exactly what this looks for
+        if (MultipleHandlerBehavior != MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler) return [];
+#pragma warning restore CS0618
+
+        return AllChains()
+            .Where(x => x.Handlers.Select(h => h.HandlerType).Distinct().Count() > 1)
+            .OrderBy(x => x.MessageType.FullNameInCode())
+            .ToArray();
     }
 
     public IEnumerable<HandlerChain> AllChains()
