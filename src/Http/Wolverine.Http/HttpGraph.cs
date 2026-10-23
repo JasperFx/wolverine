@@ -266,9 +266,16 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     internal int DefaultDuplicateStatusCode { get; private set; } =
         DeduplicationRequirement.DefaultDuplicateStatusCode;
 
+    /// <summary>
+    ///     GH-5160. The application-wide default for <c>[DeduplicatedWithResponse(ClaimInTransaction)]</c>, read by each
+    ///     chain when it is woven. See <see cref="WolverineHttpOptions.DefaultClaimInTransaction" />.
+    /// </summary>
+    internal bool DefaultClaimInTransaction { get; private set; }
+
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
         DefaultDuplicateStatusCode = wolverineHttpOptions.DefaultDuplicateStatusCode;
+        DefaultClaimInTransaction = wolverineHttpOptions.DefaultClaimInTransaction;
 
         var source = new HttpChainSource(_options.Assemblies, wolverineHttpOptions.EndpointDiscovery);
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
