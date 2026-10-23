@@ -240,6 +240,9 @@ public static class WolverineOptionsMartenExtensions
         // ancillary-only host gets it too.
         services.TryAddSingleton<IMartenDeduplicator, MartenDeduplicator>();
 
+        // The [DeduplicatedWithResponse] twin: writes the claim, with its response, inside the session's transaction.
+        services.TryAddSingleton<IMartenDeduplicatedResponses, MartenDeduplicatedResponses>();
+
         // GH-4044. Conjoined EF Core tenant partitioning finds its provider through this factory, and
         // PersistMessagesWithPostgresql() is the only other thing that registers it -- which an
         // application letting Marten own the message store never calls

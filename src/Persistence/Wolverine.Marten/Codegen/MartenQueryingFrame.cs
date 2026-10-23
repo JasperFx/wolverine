@@ -44,6 +44,9 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
         // unconditional code, and an unkeyed message is supposed to cost no round trip at all.
         if (frame is MartenDeduplicationClaimExistsFrame dedup && !dedup.CanBatch) return false;
 
+        // GH-5160. The same for a [DeduplicatedWithResponse] claim lookup on an optional key.
+        if (frame is MartenDeduplicatedResponseClaimFrame response && !response.CanBatch) return false;
+
         return true;
     }
 

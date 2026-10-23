@@ -23,6 +23,7 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
     private readonly string _recordSql;
     private readonly string _deleteUnansweredSql;
     private readonly string _deleteExpiredSql;
+    private readonly string _holdsSql;
 
     public RdbmsReplayableDeduplicationStore(DbDataSource dataSource, string table,
         Func<Exception, bool> isUniqueConstraintViolation, Func<int, string?> batchedDeleteExpiredSql, int batchSize)
@@ -43,6 +44,8 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
         _deleteUnansweredSql =
             $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ClaimToken} = @token and {DatabaseConstants.ResponseStatusCode} is null";
         _deleteExpiredSql = $"delete from {table} where {DatabaseConstants.Expires} <= @now";
+        _holdsSql =
+            $"select count(*) from {table} where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.ClaimToken} = @token";
     }
 
     public bool Enabled => true;
@@ -107,6 +110,15 @@ internal sealed class RdbmsReplayableDeduplicationStore : IReplayableDeduplicati
 
         // Only this attempt's claim, and never over an answer: a claim reaped mid-request may have been taken by another.
         return await cmd.ExecuteNonQueryAsync(cancellation).ConfigureAwait(false) > 0;
+    }
+
+    public async Task<bool> HoldsClaimAsync(string deduplicationId, string claimToken,
+        CancellationToken cancellation = default)
+    {
+        await using var cmd = _dataSource.CreateCommand(_holdsSql).With("id", deduplicationId).With("token", claimToken);
+
+        // Convert: the count's type differs by engine
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(cancellation).ConfigureAwait(false)) > 0;
     }
 
     public async Task ReleaseUnansweredAsync(string deduplicationId, string claimToken,

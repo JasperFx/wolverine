@@ -1,10 +1,16 @@
+using System.Reflection;
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Codegen;
+using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.Http;
 
@@ -104,10 +110,11 @@ public partial class HttpChain
     /// Front of the middleware, as for [Deduplicated]: refuse a repeat before any work happens. Called from
     /// AssembleTypes, and idempotent.
     /// </summary>
-    private void applyDeduplicatedWithResponse()
+    private void applyDeduplicatedWithResponse(GenerationRules rules, IServiceContainer container)
     {
         if (DeduplicatedWithResponse is not { } requirement) return;
         if (Middleware.OfType<ClaimDeduplicatedResponseFrame>().Any()) return;
+        if (Middleware.OfType<AnswerExistingDeduplicatedResponseFrame>().Any()) return;
 
         // Again: a policy may have set either requirement since construction.
         assertDeduplicatedWithResponseIsValid(requirement);
@@ -133,10 +140,28 @@ public partial class HttpChain
 
         frames.Add(scoped);
         frames.Add(fingerprint);
+
+        if (tryApplyTransactionalDeduplicatedWithResponse(requirement, scoped.Variable, fingerprint.Variable, rules,
+                container, frames))
+        {
+            Middleware.InsertRange(0, frames);
+            return;
+        }
+
         var claim = new ClaimDeduplicatedResponseFrame(scoped.Variable, fingerprint.Variable, requirement.Window,
             AncillaryStoreType, requirement.KeyName);
         frames.Add(claim);
-        frames.Add(new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, AncillaryStoreType));
+        var release = new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, AncillaryStoreType);
+        frames.Add(release);
+
+        // GH-5165. Where the commit call can still throw after the database has committed (on Marten, the outbox flush
+        // and session listeners), hear about the commit itself, so the release above keeps the claim over committed work
+        if (rules.GetPersistenceProviders(this, container) is IDatabaseCommitHookProvider commits &&
+            commits.TryBuildDatabaseCommitHook(this, MarkDatabaseCommittedMethod, out var hook))
+        {
+            release.KeepClaimOverCommittedWork = true;
+            frames.Add(hook);
+        }
 
         Middleware.InsertRange(0, frames);
 
@@ -154,6 +179,90 @@ public partial class HttpChain
         Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
             new RecordDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, ResourceVariable ?? Method.Creates.First(),
                 MissingResponseBodyStatusCode, AncillaryStoreType));
+    }
+
+    /// <summary>
+    /// GH-5160. When the provider that owns this chain's transaction can write the claim inside it: nothing is claimed up
+    /// front, and the claim and its response are written with the work, just before the commit. A rollback, or a
+    /// crash before the commit, leaves no claim; a commit leaves the claim answered. There is no release and no
+    /// record to fail afterwards. See <see cref="ITransactionalReplayableDeduplicationProvider" />.
+    /// </summary>
+    private bool tryApplyTransactionalDeduplicatedWithResponse(DeduplicatedWithResponseRequirement requirement,
+        Variable scoped, Variable fingerprint, GenerationRules rules, IServiceContainer container, List<Frame> frames)
+    {
+        if (!requirement.ClaimInTransaction) return false;
+
+        if (rules.GetPersistenceProviders(this, container) is not ITransactionalReplayableDeduplicationProvider
+            provider)
+        {
+            warnClaimInTransactionFallsBack(container,
+                "its persistence cannot write the claim inside its transaction; only Marten can today");
+            return false;
+        }
+
+        var resource = ResourceVariable ?? Method.Creates.First();
+        var prepare = new PrepareDeduplicatedResponseClaimFrame(scoped, fingerprint, resource,
+            MissingResponseBodyStatusCode, requirement.Window);
+        var storageId = new DeduplicationStorageIdFrame(scoped);
+
+        // As [Deduplicated] on Marten: the lookup may join a batch only when the key is required
+        if (!provider.TryBuildTransactionalReplayableDeduplication(this, storageId.Variable, requirement.Required,
+                prepare.Variable, container, out var transactional))
+        {
+            warnClaimInTransactionFallsBack(container,
+                "it does not commit through Wolverine's Marten transactional middleware on a single-database store with the PostgreSQL message store in the same database");
+            return false;
+        }
+
+        var commit = Postprocessors.IndexOf(transactional.Commit);
+        if (commit < 0) return false;
+
+        // A response produced after the commit, as UpdatedAggregate fetches the aggregate: claiming it before the
+        // commit would pull that read ahead of the commit, and answer with the aggregate before this request's events
+        if (resource.Creator != null && Postprocessors.IndexOf(resource.Creator) > commit)
+        {
+            warnClaimInTransactionFallsBack(container,
+                "its response is only produced after the commit (UpdatedAggregate, say), and the claim has to be written before it");
+            return false;
+        }
+
+        // The store the provider writes the claim to, so the claim is read back from the same one.
+        var marker = this.DetermineAncillaryStoreType();
+
+        // The provider's lookup, then the answer from it: GH-4505's check-then-refuse, with a replay for the refusal
+        frames.Add(storageId);
+        frames.Add(transactional.Check);
+        frames.Add(new AnswerExistingDeduplicatedResponseFrame(transactional.ExistingClaim, fingerprint,
+            requirement.KeyName));
+
+        // After IHttpAware has set the status and Location: the claim, then the commit it rides, wrapped so a commit
+        // that a concurrent repeat won is answered from the winner's claim
+        Postprocessors.Insert(commit + 1, new MarkDeduplicatedResponseCommittedFrame());
+        Postprocessors.InsertRange(commit,
+        [
+            prepare,
+            transactional.Claim,
+            new AnswerDeduplicatedResponseRaceFrame(scoped, fingerprint, prepare.Variable, requirement.KeyName, marker)
+        ]);
+
+        return true;
+    }
+
+    private static readonly MethodInfo MarkDatabaseCommittedMethod =
+        typeof(HttpHandler).GetMethod(nameof(HttpHandler.MarkDeduplicatedDatabaseCommitted))!;
+
+    private void warnClaimInTransactionFallsBack(IServiceContainer container, string reason)
+    {
+        try
+        {
+            container.GetInstance<ILogger<HttpGraph>>().LogWarning(
+                "[DeduplicatedWithResponse(ClaimInTransaction = true)] on {Endpoint} keeps claim-and-release, because {Reason}. See GH-5160",
+                RoutePattern?.RawText ?? Description, reason);
+        }
+        catch (Exception)
+        {
+            // A diagnostic must never be what fails code generation
+        }
     }
 
     /// <summary>Called from DetermineFrames once the response writer is chosen.</summary>

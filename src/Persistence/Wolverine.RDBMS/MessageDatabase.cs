@@ -115,6 +115,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         IncomingFullName = this.TableNameFor(DatabaseConstants.IncomingTable);
         OutgoingFullName = this.TableNameFor(DatabaseConstants.OutgoingTable);
         DeduplicationFullName = this.TableNameFor(DeduplicationTableNameFor(settings));
+        DeduplicatedResponsesFullName = this.TableNameFor(DatabaseConstants.DeduplicatedResponsesTableName);
 
         Durability = settings;
         _cancellation = settings.Cancellation;
@@ -343,6 +344,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// </summary>
     public string DeduplicationFullName { get; private set; }
 
+    /// <summary>
+    /// GH-5160. The rendered identifier for the <c>[DeduplicatedWithResponse]</c> claims table, on the same terms as
+    /// <see cref="DeduplicationFullName" /> and for the same reason: so a store integration can write a claim
+    /// inside its own transaction.
+    /// </summary>
+    public string DeduplicatedResponsesFullName { get; private set; }
+
     public DurabilitySettings Durability { get; }
 
     /// <summary>
@@ -399,6 +407,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             IncomingFullName = QuotedTableNameFor(DatabaseConstants.IncomingTable);
             OutgoingFullName = QuotedTableNameFor(DatabaseConstants.OutgoingTable);
             DeduplicationFullName = QuotedTableNameFor(DeduplicationTableNameFor(Durability));
+            DeduplicatedResponsesFullName = QuotedTableNameFor(DatabaseConstants.DeduplicatedResponsesTableName);
         }
     }
 

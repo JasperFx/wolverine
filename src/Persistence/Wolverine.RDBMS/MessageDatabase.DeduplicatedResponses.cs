@@ -5,7 +5,7 @@ namespace Wolverine.RDBMS;
 
 // GH-4742. The message store is the IReplayableDeduplicationStore, so finding one needs no new member on
 // IMessageStore. Explicit, to keep these off MessageDatabase's own surface.
-public abstract partial class MessageDatabase<T> : IReplayableDeduplicationStore
+public abstract partial class MessageDatabase<T> : IReplayableDeduplicationStore, IReplayableDeduplicationClaimOwnership
 {
     private RdbmsReplayableDeduplicationStore? _deduplicatedResponses;
 
@@ -25,6 +25,10 @@ public abstract partial class MessageDatabase<T> : IReplayableDeduplicationStore
             $"[DeduplicatedWithResponse] needs {nameof(DurabilitySettings)}.{nameof(DurabilitySettings.EnableDeduplicatedResponses)} = true. See GH-4742");
 
     bool IReplayableDeduplicationStore.Enabled => _deduplicatedResponses != null;
+
+    Task<bool> IReplayableDeduplicationClaimOwnership.HoldsClaimAsync(string deduplicationId, string claimToken,
+        CancellationToken cancellation)
+        => deduplicatedResponses.HoldsClaimAsync(deduplicationId, claimToken, cancellation);
 
     Task<bool> IReplayableDeduplicationStore.TryClaimAsync(string deduplicationId, string fingerprint,
         string claimToken, DateTimeOffset expires, CancellationToken cancellation)

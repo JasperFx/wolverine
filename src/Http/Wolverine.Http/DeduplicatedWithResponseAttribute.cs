@@ -6,7 +6,7 @@ namespace Wolverine.Http;
 /// <summary>
 /// GH-4742. Deduplicate this endpoint on an idempotency key and answer a repeat of the same request with the
 /// first response: its status, body and <c>Location</c>. A key reused for a different request gets 422, and a
-/// repeat while the first is still running gets 409.
+/// repeat while the first is still running gets 409, unless <see cref="ClaimInTransaction" /> is set.
 ///
 /// <para>
 /// Unlike <c>[Deduplicated]</c>, which refuses a repeat, this tells a client whose connection dropped
@@ -18,7 +18,7 @@ namespace Wolverine.Http;
 /// Requires <c>opts.Durability.EnableDeduplicatedResponses = true</c> and a PostgreSQL, SQL Server, MySQL or
 /// SQLite message store. Without them the host logs a warning at startup and the endpoint throws at its first
 /// claim. The response is recorded after the endpoint and any commit, before it is written and before cascaded
-/// messages flush.
+/// messages flush, unless <see cref="ClaimInTransaction" /> writes it inside the commit instead.
 /// </para>
 /// </summary>
 /// <example>
@@ -55,6 +55,9 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
     /// <summary>Claim lifetime in seconds; 0 uses <see cref="DurabilitySettings.DeduplicationWindow" />.</summary>
     public int WindowInSeconds { get; set; }
 
+    /// <inheritdoc cref="DeduplicatedWithResponseRequirement.ClaimInTransaction" />
+    public bool ClaimInTransaction { get; set; }
+
     public override void Modify(HttpChain chain, GenerationRules rules)
     {
         if (WindowInSeconds < 0)
@@ -70,7 +73,8 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
             Source = Source,
             Key = Key,
             Required = Required,
-            Window = WindowInSeconds == 0 ? null : TimeSpan.FromSeconds(WindowInSeconds)
+            Window = WindowInSeconds == 0 ? null : TimeSpan.FromSeconds(WindowInSeconds),
+            ClaimInTransaction = ClaimInTransaction
         };
     }
 }

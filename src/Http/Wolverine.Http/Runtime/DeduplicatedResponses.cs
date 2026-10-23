@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -66,6 +67,53 @@ public sealed class DeduplicatedResponses
 
         // Still churning: refuse as unanswered rather than run unclaimed.
         return new DeduplicatedResponseClaim(fingerprint!, null);
+    }
+
+    /// <summary>
+    /// GH-5160. The claim on the key, or null when there is none or no key. For a chain whose claim is written inside its
+    /// own transaction: there is nothing to claim up front, only an earlier request's committed claim to answer
+    /// from.
+    /// </summary>
+    public async ValueTask<DeduplicatedResponseClaim?> FindAsync(string? deduplicationId, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
+
+        var claim = await storeFor(ancillaryStoreMarker).FindAsync(StorageIdFor(deduplicationId)).ConfigureAwait(false);
+        if (claim != null)
+        {
+            _logger.LogInformation(
+                "Answering a repeat of deduplicated id '{DeduplicationId}' from its first request's claim",
+                deduplicationId);
+        }
+
+        return claim;
+    }
+
+    /// <summary>
+    /// GH-5160. Is <paramref name="claim" />, this attempt's own, committed? False on a store that cannot say.
+    /// </summary>
+    internal async ValueTask<bool> HoldsClaimAsync(PendingDeduplicatedResponseClaim claim, Type? ancillaryStoreMarker)
+        => storeFor(ancillaryStoreMarker) is IReplayableDeduplicationClaimOwnership ownership &&
+           await ownership.HoldsClaimAsync(claim.DeduplicationId, claim.ClaimToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// GH-5160. The claim to write inside the endpoint's own transaction once its work is done, or null when there is no
+    /// key or the work was not done, so nothing is claimed and a retry runs again.
+    /// </summary>
+    /// <param name="response">
+    /// From <see cref="HttpHandler.CompleteDeduplicatedRequest{T}" />. Null for done work is a response that could
+    /// not be stored: the claim is written unanswered, so repeats get 409 rather than run the work again.
+    /// </param>
+    public PendingDeduplicatedResponseClaim? PrepareClaim(HttpContext context, string? deduplicationId,
+        string? fingerprint, DeduplicatedResponse? response, TimeSpan? window)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId) || !HttpHandler.IsDeduplicatedWorkDone(context)) return null;
+
+        // Stored rather than computed at read time, as in TryClaimAsync.
+        var expires = DateTimeOffset.UtcNow.Add(window ?? _runtime.Options.Durability.DeduplicationWindow);
+
+        return new PendingDeduplicatedResponseClaim(StorageIdFor(deduplicationId), fingerprint!,
+            Guid.NewGuid().ToString(), expires, response);
     }
 
     /// <summary>Record the response on the claim. Null records nothing.</summary>

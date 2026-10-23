@@ -8,7 +8,9 @@ using JasperFx.Core.Reflection;
 using Marten;
 using JasperFx.Events;
 using Marten.Events;
+using Marten.Storage;
 using Marten.Storage.Metadata;
+using Weasel.Postgresql;
 using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
@@ -22,7 +24,8 @@ using IRevisioned = JasperFx.IRevisioned;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
-internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvider,
+    ITransactionalReplayableDeduplicationProvider, IDatabaseCommitHookProvider
 {
     // Marten can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the
@@ -122,11 +125,70 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
             IsDuplicate = check.Variable,
             Claim = new QueueMartenDeduplicationClaimFrame(deduplicationId, check.Variable, marker,
                 requirement.Window),
-            CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
-                MartenDeduplicationFailures.Classifier,
+            // GH-5166: also answers a concurrent caller whose commit failed on its own work first, such as a
+            // [WriteAggregate] stream version, before it reached the claim's primary key
+            CommitRaceWrapper = new RefuseDuplicateMartenClaimAtCommitFrame(deduplicationId, marker,
                 lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
         };
 
+        return true;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     On the terms of <see cref="TryBuildTransactionalDeduplication" />: a chain that really commits through a
+    ///     Marten session, on a single-database store. And, checked here rather than assumed, the message store the
+    ///     claim is read back from is a PostgreSQL store with the claims table, in the database that session
+    ///     commits to: a host that keeps its message store elsewhere would otherwise write the claim where it is
+    ///     never read. Anything else keeps claim-and-release.
+    /// </remarks>
+    public bool TryBuildTransactionalReplayableDeduplication(IChain chain, Variable deduplicationId, bool canBatch,
+        Variable claim, IServiceContainer container,
+        [NotNullWhen(true)] out TransactionalReplayableDeduplication? deduplication)
+    {
+        deduplication = null;
+
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
+        if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
+
+        var store = resolveStore(chain, container).As<DocumentStore>();
+        if (store.Tenancy.Cardinality != JasperFx.Descriptors.DatabaseCardinality.Single) return false;
+
+        var marker = chain.DetermineAncillaryStoreType();
+        var messageStore =
+            MartenDeduplicatedResponses.MessageStoreFor(container.GetInstance<IWolverineRuntime>(), marker);
+        if (messageStore == null || !MartenDeduplicatedResponses.IsSameDatabase(messageStore.NpgsqlDataSource,
+                store.Storage.Database.As<PostgresqlDatabase>().DataSource))
+        {
+            return false;
+        }
+
+        var check = new MartenDeduplicatedResponseClaimFrame(deduplicationId, marker, canBatch);
+
+        deduplication = new TransactionalReplayableDeduplication
+        {
+            Check = check,
+            ExistingClaim = check.Variable,
+            Claim = new QueueMartenDeduplicatedResponseClaimFrame(claim, marker),
+            Commit = commit
+        };
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-5165. Only for a chain that commits through Wolverine's transactional middleware: the hook rides the
+    ///     session that middleware saves.
+    /// </remarks>
+    public bool TryBuildDatabaseCommitHook(IChain chain, MethodInfo onCommitted, [NotNullWhen(true)] out Frame? hook)
+    {
+        hook = null;
+
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
+        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+
+        hook = new EnlistDatabaseCommitHookFrame(onCommitted);
         return true;
     }
 

@@ -1,8 +1,11 @@
 using System.Reflection;
+using ImTools;
+using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Linq.QueryHandlers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Weasel.Postgresql;
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Codegen;
@@ -142,6 +145,142 @@ internal class MartenDeduplicator : IMartenDeduplicator
 }
 
 /// <summary>
+/// GH-5160. The seam generated code calls to write a <c>[DeduplicatedWithResponse]</c> claim, with its response, inside
+/// the Marten session's transaction. See <see cref="ITransactionalReplayableDeduplicationProvider" />.
+///
+/// <para>
+/// The <c>[DeduplicatedWithResponse]</c> twin of <see cref="IMartenDeduplicator" />, and an interface of its own
+/// rather than new members on that one, which an application may have implemented, so nothing it declares changes.
+/// </para>
+/// </summary>
+public interface IMartenDeduplicatedResponses
+{
+    /// <summary>
+    /// An earlier request's committed claim on <paramref name="deduplicationId" />, or null, asked through
+    /// <paramref name="session" />. Optimistic, as <see cref="IMartenDeduplicator.HasClaimAsync" /> is: a claim not
+    /// yet committed is invisible.
+    /// </summary>
+    /// <param name="deduplicationId">Already hashed; null for a request without a key, which finds nothing.</param>
+    Task<DeduplicatedResponseClaim?> FindClaimAsync(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker, CancellationToken cancellation);
+
+    /// <summary>
+    /// The same lookup as <see cref="FindClaimAsync" />, as a query handler to be enlisted in a batch the chain was
+    /// already running, so a <c>[WriteAggregate]</c> endpoint pays one round trip for the lookup and the aggregate
+    /// load together.
+    /// </summary>
+    IQueryHandler<DeduplicatedResponseClaim?> ClaimQuery(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker);
+
+    /// <summary>
+    /// Queue <paramref name="claim" /> onto <paramref name="session" />'s unit of work. Null queues nothing.
+    /// Nothing is written until <c>SaveChangesAsync</c>.
+    /// </summary>
+    void QueueClaim(IDocumentSession session, PendingDeduplicatedResponseClaim? claim, Type? ancillaryStoreMarker);
+}
+
+internal class MartenDeduplicatedResponses : IMartenDeduplicatedResponses
+{
+    private readonly IWolverineRuntime _runtime;
+    private readonly ILogger<MartenDeduplicatedResponses> _logger;
+
+    public MartenDeduplicatedResponses(IWolverineRuntime runtime, ILogger<MartenDeduplicatedResponses> logger)
+    {
+        _runtime = runtime;
+        _logger = logger;
+    }
+
+    public async Task<DeduplicatedResponseClaim?> FindClaimAsync(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker, CancellationToken cancellation)
+    {
+        // Through a one-item batch rather than a second code path, as MartenDeduplicator.HasClaimAsync
+        var batch = session.CreateBatchQuery();
+        var item = batch.AddItem(ClaimQuery(session, deduplicationId, ancillaryStoreMarker));
+        await batch.Execute(cancellation).ConfigureAwait(false);
+
+        return await item.ConfigureAwait(false);
+    }
+
+    public IQueryHandler<DeduplicatedResponseClaim?> ClaimQuery(IDocumentSession session, string? deduplicationId,
+        Type? ancillaryStoreMarker)
+        => new DeduplicatedResponseClaimHandler(tableFor(session, ancillaryStoreMarker), deduplicationId,
+            logFound);
+
+    public void QueueClaim(IDocumentSession session, PendingDeduplicatedResponseClaim? claim,
+        Type? ancillaryStoreMarker)
+    {
+        if (claim == null) return;
+
+        session.QueueOperation(new ClaimDeduplicatedResponse(tableFor(session, ancillaryStoreMarker), claim));
+    }
+
+    private void logFound(string deduplicationId)
+    {
+        // As DeduplicatedResponses.TryClaimAsync logs on claim-and-release
+        _logger.LogInformation(
+            "Answering a repeat of deduplicated id '{DeduplicationId}' from its first request's claim",
+            deduplicationId);
+    }
+
+    private ImHashMap<(NpgsqlDataSource DataSource, Type? Marker), string> _tables =
+        ImHashMap<(NpgsqlDataSource DataSource, Type? Marker), string>.Empty;
+
+    private string tableFor(IDocumentSession session, Type? ancillaryStoreMarker)
+    {
+        // By store as well as data source: an application can hand one NpgsqlDataSource to its main and ancillary
+        // stores, whose message stores keep their claims in different schemas
+        var sessionDataSource = session.Database.As<PostgresqlDatabase>().DataSource;
+        var key = (sessionDataSource, ancillaryStoreMarker);
+        if (_tables.TryFind(key, out var table)) return table;
+
+        var store = MessageStoreFor(_runtime, ancillaryStoreMarker) ?? throw new InvalidOperationException(
+            $"[DeduplicatedWithResponse] needs {nameof(DurabilitySettings)}.{nameof(DurabilitySettings.EnableDeduplicatedResponses)} = true on the PostgreSQL message store this Marten store integrates with. See GH-4742");
+
+        // Checked again here, not only when the endpoint was compiled: pre-generated code carries that decision
+        // from whatever machine generated it, and a claim written to another database is never read back
+        if (!IsSameDatabase(store.NpgsqlDataSource, sessionDataSource))
+        {
+            throw new InvalidOperationException(
+                $"[DeduplicatedWithResponse(ClaimInTransaction = true)] was compiled to write its claim inside the Marten transaction, but this host's message store is in a different database from that Marten store, so the claim would never be read back. Regenerate the code against this configuration, or turn ClaimInTransaction off. See GH-5160");
+        }
+
+        table = store.DeduplicatedResponsesFullName;
+        _tables = _tables.AddOrUpdate(key, table);
+        return table;
+    }
+
+    /// <summary>Do the two data sources point at the same database, as far as their connection strings say?</summary>
+    internal static bool IsSameDatabase(NpgsqlDataSource left, NpgsqlDataSource right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+
+        var a = new NpgsqlConnectionStringBuilder(left.ConnectionString);
+        var b = new NpgsqlConnectionStringBuilder(right.ConnectionString);
+
+        return string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port &&
+               string.Equals(a.Database, b.Database, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The message store a <c>[DeduplicatedWithResponse]</c> claim is read back from, on the terms
+    /// <c>DeduplicatedResponses</c> uses (an ancillary store, else the main one, else the main database of a
+    /// multi-tenanted store), or null when it is not a PostgreSQL store with the claims table.
+    /// </summary>
+    internal static PostgresqlMessageStore? MessageStoreFor(IWolverineRuntime runtime, Type? ancillaryStoreMarker)
+    {
+        var store = ancillaryStoreMarker != null
+            ? runtime.Stores.FindAncillaryStore(ancillaryStoreMarker)
+            : runtime.Storage is MultiTenantedMessageStore tenanted
+                ? tenanted.Main
+                : runtime.Storage;
+
+        return store is PostgresqlMessageStore database and IReplayableDeduplicationStore { Enabled: true }
+            ? database
+            : null;
+    }
+}
+
+/// <summary>
 /// GH-4505. Classification of the one failure the optimistic check cannot prevent: two genuinely
 /// concurrent callers both read "not claimed", both queue the INSERT, and the second one to commit
 /// trips the deduplication table's primary key.
@@ -189,5 +328,38 @@ public static class MartenDeduplicationFailures
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// GH-5166. After a commit failed: has a concurrent caller committed a claim on <paramref name="deduplicationId" />
+    /// in the meantime? Asked on a fresh query session, because <paramref name="session" />'s own transaction has
+    /// just been rolled back.
+    ///
+    /// <para>
+    /// Answers the race <see cref="IsDuplicateDeduplicationClaim" /> cannot see. Two concurrent callers on a
+    /// <c>[WriteAggregate]</c> endpoint both load the stream at the same version, and the second commit fails on the
+    /// stream version before it ever reaches the claim's INSERT. A claim committed meanwhile can only come from a
+    /// caller with the same id, so the failure is that caller's win, whatever it failed on.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> IsClaimedAfterFailedCommitAsync(IMartenDeduplicator deduplicator,
+        IDocumentSession session, string? deduplicationId, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return false;
+
+        try
+        {
+            await using var query = session.DocumentStore.QuerySession(session.TenantId);
+            var batch = query.CreateBatchQuery();
+            var item = batch.AddItem(deduplicator.ClaimExistsQuery(deduplicationId, ancillaryStoreMarker));
+            await batch.Execute(CancellationToken.None).ConfigureAwait(false);
+
+            return await item.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Never mask the commit failure being unwound: it is rethrown as it was
+            return false;
+        }
     }
 }
