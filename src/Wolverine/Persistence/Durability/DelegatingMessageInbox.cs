@@ -15,6 +15,12 @@ internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
         _stores = stores;
     }
 
+    // GH-5171. Same routing as the writes below: Envelope.Store first, then the inner inbox
+    internal object CoalescingPartitionFor(Envelope envelope)
+    {
+        return EnvelopeStoreCoalescing.PartitionFor(envelope, _inner);
+    }
+
     /// <summary>
     /// Each envelope's row lives in the store it came from, so the heartbeat goes to each store with its own
     /// envelopes. A store without the capability is skipped.

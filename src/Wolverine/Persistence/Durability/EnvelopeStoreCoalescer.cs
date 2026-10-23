@@ -3,6 +3,16 @@ using Microsoft.Extensions.Logging;
 namespace Wolverine.Persistence.Durability;
 
 /// <summary>
+///     What the durable sending agent and the durable local queue need from a coalescer: write one
+///     envelope, and drain whatever is in flight at shutdown.
+/// </summary>
+internal interface IEnvelopeStoreCoalescer
+{
+    Task StoreAsync(Envelope envelope);
+    Task DrainAsync();
+}
+
+/// <summary>
 ///     GH-4319. Coalesces concurrent single-envelope durability writes into one batched round trip,
 ///     without ever making a caller wait for other work to show up. This is the insert-side twin of
 ///     <see cref="Wolverine.Runtime.WorkerQueues.InboxCompletionCoalescer" /> and shares its shape: one
@@ -29,7 +39,7 @@ namespace Wolverine.Persistence.Durability;
 ///     exception for exactly that envelope, and one poisoned envelope cannot fail its neighbours.
 ///     </para>
 /// </remarks>
-internal class EnvelopeStoreCoalescer
+internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
 {
     private readonly Func<IReadOnlyList<Envelope>, Task> _storeBatch;
     private readonly Func<Envelope, Task> _storeOne;

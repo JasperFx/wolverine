@@ -23,7 +23,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     // GH-4319. The local durable queue was the last per-message inbox INSERT that never batched: every
     // publish opened its own pooled connection for one row. Null when StoreIncomingBatchSize is 1.
-    private readonly EnvelopeStoreCoalescer? _storeCoalescer;
+    private readonly IEnvelopeStoreCoalescer? _storeCoalescer;
     private DurableReceiver? _receiver;
     private Restarter? _restarter;
 
@@ -81,7 +81,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         if (_settings.StoreIncomingBatchSize > 1)
         {
-            _storeCoalescer = new EnvelopeStoreCoalescer(
+            // GH-5171. One lane per database when the inbox fans out to several
+            _storeCoalescer = EnvelopeStoreCoalescing.Build(EnvelopeStoreCoalescing.PartitionerFor(_inbox),
                 envelopes => _inbox.StoreIncomingAsync(envelopes),
                 envelope => _inbox.StoreIncomingAsync(envelope),
                 _settings.StoreIncomingBatchSize, Uri, _logger);
