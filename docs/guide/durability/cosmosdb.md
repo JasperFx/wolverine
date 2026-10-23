@@ -147,8 +147,6 @@ Wolverine uses a single CosmosDB container, named `wolverine` by default, with a
 `/partitionKey`. The container is automatically created during database migration if it does not exist, but the
 database it lives in is not: create the database ahead of time.
 
-<!-- DRAFT (GH-5059, for Jeremy to word): incoming envelope documents are partitioned by their message identity under the default MessageIdentity.IdOnly (one logical partition per message, so the same message id received at two addresses is rejected as a duplicate), and by destination under MessageIdentity.IdAndDestination. Documents written by earlier versions were partitioned by destination; they are still found, updated and deleted, and drain away normally. While they do, a redelivery of one of those older messages is not recognized as a duplicate. -->
-
 All Wolverine document types are stored in the same container, differentiated by a `docType` field:
 - `incoming` - Incoming message envelopes
 - `outgoing` - Outgoing message envelopes
@@ -159,6 +157,28 @@ All Wolverine document types are stored in the same container, differentiated by
 - `agent-assignment` - Agent assignment documents
 - `agent-restriction` - Agent restriction documents
 - `lock` - Distributed lock documents
+
+### How Incoming Envelopes Are Partitioned
+
+Cosmos DB only enforces a document id as unique *within one logical partition*, so the partition key Wolverine picks for
+an incoming envelope document decides what the inbox can recognize as a duplicate. Wolverine follows your
+[message identity](/guide/durability/#message-identity) setting here:
+
+* Under the default `MessageIdentity.IdOnly`, an incoming envelope document is partitioned by the message's identity, so
+  every message gets its own logical partition. The same message id received at two different addresses is the same
+  message, and Cosmos DB rejects the second copy as a duplicate just like the relational message stores do. As a bonus,
+  that spreads the inbox evenly across partitions
+* Under `MessageIdentity.IdAndDestination`, the destination is part of the message identity, so the incoming envelope
+  documents are partitioned by destination
+
+::: info
+Versions of Wolverine before 6.51 partitioned every incoming envelope document by its destination. If you're upgrading
+with messages still sitting in the inbox, you don't need to do anything. Wolverine still finds, updates, and deletes
+those older documents where they are, and they drain away through normal processing. The one gap while they do is that a
+redelivery of one of those older messages isn't rejected when it's stored. The new copy is written to the new partition,
+the older document is still sitting in its destination partition, and Cosmos DB only sees a conflict within the same
+partition.
+:::
 
 ### Several Applications in One Database <Badge type="tip" text="6.45" />
 
