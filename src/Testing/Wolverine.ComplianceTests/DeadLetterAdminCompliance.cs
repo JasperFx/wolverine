@@ -52,11 +52,14 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator = new EnvelopeGenerator();
         theGenerator.MessageSource = BuildRandomMessage;
 
-        FourHoursAgo = DateTimeOffset.UtcNow.AddHours(-4);
-        FiveHoursAgo = DateTimeOffset.UtcNow.AddHours(-5);
-        SixHoursAgo = DateTimeOffset.UtcNow.AddHours(-6);
-        SevenHoursAgo = DateTimeOffset.UtcNow.AddHours(-7);
-        EightHoursAgo = DateTimeOffset.UtcNow.AddHours(-8);
+        // Whole seconds, so a row stamped exactly on a range boundary survives databases
+        // that keep fewer fractional digits than .NET ticks (MySQL keeps six)
+        var now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        FourHoursAgo = now.AddHours(-4);
+        FiveHoursAgo = now.AddHours(-5);
+        SixHoursAgo = now.AddHours(-6);
+        SevenHoursAgo = now.AddHours(-7);
+        EightHoursAgo = now.AddHours(-8);
     }
 
     public async ValueTask DisposeAsync()
