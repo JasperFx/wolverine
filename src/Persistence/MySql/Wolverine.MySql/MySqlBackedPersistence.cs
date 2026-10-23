@@ -9,6 +9,7 @@ using MySqlConnector;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.MySql;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.MySql.Transport;
 using Wolverine.Persistence.Durability;
@@ -149,8 +150,41 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
 
     internal bool AlreadyIncluded { get; set; }
 
+    internal WolverineOptions Options => _options;
+
     public MySqlDataSource? DataSource { get; set; }
     public string? ConnectionString { get; set; }
+
+    /// <summary>
+    /// GH-5127. Set by PersistMessagesWithMySqlUsingNamedConnection(): the connection string is resolved from
+    /// IConfiguration once the container exists, so <see cref="ConnectionString"/> is still empty at configuration time
+    /// </summary>
+    internal NamedConfigurationDependency? NamedConnection { get; set; }
+
+    /// <summary>
+    /// GH-5127. Set by PersistMessagesWithMySqlUsingDataSourceFromContainer(): the MySqlDataSource is resolved
+    /// from the application's container (e.g. registered by Aspire's AddMySqlDataSource()) when the store is built.
+    /// The container owns it, so Wolverine does not dispose it
+    /// </summary>
+    internal Func<IServiceProvider, MySqlDataSource>? DataSourceSource { get; set; }
+
+    /// <summary>
+    /// The connection information is not known until the container exists
+    /// </summary>
+    private bool resolvesConnectionLater => NamedConnection != null || DataSourceSource != null;
+
+    private void resolveDeferredConnection(IServiceProvider services)
+    {
+        if (NamedConnection != null)
+        {
+            services.GetService<IWolverineRuntime>()?.EnsureNamedConnectionStringsApplied();
+        }
+
+        if (DataSource == null && DataSourceSource != null)
+        {
+            DataSource = DataSourceSource(services);
+        }
+    }
 
     private string _envelopeStorageSchemaName = null!;
 
@@ -187,7 +221,7 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
 
     public void Configure(WolverineOptions options)
     {
-        if (ConnectionString.IsEmpty() && DataSource == null)
+        if (ConnectionString.IsEmpty() && DataSource == null && !resolvesConnectionLater)
         {
             throw new InvalidOperationException(
                 "The MySQL backed persistence needs to at least have either a connection string or MySqlDataSource defined for the main envelope database");
@@ -198,7 +232,20 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
                 mysql.Number == 1062) // 1062 is MySQL duplicate entry error
             .Discard();
 
-        options.Services.AddSingleton(buildMainDatabaseSettings());
+        if (resolvesConnectionLater)
+        {
+            // GH-5127. The connection information only exists once the container does
+            options.Services.AddSingleton(s =>
+            {
+                resolveDeferredConnection(s);
+                return buildMainDatabaseSettings();
+            });
+        }
+        else
+        {
+            options.Services.AddSingleton(buildMainDatabaseSettings());
+        }
+
         options.CodeGeneration.AddPersistenceStrategy<LightweightSagaPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
@@ -222,12 +269,14 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)
     {
+        resolveDeferredConnection(runtime.Services);
         var settings = buildMainDatabaseSettings();
 
         var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();
 
         // Only a data source built here from the connection string is Wolverine's to dispose. One passed to
-        // PersistMessagesWithMySql(MySqlDataSource) belongs to the caller
+        // PersistMessagesWithMySql(MySqlDataSource) belongs to the caller, and one taken from the container
+        // belongs to the container (GH-5127)
         var ownsMainSource = DataSource == null;
         var mainSource = DataSource ?? MySqlDataSourceFactory.Create(ConnectionString!);
         var logger = runtime.LoggerFactory.CreateLogger<MySqlMessageStore>();
