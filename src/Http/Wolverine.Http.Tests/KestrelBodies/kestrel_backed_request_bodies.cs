@@ -181,6 +181,21 @@ public class kestrel_backed_request_bodies : IAsyncLifetime
         body.ShouldBe("no-body");
     }
 
+    // ---- A string response carries its UTF-8 byte count as Content-Length ---------------------
+
+    [Fact]
+    public async Task a_non_ascii_string_response_is_written_in_full()
+    {
+        using var response = await theClient.GetAsync("/kestrel/non-ascii-text", TestContext.Current.CancellationToken);
+
+        // Kestrel aborts a response that writes more bytes than its Content-Length declares, which is what a
+        // char count did for any text outside ASCII
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Content.Headers.ContentLength.ShouldBe(Encoding.UTF8.GetByteCount(KestrelNonAsciiTextEndpoint.Text));
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .ShouldBe(KestrelNonAsciiTextEndpoint.Text);
+    }
+
     /// <summary>
     /// One request over a raw socket, returning the status and the decoded body. Connection: close means
     /// the server ends the stream after the response
@@ -248,4 +263,12 @@ public static class KestrelOptionalBodyEndpoint
     [WolverinePost("/kestrel/optional-body")]
     public static string Post([AsParameters] KestrelOptionalBodyQuery query)
         => query.Body is null ? "no-body" : $"body:{query.Body.Name}";
+}
+
+public static class KestrelNonAsciiTextEndpoint
+{
+    public const string Text = "Crème brûlée, 東京 ✓";
+
+    [WolverineGet("/kestrel/non-ascii-text")]
+    public static string Get() => Text;
 }
