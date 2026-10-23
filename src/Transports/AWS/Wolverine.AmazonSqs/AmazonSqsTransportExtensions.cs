@@ -1,5 +1,6 @@
 using Amazon.SQS;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Partitioning;
@@ -46,6 +47,104 @@ public static class AmazonSqsTransportExtensions
         return new AmazonSqsTransportConfiguration(transport, options);
     }
     
+    /// <summary>
+    /// Direct Wolverine to connect to Amazon SQS through the service URL held in the named connection string
+    /// from IConfiguration. This option is useful for Aspire integration between Wolverine and a local AWS
+    /// emulator: the LocalStack (<c>AddLocalStack</c>) and CommunityToolkit Floci (<c>AddFlociAws</c>) hosting
+    /// integrations put the emulator's service URL (e.g. <c>http://localhost:4566</c>) at
+    /// <c>ConnectionStrings:{name}</c>, and Wolverine applies it as <see cref="AmazonSQSConfig.ServiceURL"/>.
+    /// Unless you configure credentials explicitly, the same placeholder credentials as
+    /// <c>UseAmazonSqsTransportLocally()</c> are used.
+    /// <para>
+    /// Real AWS has no connection string under Aspire (<c>Aspire.Hosting.AWS</c> passes the profile and region
+    /// as the <c>AWS_PROFILE</c>/<c>AWS_REGION</c> environment variables that the AWS SDK already reads), so
+    /// use <c>UseAmazonSqsTransport()</c> or <see cref="UseAmazonSqsTransportWithClientFromContainer"/> for that.
+    /// </para>
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configuration">Optional extra configuration of the AmazonSQSConfig</param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration UseAmazonSqsTransportUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, Action<AmazonSQSConfig>? configuration = null)
+    {
+        var transport = options.AmazonSqsTransport();
+        return options.applyNamedConnection(transport, connectionStringName, configuration);
+    }
+
+    /// <summary>
+    /// Add an additional, named broker connection to Amazon SQS through the service URL held in the named
+    /// connection string from IConfiguration. See <see cref="UseAmazonSqsTransportUsingNamedConnection"/>
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">The name of the additional broker</param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configuration">Optional extra configuration of the AmazonSQSConfig</param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration AddNamedAmazonSqsBrokerUsingNamedConnection(this WolverineOptions options,
+        BrokerName name, string connectionStringName, Action<AmazonSQSConfig>? configuration = null)
+    {
+        var transport = options.AmazonSqsTransport(name);
+        return options.applyNamedConnection(transport, connectionStringName, configuration);
+    }
+
+    private static AmazonSqsTransportConfiguration applyNamedConnection(this WolverineOptions options,
+        AmazonSqsTransport transport, string connectionStringName, Action<AmazonSQSConfig>? configuration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        configuration?.Invoke(transport.Config);
+
+        // The SQS client is only built from Config in ConnectAsync, which runs after this callback
+        options.ApplyNamedConnectionString("Amazon SQS", connectionStringName, "AddLocalStack",
+            value => transport.ApplyNamedServiceUrl(connectionStringName, value));
+
+        return new AmazonSqsTransportConfiguration(transport, options);
+    }
+
+    /// <summary>
+    /// Use the <see cref="IAmazonSQS"/> client registered in the application's IoC container -- for example by
+    /// <c>services.AddAWSService&lt;IAmazonSQS&gt;()</c> from AWSSDK.Extensions.NETCore.Setup -- rather than
+    /// having Wolverine build one from its own <see cref="AmazonSQSConfig"/>. The client is resolved when the
+    /// transport connects, and Wolverine does not dispose it.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="clientSource">
+    /// Optional way to pick the client out of the container, e.g. a keyed service. By default this resolves
+    /// <see cref="IAmazonSQS"/>
+    /// </param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration UseAmazonSqsTransportWithClientFromContainer(this WolverineOptions options,
+        Func<IServiceProvider, IAmazonSQS>? clientSource = null)
+    {
+        var transport = options.AmazonSqsTransport();
+        return options.useClientFromContainer(transport, clientSource);
+    }
+
+    /// <summary>
+    /// Add an additional, named broker connection to Amazon SQS that uses a <see cref="IAmazonSQS"/> client from
+    /// the application's IoC container. See <see cref="UseAmazonSqsTransportWithClientFromContainer"/>
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">The name of the additional broker</param>
+    /// <param name="clientSource">Picks this broker's client out of the container, e.g. a keyed service</param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration AddNamedAmazonSqsBrokerWithClientFromContainer(this WolverineOptions options,
+        BrokerName name, Func<IServiceProvider, IAmazonSQS> clientSource)
+    {
+        ArgumentNullException.ThrowIfNull(clientSource);
+        var transport = options.AmazonSqsTransport(name);
+        return options.useClientFromContainer(transport, clientSource);
+    }
+
+    private static AmazonSqsTransportConfiguration useClientFromContainer(this WolverineOptions options,
+        AmazonSqsTransport transport, Func<IServiceProvider, IAmazonSQS>? clientSource)
+    {
+        clientSource ??= services => services.GetRequiredService<IAmazonSQS>();
+        transport.ClientSource = runtime => clientSource(runtime.Services);
+        return new AmazonSqsTransportConfiguration(transport, options);
+    }
+
     /// <summary>
     /// Add an additional, named broker connection to Amazon SQS
     /// </summary>
