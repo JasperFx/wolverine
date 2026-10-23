@@ -1,8 +1,11 @@
 using System.Reflection;
+using ImTools;
+using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Linq.QueryHandlers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Weasel.Postgresql;
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Codegen;
@@ -138,6 +141,91 @@ internal class MartenDeduplicator : IMartenDeduplicator
         }
 
         return database.DeduplicationFullName;
+    }
+}
+
+/// <summary>
+/// GH-5160. The seam generated code calls to write a <c>[DeduplicatedWithResponse]</c> claim, with its response, inside
+/// the Marten session's transaction. See <see cref="ITransactionalReplayableDeduplicationProvider" />.
+///
+/// <para>
+/// A class of its own rather than a member on <see cref="IMartenDeduplicator" />, which an application may have
+/// implemented, so nothing it declares changes.
+/// </para>
+/// </summary>
+public sealed class MartenDeduplicatedResponses
+{
+    private readonly IWolverineRuntime _runtime;
+
+    public MartenDeduplicatedResponses(IWolverineRuntime runtime)
+    {
+        _runtime = runtime;
+    }
+
+    /// <summary>
+    /// Queue <paramref name="claim" /> onto <paramref name="session" />'s unit of work. Null queues nothing.
+    /// Nothing is written until <c>SaveChangesAsync</c>.
+    /// </summary>
+    public void QueueClaim(IDocumentSession session, PendingDeduplicatedResponseClaim? claim,
+        Type? ancillaryStoreMarker)
+    {
+        if (claim == null) return;
+
+        session.QueueOperation(new ClaimDeduplicatedResponse(tableFor(session, ancillaryStoreMarker), claim));
+    }
+
+    private ImHashMap<NpgsqlDataSource, string> _tables = ImHashMap<NpgsqlDataSource, string>.Empty;
+
+    private string tableFor(IDocumentSession session, Type? ancillaryStoreMarker)
+    {
+        // A session's data source belongs to one store, and so to one marker
+        var sessionDataSource = session.Database.As<PostgresqlDatabase>().DataSource;
+        if (_tables.TryFind(sessionDataSource, out var table)) return table;
+
+        var store = MessageStoreFor(_runtime, ancillaryStoreMarker) ?? throw new InvalidOperationException(
+            $"[DeduplicatedWithResponse] needs {nameof(DurabilitySettings)}.{nameof(DurabilitySettings.EnableDeduplicatedResponses)} = true on the PostgreSQL message store this Marten store integrates with. See GH-4742");
+
+        // Checked again here, not only when the endpoint was compiled: pre-generated code carries that decision
+        // from whatever machine generated it, and a claim written to another database is never read back
+        if (!IsSameDatabase(store.NpgsqlDataSource, sessionDataSource))
+        {
+            throw new InvalidOperationException(
+                $"[DeduplicatedWithResponse(ClaimInTransaction = true)] was compiled to write its claim inside the Marten transaction, but this host's message store is in a different database from that Marten store, so the claim would never be read back. Regenerate the code against this configuration, or turn ClaimInTransaction off. See GH-5160");
+        }
+
+        table = store.DeduplicatedResponsesFullName;
+        _tables = _tables.AddOrUpdate(sessionDataSource, table);
+        return table;
+    }
+
+    /// <summary>Do the two data sources point at the same database, as far as their connection strings say?</summary>
+    internal static bool IsSameDatabase(NpgsqlDataSource left, NpgsqlDataSource right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+
+        var a = new NpgsqlConnectionStringBuilder(left.ConnectionString);
+        var b = new NpgsqlConnectionStringBuilder(right.ConnectionString);
+
+        return string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port &&
+               string.Equals(a.Database, b.Database, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The message store a <c>[DeduplicatedWithResponse]</c> claim is read back from, on the terms
+    /// <c>DeduplicatedResponses</c> uses (an ancillary store, else the main one, else the main database of a
+    /// multi-tenanted store), or null when it is not a PostgreSQL store with the claims table.
+    /// </summary>
+    internal static PostgresqlMessageStore? MessageStoreFor(IWolverineRuntime runtime, Type? ancillaryStoreMarker)
+    {
+        var store = ancillaryStoreMarker != null
+            ? runtime.Stores.FindAncillaryStore(ancillaryStoreMarker)
+            : runtime.Storage is MultiTenantedMessageStore tenanted
+                ? tenanted.Main
+                : runtime.Storage;
+
+        return store is PostgresqlMessageStore database and IReplayableDeduplicationStore { Enabled: true }
+            ? database
+            : null;
     }
 }
 

@@ -183,9 +183,7 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var window = _window.HasValue
-            ? $"{typeof(TimeSpan).FullNameInCode()}.{nameof(TimeSpan.FromTicks)}({_window.Value.Ticks})"
-            : "null";
+        var window = WindowUsage(_window);
 
         writer.WriteComment("GH-4742: claim the key, or answer from the claim this request lost to");
         writer.Write(
@@ -203,12 +201,7 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
-        // TimeSpan.FromTicks takes an Int64, and an unsuffixed F# integer literal is Int32 -- a window of
-        // more than ~3.5 minutes would not even fit one. Hence the `L`. The Nullable is spelled out rather
-        // than left to F#'s implicit conversion, so neither branch depends on it.
-        var window = _window.HasValue
-            ? $"{typeof(TimeSpan?).FSharpName()}({typeof(TimeSpan).FSharpName()}.{nameof(TimeSpan.FromTicks)}({_window.Value.Ticks}L))"
-            : $"{typeof(TimeSpan?).FSharpName()}()";
+        var window = FSharpWindowUsage(_window);
 
         writer.WriteComment("GH-4742: claim the key, or answer from the claim this request lost to");
         writer.Write(
@@ -250,6 +243,17 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
         _httpContext = chain.FindVariable(typeof(HttpContext));
         yield return _httpContext;
     }
+
+    internal static string WindowUsage(TimeSpan? window) => window.HasValue
+        ? $"{typeof(TimeSpan).FullNameInCode()}.{nameof(TimeSpan.FromTicks)}({window.Value.Ticks})"
+        : "null";
+
+    // TimeSpan.FromTicks takes an Int64, and an unsuffixed F# integer literal is Int32 -- a window of
+    // more than ~3.5 minutes would not even fit one. Hence the `L`. The Nullable is spelled out rather
+    // than left to F#'s implicit conversion, so neither branch depends on it.
+    internal static string FSharpWindowUsage(TimeSpan? window) => window.HasValue
+        ? $"{typeof(TimeSpan?).FSharpName()}({typeof(TimeSpan).FSharpName()}.{nameof(TimeSpan.FromTicks)}({window.Value.Ticks}L))"
+        : $"{typeof(TimeSpan?).FSharpName()}()";
 
     internal static string MarkerUsage(Type? ancillaryStoreMarker) => ancillaryStoreMarker == null
         ? "null"
@@ -412,6 +416,279 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
     {
         yield return _deduplicationId;
         yield return _claimToken;
+
+        _responses = chain.FindVariable(typeof(DeduplicatedResponses));
+        yield return _responses;
+
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-5160. For a chain whose claim is written inside its own transaction: answers a request whose key an earlier request
+/// already committed (the stored response, 422 or 409) and stops. Nothing is claimed here; the claim is written
+/// with the work, by <see cref="PrepareDeduplicatedResponseClaimFrame" /> and the provider's claim frame.
+/// </summary>
+internal class FindDeduplicatedResponseFrame : AsyncFrame
+{
+    private readonly Variable _deduplicationId;
+    private readonly Variable _fingerprint;
+    private readonly Type? _ancillaryStoreMarker;
+    private readonly string _keyName;
+    private Variable? _responses;
+    private Variable? _httpContext;
+
+    public FindDeduplicatedResponseFrame(Variable deduplicationId, Variable fingerprint, Type? ancillaryStoreMarker,
+        string keyName)
+    {
+        _deduplicationId = deduplicationId;
+        _fingerprint = fingerprint;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+        _keyName = keyName;
+        Variable = new Variable(typeof(DeduplicatedResponseClaim), "deduplicatedResponseClaim", this);
+    }
+
+    public Variable Variable { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: answer from an earlier request's committed claim; this one claims inside its own transaction");
+        writer.Write(
+            $"var {Variable.Usage} = await {_responses!.Usage}.{nameof(DeduplicatedResponses.FindAsync)}({_deduplicationId.Usage}, {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
+        writer.Write($"BLOCK:if ({Variable.Usage} != null)");
+        writer.Write(
+            $"await {nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.Usage}, {Variable.Usage}, {_fingerprint.Usage}, {Constant.For(_keyName).Usage}).ConfigureAwait(false);");
+        writer.Write("return;");
+        writer.FinishBlock();
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: answer from an earlier request's committed claim; this one claims inside its own transaction");
+        writer.Write(
+            $"let! {Variable.Usage} = {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.FindAsync)}({_deduplicationId.FSharpUsage}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)})");
+
+        // No early `return` in F#: the rest of the chain goes in the `else`, as in ClaimDeduplicatedResponseFrame.
+        writer.Write($"BLOCK:if not (isNull {Variable.FSharpUsage}) then");
+        writer.Write(
+            $"do! this.{nameof(HttpHandler.AnswerDeduplicatedRepeatAsync)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage}, {_fingerprint.FSharpUsage}, {Constant.For(_keyName).Usage})");
+        writer.FinishBlock();
+
+        writer.Write("BLOCK:else");
+        if (Next != null)
+        {
+            Next.GenerateFSharpCode(method, writer);
+        }
+        else
+        {
+            writer.Write(FSharpEmitHelpers.AbortExpression(method));
+        }
+
+        writer.FinishBlock();
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+        yield return _fingerprint;
+
+        _responses = chain.FindVariable(typeof(DeduplicatedResponses));
+        yield return _responses;
+
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-5160. Wraps the commit, and answers a commit that failed because a concurrent request with the same key committed
+/// first: both found no claim, both did their work, and the second's commit failed, on the claim's primary key or
+/// earlier on the work itself (the same stream, a versioned document). Its work rolled back; it is answered from
+/// the first's claim, as a repeat would be. A failure with no such claim to answer from is rethrown unaltered.
+///
+/// <para>
+/// Only the commit: <see cref="MarkDeduplicatedResponseCommittedFrame" /> records that it succeeded, so a failure
+/// after it (writing the response) is not mistaken for a lost race, and the endpoint's own failures never reach
+/// here. The commit runs before the response is written, so a clean answer can still go out. Marten's outbox flush
+/// runs inside the commit call; see <see cref="HttpHandler.TryAnswerDeduplicatedCommitFailureAsync" />.
+/// </para>
+///
+/// <para>
+/// The price of claiming at commit, as for <c>RefuseDuplicateClaimAtCommitFrame</c>: the loser does its work and
+/// throws it away, where claim-and-release refuses it with 409 before doing any.
+/// </para>
+/// </summary>
+internal class AnswerDeduplicatedResponseRaceFrame : Frame
+{
+    private const string ExceptionName = "deduplicatedResponseCommitException";
+
+    private readonly Variable _deduplicationId;
+    private readonly Variable _fingerprint;
+    private readonly Variable _pendingClaim;
+    private readonly string _keyName;
+    private readonly Type? _ancillaryStoreMarker;
+    private Variable? _responses;
+    private Variable? _httpContext;
+
+    /// <param name="pendingClaim">
+    /// This request's own claim, so a failure after its own database commit is not answered as if a concurrent
+    /// request had won.
+    /// </param>
+    public AnswerDeduplicatedResponseRaceFrame(Variable deduplicationId, Variable fingerprint, Variable pendingClaim,
+        string keyName, Type? ancillaryStoreMarker) : base(true)
+    {
+        _deduplicationId = deduplicationId;
+        _fingerprint = fingerprint;
+        _pendingClaim = pendingClaim;
+        _keyName = keyName;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write("BLOCK:try");
+        Next?.GenerateCode(method, writer);
+        writer.FinishBlock();
+
+        writer.Write(
+            $"BLOCK:catch ({typeof(Exception).FullNameInCode()} {ExceptionName}) when (!{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.IsDeduplicatedResponseCommitted)}({_httpContext!.Usage}))");
+        writer.WriteComment("GH-5160: the commit failed; answer from a claim a concurrent request committed first, if there is one");
+        writer.Write(
+            $"BLOCK:if (!await {nameof(HttpHandler.TryAnswerDeduplicatedCommitFailureAsync)}({_httpContext.Usage}, {_responses!.Usage}, {_deduplicationId.Usage}, {_fingerprint.Usage}, {_pendingClaim.Usage}, {Constant.For(_keyName).Usage}, {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}, {ExceptionName}).ConfigureAwait(false))");
+        writer.Write("throw;");
+        writer.FinishBlock();
+        writer.FinishBlock();
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // A `with` handler may `let!` inside a task expression, unlike a `finally` (see
+        // ReleaseUnansweredDeduplicatedResponseFrame). An exception the guard rejects is rethrown unaltered; one it
+        // accepts but cannot answer is rethrown through ExceptionDispatchInfo, as `reraise()` is illegal here.
+        writer.Write("BLOCK:try");
+        if (Next != null)
+        {
+            Next.GenerateFSharpCode(method, writer);
+        }
+        else
+        {
+            writer.Write("()");
+        }
+
+        writer.FinishBlock();
+
+        writer.Write(
+            $"BLOCK:with {ExceptionName} when not ({typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.IsDeduplicatedResponseCommitted)}({_httpContext!.FSharpUsage})) ->");
+        writer.WriteComment("GH-5160: the commit failed; answer from a claim a concurrent request committed first, if there is one");
+        writer.Write(
+            $"let! deduplicatedCommitFailureAnswered = this.{nameof(HttpHandler.TryAnswerDeduplicatedCommitFailureAsync)}({_httpContext.FSharpUsage}, {_responses!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_fingerprint.FSharpUsage}, {_pendingClaim.FSharpUsage}, {Constant.For(_keyName).Usage}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)}, {ExceptionName})");
+        writer.Write("BLOCK:if not deduplicatedCommitFailureAnswered then");
+        writer.Write(
+            $"{typeof(System.Runtime.ExceptionServices.ExceptionDispatchInfo).FSharpName()}.Capture({ExceptionName}).Throw()");
+        writer.FinishBlock();
+        writer.FinishBlock();
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+        yield return _fingerprint;
+        yield return _pendingClaim;
+
+        _responses = chain.FindVariable(typeof(DeduplicatedResponses));
+        yield return _responses;
+
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-5160. Straight after the commit: from here a failure is not a lost race, so
+/// <see cref="AnswerDeduplicatedResponseRaceFrame" /> lets it through.
+/// </summary>
+internal class MarkDeduplicatedResponseCommittedFrame : SyncFrame
+{
+    private Variable? _httpContext;
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.MarkDeduplicatedResponseCommitted)}({_httpContext!.Usage});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.MarkDeduplicatedResponseCommitted)}({_httpContext!.FSharpUsage})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-5160. Just before the commit, after the endpoint has set the status and <c>Location</c>: marks the work done and
+/// builds the claim, with its response, for the provider to write in the same transaction. Null when there is no
+/// key or the endpoint failed, so nothing is claimed.
+/// </summary>
+internal class PrepareDeduplicatedResponseClaimFrame : SyncFrame
+{
+    private readonly Variable _deduplicationId;
+    private readonly Variable _fingerprint;
+    private readonly Variable _resource;
+    private readonly int _missingResourceStatusCode;
+    private readonly TimeSpan? _window;
+    private Variable? _responses;
+    private Variable? _httpContext;
+
+    public PrepareDeduplicatedResponseClaimFrame(Variable deduplicationId, Variable fingerprint, Variable resource,
+        int missingResourceStatusCode, TimeSpan? window)
+    {
+        _deduplicationId = deduplicationId;
+        _fingerprint = fingerprint;
+        _resource = resource;
+        _missingResourceStatusCode = missingResourceStatusCode;
+        _window = window;
+        uses.Add(resource);
+        Variable = new Variable(typeof(PendingDeduplicatedResponseClaim), "pendingDeduplicatedResponseClaim", this);
+    }
+
+    public Variable Variable { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: the work is done; the claim and its response commit with it, or not at all");
+        writer.Write(
+            $"var {Variable.Usage} = {_responses!.Usage}.{nameof(DeduplicatedResponses.PrepareClaim)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_fingerprint.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.WindowUsage(_window)});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: the work is done; the claim and its response commit with it, or not at all");
+
+        // As RecordDeduplicatedResponseFrame: an inherited instance method, with its type argument written out.
+        var complete =
+            $"this.{nameof(HttpHandler.CompleteDeduplicatedRequest)}<{_resource.VariableType.FSharpName()}>({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_resource.FSharpUsage}, {_missingResourceStatusCode})";
+
+        writer.Write(
+            $"{Variable.FSharpAssignmentUsage} = {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.PrepareClaim)}({_httpContext.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_fingerprint.FSharpUsage}, {complete}, {ClaimDeduplicatedResponseFrame.FSharpWindowUsage(_window)})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+        yield return _fingerprint;
 
         _responses = chain.FindVariable(typeof(DeduplicatedResponses));
         yield return _responses;

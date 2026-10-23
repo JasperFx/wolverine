@@ -59,3 +59,24 @@ public sealed record DeduplicatedResponseClaim(string Fingerprint, DeduplicatedR
 
 /// <summary>GH-4742. The response a repeat is replayed with.</summary>
 public sealed record DeduplicatedResponse(int StatusCode, string? Body, string? Location);
+
+/// <summary>
+/// GH-5160. Does this attempt's claim exist? For a claim written inside the endpoint's transaction: a commit call that fails
+/// after the database commit (on Marten, the outbox flush runs inside it) leaves the attempt's own claim committed,
+/// which must not be mistaken for a concurrent request's. Internal, and a separate interface, so
+/// <see cref="IReplayableDeduplicationStore" /> does not change.
+/// </summary>
+internal interface IReplayableDeduplicationClaimOwnership
+{
+    Task<bool> HoldsClaimAsync(string deduplicationId, string claimToken, CancellationToken cancellation = default);
+}
+
+/// <summary>
+/// GH-5160. A claim to write inside the endpoint's own transaction, with its response, as one row. A null
+/// <paramref name="Response" /> is work that was done but whose response could not be stored: the claim is kept
+/// unanswered, so repeats are refused rather than run again. Written by the store integration that owns the
+/// endpoint's transaction, such as Marten's.
+/// </summary>
+/// <param name="DeduplicationId">The id the store keys the claim by, already hashed.</param>
+public sealed record PendingDeduplicatedResponseClaim(string DeduplicationId, string Fingerprint,
+    string ClaimToken, DateTimeOffset Expires, DeduplicatedResponse? Response);

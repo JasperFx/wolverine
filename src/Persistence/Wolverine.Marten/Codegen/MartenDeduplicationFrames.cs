@@ -17,6 +17,10 @@ internal static class MartenDeduplicationRendering
 {
     public static string MarkerUsage(Type? ancillaryStoreMarker)
         => ancillaryStoreMarker == null ? "null" : $"typeof({ancillaryStoreMarker.FullNameInCode()})";
+
+    /// <summary>F#'s <c>typeof&lt;T&gt;</c> rather than C#'s <c>typeof(T)</c>.</summary>
+    public static string FSharpMarkerUsage(Type? ancillaryStoreMarker)
+        => ancillaryStoreMarker == null ? "null" : $"typeof<{ancillaryStoreMarker.FSharpName()}>";
 }
 
 /// <summary>
@@ -179,5 +183,57 @@ internal class QueueMartenDeduplicationClaimFrame : SyncFrame, IDeduplicationCla
 
         _deduplicator = chain.FindVariable(typeof(IMartenDeduplicator));
         yield return _deduplicator;
+    }
+}
+
+/// <summary>
+/// GH-5160. Queues a <c>[DeduplicatedWithResponse]</c> claim, with its response, onto the Marten session's unit of work.
+/// Placed just before <c>SaveChangesAsync</c>, after the endpoint has set the status and <c>Location</c>.
+///
+/// <para>
+/// Nothing is written here, as for <see cref="QueueMartenDeduplicationClaimFrame" />: a chain that throws or
+/// stops never commits, so it never claimed.
+/// </para>
+/// </summary>
+internal class QueueMartenDeduplicatedResponseClaimFrame : SyncFrame
+{
+    private readonly Variable _claim;
+    private readonly Type? _ancillaryStoreMarker;
+    private Variable? _session;
+    private Variable? _responses;
+
+    public QueueMartenDeduplicatedResponseClaimFrame(Variable claim, Type? ancillaryStoreMarker)
+    {
+        _claim = claim;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: claim the key, with its response, inside this Marten transaction");
+        writer.Write(
+            $"{_responses!.Usage}.{nameof(MartenDeduplicatedResponses.QueueClaim)}({_session!.Usage}, {_claim.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5160: claim the key, with its response, inside this Marten transaction");
+        writer.Write(
+            $"{_responses!.FSharpUsage}.{nameof(MartenDeduplicatedResponses.QueueClaim)}({_session!.FSharpUsage}, {_claim.FSharpUsage}, {MartenDeduplicationRendering.FSharpMarkerUsage(_ancillaryStoreMarker)})");
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _claim;
+
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+
+        _responses = chain.FindVariable(typeof(MartenDeduplicatedResponses));
+        yield return _responses;
     }
 }

@@ -285,6 +285,9 @@ public abstract class HttpHandler
     // Set once the endpoint's work is done: from then on its [DeduplicatedWithResponse] claim is kept.
     private static readonly object _deduplicatedWorkDone = new();
 
+    // Set once a claim written inside the endpoint's transaction has committed: a later failure is not a lost race.
+    private static readonly object _deduplicatedResponseCommitted = new();
+
     /// <summary>
     /// GH-4742. Folds the <see cref="DeduplicationScope" /> parts into a <c>[DeduplicatedWithResponse]</c> key.
     /// Each part is length-prefixed so none can shift another; a missing key passes through so it is still
@@ -366,7 +369,8 @@ public abstract class HttpHandler
 
     /// <summary>
     /// GH-4742. Answers a request that lost its claim: the stored response when it is a repeat of the same
-    /// request, 422 when it is a different one, and 409 while the first is still running.
+    /// request, 422 when it is a different one, and 409 while the first is still running, or for as long as the
+    /// claim stays unanswered (its response could not be stored).
     /// </summary>
     public async Task AnswerDeduplicatedRepeatAsync(HttpContext context, DeduplicatedResponseClaim claim,
         string? fingerprint, string keyName)
@@ -402,8 +406,76 @@ public abstract class HttpHandler
     }
 
     /// <summary>
-    /// GH-4742. Called once the endpoint and any commit have run: the response about to be written, for the claim
-    /// to store, as <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set.
+    /// GH-5160. Answers a request whose commit failed, when a concurrent request with the same key committed its claim first:
+    /// this request's work rolled back, so it is answered from that claim as any repeat is. False, and the caller
+    /// rethrows <paramref name="failure" />, when there is no key, the response has started, there is no claim to
+    /// answer from or it cannot be read, or the claim is this request's own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The commit runs before the response is written, so nothing has been sent. What this request's endpoint and
+    /// middleware set for a response its rolled-back work no longer backs (status, <c>Location</c>, any other
+    /// header) is cleared first, as ASP.NET Core's exception handler clears a response it replaces.
+    /// </para>
+    /// <para>
+    /// On Marten the outbox flush and any session listener's after-commit work run inside <c>SaveChangesAsync</c>,
+    /// after the database commit. A failure there finds this request's OWN claim committed. That is not a lost race:
+    /// it is rethrown, as on claim-and-release, and a retry is answered from the claim. Told apart by
+    /// <paramref name="ownClaim" />'s token, which is unique to this attempt.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> TryAnswerDeduplicatedCommitFailureAsync(HttpContext context,
+        DeduplicatedResponses responses, string? deduplicationId, string? fingerprint,
+        PendingDeduplicatedResponseClaim? ownClaim, string keyName, Type? ancillaryStoreMarker, Exception failure)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId) || context.Response.HasStarted) return false;
+
+        var logger = context.RequestServices.GetService<ILogger<DeduplicatedResponses>>();
+
+        DeduplicatedResponseClaim? winner;
+        try
+        {
+            if (ownClaim != null && await responses.HoldsClaimAsync(ownClaim, ancillaryStoreMarker).ConfigureAwait(false))
+            {
+                logger?.LogWarning(failure,
+                    "The commit for deduplicated id '{DeduplicationId}' failed after its claim was written; a retry will be answered from that claim",
+                    deduplicationId);
+                return false;
+            }
+
+            winner = await responses.FindAsync(deduplicationId, ancillaryStoreMarker).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // Never mask the commit failure being unwound
+            logger?.LogError(e, "Failed to read the claim on deduplicated id '{DeduplicationId}' after its commit failed",
+                deduplicationId);
+            return false;
+        }
+
+        if (winner == null) return false;
+
+        logger?.LogInformation(failure,
+            "A concurrent request committed deduplicated id '{DeduplicationId}' first; this request's commit failed and its work was rolled back",
+            deduplicationId);
+
+        context.Response.Clear();
+        await AnswerDeduplicatedRepeatAsync(context, winner, fingerprint, keyName).ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>GH-5160. The commit of a <c>[DeduplicatedWithResponse]</c> claim written inside the transaction succeeded.</summary>
+    public static void MarkDeduplicatedResponseCommitted(HttpContext context)
+        => context.Items[_deduplicatedResponseCommitted] = true;
+
+    /// <summary>GH-5160. Has the commit of a <c>[DeduplicatedWithResponse]</c> claim written inside the transaction succeeded?</summary>
+    public static bool IsDeduplicatedResponseCommitted(HttpContext context)
+        => context.Items.ContainsKey(_deduplicatedResponseCommitted);
+
+    /// <summary>
+    /// GH-4742. Called once the endpoint has run, after any commit on claim-and-release and just before it when the
+    /// claim is written inside the transaction: the response about to be written, for the claim to store, as
+    /// <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set.
     /// Unless that response is a failure (400 and up), the work is done and the claim is kept from here on. Null
     /// records nothing.
     /// </summary>

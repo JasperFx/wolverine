@@ -8,7 +8,9 @@ using JasperFx.Core.Reflection;
 using Marten;
 using JasperFx.Events;
 using Marten.Events;
+using Marten.Storage;
 using Marten.Storage.Metadata;
+using Weasel.Postgresql;
 using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
@@ -22,7 +24,8 @@ using IRevisioned = JasperFx.IRevisioned;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
-internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvider,
+    ITransactionalReplayableDeduplicationProvider
 {
     // Marten can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the
@@ -129,6 +132,44 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
 
         return true;
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     On the terms of <see cref="TryBuildTransactionalDeduplication" />: a chain that really commits through a
+    ///     Marten session, on a single-database store. And, checked here rather than assumed, the message store the
+    ///     claim is read back from is a PostgreSQL store with the claims table, in the database that session
+    ///     commits to: a host that keeps its message store elsewhere would otherwise write the claim where it is
+    ///     never read. Anything else keeps claim-and-release.
+    /// </remarks>
+    public bool TryBuildTransactionalReplayableDeduplication(IChain chain, Variable claim,
+        IServiceContainer container, [NotNullWhen(true)] out TransactionalReplayableDeduplication? deduplication)
+    {
+        deduplication = null;
+
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
+        if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
+
+        var store = resolveStore(chain, container).As<DocumentStore>();
+        if (store.Tenancy.Cardinality != JasperFx.Descriptors.DatabaseCardinality.Single) return false;
+
+        var marker = chain.DetermineAncillaryStoreType();
+        var messageStore =
+            MartenDeduplicatedResponses.MessageStoreFor(container.GetInstance<IWolverineRuntime>(), marker);
+        if (messageStore == null || !MartenDeduplicatedResponses.IsSameDatabase(messageStore.NpgsqlDataSource,
+                store.Storage.Database.As<PostgresqlDatabase>().DataSource))
+        {
+            return false;
+        }
+
+        deduplication = new TransactionalReplayableDeduplication
+        {
+            Claim = new QueueMartenDeduplicatedResponseClaimFrame(claim, marker),
+            Commit = commit
+        };
+
+        return true;
+    }
+
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {

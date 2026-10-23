@@ -169,7 +169,7 @@ For a given `Idempotency-Key`:
 | The first | Runs normally |
 | The same request again | The first response: its status, body and `Location`. The endpoint does not run |
 | A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
-| The same request while the first is still running | **409** with a `ProblemDetails` body |
+| The same request while the first is still running | **409** with a `ProblemDetails` body. With [`ClaimInTransaction`](#claiming-inside-the-transaction), it runs too ([see below](#claiming-inside-the-transaction)) |
 | No key | **400**, unless `Required = false` |
 
 A request that ends before the endpoint's work is done — it throws, answers 400 or above, or is stopped
@@ -218,6 +218,57 @@ cleanup removes it, so a repeat can be answered a little after its window.
 
 ### What is guaranteed
 
+By default the key is claimed and released on a connection of its own (below). With `ClaimInTransaction`,
+an endpoint whose store can take the claim inside its own transaction writes it there instead.
+
+#### Claiming inside the transaction
+
+```csharp
+[DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+[WolverinePost("/orders")]
+public static OrderCreated Post(CreateOrder command, IDocumentSession session)
+```
+
+Today that is an endpoint that commits through a Marten session with Wolverine's transactional middleware,
+on a single-database store, with Wolverine's PostgreSQL message store in the same database. The claim and
+its response are written together, as one row, in the same transaction as the endpoint's events,
+documents and outgoing messages. Nothing is claimed up front: the endpoint first checks for an earlier
+request's claim and answers from it.
+
+- A rollback, or a process that dies before the commit, leaves no claim, so a retry runs.
+- A commit leaves the claim answered, so a repeat is answered from it. There is no separate write that can
+  fail after the work is done. The exception is a response that cannot be serialized: the claim is then
+  committed unanswered, and repeats get 409 until it expires, so the work never runs twice.
+- Two concurrent requests with the same key both run; neither waits for the other. The first to commit
+  wins. The other's commit fails, on the claim's primary key or earlier on its own work (the same stream,
+  a versioned document); its work rolls back, and it is answered from the winner's claim: the stored
+  response for the same request, 422 for a different one. **Work outside the transaction runs for both**:
+  a call to another service, a message sent without the outbox. Claim-and-release would have refused the
+  second with 409 before it did anything. This is why the option is off by default.
+- A concurrent repeat that reaches its own answer before its commit gets that answer instead. If it reads
+  the first request's committed work and fails because of it (a validation that answers 400 "already
+  shipped", a 404, an exception), nothing is claimed and that failure goes to the client.
+- The losing request's response is cleared before it is answered, as ASP.NET Core's exception handler
+  clears a response it replaces, so a header its rolled-back work set does not go out. That clears headers
+  other middleware set directly on the response too; ones added through `OnStarting` are kept.
+- A failure inside the commit call after the database commit (on Marten, the outbox flush or a session
+  listener) is rethrown, as on claim-and-release, and a retry is answered from the claim.
+- The response is captured just before the commit, after the endpoint has set the status and `Location`.
+  A value only the commit assigns (a document version, say) is not in the stored body. An endpoint whose
+  response is only produced after the commit, such as one returning `UpdatedAggregate`, keeps
+  claim-and-release.
+
+An endpoint that asks for `ClaimInTransaction` but cannot take it — another store, database per tenant, a
+message store in another database, no commit through the middleware — keeps claim-and-release, and the
+host logs a warning naming it. The database check is repeated at runtime, so pre-generated code built
+against a different configuration fails loudly rather than writing claims where they are never read.
+
+Don't call `SaveChangesAsync` yourself in such an endpoint as well. Your own commit writes the work
+before the middleware's commit writes the claim, so a crash between them, or a concurrent repeat, runs
+the work twice.
+
+#### Claim-and-release
+
 The key is claimed before the endpoint runs. The response is recorded on the claim after the endpoint
 and any transactional commit, and before the response is written or cascaded messages flush, so a
 failure after the work was done finds the claim answered and a retry is answered from it. That holds on
@@ -228,9 +279,9 @@ Recording the response is a write of its own, not part of the endpoint's transac
 dies between the commit and that write, repeats get 409 until the claim expires. They never run twice
 within the window.
 
-Unlike `[Deduplicated]` above, the claim does not ride the endpoint's business transaction: a process
-that dies between the claim and the endpoint finishing leaves the key claimed for the whole window
-(24 hours by default) rather than releasing it with a rolled-back transaction.
+Here the claim does not ride the endpoint's business transaction: a process that dies between the claim
+and the endpoint finishing leaves the key claimed for the whole window (24 hours by default) rather than
+releasing it with a rolled-back transaction.
 
 ### Requirements and limits
 
