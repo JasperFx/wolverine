@@ -215,6 +215,24 @@ expect a lot of rows in that table, you can opt into an index on that column wit
 as shown in the sample above. That's off by default so that upgrading Wolverine doesn't change your database schema unless you
 ask it to. Every relational message store supports the index. RavenDb builds an auto index for that query on its own and Cosmos DB indexes every property by default, so the flag doesn't change anything for those two stores.
 
+### Moving an Existing Database to ServerlessWithOutbox
+
+That `timestamp` column isn't always there. The relational message stores only add a `timestamp` column to the outgoing
+envelope table when `OutboxStaleTime` has a value, and to the incoming envelope table when `InboxStaleTime` has a value.
+Since `ServerlessWithOutbox` gives both of those a default, switching an existing application over to this mode is a
+schema change to your message storage, even if you never touch either setting yourself.
+
+If Wolverine is allowed to migrate the message storage at startup, you won't notice anything. But a lot of folks
+running in serverless functions turn that off with `AutoBuildMessageStorageOnStartup = AutoCreate.None` to keep
+migrations out of the cold start, and that's exactly the case to watch out for. With `AutoCreate.None`, Wolverine
+only logs a warning at startup that the message storage is out of date and leaves your schema alone. The durability pass
+reads and updates that `timestamp` column to find and recover the stale outbox rows, so that part of the pass fails every
+single time until the schema is migrated, and the messages whose inline send failed are never recovered.
+
+The fix is to migrate the message storage as part of your deployment, before the new version of the function takes any
+traffic. `dotnet run -- resources setup` always applies the message storage migration, even when `AutoCreate` is `None`.
+See [Disable Automatic Storage Migration](/guide/durability/managing#disable-automatic-storage-migration) for more on that.
+
 ## The Durability Pass
 
 Since there's no background durability agent in `ServerlessWithOutbox`, *something* outside of your function has to periodically
@@ -444,6 +462,27 @@ is to not `AutoProvision()` the listener subscriptions on the push host at all. 
 where this is headed.
 :::
 
+## Provisioning Broker Topology
+
+`AutoProvision()` is a great convenience for a long running process that starts up once and then runs for days. In a
+serverless function though, every cold start is an application startup. With RabbitMQ for example, an application using
+`AutoProvision()` declares every exchange, queue, and binding it knows about each time a new instance spins up, and those
+are extra broker round trips sitting right in the middle of the cold start you're trying so hard to keep short.
+
+Our recommendation is to leave `AutoProvision()` off inside your functions and to provision the broker topology outside of
+them instead. That can be `dotnet run -- resources setup` run as a deployment step, which sets up the broker objects
+whether or not `AutoProvision()` is turned on and migrates your message storage at the same time, or it can be Terraform,
+Pulumi, or whatever you already use for the rest of your infrastructure.
+
+Under `ServerlessWithOutbox` with RabbitMQ, this isn't just about performance. Since Wolverine publishes to queues as
+*mandatory* in that mode, a send to a queue that doesn't exist yet fails, and the message waits in the outbox until a
+durability pass runs after the queue finally does exist. So get the topology in place before the function takes traffic.
+
+::: tip
+Neither serverless mode starts any listeners, but the RabbitMQ transport still opens a separate listening connection by
+default. Add `UseSenderConnectionOnly()` to your `UseRabbitMq()` configuration to skip that connection on every cold start.
+:::
+
 ## Pre-Generate All Types
 
 The runtime code generation that Wolverine does comes with a potentially non-trivial "cold start" problem with its first
@@ -457,7 +496,6 @@ Just so you know going in, neither `Serverless` nor `ServerlessWithOutbox` suppo
 * Local queues. Under plain `Serverless` a message this application handles is dropped, so use `InvokeAsync()` for in-process work instead or send
   the message to an external broker. `ServerlessWithOutbox` replaces local queues with the inbox: a published or cascaded message this application
   handles is stored there and handled by the next durability pass, so expect latency up to your pass interval
-
 * Listeners on external brokers. See [Receiving Messages by Push](#receiving-messages-by-push) instead. Provisioning the listening side of a broker
   still runs though, so `AutoProvision()` of Pub/Sub subscriptions creates pull subscriptions that nothing ever reads. The push subscriptions themselves
   are provisioned outside of Wolverine, as described under [Google Pub/Sub Push Subscriptions](#google-pub-sub-push-subscriptions)
