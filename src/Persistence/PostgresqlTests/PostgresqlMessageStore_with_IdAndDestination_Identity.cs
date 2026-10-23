@@ -42,6 +42,17 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
         return host;
     }
 
+    // The 'receiver' schema is shared with the default-identity classes in this collection. This class
+    // leaves its inbox keyed by (id, received_at) and holding rows that share an id, which those classes
+    // cannot migrate back to PRIMARY KEY (id) -- every one of their tests then failed with 23505 whenever
+    // they ran after this class. Leave nothing behind.
+    protected override async Task afterHostDisposedAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        await conn.CreateCommand("drop schema if exists receiver cascade").ExecuteNonQueryAsync();
+    }
+
     [Fact]
     public async Task exists_should_account_for_destination_too()
     {

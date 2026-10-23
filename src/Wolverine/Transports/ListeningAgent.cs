@@ -573,6 +573,15 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             _receiver = new GlobalPartitionedInterceptor(_receiver, _runtime);
         }
 
+        // A durable receiver counts as working at its address from before its listener can claim a single row there
+        // -- a database-backed listener's dequeue claims it before the receiver ever sees it -- so a previous
+        // receiver's drain at the same address cannot hand that row back to the cluster underneath it. Waits out a
+        // blanket release of the address that is already in flight. See DurableReceiverRegistry.
+        if (_receiver.Unwrap() is DurableReceiver durable)
+        {
+            await durable.ActivateAsync();
+        }
+
         if (Endpoint.ListenerCount > 1)
         {
             var listeners = new List<IListener>(Endpoint.ListenerCount);

@@ -266,6 +266,21 @@ internal sealed class InboxCustody
         }
     }
 
+    /// <summary>
+    /// Holding nothing at all, counting a batch member whose batch has already cleared its InBatch flag as settled
+    /// </summary>
+    public bool IsEmpty
+    {
+        get
+        {
+            lock (_gate)
+            {
+                pruneSettledBatchMembers();
+                return _held.Count == 0;
+            }
+        }
+    }
+
     public void Clear()
     {
         Envelope[] members;
@@ -301,43 +316,110 @@ internal sealed class InboxCustody
 /// it when the new one is built, and both answer to one <c>received_at</c> address and one node, which is all a
 /// blanket <c>ReleaseIncomingAsync</c> can see.
 /// </summary>
+/// <remarks>
+/// The check and the blanket release it permits are two steps, and a release statement is a database round trip.
+/// A new receiver whose first claim at the address landed between them -- its first inbox write, or a row its
+/// listener had already dequeued -- would have that row handed to any node underneath it. So the two are made
+/// exclusive per address: <see cref="TryBeginBlanketRelease" /> checks and registers the release under one lock,
+/// and <see cref="ActivateAsync" /> marks a receiver as working under the same lock, then waits out any blanket
+/// release of its addresses already in flight before anything is claimed for it. Either the release sees the
+/// receiver, and hands back only what it abandoned, or the receiver's first claim lands after the release is over.
+/// Each receiver activates once, so the hot receive path pays one volatile read.
+/// </remarks>
 internal static class DurableReceiverRegistry
 {
-    private static readonly ConditionalWeakTable<object, List<WeakReference<DurableReceiver>>> _byRuntime = new();
+    private static readonly ConditionalWeakTable<object, Receivers> _byRuntime = new();
+
+    private sealed class Receivers
+    {
+        public readonly List<WeakReference<DurableReceiver>> All = new();
+        public readonly List<BlanketRelease> InFlight = new();
+    }
 
     public static void Register(object runtime, DurableReceiver receiver)
     {
-        var receivers = _byRuntime.GetValue(runtime, _ => new List<WeakReference<DurableReceiver>>());
+        var receivers = _byRuntime.GetValue(runtime, _ => new Receivers());
         lock (receivers)
         {
-            receivers.RemoveAll(x => !x.TryGetTarget(out var target) || target.IsRetired);
-            receivers.Add(new WeakReference<DurableReceiver>(receiver));
+            receivers.All.RemoveAll(x => !x.TryGetTarget(out var target) || target.IsRetired);
+            receivers.All.Add(new WeakReference<DurableReceiver>(receiver));
         }
     }
 
     /// <summary>
-    /// Is any receiver of this runtime other than <paramref name="self" /> still working on rows at one of these
-    /// addresses?
+    /// Begin a blanket release of <paramref name="addresses" /> for <paramref name="self" />, unless another receiver
+    /// of this runtime is still working on rows at one of them. Null means the address is busy and only the rows
+    /// <paramref name="self" /> abandoned may be handed back. Dispose the result once the release statements are over.
     /// </summary>
-    public static bool AnyOtherHoldsWorkAt(object runtime, DurableReceiver self, IReadOnlyList<Uri> addresses)
+    public static BlanketRelease? TryBeginBlanketRelease(object runtime, DurableReceiver self,
+        IReadOnlyList<Uri> addresses)
     {
-        if (!_byRuntime.TryGetValue(runtime, out var receivers)) return false;
-
-        DurableReceiver[] others;
+        var receivers = _byRuntime.GetValue(runtime, _ => new Receivers());
         lock (receivers)
         {
-            others = receivers
-                .Select(x => x.TryGetTarget(out var target) ? target : null)
-                .Where(x => x != null && !ReferenceEquals(x, self))
-                .ToArray()!;
-        }
+            foreach (var reference in receivers.All)
+            {
+                if (!reference.TryGetTarget(out var other) || ReferenceEquals(other, self)) continue;
+                if (other.HoldsWork && addresses.Any(other.AnswersTo)) return null;
+            }
 
-        foreach (var other in others)
+            var release = new BlanketRelease(receivers, self, addresses.ToArray());
+            receivers.InFlight.Add(release);
+            return release;
+        }
+    }
+
+    /// <summary>
+    /// Mark <paramref name="receiver" /> as working at its addresses, then wait for any blanket release of them that
+    /// is already in flight. Call before anything can be claimed for the receiver.
+    /// </summary>
+    public static Task ActivateAsync(object runtime, DurableReceiver receiver, Action markActivated)
+    {
+        var receivers = _byRuntime.GetValue(runtime, _ => new Receivers());
+        List<Task>? inFlight = null;
+        lock (receivers)
         {
-            if (!other.HoldsWork) continue;
-            if (addresses.Any(other.AnswersTo)) return true;
+            markActivated();
+
+            foreach (var release in receivers.InFlight)
+            {
+                if (ReferenceEquals(release.Releaser, receiver)) continue;
+                if (release.Addresses.Any(receiver.AnswersTo)) (inFlight ??= new List<Task>()).Add(release.Completion);
+            }
         }
 
-        return false;
+        return inFlight == null ? Task.CompletedTask : Task.WhenAll(inFlight);
+    }
+
+    /// <summary>
+    /// A blanket release in flight. Receivers activating at its addresses wait until it is disposed.
+    /// </summary>
+    internal sealed class BlanketRelease : IDisposable
+    {
+        private readonly Receivers _owner;
+        private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal BlanketRelease(object owner, DurableReceiver releaser, Uri[] addresses)
+        {
+            _owner = (Receivers)owner;
+            Releaser = releaser;
+            Addresses = addresses;
+        }
+
+        public DurableReceiver Releaser { get; }
+
+        public Uri[] Addresses { get; }
+
+        public Task Completion => _completion.Task;
+
+        public void Dispose()
+        {
+            lock (_owner)
+            {
+                _owner.InFlight.Remove(this);
+            }
+
+            _completion.TrySetResult();
+        }
     }
 }
