@@ -78,6 +78,11 @@ public abstract partial class MessageDatabase<T>
     
     public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
+        if (query.HasHeaderFilter())
+        {
+            return await queryWithHeaderFilterAsync(query, token);
+        }
+
         var builder = ToCommandBuilder();
 
         var topSelect = toTopClause(query);
@@ -124,6 +129,77 @@ public abstract partial class MessageDatabase<T>
 
         return results;
     }
+
+    // GH-5164: headers only exist inside the serialized envelope body, so a header filter cannot be
+    // a SQL predicate. Every row matching the rest of the query is read in the normal order and the
+    // header criteria applied in memory. Paging and the total count are computed over the rows that
+    // match the headers, so a page is never short or padded with non-matching rows.
+    private async Task<DeadLetterEnvelopeResults> queryWithHeaderFilterAsync(DeadLetterEnvelopeQuery query,
+        CancellationToken token)
+    {
+        if (query.PageNumber <= 0) query.PageNumber = 1;
+        var offset = query.PageSize > 0 && query.PageNumber > 1 ? (query.PageNumber - 1) * query.PageSize : 0;
+
+        var results = new DeadLetterEnvelopeResults { PageNumber = query.PageNumber };
+        var matched = 0;
+
+        await foreach (var envelope in readHeaderMatchesAsync(query, token))
+        {
+            if (matched >= offset && (query.PageSize <= 0 || results.Envelopes.Count < query.PageSize))
+            {
+                results.Envelopes.Add(envelope);
+            }
+
+            matched++;
+        }
+
+        results.TotalCount = matched;
+        return results;
+    }
+
+    private async IAsyncEnumerable<DeadLetterEnvelope> readHeaderMatchesAsync(DeadLetterEnvelopeQuery query,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
+    {
+        var builder = ToCommandBuilder();
+        builder.Append($"select {DatabaseConstants.DeadLetterFields} from {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)} where 1 = 1");
+        writeDeadLetterWhereClause(query, builder);
+        // id breaks ties so that separate page requests see one stable order
+        builder.Append($" order by {DatabaseConstants.ExecutionTime}, {DatabaseConstants.Id}");
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+
+        await using var reader = await cmd.ExecuteReaderAsync(token);
+        while (await reader.ReadAsync(token))
+        {
+            var envelope = await DatabasePersistence.ReadDeadLetterAsync(reader, token, Logger);
+            if (query.MatchesHeaders(envelope.Envelope))
+            {
+                yield return envelope;
+            }
+        }
+
+        await reader.CloseAsync();
+        await conn.CloseAsync();
+    }
+
+    // Resolves a header-filtered query to the ids of the rows it matches. An empty result means
+    // "nothing matched" -- callers must not fall through to an unfiltered statement.
+    private async Task<List<Guid>> findHeaderMatchIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        var ids = new List<Guid>();
+        await foreach (var envelope in readHeaderMatchesAsync(query, token))
+        {
+            ids.Add(envelope.Id);
+        }
+
+        return ids;
+    }
+
+    private const int HeaderFilterIdChunkSize = 500;
 
     private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, DbCommandBuilder builder)
     {
@@ -179,7 +255,23 @@ public abstract partial class MessageDatabase<T>
 
     protected abstract void writePagingAfter(DbCommandBuilder builder, int offset, int limit);
 
-    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        if (query.HasHeaderFilter())
+        {
+            var ids = await findHeaderMatchIdsAsync(query, token);
+            foreach (var chunk in ids.Chunk(HeaderFilterIdChunkSize))
+            {
+                await discardAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, token);
+            }
+
+            return;
+        }
+
+        await discardAsync(query, token);
+    }
+
+    private Task discardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var builder = ToCommandBuilder();
         
@@ -190,7 +282,23 @@ public abstract partial class MessageDatabase<T>
         return executeCommandBatch(builder, token);
     }
 
-    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        if (query.HasHeaderFilter())
+        {
+            var ids = await findHeaderMatchIdsAsync(query, token);
+            foreach (var chunk in ids.Chunk(HeaderFilterIdChunkSize))
+            {
+                await replayAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, token);
+            }
+
+            return;
+        }
+
+        await replayAsync(query, token);
+    }
+
+    private Task replayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var builder = ToCommandBuilder();
 

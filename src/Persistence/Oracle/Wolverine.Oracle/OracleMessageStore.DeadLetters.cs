@@ -90,6 +90,11 @@ internal partial class OracleMessageStore
 
     public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
+        if (query.HasHeaderFilter())
+        {
+            return await queryWithHeaderFilterAsync(query, token);
+        }
+
         var builder = ToOracleCommandBuilder();
 
         builder.Append(
@@ -135,7 +140,94 @@ internal partial class OracleMessageStore
         return results;
     }
 
+    // GH-5164: headers only exist inside the serialized envelope body, so the header criteria are
+    // applied in memory to every row matching the rest of the query. Paging and the total count are
+    // computed over the header matches.
+    private async Task<DeadLetterEnvelopeResults> queryWithHeaderFilterAsync(DeadLetterEnvelopeQuery query,
+        CancellationToken token)
+    {
+        if (query.PageNumber <= 0) query.PageNumber = 1;
+        var offset = query.PageSize > 0 && query.PageNumber > 1 ? (query.PageNumber - 1) * query.PageSize : 0;
+
+        var results = new DeadLetterEnvelopeResults { PageNumber = query.PageNumber };
+        var matched = 0;
+
+        await foreach (var envelope in readHeaderMatchesAsync(query, token))
+        {
+            if (matched >= offset && (query.PageSize <= 0 || results.Envelopes.Count < query.PageSize))
+            {
+                results.Envelopes.Add(envelope);
+            }
+
+            matched++;
+        }
+
+        results.TotalCount = matched;
+        return results;
+    }
+
+    private async IAsyncEnumerable<DeadLetterEnvelope> readHeaderMatchesAsync(DeadLetterEnvelopeQuery query,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
+    {
+        var builder = ToOracleCommandBuilder();
+        builder.Append(
+            $"SELECT {DatabaseConstants.DeadLetterFields} FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
+        writeDeadLetterWhereClause(query, builder);
+        // id breaks ties so that separate page requests see one stable order
+        builder.Append($" ORDER BY {DatabaseConstants.ExecutionTime}, {DatabaseConstants.Id}");
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+
+        await using var reader = await cmd.ExecuteReaderAsync(token);
+        while (await reader.ReadAsync(token))
+        {
+            var envelope = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, token, Logger);
+            if (query.MatchesHeaders(envelope.Envelope))
+            {
+                yield return envelope;
+            }
+        }
+
+        await reader.CloseAsync();
+        await conn.CloseAsync();
+    }
+
+    // An empty result means "nothing matched" -- callers must not fall through to an unfiltered statement
+    private async Task<List<Guid>> findHeaderMatchIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        var ids = new List<Guid>();
+        await foreach (var envelope in readHeaderMatchesAsync(query, token))
+        {
+            ids.Add(envelope.Id);
+        }
+
+        return ids;
+    }
+
+    // Oracle caps an IN list at 1000 expressions
+    private const int HeaderFilterIdChunkSize = 500;
+
     public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        if (query.HasHeaderFilter())
+        {
+            var ids = await findHeaderMatchIdsAsync(query, token);
+            foreach (var chunk in ids.Chunk(HeaderFilterIdChunkSize))
+            {
+                await discardAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, token);
+            }
+
+            return;
+        }
+
+        await discardAsync(query, token);
+    }
+
+    private async Task discardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var builder = ToOracleCommandBuilder();
 
@@ -158,6 +250,22 @@ internal partial class OracleMessageStore
     }
 
     public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        if (query.HasHeaderFilter())
+        {
+            var ids = await findHeaderMatchIdsAsync(query, token);
+            foreach (var chunk in ids.Chunk(HeaderFilterIdChunkSize))
+            {
+                await replayAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, token);
+            }
+
+            return;
+        }
+
+        await replayAsync(query, token);
+    }
+
+    private async Task replayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var builder = ToOracleCommandBuilder();
 
