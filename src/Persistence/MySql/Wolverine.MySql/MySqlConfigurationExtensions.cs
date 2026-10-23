@@ -85,7 +85,7 @@ public static class MySqlConfigurationExtensions
     }
 
     internal static NamedConfigurationDependency NamedConnectionDependency(string connectionStringName) =>
-        new("MySQL", connectionStringName, "AddMySql") { Usage = "message store" };
+        new("MySQL", connectionStringName, "AddMySql(\"mysql\").AddDatabase") { Usage = "message store" };
 
     /// <summary>
     ///     Register MySQL backed message persistence to the named connection string from IConfiguration. This
@@ -173,7 +173,7 @@ public static class MySqlConfigurationExtensions
         StaticConnectionStringSource source = null!;
         persistence.RegisterStaticTenants(x => source = x);
 
-        tenants.ApplyTo(((MySqlBackedPersistence)persistence).Options, source, "MySQL", "AddMySql");
+        tenants.ApplyTo(((MySqlBackedPersistence)persistence).Options, source, "MySQL", "AddMySql(\"mysql\").AddDatabase");
 
         return persistence;
     }

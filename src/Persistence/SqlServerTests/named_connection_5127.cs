@@ -45,7 +45,7 @@ public class named_connection_5127
 
         ex.Missing.Single().Name.ShouldBe("wolverinedb");
         ex.Message.ShouldContain("required by the SQL Server message store");
-        ex.Message.ShouldContain("builder.AddSqlServer(\"wolverinedb\")");
+        ex.Message.ShouldContain("builder.AddSqlServer(\"sqlserver\").AddDatabase(\"wolverinedb\")");
     }
 
     [Fact]

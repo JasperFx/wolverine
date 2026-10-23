@@ -98,7 +98,7 @@ public static class PostgresqlConfigurationExtensions
     }
 
     internal static NamedConfigurationDependency NamedConnectionDependency(string connectionStringName) =>
-        new("PostgreSQL", connectionStringName, "AddPostgres") { Usage = "message store" };
+        new("PostgreSQL", connectionStringName, "AddPostgres(\"postgres\").AddDatabase") { Usage = "message store" };
 
     /// <summary>
     ///     Register PostgreSQL backed message persistence to the named connection string from IConfiguration. This
@@ -188,7 +188,7 @@ public static class PostgresqlConfigurationExtensions
         StaticConnectionStringSource source = null!;
         persistence.RegisterStaticTenants(x => source = x);
 
-        tenants.ApplyTo(((PostgresqlBackedPersistence)persistence).Options, source, "PostgreSQL", "AddPostgres");
+        tenants.ApplyTo(((PostgresqlBackedPersistence)persistence).Options, source, "PostgreSQL", "AddPostgres(\"postgres\").AddDatabase");
 
         return persistence;
     }

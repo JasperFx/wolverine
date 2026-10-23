@@ -47,7 +47,7 @@ public class named_connection_5127
 
         ex.Missing.Single().Name.ShouldBe("wolverinedb");
         ex.Message.ShouldContain("required by the MySQL message store");
-        ex.Message.ShouldContain("builder.AddMySql(\"wolverinedb\")");
+        ex.Message.ShouldContain("builder.AddMySql(\"mysql\").AddDatabase(\"wolverinedb\")");
     }
 
     [Fact]

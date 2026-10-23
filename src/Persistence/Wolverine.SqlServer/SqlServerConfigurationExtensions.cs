@@ -54,7 +54,7 @@ public static class SqlServerConfigurationExtensions
     }
 
     internal static NamedConfigurationDependency NamedConnectionDependency(string connectionStringName) =>
-        new("SQL Server", connectionStringName, "AddSqlServer") { Usage = "message store" };
+        new("SQL Server", connectionStringName, "AddSqlServer(\"sqlserver\").AddDatabase") { Usage = "message store" };
 
     /// <summary>
     ///     Register SQL Server backed message persistence to the named connection string from IConfiguration. This
@@ -131,7 +131,7 @@ public static class SqlServerConfigurationExtensions
         StaticConnectionStringSource source = null!;
         persistence.RegisterStaticTenants(x => source = x);
 
-        tenants.ApplyTo(persistence.As<SqlServerBackedPersistence>().Options, source, "SQL Server", "AddSqlServer");
+        tenants.ApplyTo(persistence.As<SqlServerBackedPersistence>().Options, source, "SQL Server", "AddSqlServer(\"sqlserver\").AddDatabase");
 
         return persistence;
     }

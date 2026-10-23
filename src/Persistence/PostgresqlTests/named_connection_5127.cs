@@ -47,7 +47,7 @@ public class named_connection_5127
 
         ex.Missing.Single().Name.ShouldBe("wolverinedb");
         ex.Message.ShouldContain("required by the PostgreSQL message store");
-        ex.Message.ShouldContain("builder.AddPostgres(\"wolverinedb\")");
+        ex.Message.ShouldContain("builder.AddPostgres(\"postgres\").AddDatabase(\"wolverinedb\")");
     }
 
     [Fact]
