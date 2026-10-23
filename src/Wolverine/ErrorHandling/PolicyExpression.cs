@@ -299,6 +299,29 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         return this;
     }
 
+    public IAdditionalActions DoThenRetry(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        int maxAttempts = 3, string description = "Do then retry")
+    {
+        if (action == null) throw new ArgumentNullException(nameof(action));
+
+        if (maxAttempts < 2)
+            throw new ArgumentOutOfRangeException(nameof(maxAttempts),
+                "maxAttempts counts the original attempt, so it must be at least 2 for the action to run");
+
+        if (maxAttempts > 25)
+            throw new ArgumentOutOfRangeException(nameof(maxAttempts),
+                "Wolverine allows a maximum of 25 attempts");
+
+        var source = new DoThenRetryContinuationSource(action, description);
+        for (var i = 0; i < maxAttempts - 1; i++)
+        {
+            var slot = _rule.AddSlot(source);
+            _slots.Add(slot);
+        }
+
+        return this;
+    }
+
     public IAdditionalActions Discard()
     {
         var slot = _rule.AddSlot(DiscardEnvelopeSource.Instance);
@@ -612,6 +635,24 @@ public interface IFailureActions
         string description, InvokeResult? invokeUsage = null);
 
     /// <summary>
+    ///     Run a recovery action, then retry the message immediately. This works the same way for messages
+    ///     received from a queue or a local endpoint and for inline execution through
+    ///     <c>IMessageBus.InvokeAsync()</c>. Once <paramref name="maxAttempts" /> is reached, the message
+    ///     is handled the same way as when <see cref="RetryTimes" /> runs out of attempts: it is moved to the
+    ///     dead letter queue when it came from a queue, and the exception is thrown to the caller of
+    ///     <c>InvokeAsync()</c> -- unless another policy follows with <c>Then</c>
+    /// </summary>
+    /// <param name="action">The recovery work to do before the message is retried</param>
+    /// <param name="maxAttempts">
+    ///     The maximum number of attempts to process the message, counting the original attempt. As with
+    ///     <see cref="Requeue" />, this policy accounts for <c>maxAttempts - 1</c> retries. The default is 3
+    /// </param>
+    /// <param name="description">Diagnostic description of the failure action</param>
+    /// <returns></returns>
+    IAdditionalActions DoThenRetry(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        int maxAttempts = 3, string description = "Do then retry");
+
+    /// <summary>
     /// Pause the sending agent for the specified duration, then automatically resume.
     /// Only applicable when used with sending failure policies.
     /// </summary>
@@ -649,6 +690,21 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions ContinueWith(IContinuationSource source)
     {
         return new FailureActions(_match, _parent).ContinueWith(source);
+    }
+
+    /// <summary>
+    ///     Run a recovery action, then retry the message immediately, both for messages received from a
+    ///     queue and for inline execution through <c>IMessageBus.InvokeAsync()</c>. Once
+    ///     <paramref name="maxAttempts" /> is reached, the message is dead lettered (queued) or the
+    ///     exception is thrown to the caller (inline), the same as <see cref="RetryTimes" />
+    /// </summary>
+    /// <param name="action">The recovery work to do before the message is retried</param>
+    /// <param name="maxAttempts">The maximum number of attempts to process the message, counting the original attempt. The default is 3</param>
+    /// <param name="description">Diagnostic description of the failure action</param>
+    public IAdditionalActions DoThenRetry(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        int maxAttempts = 3, string description = "Do then retry")
+    {
+        return new FailureActions(_match, _parent).DoThenRetry(action, maxAttempts, description);
     }
 
     /// <summary>
