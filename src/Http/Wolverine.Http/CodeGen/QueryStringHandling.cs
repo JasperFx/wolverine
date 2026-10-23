@@ -52,7 +52,8 @@ internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
     public ParsedCollectionQueryStringValue(Type parameterType, string parameterName,
         bool rejectUnparseableValue = false)
     {
-        Variable = new HttpElementVariable(parameterType, parameterName!, this);
+        // The query string key can hold characters like '-' or '.' that are not legal in a C# identifier
+        Variable = new HttpElementVariable(parameterType, parameterName!.SanitizeFormNameForVariable(), this);
         _collectionElementType = GetCollectionElementType(parameterType);
 
         // GH-3398 strict query string binding for collections: only meaningful for parsed
@@ -88,18 +89,18 @@ internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
         }
         else
         {
-            writer.Write($"BLOCK:foreach (var {Variable.Name}Value in httpContext.Request.Query[\"{Variable.Name}\"])");
+            var value = $"{Variable.Name.SanitizeFormNameForVariable()}Value";
+            writer.Write($"BLOCK:foreach (var {value} in httpContext.Request.Query[\"{Variable.Name}\"])");
 
             // Enums parse case-insensitively, matching the scalar binder
-            writer.Write($"BLOCK:if ({ParsingCode.TryParse(_collectionElementType!, $"{Variable.Name}Value", $"var {Variable.Name}ValueParsed")})");
+            writer.Write($"BLOCK:if ({ParsingCode.TryParse(_collectionElementType!, value, $"var {value}Parsed")})");
 
-            writer.Write($"{Variable.Usage}.Add({Variable.Name}ValueParsed);");
+            writer.Write($"{Variable.Usage}.Add({value}Parsed);");
             writer.FinishBlock(); // parsing block
 
             if (_rejectUnparseableValue)
             {
-                StrictQueryBinding.WriteRejectionBlock(method, writer, Variable.Name, $"{Variable.Name}Value",
-                    elementAlias);
+                StrictQueryBinding.WriteRejectionBlock(method, writer, Variable.Name, value, elementAlias);
             }
 
             writer.FinishBlock(); // foreach blobck
