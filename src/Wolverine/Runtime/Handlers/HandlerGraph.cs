@@ -826,6 +826,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
+    /// GH-5133. Every saga chain, including the per-saga-type chains Separated builds when more than one saga
+    /// type handles the same message. Saga store diagnostics and validators read this so that a saga type
+    /// whose messages are all shared with another saga is not missed.
+    /// </summary>
+    internal IEnumerable<SagaChain> SagaChains() => EveryChain().OfType<SagaChain>();
+
+    /// <summary>
     /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain --
     /// including the per-endpoint chains built under Separated?
     /// </summary>

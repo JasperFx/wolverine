@@ -175,8 +175,7 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
             }
 
             var container = _runtime.Options.HandlerGraph.Container;
-            var sagaTypes = _runtime.Options.HandlerGraph.Chains
-                .OfType<SagaChain>()
+            var sagaTypes = _runtime.Options.HandlerGraph.SagaChains() // GH-5133: includes Separated saga chains
                 .Select(c => c.SagaType)
                 .Distinct();
 

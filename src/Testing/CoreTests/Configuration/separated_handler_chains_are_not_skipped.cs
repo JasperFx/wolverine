@@ -7,6 +7,7 @@ using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Diagnostics;
 using Wolverine.ErrorHandling;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
@@ -177,6 +178,19 @@ public class separated_saga_chains_are_not_skipped : IAsyncLifetime
     }
 
     private WolverineRuntime theRuntime => _host.GetRuntime();
+
+    [Fact]
+    public void saga_store_diagnostics_see_every_saga_type()
+    {
+        // Was the bug: every message SecondSharedWorkSaga handles is shared with FirstSharedWorkSaga, so the
+        // root chains only ever name one of the two saga types
+        theRuntime.Handlers.Chains.OfType<SagaChain>().Select(x => x.SagaType).Distinct()
+            .ShouldNotContain(typeof(SecondSharedWorkSaga));
+
+        // What the EF Core, RavenDB, RDBMS, Marten and CosmosDB saga diagnostics read now
+        theRuntime.Handlers.SagaChains().Select(x => x.SagaType).Distinct()
+            .ShouldBe([typeof(FirstSharedWorkSaga), typeof(SecondSharedWorkSaga)], ignoreOrder: true);
+    }
 
     [Fact]
     public void inferred_grouping_finds_the_saga_identity_in_a_separated_chain()
