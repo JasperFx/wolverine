@@ -56,6 +56,99 @@ public static class PulsarTransportExtensions
     }
 
     /// <summary>
+    /// Direct Wolverine to connect to Pulsar using the named connection string from IConfiguration as the
+    /// client's service URL. This option is useful for Aspire integration between Wolverine and Aspire
+    ///
+    /// <para>
+    /// The value is a Pulsar service URL such as <c>pulsar://localhost:6650</c> or
+    /// <c>pulsar+ssl://broker:6651</c>; a bare <c>host:port</c> is treated as <c>pulsar://host:port</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configure">Optional extra configuration of the DotPulsar client builder (authentication etc.),
+    /// applied after the service URL from the named connection string</param>
+    /// <returns></returns>
+    public static PulsarConfiguration UsePulsarUsingNamedConnection(this WolverineOptions endpoints,
+        string connectionStringName, Action<IPulsarClientBuilder>? configure = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        new PulsarNativeResiliencyPolicy().Apply(endpoints);
+
+        var transport = endpoints.PulsarTransport();
+        applyNamedConnection(endpoints, transport, connectionStringName, configure);
+
+        return new PulsarConfiguration(transport);
+    }
+
+    /// <summary>
+    /// Add an additional, named Pulsar broker whose service URL comes from the named connection string in
+    /// IConfiguration. This is the Aspire-friendly form of <see cref="AddNamedPulsarBroker"/> for applications
+    /// that talk to two or more Pulsar brokers.
+    ///
+    /// <para>
+    /// The value is a Pulsar service URL such as <c>pulsar://localhost:6650</c> or
+    /// <c>pulsar+ssl://broker:6651</c>; a bare <c>host:port</c> is treated as <c>pulsar://host:port</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">Identity of the additional Pulsar broker; also the URI scheme of its endpoints.</param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configure">Optional extra configuration of the DotPulsar client builder (authentication etc.),
+    /// applied after the service URL from the named connection string</param>
+    /// <returns></returns>
+    public static PulsarConfiguration AddNamedPulsarBrokerUsingNamedConnection(this WolverineOptions endpoints,
+        BrokerName name, string connectionStringName, Action<IPulsarClientBuilder>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        new PulsarNativeResiliencyPolicy().Apply(endpoints);
+
+        var transport = endpoints.PulsarTransport(name);
+        applyNamedConnection(endpoints, transport, connectionStringName, configure);
+
+        return new PulsarConfiguration(transport);
+    }
+
+    private static void applyNamedConnection(WolverineOptions endpoints, PulsarTransport transport,
+        string connectionStringName, Action<IPulsarClientBuilder>? configure)
+    {
+        // GH-5126: the DotPulsar builder is only consumed when the transport initializes
+        // (PulsarTransport.InitializeAsync -> Builder.Build()), which is after the named connection string
+        // has been resolved and applied at the top of host startup. The extra configuration is applied after
+        // the service URL so it can still override anything. There is no Aspire hosting integration for
+        // Pulsar (official or CommunityToolkit) to name in the missing-connection message.
+        endpoints.ApplyNamedConnectionString("Pulsar", connectionStringName, null, value =>
+        {
+            transport.Builder.ServiceUrl(ParseServiceUrl(value));
+            configure?.Invoke(transport.Builder);
+        });
+    }
+
+    /// <summary>
+    /// Parse a Pulsar service URL from a connection string value: a full <c>pulsar://</c> /
+    /// <c>pulsar+ssl://</c> URL, or a bare <c>host:port</c> (treated as <c>pulsar://host:port</c>).
+    /// </summary>
+    internal static Uri ParseServiceUrl(string value)
+    {
+        var trimmed = value.Trim();
+        if (!trimmed.Contains("://"))
+        {
+            trimmed = "pulsar://" + trimmed;
+        }
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value),
+                $"'{value}' is not a valid Pulsar service URL. Expected something like 'pulsar://localhost:6650'");
+        }
+
+        return uri;
+    }
+
+    /// <summary>
     ///     Configure connection and authentication information for an additional, named Pulsar broker used by
     ///     this application. Only use this overload if your Wolverine application needs to talk to two or more
     ///     Pulsar brokers. The <paramref name="name"/> doubles as the URI scheme for the additional broker's

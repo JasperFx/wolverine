@@ -40,7 +40,9 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     private readonly Func<IServiceProvider, IConnectionMultiplexer>? _connectionFactory;
     private IServiceProvider? _services;
     private readonly ConfigurationOptions? _configurationOptions;
-    private readonly string? _connectionString;
+    // Not readonly: UseRedisTransportUsingNamedConnection() / AddNamedRedisBrokerUsingNamedConnection() replace it
+    // with the value resolved from IConfiguration at the top of host startup. GH-5126.
+    private string? _connectionString;
 
     /// <summary>
     /// Enable/disable creation of system endpoints like reply streams
@@ -173,6 +175,37 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     /// </summary>
     public RedisTransport(Func<IServiceProvider, IConnectionMultiplexer> connectionFactory) : this(ProtocolName, connectionFactory)
     {
+    }
+
+    /// <summary>
+    /// The StackExchange.Redis connection string this transport connects with, when it was configured by one.
+    /// Null for a transport configured by <see cref="ConfigurationOptions"/> or a caller-managed multiplexer.
+    /// </summary>
+    internal string? ConnectionString => _connectionString;
+
+    /// <summary>
+    /// Replace the connection string with one resolved later than construction -- by name from
+    /// <c>IConfiguration</c>, once the container is built. The transport only uses the connection string when it
+    /// builds its default multiplexer (first <see cref="GetConnection"/>, from <see cref="ConnectAsync"/>) or
+    /// describes itself, so this must run before that. GH-5126.
+    /// </summary>
+    internal void ApplyConnectionString(string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(connectionString);
+
+        if (_configurationOptions != null || _externalConnection != null || _connectionFactory != null)
+        {
+            throw new InvalidOperationException(
+                "This Redis transport is not configured by a connection string, so a connection string cannot be applied to it.");
+        }
+
+        if (_defaultConnection.IsValueCreated)
+        {
+            throw new InvalidOperationException(
+                "The Redis transport has already connected, so its connection string can no longer be changed.");
+        }
+
+        _connectionString = connectionString;
     }
 
     private LightweightCache<string, RedisStreamEndpoint> buildStreamCache()

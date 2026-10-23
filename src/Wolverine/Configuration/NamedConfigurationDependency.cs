@@ -22,3 +22,9 @@ namespace Wolverine.Configuration;
 /// Null when the dependency has no Aspire equivalent worth naming.
 /// </param>
 public record NamedConfigurationDependency(string Kind, string Name, string? AspireResourceMethod = null);
+
+/// <summary>
+/// GH-5126. A <see cref="NamedConfigurationDependency"/> plus what to do with the value once it is resolved.
+/// Registered by <see cref="NamedConnectionStringExtensions.ApplyNamedConnectionString"/>.
+/// </summary>
+internal record NamedConnectionStringBinding(NamedConfigurationDependency Dependency, Action<string> Apply);

@@ -57,6 +57,12 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
 
     public string ProjectId = string.Empty;
+
+    /// <summary>
+    ///     The emulator endpoint (<c>host:port</c>) applied from a named connection string by
+    ///     <c>UsePubsubUsingNamedConnection</c> / <c>AddNamedPubsubBrokerUsingNamedConnection</c> (GH-5126), if any
+    /// </summary>
+    internal string? EmulatorEndpoint { get; set; }
     internal PublisherServiceApiClient? PublisherApiClient;
     internal SubscriberServiceApiClient? SubscriberApiClient;
 
@@ -141,6 +147,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public override string? DescribeEndpoint()
     {
         if (string.IsNullOrWhiteSpace(ProjectId)) return null;
+        if (EmulatorEndpoint != null) return $"project: {ProjectId} (emulator: {EmulatorEndpoint})";
         return EmulatorDetection == EmulatorDetection.None
             ? $"project: {ProjectId}"
             : $"project: {ProjectId} (emulator)";

@@ -94,6 +94,21 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
     internal IAmazonSimpleNotificationService? SnsClient { get; set; }
     internal IAmazonSQS? SqsClient { get; set; }
 
+    /// <summary>
+    /// GH-5126: when set, <see cref="ConnectAsync"/> takes the SNS client from here (typically the application's
+    /// IoC container) instead of building one from <see cref="SnsConfig"/>. Not disposed by Wolverine.
+    /// </summary>
+    internal Func<IWolverineRuntime, IAmazonSimpleNotificationService>? SnsClientSource { get; set; }
+
+    /// <summary>
+    /// GH-5126: when set and it returns a client, the SNS-side SQS client used for subscription provisioning
+    /// comes from here instead of being built from the paired SQS config. Not disposed by Wolverine.
+    /// </summary>
+    internal Func<IWolverineRuntime, IAmazonSQS?>? SqsClientSource { get; set; }
+
+    private bool _snsClientIsExternallyOwned;
+    private bool _sqsClientIsExternallyOwned;
+
     public override string? DescribeEndpoint()
     {
         // An explicit ServiceURL (e.g. LocalStack) is a plain endpoint URL; AWS credentials are supplied separately.
@@ -184,6 +199,18 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
             SQS.Config.AuthenticationRegion = SnsConfig.AuthenticationRegion;
         }
 
+        if (SnsClient == null && SnsClientSource != null)
+        {
+            SnsClient = SnsClientSource(runtime);
+            _snsClientIsExternallyOwned = true;
+        }
+
+        if (SqsClient == null && SqsClientSource != null)
+        {
+            SqsClient = SqsClientSource(runtime);
+            _sqsClientIsExternallyOwned = SqsClient != null;
+        }
+
         SnsClient ??= BuildSnsClient(runtime);
         SqsClient ??= BuildSqsClient(runtime);
 
@@ -223,6 +250,39 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
         SnsConfig.ServiceURL = $"http://localhost:{port}";
         SQS.Config.ServiceURL = $"http://localhost:{port}";
     }
+
+    /// <summary>
+    /// GH-5126: apply the value of a named connection string -- the service URL (e.g. <c>http://localhost:4566</c>)
+    /// that the Aspire LocalStack and Floci hosting integrations put at <c>ConnectionStrings:{name}</c>. It is
+    /// applied to the SNS config and, unless the paired SQS config already has its own ServiceURL (e.g. from
+    /// <c>UseAmazonSqsTransportUsingNamedConnection</c>), to the paired SQS config used for subscription
+    /// provisioning, as <see cref="ConnectToLocalStack"/> does. Unless credentials were configured explicitly, the
+    /// same placeholder credentials as <see cref="ConnectToLocalStack"/> are applied.
+    /// </summary>
+    internal void ApplyNamedServiceUrl(string connectionStringName, string value)
+    {
+        var serviceUrl = parseNamedServiceUrl(connectionStringName, value);
+        SnsConfig.ServiceURL = serviceUrl;
+        if (SQS.Config.ServiceURL.IsEmpty())
+        {
+            SQS.Config.ServiceURL = serviceUrl;
+        }
+
+        CredentialSource ??= _ => new BasicAWSCredentials("ignore", "ignore");
+    }
+
+    private static string parseNamedServiceUrl(string connectionStringName, string value)
+    {
+        var trimmed = value.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return trimmed;
+        }
+
+        throw new InvalidOperationException(
+            $"The connection string named '{connectionStringName}' for the Amazon SNS transport must be an absolute http(s) service URL such as 'http://localhost:4566', which is what the Aspire LocalStack and Floci integrations supply.");
+    }
     
     internal IAmazonSimpleNotificationService BuildSnsClient(IWolverineRuntime runtime)
     {
@@ -248,8 +308,9 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
 
     public async ValueTask DisposeAsync()
     {
-        SnsClient?.Dispose();
-        SqsClient?.Dispose();
+        // GH-5126: clients taken from the container belong to the container
+        if (!_snsClientIsExternallyOwned) SnsClient?.Dispose();
+        if (!_sqsClientIsExternallyOwned) SqsClient?.Dispose();
 
         // Broker-per-tenant (GH-3305): each tenant owns its own SNS + paired SQS clients through its child transport.
         foreach (var tenant in Tenants)

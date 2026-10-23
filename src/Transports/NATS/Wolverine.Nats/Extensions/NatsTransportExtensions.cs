@@ -81,6 +81,37 @@ public static class NatsTransportExtensions
     }
 
     /// <summary>
+    /// Configure Wolverine to use NATS as a message transport, reading the NATS connection string (URL) by
+    /// name from the application's <c>IConfiguration</c> -- <c>ConnectionStrings:{connectionStringName}</c>.
+    /// This is the natural fit for .NET Aspire, where the AppHost's <c>builder.AddNats("name")</c> resource
+    /// referenced by this project with <c>.WithReference(...)</c> supplies a <c>nats://[user:password@]host:port</c>
+    /// URL under that key.
+    ///
+    /// <para>
+    /// The value is resolved once the container is built, at the top of host startup and before the transport
+    /// connects. A missing name fails startup with one <see cref="MissingNamedConnectionStringsException"/> that
+    /// names every missing connection string this application asked for. GH-5126.
+    /// </para>
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">The connection string key, i.e. the Aspire resource name</param>
+    /// <param name="configure">
+    /// Optional, additional configuration of the NATS connection (auth, TLS, JetStream). Applied immediately; the
+    /// named connection string is applied afterward and wins over any <see cref="NatsTransportConfiguration.ConnectionString"/>
+    /// set here.
+    /// </param>
+    public static NatsTransportExpression UseNatsUsingNamedConnection(
+        this WolverineOptions options,
+        string connectionStringName,
+        Action<NatsTransportConfiguration>? configure = null
+    )
+    {
+        var transport = options.NatsTransport();
+        applyNamedConnection(options, transport, connectionStringName, configure);
+        return new NatsTransportExpression(transport, options);
+    }
+
+    /// <summary>
     /// Configure connection and authentication information for a secondary NATS broker used by this
     /// application. Only use this overload if your Wolverine application needs to talk to two or more
     /// NATS brokers. The <paramref name="name"/> doubles as the URI scheme for the additional broker's
@@ -118,6 +149,46 @@ public static class NatsTransportExtensions
         var transport = options.NatsTransport(name);
         configure(transport.Configuration);
         return new NatsTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Configure a secondary NATS broker used by this application, reading its connection string (URL) by name
+    /// from the application's <c>IConfiguration</c> -- <c>ConnectionStrings:{connectionStringName}</c>, which is
+    /// where a .NET Aspire AppHost's <c>builder.AddNats("name")</c> resource puts it. Only use this overload if
+    /// your Wolverine application needs to talk to two or more NATS brokers; see
+    /// <see cref="AddNamedNatsBroker(WolverineOptions, BrokerName, string)"/> and
+    /// <see cref="UseNatsUsingNamedConnection"/>. GH-5126.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional NATS broker</param>
+    /// <param name="connectionStringName">The connection string key, i.e. the Aspire resource name</param>
+    /// <param name="configure">
+    /// Optional, additional configuration of the broker's connection (auth, TLS, JetStream). Applied immediately;
+    /// the named connection string is applied afterward and wins over any
+    /// <see cref="NatsTransportConfiguration.ConnectionString"/> set here.
+    /// </param>
+    public static NatsTransportExpression AddNamedNatsBrokerUsingNamedConnection(
+        this WolverineOptions options,
+        BrokerName name,
+        string connectionStringName,
+        Action<NatsTransportConfiguration>? configure = null
+    )
+    {
+        var transport = options.NatsTransport(name);
+        applyNamedConnection(options, transport, connectionStringName, configure);
+        return new NatsTransportExpression(transport, options);
+    }
+
+    private static void applyNamedConnection(WolverineOptions options, NatsTransport transport,
+        string connectionStringName, Action<NatsTransportConfiguration>? configure)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(connectionStringName);
+        configure?.Invoke(transport.Configuration);
+
+        // NatsTransport reads Configuration.ConnectionString only when it connects (ToNatsOpts() in
+        // ConnectAsync) or describes itself, both of which come after the named value is applied.
+        options.ApplyNamedConnectionString("NATS", connectionStringName, "AddNats",
+            value => transport.Configuration.ConnectionString = value);
     }
 
     /// <summary>

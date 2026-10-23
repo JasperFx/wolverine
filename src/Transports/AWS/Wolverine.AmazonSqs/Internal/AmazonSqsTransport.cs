@@ -129,6 +129,16 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
 
     internal IAmazonSQS? Client { get; set; }
 
+    /// <summary>
+    /// GH-5126: when set, <see cref="ConnectAsync"/> takes the SQS client from here (typically the application's
+    /// IoC container, e.g. an <c>IAmazonSQS</c> registered by <c>AddAWSService&lt;IAmazonSQS&gt;()</c>) instead of
+    /// building one from <see cref="Config"/> and <see cref="CredentialSource"/>. A client obtained this way is
+    /// owned by whoever registered it, so Wolverine does not dispose it.
+    /// </summary>
+    internal Func<IWolverineRuntime, IAmazonSQS>? ClientSource { get; set; }
+
+    private bool _clientIsExternallyOwned;
+
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
@@ -332,6 +342,12 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        if (Client == null && ClientSource != null)
+        {
+            Client = ClientSource(runtime);
+            _clientIsExternallyOwned = true;
+        }
+
         Client ??= BuildClient(runtime);
 
         if (SystemQueuesEnabled)
@@ -519,11 +535,41 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
         Config.ServiceURL = $"http://localhost:{port}";
     }
 
+    /// <summary>
+    /// GH-5126: apply the value of a named connection string. The Aspire hosting integrations for local AWS
+    /// emulators (LocalStack's <c>AddLocalStack</c>, the CommunityToolkit's <c>AddFlociAws</c>) put the emulator's
+    /// service URL (e.g. <c>http://localhost:4566</c>) at <c>ConnectionStrings:{name}</c>, so the value is the
+    /// <see cref="ClientConfig.ServiceURL"/>. Unless credentials were configured explicitly, the same placeholder
+    /// credentials <see cref="ConnectToLocalStack"/> uses are applied, as an emulator does not validate them.
+    /// </summary>
+    internal void ApplyNamedServiceUrl(string connectionStringName, string value)
+    {
+        Config.ServiceURL = ParseNamedServiceUrl("Amazon SQS", connectionStringName, value);
+        CredentialSource ??= _ => new BasicAWSCredentials("ignore", "ignore");
+    }
+
+    internal static string ParseNamedServiceUrl(string kind, string connectionStringName, string value)
+    {
+        var trimmed = value.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return trimmed;
+        }
+
+        throw new InvalidOperationException(
+            $"The connection string named '{connectionStringName}' for the {kind} transport must be an absolute http(s) service URL such as 'http://localhost:4566', which is what the Aspire LocalStack and Floci integrations supply.");
+    }
+
     public string ServerHost => Config.ServiceURL?.ToUri().Host!;
 
     public ValueTask DisposeAsync()
     {
-        Client?.Dispose();
+        // GH-5126: a client taken from the container belongs to the container
+        if (!_clientIsExternallyOwned)
+        {
+            Client?.Dispose();
+        }
 
         // Broker-per-tenant (GH-3304): each tenant owns its own SQS client through its child transport; dispose them.
         foreach (var tenant in Tenants)
