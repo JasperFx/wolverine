@@ -128,6 +128,42 @@ public abstract class SingleTenantContext(ITestOutputHelper output) : IAsyncLife
         await conn.CloseAsync();
     }
 
+    // Documentation sample only, GH-5170
+    public static async Task size_the_hopper_for_many_tenants()
+    {
+        #region sample_size_the_projection_hopper_for_many_tenants
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+
+                        // Keep the in-memory prefetch at about 2 x BatchSize
+                        // for every async projection
+                        m.Projections.Add<TripProjection>(ProjectionLifecycle.Async, o =>
+                        {
+                            o.BatchSize = 250;
+                            o.MaximumHopperSize = 500;
+                        });
+
+                        m.Projections.Add<DayProjection>(ProjectionLifecycle.Async, o =>
+                        {
+                            o.BatchSize = 250;
+                            o.MaximumHopperSize = 500;
+                        });
+
+                        // These are per database, and they pace work rather than
+                        // bound memory. 4 is the default for both
+                        m.Projections.MaxConcurrentEventLoadsPerDatabase = 4;
+                        m.Projections.MaxConcurrentBatchWritesPerDatabase = 4;
+                    })
+                    .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
+            }).StartAsync();
+
+        #endregion
+    }
+
     protected static async Task<string[]> GetAgentUrisAsync(IHost host)
     {
         var agentsFamily = host.Services.GetServices<IAgentFamily>()

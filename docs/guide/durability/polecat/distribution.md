@@ -88,6 +88,14 @@ Polecat. See [Warming Up a New Release on Its Own Nodes](/guide/durability/marte
 on the Marten page for what a warm-up node does and doesn't do, and the checklist of what you still have to
 turn off yourself.
 
+## Memory at Scale: Tenants x Projections <Badge type="tip" text="6.x" />
+
+Polecat runs on the same async daemon as Marten, so the same memory math applies: what costs memory is the number of
+shards that are *behind* times each shard's `MaximumHopperSize`, not the number of agents. Set `MaximumHopperSize` to
+about 2 x `BatchSize` on every async projection. See
+[Memory at Scale: Tenants x Projections](/guide/durability/marten/distribution#memory-at-scale-tenants-x-projections)
+on the Marten page for the details and the rest of the knobs.
+
 ## When a Projection Fails <Badge type="tip" text="6.x" />
 
 The failure handling for a paused projection or subscription shard — the classified `ShardFailure` on
