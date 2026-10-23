@@ -180,6 +180,14 @@ public class ServiceCapabilities : OptionsDescription
     public List<OptionsDescription> AdditionalCapabilities { get; set; } = [];
 
     /// <summary>
+    ///     GH-5162: every section, or individual store inside a section, that could not be read while this
+    ///     snapshot was built. An empty section with no matching entry here really is empty; an empty or short
+    ///     section <em>with</em> an entry here is incomplete, and a consumer should ask for the capabilities again
+    ///     later rather than trusting it. Empty when everything was read.
+    /// </summary>
+    public List<CapabilitySectionFailure> FailedSections { get; set; } = [];
+
+    /// <summary>
     ///     Uri for sending command messages to this service
     /// </summary>
     public Uri? SystemControlUri { get; set; }
@@ -198,41 +206,42 @@ public class ServiceCapabilities : OptionsDescription
         // a monitoring console (CritterWatch) consequently received *no* capabilities at all for the
         // service, permanently, since it retries the same doomed call on every batch. Each section is now
         // isolated: it either contributes its data or logs a warning and is left out.
-        readSection(runtime, nameof(Brokers), token, () => readTransports(runtime, capabilities, token));
+        readSection(runtime, capabilities, nameof(Brokers), token, () => readTransports(runtime, capabilities, token));
 
-        await readSectionAsync(runtime, nameof(MessageStores), token, () => readMessageStores(runtime, capabilities));
+        await readSectionAsync(runtime, capabilities, nameof(MessageStores), token, () => readMessageStores(runtime, capabilities));
 
-        await readSectionAsync(runtime, nameof(EventStores), token, () => readEventStores(runtime, token, capabilities));
+        await readSectionAsync(runtime, capabilities, nameof(EventStores), token, () => readEventStores(runtime, token, capabilities));
 
-        await readSectionAsync(runtime, nameof(DocumentStores), token,
+        await readSectionAsync(runtime, capabilities, nameof(DocumentStores), token,
             () => readDocumentStores(runtime, token, capabilities));
 
-        await readSectionAsync(runtime, nameof(DbContexts), token, () => readDbContexts(runtime, token, capabilities));
+        await readSectionAsync(runtime, capabilities, nameof(DbContexts), token, () => readDbContexts(runtime, token, capabilities));
 
-        await readSectionAsync(runtime, nameof(HttpGraphs), token, () => readHttpGraphs(runtime, token, capabilities));
+        await readSectionAsync(runtime, capabilities, nameof(HttpGraphs), token, () => readHttpGraphs(runtime, token, capabilities));
 
-        readSection(runtime, nameof(AspNetEndpoints), token, () => readAspNetEndpoints(runtime, capabilities));
+        readSection(runtime, capabilities, nameof(AspNetEndpoints), token, () => readAspNetEndpoints(runtime, capabilities));
 
-        readSection(runtime, nameof(GrpcEndpoints), token, () => readGrpcEndpoints(runtime, capabilities));
+        readSection(runtime, capabilities, nameof(GrpcEndpoints), token, () => readGrpcEndpoints(runtime, capabilities));
 
-        readSection(runtime, nameof(Messages), token, () => readMessageTypes(runtime, capabilities));
+        readSection(runtime, capabilities, nameof(Messages), token, () => readMessageTypes(runtime, capabilities));
 
-        readSection(runtime, nameof(MessagingEndpoints), token, () => readEndpoints(runtime, capabilities, token));
+        readSection(runtime, capabilities, nameof(MessagingEndpoints), token, () => readEndpoints(runtime, capabilities, token));
 
-        readSection(runtime, nameof(Sagas), token, () => readSagas(runtime, capabilities));
+        readSection(runtime, capabilities, nameof(Sagas), token, () => readSagas(runtime, capabilities));
 
-        await readSectionAsync(runtime, nameof(RecurringSchedules), token,
+        await readSectionAsync(runtime, capabilities, nameof(RecurringSchedules), token,
             () => readRecurringSchedules(runtime, token, capabilities));
 
-        readSection(runtime, nameof(AdditionalCapabilities), token,
+        readSection(runtime, capabilities, nameof(AdditionalCapabilities), token,
             () => readAdditionalCapabilities(runtime, capabilities));
 
-        await readSectionAsync(runtime, nameof(EventModel), token, () => readEventModel(runtime, token, capabilities));
+        await readSectionAsync(runtime, capabilities, nameof(EventModel), token, () => readEventModel(runtime, token, capabilities));
 
         return capabilities;
     }
 
-    private static void readSection(IWolverineRuntime runtime, string section, CancellationToken token, Action read)
+    private static void readSection(IWolverineRuntime runtime, ServiceCapabilities capabilities, string section,
+        CancellationToken token, Action read)
     {
         try
         {
@@ -240,12 +249,12 @@ public class ServiceCapabilities : OptionsDescription
         }
         catch (Exception e)
         {
-            warnAboutFailedSection(runtime, section, token, e);
+            warnAboutFailedSection(runtime, capabilities, section, token, e);
         }
     }
 
-    private static async Task readSectionAsync(IWolverineRuntime runtime, string section, CancellationToken token,
-        Func<Task> read)
+    private static async Task readSectionAsync(IWolverineRuntime runtime, ServiceCapabilities capabilities,
+        string section, CancellationToken token, Func<Task> read)
     {
         try
         {
@@ -253,17 +262,70 @@ public class ServiceCapabilities : OptionsDescription
         }
         catch (Exception e)
         {
-            warnAboutFailedSection(runtime, section, token, e);
+            warnAboutFailedSection(runtime, capabilities, section, token, e);
         }
     }
 
-    private static void warnAboutFailedSection(IWolverineRuntime runtime, string section, CancellationToken token,
-        Exception e)
+    private void recordFailure(string section, string? subject, Exception e)
+    {
+        FailedSections.Add(new CapabilitySectionFailure
+        {
+            Section = section,
+            Subject = subject,
+            ExceptionType = e.GetType().FullName ?? e.GetType().Name
+        });
+    }
+
+    private static string? trySubject(Func<Uri> subject)
+    {
+        // The subject is only there to say *which* store failed. A store broken enough to throw from its
+        // Subject getter too still gets its failure recorded, just without a name.
+        try
+        {
+            return subject().ToString();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     GH-5162: one store's failure costs only that store. The failure is logged, recorded on
+    ///     <see cref="FailedSections" />, and the caller moves on to the next store. Cancellation is not a
+    ///     failure of the store and still propagates.
+    /// </summary>
+    private static async Task<T?> tryReadStoreAsync<T>(IWolverineRuntime runtime, ServiceCapabilities capabilities,
+        string section, Func<Uri> subject, CancellationToken token, Func<Task<T?>> read) where T : class
+    {
+        try
+        {
+            return await read();
+        }
+        catch (Exception e)
+        {
+            token.ThrowIfCancellationRequested();
+
+            var name = trySubject(subject);
+            capabilities.recordFailure(section, name, e);
+
+            runtime.Logger.LogWarning(e,
+                "Wolverine was unable to read {Subject} for the {Section} section of the ServiceCapabilities diagnostic snapshot for service {ServiceName}. It will be missing from that section, the rest of the snapshot is unaffected.",
+                name ?? "a store", section, runtime.Options.ServiceName);
+
+            return null;
+        }
+    }
+
+    private static void warnAboutFailedSection(IWolverineRuntime runtime, ServiceCapabilities capabilities,
+        string section, CancellationToken token, Exception e)
     {
         // A cancelled token means the host is shutting down or the caller gave up waiting -- that's not a
         // failure of this particular section, and there's no point grinding through the remaining ones or
         // logging a dozen warnings about it.
         token.ThrowIfCancellationRequested();
+
+        capabilities.recordFailure(section, null, e);
 
         runtime.Logger.LogWarning(e,
             "Wolverine was unable to read the {Section} section of the ServiceCapabilities diagnostic snapshot for service {ServiceName}. That section will be missing or incomplete, the rest of the snapshot is unaffected.",
@@ -288,7 +350,8 @@ public class ServiceCapabilities : OptionsDescription
         {
             if (!seen.Add(source.Subject)) continue;
 
-            var usage = await source.TryCreateUsage(runtime.Services, token);
+            var usage = await tryReadStoreAsync(runtime, capabilities, nameof(HttpGraphs), () => source.Subject, token,
+                () => source.TryCreateUsage(runtime.Services, token));
             if (usage != null)
             {
                 list.Add(usage);
@@ -349,6 +412,8 @@ public class ServiceCapabilities : OptionsDescription
             catch (Exception e)
             {
                 token.ThrowIfCancellationRequested();
+
+                capabilities.recordFailure(nameof(MessagingEndpoints), endpoint.Uri.ToString(), e);
 
                 runtime.Logger.LogWarning(e,
                     "Wolverine was unable to build a diagnostic description of the endpoint at {EndpointUri}. It will be missing from the ServiceCapabilities snapshot.",
@@ -457,7 +522,8 @@ public class ServiceCapabilities : OptionsDescription
         var storeList = new List<EventStoreUsage>();
         foreach (var eventStore in eventStores)
         {
-            var eventStoreUsage = await eventStore.TryCreateUsage(token);
+            var eventStoreUsage = await tryReadStoreAsync(runtime, capabilities, nameof(EventStores),
+                () => eventStore.Subject, token, () => eventStore.TryCreateUsage(token));
             if (eventStoreUsage != null)
             {
                 eventStoreUsage.PopulateAgentUris(EventSubscriptionAgentScheme, eventStore.Identity);
@@ -490,7 +556,8 @@ public class ServiceCapabilities : OptionsDescription
             // count when a store wears both hats.
             if (!seen.Add(store.Subject)) continue;
 
-            var usage = await store.TryCreateUsage(token);
+            var usage = await tryReadStoreAsync(runtime, capabilities, nameof(DocumentStores), () => store.Subject,
+                token, () => store.TryCreateUsage(token));
             if (usage != null)
             {
                 storeList.Add(usage);
@@ -523,7 +590,8 @@ public class ServiceCapabilities : OptionsDescription
             // shouldn't double-count.
             if (!seen.Add(source.Subject)) continue;
 
-            var usage = await source.TryCreateUsage(token);
+            var usage = await tryReadStoreAsync(runtime, capabilities, nameof(DbContexts), () => source.Subject, token,
+                () => source.TryCreateUsage(token));
             if (usage != null)
             {
                 usageList.Add(usage);
@@ -630,6 +698,8 @@ public class ServiceCapabilities : OptionsDescription
             catch (Exception e)
             {
                 token.ThrowIfCancellationRequested();
+
+                capabilities.recordFailure(nameof(Brokers), transport.Protocol, e);
 
                 runtime.Logger.LogWarning(e,
                     "Wolverine was unable to build a diagnostic description of the {Protocol} ({TransportName}) transport. It will be missing from the ServiceCapabilities snapshot.",
