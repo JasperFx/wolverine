@@ -3,6 +3,7 @@ using System.Reflection;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Wolverine.Configuration;
@@ -48,7 +49,22 @@ internal class WolverineSystemPart : SystemPartBase
         WithinDescription = true;
         try
         {
-            await _runtime.StartLightweightAsync();
+            // GH-5156. Before anything that needs the values, so an unresolved name is visible even though the
+            // application cannot start without it
+            if (WriteNamedConnectionStrings())
+            {
+                AnsiConsole.WriteLine();
+            }
+
+            try
+            {
+                await _runtime.StartLightweightAsync();
+            }
+            catch (MissingNamedConnectionStringsException e)
+            {
+                AnsiConsole.MarkupLine($"[red]{e.Message.EscapeMarkup()}[/]");
+                return;
+            }
 
             _runtime.Options.WriteToConsole();
 
@@ -73,6 +89,40 @@ internal class WolverineSystemPart : SystemPartBase
         }
     }
     
+    /// <summary>
+    /// GH-5156. Every connection string this application resolves by name, what needs it, and whether
+    /// IConfiguration has it. Names only -- a connection string value is a credential and is never written.
+    /// </summary>
+    /// <param name="console">Defaults to <see cref="AnsiConsole.Console"/></param>
+    /// <returns>Whether anything was written</returns>
+    public bool WriteNamedConnectionStrings(IAnsiConsole? console = null)
+    {
+        var dependencies = _runtime.Options.NamedConfigurationDependencies;
+        if (!dependencies.Any()) return false;
+
+        var configuration = _runtime.Services.GetService<IConfiguration>();
+
+        var table = new Table
+        {
+            Title = new TableTitle("Named Connection Strings") { Style = new Style(decoration: Decoration.Bold) }
+        }.AddColumns("Name", "Required By", "Status", "Aspire AppHost");
+
+        foreach (var dependency in dependencies)
+        {
+            var resolved = configuration != null && !string.IsNullOrEmpty(configuration.GetConnectionString(dependency.Name));
+            table.AddRow(
+                dependency.Name.EscapeMarkup(),
+                $"{dependency.Kind} {dependency.Usage}".EscapeMarkup(),
+                resolved ? "[green]Resolved[/]" : "[red]Missing[/]",
+                dependency.AspireResourceMethod == null
+                    ? "n/a"
+                    : $"builder.{dependency.AspireResourceMethod}(\"{dependency.Name}\")".EscapeMarkup());
+        }
+
+        (console ?? AnsiConsole.Console).Write(table);
+        return true;
+    }
+
     public void WriteMessageSubscriptions()
     {
         var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);

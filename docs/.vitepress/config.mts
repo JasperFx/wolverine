@@ -142,7 +142,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Specifications with Bobcat', link: '/guide/testing-with-bobcat'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
-                        {text: 'Aspire Dashboard Integration', link: '/guide/aspire'},
+                        {text: 'Aspire Integration', link: '/guide/aspire'},
                         {text: 'Code Generation', link: '/guide/codegen'},
                         {text: 'AOT Publishing', link: '/guide/aot'},
                         {text: 'LLM Callouts', link: '/guide/ai'},
