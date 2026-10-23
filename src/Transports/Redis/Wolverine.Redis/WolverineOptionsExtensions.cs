@@ -101,6 +101,66 @@ public static class WolverineOptionsExtensions
     }
 
     /// <summary>
+    /// Adds the Redis Streams transport to Wolverine, reading its StackExchange.Redis connection string by name
+    /// from the application's <c>IConfiguration</c> -- <c>ConnectionStrings:{connectionStringName}</c>. This is the
+    /// natural fit for .NET Aspire, where the AppHost's <c>builder.AddRedis("name")</c> resource referenced by this
+    /// project with <c>.WithReference(...)</c> supplies a <c>host:port[,password=...][,ssl=true]</c> connection
+    /// string under that key. Wolverine owns (and disposes) the multiplexer it builds from it.
+    ///
+    /// <para>
+    /// The value is resolved once the container is built, at the top of host startup and before the transport
+    /// connects. A missing name fails startup with one <see cref="MissingNamedConnectionStringsException"/> that
+    /// names every missing connection string this application asked for.
+    /// </para>
+    ///
+    /// <para>
+    /// To share the <see cref="IConnectionMultiplexer"/> that the Aspire client integration
+    /// (<c>builder.AddRedisClient("name")</c>) registers in the container instead, use
+    /// <see cref="UseRedisTransport(WolverineOptions, Func{IServiceProvider, IConnectionMultiplexer})"/> with
+    /// <c>sp =&gt; sp.GetRequiredService&lt;IConnectionMultiplexer&gt;()</c>. GH-5126.
+    /// </para>
+    /// </summary>
+    /// <param name="options">Wolverine configuration options</param>
+    /// <param name="connectionStringName">The connection string key, i.e. the Aspire resource name</param>
+    /// <returns>RedisTransport for fluent configuration</returns>
+    public static RedisTransportExpression UseRedisTransportUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(connectionStringName);
+
+        var transport = new RedisTransport();
+        options.Transports.Add(transport);
+
+        options.ApplyNamedConnectionString("Redis", connectionStringName, "AddRedis", transport.ApplyConnectionString);
+
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Register an additional, independent Redis broker whose StackExchange.Redis connection string is read by name
+    /// from the application's <c>IConfiguration</c> -- <c>ConnectionStrings:{connectionStringName}</c>, which is
+    /// where a .NET Aspire AppHost's <c>builder.AddRedis("name")</c> resource puts it. Only use this if your
+    /// Wolverine application needs to talk to two or more Redis brokers; see
+    /// <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/> and
+    /// <see cref="UseRedisTransportUsingNamedConnection"/>. GH-5126.
+    /// </summary>
+    /// <param name="options">Wolverine configuration options</param>
+    /// <param name="name">Identity of the additional Redis broker</param>
+    /// <param name="connectionStringName">The connection string key, i.e. the Aspire resource name</param>
+    public static RedisTransportExpression AddNamedRedisBrokerUsingNamedConnection(this WolverineOptions options,
+        BrokerName name, string connectionStringName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(connectionStringName);
+
+        var transport = new RedisTransport(name.Name, "localhost:6379");
+        options.Transports.Add(transport);
+
+        options.ApplyNamedConnectionString("Redis", connectionStringName, "AddRedis", transport.ApplyConnectionString);
+
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
     /// Locate the Redis transport for this application. Pass a <paramref name="name"/> to resolve an
     /// additional, named Redis broker registered via <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>.
     /// GH-3309.
