@@ -322,6 +322,16 @@ public partial class WolverineRuntime : IAgentRuntime
                 {
                     await ((IHostedService)InMemoryRecurringAgent).StartAsync(_agentCancellation.Token);
                 }
+
+                // GH-5168. The short-cadence schedules' timer agents, for the same reason: no cluster,
+                // so "one agent per schedule" is just "start each one here".
+                InMemoryRecurringTimers = _container.GetAllInstances<IAgentFamily>()
+                    .OfType<Recurring.RecurringTimerAgentFamily>().FirstOrDefault();
+
+                if (InMemoryRecurringTimers != null)
+                {
+                    await InMemoryRecurringTimers.StartAllLocallyAsync(_agentCancellation.Token);
+                }
             }
 
             return;
@@ -368,6 +378,12 @@ public partial class WolverineRuntime : IAgentRuntime
     /// than through node coordination. See the note in <c>startAgentsAsync</c>.
     /// </summary>
     internal IAgent? InMemoryRecurringAgent { get; private set; }
+
+    /// <summary>
+    /// GH-5168. Set only on a storeless host, where the recurring timer agents are started directly
+    /// rather than through node coordination. See the note in <c>startAgentsAsync</c>.
+    /// </summary>
+    internal Recurring.RecurringTimerAgentFamily? InMemoryRecurringTimers { get; private set; }
 
     private void startNodeAgentController()
     {

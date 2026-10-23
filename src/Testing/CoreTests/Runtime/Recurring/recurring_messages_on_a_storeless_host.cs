@@ -37,7 +37,10 @@ public class recurring_messages_on_a_storeless_host
                 // Every five seconds — the minimum legal cadence — so this is a REAL end-to-end
                 // run: the agent pre-schedules the next occurrence, the local queue's in-memory
                 // scheduler fires it at its time, and the handler receives it, within seconds.
-                opts.Schedules.ScheduleRecurring<StorelessRecurringMessage>("*/5 * * * * *");
+                // GH-5168: a 5-second cadence would run on a timer agent by default; this test is
+                // about the pre-scheduled path, so it says so.
+                opts.Schedules.ScheduleRecurring<StorelessRecurringMessage>("*/5 * * * * *")
+                    .UseScheduledMessages();
             }).StartAsync(TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.GetRuntime();

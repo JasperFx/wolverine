@@ -1,5 +1,6 @@
 using System.Collections;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Recurring;
 
 namespace Wolverine;
@@ -30,6 +31,27 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
         _parent = parent;
     }
 
+    /// <summary>The default for <see cref="TimerThreshold" />: 15 minutes.</summary>
+    public static readonly TimeSpan DefaultTimerThreshold = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// GH-5168. A schedule whose minimum gap between occurrences over one week is shorter than this
+    /// runs on a timer agent of its own (<see cref="RecurringExecutionPath.Timer" />) instead of being
+    /// pre-scheduled through the scheduled-message machinery, where every occurrence waits on the
+    /// scheduled-job poller and costs an inbox row. 15 minutes by default; set it to
+    /// <see cref="TimeSpan.Zero" /> to keep every schedule on the scheduled-message path unless it opts
+    /// in with <see cref="RecurringMessage.UseTimer" />. A per-schedule
+    /// <see cref="RecurringMessage.UseTimer" /> or <see cref="RecurringMessage.UseScheduledMessages" />
+    /// always wins over this setting.
+    /// </summary>
+    public TimeSpan TimerThreshold { get; set; } = DefaultTimerThreshold;
+
+    /// <summary>GH-5168. The registered schedules that run on a timer agent of their own.</summary>
+    internal IReadOnlyList<RecurringMessage> TimerSchedules()
+    {
+        return _messages.Where(x => x.ExecutionPath == RecurringExecutionPath.Timer).ToArray();
+    }
+
     /// <summary>
     /// Schedule a message with a public no-argument constructor on a cron expression. The schedule
     /// name defaults to the message type's name.
@@ -46,7 +68,7 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
     /// </summary>
     public RecurringMessage ScheduleRecurring<T>(CronSchedule schedule) where T : new()
     {
-        return register(new RecurringMessage(typeof(T).Name, schedule, typeof(T), _ => new T()!));
+        return register(new RecurringMessage(typeof(T).Name, schedule, typeof(T), _ => new T()!, this));
     }
 
     /// <summary>
@@ -70,7 +92,7 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
             throw new ArgumentNullException(nameof(creator));
         }
 
-        return register(new RecurringMessage(name, schedule, typeof(T), occurrence => creator(occurrence)));
+        return register(new RecurringMessage(name, schedule, typeof(T), occurrence => creator(occurrence), this));
     }
 
     /// <summary>Look up a registered schedule by name. Null when none matches.</summary>
@@ -125,6 +147,12 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
         {
             _agentRegistered = true;
             _parent.Services.AddSingularAgent<RecurringMessageAgent>();
+
+            // GH-5168. Registered with the first schedule whatever its cadence, because which schedules
+            // run on a timer is only known once configuration is finished (TimerThreshold and the
+            // per-schedule overrides can be set after the registration call). A family with no timer
+            // schedules simply knows no agents.
+            _parent.Services.AddSingleton<IAgentFamily, RecurringTimerAgentFamily>();
             _parent.Services.AddSingleton<IRecurringScheduleControl, RecurringScheduleControl>();
             _parent.RegisteredPolicies.Add(new RecurringDeduplicationPolicy(this));
         }

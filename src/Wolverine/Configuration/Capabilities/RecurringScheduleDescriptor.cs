@@ -47,4 +47,17 @@ public class RecurringScheduleDescriptor
 
     /// <summary>When the schedule was paused. Null while running.</summary>
     public DateTimeOffset? PausedAt { get; set; }
+
+    /// <summary>
+    /// GH-5168. How the schedule's occurrences are produced: pre-scheduled through the
+    /// scheduled-message machinery, or published by a timer agent of its own.
+    /// </summary>
+    public RecurringExecutionPath ExecutionPath { get; set; } = RecurringExecutionPath.ScheduledMessages;
+
+    /// <summary>
+    /// GH-5168. For a <see cref="RecurringExecutionPath.Timer" /> schedule, the URI of the agent that
+    /// runs it, so tooling can show which node owns the schedule by matching it against the nodes'
+    /// running agents. Null on the scheduled-message path.
+    /// </summary>
+    public Uri? AgentUri { get; set; }
 }

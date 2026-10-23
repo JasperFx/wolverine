@@ -104,6 +104,42 @@ public readonly struct CronSchedule : IEquatable<CronSchedule>
         return expression.GetNextOccurrence(after, TimeZone);
     }
 
+    /// <summary>
+    /// GH-5168. The shortest gap between two consecutive occurrences of this schedule over one week of
+    /// occurrences, sampled from a fixed anchor so every node computes the same answer. Sampling a week
+    /// rather than the first gap means <c>*/5 9-17 * * 1-5</c> counts as a 5-minute schedule. Null when
+    /// the schedule has fewer than two occurrences in that window.
+    /// </summary>
+    /// <param name="stopBelow">
+    /// Optional early exit: as soon as a gap shorter than this is found, it is returned without sampling
+    /// the rest of the week. The classification only needs to know which side of a threshold it is on.
+    /// </param>
+    internal TimeSpan? MinimumGapOverAWeek(TimeSpan? stopBelow = null)
+    {
+        // A Saturday, so the week covers every day of the week once
+        var anchor = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var end = anchor.AddDays(7);
+
+        TimeSpan? minimum = null;
+        var previous = NextOccurrence(anchor);
+        if (previous == null) return null;
+
+        while (previous.Value < end)
+        {
+            var next = NextOccurrence(previous.Value);
+            if (next == null) break;
+
+            var gap = next.Value - previous.Value;
+            if (minimum == null || gap < minimum) minimum = gap;
+
+            if (stopBelow.HasValue && gap < stopBelow.Value) return gap;
+
+            previous = next;
+        }
+
+        return minimum;
+    }
+
     private void assertSatisfiableCadence()
     {
         // Sample the first gap from a fixed anchor. Not a proof over every gap the expression can

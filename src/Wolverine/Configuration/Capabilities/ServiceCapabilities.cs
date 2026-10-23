@@ -15,6 +15,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Recurring;
 
 namespace Wolverine.Configuration.Capabilities;
 
@@ -652,21 +653,54 @@ public class ServiceCapabilities : OptionsDescription
                 "Wolverine was unable to read the recurring-message tracking rows for the ServiceCapabilities snapshot. Schedule definitions are still reported; pause state and pending occurrences are not.");
         }
 
+        // GH-5168. A timer schedule is also paused when its agent is, however that pause was applied.
+        var pausedTimerAgents = new HashSet<Uri>();
+        if (schedules.Any(x => x.ExecutionPath == RecurringExecutionPath.Timer))
+        {
+            try
+            {
+                var control = runtime.Services.GetService<IRecurringScheduleControl>() as RecurringScheduleControl;
+                if (control != null)
+                {
+                    foreach (var name in await control.PausedTimerScheduleNamesAsync(token))
+                    {
+                        pausedTimerAgents.Add(RecurringTimerAgentFamily.UriFor(name));
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                token.ThrowIfCancellationRequested();
+                runtime.Logger.LogWarning(e,
+                    "Wolverine was unable to read the agent restrictions of the recurring timer schedules for the ServiceCapabilities snapshot.");
+            }
+        }
+
         var now = DateTimeOffset.UtcNow;
         foreach (var schedule in schedules.OrderBy(x => x.Name, StringComparer.Ordinal))
         {
             var row = rows.GetValueOrDefault(schedule.Name);
+            var agentUri = schedule.TimerAgentUri;
+            var paused = (row?.Paused ?? false) || (agentUri != null && pausedTimerAgents.Contains(agentUri));
+
             capabilities.RecurringSchedules.Add(new RecurringScheduleDescriptor
             {
                 Name = schedule.Name,
                 CronExpression = schedule.Schedule.Expression,
                 TimeZoneId = schedule.Schedule.TimeZone.Id,
                 MessageType = TypeDescriptor.For(schedule.MessageType),
-                Paused = row?.Paused ?? false,
+                Paused = paused,
                 PausedAt = row?.PausedAt,
-                NextOccurrence = row?.Paused == true
+                ExecutionPath = schedule.ExecutionPath,
+                AgentUri = agentUri,
+
+                // A timer schedule keeps no pending occurrence on its row; its next firing is the
+                // computed one.
+                NextOccurrence = paused
                     ? null
-                    : row?.NextOccurrence ?? schedule.Schedule.NextOccurrence(now)
+                    : agentUri == null
+                        ? row?.NextOccurrence ?? schedule.Schedule.NextOccurrence(now)
+                        : schedule.Schedule.NextOccurrence(now)
             });
         }
     }
