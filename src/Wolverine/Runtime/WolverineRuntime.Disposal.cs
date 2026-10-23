@@ -32,6 +32,12 @@ public partial class WolverineRuntime : IAsyncDisposable
             await InMemoryRecurringAgent.StopAsync(CancellationToken.None);
         }
 
+        // GH-5168. The timer agents started directly beside it on the same kind of host.
+        if (InMemoryRecurringTimers != null)
+        {
+            await InMemoryRecurringTimers.StopAllLocallyAsync();
+        }
+
         if (ScheduledJobs != null)
         {
             ScheduledJobs.Dispose();

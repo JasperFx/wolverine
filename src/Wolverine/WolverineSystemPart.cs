@@ -171,7 +171,7 @@ internal class WolverineSystemPart : SystemPartBase
         var table = new Table
         {
             Title = new TableTitle("Recurring Messages") { Style = new Style(decoration: Decoration.Bold) }
-        }.AddColumns("Schedule", "Cron", "Time Zone", "Message Type", "Next Occurrence (UTC)");
+        }.AddColumns("Schedule", "Cron", "Time Zone", "Message Type", "Execution", "Next Occurrence (UTC)");
 
         var now = DateTimeOffset.UtcNow;
         foreach (var schedule in schedules.OrderBy(x => x.Name, StringComparer.Ordinal))
@@ -182,6 +182,10 @@ internal class WolverineSystemPart : SystemPartBase
                 schedule.Schedule.Expression.EscapeMarkup(),
                 schedule.Schedule.TimeZone.Id.EscapeMarkup(),
                 schedule.MessageType.FullNameInCode().EscapeMarkup(),
+                // GH-5168
+                (schedule.ExecutionPath == RecurringExecutionPath.Timer
+                    ? $"Timer agent ({schedule.TimerAgentUri})"
+                    : "Scheduled messages").EscapeMarkup(),
                 next?.ToUniversalTime().ToString("u").EscapeMarkup() ?? "none");
         }
 

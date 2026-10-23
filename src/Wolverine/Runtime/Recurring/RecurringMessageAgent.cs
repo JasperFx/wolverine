@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Runtime.Recurring;
@@ -44,7 +44,11 @@ internal class RecurringMessageAgent : SingularAgent
     private readonly ILogger<RecurringMessageAgent> _logger;
     private readonly Dictionary<string, DateTimeOffset> _lastPublished = new();
     private readonly Dictionary<string, DateTimeOffset> _lastVerified = new();
-    private readonly HashSet<string> _warnedNoRoutes = new();
+    private readonly RecurringOccurrencePublisher _publisher;
+
+    // GH-5168. Timer schedules whose leftover pre-scheduled occurrence this instance has already
+    // dealt with, so the cleanup runs once per schedule rather than on every tick.
+    private readonly HashSet<string> _timerCleanedUp = new();
 
     // Only the channel for pause/resume on a store WITHOUT the recurring tracking extension —
     // with a real store the durable row is the single channel, deliberately (see
@@ -70,6 +74,7 @@ internal class RecurringMessageAgent : SingularAgent
     {
         _runtime = runtime;
         _logger = logger;
+        _publisher = new RecurringOccurrencePublisher(runtime, logger);
     }
 
     /// <summary>
@@ -284,6 +289,14 @@ internal class RecurringMessageAgent : SingularAgent
             {
                 var row = rows?.GetValueOrDefault(message.Name);
 
+                // GH-5168. A timer schedule belongs to its own RecurringTimerAgent. All this agent
+                // still does for it is tidy up after the scheduled path it may have run on before.
+                if (message.ExecutionPath == RecurringExecutionPath.Timer)
+                {
+                    await tidyUpTimerScheduleAsync(store, message, row, cancellation);
+                    continue;
+                }
+
                 if (row is { Paused: true } || isLocallyPaused(message.Name))
                 {
                     await honourPauseAsync(store, message.Name, row, now, cancellation);
@@ -362,6 +375,51 @@ internal class RecurringMessageAgent : SingularAgent
         var untilNext = soonest.Value - now;
         if (untilNext > MaximumTickInterval) return MaximumTickInterval;
         return untilNext < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : untilNext;
+    }
+
+    /// <summary>
+    /// GH-5168. A schedule that has moved to the timer path (a new release, a lowered threshold, an
+    /// explicit <see cref="RecurringMessage.UseTimer" />) can leave behind the occurrence an earlier
+    /// version of this agent pre-scheduled for it. Cancel it, once, so the inbox does not carry a row
+    /// the timer has made redundant -- it carries the same deduplication id as the timer's publish of
+    /// the same occurrence, so even an uncancelled leftover would collapse to one handling.
+    /// <para>
+    /// Also honours a trigger request left on the row: the timer path triggers from the calling node
+    /// and never writes one, but a node still running the previous release would.
+    /// </para>
+    /// </summary>
+    private async Task tidyUpTimerScheduleAsync(IRecurringMessageStore store, RecurringMessage message,
+        RecurringMessageRecord? row, CancellationToken cancellation)
+    {
+        _lastPublished.Remove(message.Name);
+        _lastVerified.Remove(message.Name);
+
+        if (!store.Enabled || row == null || row.Paused) return;
+
+        if (row.TriggerRequestedAt != null)
+        {
+            await honourTriggerAsync(store, message, row.TriggerRequestedAt.Value, cancellation);
+        }
+
+        if (row.EnvelopeIds.Length == 0 || !_timerCleanedUp.Add(message.Name)) return;
+
+        await _runtime.Storage.ScheduledMessages.CancelAsync(
+            new ScheduledMessageQuery { MessageIds = row.EnvelopeIds, PageSize = row.EnvelopeIds.Length },
+            cancellation);
+
+        // Clear the tracked envelopes so verification elsewhere never chases them; the pause state is
+        // preserved by RecordPublishedAsync's contract.
+        await store.RecordPublishedAsync(new RecurringMessageRecord
+        {
+            Name = message.Name,
+            CronExpression = message.Schedule.Expression,
+            EnvelopeIds = [],
+            LastUpdated = TimeProvider.GetUtcNow()
+        }, cancellation);
+
+        _logger.LogInformation(
+            "Recurring message '{Name}' now runs on a timer agent; cancelled its leftover pre-scheduled occurrence",
+            message.Name);
     }
 
     private async Task<Dictionary<string, RecurringMessageRecord>?> tryLoadTrackingRowsAsync(
@@ -479,89 +537,12 @@ internal class RecurringMessageAgent : SingularAgent
 
     private Task<Envelope[]> publishOccurrenceAsync(RecurringMessage message, DateTimeOffset occurrence)
     {
-        // The deterministic occurrence id — identical across nodes, restarts and time zones —
-        // that lets the GH-4180 dedupe collapse a failover double-publish at consumption.
-        return publishAsync(message, occurrence, message.DeduplicationIdFor(occurrence), occurrence);
+        return _publisher.PublishOccurrenceAsync(message, occurrence, occurrence);
     }
 
-    /// <summary>
-    /// A manual occurrence: published for IMMEDIATE delivery (no <c>ScheduledTime</c> — "run now"
-    /// means now) and carrying its own deduplication id, so it is never collapsed into the
-    /// scheduled firing it may coincide with.
-    /// </summary>
     private Task<Envelope[]> publishManualOccurrenceAsync(RecurringMessage message, DateTimeOffset requestedAt)
     {
-        return publishAsync(message, requestedAt, message.ManualDeduplicationIdFor(requestedAt), null);
-    }
-
-    private async Task<Envelope[]> publishAsync(RecurringMessage message, DateTimeOffset occurrence,
-        string deduplicationId, DateTimeOffset? scheduledTime)
-    {
-        var body = message.Creator(occurrence) ?? throw new InvalidOperationException(
-            $"The creator for recurring message '{message.Name}' returned null");
-
-        _logger.LogDebug(
-            scheduledTime == null
-                ? "Publishing a manual occurrence of recurring message '{Name}' requested at {Occurrence}"
-                : "Scheduling occurrence of recurring message '{Name}' for {Occurrence}",
-            message.Name, occurrence);
-
-        var options = new DeliveryOptions
-        {
-            ScheduledTime = scheduledTime,
-            DeduplicationId = deduplicationId
-        };
-        options.Headers[RecurringMessage.HeaderKey] = message.Name;
-
-        // GH-4445. ScheduledTime is cleared by the scheduled machinery at fire time, so without this
-        // the handler cannot tell which firing it is serving except by string-parsing the dedup id,
-        // which exists for deduplication and not for attribution. Normalized to UTC and written
-        // round-trippable ("O") so it parses back to the same instant everywhere.
-        var occurrenceHeader = occurrence.ToUniversalTime().ToString("O");
-        options.Headers[RecurringMessage.OccurrenceHeaderKey] = occurrenceHeader;
-
-        // GH-4647. Each occurrence is published inside its own short-lived activity, so the
-        // envelope's ParentId (stamped from Activity.Current below) and the bus's correlation id
-        // (its root id, taken in the MessageBus constructor) point at a bounded root of this
-        // occurrence's own -- never at whatever was ambient on the loop. Started before the bus is
-        // built, on purpose, for that second reason. Carries the same schedule identity the
-        // handler's execution span reads off the headers, so the two join up in a trace.
-        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.RecurringOccurrence);
-        activity?.SetTag(WolverineTracing.ScheduleName, message.Name);
-        activity?.SetTag(WolverineTracing.ScheduleOccurrence, occurrenceHeader);
-
-        // The routed-then-persisted spelling of IMessageBus.PublishAsync, taken apart only
-        // because the public path never surfaces the envelopes (GH-4180's own analysis) and the
-        // tracking row needs their ids. Everything else — routing, correlation stamping, the
-        // persist-or-send decision — is the same machinery PublishAsync runs.
-        var bus = new MessageBus(_runtime);
-        var outgoing = _runtime.RoutingFor(body.GetType()).RouteForPublish(body, options);
-
-        if (outgoing.Length == 0)
-        {
-            // For a registered schedule this is a misconfiguration worth saying out loud — the
-            // cron ticks forever and every occurrence goes nowhere. Once per schedule, since the
-            // tick loop keeps retrying.
-            if (_warnedNoRoutes.Add(message.Name))
-            {
-                _logger.LogWarning(
-                    "The occurrence of recurring message '{Name}' ({MessageType}) has no subscribers or handlers — nothing was scheduled",
-                    message.Name, message.MessageType.FullNameInCode());
-            }
-
-            _runtime.MessageTracking.NoRoutesFor(new Envelope(body));
-            return outgoing;
-        }
-
-        _warnedNoRoutes.Remove(message.Name);
-
-        foreach (var envelope in outgoing)
-        {
-            bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
-        }
-
-        await bus.PersistOrSendAsync(outgoing);
-        return outgoing;
+        return _publisher.PublishManualOccurrenceAsync(message, requestedAt);
     }
 
     private async Task recordPublishAsync(IRecurringMessageStore store, RecurringMessage message,

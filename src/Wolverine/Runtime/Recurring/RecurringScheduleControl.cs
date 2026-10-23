@@ -1,3 +1,5 @@
+using JasperFx;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 
@@ -50,6 +52,16 @@ public class RecurringSchedulePausedException : Exception
 /// or storeless host, where the agent is always local), are lost on restart, and an
 /// already-pre-scheduled occurrence cannot be cancelled — it will still fire once.
 /// </para>
+///
+/// <para>
+/// GH-5168. For a schedule on the timer path (<see cref="RecurringExecutionPath.Timer" />) the same
+/// verbs act on its agent instead: pausing applies an <see cref="AgentRestrictionType.Paused" />
+/// restriction (durable, cluster-wide, and confirmed before the call returns) and mirrors the pause
+/// onto the tracking row; resuming lifts both; triggering publishes one manual occurrence straight
+/// from the calling node. A timer schedule whose agent was paused directly is reported paused here
+/// too, and refuses a trigger. With no message store, pause and resume stop and start the timer
+/// agent in this process.
+/// </para>
 /// </summary>
 public interface IRecurringScheduleControl
 {
@@ -95,19 +107,33 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
 {
     private readonly IWolverineRuntime _runtime;
     private readonly RecurringMessageAgent? _agent;
+    private readonly RecurringTimerAgentFamily? _timers;
+    private readonly Lazy<RecurringOccurrencePublisher> _publisher;
 
     public RecurringScheduleControl(IWolverineRuntime runtime, IEnumerable<IAgentFamily> agentFamilies)
     {
         _runtime = runtime;
 
+        var families = agentFamilies.ToArray();
+
         // The singular agent is a container singleton on EVERY node; it only RUNS on one. The
         // local instance is the pause/resume channel exactly when the store cannot be — see below.
-        _agent = agentFamilies.OfType<RecurringMessageAgent>().FirstOrDefault();
+        _agent = families.OfType<RecurringMessageAgent>().FirstOrDefault();
+        _timers = families.OfType<RecurringTimerAgentFamily>().FirstOrDefault();
+
+        _publisher = new Lazy<RecurringOccurrencePublisher>(() =>
+            new RecurringOccurrencePublisher(runtime, runtime.LoggerFactory.CreateLogger<RecurringScheduleControl>()));
     }
 
     public async Task PauseAsync(string name, CancellationToken token = default)
     {
-        assertKnown(name);
+        var message = assertKnown(name);
+
+        if (message.ExecutionPath == RecurringExecutionPath.Timer)
+        {
+            await pauseTimerAsync(message, token);
+            return;
+        }
 
         var store = _runtime.Storage.RecurringMessages;
         if (store.Enabled)
@@ -128,7 +154,13 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
 
     public async Task ResumeAsync(string name, CancellationToken token = default)
     {
-        assertKnown(name);
+        var message = assertKnown(name);
+
+        if (message.ExecutionPath == RecurringExecutionPath.Timer)
+        {
+            await resumeTimerAsync(message, token);
+            return;
+        }
 
         var store = _runtime.Storage.RecurringMessages;
         if (store.Enabled)
@@ -143,7 +175,13 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
 
     public async Task TriggerAsync(string name, CancellationToken token = default)
     {
-        assertKnown(name);
+        var message = assertKnown(name);
+
+        if (message.ExecutionPath == RecurringExecutionPath.Timer)
+        {
+            await triggerTimerAsync(message, token);
+            return;
+        }
 
         var store = _runtime.Storage.RecurringMessages;
         if (store.Enabled)
@@ -161,16 +199,170 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
         }
     }
 
-    public Task<IReadOnlyList<RecurringMessageRecord>> QueryAsync(CancellationToken token = default)
+    public async Task<IReadOnlyList<RecurringMessageRecord>> QueryAsync(CancellationToken token = default)
     {
-        return _runtime.Storage.RecurringMessages.LoadAllAsync(token);
+        var rows = await _runtime.Storage.RecurringMessages.LoadAllAsync(token);
+
+        // GH-5168. A timer schedule can be paused straight through its agent (an agents screen, an
+        // operator's own ApplyRestrictionsAsync) without the row hearing about it. Report it paused
+        // either way, so there is one visible state.
+        var pausedTimers = await PausedTimerScheduleNamesAsync(token);
+        if (pausedTimers.Count == 0) return rows;
+
+        return rows.Select(row => row.Paused || !pausedTimers.Contains(row.Name)
+            ? row
+            : new RecurringMessageRecord
+            {
+                Name = row.Name,
+                CronExpression = row.CronExpression,
+                EnvelopeIds = row.EnvelopeIds,
+                DeduplicationId = row.DeduplicationId,
+                NextOccurrence = row.NextOccurrence,
+                Paused = true,
+                PausedAt = row.PausedAt,
+                TriggerRequestedAt = row.TriggerRequestedAt,
+                LastUpdated = row.LastUpdated
+            }).ToList();
     }
 
-    private void assertKnown(string name)
+    /// <summary>
+    /// GH-5168. The timer schedules currently paused by an agent restriction (or, with no message
+    /// store, by the in-memory pause), whatever their tracking rows say.
+    /// </summary>
+    internal async Task<HashSet<string>> PausedTimerScheduleNamesAsync(CancellationToken token)
     {
-        if (_runtime.Options.Schedules.FindByName(name) == null)
+        var timerSchedules = _runtime.Options.Schedules.TimerSchedules();
+        if (timerSchedules.Count == 0) return [];
+
+        if (isStoreless)
         {
-            throw new UnknownRecurringScheduleException(name, _runtime.Options.Schedules);
+            return timerSchedules.Where(x => _timers?.IsLocallyPaused(x.Name) == true).Select(x => x.Name)
+                .ToHashSet();
         }
+
+        var state = await _runtime.Storage.Nodes.LoadNodeAgentStateAsync(token);
+        var paused = state.Restrictions.FindPausedAgentUris().ToHashSet();
+
+        return timerSchedules.Where(x => paused.Contains(RecurringTimerAgentFamily.UriFor(x.Name)))
+            .Select(x => x.Name).ToHashSet();
+    }
+
+    private bool isStoreless => _runtime.Storage is NullMessageStore;
+
+    /// <summary>
+    /// GH-5168. A timer schedule pauses by pausing its agent: an agent restriction, which is durable,
+    /// cluster-wide and confirmed (the leader stops the agent wherever it runs before
+    /// ApplyRestrictionsAsync returns). The restriction goes first so the agent is already stopped
+    /// when the tracking row is marked; the row is the mirror that keeps one visible pause state.
+    /// </summary>
+    private async Task pauseTimerAsync(RecurringMessage message, CancellationToken token)
+    {
+        var uri = RecurringTimerAgentFamily.UriFor(message.Name);
+
+        if (isStoreless)
+        {
+            // No restrictions without a store: an in-memory pause of the agent in this process,
+            // which is the only place it can be running on such a host.
+            _timers?.MarkLocallyPaused(message.Name);
+            if (_timers != null)
+            {
+                var agent = _timers.AgentFor(uri);
+                if (agent.Status == AgentStatus.Running) await agent.StopAsync(token);
+            }
+
+            return;
+        }
+
+        var restrictions = new AgentRestrictions([]);
+        restrictions.PauseAgent(uri);
+        await _runtime.Agents.ApplyRestrictionsAsync(restrictions, token);
+
+        // Solo mode has no assignment grid to carry a pause out to a running agent (GH-4672 only
+        // keeps the Solo loop from restarting it), so stop it here, where it runs.
+        if (_runtime.Options.Durability.Mode == DurabilityMode.Solo)
+        {
+            await _runtime.Agents.StopLocallyAsync(uri);
+        }
+
+        var store = _runtime.Storage.RecurringMessages;
+        if (store.Enabled)
+        {
+            await store.PauseAsync(message.Name, DateTimeOffset.UtcNow, token);
+        }
+    }
+
+    /// <summary>
+    /// GH-5168. The mirror image of <see cref="pauseTimerAsync" />, in the opposite order: the row's
+    /// pause mark is cleared first, because a starting timer agent reads it and would otherwise sit
+    /// out one <see cref="RecurringTimerAgent.PauseCheckInterval" /> before noticing the resume.
+    /// </summary>
+    private async Task resumeTimerAsync(RecurringMessage message, CancellationToken token)
+    {
+        var uri = RecurringTimerAgentFamily.UriFor(message.Name);
+
+        if (isStoreless)
+        {
+            _timers?.MarkLocallyResumed(message.Name);
+            if (_timers != null)
+            {
+                await _timers.AgentFor(uri).StartAsync(token);
+            }
+
+            return;
+        }
+
+        var store = _runtime.Storage.RecurringMessages;
+        if (store.Enabled)
+        {
+            await store.ResumeAsync(message.Name, token);
+        }
+
+        // Only an existing Paused entry can be flipped back, and merging a "None" entry also clears a
+        // pin on the same agent -- so carry any pin through the same change, after the None, to keep
+        // an operator's placement intact.
+        var state = await _runtime.Storage.Nodes.LoadNodeAgentStateAsync(token);
+        var pins = state.Restrictions.FindPinnedAgents().Where(x => x.AgentUri == uri).ToArray();
+
+        var changes = new List<AgentRestriction>
+        {
+            new(Guid.NewGuid(), uri, AgentRestrictionType.None, 0)
+        };
+        changes.AddRange(pins);
+
+        await _runtime.Agents.ApplyRestrictionsAsync(new AgentRestrictions(changes.ToArray()), token);
+
+        // Solo mode's loop would start it again within a CheckAssignmentPeriod; do it now.
+        if (_runtime.Options.Durability.Mode == DurabilityMode.Solo)
+        {
+            await _runtime.Agents.StartLocallyAsync(uri);
+        }
+    }
+
+    /// <summary>
+    /// GH-5168. A timer schedule has no pre-scheduled occurrence and no tick for a durable trigger
+    /// request to wait for, so the manual occurrence is published straight from the calling node,
+    /// with the same manual deduplication id the scheduled path uses.
+    /// </summary>
+    private async Task triggerTimerAsync(RecurringMessage message, CancellationToken token)
+    {
+        if ((await PausedTimerScheduleNamesAsync(token)).Contains(message.Name))
+        {
+            throw new RecurringSchedulePausedException(message.Name);
+        }
+
+        var store = _runtime.Storage.RecurringMessages;
+        if (store.Enabled)
+        {
+            var row = await store.LoadAsync(message.Name, token);
+            if (row is { Paused: true }) throw new RecurringSchedulePausedException(message.Name);
+        }
+
+        await _publisher.Value.PublishManualOccurrenceAsync(message, DateTimeOffset.UtcNow);
+    }
+
+    private RecurringMessage assertKnown(string name)
+    {
+        return _runtime.Options.Schedules.FindByName(name)
+               ?? throw new UnknownRecurringScheduleException(name, _runtime.Options.Schedules);
     }
 }
