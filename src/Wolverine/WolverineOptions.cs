@@ -29,8 +29,11 @@ public enum MultipleHandlerBehavior
 {
     /// <summary>
     /// The "classic" Wolverine behavior where multiple handlers for the same message
-    /// type are combined into a single logical message handler
+    /// type are combined into a single logical message handler. Still the default in Wolverine 6.x,
+    /// but obsolete: Wolverine 7.0 removes <see cref="MultipleHandlerBehavior"/> and always builds one
+    /// handler chain per handler type, which is what <see cref="Separated"/> does today
     /// </summary>
+    [Obsolete("ClassicCombineIntoOneLogicalHandler is removed in Wolverine 7.0, where every handler type gets its own handler chain -- the behavior of MultipleHandlerBehavior.Separated today. Switch to MultipleHandlerBehavior.Separated, and call WolverineOptions.AssertNoCombinedHandlers() to find the message types that are still combined.")]
     ClassicCombineIntoOneLogicalHandler,
     
     /// <summary>
@@ -504,6 +507,12 @@ public sealed partial class WolverineOptions
     ///
     /// This frequently comes into play with "modular monolith" architectures
     /// </summary>
+    /// <remarks>
+    /// ClassicCombineIntoOneLogicalHandler is obsolete and removed in Wolverine 7.0 along with this
+    /// property; 7.0 always behaves like <see cref="Wolverine.MultipleHandlerBehavior.Separated"/>. While
+    /// the classic mode is in use, Wolverine logs one warning at startup that lists every message type
+    /// whose handlers it combined. See <see cref="AssertNoCombinedHandlers"/>
+    /// </remarks>
     public MultipleHandlerBehavior MultipleHandlerBehavior
     {
         get => HandlerGraph.MultipleHandlerBehavior;

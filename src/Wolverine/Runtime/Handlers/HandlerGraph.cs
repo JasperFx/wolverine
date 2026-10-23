@@ -793,6 +793,23 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
     }
 
+    /// <summary>
+    /// GH-5133. The chains that hold handlers from more than one handler class for the same message type,
+    /// which only the obsolete ClassicCombineIntoOneLogicalHandler mode builds. Several methods of one
+    /// class (a saga's Start and Handle) are one handler type and do not count.
+    /// </summary>
+    internal HandlerChain[] CombinedHandlerChains()
+    {
+#pragma warning disable CS0618 // the obsolete value is exactly what this looks for
+        if (MultipleHandlerBehavior != MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler) return [];
+#pragma warning restore CS0618
+
+        return AllChains()
+            .Where(x => x.Handlers.Select(h => h.HandlerType).Distinct().Count() > 1)
+            .OrderBy(x => x.MessageType.FullNameInCode())
+            .ToArray();
+    }
+
     public IEnumerable<HandlerChain> AllChains()
     {
         foreach (var chain in Chains)

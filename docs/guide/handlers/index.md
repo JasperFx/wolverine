@@ -225,6 +225,19 @@ In all cases, if you are using one of the built in message broker conventional r
 a separate listener for each handler using the handler type to determine the queue / subscription / topic names instead
 of the message type *if* there is more than one handler for that type.
 
+### Preparing for Wolverine 7.0
+
+`ClassicCombineIntoOneLogicalHandler` is still the default in Wolverine 6.x, but it is marked `[Obsolete]`. Wolverine 7.0
+removes `MultipleHandlerBehavior` and always behaves like `Separated` does today, with one handler chain per handler type.
+While the classic mode is in use, Wolverine logs one warning at startup that lists every message type whose handlers
+from more than one class were combined. Several methods on the same class for the same message, like a saga's `Start()` and
+`Handle()` methods, are not counted.
+
+To make that a startup failure, say in a CI build or a test, use `AssertNoCombinedHandlers()`:
+
+<!-- snippet: sample_assert_no_combined_handlers -->
+<!-- endSnippet -->
+
 ## Message Handler Parameters
 
 ::: info
