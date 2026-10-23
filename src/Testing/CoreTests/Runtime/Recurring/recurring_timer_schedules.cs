@@ -70,26 +70,29 @@ public class recurring_timer_schedules
     [Fact]
     public void a_per_schedule_override_wins_in_both_directions()
     {
-        var collection = schedules();
+        var opts = new WolverineOptions();
 
         #region sample_overriding_the_recurring_execution_path
 
+        // Anything under this runs on a timer agent automatically. 15 minutes is the default
+        opts.Schedules.TimerThreshold = TimeSpan.FromMinutes(15);
+
         // A daily schedule that should still fire the moment it comes due
-        collection.ScheduleRecurring("daily-timer", "0 9 * * *", _ => new TimerTickMessage())
+        opts.Schedules.ScheduleRecurring("daily-timer", "0 9 * * *", _ => new TimerTickMessage())
             .UseTimer();
 
         // A fast schedule that should stay on the scheduled-message path
-        collection.ScheduleRecurring("fast-scheduled", "*/30 * * * * *", _ => new TimerTickMessage())
+        opts.Schedules.ScheduleRecurring("fast-scheduled", "*/30 * * * * *", _ => new TimerTickMessage())
             .UseScheduledMessages();
 
         #endregion
 
-        collection.FindByName("daily-timer")!.ExecutionPath.ShouldBe(RecurringExecutionPath.Timer);
-        collection.FindByName("fast-scheduled")!.ExecutionPath.ShouldBe(RecurringExecutionPath.ScheduledMessages);
+        opts.Schedules.FindByName("daily-timer")!.ExecutionPath.ShouldBe(RecurringExecutionPath.Timer);
+        opts.Schedules.FindByName("fast-scheduled")!.ExecutionPath.ShouldBe(RecurringExecutionPath.ScheduledMessages);
 
         // Overrides do not move with the threshold
-        collection.TimerThreshold = TimeSpan.FromDays(7);
-        collection.FindByName("fast-scheduled")!.ExecutionPath.ShouldBe(RecurringExecutionPath.ScheduledMessages);
+        opts.Schedules.TimerThreshold = TimeSpan.FromDays(7);
+        opts.Schedules.FindByName("fast-scheduled")!.ExecutionPath.ShouldBe(RecurringExecutionPath.ScheduledMessages);
     }
 
     [Fact]

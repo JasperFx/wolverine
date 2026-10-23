@@ -34,7 +34,7 @@ builder.UseWolverine(opts =>
     opts.Schedules.ScheduleRecurring<SendMorningDigest>(nineAmCentral);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L37-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_recurring_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L43-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_recurring_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The message types are handled like any other message — the cron machinery only decides *when* an
@@ -63,7 +63,7 @@ public static class RecurringSampleHandler
         => Console.WriteLine("Good morning!");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L67-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recurring_message_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L73-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recurring_message_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Registering the first schedule is the feature's opt-in. A host with zero schedules registered
@@ -97,6 +97,101 @@ registration wires three things:
    `wolverine.recurring.occurrence` span carrying the same two tags, and that span is the parent the
    occurrence's envelope points at, so each firing is its own trace rather than a child of whatever
    activity happened to be current when the agent started.
+
+## Short cadences: timer agents <Badge type="tip" text="6.52" />
+
+On the path described above, every occurrence waits in the durable inbox until the scheduled-job
+poller next looks (`DurabilitySettings.ScheduledJobPollingTime`, 5 seconds by default), and costs
+an inbox row, a tracking-row write and a deduplication row. That is the right shape for an hourly
+or nightly job. For a schedule that fires every few seconds or minutes, the poller dominates the
+latency, and gets proportionally worse the tighter the schedule is.
+
+So a short-cadence schedule runs on a **timer agent** of its own instead: one agent per schedule,
+at `wolverine-recurring-timer:///{schedule name}` (the name URL-encoded), placed by Wolverine's
+[agent assignment](/guide/durability/leadership-and-troubleshooting) like any other agent and
+spread evenly across the cluster. The agent computes the next occurrence, waits for it on an
+in-memory timer, and publishes it the moment it comes due. There is no scheduled inbox row, no
+poller in between, and no tracking-row write per occurrence.
+
+Nothing changes for the handler. A timer occurrence carries the same `recurring-schedule` and
+`recurring-occurrence` headers, the same `wolverine.recurring.occurrence` span, and -- most
+importantly -- the same deduplication id `"{scheduleName}:{occurrenceUtc}"` as the scheduled path.
+That shared identity is what makes a rolling deploy (old nodes still pre-scheduling, new nodes on
+timers) or a brief double run while an agent moves between nodes collapse to one handling per
+occurrence.
+
+### Which schedules run on a timer
+
+A schedule runs on a timer agent when the **shortest gap between two of its occurrences over one
+week** is under `opts.Schedules.TimerThreshold`, which defaults to **15 minutes**. Sampling a week
+rather than the first gap means `*/5 9-17 * * 1-5` counts as a five-minute schedule. A schedule
+can also force either path:
+
+<!-- snippet: sample_overriding_the_recurring_execution_path -->
+<a id='snippet-sample_overriding_the_recurring_execution_path'></a>
+```cs
+// Anything under this runs on a timer agent automatically. 15 minutes is the default
+opts.Schedules.TimerThreshold = TimeSpan.FromMinutes(15);
+
+// A daily schedule that should still fire the moment it comes due
+opts.Schedules.ScheduleRecurring("daily-timer", "0 9 * * *", _ => new TimerTickMessage())
+    .UseTimer();
+
+// A fast schedule that should stay on the scheduled-message path
+opts.Schedules.ScheduleRecurring("fast-scheduled", "*/30 * * * * *", _ => new TimerTickMessage())
+    .UseScheduledMessages();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Recurring/recurring_timer_schedules.cs#L75-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_the_recurring_execution_path' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Setting `TimerThreshold` to `TimeSpan.Zero` keeps every schedule on the scheduled-message path
+unless it opts in with `UseTimer()`. The 5 second minimum cadence applies to both paths. Schedules
+at or above the threshold behave exactly as they always have.
+
+<!-- snippet: sample_short_cadence_recurring_schedule -->
+<a id='snippet-sample_short_cadence_recurring_schedule'></a>
+```cs
+// Every five seconds -- well under the 15 minute TimerThreshold, so this
+// schedule runs on a timer agent of its own and each occurrence is published
+// the moment it comes due
+opts.Schedules.ScheduleRecurring(ScheduleName, "*/5 * * * * *",
+    occurrence => new TimerOccurrence(occurrence));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/recurring_timer_agents_across_nodes.cs#L78-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_short_cadence_recurring_schedule' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### What changes on the timer path
+
+* **Missed occurrences are still skipped, never back-filled.** A (re)started timer agent begins
+  with the first occurrence after "now", so the occurrences that fall inside the window while a dead
+  node's agent is being reassigned are lost. There is no pre-scheduled envelope to fire in the
+  meantime, which is the one real difference from the scheduled path.
+* **Pause is an agent restriction.** `IRecurringScheduleControl.PauseAsync` pauses the schedule's
+  agent through `IAgentRuntime.ApplyRestrictionsAsync` -- durable, cluster-wide, and confirmed
+  before the call returns -- and mirrors the pause onto the schedule's tracking row so there is one
+  visible state. `ResumeAsync` lifts both; the next occurrence is again the first one after the
+  resume. Pausing the agent directly (from an agents screen, say) also shows as the schedule being
+  paused, and the agent honours a pause mark it finds on the tracking row, so a schedule paused while
+  it still ran on the scheduled-message path stays paused when a release moves it to a timer.
+* **A trigger publishes from the calling node.** `TriggerAsync` publishes one manual occurrence
+  immediately, with the same `{schedule}:manual:{requested:O}` deduplication id as the scheduled
+  path, and is refused while the schedule is paused.
+* **Moving to the timer path cleans up after itself.** The scheduled-path agent no longer schedules
+  a timer schedule, and cancels the leftover pre-scheduled occurrence an earlier release may have
+  left in the inbox.
+
+### Durability modes
+
+| Mode | What the timer path does |
+|------|--------------------------|
+| `Balanced` | One agent per schedule, distributed evenly by the leader. Only nodes whose release declares a schedule are eligible, and warm-up nodes never run one. |
+| `Solo` | The node starts every timer agent itself. Pause stops the agent locally and the Solo loop does not restart it. |
+| No message store | The timer agents start directly, like the scheduled-path agent. Pause and resume stop and start the agent in this process, and are lost on restart. |
+| `Serverless`, `ServerlessWithOutbox`, `MediatorOnly` | No agents run, so -- exactly as on the scheduled path -- Wolverine refuses to start with schedules registered. |
+
+`ServiceCapabilities.RecurringSchedules` reports each schedule's `ExecutionPath` and, for timer
+schedules, its `AgentUri`, so a monitoring console can show which node owns the schedule.
+`wolverine describe` shows the execution path too.
 
 ## Cron expressions
 
@@ -168,10 +263,11 @@ await control.TriggerAsync("daily-report");
 // envelope, next fire times, pause state
 var schedules = await control.QueryAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L12-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pausing_and_resuming_recurring_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L12-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pausing_and_resuming_recurring_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The semantics, precisely:
+The semantics on the scheduled-message path, precisely (a timer schedule pauses through its agent
+instead -- see [what changes on the timer path](#what-changes-on-the-timer-path)):
 
 * **Pause marks the durable tracking row and eagerly cancels the pending pre-scheduled
   envelope.** The caller may be on a different node than the scheduling agent, so nothing is
@@ -214,7 +310,7 @@ there is no parallel configuration surface to keep in sync:
   strings. The read is best-effort: an unreachable database costs the snapshot the runtime
   fields, never the schedule definitions.
 * **`wolverine describe`** renders a Recurring Messages table (name, cron, time zone, message
-  type, computed next occurrence).
+  type, execution path, computed next occurrence).
 * **The Event Model**: a slice whose command type has a registered schedule is triggered by the
   job scheduler — the same treatment `TimeoutMessage` gets — with the cron expression as the
   trigger origin's label.
