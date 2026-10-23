@@ -9,6 +9,7 @@ using Oracle.ManagedDataAccess.Client;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Oracle;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Oracle.Transport;
 using Wolverine.Persistence.Durability;
@@ -113,7 +114,28 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
 
     internal bool AlreadyIncluded { get; set; }
 
+    internal WolverineOptions Options => _options;
+
     public string? ConnectionString { get; set; }
+
+    /// <summary>
+    /// GH-5127. Set by PersistMessagesWithOracleUsingNamedConnection(): the connection string is resolved from
+    /// IConfiguration once the container exists, so <see cref="ConnectionString"/> is still empty at configuration time
+    /// </summary>
+    internal NamedConfigurationDependency? NamedConnection { get; set; }
+
+    /// <summary>
+    /// The connection information is not known until the container exists
+    /// </summary>
+    private bool resolvesConnectionLater => NamedConnection != null;
+
+    private void resolveDeferredConnection(IServiceProvider services)
+    {
+        if (NamedConnection != null)
+        {
+            services.GetService<IWolverineRuntime>()?.EnsureNamedConnectionStringsApplied();
+        }
+    }
 
     private string _envelopeStorageSchemaName = null!;
 
@@ -146,7 +168,7 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
 
     public void Configure(WolverineOptions options)
     {
-        if (ConnectionString.IsEmpty())
+        if (ConnectionString.IsEmpty() && !resolvesConnectionLater)
         {
             throw new InvalidOperationException(
                 "The Oracle backed persistence needs to have a connection string defined for the main envelope database");
@@ -157,7 +179,20 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
                 oracle.Number == 1)
             .Discard();
 
-        options.Services.AddSingleton(buildMainDatabaseSettings());
+        if (resolvesConnectionLater)
+        {
+            // GH-5127. The connection information only exists once the container does
+            options.Services.AddSingleton(s =>
+            {
+                resolveDeferredConnection(s);
+                return buildMainDatabaseSettings();
+            });
+        }
+        else
+        {
+            options.Services.AddSingleton(buildMainDatabaseSettings());
+        }
+
         options.CodeGeneration.AddPersistenceStrategy<LightweightSagaPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
@@ -181,6 +216,7 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)
     {
+        resolveDeferredConnection(runtime.Services);
         var settings = buildMainDatabaseSettings();
 
         var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();

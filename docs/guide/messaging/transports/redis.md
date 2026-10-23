@@ -86,6 +86,58 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L20-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares a Redis resource
+and references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var redis = builder.AddRedis("redis");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(redis)
+    .WaitFor(redis);
+```
+
+Aspire hands your service a StackExchange.Redis connection string like `host:port,password=...` at
+`ConnectionStrings:redis`, and all you need to tell Wolverine is that name:
+
+<!-- snippet: sample_redis_using_named_connection -->
+<a id='snippet-sample_redis_using_named_connection'></a>
+```cs
+// "redis" is the name of the Redis resource in the Aspire AppHost,
+// i.e. builder.AddRedis("redis"), referenced by this project
+opts.UseRedisTransportUsingNamedConnection("redis").AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/named_connection_5126.cs#L78-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redis_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+In this case Wolverine builds the `ConnectionMultiplexer` from that connection string, and Wolverine owns and disposes
+it. If your application talks to more than one Redis server, there's a named broker version as well:
+
+<!-- snippet: sample_redis_named_broker_using_named_connection -->
+<a id='snippet-sample_redis_named_broker_using_named_connection'></a>
+```cs
+opts.UseRedisTransportUsingNamedConnection("redis");
+
+// A second, independent Redis broker whose connection string comes from
+// builder.AddRedis("redis-audit") in the Aspire AppHost
+opts.AddNamedRedisBrokerUsingNamedConnection(new BrokerName("audit"), "redis-audit");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/named_connection_5126.cs#L109-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redis_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+If you're also using Aspire's Redis *client* integration in your service with `builder.AddRedisClient("redis")`, that
+already registers an `IConnectionMultiplexer` in your container. You can have Wolverine share that very same
+multiplexer instead of making its own with
+`opts.UseRedisTransport(sp => sp.GetRequiredService<IConnectionMultiplexer>())`, which is the fourth option in
+[Connection Options](#connection-options) just below.
+:::
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
 ## Connection Options <Badge type="tip" text="6.9" />
 
 `UseRedisTransport()` accepts four different connection sources. The connection string overload above
@@ -486,21 +538,21 @@ using var host = await builder.UseWolverine(opts =>
         .SendInline();
 
     opts.ListenToRedisStream("wolverine-messages", "default")
-        .EnableNativeDeadLetterQueue() // Enable DLQ for failed messages
-        .UseDurableInbox(); // Use durable inbox so retry messages are persisted
-    
-    // schedule retry delays
-    // if durable, these will be scheduled natively in Redis
+        .EnableNativeDeadLetterQueue(); // Enable DLQ for failed messages
+
+    // schedule retry delays. On a Buffered (the default) or Inline Redis listener these are
+    // parked natively in Redis, in the stream's scheduled sorted set; a Durable listener
+    // schedules them through its message store's inbox like every other transport
     opts.OnException<Exception>()
         .ScheduleRetry(
             TimeSpan.FromSeconds(10),
             TimeSpan.FromSeconds(20),
             TimeSpan.FromSeconds(30));
-    
+
     opts.Services.AddResourceSetupOnStartup();
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L18-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Resetting in Tests

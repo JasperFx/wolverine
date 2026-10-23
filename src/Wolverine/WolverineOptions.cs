@@ -561,7 +561,7 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// GH-5126. Named connection strings whose resolved value is pushed into a transport (or store) once the
-    /// container is built. See <see cref="NamedConnectionStringExtensions.ApplyNamedConnectionString"/>.
+    /// container is built. See <c>NamedConnectionStringExtensions.ApplyNamedConnectionString</c>.
     /// </summary>
     internal List<NamedConnectionStringBinding> NamedConnectionStringBindings { get; } = new();
 

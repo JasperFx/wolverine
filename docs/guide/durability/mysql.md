@@ -43,9 +43,101 @@ var app = builder.Build();
 return await app.RunJasperFxCommands(args);
 ```
 
-## Aspire Integration
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-The recommended way to integrate Wolverine with .NET Aspire for MySQL is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`.
+Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares a MySQL
+database and references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var database = builder.AddMySql("server").AddDatabase("wolverinedb");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(database)
+    .WaitFor(database);
+```
+
+Aspire hands your service the connection string at `ConnectionStrings:wolverinedb`, and all you need to tell Wolverine
+is that name. In the sample below, the in memory configuration is just standing in for what Aspire would supply:
+
+<!-- snippet: sample_mysql_persistence_using_named_connection -->
+<a id='snippet-sample_mysql_persistence_using_named_connection'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        // Under Aspire, builder.AddMySql("server").AddDatabase("wolverinedb") plus
+        // .WithReference(...) in the AppHost supplies this
+        ["ConnectionStrings:wolverinedb"] = Servers.MySqlConnectionString
+    }))
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        // Resolve the "wolverinedb" connection string from IConfiguration
+        opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", "named5127");
+    })
+    .UseResourceSetupOnStartup()
+    .StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MySql/MySqlTests/named_connection_5127.cs#L56-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mysql_persistence_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+There's no need to pull the connection string out of `IConfiguration` yourself. Wolverine resolves it once the
+application's container exists, but before the message store is built. If the name is missing, Wolverine fails at
+startup with a single error that lists every missing connection string the application asked for.
+
+If you're also using Aspire's *client* integration in your service with `builder.AddMySqlDataSource("wolverinedb")`, there's already a pooled
+`MySqlDataSource` in your container, and you can have Wolverine use that very same data source:
+
+<!-- snippet: sample_mysql_persistence_using_data_source_from_container -->
+<a id='snippet-sample_mysql_persistence_using_data_source_from_container'></a>
+```cs
+// e.g. registered by Aspire's builder.AddMySqlDataSource("wolverinedb")
+opts.Services.AddSingleton(dataSource);
+
+opts.PersistMessagesWithMySqlUsingDataSourceFromContainer(schemaName: "named5127");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MySql/MySqlTests/named_connection_5127.cs#L98-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mysql_persistence_using_data_source_from_container' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+By default Wolverine resolves `MySqlDataSource` from the container when the message store is built, but you can pass a
+function to pick a keyed registration instead, e.g. `s => s.GetRequiredKeyedService<MySqlDataSource>("wolverinedb")`. Wolverine does not dispose a data source it gets from
+the container.
+
+If you're using [multi-tenancy with a database per tenant](#multi-tenancy), the static tenant databases can be
+resolved by name too:
+
+<!-- snippet: sample_mysql_static_tenants_using_named_connections -->
+<a id='snippet-sample_mysql_static_tenants_using_named_connections'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ConnectionStrings:wolverinedb"] = Servers.MySqlConnectionString,
+        ["ConnectionStrings:tenant1db"] = Servers.MySqlConnectionString
+    }))
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", "named5127")
+            .RegisterStaticTenantsUsingNamedConnections(tenants =>
+            {
+                // tenant id, then the name of its connection string
+                tenants.Register("tenant1", "tenant1db");
+            });
+    })
+    .StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MySql/MySqlTests/named_connection_5127.cs#L125-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mysql_static_tenants_using_named_connections' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
+### Reading the Connection String Yourself
+
+If you'd rather read the connection string that Aspire injects yourself through `IConfiguration.GetConnectionString()`, that works too:
 
 **AppHost** (`Aspire.Hosting.MySql` NuGet):
 ```csharp

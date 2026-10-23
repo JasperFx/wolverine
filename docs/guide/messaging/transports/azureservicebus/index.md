@@ -55,11 +55,88 @@ For security purposes, there are overloads of `UseAzureServiceBus()` that will a
 2. [AzureNamedKeyCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.azurenamedkeycredential?view=azure-dotnet)
 3. [AzureSasCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.azuresascredential?view=azure-dotnet)
 
-## Aspire Integration
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-The cleanest way to integrate Wolverine with .NET Aspire for Azure Service Bus is via `TokenCredential`, typically
-`DefaultAzureCredential` from `Azure.Identity`. Aspire injects the Service Bus namespace via the
-`SERVICEBUS_URI` environment variable (or similar), and you pass it with the credential:
+Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares an Azure Service Bus
+resource and references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var serviceBus = builder.AddAzureServiceBus("sb");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(serviceBus)
+    .WaitFor(serviceBus);
+```
+
+Aspire hands your service the connection information at `ConnectionStrings:sb`, and all you need to tell Wolverine is
+that name:
+
+<!-- snippet: sample_azure_service_bus_using_named_connection -->
+<a id='snippet-sample_azure_service_bus_using_named_connection'></a>
+```cs
+// "sb" is the name of the Azure Service Bus resource in the Aspire AppHost,
+// i.e. builder.AddAzureServiceBus("sb"), referenced by this project. Against a
+// real namespace Aspire supplies only the namespace endpoint, and Wolverine
+// connects with a DefaultAzureCredential unless you pass a TokenCredential
+opts.UseAzureServiceBusUsingNamedConnection("sb")
+    .AutoProvision();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/named_connection_5126.cs#L82-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_azure_service_bus_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine reads that value at startup, and it accepts either of the two shapes Aspire hands out:
+
+* A full connection string with an `Endpoint=` segment and a key. That's what you get for the Azure Service Bus
+  emulator, and Wolverine uses it exactly like `UseAzureServiceBus(connectionString)` would.
+* Just the namespace, which is what you get for a real Azure namespace. In that case Wolverine connects to the
+  namespace with a `TokenCredential`, which is a `DefaultAzureCredential` (managed identity, environment variables,
+  the Azure CLI, and so on) unless you pass your own `TokenCredential` into `UseAzureServiceBusUsingNamedConnection()`.
+
+If you referenced a single queue or topic resource from the AppHost instead of the whole namespace, Aspire adds an
+`EntityPath` to the connection string. Wolverine just drops that, because it addresses every queue and topic through
+one client.
+
+If your application talks to more than one namespace, there's a named broker version as well:
+
+<!-- snippet: sample_azure_service_bus_named_broker_using_named_connection -->
+<a id='snippet-sample_azure_service_bus_named_broker_using_named_connection'></a>
+```cs
+opts.UseAzureServiceBusUsingNamedConnection("sb");
+
+// A second namespace, registered in the AppHost as builder.AddAzureServiceBus("sb2")
+opts.AddNamedAzureServiceBusBrokerUsingNamedConnection(new BrokerName("other"), "sb2");
+
+opts.PublishAllMessages().ToAzureServiceBusQueueOnNamedBroker(new BrokerName("other"), "outgoing");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/named_connection_5126.cs#L169-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_azure_service_bus_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+The Azure Service Bus emulator serves its management API on a different port than messaging, and the connection
+string Aspire generates for the emulator only names the messaging port. If you want `AutoProvision()` to build your
+queues and topics in an Aspire-run emulator, you'll also have to give Wolverine the management connection string:
+
+```csharp
+opts.UseAzureServiceBusUsingNamedConnection("sb").AutoProvision();
+
+opts.Transports.GetOrCreate<AzureServiceBusTransport>()
+    .ManagementConnectionString = builder.Configuration["ServiceBusManagement"];
+```
+
+Otherwise, just declare the queues and topics in the AppHost. See
+[Using the Azure Service Bus Emulator](/guide/messaging/transports/azureservicebus/emulator) for more on the
+management connection.
+:::
+
+See [Aspire Integration](/guide/aspire) for the full picture, including what happens when a connection string is
+missing.
+
+### Reading the Connection String Yourself
+
+If you'd rather wire up the namespace and the credential yourself, you can still do that with a `TokenCredential`,
+typically `DefaultAzureCredential` from `Azure.Identity`. Read the Service Bus namespace that Aspire injects, and pass
+it in along with the credential:
 
 **AppHost** (`Aspire.Hosting.Azure.ServiceBus` NuGet):
 ```csharp
@@ -316,7 +393,7 @@ builder.UseWolverine(opts =>
     opts.ListenToAzureServiceBusSubscriptionOnNamedBroker(new BrokerName("two"), "subscription1");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L23-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `UseConventionalRouting()` and `UseTopicAndSubscriptionConventionalRouting()` can be chained off a named broker just like any

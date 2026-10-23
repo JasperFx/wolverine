@@ -78,13 +78,61 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
-## Aspire Integration
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-The recommended way to integrate Wolverine with .NET Aspire for NATS is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`. Aspire injects the NATS URL when you use `.WithReference()` in the AppHost.
+Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares a NATS server and
+references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var nats = builder.AddNats("nats").WithJetStream();
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(nats)
+    .WaitFor(nats);
+```
+
+Aspire hands your service a `nats://` URL at `ConnectionStrings:nats`, and all you need to tell Wolverine is that name:
+
+<!-- snippet: sample_nats_using_named_connection -->
+<a id='snippet-sample_nats_using_named_connection'></a>
+```cs
+// "nats" is the name of the NATS resource in the Aspire AppHost,
+// i.e. builder.AddNats("nats"), referenced by this project
+opts.UseNatsUsingNamedConnection("nats");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/named_connection_5126.cs#L77-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The value can carry credentials in the form `nats://user:password@host:port`. `UseNatsUsingNamedConnection()` also
+takes an optional `Action<NatsTransportConfiguration>` for authentication, TLS, or JetStream settings. Just know that
+the URL from the named connection string is applied after that action, so it wins over any `ConnectionString` you set
+in there.
+
+If your application talks to more than one NATS server, there's a named broker version too:
+
+<!-- snippet: sample_nats_named_broker_using_named_connection -->
+<a id='snippet-sample_nats_named_broker_using_named_connection'></a>
+```cs
+opts.UseNatsUsingNamedConnection("nats");
+
+// A second, independent NATS broker whose URL comes from
+// builder.AddNats("nats-audit") in the Aspire AppHost
+opts.AddNamedNatsBrokerUsingNamedConnection(new BrokerName("audit"), "nats-audit");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/named_connection_5126.cs#L122-L130' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Aspire Integration](/guide/aspire) for the full picture, including what happens when a connection string is
+missing.
+
+### Reading the Connection String Yourself
+
+If you'd rather read the connection string that Aspire injects yourself through `IConfiguration.GetConnectionString()`, that works too. Aspire injects the NATS URL when you use `.WithReference()` in the AppHost.
 
 **AppHost** (`Aspire.Hosting.Nats` NuGet):
 ```csharp
-var nats = builder.AddNATS("nats")
+var nats = builder.AddNats("nats")
     .WithJetStream();
 
 builder.AddProject<Projects.MyWorker>("worker")

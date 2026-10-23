@@ -3,12 +3,14 @@ using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using JasperFx.MultiTenancy;
 using Weasel.Core.Migrations;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.RateLimiting;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.SqlServer.RateLimiting;
 using Wolverine.SqlServer.Schema;
@@ -49,6 +51,89 @@ public static class SqlServerConfigurationExtensions
         extension.Configure(options);
 
         return extension;
+    }
+
+    internal static NamedConfigurationDependency NamedConnectionDependency(string connectionStringName) =>
+        new("SQL Server", connectionStringName, "AddSqlServer(\"sqlserver\").AddDatabase") { Usage = "message store" };
+
+    /// <summary>
+    ///     Register SQL Server backed message persistence to the named connection string from IConfiguration. This
+    ///     option is useful for Aspire integration, where the AppHost's <c>builder.AddSqlServer("server").AddDatabase("name")</c>
+    ///     plus <c>.WithReference(...)</c> supplies <c>ConnectionStrings:name</c>. The value is resolved once the
+    ///     application's container exists, before the message store is built; a missing name fails startup together
+    ///     with every other missing named connection string.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo". This has to be a single database identifier; a multi-part name like "crm.sales" is rejected. See GH-3997</param>
+    /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
+    public static ISqlServerBackedPersistence PersistMessagesWithSqlServerUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, string? schema = null, MessageStoreRole role = MessageStoreRole.Main)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringName);
+
+        // For clean idempotency checks
+        options.OnException<SqlException>(e => e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint") &&
+                                               e.Message.ContainsIgnoreCase(".wolverine_incoming_envelopes")).Discard();
+
+        var dependency = NamedConnectionDependency(connectionStringName);
+        var extension = new SqlServerBackedPersistence(options)
+        {
+            NamedConnection = dependency,
+            Role = role
+        };
+
+        extension.EnvelopeStorageSchemaName = schema.IsNotEmpty()
+            ? schema
+            : options.Durability.MessageStorageSchemaName ?? "dbo";
+
+        options.ApplyNamedConnectionString(dependency, value => extension.ConnectionString = value);
+
+        extension.Configure(options);
+
+        return extension;
+    }
+
+    /// <summary>
+    ///     Register SQL Server backed message persistence to the named connection string from IConfiguration (see
+    ///     <see cref="PersistMessagesWithSqlServerUsingNamedConnection(WolverineOptions,string,string?,MessageStoreRole)"/>),
+    ///     optionally opting into envelope ids ordered for SQL Server
+    /// </summary>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="optimizeEnvelopeIdsForSqlServer">
+    /// GH-4902. Same meaning as on <see cref="PersistMessagesWithSqlServer(WolverineOptions,string,bool,string?,MessageStoreRole)"/>
+    /// </param>
+    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo". This has to be a single database identifier</param>
+    public static ISqlServerBackedPersistence PersistMessagesWithSqlServerUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, bool optimizeEnvelopeIdsForSqlServer, string? schema = null,
+        MessageStoreRole role = MessageStoreRole.Main)
+    {
+        applyEnvelopeIdChoice(options, optimizeEnvelopeIdsForSqlServer);
+
+        return options.PersistMessagesWithSqlServerUsingNamedConnection(connectionStringName, schema, role);
+    }
+
+    /// <summary>
+    ///     Opt into static per-tenant database multi-tenancy where each tenant database's connection string is
+    ///     resolved by name from IConfiguration -- e.g. one Aspire database resource per tenant, each referenced
+    ///     from this project. Every name joins the aggregated startup check.
+    /// </summary>
+    /// <param name="persistence"></param>
+    /// <param name="configure">Register each tenant id and the name of its connection string</param>
+    public static ISqlServerBackedPersistence RegisterStaticTenantsUsingNamedConnections(
+        this ISqlServerBackedPersistence persistence, Action<NamedConnectionStringTenants> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var tenants = new NamedConnectionStringTenants();
+        configure(tenants);
+
+        StaticConnectionStringSource source = null!;
+        persistence.RegisterStaticTenants(x => source = x);
+
+        tenants.ApplyTo(persistence.As<SqlServerBackedPersistence>().Options, source, "SQL Server", "AddSqlServer(\"sqlserver\").AddDatabase");
+
+        return persistence;
     }
 
     /// <summary>

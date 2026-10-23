@@ -16,7 +16,9 @@ dotnet add package WolverineFx.Kafka
 ## Aspire Integration
 
 ::: tip
-See the full [Aspire + Wolverine Kafka sample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/AspireWithKafka) for a working end-to-end example.
+See the full [Aspire + Wolverine Kafka sample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/AspireWithKafka) for a working end-to-end example, and
+[Aspire Integration](/guide/aspire) for how the named connection strings work across every Wolverine transport and
+message store.
 :::
 
 The `UseKafkaUsingNamedConnection()` overload reads the Kafka bootstrap servers from `IConfiguration.GetConnectionString()`.
@@ -616,7 +618,7 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
     return bus.PublishAsync(new Message1(), new DeliveryOptions { PartitionKey = "one" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L15-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L14-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />

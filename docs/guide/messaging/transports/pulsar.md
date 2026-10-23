@@ -53,7 +53,7 @@ builder.UseWolverine(opts =>
         .Sequential();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L12-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L14-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The topic name format is set by Pulsar itself, and you can learn more about its format in [Pulsar Topics](https://pulsar.apache.org/docs/next/concepts-messaging/#topics). 
@@ -62,6 +62,45 @@ The topic name format is set by Pulsar itself, and you can learn more about its 
 Depending on demand, the Pulsar transport will be enhanced to support conventional routing topologies and more advanced
 topic routing later.
 ::: 
+
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you'd rather not hard code the Pulsar service URL, and you want to pull it from configuration instead. Maybe
+you're running under [.NET Aspire](/guide/aspire), or maybe you're just using `appsettings.json` or environment
+variables. Either way, you can tell Wolverine the *name* of the connection string, and it will read the service URL
+from `ConnectionStrings:<name>` at startup:
+
+<!-- snippet: sample_pulsar_using_named_connection -->
+<a id='snippet-sample_pulsar_using_named_connection'></a>
+```cs
+// Reads the Pulsar service URL (e.g. "pulsar://localhost:6650") from
+// the "pulsar" connection string in IConfiguration
+opts.UsePulsarUsingNamedConnection("pulsar");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/named_connection_5126.cs#L142-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The value is a Pulsar service URL like `pulsar://localhost:6650` or `pulsar+ssl://broker:6651`, and a bare
+`host:port` is treated as `pulsar://host:port`. `UsePulsarUsingNamedConnection()` also takes an optional
+`Action<IPulsarClientBuilder>` for authentication and the like, and that's applied after the service URL. If you're
+connecting to more than one Pulsar cluster, there's a named broker version too:
+
+<!-- snippet: sample_pulsar_named_broker_using_named_connection -->
+<a id='snippet-sample_pulsar_named_broker_using_named_connection'></a>
+```cs
+// A second Pulsar broker, whose service URL comes from the "pulsar2" connection string
+opts.AddNamedPulsarBrokerUsingNamedConnection(new BrokerName("secondary"), "pulsar2");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/named_connection_5126.cs#L150-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+There isn't an Aspire hosting integration for Pulsar as of this writing, but you can still declare the connection
+string in your AppHost with `builder.AddConnectionString("pulsar")` and reference it from your service with
+`.WithReference()` like any other resource.
+:::
+
+See [Aspire Integration](/guide/aspire) for the full picture.
 
 ## Subscription Initial Position
 
@@ -526,7 +565,7 @@ builder.UseWolverine(opts =>
     opts.DisablePulsarRequeue();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L54-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L56-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you have an application that has receive only access to a subscription but not permissions to publish to Pulsar,
@@ -553,7 +592,7 @@ builder.UseWolverine(opts =>
     opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L86-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Global Partitioning
@@ -719,7 +758,7 @@ using var host = await Host.CreateDefaultBuilder()
             "persistent://public/default/two");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L105-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_named_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L105-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_named_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -768,7 +807,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToPulsarTopic("persistent://public/default/one");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L132-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L132-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's cluster, stamp the tenant id on the send:

@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Configuration;
 
@@ -66,12 +67,44 @@ public static class NamedConnectionStringExtensions
     public static WolverineOptions ApplyNamedConnectionString(this WolverineOptions options, string kind,
         string connectionStringName, string? aspireResourceMethod, Action<string> apply)
     {
+        return options.ApplyNamedConnectionString(
+            new NamedConfigurationDependency(kind, connectionStringName, aspireResourceMethod), apply);
+    }
+
+    /// <summary>
+    /// GH-5127. <see cref="ApplyNamedConnectionString(WolverineOptions,string,string,string?,Action{string})"/>
+    /// for a fully described dependency, e.g. one whose <see cref="NamedConfigurationDependency.Usage"/> is
+    /// "message store" rather than "transport".
+    /// </summary>
+    public static WolverineOptions ApplyNamedConnectionString(this WolverineOptions options,
+        NamedConfigurationDependency dependency, Action<string> apply)
+    {
+        ArgumentNullException.ThrowIfNull(dependency);
         ArgumentNullException.ThrowIfNull(apply);
-        options.RequireNamedConnectionString(kind, connectionStringName, aspireResourceMethod);
-        options.NamedConnectionStringBindings.Add(new NamedConnectionStringBinding(
-            new NamedConfigurationDependency(kind, connectionStringName, aspireResourceMethod), apply));
+
+        if (!options.NamedConfigurationDependencies.Contains(dependency))
+        {
+            options.NamedConfigurationDependencies.Add(dependency);
+        }
+
+        options.NamedConnectionStringBindings.Add(new NamedConnectionStringBinding(dependency, apply));
 
         return options;
+    }
+
+    /// <summary>
+    /// GH-5127. Make sure every connection string registered through <c>ApplyNamedConnectionString</c> has been
+    /// resolved and applied. Wolverine does this itself at the top of startup, on first access to the message
+    /// stores, and in the <c>resources</c> commands; a message store or transport that can be built through some
+    /// other path before any of those (a DI factory resolved directly, say) calls this first. Idempotent and
+    /// thread safe. Throws <see cref="MissingNamedConnectionStringsException"/> when any name is missing.
+    /// </summary>
+    public static void EnsureNamedConnectionStringsApplied(this IWolverineRuntime runtime)
+    {
+        if (runtime is WolverineRuntime wolverineRuntime)
+        {
+            wolverineRuntime.ApplyNamedConnectionStrings();
+        }
     }
 
     /// <summary>

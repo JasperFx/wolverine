@@ -21,10 +21,17 @@ namespace Wolverine.Configuration;
 /// out the remedy, because a missing Aspire reference is what produces this failure nine times out of ten.
 /// Null when the dependency has no Aspire equivalent worth naming.
 /// </param>
-public record NamedConfigurationDependency(string Kind, string Name, string? AspireResourceMethod = null);
+public record NamedConfigurationDependency(string Kind, string Name, string? AspireResourceMethod = null)
+{
+    /// <summary>
+    /// GH-5127. What sort of thing <see cref="Kind"/> is, for the message -- "transport" (the default), or e.g.
+    /// "message store" -- so a failure reads "required by the PostgreSQL message store".
+    /// </summary>
+    public string Usage { get; init; } = "transport";
+}
 
 /// <summary>
 /// GH-5126. A <see cref="NamedConfigurationDependency"/> plus what to do with the value once it is resolved.
-/// Registered by <see cref="NamedConnectionStringExtensions.ApplyNamedConnectionString"/>.
+/// Registered by <c>NamedConnectionStringExtensions.ApplyNamedConnectionString</c>.
 /// </summary>
 internal record NamedConnectionStringBinding(NamedConfigurationDependency Dependency, Action<string> Apply);

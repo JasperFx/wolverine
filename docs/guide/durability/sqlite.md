@@ -70,6 +70,85 @@ In-memory SQLite connection strings are intentionally not supported for Wolverin
 Use file-backed SQLite databases instead.
 :::
 
+## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
+
+Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares a SQLite
+database and references it from your Wolverine service:
+
+```csharp
+// In the AppHost
+var database = builder.AddSqlite("wolverinedb");
+
+builder.AddProject<Projects.MyService>("service")
+    .WithReference(database)
+    .WaitFor(database);
+```
+
+Aspire hands your service the connection string at `ConnectionStrings:wolverinedb`, and all you need to tell Wolverine
+is that name. In the sample below, the in memory configuration is just standing in for what Aspire would supply:
+
+<!-- snippet: sample_sqlite_persistence_using_named_connection -->
+<a id='snippet-sample_sqlite_persistence_using_named_connection'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        // Under Aspire, builder.AddSqlite("wolverinedb") (CommunityToolkit.Aspire.Hosting.Sqlite) plus
+        // .WithReference(...) in the AppHost supplies this
+        ["ConnectionStrings:wolverinedb"] = connectionString
+    }))
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        // Resolve the "wolverinedb" connection string from IConfiguration
+        opts.PersistMessagesWithSqliteUsingNamedConnection("wolverinedb", "named5127");
+    })
+    .StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/named_connection_5127.cs#L56-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_persistence_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+There's no need to pull the connection string out of `IConfiguration` yourself. Wolverine resolves it once the
+application's container exists, but before the message store is built. If the name is missing, Wolverine fails at
+startup with a single error that lists every missing connection string the application asked for.
+
+::: tip
+`AddSqlite()` comes from the CommunityToolkit.Aspire.Hosting.Sqlite package. Whatever value ends up at the named
+connection string still has to point at a file-based SQLite database, because Wolverine refuses in-memory SQLite
+databases for durability no matter how the connection string gets to it.
+:::
+
+If you're using [multi-tenancy with a database per tenant](#multi-tenancy), the static tenant databases can be
+resolved by name too:
+
+<!-- snippet: sample_sqlite_static_tenants_using_named_connections -->
+<a id='snippet-sample_sqlite_static_tenants_using_named_connections'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ConnectionStrings:wolverinedb"] = mainConnectionString,
+        ["ConnectionStrings:tenant1db"] = tenantConnectionString
+    }))
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        opts.PersistMessagesWithSqliteUsingNamedConnection("wolverinedb", "named5127")
+            .RegisterStaticTenantsUsingNamedConnections(tenants =>
+            {
+                // tenant id, then the name of its connection string
+                tenants.Register("tenant1", "tenant1db");
+            });
+    })
+    .StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/named_connection_5127.cs#L111-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_static_tenants_using_named_connections' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Aspire Integration](/guide/aspire) for the full picture.
+
 ## SQLite Messaging Transport
 
 The `WolverineFx.Sqlite` Nuget also contains a simple messaging transport that was mostly meant to be usable for teams
@@ -118,7 +197,7 @@ that they are utilizing the transactional inbox and outbox. The SQLite queues ca
 ```cs
 opts.ListenToSqliteQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L178-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L195-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the SQLite queues can be used for both sending or receiving with no integration
@@ -145,7 +224,7 @@ builder.UseWolverine(opts =>
     opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L153-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L170-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also override the polling interval for a specific queue:
@@ -329,7 +408,7 @@ opts.PersistMessagesWithSqlite("Data Source=main.db")
 
 opts.ListenToSqliteQueue("incoming").UseDurableInbox();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L110-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_static_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L127-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_static_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or with Wolverine-managed master-table tenancy for dynamic tenant onboarding:
@@ -345,7 +424,7 @@ opts.PersistMessagesWithSqlite("Data Source=main.db")
     })
     .EnableMessageTransport(x => x.AutoProvision());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L130-L139' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L147-L156' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For tenant-specific sends, set `DeliveryOptions.TenantId`.
@@ -355,7 +434,7 @@ For tenant-specific sends, set `DeliveryOptions.TenantId`.
 ```cs
 await host.SendAsync(new SampleTenantMessage("hello"), new DeliveryOptions { TenantId = "red" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L145-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_tenant_specific_send' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L162-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_tenant_specific_send' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When transport is enabled, each tenant database gets its own durable queue tables and scheduled polling.

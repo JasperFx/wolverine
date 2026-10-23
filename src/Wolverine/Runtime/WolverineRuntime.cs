@@ -75,7 +75,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         _accumulator = new Lazy<MetricsAccumulator>(() => new MetricsAccumulator(this));
 
         _stores =
-            new Lazy<MessageStoreCollection>(() => container.Services.GetRequiredService<MessageStoreCollection>());
+            new Lazy<MessageStoreCollection>(() =>
+            {
+                // GH-5127. A message store configured by connection-string name needs its value before it is
+                // built, whichever path builds it first.
+                ApplyNamedConnectionStrings();
+                return container.Services.GetRequiredService<MessageStoreCollection>();
+            });
 
         // Aggregate every registered ISagaStoreDiagnostics behind one
         // fan-out facade so callers (CritterWatch, /describe ...) see a
