@@ -288,6 +288,10 @@ public abstract class HttpHandler
     // Set once a claim written inside the endpoint's transaction has committed: a later failure is not a lost race.
     private static readonly object _deduplicatedResponseCommitted = new();
 
+    // GH-5165. Set once the database commit of a claim-and-release endpoint succeeded, ahead of anything that can still
+    // throw inside the commit call.
+    private static readonly object _deduplicatedDatabaseCommitted = new();
+
     /// <summary>
     /// GH-4742. Folds the <see cref="DeduplicationScope" /> parts into a <c>[DeduplicatedWithResponse]</c> key.
     /// Each part is length-prefixed so none can shift another; a missing key passes through so it is still
@@ -508,6 +512,30 @@ public abstract class HttpHandler
 
     /// <summary>GH-4742. Has the endpoint's work been done, so its claim must be kept?</summary>
     public static bool IsDeduplicatedWorkDone(HttpContext context) => context.Items.ContainsKey(_deduplicatedWorkDone);
+
+    /// <summary>
+    /// GH-5165. The database commit of a claim-and-release <c>[DeduplicatedWithResponse]</c> endpoint succeeded. Called
+    /// by the persistence provider as soon as it does, before anything else inside the commit call can still throw.
+    /// </summary>
+    public static void MarkDeduplicatedDatabaseCommitted(HttpContext context)
+        => context.Items[_deduplicatedDatabaseCommitted] = true;
+
+    /// <summary>
+    /// GH-5165. On a failure: if the endpoint's database commit had already succeeded, its work is done and the claim
+    /// is kept, unanswered, so repeats are refused with 409 until it expires rather than running the work again.
+    /// </summary>
+    /// <remarks>
+    /// On Marten, the outbox flush and session listeners run inside <c>SaveChangesAsync</c> after the database commit,
+    /// so the call can throw over committed work. Only on a failure: a request that completes normally keeps its
+    /// usual rule, which gives the claim back when the answer is a failure status.
+    /// </remarks>
+    public static void KeepDeduplicatedClaimIfCommitted(HttpContext context)
+    {
+        if (context.Items.ContainsKey(_deduplicatedDatabaseCommitted))
+        {
+            context.Items[_deduplicatedWorkDone] = true;
+        }
+    }
 
     /// <summary>
     /// GH-4742. As <see cref="ReleaseDeduplicationClaimBeforeFailureResponse" />, for a

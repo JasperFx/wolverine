@@ -456,7 +456,11 @@ commits, rather than doing its work and losing at commit time. `Lightweight` mod
 The one case this cannot decide up front is two genuinely concurrent callers under the same key.
 Neither one's claim is committed yet, so neither is visible to the other, and both proceed. The
 deduplication table's primary key settles it at commit time: one transaction wins, and the loser is
-refused exactly as if it had been caught by the up-front check — a 409 on HTTP, a discard on a handler.
+refused exactly as if it had been caught by the up-front check — a 409 on HTTP, a discard on a handler. On
+Marten, the loser's commit can also fail on its own work before it ever gets to the claim, like two
+`[WriteAggregate]` callers appending to the same stream at the same version. In that case Wolverine
+checks whether the key was claimed in the meantime and refuses the loser the same way. If the key isn't
+claimed, the original failure is rethrown unchanged.
 Worth knowing that the loser does its work and throws it away at commit rather than being refused
 before doing any, so a handler with side effects *outside* the transaction should account for that.
 

@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -5,6 +6,7 @@ using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Linq.QueryHandlers;
 using Marten.Services.BatchQuerying;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Codegen;
 
@@ -335,5 +337,154 @@ internal class MartenDeduplicatedResponseClaimFrame : AsyncFrame, IBatchableFram
         {
             yield return _batchQuery;
         }
+    }
+}
+
+/// <summary>
+/// GH-5166. The Marten <see cref="TransactionalDeduplication.CommitRaceWrapper" />: GH-4505's
+/// <see cref="RefuseDuplicateClaimAtCommitFrame" />, plus the race its classifier cannot see.
+///
+/// <para>
+/// On a <c>[WriteAggregate]</c> endpoint two concurrent callers both load the stream at the same version and both
+/// append. Marten fails the second commit on the stream version before it reaches the claim's INSERT, so the
+/// deduplication table's primary key is never tripped and the loser escaped as a 500. So a commit that fails for any
+/// other reason is checked too: if the id is now claimed, a concurrent caller with the same id committed first, and
+/// this caller gets the same refusal. If it is not, the failure is rethrown unaltered.
+/// </para>
+///
+/// <para>
+/// Only the commit: a <see cref="DatabaseCommitMarker" /> at the front of the session's listeners records when
+/// <c>SaveChangesAsync</c> reached the commit and whether the database commit succeeded. A failure in the endpoint
+/// itself, or after the commit (the outbox flush, a session listener), is never looked up and never answered as a
+/// lost race.
+/// </para>
+/// </summary>
+internal class RefuseDuplicateMartenClaimAtCommitFrame : Frame
+{
+    private const string ExceptionName = "duplicateClaimException";
+
+    private readonly Variable _deduplicationId;
+    private readonly Type? _ancillaryStoreMarker;
+    private readonly Frame[] _refusal;
+    private Variable? _session;
+    private Variable? _deduplicator;
+
+    public RefuseDuplicateMartenClaimAtCommitFrame(Variable deduplicationId, Type? ancillaryStoreMarker,
+        Func<Variable, Frame[]> buildRefusal) : base(true)
+    {
+        _deduplicationId = deduplicationId;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+        LostTheRace = new Variable(typeof(bool), "duplicateClaimLostTheRace", this);
+        CommitMarker = new Variable(typeof(DatabaseCommitMarker), "deduplicationCommit", this);
+        _refusal = buildRefusal(LostTheRace);
+    }
+
+    /// <summary>Set when a concurrent caller committed this id first.</summary>
+    public Variable LostTheRace { get; }
+
+    public Variable CommitMarker { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // As RefuseDuplicateClaimAtCommitFrame: with nothing to convert the failure into, wrap nothing
+        if (_refusal.Length == 0)
+        {
+            Next?.GenerateCode(method, writer);
+            return;
+        }
+
+        writer.Write($"var {LostTheRace.Usage} = false;");
+        writer.WriteComment("GH-5166: tells a failed commit apart from a failure before or after it");
+        writer.Write(
+            $"var {CommitMarker.Usage} = {typeof(DatabaseCommitMarker).FullNameInCode()}.{nameof(DatabaseCommitMarker.Enlist)}({_session!.Usage});");
+
+        writer.Write("BLOCK:try");
+        Next?.GenerateCode(method, writer);
+        writer.FinishBlock();
+
+        writer.Write(
+            $"BLOCK:catch ({typeof(Exception).FullNameInCode()} {ExceptionName}) when ({typeof(MartenDeduplicationFailures).FullNameInCode()}.{nameof(MartenDeduplicationFailures.IsDuplicateDeduplicationClaim)}({ExceptionName}))");
+        writer.WriteComment("GH-4505: a concurrent caller committed this logical id first");
+        writer.Write($"{LostTheRace.Usage} = true;");
+        writer.FinishBlock();
+
+        writer.Write(
+            $"BLOCK:catch ({typeof(Exception).FullNameInCode()}) when ({CommitMarker.Usage}.{nameof(DatabaseCommitMarker.CommitStarted)} && !{CommitMarker.Usage}.{nameof(DatabaseCommitMarker.Committed)})");
+        writer.WriteComment("GH-5166: the commit failed on something else first, such as a stream version; did a concurrent caller with this id win?");
+        writer.Write(
+            $"BLOCK:if (!await {typeof(MartenDeduplicationFailures).FullNameInCode()}.{nameof(MartenDeduplicationFailures.IsClaimedAfterFailedCommitAsync)}({_deduplicator!.Usage}, {_session.Usage}, {_deduplicationId.Usage}, {MartenDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false))");
+        writer.Write("throw;");
+        writer.FinishBlock();
+        writer.Write($"{LostTheRace.Usage} = true;");
+        writer.FinishBlock();
+
+        for (var i = 0; i < _refusal.Length - 1; i++)
+        {
+            _refusal[i].Next = _refusal[i + 1];
+        }
+
+        _refusal[^1].Next = null;
+        _refusal[0].GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+
+        _deduplicator = chain.FindVariable(typeof(IMartenDeduplicator));
+        yield return _deduplicator;
+
+        foreach (var frame in _refusal)
+        {
+            foreach (var variable in frame.FindVariables(chain))
+            {
+                yield return variable;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// GH-5165. Puts a <see cref="DatabaseCommitMarker" /> at the front of the session's listeners, so a static callback
+/// hears that the database commit succeeded before the outbox flush or any other listener can still throw. See
+/// <see cref="IDatabaseCommitHookProvider" />.
+/// </summary>
+internal class EnlistDatabaseCommitHookFrame : SyncFrame
+{
+    private readonly MethodInfo _onCommitted;
+    private readonly Type _argumentType;
+    private Variable? _session;
+    private Variable? _argument;
+
+    public EnlistDatabaseCommitHookFrame(MethodInfo onCommitted)
+    {
+        if (!onCommitted.IsStatic || onCommitted.GetParameters().Length != 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(onCommitted),
+                "The commit callback must be a static method with exactly one parameter");
+        }
+
+        _onCommitted = onCommitted;
+        _argumentType = onCommitted.GetParameters()[0].ParameterType;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5165: hear that the database committed before anything inside SaveChangesAsync can still throw");
+        writer.Write(
+            $"{typeof(DatabaseCommitMarker).FullNameInCode()}.{nameof(DatabaseCommitMarker.Enlist)}({_session!.Usage}, () => {_onCommitted.DeclaringType!.FullNameInCode()}.{_onCommitted.Name}({_argument!.Usage}));");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+
+        _argument = chain.FindVariable(_argumentType);
+        yield return _argument;
     }
 }

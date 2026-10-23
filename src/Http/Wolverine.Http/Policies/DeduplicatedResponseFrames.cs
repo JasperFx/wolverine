@@ -286,6 +286,12 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
         _ancillaryStoreMarker = ancillaryStoreMarker;
     }
 
+    /// <summary>
+    /// GH-5165. The persistence provider reports when the database commit succeeded, so a failure after it (on
+    /// Marten, the outbox flush or a session listener inside <c>SaveChangesAsync</c>) keeps the claim.
+    /// </summary>
+    public bool KeepClaimOverCommittedWork { get; set; }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var marker = ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker);
@@ -297,6 +303,16 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);
         writer.FinishBlock();
+
+        if (KeepClaimOverCommittedWork)
+        {
+            // GH-5165: a failure over a commit that already succeeded keeps the claim, so the work never runs twice
+            writer.Write("BLOCK:catch");
+            writer.Write(
+                $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.KeepDeduplicatedClaimIfCommitted)}({_httpContext.Usage});");
+            writer.Write("throw;");
+            writer.FinishBlock();
+        }
 
         writer.Write("BLOCK:finally");
         writer.Write(
@@ -335,6 +351,14 @@ internal class ReleaseUnansweredDeduplicatedResponseFrame : AsyncFrame
         writer.FinishBlock();
 
         writer.Write("BLOCK:with ex ->");
+
+        if (KeepClaimOverCommittedWork)
+        {
+            // GH-5165: a failure over a commit that already succeeded keeps the claim
+            writer.Write(
+                $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.KeepDeduplicatedClaimIfCommitted)}({_httpContext!.FSharpUsage})");
+        }
+
         writeFSharpReleaseGuard(writer, marker);
         writer.Write(
             $"{typeof(System.Runtime.ExceptionServices.ExceptionDispatchInfo).FSharpName()}.Capture(ex).Throw()");

@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -150,7 +151,17 @@ public partial class HttpChain
         var claim = new ClaimDeduplicatedResponseFrame(scoped.Variable, fingerprint.Variable, requirement.Window,
             AncillaryStoreType, requirement.KeyName);
         frames.Add(claim);
-        frames.Add(new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, AncillaryStoreType));
+        var release = new ReleaseUnansweredDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, AncillaryStoreType);
+        frames.Add(release);
+
+        // GH-5165. Where the commit call can still throw after the database has committed (on Marten, the outbox flush
+        // and session listeners), hear about the commit itself, so the release above keeps the claim over committed work
+        if (rules.GetPersistenceProviders(this, container) is IDatabaseCommitHookProvider commits &&
+            commits.TryBuildDatabaseCommitHook(this, MarkDatabaseCommittedMethod, out var hook))
+        {
+            release.KeepClaimOverCommittedWork = true;
+            frames.Add(hook);
+        }
 
         Middleware.InsertRange(0, frames);
 
@@ -236,6 +247,9 @@ public partial class HttpChain
 
         return true;
     }
+
+    private static readonly MethodInfo MarkDatabaseCommittedMethod =
+        typeof(HttpHandler).GetMethod(nameof(HttpHandler.MarkDeduplicatedDatabaseCommitted))!;
 
     private void warnClaimInTransactionFallsBack(IServiceContainer container, string reason)
     {

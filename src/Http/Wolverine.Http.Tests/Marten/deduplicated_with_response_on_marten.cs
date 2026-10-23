@@ -400,6 +400,49 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         source.ShouldContain(".TryClaimAsync(");
         source.ShouldContain(".RecordResponseAsync(");
         source.ShouldNotContain(".QueueClaim(");
+
+        // No commit to hear about
+        source.ShouldNotContain(nameof(HttpHandler.KeepDeduplicatedClaimIfCommitted));
+    }
+
+    [Fact]
+    public async Task on_claim_and_release_a_failure_inside_the_commit_after_the_database_commit_keeps_the_claim()
+    {
+        // GH-5165. The work commits, then a session listener throws inside SaveChangesAsync. The claim used to be
+        // released, because the response was never recorded, so the retry ran the endpoint a second time
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("after-commit-default-" + key);
+
+        await failingPostAsync("/marten-deduplicated-response/after-commit-failure-default", request, key);
+
+        // Kept, unanswered: the work is done, but there is no response to replay
+        (await findClaimAsync(key)).ShouldNotBeNull().Response.ShouldBeNull();
+
+        await postAsync("/marten-deduplicated-response/after-commit-failure-default", request, key, 409);
+        MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+
+        await using var session = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        (await session.Query<DeduplicatedOrderDocument>().CountAsync(x => x.Name == request.Name,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+
+        sourceFor("/marten-deduplicated-response/after-commit-failure-default")
+            .ShouldContain(nameof(HttpHandler.KeepDeduplicatedClaimIfCommitted));
+    }
+
+    [Fact]
+    public async Task on_claim_and_release_a_failed_commit_still_releases_the_claim()
+    {
+        // GH-5165, the other half: a commit that fails in the database rolled the work back, so the claim goes back
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("failing-commit-default-" + key);
+
+        await failingPostAsync("/marten-deduplicated-response/failing-commit-default", request, key);
+
+        (await findClaimAsync(key)).ShouldBeNull();
+
+        await using var session = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        (await session.Query<DeduplicatedOrderDocument>().CountAsync(x => x.Name == request.Name,
+            TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
     [Fact]
@@ -692,6 +735,18 @@ public static class MartenDeduplicatedResponseEndpoints
         session.Store(new FailAfterCommitMarker { Id = Guid.NewGuid() });
         return created;
     }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/marten-deduplicated-response/after-commit-failure-default")]
+    public static DeduplicatedOrderCreated PostAfterCommitFailureByDefault(DeduplicatedOrder request,
+        IDocumentSession session)
+        => PostAfterCommitFailure(request, session);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/marten-deduplicated-response/failing-commit-default")]
+    public static DeduplicatedOrderCreated PostFailingCommitByDefault(DeduplicatedOrder request,
+        IDocumentSession session)
+        => PostFailingCommit(request, session);
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/marten-deduplicated-response/orders-default")]

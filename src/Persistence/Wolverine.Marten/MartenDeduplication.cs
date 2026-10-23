@@ -329,4 +329,37 @@ public static class MartenDeduplicationFailures
 
         return false;
     }
+
+    /// <summary>
+    /// GH-5166. After a commit failed: has a concurrent caller committed a claim on <paramref name="deduplicationId" />
+    /// in the meantime? Asked on a fresh query session, because <paramref name="session" />'s own transaction has
+    /// just been rolled back.
+    ///
+    /// <para>
+    /// Answers the race <see cref="IsDuplicateDeduplicationClaim" /> cannot see. Two concurrent callers on a
+    /// <c>[WriteAggregate]</c> endpoint both load the stream at the same version, and the second commit fails on the
+    /// stream version before it ever reaches the claim's INSERT. A claim committed meanwhile can only come from a
+    /// caller with the same id, so the failure is that caller's win, whatever it failed on.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> IsClaimedAfterFailedCommitAsync(IMartenDeduplicator deduplicator,
+        IDocumentSession session, string? deduplicationId, Type? ancillaryStoreMarker)
+    {
+        if (string.IsNullOrWhiteSpace(deduplicationId)) return false;
+
+        try
+        {
+            await using var query = session.DocumentStore.QuerySession(session.TenantId);
+            var batch = query.CreateBatchQuery();
+            var item = batch.AddItem(deduplicator.ClaimExistsQuery(deduplicationId, ancillaryStoreMarker));
+            await batch.Execute(CancellationToken.None).ConfigureAwait(false);
+
+            return await item.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Never mask the commit failure being unwound: it is rethrown as it was
+            return false;
+        }
+    }
 }

@@ -279,6 +279,12 @@ Recording the response is a write of its own, not part of the endpoint's transac
 dies between the commit and that write, repeats get 409 until the claim expires. They never run twice
 within the window.
 
+On Marten, the outbox flush and any session listeners run inside `SaveChangesAsync`, *after* the database
+commit. If one of them throws, the work is already committed, so Wolverine keeps the claim even though
+the response was never recorded. Repeats get 409 until the claim expires rather than running the work
+again. Use [`ClaimInTransaction`](#claiming-inside-the-transaction) if you want those retries answered
+with the first response instead.
+
 Here the claim does not ride the endpoint's business transaction: a process that dies between the claim
 and the endpoint finishing leaves the key claimed for the whole window (24 hours by default) rather than
 releasing it with a rolled-back transaction.

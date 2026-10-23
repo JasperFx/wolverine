@@ -25,7 +25,7 @@ using IRevisioned = JasperFx.IRevisioned;
 namespace Wolverine.Marten.Persistence.Sagas;
 
 internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvider,
-    ITransactionalReplayableDeduplicationProvider
+    ITransactionalReplayableDeduplicationProvider, IDatabaseCommitHookProvider
 {
     // Marten can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the
@@ -125,8 +125,9 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
             IsDuplicate = check.Variable,
             Claim = new QueueMartenDeduplicationClaimFrame(deduplicationId, check.Variable, marker,
                 requirement.Window),
-            CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
-                MartenDeduplicationFailures.Classifier,
+            // GH-5166: also answers a concurrent caller whose commit failed on its own work first, such as a
+            // [WriteAggregate] stream version, before it reached the claim's primary key
+            CommitRaceWrapper = new RefuseDuplicateMartenClaimAtCommitFrame(deduplicationId, marker,
                 lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
         };
 
@@ -175,6 +176,21 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         return true;
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    ///     GH-5165. Only for a chain that commits through Wolverine's transactional middleware: the hook rides the
+    ///     session that middleware saves.
+    /// </remarks>
+    public bool TryBuildDatabaseCommitHook(IChain chain, MethodInfo onCommitted, [NotNullWhen(true)] out Frame? hook)
+    {
+        hook = null;
+
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
+        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+
+        hook = new EnlistDatabaseCommitHookFrame(onCommitted);
+        return true;
+    }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
