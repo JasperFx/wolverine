@@ -30,6 +30,7 @@ public partial class NodeAgentController
     private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt, bool IsMove = false, Guid? SourceNodeId = null);
 
     private int _lastUndeclaredAssignmentCount;
+    private int _lastAwaitingCapacityCount;
 
     /// <summary>
     ///     GH-4897. How many assignment evaluations this node has run since it last assumed leadership; null
@@ -99,6 +100,37 @@ public partial class NodeAgentController
         logger.LogWarning(
             "{Count} agent assignment(s) were made to nodes that do not advertise the agent, and those agents cannot start there: {Sample}{More}. This is a Wolverine defect -- please report it with the node capability rows from wolverine_nodes.",
             undeliverable.Length, sample, undeliverable.Length > 5 ? $", and {undeliverable.Length - 5} more" : "");
+    }
+
+    /// <summary>
+    ///     GH-5163. Capacity-aware assignment leaves agents unassigned when no serving node is accepting new
+    ///     work, which is deliberate (GH-4590), but used to be silent. A parked steady state issues no commands
+    ///     at all, so this is the only place the leader says what it decided. Latched on the count, so the
+    ///     same steady state is not logged again on every evaluation.
+    /// </summary>
+    internal static void ReportAgentsAwaitingCapacity(AssignmentGrid grid, ILogger logger, ref int lastReportedCount)
+    {
+        var waiting = grid.AllAgents
+            .Where(x => x.UnplacedReason == UnplacedReason.AwaitingCapacity)
+            .ToArray();
+
+        if (waiting.Length == lastReportedCount)
+        {
+            return;
+        }
+
+        lastReportedCount = waiting.Length;
+
+        if (waiting.Length == 0)
+        {
+            return;
+        }
+
+        var sample = string.Join(", ", waiting.Take(5).Select(x => x.Uri.ToString()));
+
+        logger.LogInformation(
+            "{Count} agent(s) are waiting for capacity: no node is accepting new agents under capacity-aware assignment. They will be placed when a node has headroom again: {Sample}{More}",
+            waiting.Length, sample, waiting.Length > 5 ? $", and {waiting.Length - 5} more" : "");
     }
 
     /// <summary>
@@ -182,6 +214,7 @@ public partial class NodeAgentController
 
         var capacityAware = _runtime.Options.Durability.CapacityAwareAssignment;
         var overloadThreshold = _runtime.Options.Durability.NodeOverloadThreshold;
+        var acceptThreshold = _runtime.Options.Durability.NodeAcceptThreshold ?? Math.Max(0, overloadThreshold - 10);
 
         foreach (var node in nodes)
         {
@@ -196,7 +229,7 @@ public partial class NodeAgentController
                                     && gridNode.LoadFactor.Value >= overloadThreshold;
             gridNode.IsAcceptingAgents = !capacityAware
                                          || !gridNode.LoadFactor.HasValue
-                                         || gridNode.LoadFactor.Value < Math.Max(0, overloadThreshold - 10);
+                                         || gridNode.LoadFactor.Value < acceptThreshold;
         }
 
         // GH-3785: the durability family places each database's agent next to that database's
@@ -280,6 +313,7 @@ public partial class NodeAgentController
         }
 
         WarnAboutUndeclaredAssignments(grid, issued, _logger, ref _lastUndeclaredAssignmentCount);
+        ReportAgentsAwaitingCapacity(grid, _logger, ref _lastAwaitingCapacityCount);
 
         // GH-3604 / D3+D6: before the observer logs anything, so a slow start isn't punished with a
         // duplicate control-queue flood and a matching burst of AssignmentChanged telemetry rows.
@@ -401,6 +435,7 @@ public partial class NodeAgentController
             if (holdable(i))
             {
                 agent.Detach();
+                agent.UnplacedReason = UnplacedReason.TakeoverHold;
                 held++;
                 continue;
             }

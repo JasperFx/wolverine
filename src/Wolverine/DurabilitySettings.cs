@@ -941,10 +941,19 @@ public class DurabilitySettings : IDescribeMyself
 
     /// <summary>
     ///     Advertised load percentage at or above which a node is considered overloaded: it begins
-    ///     shedding agents, and stops receiving new ones starting 10 points below this value.
+    ///     shedding agents, and stops receiving new ones starting 10 points below this value (see
+    ///     <see cref="NodeAcceptThreshold" />).
     ///     Default 90.
     /// </summary>
     public double NodeOverloadThreshold { get; set; } = 90;
+
+    /// <summary>
+    ///     GH-5163. Advertised load percentage below which a node receives new agents under
+    ///     <see cref="CapacityAwareAssignment" />. When null (the default) this is 10 points below
+    ///     <see cref="NodeOverloadThreshold" />. Keep it below the overload threshold so placement and
+    ///     shedding do not fight around a single value.
+    /// </summary>
+    public double? NodeAcceptThreshold { get; set; }
 
     /// <summary>
     ///     Maximum number of agents per scheme the leader moves off an overloaded node in one

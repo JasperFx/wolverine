@@ -30,6 +30,19 @@ public partial class AssignmentGrid
         /// </summary>
         public bool IsPaused { get; set; }
 
+        private UnplacedReason? _unplacedReason;
+
+        /// <summary>
+        ///     GH-5163. Why this agent was left without a node on this evaluation, when the grid knows. Always
+        ///     null while the agent has an <see cref="AssignedNode" />, so a reason recorded by one pass never
+        ///     outlives a later placement.
+        /// </summary>
+        public UnplacedReason? UnplacedReason
+        {
+            get => AssignedNode == null ? _unplacedReason : null;
+            internal set => _unplacedReason = value;
+        }
+
         /// <summary>
         ///     The node that was executing this agent at the time the assignment
         ///     grid was being determined
