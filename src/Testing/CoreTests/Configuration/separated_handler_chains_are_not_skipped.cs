@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -34,6 +35,12 @@ public class separated_handler_chains_are_not_skipped : IAsyncLifetime
 
                 // Requeue error handling on ONE of the two separated handlers only
                 opts.Policies.Add(new RequeueForHandlerType(typeof(InventoryModuleHandler)));
+
+                // Applies to every handler of the message type, separated or not
+                opts.HandlerGraph.ConfigureHandlerForMessage<ModuleEvent>(chain =>
+                {
+                    chain.SuccessLogLevel = LogLevel.Information;
+                });
             }).StartAsync();
     }
 
@@ -71,6 +78,13 @@ public class separated_handler_chains_are_not_skipped : IAsyncLifetime
         theGraph.Chains.Any(x => x.Failures.AnyRequeuePolicies()).ShouldBeFalse();
 
         theGraph.AnyRequeuePolicies().ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ConfigureHandlerForMessage_reaches_every_separated_chain()
+    {
+        var root = theGraph.ChainFor<ModuleEvent>()!;
+        root.ByEndpoint.ShouldAllBe(x => x.SuccessLogLevel == LogLevel.Information);
     }
 
     [Fact]

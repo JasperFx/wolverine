@@ -84,6 +84,12 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         ConfigureHandlerForMessage(typeof(T), configure);
     }
 
+    /// <summary>
+    /// Customize the handler chain(s) for a message type after discovery and policies have run. When the
+    /// message type has more than one chain -- one per handler type under
+    /// <see cref="Wolverine.MultipleHandlerBehavior.Separated"/>, or sticky handlers -- the configuration is
+    /// applied to every one of them
+    /// </summary>
     public void ConfigureHandlerForMessage(Type messageType, Action<HandlerChain> configure)
     {
         _configurations.Add(() =>
@@ -92,6 +98,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             if (chain != null)
             {
                 configure(chain);
+
+                // GH-5133. Under Separated the root chain of a message type with several handlers is an empty
+                // placeholder; the handlers that actually run are in the per-endpoint chains.
+                foreach (var separated in chain.ByEndpoint)
+                {
+                    configure(separated);
+                }
             }
         });
     }
