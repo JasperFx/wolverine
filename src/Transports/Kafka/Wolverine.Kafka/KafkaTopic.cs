@@ -333,8 +333,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         return SendsInline
             ? new InlineKafkaSender(this)
-            : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
-                runtime.LoggerFactory.CreateLogger<KafkaSenderProtocol>());
+            : new BatchedSender(this,
+                new KafkaSenderProtocol(this) { Logger = runtime.LoggerFactory.CreateLogger<KafkaSenderProtocol>() },
+                runtime.Cancellation, runtime.LoggerFactory.CreateLogger<KafkaSenderProtocol>());
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)

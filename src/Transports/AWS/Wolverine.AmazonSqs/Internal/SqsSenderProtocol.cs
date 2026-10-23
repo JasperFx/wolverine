@@ -71,7 +71,7 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
             // Permanently unsendable, not a transient failure: SQS answers an oversized message with a
             // SenderFault, and retrying it produces the same SenderFault forever. That infinite retry is
             // how this presents in production - a flood of identical errors rather than one. Route it to
-            // the serialization-failure path, which logs and drops rather than re-queueing.
+            // the serialization-failure path, which dead letters rather than re-queueing (GH-5055).
             await callback.MarkSerializationFailureAsync(
                 new OutgoingMessageBatch(batch.Destination, unsendable));
         }

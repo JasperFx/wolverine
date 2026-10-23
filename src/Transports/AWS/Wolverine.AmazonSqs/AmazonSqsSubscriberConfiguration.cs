@@ -44,7 +44,7 @@ public class
     /// <summary>
     ///     Split a message whose body would exceed SQS's hard 256KB limit into several SQS messages, and
     ///     reassemble it on the receiving side. Without this an oversized message is rejected by SQS with
-    ///     a permanent <c>SenderFault</c>, and Wolverine discards it rather than retrying forever.
+    ///     a permanent <c>SenderFault</c>, and Wolverine moves it to dead letter storage rather than retrying forever.
     /// </summary>
     /// <remarks>
     ///     <para>

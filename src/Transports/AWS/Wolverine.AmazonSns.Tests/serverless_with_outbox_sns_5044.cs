@@ -166,14 +166,27 @@ public class serverless_with_outbox_sns_5044 : IAsyncLifetime
             $"inline: {delivered} delivered, {rows.Count} outbox rows left; after a pass: {deliveredByPass} delivered, {rowsAfterPass.Count} rows left; protocol calls: {string.Join(",", counting.Batches.Select(x => x.Length))}");
     }
 
+    private async Task<List<Guid>> deadLetterIdsAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(Token);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"select id from {Schema}.wolverine_dead_letters";
+        var ids = new List<Guid>();
+        await using var reader = await cmd.ExecuteReaderAsync(Token);
+        while (await reader.ReadAsync(Token)) ids.Add(reader.GetGuid(0));
+        return ids;
+    }
+
     [Fact]
-    public async Task an_envelope_the_mapper_cannot_map_is_reported_successful()
+    public async Task an_envelope_the_mapper_cannot_map_is_dead_lettered_by_the_durability_pass()
     {
         var counting = wrap(Poison);
 
         // Outbox rows as a failed inline send leaves them: 2 good, 1 the mapper throws on
         var runtime = _host.GetRuntime();
         var uri = _transport.Topics[Poison].Uri;
+        var envelopes = new List<Envelope>();
         foreach (var number in new[] { 1, Serverless5044PoisonMapper.PoisonNumber, 2 })
         {
             var envelope = new Envelope(new Serverless5044SnsPoisonMessage(number))
@@ -183,6 +196,7 @@ public class serverless_with_outbox_sns_5044 : IAsyncLifetime
             };
             envelope.Data = runtime.Options.DefaultSerializer.Write(envelope);
             await runtime.Storage.Outbox.StoreOutgoingAsync(envelope, 0);
+            envelopes.Add(envelope);
         }
 
         await makeOutboxStaleAsync();
@@ -190,11 +204,23 @@ public class serverless_with_outbox_sns_5044 : IAsyncLifetime
 
         var delivered = await drainAsync(Poison, 2, 10.Seconds());
 
-        // Observed facts, recorded: 2 delivered, and all 3 rows deleted -- the unmappable one is counted sent
+        // GH-5055: 2 delivered, and the unmappable one moved to dead letter storage instead of counted as sent
         delivered.ShouldBe(2);
+        report.OutgoingSent.ShouldBe(2);
+        report.OutgoingDeadLettered.ShouldBe(1);
+        (await deadLetterIdsAsync()).ShouldBe([envelopes[1].Id]);
         (await outboxRowsAsync()).ShouldBeEmpty();
-        report.OutgoingSent.ShouldBe(3);
         counting.Batches.Select(x => x.Length).ToArray().ShouldBe(new[] { 3 });
+    }
+
+    [Fact]
+    public async Task an_envelope_the_mapper_cannot_map_is_dead_lettered_by_the_inline_send()
+    {
+        await _host.MessageBus().InvokeAsync(new Serverless5044SnsPoisonTrigger([1, Serverless5044PoisonMapper.PoisonNumber, 2]), Token);
+
+        (await drainAsync(Poison, 2, 10.Seconds())).ShouldBe(2);
+        (await deadLetterIdsAsync()).Count.ShouldBe(1);
+        (await outboxRowsAsync()).ShouldBeEmpty();
     }
 
     [Fact]
@@ -219,6 +245,8 @@ public record Serverless5044SnsWideMessage(int Number);
 
 public record Serverless5044SnsPoisonMessage(int Number);
 
+public record Serverless5044SnsPoisonTrigger(int[] Numbers);
+
 public static class Serverless5044SnsHandler
 {
     public static OutgoingMessages Handle(Serverless5044SnsTrigger trigger)
@@ -226,6 +254,13 @@ public static class Serverless5044SnsHandler
         var messages = new OutgoingMessages();
         for (var i = 0; i < trigger.Plain; i++) messages.Add(new Serverless5044SnsMessage(i));
         for (var i = 0; i < trigger.Wide; i++) messages.Add(new Serverless5044SnsWideMessage(i));
+        return messages;
+    }
+
+    public static OutgoingMessages Handle(Serverless5044SnsPoisonTrigger trigger)
+    {
+        var messages = new OutgoingMessages();
+        foreach (var number in trigger.Numbers) messages.Add(new Serverless5044SnsPoisonMessage(number));
         return messages;
     }
 }

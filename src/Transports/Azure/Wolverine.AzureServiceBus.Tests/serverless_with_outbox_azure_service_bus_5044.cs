@@ -83,7 +83,7 @@ public class serverless_with_outbox_azure_service_bus_5044
     }
 
     [Fact]
-    public async Task an_unmappable_envelope_is_reported_accepted_although_it_was_never_sent()
+    public async Task an_unmappable_envelope_is_reported_as_a_serialization_failure()
     {
         var envelopes = new[] { envelope("a"), envelope(Unmappable), envelope("c") };
         var result = new InlineSendResult();
@@ -92,9 +92,11 @@ public class serverless_with_outbox_azure_service_bus_5044
 
         _sentBatches.SelectMany(x => x).ShouldBe(["a", "c"]);
 
-        // Observed and recorded: the unmappable one counts as accepted, so its outbox row would be deleted. The
-        // protocol logs it as discarded, the same in every durability mode. A design question, not asserted as a bug
-        result.WasAccepted(envelopes[1]).ShouldBeTrue();
+        // GH-5055: it is not accepted, and the inline send and the durability pass dead letter it
+        result.WasAccepted(envelopes[0]).ShouldBeTrue();
+        result.WasAccepted(envelopes[2]).ShouldBeTrue();
+        result.WasAccepted(envelopes[1]).ShouldBeFalse();
+        result.IsSerializationFailure(envelopes[1], out _).ShouldBeTrue();
     }
 
     [Fact]

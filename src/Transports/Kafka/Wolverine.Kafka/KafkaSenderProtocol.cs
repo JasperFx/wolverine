@@ -1,4 +1,6 @@
 using Confluent.Kafka;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Kafka.Internals;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -9,6 +11,11 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
 {
     private readonly KafkaTopic _topic;
     private readonly IProducer<string, byte[]> _producer;
+
+    /// <summary>
+    ///     Where an envelope the mapper throws on is logged with the original exception
+    /// </summary>
+    internal ILogger Logger { get; set; } = NullLogger.Instance;
 
     public KafkaSenderProtocol(KafkaTopic topic)
         : this(topic, topic.Parent)
@@ -41,23 +48,35 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
         // the acked records are reported successful and only the rest failed,
         // each as its own OutgoingMessageBatch, the way the SQS sender does.
 
-        // Phase 1 — map every envelope to a Confluent Message<>. A mapping /
-        // serialization failure on any envelope before we've started enqueuing
-        // means we haven't put anything on the wire yet — treat as a clean
-        // serialization failure on the batch.
+        // Phase 1 — map every envelope to a Confluent Message<>. GH-5055: an
+        // envelope the mapper throws on can never be sent, so only that one is
+        // reported as a serialization failure, which dead letters it. Reporting
+        // the whole batch took every envelope that mapped fine down with it
         var prepared = new List<(Envelope envelope, Message<string, byte[]> message)>(batch.Messages.Count);
-        try
+        List<Envelope>? unmappable = null;
+        foreach (var envelope in batch.Messages)
         {
-            foreach (var envelope in batch.Messages)
+            try
             {
                 var message = await _topic.EnvelopeMapper!.CreateMessage(envelope);
                 prepared.Add((envelope, message));
             }
+            catch (Exception e)
+            {
+                Logger.LogError(e,
+                    "Error while mapping envelope {Envelope} to a Kafka message for {Uri}. It can never be sent, so it is reported as a serialization failure",
+                    envelope, _topic.Uri);
+                (unmappable ??= new()).Add(envelope);
+            }
         }
-        catch (Exception)
+
+        if (unmappable != null)
         {
-            await callback.MarkSerializationFailureAsync(batch);
-            return;
+            await callback.MarkSerializationFailureAsync(new OutgoingMessageBatch(batch.Destination, unmappable));
+
+            if (prepared.Count == 0) return;
+
+            batch = new OutgoingMessageBatch(batch.Destination, prepared.Select(x => x.envelope).ToList());
         }
 
         // Phase 2 — enqueue every produce without awaiting so the Confluent
