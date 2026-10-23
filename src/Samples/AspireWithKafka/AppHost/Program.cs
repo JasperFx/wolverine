@@ -11,10 +11,14 @@ builder.AddProject<Projects.Consumer>("consumer")
     .WithReference(kafka)
     // WaitFor ensures Consumer does not start until Kafka is healthy,
     // which means Wolverine's AutoProvision() will reliably succeed.
-    .WaitFor(kafka);
+    .WaitFor(kafka)
+    // The service maps /health through MapDefaultEndpoints() in the shared service defaults,
+    // and the dashboard reports the service as healthy once that endpoint answers
+    .WithHttpHealthCheck("/health");
 
 builder.AddProject<Projects.Publisher>("publisher")
     .WithReference(kafka)
-    .WaitFor(kafka);
+    .WaitFor(kafka)
+    .WithHttpHealthCheck("/health");
 
 await builder.Build().RunAsync();

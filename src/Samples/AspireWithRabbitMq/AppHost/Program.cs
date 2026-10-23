@@ -11,10 +11,14 @@ builder.AddProject<Projects.Ponger>("ponger")
     .WithReference(rabbitmq)
     // WaitFor ensures Ponger does not start until RabbitMQ is healthy,
     // which means Wolverine's AutoProvision() will reliably succeed.
-    .WaitFor(rabbitmq);
+    .WaitFor(rabbitmq)
+    // The service maps /health through MapDefaultEndpoints() in the shared service defaults,
+    // and the dashboard reports the service as healthy once that endpoint answers
+    .WithHttpHealthCheck("/health");
 
 builder.AddProject<Projects.Pinger>("pinger")
     .WithReference(rabbitmq)
-    .WaitFor(rabbitmq);
+    .WaitFor(rabbitmq)
+    .WithHttpHealthCheck("/health");
 
 await builder.Build().RunAsync();

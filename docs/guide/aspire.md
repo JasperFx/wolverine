@@ -127,6 +127,109 @@ dotnet run -- describe
 
 The "Named Connection Strings" table comes first, and `describe` still shows it when a name is missing.
 
+## Traces, Metrics and Health Checks
+
+The Aspire dashboard only shows what your services export to it over OpenTelemetry, and it won't see anything from
+Wolverine unless you register Wolverine's `ActivitySource` and `Meter`s. The usual place to do that is the "service
+defaults" project that every service in the Aspire solution references. Here's the one the
+[RabbitMQ](https://github.com/JasperFx/wolverine/tree/main/src/Samples/AspireWithRabbitMq) and
+[Kafka](https://github.com/JasperFx/wolverine/tree/main/src/Samples/AspireWithKafka) Aspire samples share:
+
+<!-- snippet: sample_aspire_service_defaults -->
+<a id='snippet-sample_aspire_service_defaults'></a>
+```cs
+public static class ServiceDefaultsExtensions
+{
+    private const string HealthEndpointPath = "/health";
+    private const string AlivenessEndpointPath = "/alive";
+
+    /// <summary>
+    /// The defaults every service in an Aspire sample opts into: OpenTelemetry for Wolverine's
+    /// traces and metrics plus the default health checks
+    /// </summary>
+    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        builder.ConfigureOpenTelemetry();
+        builder.AddDefaultHealthChecks();
+
+        return builder;
+    }
+
+    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        builder.Logging.AddOpenTelemetry(logging =>
+        {
+            logging.IncludeFormattedMessage = true;
+            logging.IncludeScopes = true;
+        });
+
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metrics =>
+            {
+                metrics.AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+
+                    // Wolverine publishes its metrics from a Meter named "Wolverine:{ServiceName}",
+                    // so this has to be a wildcard. A bare AddMeter("Wolverine") matches nothing
+                    .AddMeter("Wolverine*");
+            })
+            .WithTracing(tracing =>
+            {
+                tracing.AddSource(builder.Environment.ApplicationName)
+
+                    // Wolverine's ActivitySource for message sending, receiving and handling
+                    .AddSource("Wolverine")
+                    .AddAspNetCoreInstrumentation(options =>
+                        // Keep the health check polling out of the traces
+                        options.Filter = context =>
+                            !context.Request.Path.StartsWithSegments(HealthEndpointPath)
+                            && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath))
+                    .AddHttpClientInstrumentation();
+            });
+
+        // The Aspire AppHost sets OTEL_EXPORTER_OTLP_ENDPOINT to its dashboard for every project
+        // resource. Run outside of Aspire, nothing is exported
+        if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        {
+            builder.Services.AddOpenTelemetry().UseOtlpExporter();
+        }
+
+        return builder;
+    }
+
+    public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    {
+        builder.Services.AddHealthChecks()
+            // A default liveness check to ensure the application is responsive
+            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+
+        return builder;
+    }
+
+    public static WebApplication MapDefaultEndpoints(this WebApplication app)
+    {
+        // All health checks must pass for the app to be considered ready to accept traffic
+        app.MapHealthChecks(HealthEndpointPath);
+
+        // Only the checks tagged "live" must pass for the app to be considered alive
+        app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions
+        {
+            Predicate = r => r.Tags.Contains("live")
+        });
+
+        return app;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireServiceDefaults/Extensions.cs#L12-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_service_defaults' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that Wolverine names its `Meter` "Wolverine:{ServiceName}", so `AddMeter("Wolverine*")` has to be a wildcard.
+A bare `AddMeter("Wolverine")` matches nothing.
+
+Each service then calls `builder.AddServiceDefaults()` and `app.MapDefaultEndpoints()`, and the AppHost polls the
+`/health` endpoint with `WithHttpHealthCheck("/health")`.
+
 ## Dashboard Integration
 
 The [JasperFx.Aspire](https://www.nuget.org/packages/JasperFx.Aspire) package surfaces a Wolverine
@@ -140,8 +243,7 @@ Wolverine applications get this for free: because your `Program.cs` ends in `Run
 just wires those verbs to the dashboard — there is no Wolverine-specific code to write.
 
 ::: info
-This page covers the Wolverine-relevant usage. The full `JasperFx.Aspire` reference — every option, the
-child-process mechanics, and dynamic discovery — lives at
+This page covers the Wolverine-relevant usage. The full `JasperFx.Aspire` reference — every option, how buttons and gates run, and dynamic discovery — lives at
 [shared-libs.jasperfx.net/cli/aspire](https://shared-libs.jasperfx.net/cli/aspire.html).
 :::
 
@@ -255,8 +357,17 @@ infrastructure. Gates run sequentially in declaration order unless marked `Paral
 ### Relationship to Wolverine's command line
 
 This is purely a presentation layer over the [Wolverine CLI](/guide/command-line): each button or gate
-runs the very same verb you would run with `dotnet run -- <verb>`, in a short-lived child process of the
-same application. Nothing about your Wolverine configuration changes — the only requirement is the
+runs the very same verb you would run with `dotnet run -- <verb>`. The two just run it differently:
+
+- A **button** runs the verb in a short-lived child process the AppHost starts with
+  `dotnet run --project <your project> --no-build -- <verb>`, using the environment Aspire resolved for
+  the resource.
+- A **startup gate** is not a child process. It's its own Aspire project resource -- a clone of your
+  service's project resource with the verb as its arguments, and the same references and waits -- and your
+  service waits on it with `WaitForCompletion`. That's why gates show up as separate resources on the
+  dashboard, with their own logs.
+
+Nothing about your Wolverine configuration changes -- the only requirement is the
 standard `RunJasperFxCommands(args)` bootstrap, which lets the app execute a verb and exit instead of
 starting the long-running host.
 

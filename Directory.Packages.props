@@ -20,6 +20,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Alba" Version="9.0.0-rc.2" />
+    <!-- The .NET Aspire samples (src/Samples/AspireWithRabbitMq, src/Samples/AspireWithKafka). Keep these on
+         the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
+    <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.3" />
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.6.3" />
     <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,11.0.0)" />
     <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,11.0.0)" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,11.0.0)" />

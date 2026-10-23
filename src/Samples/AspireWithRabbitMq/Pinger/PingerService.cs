@@ -2,10 +2,14 @@ using Wolverine;
 
 namespace AspireWithRabbitMq;
 
-public class PingerService(IMessageBus bus, ILogger<PingerService> logger) : BackgroundService
+// IMessageBus is scoped, so a hosted service resolves one from its own scope
+public class PingerService(IServiceScopeFactory scopes, ILogger<PingerService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await using var scope = scopes.CreateAsyncScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+
         var number = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
