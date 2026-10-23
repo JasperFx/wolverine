@@ -11,6 +11,12 @@ internal class DelegatingMessageOutbox : IMessageOutbox
         _stores = stores;
     }
 
+    // GH-5171. Same routing as the writes below: Envelope.Store first, then the inner outbox
+    internal object CoalescingPartitionFor(Envelope envelope)
+    {
+        return EnvelopeStoreCoalescing.PartitionFor(envelope, _inner);
+    }
+
     public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
         return _inner.LoadOutgoingAsync(destination);

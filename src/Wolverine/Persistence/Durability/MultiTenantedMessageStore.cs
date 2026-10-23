@@ -1126,6 +1126,23 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return databases().ToArray();
     }
 
+    /// <summary>
+    ///     GH-5171. The key of the database an envelope for this tenant is written to, without any I/O:
+    ///     the resolved store once the tenant has been seen, otherwise the tenant id itself. Used to give
+    ///     each tenant database its own durability write coalescer, so one slow database cannot hold back
+    ///     another tenant's writes.
+    /// </summary>
+    internal object CoalescingPartitionFor(string? tenantId)
+    {
+        if (tenantId.IsDefaultTenant() || tenantId!.EqualsIgnoreCase(TransportConstants.Default) ||
+            tenantId!.EqualsIgnoreCase(StorageConstants.Main))
+        {
+            return Main;
+        }
+
+        return _byTenant.TryFind(tenantId!, out var store) ? store : tenantId!;
+    }
+
     public async ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
         if (tenantId.IsDefaultTenant())

@@ -21,8 +21,12 @@ internal class DurableSendingAgent : SendingAgent
     // GH-4319. Null when the batch sizes are 1. The store gates the send, so these coalescers are
     // strictly timer-free: a lone envelope is written immediately and batches only ever form behind a
     // flush that was already in flight.
-    private readonly EnvelopeStoreCoalescer? _storeCoalescer;
-    private readonly EnvelopeStoreCoalescer? _deleteCoalescer;
+    //
+    // GH-5171. When the outbox fans out to several databases (a database per tenant, or ancillary
+    // stores), each database gets its own lane, so one slow tenant database cannot hold back the sends
+    // of every other tenant on this endpoint.
+    private readonly IEnvelopeStoreCoalescer? _storeCoalescer;
+    private readonly IEnvelopeStoreCoalescer? _deleteCoalescer;
 
     private IList<Envelope> _queued = new List<Envelope>();
 
@@ -52,7 +56,9 @@ internal class DurableSendingAgent : SendingAgent
 
         if (settings.StoreOutgoingBatchSize > 1)
         {
-            _storeCoalescer = new EnvelopeStoreCoalescer(
+            var partitionFor = EnvelopeStoreCoalescing.PartitionerFor(_outbox);
+
+            _storeCoalescer = EnvelopeStoreCoalescing.Build(partitionFor,
                 envelopes => _outbox.StoreOutgoingAsync(envelopes, settings.OutgoingOwnerId),
                 envelope => _outbox.StoreOutgoingAsync(envelope, settings.OutgoingOwnerId),
                 settings.StoreOutgoingBatchSize, endpoint.Uri, logger);
@@ -61,7 +67,7 @@ internal class DurableSendingAgent : SendingAgent
             // used it since it existed -- but a single-envelope send paid its own round trip to remove
             // one row. Same coalescer, same guarantee: MarkSuccessfulAsync does not return until this
             // envelope's row is gone, which is what makes releasing a pooled envelope afterwards safe.
-            _deleteCoalescer = new EnvelopeStoreCoalescer(
+            _deleteCoalescer = EnvelopeStoreCoalescing.Build(partitionFor,
                 envelopes => _outbox.DeleteOutgoingAsync(envelopes as Envelope[] ?? envelopes.ToArray()),
                 envelope => _deleteOutgoingOne.PostAsync(envelope),
                 settings.StoreOutgoingBatchSize, endpoint.Uri, logger);
