@@ -1,8 +1,13 @@
+using AspireWithRabbitMq;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
 #region sample_aspire_rabbitmq_ponger_setup
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
+
+// The shared Aspire service defaults: OpenTelemetry for Wolverine's "Wolverine" ActivitySource
+// and "Wolverine*" Meters, exported to the Aspire dashboard, plus the default health checks
+builder.AddServiceDefaults();
 
 builder.UseWolverine(opts =>
 {
@@ -24,5 +29,10 @@ builder.UseWolverine(opts =>
     opts.PublishMessage<PongMessage>().ToRabbitQueue("pongs");
 });
 
-await builder.Build().RunAsync();
+var app = builder.Build();
+
+// /health and /alive, which the AppHost polls through WithHttpHealthCheck()
+app.MapDefaultEndpoints();
+
+await app.RunAsync();
 #endregion

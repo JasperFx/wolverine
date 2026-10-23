@@ -2,10 +2,14 @@ using Wolverine;
 
 namespace AspireWithKafka;
 
-public class PublisherService(IMessageBus bus, ILogger<PublisherService> logger) : BackgroundService
+// IMessageBus is scoped, so a hosted service resolves one from its own scope
+public class PublisherService(IServiceScopeFactory scopes, ILogger<PublisherService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await using var scope = scopes.CreateAsyncScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+
         var orderId = 1;
         while (!stoppingToken.IsCancellationRequested)
         {

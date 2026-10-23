@@ -202,6 +202,7 @@
     <Project Path="src/Persistence/Wolverine.SqlServer/Wolverine.SqlServer.csproj" />
   </Folder>
   <Folder Name="/Samples/">
+    <Project Path="src/Samples/AspireServiceDefaults/AspireServiceDefaults.csproj" />
     <Project Path="src/Samples/ChaosSender/ChaosSender.csproj" />
     <Project Path="src/Samples/CommandBus/CommandBus.csproj" />
     <Project Path="src/Samples/ConjoinedMultiTenantedEfCore/ConjoinedMultiTenantedEfCore.csproj" />
@@ -212,6 +213,16 @@
     <Project Path="src/Samples/OrderSagaSample/OrderSagaSample.csproj" />
     <Project Path="src/Samples/Quickstart/Quickstart.csproj" />
     <Project Path="src/Samples/WebApiWithMarten/WebApiWithMarten.csproj" />
+  </Folder>
+  <Folder Name="/Samples/AspireWithKafka/">
+    <Project Path="src/Samples/AspireWithKafka/AppHost/AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithKafka/Consumer/Consumer.csproj" />
+    <Project Path="src/Samples/AspireWithKafka/Publisher/Publisher.csproj" />
+  </Folder>
+  <Folder Name="/Samples/AspireWithRabbitMq/">
+    <Project Path="src/Samples/AspireWithRabbitMq/AppHost/AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithRabbitMq/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/AspireWithRabbitMq/Ponger/Ponger.csproj" />
   </Folder>
   <Folder Name="/Samples/CQRSWithMarten/">
     <Project Path="src/Samples/CQRSWithMarten/TeleHealth.Backend/TeleHealth.Backend.csproj" />
