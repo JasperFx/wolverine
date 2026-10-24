@@ -20,6 +20,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     public const string RetryEndpointName = "AzureServiceBusRetries";
     private readonly Lazy<ServiceBusClient> _busClient;
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
+    private string? _responseNode;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
     private string? _hostName;
@@ -317,14 +318,13 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     {
         if (!SystemQueuesEnabled) return;
 
-        // In Solo mode the assigned node number is always 1 (#3188) and the service name is not
-        // unique per host, so multiple Solo hosts on one namespace would share a response queue and
-        // cross-deliver replies — key on the always-unique UniqueNodeId instead. Balanced gets a
-        // unique AssignedNodeNumber via election. See #3189.
-        var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+        // Resource setup can run before database registration changes AssignedNodeNumber (#5202).
+        // Keep the first response identity so runtime uses the queue that setup provisioned.
+        // Solo hosts use UniqueNodeId to avoid sharing a response queue (#3189).
+        _responseNode ??= runtime.Options.Durability.Mode == DurabilityMode.Solo
             ? runtime.Options.UniqueNodeId.ToString("N")
             : runtime.DurabilitySettings.AssignedNodeNumber.ToString();
-        var queueName = PrefixSystemQueueName($"wolverine.response.{runtime.Options.ServiceName}.{responseNode}");
+        var queueName = PrefixSystemQueueName($"wolverine.response.{runtime.Options.ServiceName}.{_responseNode}");
 
         var queue = Queues[queueName];
 
