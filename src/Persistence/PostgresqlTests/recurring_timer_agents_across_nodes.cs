@@ -11,6 +11,7 @@ using Wolverine;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Recurring;
 using Wolverine.Tracking;
 using Xunit;
@@ -184,6 +185,44 @@ public class recurring_timer_agents_across_nodes : IAsyncLifetime
 
         await waitUntilAsync(() => TimerOccurrenceHandler.Snapshot().Length >= 1, 30.Seconds(),
             "the schedule did not fire again after the resume");
+    }
+
+    /// <summary>
+    /// GH-5204. A timer schedule paused through its agent alone -- an agents screen, an operator's own
+    /// ApplyRestrictionsAsync -- never touches the tracking table, so there is no row. QueryAsync used to
+    /// report only rows, and so left the paused schedule out entirely.
+    /// </summary>
+    [Fact]
+    public async Task a_timer_schedule_paused_through_its_agent_alone_is_reported_paused()
+    {
+        var node = await startNodeAsync();
+        var runtime = node.GetRuntime();
+        var control = node.Services.GetRequiredService<IRecurringScheduleControl>();
+
+        var pause = new AgentRestrictions([]);
+        pause.PauseAgent(AgentUri);
+        await runtime.Agents.ApplyRestrictionsAsync(pause, TestContext.Current.CancellationToken);
+
+        // The precondition the defect needs: nothing wrote a row for the timer schedule
+        (await runtime.Storage.RecurringMessages.LoadAsync(ScheduleName, TestContext.Current.CancellationToken))
+            .ShouldBeNull();
+
+        var reported = (await control.QueryAsync(TestContext.Current.CancellationToken))
+            .ShouldHaveSingleItem();
+        reported.Name.ShouldBe(ScheduleName);
+        reported.Paused.ShouldBeTrue();
+        reported.CronExpression.ShouldBe("*/5 * * * * *");
+
+        await Should.ThrowAsync<RecurringSchedulePausedException>(() =>
+            control.TriggerAsync(ScheduleName, TestContext.Current.CancellationToken));
+
+        // Lifted through the agent again, and it is no longer reported paused
+        await runtime.Agents.ApplyRestrictionsAsync(
+            new AgentRestrictions([new AgentRestriction(Guid.NewGuid(), AgentUri, AgentRestrictionType.None, 0)]),
+            TestContext.Current.CancellationToken);
+
+        (await control.QueryAsync(TestContext.Current.CancellationToken))
+            .ShouldNotContain(x => x.Name == ScheduleName && x.Paused);
     }
 
     [Fact]

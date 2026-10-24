@@ -98,7 +98,10 @@ public interface IRecurringScheduleControl
 
     /// <summary>
     /// The durable tracking rows — which schedule owns which pending envelope, next fire times,
-    /// pause state. Empty on a store without the recurring tracking extension.
+    /// pause state. Empty on a store without the recurring tracking extension, except that a paused
+    /// timer schedule (<see cref="RecurringExecutionPath.Timer" />) is always reported paused: from
+    /// its row when it has one, and otherwise as an entry built from the schedule itself, since a
+    /// timer schedule paused through its agent alone has no row (GH-5204).
     /// </summary>
     Task<IReadOnlyList<RecurringMessageRecord>> QueryAsync(CancellationToken token = default);
 }
@@ -209,7 +212,7 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
         var pausedTimers = await PausedTimerScheduleNamesAsync(token);
         if (pausedTimers.Count == 0) return rows;
 
-        return rows.Select(row => row.Paused || !pausedTimers.Contains(row.Name)
+        var reported = rows.Select(row => row.Paused || !pausedTimers.Contains(row.Name)
             ? row
             : new RecurringMessageRecord
             {
@@ -223,6 +226,24 @@ internal class RecurringScheduleControl : IRecurringScheduleControl
                 TriggerRequestedAt = row.TriggerRequestedAt,
                 LastUpdated = row.LastUpdated
             }).ToList();
+
+        // GH-5204. The timer path never writes a tracking row of its own, so a timer schedule paused
+        // through its agent alone -- never through PauseAsync, which mirrors onto a row -- has no row
+        // for the overlay above to mark, and used to be missing from this answer altogether. Report it
+        // from the restriction, so the one visible pause state exists whichever way it was paused.
+        var now = DateTimeOffset.UtcNow;
+        foreach (var name in pausedTimers.Where(name => reported.All(row => row.Name != name)).Order())
+        {
+            reported.Add(new RecurringMessageRecord
+            {
+                Name = name,
+                CronExpression = assertKnown(name).Schedule.Expression,
+                Paused = true,
+                LastUpdated = now
+            });
+        }
+
+        return reported;
     }
 
     /// <summary>
