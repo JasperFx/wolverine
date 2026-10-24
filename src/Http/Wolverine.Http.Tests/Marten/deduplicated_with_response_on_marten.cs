@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Http.Runtime;
@@ -32,10 +33,12 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     private const string SchemaName = "http_deduplicated_response_marten";
 
     private IAlbaHost theHost = null!;
+    private readonly CapturingLoggerProvider theLogs = new();
 
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
+        builder.Logging.AddProvider(theLogs);
 
         builder.Host.UseWolverine(opts =>
         {
@@ -233,6 +236,39 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         await using var query = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
         var events = await query.Events.FetchStreamAsync(counterId, token: TestContext.Current.CancellationToken);
         events.Count(x => x.Data is DeduplicatedCounterIncremented).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_write_aggregate_of_the_aggregate_itself_claims_in_the_transaction()
+    {
+        // GH-????. Nothing in this signature names Marten: [WriteAggregate] binds the aggregate rather than its
+        // IEventStream<T>, and the workflow applies the Marten transaction itself
+        var counterId = Guid.NewGuid();
+        await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
+        {
+            session.Events.StartStream<DeduplicatedCounter>(counterId, new DeduplicatedCounterStarted());
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var key = Guid.NewGuid().ToString();
+        var command = new IncrementDeduplicatedCounter(counterId, "aggregate-race-" + key);
+
+        var responses = await Task.WhenAll(
+            postAsync("/marten-deduplicated-response/aggregate-race", command, key, 200),
+            postAsync("/marten-deduplicated-response/aggregate-race", command, key, 200));
+
+        MartenDeduplicatedResponseEndpoints.RaceReached(command.Note).ShouldBe(2);
+        (await responses[1].ReadAsTextAsync()).ShouldBe(await responses[0].ReadAsTextAsync());
+
+        await using var query = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        var events = await query.Events.FetchStreamAsync(counterId, token: TestContext.Current.CancellationToken);
+        events.Count(x => x.Data is DeduplicatedCounterIncremented).ShouldBe(1);
+
+        var source = sourceFor("/marten-deduplicated-response/aggregate-race");
+        source.ShouldContain(".QueueClaim(");
+        source.ShouldNotContain(".TryClaimAsync(");
+        theLogs.Warnings.ShouldNotContain(x =>
+            x.Contains("/marten-deduplicated-response/aggregate-race") && x.Contains("keeps claim-and-release"));
     }
 
     [Fact]
@@ -713,6 +749,16 @@ public static class MartenDeduplicatedResponseEndpoints
         await bothArriveAsync(command.Note);
 
         return PostCounter(command, stream);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/marten-deduplicated-response/aggregate-race")]
+    public static async Task<(DeduplicatedCounterAnswer, Events)> PostAggregateRace(
+        IncrementDeduplicatedCounter command, [WriteAggregate] DeduplicatedCounter counter)
+    {
+        await bothArriveAsync(command.Note);
+
+        return (new DeduplicatedCounterAnswer(counter.Count + 1), [new DeduplicatedCounterIncremented(command.Note)]);
     }
 
     private static async Task bothArriveAsync(string name)

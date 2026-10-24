@@ -201,6 +201,27 @@ internal record AggregateHandling(IDataRequirement Requirement)
         return false;
     }
 
+    /// <summary>
+    ///     The store whose transaction <see cref="Apply" /> applied to this chain itself, or null when the chain has
+    ///     no aggregate handler workflow or has workflows on more than one store. GH-????.
+    /// </summary>
+    internal static IPersistenceFrameProvider? TransactionOwner(IChain chain)
+    {
+        if (!chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw)) return null;
+
+        IEventSourcingFrameProvider[] providers = raw switch
+        {
+            AggregateHandling handling => [handling.Provider],
+            List<AggregateHandling> list => list.Select(x => x.Provider).ToArray(),
+            _ => []
+        };
+
+        // A store's own attribute names a new instance of its provider, so compare the stores, not the instances
+        return providers.Select(x => x.GetType()).Distinct().Count() == 1
+            ? providers[0] as IPersistenceFrameProvider
+            : null;
+    }
+
     public static bool TryLoad<T>(IChain chain, [NotNullWhen(true)] out AggregateHandling? handling)
     {
         if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))

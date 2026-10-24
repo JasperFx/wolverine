@@ -197,6 +197,27 @@ public class deduplication_on_a_marten_transaction : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_write_aggregate_of_the_aggregate_itself_claims_in_the_transaction()
+    {
+        // GH-????. [WriteAggregate] binds the aggregate rather than its IEventStream<T>, so nothing in the signature
+        // names Marten, and the workflow applies the Marten transaction itself
+        var counterId = await startCounterAsync();
+        var key = Guid.NewGuid().ToString();
+
+        (await postAnyAsync("/marten-dedup/aggregate", new IncrementDeduplicatedCounter(counterId, "once"), key))
+            .Context.Response.StatusCode.ShouldBe(200);
+        (await postAnyAsync("/marten-dedup/aggregate", new IncrementDeduplicatedCounter(counterId, "twice"), key))
+            .Context.Response.StatusCode.ShouldBe(409);
+
+        (await incrementsAsync(counterId)).ShouldBe(1);
+
+        var source = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
+            .Single(x => x.RoutePattern!.RawText == "/marten-dedup/aggregate").SourceCode.ShouldNotBeNull();
+        source.ShouldContain($"{nameof(IMartenDeduplicator.QueueClaim)}(documentSession");
+        source.ShouldNotContain("TryClaimAsync");
+    }
+
+    [Fact]
     public async Task a_commit_that_fails_with_no_concurrent_claim_is_rethrown_and_claims_nothing()
     {
         // GH-5166, the other half: a failed commit is only a lost race when the id is claimed afterwards
@@ -432,6 +453,15 @@ public static class MartenDeduplicatedAggregateEndpoint
         var incremented = new DeduplicatedCounterIncremented(command.Note);
         stream.AppendOne(incremented);
         return incremented;
+    }
+
+    [Deduplicated]
+    [WolverinePost("/marten-dedup/aggregate")]
+    public static (DeduplicatedCounterIncremented, Events) PostAggregateItself(IncrementDeduplicatedCounter command,
+        [WriteAggregate] DeduplicatedCounter counter)
+    {
+        var incremented = new DeduplicatedCounterIncremented(command.Note);
+        return (incremented, [incremented]);
     }
 
     [Deduplicated]
