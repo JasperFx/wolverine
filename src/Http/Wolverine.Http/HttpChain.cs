@@ -578,6 +578,35 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         ];
     }
 
+    /// <summary>
+    ///     GH-5206. When the <c>[Deduplicated]</c> claim rides the endpoint's own transaction, a concurrent repeat can miss
+    ///     the up-front check, read the first request's committed work and fail over it before its commit. Hold the
+    ///     response back until the commit, so such a failure is answered as the duplicate it is. Idempotent.
+    /// </summary>
+    private void watchForDuplicateRefusals()
+    {
+        if (Deduplication is not { } requirement) return;
+        if (!Tags.TryGetValue(TransactionalDeduplicationTag.Key, out var raw) ||
+            raw is not TransactionalDeduplicationTag tag) return;
+        if (Middleware.OfType<WatchForDuplicateRefusalFrame>().Any()) return;
+
+        // Without the provider naming its commit there is no telling a failure before it from one in it
+        if (tag.Deduplication.Commit is not { } commit || !Postprocessors.Contains(commit)) return;
+
+        var claim = Middleware.IndexOf(tag.Deduplication.Claim);
+        if (claim < 0) return;
+
+        var status = effectiveDuplicateStatusCode(requirement);
+        var key = requirement.Key ?? DeduplicationRequirement.DefaultHeaderName;
+
+        // The same answer BuildDeduplicationStopCondition gives a duplicate
+        var detail = status is >= 200 and < 300 ? null : $"A request with this '{key}' has already been handled";
+
+        Middleware.Insert(claim + 1,
+            new WatchForDuplicateRefusalFrame(tag.DeduplicationId, this.DetermineAncillaryStoreType(), status, detail));
+        Postprocessors.Insert(Postprocessors.IndexOf(commit), new MarkDeduplicationCommitStartedFrame());
+    }
+
     /// <inheritdoc />
     /// <remarks>
     ///     GH-4501. An HTTP chain has a second failure mode the shared frame cannot see: a refusal that is

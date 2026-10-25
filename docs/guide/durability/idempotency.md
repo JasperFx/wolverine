@@ -464,6 +464,14 @@ claimed, the original failure is rethrown unchanged.
 Worth knowing that the loser does its work and throws it away at commit rather than being refused
 before doing any, so a handler with side effects *outside* the transaction should account for that.
 
+On an HTTP endpoint on Marten, Polecat or Fisher, the second caller can also fail before it ever gets to
+its commit, because it read the first caller's committed work: a `Validate` method that answers 409
+"already open", a 404, an exception from your own rule. The claim was committed in the same transaction
+as that work, so Wolverine checks the key again for any failure before the commit (an answer of 400 or
+above, or an exception) and refuses the caller as the duplicate it is. A failure with no claim for its
+key goes out as your endpoint answered it. To make that possible, the response is held back until the
+commit.
+
 **The claim is compensated.** Everywhere else — a Buffered or Inline endpoint, an HTTP endpoint with no
 transactional middleware, a `[Transactional]` handler on a plain relational message store — the claim
 is written up front on its own connection, and Wolverine gives it back when the chain fails.

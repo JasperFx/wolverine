@@ -143,7 +143,7 @@ public partial class HttpChain : IEndpointConventionBuilder
 
         // GH-5206. Whether this endpoint claims inside its transaction is only known once its code is generated,
         // which may be on its first request; the wrapper does nothing unless the generated code arms it
-        if (DeduplicatedWithResponse != null)
+        if (DeduplicatedWithResponse != null || Deduplication != null)
         {
             requestDelegate = HttpHandler.RecheckDeduplicatedRefusals(requestDelegate);
         }

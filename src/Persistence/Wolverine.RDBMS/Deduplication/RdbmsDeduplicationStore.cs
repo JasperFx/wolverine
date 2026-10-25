@@ -59,7 +59,7 @@ namespace Wolverine.RDBMS.Deduplication;
 /// </para>
 /// </summary>
 internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactionalDeduplicationStore,
-    IEnvelopeAwareDeduplicationStore
+    IEnvelopeAwareDeduplicationStore, IDeduplicationClaimLookup
 {
     private readonly DbDataSource _dataSource;
     private readonly Func<Exception, bool> _isUniqueConstraintViolation;
@@ -76,6 +76,7 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
     private readonly string _insertInTransactionSql;
     private readonly bool _insertInTransactionReportsConflicts;
     private readonly string _deleteSql;
+    private readonly string _existsSql;
     private readonly string _deleteExpiredSql;
     private readonly Func<int, string?> _batchedDeleteExpiredSql;
     private readonly int _batchSize;
@@ -138,6 +139,7 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
             _takeOverSql =
                 $"update {table} set {DatabaseConstants.Expires} = @expires where {DatabaseConstants.DeduplicationHash} = @hash and {DatabaseConstants.DeduplicationEnvelopeId} = @envelope";
             _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationHash} = @hash";
+            _existsSql = $"select count(*) from {table} where {DatabaseConstants.DeduplicationHash} = @hash";
         }
         else
         {
@@ -148,6 +150,7 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
             _takeOverSql =
                 $"update {table} set {DatabaseConstants.Expires} = @expires where {DatabaseConstants.DeduplicationId} = @id and {DatabaseConstants.DeduplicationEnvelopeId} = @envelope";
             _deleteSql = $"delete from {table} where {DatabaseConstants.DeduplicationId} = @id";
+            _existsSql = $"select count(*) from {table} where {DatabaseConstants.DeduplicationId} = @id";
         }
 
         _deleteExpiredSql = $"delete from {table} where {DatabaseConstants.Expires} <= @now";
@@ -293,6 +296,19 @@ internal sealed class RdbmsDeduplicationStore : IDeduplicationStore, ITransactio
         {
             return false;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> IsClaimedAsync(string deduplicationId, CancellationToken cancellation = default)
+    {
+        if (deduplicationId.IsEmpty()) return false;
+
+        await using var cmd = _compareByHash
+            ? _dataSource.CreateCommand(_existsSql)
+                .With("hash", DeduplicationHash.For(deduplicationId), DbType.Binary)
+            : _dataSource.CreateCommand(_existsSql).With("id", deduplicationId);
+
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(cancellation).ConfigureAwait(false)) > 0;
     }
 
     public async Task ReleaseAsync(string deduplicationId, CancellationToken cancellation = default)

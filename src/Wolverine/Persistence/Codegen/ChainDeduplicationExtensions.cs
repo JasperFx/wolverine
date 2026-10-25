@@ -80,6 +80,7 @@ public static class ChainDeduplicationExtensions
             }
 
             chain.Middleware.InsertRange(0, frames);
+            chain.Tags[TransactionalDeduplicationTag.Key] = new TransactionalDeduplicationTag(transactional, id);
             return;
         }
 

@@ -108,7 +108,7 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         // entirely: every replay runs. Ask for the commit frame itself, which is the thing the claim has to
         // ride. A chain without one genuinely has nothing to ride and belongs on the claim-and-release path.
         if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
-        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+        if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
 
         if (resolveStore(chain, container).As<DocumentStore>().Tenancy.Cardinality !=
             JasperFx.Descriptors.DatabaseCardinality.Single)
@@ -128,7 +128,8 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
             // GH-5166: also answers a concurrent caller whose commit failed on its own work first, such as a
             // [WriteAggregate] stream version, before it reached the claim's primary key
             CommitRaceWrapper = new RefuseDuplicateMartenClaimAtCommitFrame(deduplicationId, marker,
-                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement)),
+            Commit = commit
         };
 
         return true;

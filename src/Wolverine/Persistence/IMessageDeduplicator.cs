@@ -151,6 +151,17 @@ internal class MessageDeduplicator : IMessageDeduplicator
         }
     }
 
+    /// <summary>
+    /// GH-5206. Is <paramref name="deduplicationId" /> claimed, without claiming it? Null when the store backing
+    /// <paramref name="ancillaryStoreMarker" /> cannot say (see <see cref="IDeduplicationClaimLookup" />).
+    /// </summary>
+    internal async ValueTask<bool?> IsClaimedAsync(string deduplicationId, Type? ancillaryStoreMarker,
+        CancellationToken cancellation)
+    {
+        if (storeFor(ancillaryStoreMarker) is not IDeduplicationClaimLookup lookup) return null;
+        return await lookup.IsClaimedAsync(deduplicationId, cancellation).ConfigureAwait(false);
+    }
+
     private IDeduplicationStore storeFor(Type? ancillaryStoreMarker)
     {
         var store = ancillaryStoreMarker == null
