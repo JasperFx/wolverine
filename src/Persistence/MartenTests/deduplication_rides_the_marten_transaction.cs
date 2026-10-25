@@ -479,6 +479,10 @@ public class Ledger
     public Guid Id { get; set; }
     public int Adjustments { get; set; }
 
+    public void Apply(LedgerOpened _)
+    {
+    }
+
     public void Apply(LedgerAdjusted _) => Adjustments++;
 }
 
