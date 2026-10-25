@@ -9,6 +9,7 @@ using Marten.Events;
 using Marten.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -71,7 +72,8 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
 
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a Marten [DeduplicatedWithResponse] test endpoint",
-                    type => type != typeof(MartenDeduplicatedResponseEndpoints)));
+                    type => type != typeof(MartenDeduplicatedResponseEndpoints) &&
+                            type != typeof(MartenDeduplicatedAdmissionEndpoint)));
         }));
 
         await ((IHost)theHost).ResetResourceState();
@@ -79,6 +81,8 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         // ResetResourceState leaves documents behind, and the tests count them.
         await theHost.Services.GetRequiredService<IDocumentStore>()
             .Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(DeduplicatedOrderDocument));
+        await theHost.Services.GetRequiredService<IDocumentStore>()
+            .Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(DeduplicatedAccount));
     }
 
     public async ValueTask DisposeAsync()
@@ -241,7 +245,7 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     [Fact]
     public async Task a_write_aggregate_of_the_aggregate_itself_claims_in_the_transaction()
     {
-        // GH-????. Nothing in this signature names Marten: [WriteAggregate] binds the aggregate rather than its
+        // GH-5205. Nothing in this signature names Marten: [WriteAggregate] binds the aggregate rather than its
         // IEventStream<T>, and the workflow applies the Marten transaction itself
         var counterId = Guid.NewGuid();
         await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
@@ -269,6 +273,56 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         source.ShouldNotContain(".TryClaimAsync(");
         theLogs.Warnings.ShouldNotContain(x =>
             x.Contains("/marten-deduplicated-response/aggregate-race") && x.Contains("keeps claim-and-release"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task a_concurrent_repeat_refused_by_the_first_requests_committed_work_is_answered_with_the_first_response(
+        bool throws)
+    {
+        // GH-5206. The repeat misses the claim, then reads the first request's committed account, and its own rule
+        // refuses it (an answer or a throw) before it ever reaches a commit for the race handling to see
+        var key = Guid.NewGuid().ToString();
+        var command = new OpenDeduplicatedAccount("admission-" + key, throws);
+
+        var requests = new[]
+        {
+            postAsync("/marten-deduplicated-response/accounts", command, key, 201),
+            postAsync("/marten-deduplicated-response/accounts", command, key, 201)
+        };
+
+        // The first arrival answers; only then does the second go on past its claim lookup
+        await Task.WhenAny(requests);
+        MartenDeduplicatedAdmissionEndpoint.Release(command.Name);
+        var responses = await Task.WhenAll(requests);
+
+        // Both missed the claim up front, so the repeat was answered after its own rule refused it
+        MartenDeduplicatedAdmissionEndpoint.Arrivals(command.Name).ShouldBe(2);
+
+        (await responses[1].ReadAsTextAsync()).ShouldBe(await responses[0].ReadAsTextAsync());
+        responses[1].Context.Response.Headers.Location.ToString()
+            .ShouldBe(responses[0].Context.Response.Headers.Location.ToString());
+
+        await using var session = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        (await session.Query<DeduplicatedAccount>().CountAsync(x => x.Name == command.Name,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_refusal_with_no_claim_for_its_key_is_answered_as_the_endpoint_answered_it()
+    {
+        // GH-5206. The rule's own refusal still goes out when no request with this key ever succeeded
+        var name = "refused-" + Guid.NewGuid();
+        await postAsync("/marten-deduplicated-response/accounts", new OpenDeduplicatedAccount(name),
+            Guid.NewGuid().ToString(), 201);
+
+        var refused = await postAsync("/marten-deduplicated-response/accounts", new OpenDeduplicatedAccount(name),
+            Guid.NewGuid().ToString(), 409);
+
+        var problems = await refused.ReadAsJsonAsync<ProblemDetails>();
+        problems.Detail.ShouldBe("An account with this name is already open");
+        refused.Context.Response.ContentType.ShouldStartWith("application/problem+json");
     }
 
     [Fact]
@@ -822,4 +876,75 @@ public static class MartenDeduplicatedResponseEndpoints
     [DeduplicatedWithResponse(DeduplicationScope.Tenant | DeduplicationScope.User)]
     [WolverinePost("/marten-deduplicated-response/tenant")]
     public static DeduplicatedOrderCreated PostTenant(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+public record OpenDeduplicatedAccount(string Name, bool Throws = false);
+
+public record DeduplicatedAccountOpened(Guid Id) : CreationResponse("/marten-deduplicated-response/accounts/" + Id);
+
+public class DeduplicatedAccount
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// GH-5206. An endpoint with its own admission rule, one account per name, which a concurrent repeat fails once the
+/// first request has committed. Its own class, so its Before and Validate apply to nothing else.
+/// </summary>
+public static class MartenDeduplicatedAdmissionEndpoint
+{
+    private static readonly ConcurrentDictionary<string, int> _arrivals = new();
+    private static readonly ConcurrentDictionary<string, TaskCompletionSource> _gates = new();
+    private static readonly ConcurrentDictionary<string, TaskCompletionSource> _secondArrivals = new();
+
+    private static TaskCompletionSource gate(string name)
+        => _gates.GetOrAdd(name, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+
+    private static TaskCompletionSource secondArrival(string name)
+        => _secondArrivals.GetOrAdd(name,
+            _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+
+    // How many requests with this name got past their claim lookup
+    public static int Arrivals(string name) => _arrivals.GetValueOrDefault(name);
+
+    /// <summary>Lets the second arrival with this name go on.</summary>
+    public static void Release(string name) => gate(name).TrySetResult();
+
+    // After the claim lookup at the front of the chain, so both requests have missed the claim: the first goes on once
+    // the second is here, and the second waits until the test lets it go. Bounded, so a regression fails the
+    // assertions rather than hanging the test
+    public static async Task BeforeAsync(OpenDeduplicatedAccount command)
+    {
+        if (_arrivals.AddOrUpdate(command.Name, 1, (_, count) => count + 1) == 1)
+        {
+            await Task.WhenAny(secondArrival(command.Name).Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            return;
+        }
+
+        secondArrival(command.Name).TrySetResult();
+        await Task.WhenAny(gate(command.Name).Task, Task.Delay(TimeSpan.FromSeconds(10)));
+    }
+
+    public static async Task<ProblemDetails> ValidateAsync(OpenDeduplicatedAccount command, IQuerySession session)
+    {
+        if (!await session.Query<DeduplicatedAccount>().AnyAsync(x => x.Name == command.Name))
+        {
+            return WolverineContinue.NoProblems;
+        }
+
+        // The same rule, failed by a throw rather than an answer
+        if (command.Throws) throw new InvalidOperationException("An account with this name is already open");
+
+        return new ProblemDetails { Status = 409, Detail = "An account with this name is already open" };
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/marten-deduplicated-response/accounts")]
+    public static DeduplicatedAccountOpened Post(OpenDeduplicatedAccount command, IDocumentSession session)
+    {
+        var account = new DeduplicatedAccount { Id = Guid.NewGuid(), Name = command.Name };
+        session.Store(account);
+        return new DeduplicatedAccountOpened(account.Id);
+    }
 }
