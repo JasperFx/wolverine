@@ -159,6 +159,11 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         source.ShouldNotContain("StatusCode >= 400");
 
         source.ShouldContain($"{nameof(IFisherDeduplicator.QueueClaim)}(documentSession");
+
+        // GH-5206: a concurrent repeat that fails before the commit is looked up again, until the commit starts
+        source.ShouldContain(nameof(HttpHandler.WatchForDuplicateRefusal));
+        source.IndexOf(nameof(HttpHandler.MarkDeduplicationCommitStarted), StringComparison.Ordinal)
+            .ShouldBeLessThan(source.IndexOf("SaveChangesAsync", StringComparison.Ordinal));
     }
 
     private async Task<int> claimCountAsync(string key)
