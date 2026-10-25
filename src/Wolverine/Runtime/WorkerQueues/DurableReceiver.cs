@@ -1201,7 +1201,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         envelope.Failure = exception;
-        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception, _runtime.DurabilitySettings.DeadLetterFingerprinter);
 
         // GH-5105. This used to post the write to a background RetryBlock and return, so the caller completed the
         // envelope -- marking the inbox row, the only copy, handled -- and reported it as dead lettered before

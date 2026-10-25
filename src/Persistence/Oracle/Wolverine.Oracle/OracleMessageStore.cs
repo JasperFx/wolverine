@@ -275,6 +275,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         yield return new OutgoingEnvelopeTable(_durability, SchemaName);
         yield return new IncomingEnvelopeTable(_durability, SchemaName);
         yield return new DeadLettersTable(_durability, SchemaName);
+        yield return new DeadLetterHistoryTable(SchemaName);
         yield return new LockTable(SchemaName);
 
         if (Role == MessageStoreRole.Main)

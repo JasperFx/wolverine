@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Raven.Client;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Operations;
@@ -12,6 +13,8 @@ namespace Wolverine.RavenDb.Internals;
 
 public partial class RavenDbMessageStore : IDeadLetters
 {
+    private static readonly DateTimeOffset ArchivedAfter = DateTimeOffset.MinValue;
+
     private static string dlqId(Guid id)
     {
         return $"dlq/{id}";
@@ -30,7 +33,10 @@ public partial class RavenDbMessageStore : IDeadLetters
         CancellationToken token)
     {
         using var session = _store.OpenAsyncSession();
-        var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
+        // GH-5209: archived dead letters are left out of summaries
+        var queryable = (IRavenQueryable<DeadLetterMessage>)session.Query<DeadLetterMessage>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .Where(x => !(x.ArchivedAt > ArchivedAfter));
 
         if (range.From.HasValue)
         {
@@ -79,9 +85,9 @@ public partial class RavenDbMessageStore : IDeadLetters
         var skip = (query.PageNumber - 1) * query.PageSize;
 
         using var session = _store.OpenAsyncSession();
-        var queryable = buildDeadLetterQuery(session, query);
+        var queryable = buildDeadLetterQuery(session, query, query.EffectiveArchiveFilter());
 
-        if (query.HasHeaderFilter())
+        if (needsInMemoryQuery(query))
         {
             // GH-5164: headers only exist inside the serialized envelope body, so the header criteria
             // are applied in memory and paging / the total count are computed over the header matches
@@ -114,32 +120,69 @@ public partial class RavenDbMessageStore : IDeadLetters
         };
     }
 
-    private async Task<List<DeadLetterEnvelope>> loadByIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    private Task<List<DeadLetterEnvelope>> loadByIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return loadByIdsAsync(query, query.EffectiveArchiveFilter(), token);
+    }
+
+    private async Task<List<DeadLetterEnvelope>> loadByIdsAsync(DeadLetterEnvelopeQuery query,
+        DeadLetterArchiveFilter archived, CancellationToken token)
     {
         using var session = _store.OpenAsyncSession();
         var ids = query.MessageIds.Select(dlqId).ToArray();
         var messages = await session.LoadAsync<DeadLetterMessage>(ids, token);
+        var archiveQuery = new DeadLetterEnvelopeQuery { Archived = archived };
         return messages.Values
             .Where(m => m != null)
             .Select(m => m!.ToEnvelope())
-            .Where(e => query.MatchesHeaders(e.Envelope))
+            .Where(e => query.MatchesHeaders(e.Envelope) && archiveQuery.MatchesArchived(e.ArchivedAt))
             .ToList();
     }
 
+    // Header criteria and a "contains" exception message match cannot be expressed in the query, so they are
+    // applied in memory over everything else the query selects
     private static async Task<List<DeadLetterEnvelope>> findHeaderMatchesAsync(
         IRavenQueryable<DeadLetterMessage> queryable, DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var messages = await queryable.OrderBy(x => x.SentAt).ThenBy(x => x.EnvelopeId).ToListAsync(token);
         return messages
             .Select(m => m.ToEnvelope())
-            .Where(e => query.MatchesHeaders(e.Envelope))
+            .Where(e => query.MatchesHeaders(e.Envelope) && query.MatchesExceptionMessage(e.ExceptionMessage) &&
+                        query.MatchesFailureGroup(e.FailureGroup, e.ExceptionType))
             .ToList();
     }
 
     private static IRavenQueryable<DeadLetterMessage> buildDeadLetterQuery(IAsyncDocumentSession session,
-        DeadLetterEnvelopeQuery query)
+        DeadLetterEnvelopeQuery query, DeadLetterArchiveFilter archived)
     {
         var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
+
+        // GH-5209. A document stored before archiving existed has no ArchivedAt field at all, and RavenDb does not
+        // match a missing field with "= null". A range predicate is false for both null and missing, so "archived"
+        // is "after the minimum date" and its negation covers everything else
+        if (archived == DeadLetterArchiveFilter.Exclude)
+        {
+            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => !(x.ArchivedAt > ArchivedAfter));
+        }
+        else if (archived == DeadLetterArchiveFilter.Only)
+        {
+            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.ArchivedAt > ArchivedAfter);
+        }
+
+        if (query.FailureGroup.IsNotEmpty())
+        {
+            if (DeadLetterFingerprint.TryParseUnfingerprintedGroup(query.FailureGroup, out var legacyType))
+            {
+                // "FailureGroup == null" would miss documents stored before the field existed, so the missing
+                // failure group is checked in memory (see needsClientSideSelection)
+                queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.ExceptionType == legacyType);
+            }
+            else
+            {
+                var failureGroup = query.FailureGroup;
+                queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.FailureGroup == failureGroup);
+            }
+        }
 
         if (query.Range.From.HasValue)
         {
@@ -158,7 +201,19 @@ public partial class RavenDbMessageStore : IDeadLetters
 
         if (query.ExceptionMessage.IsNotEmpty())
         {
-            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.ExceptionMessage.StartsWith(query.ExceptionMessage));
+            var message = query.ExceptionMessage;
+            switch (query.ExceptionMessageMatch)
+            {
+                case DeadLetterMessageMatch.Exact:
+                    queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.ExceptionMessage == message);
+                    break;
+                case DeadLetterMessageMatch.Contains:
+                    // applied in memory, see needsClientSideSelection
+                    break;
+                default:
+                    queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.ExceptionMessage.StartsWith(message));
+                    break;
+            }
         }
 
         if (query.MessageType.IsNotEmpty())
@@ -185,146 +240,217 @@ public partial class RavenDbMessageStore : IDeadLetters
     // live in the serialized body), and BuildWhereClause has never expressed ExceptionMessage either.
     // Either criteria is resolved to the matching document ids first, then acted on by id, rather than
     // silently widening "discard / replay what matches" into a broader set.
-    private static bool needsClientSideSelection(DeadLetterEnvelopeQuery query)
+    // The LINQ query expresses the original "starts with" and the exact exception message match, but not these
+    private static bool needsInMemoryQuery(DeadLetterEnvelopeQuery query)
     {
         return query.HasHeaderFilter() ||
-               ((query.MessageIds == null || query.MessageIds.Length == 0) && query.ExceptionMessage.IsNotEmpty());
+               (query.ExceptionMessage.IsNotEmpty() && query.ExceptionMessageMatch == DeadLetterMessageMatch.Contains) ||
+               DeadLetterFingerprint.TryParseUnfingerprintedGroup(query.FailureGroup, out _);
     }
 
-    private async Task<Guid[]> findMatchingIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    private static bool needsClientSideSelection(DeadLetterEnvelopeQuery query)
+    {
+        // Only an exact exception message match is expressed in RQL. The original "starts with" match and
+        // "contains" are applied in memory, as the original match always was for the bulk operations
+        return query.HasHeaderFilter() ||
+               (query.ExceptionMessage.IsNotEmpty() && query.ExceptionMessageMatch != DeadLetterMessageMatch.Exact) ||
+               DeadLetterFingerprint.TryParseUnfingerprintedGroup(query.FailureGroup, out _);
+    }
+
+    private async Task<Guid[]> findMatchingIdsAsync(DeadLetterEnvelopeQuery query, DeadLetterArchiveFilter archived,
+        CancellationToken token)
     {
         if (query.MessageIds != null && query.MessageIds.Any())
         {
-            return (await loadByIdsAsync(query, token)).Select(x => x.Id).ToArray();
+            return (await loadByIdsAsync(query, archived, token)).Select(x => x.Id).ToArray();
         }
 
         using var session = _store.OpenAsyncSession();
-        var matches = await findHeaderMatchesAsync(buildDeadLetterQuery(session, query), query, token);
+        var matches = await findHeaderMatchesAsync(buildDeadLetterQuery(session, query, archived), query, token);
         return matches.Select(x => x.Id).ToArray();
     }
 
-    public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    // GH-5209: RavenDb reports counts and supports archiving, but keeps no replay history
+    public DeadLetterCapabilities Capabilities => DeadLetterCapabilities.FailureGroups |
+                                                  DeadLetterCapabilities.OperationCounts |
+                                                  DeadLetterCapabilities.ArchiveAndRestore |
+                                                  DeadLetterCapabilities.ExceptionMessageMatching;
+
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        if (needsClientSideSelection(query))
-        {
-            var ids = await findMatchingIdsAsync(query, token);
-
-            // Nothing matched. Do NOT fall through to the unfiltered delete below
-            if (ids.Length == 0) return;
-
-            query = new DeadLetterEnvelopeQuery { MessageIds = ids };
-        }
-
-        // If MessageIds are specified, delete those specific messages
-        if (query.MessageIds != null && query.MessageIds.Any())
-        {
-            using var session = _store.OpenAsyncSession();
-            foreach (var id in query.MessageIds)
-            {
-                session.Delete(dlqId(id));
-            }
-            await session.SaveChangesAsync(token);
-            return;
-        }
-
-        // Build delete query
-        var rql = BuildDeleteQuery(query);
-
-        var op = await _store.Operations.SendAsync(new DeleteByQueryOperation(new IndexQuery
-        {
-            Query = rql,
-            WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 30.Seconds()
-        }), token: token);
-
-        await op.WaitForCompletionAsync();
+        return DiscardMatchingAsync(query, token);
     }
 
-    public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        if (needsClientSideSelection(query))
-        {
-            var ids = await findMatchingIdsAsync(query, token);
+        return ReplayMatchingAsync(query, token);
+    }
 
-            // Nothing matched. Do NOT fall through to the unfiltered patch below
-            if (ids.Length == 0) return;
+    public Task<DeadLetterOperationResult> DiscardMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeMatchingAsync(query, query.EffectiveArchiveFilter(),
+            (session, id) => session.Delete(dlqId(id)),
+            null, token);
+    }
 
-            query = new DeadLetterEnvelopeQuery { MessageIds = ids };
-        }
+    // An archived dead letter has to be restored before it can be replayed
+    public Task<DeadLetterOperationResult> ReplayMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeMatchingAsync(query, DeadLetterArchiveFilter.Exclude,
+            (session, id) => session.Advanced.Patch<DeadLetterMessage, bool>(dlqId(id), x => x.Replayable, true),
+            ("m.Replayable = true", new Parameters()), token);
+    }
 
-        // If MessageIds are specified, mark those specific messages
-        if (query.MessageIds != null && query.MessageIds.Any())
-        {
-            using var session = _store.OpenAsyncSession();
-            foreach (var id in query.MessageIds)
+    public Task<DeadLetterOperationResult> ArchiveMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return executeMatchingAsync(query, DeadLetterArchiveFilter.Exclude,
+            (session, id) =>
             {
-                session.Advanced.Patch<DeadLetterMessage, bool>(dlqId(id), x => x.Replayable, true);
+                session.Advanced.Patch<DeadLetterMessage, DateTimeOffset?>(dlqId(id), x => x.ArchivedAt, now);
+                session.Advanced.Patch<DeadLetterMessage, bool>(dlqId(id), x => x.Replayable, false);
+            },
+            ("m.ArchivedAt = $archivedAt; m.Replayable = false", new Parameters { ["archivedAt"] = now }), token);
+    }
+
+    public Task<DeadLetterOperationResult> RestoreMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeMatchingAsync(query, DeadLetterArchiveFilter.Only,
+            (session, id) =>
+                session.Advanced.Patch<DeadLetterMessage, DateTimeOffset?>(dlqId(id), x => x.ArchivedAt, null),
+            ("m.ArchivedAt = null", new Parameters()), token);
+    }
+
+    // GH-5209. Criteria the RQL cannot express are resolved to the matching ids first and acted on by id, rather
+    // than silently widening "discard / replay what matches" into a broader set. Everything else runs as one
+    // set-based operation whose result reports how many documents it touched. A null patch means delete.
+    private async Task<DeadLetterOperationResult> executeMatchingAsync(DeadLetterEnvelopeQuery query,
+        DeadLetterArchiveFilter archived, Action<IAsyncDocumentSession, Guid> actById,
+        (string Script, Parameters Parameters)? patch, CancellationToken token)
+    {
+        if (needsClientSideSelection(query) || (query.MessageIds != null && query.MessageIds.Any()))
+        {
+            var ids = await findMatchingIdsAsync(query, archived, token);
+
+            // Nothing matched. Do NOT fall through to the unfiltered operation below
+            if (ids.Length == 0) return new DeadLetterOperationResult(0);
+
+            using var session = _store.OpenAsyncSession();
+            foreach (var id in ids)
+            {
+                actById(session, id);
             }
+
             await session.SaveChangesAsync(token);
-            return;
+            return new DeadLetterOperationResult(ids.Length);
         }
 
-        // Build update query
-        var whereClause = BuildWhereClause(query);
-        var rql = $@"
+        var (whereClause, parameters) = BuildWhereClause(query, archived);
+
+        Operation op;
+        if (patch == null)
+        {
+            op = await _store.Operations.SendAsync(new DeleteByQueryOperation(new IndexQuery
+            {
+                Query = $"from DeadLetterMessages as m {whereClause}",
+                QueryParameters = parameters,
+                WaitForNonStaleResults = true,
+                WaitForNonStaleResultsTimeout = 30.Seconds()
+            }), token: token);
+        }
+        else
+        {
+            foreach (var pair in patch.Value.Parameters) parameters[pair.Key] = pair.Value;
+
+            op = await _store.Operations.SendAsync(new PatchByQueryOperation(new IndexQuery
+            {
+                Query = $@"
 from DeadLetterMessages as m
 {whereClause}
 update
 {{
-    m.Replayable = true
-}}";
+    {patch.Value.Script}
+}}",
+                QueryParameters = parameters,
+                WaitForNonStaleResults = true,
+                WaitForNonStaleResultsTimeout = 30.Seconds()
+            }), token: token);
+        }
 
-        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(new IndexQuery
-        {
-            Query = rql,
-            WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 30.Seconds()
-        }), token: token);
-
-        await op.WaitForCompletionAsync();
+        var result = await op.WaitForCompletionAsync<BulkOperationResult>();
+        return new DeadLetterOperationResult((int)result.Total);
     }
 
-    private string BuildDeleteQuery(DeadLetterEnvelopeQuery query)
-    {
-        var whereClause = BuildWhereClause(query);
-        return $"from DeadLetterMessages as m {whereClause}";
-    }
-
-    private string BuildWhereClause(DeadLetterEnvelopeQuery query)
+    private static (string WhereClause, Parameters Parameters) BuildWhereClause(DeadLetterEnvelopeQuery query,
+        DeadLetterArchiveFilter archived)
     {
         var conditions = new List<string>();
+        var parameters = new Parameters();
 
         if (query.Range.From.HasValue)
         {
-            conditions.Add($"m.SentAt >= '{query.Range.From.Value:o}'");
+            conditions.Add("m.SentAt >= $from");
+            parameters["from"] = query.Range.From.Value;
         }
 
         if (query.Range.To.HasValue)
         {
-            conditions.Add($"m.SentAt <= '{query.Range.To.Value:o}'");
+            conditions.Add("m.SentAt <= $to");
+            parameters["to"] = query.Range.To.Value;
         }
 
         if (query.ExceptionType.IsNotEmpty())
         {
-            conditions.Add($"m.ExceptionType = '{query.ExceptionType}'");
+            conditions.Add("m.ExceptionType = $exceptionType");
+            parameters["exceptionType"] = query.ExceptionType;
+        }
+
+        // Only the exact match reaches here, see needsClientSideSelection
+        if (query.ExceptionMessage.IsNotEmpty())
+        {
+            conditions.Add("m.ExceptionMessage = $exceptionMessage");
+            parameters["exceptionMessage"] = query.ExceptionMessage;
         }
 
         if (query.MessageType.IsNotEmpty())
         {
-            conditions.Add($"m.MessageType = '{query.MessageType}'");
+            conditions.Add("m.MessageType = $messageType");
+            parameters["messageType"] = query.MessageType;
         }
 
         if (query.ReceivedAt.IsNotEmpty())
         {
-            conditions.Add($"m.ReceivedAt = '{query.ReceivedAt}'");
+            conditions.Add("m.ReceivedAt = $receivedAt");
+            parameters["receivedAt"] = query.ReceivedAt;
         }
 
         if (query.Replayable.HasValue)
         {
-            conditions.Add($"m.Replayable = {(query.Replayable.Value ? "true" : "false")}");
+            conditions.Add("m.Replayable = $replayable");
+            parameters["replayable"] = query.Replayable.Value;
         }
 
-        return conditions.Count > 0 ? "where " + string.Join(" and ", conditions) : "";
+        if (query.FailureGroup.IsNotEmpty())
+        {
+            // The failure group of a dead letter recorded before fingerprinting is resolved in memory, see
+            // needsClientSideSelection, and never reaches here
+            conditions.Add("m.FailureGroup = $failureGroup");
+            parameters["failureGroup"] = query.FailureGroup;
+        }
+
+        // See buildDeadLetterQuery for why this is a range rather than a null check
+        if (archived == DeadLetterArchiveFilter.Exclude)
+        {
+            conditions.Add("true and not m.ArchivedAt > $archivedAfter");
+            parameters["archivedAfter"] = ArchivedAfter;
+        }
+        else if (archived == DeadLetterArchiveFilter.Only)
+        {
+            conditions.Add("m.ArchivedAt > $archivedAfter");
+            parameters["archivedAfter"] = ArchivedAfter;
+        }
+
+        return (conditions.Count > 0 ? "where " + string.Join(" and ", conditions) : "", parameters);
     }
 
     // Legacy methods for backwards compatibility

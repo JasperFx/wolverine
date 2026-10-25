@@ -389,6 +389,9 @@ public abstract partial class MessageDatabase<T>
                 .ExecuteNonQueryAsync(_cancellation);
             await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)}")
                 .ExecuteNonQueryAsync(_cancellation);
+            // GH-5209
+            await tx.CreateCommand($"delete from {QuotedTableNameFor(DatabaseConstants.DeadLetterHistoryTable)}")
+                .ExecuteNonQueryAsync(_cancellation);
 
             // GH-4180. Outside the Main-only block below on purpose: the deduplication table is
             // provisioned for every store role, and ClearAllAsync means "no residue from the previous

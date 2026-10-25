@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 
 namespace Wolverine.Persistence.Durability;
@@ -80,4 +81,72 @@ public interface IDeadLetters
     /// <param name="token"></param>
     /// <returns></returns>
     Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token);
+
+    /// <summary>
+    /// The optional dead letter features this store supports
+    /// </summary>
+    DeadLetterCapabilities Capabilities => DeadLetterCapabilities.None;
+
+    /// <summary>
+    /// Fetch a summary of the persisted dead letter envelopes, grouped by failure group, message type,
+    /// endpoint or exception type, with the first and last failure time of each group
+    /// </summary>
+    /// <param name="serviceName"></param>
+    /// <param name="options"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    Task<IReadOnlyList<DeadLetterGroupSummary>> SummarizeAllAsync(string serviceName, DeadLetterSummaryOptions options,
+        CancellationToken token)
+    {
+        return DeadLetterSummaries.SummarizeByQueryingAsync(this, serviceName, options, token);
+    }
+
+    /// <summary>
+    /// Marks all dead letter envelopes matching the query as replayable, and reports how many were marked.
+    /// Archived dead letters are never replayed
+    /// </summary>
+    /// <param name="query"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    async Task<DeadLetterOperationResult> ReplayMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        await ReplayAsync(query, token);
+        return DeadLetterOperationResult.NotReported;
+    }
+
+    /// <summary>
+    /// Deletes all dead letter envelopes matching the query, and reports how many were deleted
+    /// </summary>
+    /// <param name="query"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    async Task<DeadLetterOperationResult> DiscardMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        await DiscardAsync(query, token);
+        return DeadLetterOperationResult.NotReported;
+    }
+
+    /// <summary>
+    /// Archives all dead letter envelopes matching the query that are not already archived, and reports how
+    /// many were archived. Archived dead letters are left out of summaries, queries and replays unless asked
+    /// for. See <see cref="Capabilities"/>
+    /// </summary>
+    /// <param name="query"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    Task<DeadLetterOperationResult> ArchiveMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotSupportedException($"{GetType().FullNameInCode()} does not support archiving dead letters");
+    }
+
+    /// <summary>
+    /// Restores all archived dead letter envelopes matching the query, and reports how many were restored
+    /// </summary>
+    /// <param name="query"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    Task<DeadLetterOperationResult> RestoreMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotSupportedException($"{GetType().FullNameInCode()} does not support archiving dead letters");
+    }
 }

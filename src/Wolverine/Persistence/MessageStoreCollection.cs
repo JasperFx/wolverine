@@ -639,7 +639,10 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             ExceptionType = request.ExceptionType,
             ExceptionMessage = request.ExceptionMessage,
             Replayable = request.Replayable,
-            Range = new TimeRange(request.From, request.Until)
+            Range = new TimeRange(request.From, request.Until),
+            ExceptionMessageMatch = request.ExceptionMessageMatch,
+            FailureGroup = request.FailureGroup,
+            Archived = request.Archived
         };
 
         var stores = await findStoresAsync(request);

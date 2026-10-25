@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
@@ -215,7 +216,7 @@ public static class DatabasePersistence
 
         var envelope = await ReadDeadLetterBodyAsync(reader, id, messageType, receivedAt, cancellation, logger);
 
-        return new DeadLetterEnvelope(
+        var deadLetter = new DeadLetterEnvelope(
             id,
             executionTime,
             envelope,
@@ -227,6 +228,65 @@ public static class DatabasePersistence
             sentAt,
             replayable
         );
+
+        await ReadDeadLetterExtendedFieldsAsync(reader, deadLetter, cancellation);
+
+        return deadLetter;
+    }
+
+    /// <summary>
+    /// GH-5209. Reads <see cref="DatabaseConstants.DeadLetterExtendedFields"/> when the query selected them
+    /// right after <see cref="DatabaseConstants.DeadLetterFields"/>, as <see cref="DatabaseConstants.DeadLetterQueryFields"/>
+    /// does. A reader over only the original fields is left alone.
+    /// </summary>
+    public static async Task ReadDeadLetterExtendedFieldsAsync(DbDataReader reader, DeadLetterEnvelope deadLetter,
+        CancellationToken cancellation)
+    {
+        const int start = 10;
+        if (reader.FieldCount < start + 7 ||
+            !reader.GetName(start).Equals(DatabaseConstants.FailureGroup, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        deadLetter.FailureGroup = await readNullableStringAsync(reader, start, cancellation);
+        deadLetter.FailureTitle = await readNullableStringAsync(reader, start + 1, cancellation);
+        deadLetter.FailedAt = await ReadNullableTimestampAsync(reader, start + 2, cancellation);
+        deadLetter.FirstFailedAt = await ReadNullableTimestampAsync(reader, start + 3, cancellation);
+        deadLetter.ReplayCount = await reader.IsDBNullAsync(start + 4, cancellation)
+            ? 0
+            : Convert.ToInt32(reader.GetValue(start + 4));
+        deadLetter.LastReplayedAt = await ReadNullableTimestampAsync(reader, start + 5, cancellation);
+        deadLetter.ArchivedAt = await ReadNullableTimestampAsync(reader, start + 6, cancellation);
+    }
+
+    private static async Task<string?> readNullableStringAsync(DbDataReader reader, int ordinal,
+        CancellationToken cancellation)
+    {
+        return await reader.IsDBNullAsync(ordinal, cancellation)
+            ? null
+            : await reader.GetFieldValueAsync<string>(ordinal, cancellation);
+    }
+
+    internal static async Task<DateTimeOffset?> ReadNullableTimestampAsync(DbDataReader reader, int ordinal,
+        CancellationToken cancellation)
+    {
+        if (await reader.IsDBNullAsync(ordinal, cancellation)) return null;
+
+        try
+        {
+            return await reader.GetFieldValueAsync<DateTimeOffset>(ordinal, cancellation);
+        }
+        catch (InvalidCastException)
+        {
+            return reader.GetValue(ordinal) switch
+            {
+                DateTimeOffset offset => offset,
+                DateTime time => new DateTimeOffset(DateTime.SpecifyKind(time, DateTimeKind.Utc)),
+                var other => DateTimeOffset.Parse(Convert.ToString(other, System.Globalization.CultureInfo.InvariantCulture)!,
+                    System.Globalization.CultureInfo.InvariantCulture)
+            };
+        }
     }
 
     // GH-3166 hardened the per-column reads; this hardens the body itself. A single unreadable `body`
@@ -282,6 +342,9 @@ public static class DatabasePersistence
         Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
     {
+        // GH-5209. Fingerprint before serializing, so the failure-group header travels inside the stored envelope
+        var fingerprint = DeadLetterFingerprinting.Apply(durability.DeadLetterFingerprinter, envelope, exception);
+
         byte[] data = [];
         try
         {
@@ -291,22 +354,39 @@ public static class DatabasePersistence
         {
             wolverineDatabase.Logger.LogError(e, "Error trying to serialize a dead letter envelope");
         }
-        
-        var list = new List<DbParameter>
+
+        var id = builder.AddParameter(envelope.Id);
+        var now = builder.AddParameter(DateTimeOffset.UtcNow);
+
+        var values = new List<string>
         {
-            builder.AddParameter(envelope.Id),
-            builder.AddParameter(envelope.ScheduledTime),
-            builder.AddParameter(data),
-            builder.AddParameter(envelope.MessageType ?? "unknown"),
-            builder.AddParameter(envelope.Destination?.ToString()),
-            builder.AddParameter(envelope.Source ?? "unknown"),
-            builder.AddParameter(exception.DeadLetterExceptionType()),
-            builder.AddParameter(exception.DeadLetterExceptionMessage()),
-            builder.AddParameter(envelope.SentAt.ToUniversalTime()),
-            builder.AddParameter(false)
+            "@" + id.ParameterName,
+            "@" + builder.AddParameter(envelope.ScheduledTime).ParameterName,
+            "@" + builder.AddParameter(data).ParameterName,
+            "@" + builder.AddParameter(envelope.MessageType ?? "unknown").ParameterName,
+            "@" + builder.AddParameter(envelope.Destination?.ToString()).ParameterName,
+            "@" + builder.AddParameter(envelope.Source ?? "unknown").ParameterName,
+            "@" + builder.AddParameter(exception.DeadLetterExceptionType()).ParameterName,
+            "@" + builder.AddParameter(exception.DeadLetterExceptionMessage()).ParameterName,
+            "@" + builder.AddParameter(envelope.SentAt.ToUniversalTime()).ParameterName,
+            "@" + builder.AddParameter(false).ParameterName,
+            "@" + builder.AddParameter(fingerprint.Group).ParameterName,
+            "@" + builder.AddParameter(fingerprint.Title).ParameterName,
+            "@" + now.ParameterName
         };
 
-        var deadLetterFields = DatabaseConstants.DeadLetterFields;
+        // GH-5209. A message that was replayed out of dead letter storage and failed again picks its replay
+        // history back up from the history table the replay wrote
+        var history = wolverineDatabase.TableNameFor(DatabaseConstants.DeadLetterHistoryTable);
+        string historyOf(string column) =>
+            $"(select h.{column} from {history} h where h.{DatabaseConstants.Id} = @{id.ParameterName})";
+
+        values.Add($"coalesce({historyOf(DatabaseConstants.FirstFailedAt)}, @{now.ParameterName})");
+        values.Add($"coalesce({historyOf(DatabaseConstants.ReplayCount)}, 0)");
+        values.Add(historyOf(DatabaseConstants.LastReplayedAt));
+
+        var deadLetterFields =
+            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // If there is a deliver by, use that
@@ -314,15 +394,88 @@ public static class DatabasePersistence
                 ? builder.AddParameter(envelope.DeliverBy.Value)
                 : builder.AddParameter(DateTimeOffset.UtcNow.Add(durability.DeadLetterQueueExpiration));
             
-            list.Add(expiration);
+            values.Add("@" + expiration.ParameterName);
             deadLetterFields += ", " + DatabaseConstants.Expires;
         }
 
-        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
-        
         builder.Append(
-            $"insert into {wolverineDatabase.TableNameFor(DatabaseConstants.DeadLetterTable)} ({deadLetterFields}) values ({parameterList});");
+            $"insert into {wolverineDatabase.TableNameFor(DatabaseConstants.DeadLetterTable)} ({deadLetterFields}) values ({values.Join(", ")});");
     }
+
+    /// <summary>
+    /// GH-5209. The grouping key columns of a grouped dead letter summary. Rows recorded before failure
+    /// fingerprinting have no failure group, and are grouped by exception type
+    /// </summary>
+    public static string DeadLetterGroupingColumns(DeadLetterGrouping grouping)
+    {
+        return grouping switch
+        {
+            DeadLetterGrouping.FailureGroup =>
+                $"{DatabaseConstants.FailureGroup}, case when {DatabaseConstants.FailureGroup} is null then {DatabaseConstants.ExceptionType} end",
+            DeadLetterGrouping.MessageType => DatabaseConstants.MessageType,
+            DeadLetterGrouping.Endpoint => DatabaseConstants.ReceivedAt,
+            DeadLetterGrouping.ExceptionType => DatabaseConstants.ExceptionType,
+            _ => throw new ArgumentOutOfRangeException(nameof(grouping))
+        };
+    }
+
+    /// <summary>
+    /// GH-5209. How many columns <see cref="DeadLetterGroupingColumns"/> selects
+    /// </summary>
+    public static int DeadLetterGroupingColumnCount(DeadLetterGrouping grouping) =>
+        grouping == DeadLetterGrouping.FailureGroup ? 2 : 1;
+
+    /// <summary>
+    /// GH-5209. The aggregates of a grouped dead letter summary, selected after the grouping columns and read in
+    /// this order by <see cref="ReadDeadLetterGroupSummaryAsync"/>
+    /// </summary>
+    public static readonly string DeadLetterSummaryAggregates =
+        $"max({DatabaseConstants.ExceptionType}), max({DatabaseConstants.FailureTitle}), count(*), " +
+        $"min(coalesce({DatabaseConstants.FirstFailedAt}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SentAt})), " +
+        $"max(coalesce({DatabaseConstants.FailedAt}, {DatabaseConstants.SentAt}))";
+
+    /// <summary>
+    /// GH-5209. Reads one row of a grouped dead letter summary
+    /// </summary>
+    public static async Task<DeadLetterGroupSummary> ReadDeadLetterGroupSummaryAsync(DbDataReader reader,
+        int offset, string serviceName, DeadLetterGrouping grouping, string? key, Uri database, CancellationToken token)
+    {
+        var exceptionType = await reader.IsDBNullAsync(offset, token)
+            ? null
+            : Convert.ToString(reader.GetValue(offset));
+        var title = await reader.IsDBNullAsync(offset + 1, token)
+            ? null
+            : Convert.ToString(reader.GetValue(offset + 1));
+        var count = Convert.ToInt32(reader.GetValue(offset + 2));
+
+        var first = await ReadNullableTimestampAsync(reader, offset + 3, token);
+        var last = await ReadNullableTimestampAsync(reader, offset + 4, token);
+
+        var predates = grouping == DeadLetterGrouping.FailureGroup && key.IsEmpty();
+        if (predates)
+        {
+            key = DeadLetterFingerprint.UnfingerprintedGroupFor(exceptionType);
+            title = DeadLetterFingerprint.UnfingerprintedTitleFor(exceptionType);
+        }
+        else if (grouping == DeadLetterGrouping.Endpoint && key.IsEmpty())
+        {
+            key = UnknownReceivedAt;
+        }
+
+        return new DeadLetterGroupSummary(serviceName, database, grouping, key ?? string.Empty, count)
+        {
+            Title = grouping == DeadLetterGrouping.FailureGroup ? title ?? key : null,
+            ExceptionType = grouping is DeadLetterGrouping.FailureGroup or DeadLetterGrouping.ExceptionType
+                ? exceptionType
+                : null,
+            PredatesFingerprinting = predates,
+            FirstFailedAt = first,
+            LastFailedAt = last
+        };
+    }
+
+    // GH-3166's sentinel for dead letters without a destination
+    internal const string UnknownReceivedAt = "unknown://none";
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {

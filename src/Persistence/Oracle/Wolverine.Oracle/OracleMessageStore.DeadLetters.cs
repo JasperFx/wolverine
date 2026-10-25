@@ -17,7 +17,7 @@ internal partial class OracleMessageStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         await using var cmd = conn.CreateCommand(
-            $"SELECT {DatabaseConstants.DeadLetterFields} FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE id = :id");
+            $"SELECT {DatabaseConstants.DeadLetterQueryFields} FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE id = :id");
         cmd.With("id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
@@ -43,7 +43,8 @@ internal partial class OracleMessageStore
         builder.Append(
             $"SELECT {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}, COUNT(*) as total");
         builder.Append($" FROM {SchemaName}.{DatabaseConstants.DeadLetterTable}");
-        builder.Append(" WHERE 1 = 1");
+        // GH-5209: archived dead letters are left out of summaries
+        builder.Append($" WHERE {DatabaseConstants.ArchivedAt} IS NULL");
 
         if (range.From.HasValue)
         {
@@ -88,6 +89,53 @@ internal partial class OracleMessageStore
         return envelopes;
     }
 
+    public DeadLetterCapabilities Capabilities => DeadLetterCapabilities.All;
+
+    public async Task<IReadOnlyList<DeadLetterGroupSummary>> SummarizeAllAsync(string serviceName,
+        DeadLetterSummaryOptions options, CancellationToken token)
+    {
+        var query = options.Query;
+        if (query.HasHeaderFilter())
+        {
+            var matches = new List<DeadLetterEnvelope>();
+            await foreach (var envelope in readHeaderMatchesAsync(query, query.EffectiveArchiveFilter(), token))
+            {
+                matches.Add(envelope);
+            }
+
+            return DeadLetterSummaries.Group(matches, serviceName, Uri, options.Grouping);
+        }
+
+        var keys = DatabasePersistence.DeadLetterGroupingColumns(options.Grouping);
+
+        var builder = ToOracleCommandBuilder();
+        builder.Append($"SELECT {keys}, {DatabasePersistence.DeadLetterSummaryAggregates}");
+        builder.Append($" FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
+        writeDeadLetterWhereClause(query, builder, query.EffectiveArchiveFilter());
+        builder.Append($" GROUP BY {keys}");
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+
+        var list = new List<DeadLetterGroupSummary>();
+        await using var reader = await cmd.ExecuteReaderAsync(token);
+        var offset = DatabasePersistence.DeadLetterGroupingColumnCount(options.Grouping);
+        while (await reader.ReadAsync(token))
+        {
+            var key = await reader.IsDBNullAsync(0, token) ? null : Convert.ToString(reader.GetValue(0));
+            list.Add(await DatabasePersistence.ReadDeadLetterGroupSummaryAsync(reader, offset, serviceName,
+                options.Grouping, key, Uri, token));
+        }
+
+        await reader.CloseAsync();
+        await conn.CloseAsync();
+
+        return list.OrderByDescending(x => x.Count).ToList();
+    }
+
     public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         if (query.HasHeaderFilter())
@@ -98,9 +146,9 @@ internal partial class OracleMessageStore
         var builder = ToOracleCommandBuilder();
 
         builder.Append(
-            $"SELECT {DatabaseConstants.DeadLetterFields}, COUNT(*) OVER() as total_rows FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
+            $"SELECT {DatabaseConstants.DeadLetterQueryFields}, COUNT(*) OVER() as total_rows FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
 
-        writeDeadLetterWhereClause(query, builder);
+        writeDeadLetterWhereClause(query, builder, query.EffectiveArchiveFilter());
 
         builder.Append($" ORDER BY {DatabaseConstants.ExecutionTime}");
 
@@ -125,7 +173,7 @@ internal partial class OracleMessageStore
         {
             var env = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, token, Logger);
             results.Envelopes.Add(env);
-            results.TotalCount = Convert.ToInt32(await reader.GetFieldValueAsync<decimal>(10, token));
+            results.TotalCount = Convert.ToInt32(reader.GetValue(DatabaseConstants.DeadLetterQueryFieldCount));
         }
 
         while (await reader.ReadAsync(token))
@@ -152,7 +200,7 @@ internal partial class OracleMessageStore
         var results = new DeadLetterEnvelopeResults { PageNumber = query.PageNumber };
         var matched = 0;
 
-        await foreach (var envelope in readHeaderMatchesAsync(query, token))
+        await foreach (var envelope in readHeaderMatchesAsync(query, query.EffectiveArchiveFilter(), token))
         {
             if (matched >= offset && (query.PageSize <= 0 || results.Envelopes.Count < query.PageSize))
             {
@@ -167,12 +215,13 @@ internal partial class OracleMessageStore
     }
 
     private async IAsyncEnumerable<DeadLetterEnvelope> readHeaderMatchesAsync(DeadLetterEnvelopeQuery query,
+        DeadLetterArchiveFilter archived,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
     {
         var builder = ToOracleCommandBuilder();
         builder.Append(
-            $"SELECT {DatabaseConstants.DeadLetterFields} FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
-        writeDeadLetterWhereClause(query, builder);
+            $"SELECT {DatabaseConstants.DeadLetterQueryFields} FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
+        writeDeadLetterWhereClause(query, builder, archived);
         // id breaks ties so that separate page requests see one stable order
         builder.Append($" ORDER BY {DatabaseConstants.ExecutionTime}, {DatabaseConstants.Id}");
 
@@ -197,10 +246,11 @@ internal partial class OracleMessageStore
     }
 
     // An empty result means "nothing matched" -- callers must not fall through to an unfiltered statement
-    private async Task<List<Guid>> findHeaderMatchIdsAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    private async Task<List<Guid>> findHeaderMatchIdsAsync(DeadLetterEnvelopeQuery query,
+        DeadLetterArchiveFilter archived, CancellationToken token)
     {
         var ids = new List<Guid>();
-        await foreach (var envelope in readHeaderMatchesAsync(query, token))
+        await foreach (var envelope in readHeaderMatchesAsync(query, archived, token))
         {
             ids.Add(envelope.Id);
         }
@@ -211,29 +261,87 @@ internal partial class OracleMessageStore
     // Oracle caps an IN list at 1000 expressions
     private const int HeaderFilterIdChunkSize = 500;
 
-    public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return DiscardMatchingAsync(query, token);
+    }
+
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return ReplayMatchingAsync(query, token);
+    }
+
+    public Task<DeadLetterOperationResult> DiscardMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeMatchingAsync(query, query.EffectiveArchiveFilter(), builder =>
+        {
+            builder.Append($"DELETE FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
+        }, token);
+    }
+
+    // An archived dead letter has to be restored before it can be replayed
+    public Task<DeadLetterOperationResult> ReplayMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeMatchingAsync(query, DeadLetterArchiveFilter.Exclude, builder =>
+        {
+            builder.Append(
+                $"UPDATE {SchemaName}.{DatabaseConstants.DeadLetterTable} SET {DatabaseConstants.Replayable} = ");
+            builder.AppendParameter(1); // Oracle uses NUMBER(1) for bool
+            builder.Append(" WHERE 1 = 1");
+        }, token);
+    }
+
+    public Task<DeadLetterOperationResult> ArchiveMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return executeMatchingAsync(query, DeadLetterArchiveFilter.Exclude, builder =>
+        {
+            builder.Append(
+                $"UPDATE {SchemaName}.{DatabaseConstants.DeadLetterTable} SET {DatabaseConstants.ArchivedAt} = ");
+            builder.AppendParameter(now);
+            builder.Append($", {DatabaseConstants.Replayable} = ");
+            builder.AppendParameter(0); // Oracle uses NUMBER(1) for bool
+            builder.Append(" WHERE 1 = 1");
+        }, token);
+    }
+
+    public Task<DeadLetterOperationResult> RestoreMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeMatchingAsync(query, DeadLetterArchiveFilter.Only, builder =>
+        {
+            builder.Append(
+                $"UPDATE {SchemaName}.{DatabaseConstants.DeadLetterTable} SET {DatabaseConstants.ArchivedAt} = NULL WHERE 1 = 1");
+        }, token);
+    }
+
+    // GH-5209. One set-based statement over the matching rows, reporting the affected row count. A header filter
+    // is resolved to the matching ids first and the statement runs against chunks of them, summing the counts.
+    // No match means no statement at all -- never fall through to an unfiltered one.
+    private async Task<DeadLetterOperationResult> executeMatchingAsync(DeadLetterEnvelopeQuery query,
+        DeadLetterArchiveFilter archived, Action<Weasel.Oracle.CommandBuilder> writeStatement, CancellationToken token)
     {
         if (query.HasHeaderFilter())
         {
-            var ids = await findHeaderMatchIdsAsync(query, token);
+            var ids = await findHeaderMatchIdsAsync(query, archived, token);
+            var affected = 0;
             foreach (var chunk in ids.Chunk(HeaderFilterIdChunkSize))
             {
-                await discardAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, token);
+                affected += await executeStatementAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, archived,
+                    writeStatement, token);
             }
 
-            return;
+            return new DeadLetterOperationResult(affected);
         }
 
-        await discardAsync(query, token);
+        return new DeadLetterOperationResult(await executeStatementAsync(query, archived, writeStatement, token));
     }
 
-    private async Task discardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    private async Task<int> executeStatementAsync(DeadLetterEnvelopeQuery query, DeadLetterArchiveFilter archived,
+        Action<Weasel.Oracle.CommandBuilder> writeStatement, CancellationToken token)
     {
         var builder = ToOracleCommandBuilder();
-
-        builder.Append($"DELETE FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE 1 = 1");
-
-        writeDeadLetterWhereClause(query, builder);
+        writeStatement(builder);
+        writeDeadLetterWhereClause(query, builder, archived);
 
         await using var cmd = builder.Compile();
 
@@ -241,47 +349,7 @@ internal partial class OracleMessageStore
         try
         {
             cmd.Connection = conn;
-            await cmd.ExecuteNonQueryAsync(token);
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
-
-    public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
-    {
-        if (query.HasHeaderFilter())
-        {
-            var ids = await findHeaderMatchIdsAsync(query, token);
-            foreach (var chunk in ids.Chunk(HeaderFilterIdChunkSize))
-            {
-                await replayAsync(new DeadLetterEnvelopeQuery { MessageIds = chunk }, token);
-            }
-
-            return;
-        }
-
-        await replayAsync(query, token);
-    }
-
-    private async Task replayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
-    {
-        var builder = ToOracleCommandBuilder();
-
-        builder.Append(
-            $"UPDATE {SchemaName}.{DatabaseConstants.DeadLetterTable} SET {DatabaseConstants.Replayable} = ");
-        builder.AppendParameter(1); // Oracle uses NUMBER(1) for bool
-        builder.Append(" WHERE 1 = 1");
-        writeDeadLetterWhereClause(query, builder);
-
-        await using var cmd = builder.Compile();
-
-        await using var conn = await _dataSource.OpenConnectionAsync(token);
-        try
-        {
-            cmd.Connection = conn;
-            await cmd.ExecuteNonQueryAsync(token);
+            return await cmd.ExecuteNonQueryAsync(token);
         }
         finally
         {
@@ -320,7 +388,8 @@ internal partial class OracleMessageStore
         }
     }
 
-    private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, Weasel.Oracle.CommandBuilder builder)
+    private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, Weasel.Oracle.CommandBuilder builder,
+        DeadLetterArchiveFilter archived)
     {
         if (query.Range.From.HasValue)
         {
@@ -342,8 +411,49 @@ internal partial class OracleMessageStore
 
         if (query.ExceptionMessage.IsNotEmpty())
         {
-            builder.Append($" AND {DatabaseConstants.ExceptionMessage} LIKE ");
-            builder.AppendParameter(query.ExceptionMessage);
+            switch (query.ExceptionMessageMatch)
+            {
+                case DeadLetterMessageMatch.Exact:
+                    builder.Append($" AND {DatabaseConstants.ExceptionMessage} = ");
+                    builder.AppendParameter(query.ExceptionMessage);
+                    break;
+
+                case DeadLetterMessageMatch.Contains:
+                    builder.Append($" AND {DatabaseConstants.ExceptionMessage} LIKE ");
+                    builder.AppendParameter(DeadLetterSummaries.ContainsPattern(query.ExceptionMessage, escapeBrackets: false));
+                    builder.Append(DeadLetterSummaries.LikeEscapeClause);
+                    break;
+
+                default:
+                    // The original behavior: the value is the LIKE pattern
+                    builder.Append($" AND {DatabaseConstants.ExceptionMessage} LIKE ");
+                    builder.AppendParameter(query.ExceptionMessage);
+                    break;
+            }
+        }
+
+        if (query.FailureGroup.IsNotEmpty())
+        {
+            if (DeadLetterFingerprint.TryParseUnfingerprintedGroup(query.FailureGroup, out var legacyType))
+            {
+                builder.Append($" AND {DatabaseConstants.FailureGroup} IS NULL AND {DatabaseConstants.ExceptionType} = ");
+                builder.AppendParameter(legacyType);
+            }
+            else
+            {
+                builder.Append($" AND {DatabaseConstants.FailureGroup} = ");
+                builder.AppendParameter(query.FailureGroup);
+            }
+        }
+
+        switch (archived)
+        {
+            case DeadLetterArchiveFilter.Exclude:
+                builder.Append($" AND {DatabaseConstants.ArchivedAt} IS NULL");
+                break;
+            case DeadLetterArchiveFilter.Only:
+                builder.Append($" AND {DatabaseConstants.ArchivedAt} IS NOT NULL");
+                break;
         }
 
         if (query.MessageType.IsNotEmpty())

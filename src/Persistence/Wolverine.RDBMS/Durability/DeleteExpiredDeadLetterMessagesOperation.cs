@@ -11,6 +11,7 @@ internal class DeleteExpiredDeadLetterMessagesOperation : IDatabaseOperation
     private readonly IMessageDatabase _database;
     private readonly ILogger _logger;
     private readonly DateTimeOffset _utcNow;
+    private readonly DurabilitySettings? _settings;
 
     public DeleteExpiredDeadLetterMessagesOperation(IMessageDatabase database, ILogger logger, DateTimeOffset utcNow)
     {
@@ -19,12 +20,19 @@ internal class DeleteExpiredDeadLetterMessagesOperation : IDatabaseOperation
         _utcNow = utcNow;
     }
 
+    /// <summary>
+    /// GH-5209. Also expires archived dead letters and old replay history according to <paramref name="settings"/>
+    /// </summary>
+    public DeleteExpiredDeadLetterMessagesOperation(IMessageDatabase database, ILogger logger, DateTimeOffset utcNow,
+        DurabilitySettings settings) : this(database, logger, utcNow)
+    {
+        _settings = settings;
+    }
+
     public string Description { get; } = "Delete any expired dead letter messages from storage";
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        builder.Append($"delete from {_database.TableNameFor(DatabaseConstants.DeadLetterTable)} where {DatabaseConstants.Expires} < ");
-        builder.AppendParameter(_utcNow);
-        builder.Append(';');
+        DeadLetterExpiration.WriteStatements(builder, _database, _settings, _utcNow);
     }
 
     public Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

@@ -80,9 +80,9 @@ public class oracle_durability_command_translation
             new DeleteOldNodeEventRecords(store, new DurabilitySettings()));
 
         // One command per *statement*, not per operation -- ODP.NET cannot execute several statements
-        // from one command, and MoveReplayableErrorMessagesToIncomingOperation writes two (the insert
-        // and the delete)
-        commands.Count.ShouldBe(4);
+        // from one command, and MoveReplayableErrorMessagesToIncomingOperation writes four (the insert,
+        // the replay history delete and insert from GH-5209, and the delete)
+        commands.Count.ShouldBe(6);
 
         foreach (var command in commands)
         {
@@ -115,9 +115,9 @@ public class oracle_durability_command_translation
     {
         var commands = compile(new MoveReplayableErrorMessagesToIncomingOperation(theStore()));
 
-        // The insert and the delete both bind :replayable, and it is only ever created once, so
-        // both split commands have to carry it
-        commands.Count.ShouldBe(2);
+        // Every statement binds :replayable, and it is only ever created once, so every split command
+        // has to carry it
+        commands.Count.ShouldBe(4);
 
         foreach (var command in commands)
         {

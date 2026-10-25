@@ -44,6 +44,20 @@ internal class DeadLettersTable : Table
             Predicate = $"[{DatabaseConstants.Replayable}]=1"
         });
 
+        // GH-5209: failure fingerprint, replay history and archived state. Nullable, so additive for an existing table
+        AddColumn(DatabaseConstants.FailureGroup, "varchar(100)").AllowNulls();
+        AddColumn(DatabaseConstants.FailureTitle, "nvarchar(500)").AllowNulls();
+        AddColumn<DateTimeOffset>(DatabaseConstants.FailedAt).AllowNulls();
+        AddColumn<DateTimeOffset>(DatabaseConstants.FirstFailedAt).AllowNulls();
+        AddColumn<int>(DatabaseConstants.ReplayCount).AllowNulls();
+        AddColumn<DateTimeOffset>(DatabaseConstants.LastReplayedAt).AllowNulls();
+        AddColumn<DateTimeOffset>(DatabaseConstants.ArchivedAt).AllowNulls();
+
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_{DatabaseConstants.FailureGroup}")
+        {
+            Columns = [DatabaseConstants.FailureGroup]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Expires).AllowNulls();

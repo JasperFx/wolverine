@@ -22,7 +22,9 @@ internal partial class OracleMessageStore
         {
             DatabaseConstants.IncomingTable,
             DatabaseConstants.OutgoingTable,
-            DatabaseConstants.DeadLetterTable
+            DatabaseConstants.DeadLetterTable,
+            // GH-5209
+            DatabaseConstants.DeadLetterHistoryTable
         };
 
         if (_settings.Role == MessageStoreRole.Main)

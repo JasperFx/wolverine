@@ -124,19 +124,18 @@ internal class DurabilityAgent : IAgent
         }
 #pragma warning restore VSTHRD101 // Avoid unsupported async delegates
 
-        if (_settings.DeadLetterQueueExpirationEnabled)
+        // GH-5209. Always scheduled now: besides the opt-in dead letter expiration it expires archived dead
+        // letters (ArchivedDeadLetterRetention) and sweeps old dead letter replay history
+        _expirationTimer = new Timer(_ =>
         {
-            _expirationTimer = new Timer(_ =>
+            var operations = new IDatabaseOperation[]
             {
-                var operations = new IDatabaseOperation[]
-                {
-                    new DeleteExpiredDeadLetterMessagesOperation(_database, _logger, DateTimeOffset.UtcNow)
-                };
+                new DeleteExpiredDeadLetterMessagesOperation(_database, _logger, DateTimeOffset.UtcNow, _settings)
+            };
 
-                var batch = new DatabaseOperationBatch(_database, operations);
-                _runningBlock.Post(batch);
-            }, _settings, 1.Minutes(), 1.Hours());
-        }
+            var batch = new DatabaseOperationBatch(_database, operations);
+            _runningBlock.Post(batch);
+        }, _settings, 1.Minutes(), 1.Hours());
 
         _handledCleanupTimer = new Timer(_ =>
         {

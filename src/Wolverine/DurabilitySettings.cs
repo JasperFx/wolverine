@@ -2,6 +2,7 @@
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Transports;
 
 namespace Wolverine;
@@ -1081,6 +1082,23 @@ public class DurabilitySettings : IDescribeMyself
     public bool DeadLetterQueueExpirationEnabled { get; set; }
 
     /// <summary>
+    /// GH-5209. How long an archived dead letter is retained in database storage, measured from when it was
+    /// archived. <c>null</c> (the default) leaves archived dead letters under the same rules as any other
+    /// dead letter, see <see cref="DeadLetterQueueExpirationEnabled"/>. When set, archived dead letters are
+    /// deleted once this has passed since they were archived, whether or not
+    /// <see cref="DeadLetterQueueExpirationEnabled"/> is set, and are no longer subject to
+    /// <see cref="DeadLetterQueueExpiration"/>
+    /// </summary>
+    public TimeSpan? ArchivedDeadLetterRetention { get; set; }
+
+    /// <summary>
+    /// GH-5209. Computes the failure group of each message moved to dead letter storage. An
+    /// <see cref="IDeadLetterFingerprinter"/> registered in the application's container replaces this
+    /// at startup. The default is <see cref="DefaultDeadLetterFingerprinter"/>
+    /// </summary>
+    public IDeadLetterFingerprinter DeadLetterFingerprinter { get; set; } = new DefaultDeadLetterFingerprinter();
+
+    /// <summary>
     /// Configurable time to keep records in the wolverine_node_records storage (or equivalent) for node records.
     /// Default is 5 days
     /// </summary>
@@ -1179,6 +1197,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);
         desc.AddValue(nameof(DeadLetterQueueExpirationEnabled), DeadLetterQueueExpirationEnabled);
         desc.AddValue(nameof(DeadLetterQueueExpiration), DeadLetterQueueExpiration);
+        desc.AddValue(nameof(ArchivedDeadLetterRetention), ArchivedDeadLetterRetention?.ToString() ?? "None");
         desc.AddValue(nameof(NodeEventRecordExpirationTime), NodeEventRecordExpirationTime);
         desc.AddValue(nameof(NodeRecordRetention), NodeRecordRetention);
         desc.AddValue(nameof(NodeRecordPruningPeriod), NodeRecordPruningPeriod);

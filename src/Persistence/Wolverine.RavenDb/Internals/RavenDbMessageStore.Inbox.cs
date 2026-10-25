@@ -60,7 +60,7 @@ public partial class RavenDbMessageStore : IMessageInbox
     {
         using var session = _store.OpenAsyncSession();
         session.Delete(_identity(envelope));
-        var dlq = new DeadLetterMessage(envelope, exception);
+        var dlq = new DeadLetterMessage(envelope, exception, _options.Durability.DeadLetterFingerprinter);
 
         if (envelope.DeliverBy.HasValue)
         {

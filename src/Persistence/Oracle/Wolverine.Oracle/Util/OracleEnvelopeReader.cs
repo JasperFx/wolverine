@@ -86,7 +86,7 @@ internal static class OracleEnvelopeReader
         var envelope = await DatabasePersistence
             .ReadDeadLetterBodyAsync(reader, id, messageType, receivedAt, cancellation, logger);
 
-        return new DeadLetterEnvelope(
+        var deadLetter = new DeadLetterEnvelope(
             id,
             executionTime,
             envelope,
@@ -98,6 +98,11 @@ internal static class OracleEnvelopeReader
             sentAt,
             replayable
         );
+
+        // GH-5209
+        await DatabasePersistence.ReadDeadLetterExtendedFieldsAsync(reader, deadLetter, cancellation);
+
+        return deadLetter;
     }
 
     public static async Task<Envelope> ReadExternalAsync(DbDataReader reader,

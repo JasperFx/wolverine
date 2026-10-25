@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Durability;
@@ -44,6 +45,42 @@ public class DeadLetterEnvelope
     public string ExceptionMessage { get; }
     public DateTimeOffset SentAt { get; }
     public bool Replayable { get; }
+
+    /// <summary>
+    /// The failure group this dead letter belongs to. See <see cref="IDeadLetterFingerprinter"/>. Null for a
+    /// dead letter recorded before failure fingerprinting, or by a store that does not fingerprint
+    /// </summary>
+    public string? FailureGroup { get; set; }
+
+    /// <summary>
+    /// The human readable title of <see cref="FailureGroup"/>
+    /// </summary>
+    public string? FailureTitle { get; set; }
+
+    /// <summary>
+    /// When the message was moved to dead letter storage this time
+    /// </summary>
+    public DateTimeOffset? FailedAt { get; set; }
+
+    /// <summary>
+    /// When the message was first moved to dead letter storage, counting failures before a replay
+    /// </summary>
+    public DateTimeOffset? FirstFailedAt { get; set; }
+
+    /// <summary>
+    /// How many times this message has been replayed out of dead letter storage before failing again
+    /// </summary>
+    public int ReplayCount { get; set; }
+
+    /// <summary>
+    /// When this message was last replayed out of dead letter storage, if it ever was
+    /// </summary>
+    public DateTimeOffset? LastReplayedAt { get; set; }
+
+    /// <summary>
+    /// When this dead letter was archived. Null if it is not archived
+    /// </summary>
+    public DateTimeOffset? ArchivedAt { get; set; }
 
     /// <summary>
     ///     The actual message body

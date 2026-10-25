@@ -1,4 +1,5 @@
 using System.Globalization;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 
 namespace Wolverine.Transports;
 
@@ -11,6 +12,19 @@ public static class DeadLetterQueueConstants
     /// the message was received from. See GH-3474.
     /// </summary>
     public static void StampFailureMetadata(Envelope envelope, Exception exception)
+    {
+        StampFailureMetadata(envelope, exception, null);
+    }
+
+    /// <summary>
+    /// Stamps the envelope headers with standard failure metadata from the given exception, including the
+    /// failure group computed by <paramref name="fingerprinter"/> (GH-5209). See GH-3474.
+    /// </summary>
+    /// <param name="envelope"></param>
+    /// <param name="exception"></param>
+    /// <param name="fingerprinter">Computes the failure group. The default fingerprinter is used if this is null</param>
+    public static void StampFailureMetadata(Envelope envelope, Exception exception,
+        IDeadLetterFingerprinter? fingerprinter)
     {
         envelope.Headers[ExceptionTypeHeader] = exception.GetType().FullName ?? "Unknown";
         envelope.Headers[ExceptionMessageHeader] = exception.Message;
@@ -29,6 +43,8 @@ public static class DeadLetterQueueConstants
                 envelope.PartitionId.Value.ToString(CultureInfo.InvariantCulture);
             envelope.Headers[OriginalOffsetHeader] = envelope.Offset.ToString(CultureInfo.InvariantCulture);
         }
+
+        DeadLetterFingerprinting.Apply(fingerprinter, envelope, exception);
     }
 
     /// <summary>
@@ -68,7 +84,9 @@ public static class DeadLetterQueueConstants
         FailedAtHeader,
         OriginalDestinationHeader,
         OriginalPartitionHeader,
-        OriginalOffsetHeader
+        OriginalOffsetHeader,
+        FailureGroupHeader,
+        FailureTitleHeader
     ];
 
     /// <summary>
@@ -113,4 +131,14 @@ public static class DeadLetterQueueConstants
     /// transport tracks offsets (e.g. Kafka).
     /// </summary>
     public const string OriginalOffsetHeader = "original-offset";
+
+    /// <summary>
+    /// Header key for the failure group of a dead lettered message. See <see cref="IDeadLetterFingerprinter"/>.
+    /// </summary>
+    public const string FailureGroupHeader = "failure-group";
+
+    /// <summary>
+    /// Header key for the human readable title of the failure group of a dead lettered message.
+    /// </summary>
+    public const string FailureTitleHeader = "failure-title";
 }

@@ -40,10 +40,8 @@ public sealed class DeleteExpiredRowsStep : IDurabilityPassStep
         {
             _othersDone = true;
 
-            if (settings.DeadLetterQueueExpirationEnabled)
-            {
-                deleted += await deleteExpiredDeadLettersAsync(now, token);
-            }
+            // GH-5209. Also expires archived dead letters and old replay history
+            deleted += await deleteExpiredDeadLettersAsync(settings, now, token);
 
             if (settings.MessageDeduplicationMode != MessageDeduplicationMode.None)
             {
@@ -79,13 +77,24 @@ public sealed class DeleteExpiredRowsStep : IDurabilityPassStep
         return await conn.CreateCommand(sql).With("now", now).ExecuteNonQueryAsync(token);
     }
 
-    private Task<int> deleteExpiredDeadLettersAsync(DateTimeOffset now, CancellationToken token)
+    private async Task<int> deleteExpiredDeadLettersAsync(DurabilitySettings settings, DateTimeOffset now,
+        CancellationToken token)
     {
         var builder = _database.ToCommandBuilder();
-        builder.Append(
-            $"delete from {_database.TableNameFor(DatabaseConstants.DeadLetterTable)} where {DatabaseConstants.Expires} < ");
-        builder.AppendParameter(now);
-        return executeNonQueryAsync(builder, token);
+        DeadLetterExpiration.WriteStatements(builder, _database, settings, now);
+
+        var deleted = 0;
+        await using var conn = await _database.DataSource.OpenConnectionAsync(token);
+        foreach (var command in builder.CompileCommands())
+        {
+            await using (command)
+            {
+                command.Connection = conn;
+                deleted += await command.ExecuteNonQueryAsync(token);
+            }
+        }
+
+        return deleted;
     }
 
     private async Task<int> countExpiredHandledAsync(DateTimeOffset now, CancellationToken token)

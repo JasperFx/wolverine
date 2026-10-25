@@ -1091,6 +1091,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
+        yield return new DeadLetterHistoryTable(SchemaName);
 
         // GH-4180. Every store role, not just Main: a handler chain with an AncillaryStoreType claims
         // its logical id in that store so the claim and the work land in one transaction.

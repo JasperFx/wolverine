@@ -98,6 +98,213 @@ Note that Wolverine will use the message's `DeliverBy` value as the expiration i
 just add the `DeadLetterQueueExpiration` time to the current time. The actual stored messages are deleted by background
 processes and won't be quite real time.
 
+Archived dead letters can have their own retention period. See [Archiving and Restoring](#archiving-and-restoring).
+
+## Failure Groups <Badge type="tip" text="6.54" />
+
+A dead letter queue with thousands of messages in it is rarely thousands of different problems. More often it's a
+handful of bugs, each of which failed a lot of messages. Wolverine "fingerprints" every message as it's moved to dead
+letter storage so that you can work with the dead letters one *failure group* at a time.
+
+By default, the failure group is a hash of the exception type and the first stack frame that comes from your
+application code. That means:
+
+* The same bug lands in one group no matter what data was in the exception message. The exception message is
+  removed from the stack trace text before it's parsed, and line numbers are ignored so a redeployment doesn't split
+  a group
+* Two different bugs that happen to throw the same exception type land in different groups
+* Stack frames from `System.*`, `Microsoft.*`, `Npgsql.*`, `MySqlConnector.*`, `Oracle.*`, `Wolverine.*`,
+  `JasperFx.*`, `Weasel.*`, `Marten.*`, `Polecat.*`, `Fisher.*`, `Lamar.*` and Wolverine's generated handler code are
+  skipped. If no frame qualifies, the first frame is used
+* An exception without a stack trace (like a message recovered from a broker's native dead letter queue through
+  `EnableDeadLetterQueueRecovery()`) falls back to the exception type alone, unless the message already carries a
+  `failure-group` header stamped where the original exception was caught
+
+Each failure group also gets a human readable title like `System.InvalidOperationException: OrderHandler.Handle(...)`.
+The relational stores keep the group in the indexed `failure_group` column and the title in `failure_title`, and every
+dead lettered envelope also carries both as the `failure-group` and `failure-title` headers
+(`DeadLetterQueueConstants.FailureGroupHeader` and `FailureTitleHeader`).
+
+You can add your own namespaces to the list of skipped "framework" frames:
+
+<!-- snippet: sample_configuring_dead_letter_fingerprinting -->
+<a id='snippet-sample_configuring_dead_letter_fingerprinting'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Treat your own shared infrastructure as framework code, so the failure group is
+        // decided by the first frame from your business code instead
+        var fingerprinter = (DefaultDeadLetterFingerprinter)opts.Durability.DeadLetterFingerprinter;
+        fingerprinter.FrameworkNamespacePrefixes.Add("MyCompany.Messaging.");
+
+        // Archived dead letters are deleted 30 days after they were archived
+        opts.Durability.ArchivedDeadLetterRetention = 30.Days();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/dead_letter_failure_group_samples.cs#L14-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_dead_letter_fingerprinting' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or replace the fingerprinting altogether with your own `IDeadLetterFingerprinter`:
+
+<!-- snippet: sample_custom_dead_letter_fingerprinter -->
+<a id='snippet-sample_custom_dead_letter_fingerprinter'></a>
+```cs
+public class ByMessageTypeAndExceptionFingerprinter : IDeadLetterFingerprinter
+{
+    public DeadLetterFingerprint Fingerprint(Envelope envelope, Exception? exception)
+    {
+        var exceptionType = exception?.GetType().Name ?? "Unknown";
+        var title = $"{exceptionType} handling {envelope.MessageType}";
+
+        // Hashed() turns any string into a stable, compact group key
+        return DeadLetterFingerprint.Hashed($"{envelope.MessageType}|{exceptionType}", title);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/dead_letter_failure_group_samples.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_dead_letter_fingerprinter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Registering it in your application's container replaces the default. You can also assign it directly to
+`opts.Durability.DeadLetterFingerprinter`:
+
+<!-- snippet: sample_registering_a_custom_dead_letter_fingerprinter -->
+<a id='snippet-sample_registering_a_custom_dead_letter_fingerprinter'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Replaces the default fingerprinter
+        opts.Services.AddSingleton<IDeadLetterFingerprinter, ByMessageTypeAndExceptionFingerprinter>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/dead_letter_failure_group_samples.cs#L33-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_custom_dead_letter_fingerprinter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+Dead letters persisted before Wolverine had failure fingerprinting have no failure group. Summaries report them in one
+group per exception type, keyed as `unfingerprinted:<exception type>` with a title saying they were recorded before
+failure fingerprinting. That key works as a `FailureGroup` filter like any other. Nothing needs to be backfilled.
+:::
+
+## Managing Dead Letters Programmatically
+
+Everything below is available through the `IDeadLetters` service of any message store, which you can get from
+`IMessageStore.DeadLetters`. Most of it is driven by `DeadLetterEnvelopeQuery`, and every operation that takes a query
+applies the same criteria:
+
+| Property | Meaning |
+|----------|---------|
+| `FailureGroup` | Only dead letters in this failure group <Badge type="tip" text="6.54" /> |
+| `ExceptionMessage` + `ExceptionMessageMatch` | Match the exception message with `DeadLetterMessageMatch.Exact` or `DeadLetterMessageMatch.Contains`. Leaving the match mode null keeps the original behavior, where the value is used as a SQL `LIKE` pattern <Badge type="tip" text="6.54" /> |
+| `Archived` | `Exclude` archived dead letters (the default), `Only` archived dead letters, or `Any` <Badge type="tip" text="6.54" /> |
+| `TenantId` | Scope the query to one tenant. Dead letters are stored per database, so for a multi-tenanted message store this routes the query to the tenant's database <Badge type="tip" text="6.54" /> |
+| `MessageType`, `ExceptionType`, `ReceivedAt`, `Replayable`, `Range` | Exact match filters on the stored columns |
+| `MessageIds` | Only these dead letters |
+| `Headers` | Only dead letters carrying these header values. This is applied in memory after the other criteria |
+
+Here's what working with failure groups looks like:
+
+<!-- snippet: sample_managing_dead_letters_as_failure_groups -->
+<a id='snippet-sample_managing_dead_letters_as_failure_groups'></a>
+```cs
+var deadLetters = store.DeadLetters;
+
+// One row per failure group, with the first and last time it happened
+var groups = await deadLetters.SummarizeAllAsync("MyService",
+    new DeadLetterSummaryOptions { Grouping = DeadLetterGrouping.FailureGroup }, token);
+
+foreach (var group in groups)
+{
+    Console.WriteLine($"{group.Title}: {group.Count} between {group.FirstFailedAt} and {group.LastFailedAt}");
+}
+
+var worst = groups.OrderByDescending(x => x.Count).First();
+
+// After deploying a fix, replay that whole group and report how many messages went back
+var replayed = await deadLetters.ReplayMatchingAsync(
+    new DeadLetterEnvelopeQuery { FailureGroup = worst.Key }, token);
+Console.WriteLine($"Replayed {replayed.Affected} message(s)");
+
+// Or set a group aside without deleting it. Archived dead letters drop out of
+// summaries, queries and replays until they are restored
+if (deadLetters.Capabilities.HasFlag(DeadLetterCapabilities.ArchiveAndRestore))
+{
+    await deadLetters.ArchiveMatchingAsync(new DeadLetterEnvelopeQuery
+    {
+        ExceptionMessage = "is not a valid postal code",
+        ExceptionMessageMatch = DeadLetterMessageMatch.Contains
+    }, token);
+
+    await deadLetters.RestoreMatchingAsync(new DeadLetterEnvelopeQuery
+    {
+        FailureGroup = worst.Key
+    }, token);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/dead_letter_failure_group_samples.cs#L47-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_managing_dead_letters_as_failure_groups' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Summaries
+
+`SummarizeAllAsync(serviceName, DeadLetterSummaryOptions, token)` groups dead letters by `DeadLetterGrouping.FailureGroup`,
+`MessageType`, `Endpoint` or `ExceptionType`, filtered by `DeadLetterSummaryOptions.Query`. Each `DeadLetterGroupSummary`
+carries the group `Key`, its `Count`, the `Title` and `ExceptionType` of a failure group, and the `FirstFailedAt` and
+`LastFailedAt` times across the group. `FirstFailedAt` counts failures from before a message was replayed.
+
+The original `SummarizeAllAsync(serviceName, TimeRange, token)` overload is unchanged, except that archived dead letters
+are left out.
+
+### Counts from Bulk Operations
+
+`ReplayMatchingAsync(query)` and `DiscardMatchingAsync(query)` do the same thing as `ReplayAsync()` and
+`DiscardAsync()`, but return a `DeadLetterOperationResult` whose `Affected` property says how many dead letters were
+replayed or discarded. On the relational stores this is the row count of the single set based statement, or the sum
+over every batch when the query has a `Headers` filter. A store that can't count reports `null`.
+
+### Replay History
+
+When a message is replayed out of dead letter storage and fails again, the new dead letter remembers its history.
+`DeadLetterEnvelope.ReplayCount` says how many times it has been replayed, `LastReplayedAt` when that last happened,
+and `FirstFailedAt` when it first failed. `FailedAt` is the time of the latest failure.
+
+The relational stores keep this history in a small `wolverine_dead_letter_history` table, written when the durability
+agent moves replayable dead letters back to the inbox. History older than the dead letter expiration window (or the
+archived retention, if that's longer) is cleaned up by the same background process that expires dead letters.
+
+### Archiving and Restoring
+
+Sometimes you want a failure group out of the way without deleting the messages. `ArchiveMatchingAsync(query)` sets
+dead letters aside, and `RestoreMatchingAsync(query)` brings them back. Both report how many dead letters they affected.
+
+Archived dead letters are left out of summaries, queries and replays unless you ask for them with
+`DeadLetterEnvelopeQuery.Archived`. Replaying never touches an archived dead letter, so restore it first. Discarding
+by `MessageIds` does reach archived dead letters.
+
+By default, archived dead letters follow the same [expiration](#dead-letter-expiration) rules as any other dead letter.
+Set `opts.Durability.ArchivedDeadLetterRetention` to delete archived dead letters once that long has passed since they
+were archived instead. That works whether or not `DeadLetterQueueExpirationEnabled` is set, and dead letters that aren't
+archived keep the normal expiration behavior.
+
+### Store Support
+
+`IDeadLetters.Capabilities` says which of these features a store supports, so a tool can check before offering them:
+
+| Store | Failure groups | Counts | Archive and restore | Replay history | Exception message matching |
+|-------|----------------|--------|---------------------|----------------|----------------------------|
+| PostgreSQL, SQL Server, SQLite, MySQL, Oracle | Yes | Yes | Yes | Yes | Yes |
+| RavenDb, CosmosDb | Yes | Yes | Yes | No | Yes |
+
+`ArchivedDeadLetterRetention` is enforced by the relational stores. For a custom `IDeadLetters` implementation,
+`Capabilities` defaults to `None`, the counting operations report `null`, and archiving throws `NotSupportedException`.
+
+::: warning
+The relational stores add new nullable columns to `wolverine_dead_letters` (`failure_group`, `failure_title`,
+`failed_at`, `first_failed_at`, `replay_count`, `last_replayed_at` and `archived_at`), an index on `failure_group`, and
+the new `wolverine_dead_letter_history` table. Like any other Wolverine schema change, these are applied by the normal
+schema migration. See the indexing warning above if your dead letter table is very large.
+:::
+
 ## Integrating Dead Letters REST API into Your Application
 
 Integrating the Dead Letters REST API into your WolverineFX application provides an elegant and powerful way to manage dead letter messages directly through HTTP requests. This capability is crucial for applications that require a robust mechanism for dealing with message processing failures, enabling developers and administrators to query, replay, or delete dead letter messages as needed. Below, we detail how to add this functionality to your application and describe the usage of each endpoint.
@@ -124,7 +331,7 @@ app.MapDeadLettersEndpoints()
     //.RequireAuthorization("Admin")
     ;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L288-L298' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L292-L302' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using the Dead Letters REST API
@@ -139,6 +346,9 @@ app.MapDeadLettersEndpoints()
   - `MessageType` (string?): Filter by message type.
   - `ExceptionType` (string?): Filter by exception type.
   - `ExceptionMessage` (string?): Filter by exception message.
+  - `ExceptionMessageMatch` (`Exact` / `Contains`?): How `ExceptionMessage` is matched. Omit for the original `LIKE` pattern behavior.
+  - `FailureGroup` (string?): Only dead letters in this [failure group](#failure-groups).
+  - `Archived` (`Exclude` / `Only` / `Any`?): Which dead letters to return by [archived state](#archiving-and-restoring). Archived dead letters are excluded by default.
   - `Replayable` (bool?): Filter by the replayable flag. Omit (or `null`) for no filtering; `false` returns only envelopes not yet marked replayable; `true` returns only those already queued for replay. Filtering happens in the database so `TotalCount` and paging stay coherent for the subset.
   - `From` (DateTimeOffset?): Start date for fetching records.
   - `Until` (DateTimeOffset?): End date for fetching records.

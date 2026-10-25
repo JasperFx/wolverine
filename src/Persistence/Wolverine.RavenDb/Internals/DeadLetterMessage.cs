@@ -1,5 +1,6 @@
 using JasperFx.Core.Reflection;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 
@@ -11,8 +12,18 @@ public class DeadLetterMessage
     {
     }
 
-    public DeadLetterMessage(Envelope envelope, Exception? exception)
+    public DeadLetterMessage(Envelope envelope, Exception? exception) : this(envelope, exception, null)
     {
+    }
+
+    public DeadLetterMessage(Envelope envelope, Exception? exception, IDeadLetterFingerprinter? fingerprinter)
+    {
+        // GH-5209. Fingerprint before serializing, so the failure-group header travels inside the stored envelope
+        var fingerprint = DeadLetterFingerprinting.Apply(fingerprinter, envelope, exception);
+        FailureGroup = fingerprint.Group;
+        FailureTitle = fingerprint.Title;
+        FailedAt = DateTimeOffset.UtcNow;
+
         Id = "dlq/" + envelope.Id.ToString();
         EnvelopeId = envelope.Id;
         MessageType = envelope.MessageType!;
@@ -42,11 +53,24 @@ public class DeadLetterMessage
     public byte[] Body { get; set; } = null!;
     public DateTimeOffset ExpirationTime { get; set; }
 
+    // GH-5209
+    public string? FailureGroup { get; set; }
+    public string? FailureTitle { get; set; }
+    public DateTimeOffset? FailedAt { get; set; }
+    public DateTimeOffset? ArchivedAt { get; set; }
+
     public DeadLetterEnvelope ToEnvelope()
     {
         return new DeadLetterEnvelope(EnvelopeId, ScheduledTime, readBody(), MessageType,
             ReceivedAt?.ToString() ?? string.Empty, Source, ExceptionType, ExceptionMessage,
-            SentAt ?? default, Replayable);
+            SentAt ?? default, Replayable)
+        {
+            FailureGroup = FailureGroup,
+            FailureTitle = FailureTitle,
+            FailedAt = FailedAt,
+            FirstFailedAt = FailedAt,
+            ArchivedAt = ArchivedAt
+        };
     }
 
     // Same placeholder contract as DatabasePersistence.ReadDeadLetterBodyAsync (CritterWatch#902,

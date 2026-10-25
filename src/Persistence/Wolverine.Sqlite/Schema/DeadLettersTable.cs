@@ -36,6 +36,20 @@ internal class DeadLettersTable : Table
             Predicate = $"{DatabaseConstants.Replayable} = 1"
         });
 
+        // GH-5209: failure fingerprint, replay history and archived state. Nullable, so additive for an existing table
+        AddColumn(DatabaseConstants.FailureGroup, "TEXT");
+        AddColumn(DatabaseConstants.FailureTitle, "TEXT");
+        AddColumn(DatabaseConstants.FailedAt, "TEXT");
+        AddColumn(DatabaseConstants.FirstFailedAt, "TEXT");
+        AddColumn(DatabaseConstants.ReplayCount, "INTEGER");
+        AddColumn(DatabaseConstants.LastReplayedAt, "TEXT");
+        AddColumn(DatabaseConstants.ArchivedAt, "TEXT");
+
+        Indexes.Add(new IndexDefinition($"idx_{tableName}_{DatabaseConstants.FailureGroup}")
+        {
+            Columns = [DatabaseConstants.FailureGroup]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // GH-3071 — every other RDBMS backend (Postgres, SqlServer, MySql,
