@@ -65,19 +65,89 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         throw new NotSupportedException();
     }
 
-    public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    // GH-5209. Dead letters are stored per database, so DeadLetterEnvelopeQuery.TenantId routes to the
+    // tenant's database. Without a tenant the original operations stay unsupported here, and the newer
+    // operations that report counts work against every database.
+
+    public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        throw new NotSupportedException();
+        if (query.TenantId.IsEmpty()) throw new NotSupportedException();
+
+        var database = await GetDatabaseAsync(query.TenantId);
+        return await database.DeadLetters.QueryAsync(query, token);
     }
 
-    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    public async Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        throw new NotSupportedException();
+        if (query.TenantId.IsEmpty()) throw new NotSupportedException();
+
+        var database = await GetDatabaseAsync(query.TenantId);
+        await database.DeadLetters.DiscardAsync(query, token);
     }
 
-    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        throw new NotSupportedException();
+        if (query.TenantId.IsEmpty()) throw new NotSupportedException();
+
+        var database = await GetDatabaseAsync(query.TenantId);
+        await database.DeadLetters.ReplayAsync(query, token);
+    }
+
+    public DeadLetterCapabilities Capabilities => Main.DeadLetters.Capabilities;
+
+    private async Task<IReadOnlyList<IMessageStore>> deadLetterDatabasesFor(DeadLetterEnvelopeQuery query)
+    {
+        if (query.TenantId.IsNotEmpty())
+        {
+            return [await GetDatabaseAsync(query.TenantId)];
+        }
+
+        return databases().ToList();
+    }
+
+    public async Task<IReadOnlyList<DeadLetterGroupSummary>> SummarizeAllAsync(string serviceName,
+        DeadLetterSummaryOptions options, CancellationToken token)
+    {
+        var list = new List<DeadLetterGroupSummary>();
+        foreach (var database in await deadLetterDatabasesFor(options.Query))
+        {
+            list.AddRange(await database.DeadLetters.SummarizeAllAsync(serviceName, options, token));
+        }
+
+        return list;
+    }
+
+    private async Task<DeadLetterOperationResult> executeOnDeadLettersAsync(DeadLetterEnvelopeQuery query,
+        Func<IDeadLetters, Task<DeadLetterOperationResult>> operation)
+    {
+        DeadLetterOperationResult? result = null;
+        foreach (var database in await deadLetterDatabasesFor(query))
+        {
+            var one = await operation(database.DeadLetters);
+            result = result == null ? one : result.Add(one);
+        }
+
+        return result ?? new DeadLetterOperationResult(0);
+    }
+
+    public Task<DeadLetterOperationResult> ReplayMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeOnDeadLettersAsync(query, x => x.ReplayMatchingAsync(query, token));
+    }
+
+    public Task<DeadLetterOperationResult> DiscardMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeOnDeadLettersAsync(query, x => x.DiscardMatchingAsync(query, token));
+    }
+
+    public Task<DeadLetterOperationResult> ArchiveMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeOnDeadLettersAsync(query, x => x.ArchiveMatchingAsync(query, token));
+    }
+
+    public Task<DeadLetterOperationResult> RestoreMatchingAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return executeOnDeadLettersAsync(query, x => x.RestoreMatchingAsync(query, token));
     }
 
     public Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)

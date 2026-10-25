@@ -4,6 +4,7 @@ using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine.Oracle.Util;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -230,6 +231,9 @@ internal partial class OracleMessageStore
         deleteCmd.With("id", envelope.Id);
         await deleteCmd.ExecuteNonQueryAsync(_cancellation);
 
+        // GH-5209. Fingerprint before serializing, so the failure-group header travels inside the stored envelope
+        var fingerprint = DeadLetterFingerprinting.Apply(_durability.DeadLetterFingerprinter, envelope, exception);
+
         // Insert into dead letters
         byte[] data;
         try
@@ -241,9 +245,17 @@ internal partial class OracleMessageStore
             data = Array.Empty<byte>();
         }
 
-        var deadLetterFields = DatabaseConstants.DeadLetterFields;
+        // GH-5209. A message replayed out of dead letter storage that failed again picks its replay history back
+        // up from the history table the replay wrote
+        var history = $"{SchemaName}.{DatabaseConstants.DeadLetterHistoryTable}";
+        string historyOf(string column) => $"(SELECT h.{column} FROM {history} h WHERE h.id = :id)";
+
+        var deadLetterFields =
+            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
         var deadLetterValues =
-            ":id, :executionTime, :body, :messageType, :receivedAt, :source, :exceptionType, :exceptionMessage, :sentAt, :replayable";
+            ":id, :executionTime, :body, :messageType, :receivedAt, :source, :exceptionType, :exceptionMessage, :sentAt, :replayable, " +
+            $":failureGroup, :failureTitle, :failedAt, COALESCE({historyOf(DatabaseConstants.FirstFailedAt)}, :failedAt), " +
+            $"COALESCE({historyOf(DatabaseConstants.ReplayCount)}, 0), {historyOf(DatabaseConstants.LastReplayedAt)}";
 
         if (_durability.DeadLetterQueueExpirationEnabled)
         {
@@ -255,6 +267,7 @@ internal partial class OracleMessageStore
             $"INSERT INTO {SchemaName}.{DatabaseConstants.DeadLetterTable} ({deadLetterFields}) " +
             $"VALUES ({deadLetterValues})");
         insertCmd.Transaction = tx;
+        insertCmd.BindByName = true;
 
         insertCmd.With("id", envelope.Id);
         insertCmd.Parameters.Add(new OracleParameter("executionTime", OracleDbType.TimeStampTZ) { Value = (object?)envelope.ScheduledTime ?? DBNull.Value });
@@ -266,6 +279,9 @@ internal partial class OracleMessageStore
         insertCmd.With("exceptionMessage", exception.DeadLetterExceptionMessage() ?? string.Empty);
         insertCmd.Parameters.Add(new OracleParameter("sentAt", OracleDbType.TimeStampTZ) { Value = envelope.SentAt.ToUniversalTime() });
         insertCmd.With("replayable", 0); // Oracle stores bool as NUMBER(1)
+        insertCmd.With("failureGroup", fingerprint.Group);
+        insertCmd.With("failureTitle", fingerprint.Title);
+        insertCmd.Parameters.Add(new OracleParameter("failedAt", OracleDbType.TimeStampTZ) { Value = DateTimeOffset.UtcNow });
 
         if (_durability.DeadLetterQueueExpirationEnabled)
         {

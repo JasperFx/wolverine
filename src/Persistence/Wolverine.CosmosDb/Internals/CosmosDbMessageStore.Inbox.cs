@@ -36,7 +36,7 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        var dlq = new DeadLetterMessage(envelope, exception);
+        var dlq = new DeadLetterMessage(envelope, exception, _options.Durability.DeadLetterFingerprinter);
 
         if (envelope.DeliverBy.HasValue)
         {

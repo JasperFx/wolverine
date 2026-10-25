@@ -679,6 +679,7 @@ internal partial class SqliteMessageStore : MessageDatabase<SqliteConnection>, I
         yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
+        yield return new DeadLetterHistoryTable(SchemaName);
 
         // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
         // GH-4757: exactly one of the two, never both. The hash mode's key is a binary column, which

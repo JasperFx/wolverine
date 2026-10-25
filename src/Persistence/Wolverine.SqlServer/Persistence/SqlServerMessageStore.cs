@@ -818,6 +818,7 @@ group by o.name, ps.index_id, i.name";
         yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
+        yield return new DeadLetterHistoryTable(SchemaName);
         yield return new EnvelopeIdTable(SchemaName);
         yield return new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", this);
         yield return new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", this);

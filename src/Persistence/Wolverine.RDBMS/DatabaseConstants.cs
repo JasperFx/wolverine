@@ -23,6 +23,24 @@ public class DatabaseConstants
     public const string IncomingTable = "wolverine_incoming_envelopes";
     public const string DeadLetterTable = "wolverine_dead_letters";
 
+    /// <summary>
+    /// GH-5209. Replay history of dead letters, one row per envelope id that has been replayed out of
+    /// <see cref="DeadLetterTable"/>. The replay deletes the dead letter row, so this is what lets a message
+    /// that fails again report how often it was replayed and when it first failed. Written by the replay move,
+    /// read by the dead letter insert, and swept by the dead letter expiration.
+    /// </summary>
+    public const string DeadLetterHistoryTable = "wolverine_dead_letter_history";
+
+    // GH-5209. Failure fingerprint, replay history and archived state of a dead letter. All nullable so the
+    // columns are an additive migration for an existing table.
+    public const string FailureGroup = "failure_group";
+    public const string FailureTitle = "failure_title";
+    public const string FailedAt = "failed_at";
+    public const string FirstFailedAt = "first_failed_at";
+    public const string ReplayCount = "replay_count";
+    public const string LastReplayedAt = "last_replayed_at";
+    public const string ArchivedAt = "archived_at";
+
     public const string ControlQueueTableName = "wolverine_control_queue";
 
     public const string NodeTableName = "wolverine_nodes";
@@ -195,6 +213,24 @@ public class DatabaseConstants
 
     public static readonly string DeadLetterFields =
         $"{Id}, {ExecutionTime}, {Body}, {MessageType}, {ReceivedAt}, {Source}, {ExceptionType}, {ExceptionMessage}, {SentAt}, {Replayable}";
+
+    /// <summary>
+    /// GH-5209. The failure fingerprint, replay history and archive columns of a dead letter, in the order
+    /// <see cref="DatabasePersistence.ReadDeadLetterAsync"/> reads them after <see cref="DeadLetterFields"/>
+    /// </summary>
+    public static readonly string DeadLetterExtendedFields =
+        $"{FailureGroup}, {FailureTitle}, {FailedAt}, {FirstFailedAt}, {ReplayCount}, {LastReplayedAt}, {ArchivedAt}";
+
+    /// <summary>
+    /// GH-5209. Everything a dead letter query selects: <see cref="DeadLetterFields"/> followed by
+    /// <see cref="DeadLetterExtendedFields"/>
+    /// </summary>
+    public static readonly string DeadLetterQueryFields = $"{DeadLetterFields}, {DeadLetterExtendedFields}";
+
+    /// <summary>
+    /// Number of columns in <see cref="DeadLetterQueryFields"/>
+    /// </summary>
+    public const int DeadLetterQueryFieldCount = 17;
 
     public static readonly string NodeNumber = "node_number";
     public static readonly string NodeId = "node_id";

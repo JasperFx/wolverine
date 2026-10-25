@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 
@@ -13,8 +14,18 @@ public class DeadLetterMessage
     {
     }
 
-    public DeadLetterMessage(Envelope envelope, Exception? exception)
+    public DeadLetterMessage(Envelope envelope, Exception? exception) : this(envelope, exception, null)
     {
+    }
+
+    public DeadLetterMessage(Envelope envelope, Exception? exception, IDeadLetterFingerprinter? fingerprinter)
+    {
+        // GH-5209. Fingerprint before serializing, so the failure-group header travels inside the stored envelope
+        var fingerprint = DeadLetterFingerprinting.Apply(fingerprinter, envelope, exception);
+        FailureGroup = fingerprint.Group;
+        FailureTitle = fingerprint.Title;
+        FailedAt = DateTimeOffset.UtcNow;
+
         Id = $"deadletter|{envelope.Id}";
         EnvelopeId = envelope.Id;
         MessageType = envelope.MessageType;
@@ -84,6 +95,23 @@ public class DeadLetterMessage
     [JsonPropertyName("expirationTime")]
     public DateTimeOffset ExpirationTime { get; set; }
 
+    // GH-5209
+    [JsonProperty("failureGroup")]
+    [JsonPropertyName("failureGroup")]
+    public string? FailureGroup { get; set; }
+
+    [JsonProperty("failureTitle")]
+    [JsonPropertyName("failureTitle")]
+    public string? FailureTitle { get; set; }
+
+    [JsonProperty("failedAt")]
+    [JsonPropertyName("failedAt")]
+    public DateTimeOffset? FailedAt { get; set; }
+
+    [JsonProperty("archivedAt")]
+    [JsonPropertyName("archivedAt")]
+    public DateTimeOffset? ArchivedAt { get; set; }
+
     [JsonProperty("_etag")]
     [JsonPropertyName("_etag")]
     public string? ETag { get; set; }
@@ -92,7 +120,14 @@ public class DeadLetterMessage
     {
         return new DeadLetterEnvelope(EnvelopeId, ScheduledTime, readBody(), MessageType ?? "",
             ReceivedAt ?? "", Source ?? "", ExceptionType ?? "", ExceptionMessage ?? "",
-            SentAt ?? DateTimeOffset.MinValue, Replayable);
+            SentAt ?? DateTimeOffset.MinValue, Replayable)
+        {
+            FailureGroup = FailureGroup,
+            FailureTitle = FailureTitle,
+            FailedAt = FailedAt,
+            FirstFailedAt = FailedAt,
+            ArchivedAt = ArchivedAt
+        };
     }
 
     // Same placeholder contract as DatabasePersistence.ReadDeadLetterBodyAsync (CritterWatch#902,

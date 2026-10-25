@@ -475,7 +475,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception, _runtime.DurabilitySettings.DeadLetterFingerprinter);
         return _moveToErrors!.PostAsync(envelope);
     }
 

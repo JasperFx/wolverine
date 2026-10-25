@@ -12,6 +12,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
@@ -117,6 +118,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         Pipeline = new HandlerPipeline(this, this);
 
         _container = container;
+
+        // GH-5209. A fingerprinter registered in the container replaces the configured one
+        var fingerprinter = container.Services.GetService<IDeadLetterFingerprinter>();
+        if (fingerprinter != null)
+        {
+            options.Durability.DeadLetterFingerprinter = fingerprinter;
+        }
 
         // GH-5016 / PR #5044. Registered here rather than in StartAsync: resource setup on startup
         // (AddResourceSetupOnStartup, ResetResourceState, `resources setup`) compiles the broker endpoints
