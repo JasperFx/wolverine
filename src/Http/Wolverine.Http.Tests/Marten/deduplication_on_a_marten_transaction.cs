@@ -199,7 +199,7 @@ public class deduplication_on_a_marten_transaction : IAsyncLifetime
     [Fact]
     public async Task a_write_aggregate_of_the_aggregate_itself_claims_in_the_transaction()
     {
-        // GH-????. [WriteAggregate] binds the aggregate rather than its IEventStream<T>, so nothing in the signature
+        // GH-5205. [WriteAggregate] binds the aggregate rather than its IEventStream<T>, so nothing in the signature
         // names Marten, and the workflow applies the Marten transaction itself
         var counterId = await startCounterAsync();
         var key = Guid.NewGuid().ToString();

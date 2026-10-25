@@ -202,22 +202,34 @@ internal record AggregateHandling(IDataRequirement Requirement)
     }
 
     /// <summary>
-    ///     The store whose transaction <see cref="Apply" /> applied to this chain itself, or null when the chain has
-    ///     no aggregate handler workflow or has workflows on more than one store. GH-????.
+    ///     The store whose transaction the aggregate handler workflow (<see cref="Apply" />) or a
+    ///     <c>[DcbModel]</c>/<c>[BoundaryModel]</c> applied to this chain itself, or null when the chain has neither or
+    ///     has them on more than one store. GH-5205.
     /// </summary>
     internal static IPersistenceFrameProvider? TransactionOwner(IChain chain)
     {
-        if (!chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw)) return null;
+        var providers = new List<IEventSourcingFrameProvider>();
 
-        IEventSourcingFrameProvider[] providers = raw switch
+        if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
         {
-            AggregateHandling handling => [handling.Provider],
-            List<AggregateHandling> list => list.Select(x => x.Provider).ToArray(),
-            _ => []
-        };
+            switch (raw)
+            {
+                case AggregateHandling handling:
+                    providers.Add(handling.Provider);
+                    break;
+                case List<AggregateHandling> list:
+                    providers.AddRange(list.Select(x => x.Provider));
+                    break;
+            }
+        }
+
+        if (chain.Tags.TryGetValue("BoundaryHandling", out var boundary) && boundary is BoundaryHandlingTag tag)
+        {
+            providers.Add(tag.Provider);
+        }
 
         // A store's own attribute names a new instance of its provider, so compare the stores, not the instances
-        return providers.Select(x => x.GetType()).Distinct().Count() == 1
+        return providers.Count > 0 && providers.Select(x => x.GetType()).Distinct().Count() == 1
             ? providers[0] as IPersistenceFrameProvider
             : null;
     }

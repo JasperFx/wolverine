@@ -167,7 +167,7 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
         }
 
         // Store boundary handling info in chain tags for reference
-        chain.Tags["BoundaryHandling"] = new BoundaryHandlingTag(modelType, boundary);
+        chain.Tags["BoundaryHandling"] = new BoundaryHandlingTag(modelType, boundary, provider);
 
         return modelVariable;
     }
@@ -263,4 +263,5 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
     }
 }
 
-internal record BoundaryHandlingTag(Type AggregateType, Variable Boundary);
+/// <param name="Provider">GH-5205. The store whose transaction <see cref="DcbModelAttribute.Modify" /> applied.</param>
+internal record BoundaryHandlingTag(Type AggregateType, Variable Boundary, IEventSourcingFrameProvider Provider);

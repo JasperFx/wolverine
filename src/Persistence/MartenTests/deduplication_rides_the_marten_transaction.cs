@@ -211,7 +211,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
     [Fact]
     public void a_write_aggregate_of_the_aggregate_itself_rides_the_transaction()
     {
-        // GH-????. The workflow applies the Marten transaction itself, and nothing else on the chain names Marten
+        // GH-5205. The workflow applies the Marten transaction itself, and nothing else on the chain names Marten
         var code = sourceFor<AdjustLedgerItself>();
 
         code.ShouldContain($"{nameof(IMartenDeduplicator.QueueClaim)}(documentSession");
@@ -497,7 +497,7 @@ public static class AdjustLedgerHandler
 
 public record AdjustLedgerItself(Guid LedgerId, int Amount);
 
-/// <summary>GH-????. The aggregate itself rather than its IEventStream, so nothing in the signature names Marten.</summary>
+/// <summary>GH-5205. The aggregate itself rather than its IEventStream, so nothing in the signature names Marten.</summary>
 public static class AdjustLedgerItselfHandler
 {
     [Deduplicated]

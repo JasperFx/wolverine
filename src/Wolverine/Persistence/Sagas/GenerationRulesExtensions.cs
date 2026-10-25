@@ -221,10 +221,11 @@ public static class GenerationRulesExtensions
             // GH-4717: same reason as SelectTransactionOwner above.
             var claimant = rules.OrderedPersistenceProviders().ProvidersClaiming(chain, container).FirstOrDefault();
 
-            // GH-????: CanApply deliberately ignores the aggregate handler workflow, which applies its store's
-            // transaction itself (GH-3893). A [WriteAggregate] that binds the aggregate rather than IEventStream<T>
-            // then leaves nothing for CanApply to see, and deduplication, asking here after the workflow has run,
-            // would miss the transaction the chain commits through. Consulted only when nothing claimed the chain.
+            // GH-5205: CanApply deliberately ignores the aggregate handler workflow, which applies its store's
+            // transaction itself (GH-3893), as [DcbModel]/[BoundaryModel] do. A [WriteAggregate] that binds the
+            // aggregate rather than IEventStream<T>, or a boundary model, then leaves nothing for CanApply to see, and
+            // deduplication, asking here after the workflow has run, would miss the transaction the chain commits
+            // through. Consulted only when nothing claimed the chain.
             return claimant ?? AggregateHandling.TransactionOwner(chain) ?? _nullo;
         }
 
