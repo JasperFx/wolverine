@@ -55,6 +55,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
                     .IncludeType(typeof(FailingPaymentHandler))
                     .IncludeType(typeof(OptionallyKeyedHandler))
                     .IncludeType(typeof(AdjustLedgerHandler))
+                    .IncludeType(typeof(AdjustLedgerItselfHandler))
                     .IncludeType(typeof(RacingHandler))
                     .IncludeType(typeof(NothingElseHandler))
                     .IncludeType(typeof(ShortWindowPaymentHandler));
@@ -205,6 +206,16 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
 
         // ...and no standalone check left behind alongside it.
         code.ShouldNotContain($"{nameof(IMartenDeduplicator.HasClaimAsync)}(");
+    }
+
+    [Fact]
+    public void a_write_aggregate_of_the_aggregate_itself_rides_the_transaction()
+    {
+        // GH-5205. The workflow applies the Marten transaction itself, and nothing else on the chain names Marten
+        var code = sourceFor<AdjustLedgerItself>();
+
+        code.ShouldContain($"{nameof(IMartenDeduplicator.QueueClaim)}(documentSession");
+        code.ShouldNotContain("ReleaseAsync");
     }
 
     [Fact]
@@ -468,6 +479,10 @@ public class Ledger
     public Guid Id { get; set; }
     public int Adjustments { get; set; }
 
+    public void Apply(LedgerOpened _)
+    {
+    }
+
     public void Apply(LedgerAdjusted _) => Adjustments++;
 }
 
@@ -482,4 +497,14 @@ public static class AdjustLedgerHandler
     {
         ledger.AppendOne(new LedgerAdjusted(command.Amount));
     }
+}
+
+public record AdjustLedgerItself(Guid LedgerId, int Amount);
+
+/// <summary>GH-5205. The aggregate itself rather than its IEventStream, so nothing in the signature names Marten.</summary>
+public static class AdjustLedgerItselfHandler
+{
+    [Deduplicated]
+    public static Events Handle(AdjustLedgerItself command, [WriteAggregate] Ledger ledger)
+        => [new LedgerAdjusted(command.Amount)];
 }

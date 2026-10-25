@@ -25,7 +25,7 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Wolverine.Http;
 
-public abstract class HttpHandler
+public abstract partial class HttpHandler
 {
     private readonly WolverineHttpOptions _options;
     private JsonSerializerOptions _jsonOptions;
@@ -382,6 +382,8 @@ public abstract class HttpHandler
     public async Task AnswerDeduplicatedRepeatAsync(HttpContext context, DeduplicatedResponseClaim claim,
         string? fingerprint, string keyName)
     {
+        context.Items[_deduplicatedRepeatAnswered] = true;
+
         if (claim.Fingerprint != fingerprint)
         {
             await WriteProblems(StatusCodes.Status422UnprocessableEntity,
@@ -435,6 +437,9 @@ public abstract class HttpHandler
         DeduplicatedResponses responses, string? deduplicationId, string? fingerprint,
         PendingDeduplicatedResponseClaim? ownClaim, string keyName, Type? ancillaryStoreMarker, Exception failure)
     {
+        // GH-5206: decided here, once and for all; a failure of the commit is not a failure before it
+        context.Items[_deduplicatedCommitFailed] = true;
+
         if (string.IsNullOrWhiteSpace(deduplicationId) || context.Response.HasStarted) return false;
 
         var logger = context.RequestServices.GetService<ILogger<DeduplicatedResponses>>();
@@ -473,7 +478,10 @@ public abstract class HttpHandler
 
     /// <summary>GH-5160. The commit of a <c>[DeduplicatedWithResponse]</c> claim written inside the transaction succeeded.</summary>
     public static void MarkDeduplicatedResponseCommitted(HttpContext context)
-        => context.Items[_deduplicatedResponseCommitted] = true;
+    {
+        context.Items[_deduplicatedResponseCommitted] = true;
+        releaseDeduplicatedRefusalWatch(context);
+    }
 
     /// <summary>GH-5160. Has the commit of a <c>[DeduplicatedWithResponse]</c> claim written inside the transaction succeeded?</summary>
     public static bool IsDeduplicatedResponseCommitted(HttpContext context)

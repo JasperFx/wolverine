@@ -62,7 +62,7 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
         // entirely: every replay runs. Ask for the commit frame itself, which is the thing the claim has to
         // ride. See the Marten and Polecat twins.
         if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
-        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+        if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
 
         var marker = chain.DetermineAncillaryStoreType();
         var check = new FisherDeduplicationClaimExistsFrame(deduplicationId, marker);
@@ -75,7 +75,8 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
                 requirement.Window),
             CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
                 FisherDeduplicationFailures.Classifier,
-                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement)),
+            Commit = commit
         };
 
         return true;

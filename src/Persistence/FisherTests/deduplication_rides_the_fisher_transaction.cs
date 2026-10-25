@@ -9,6 +9,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Fisher;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -56,7 +57,8 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
                     .IncludeType(typeof(OptionallyKeyedFisherHandler))
                     .IncludeType(typeof(ObservingFisherHandler))
                     .IncludeType(typeof(FisherRacingHandler))
-                    .IncludeType(typeof(ShortWindowFisherPaymentHandler));
+                    .IncludeType(typeof(ShortWindowFisherPaymentHandler))
+                    .IncludeType(typeof(AdjustFisherLedgerItselfHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -109,6 +111,36 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
         // and no status-code test to decide whether to run it.
         code.ShouldNotContain("ReleaseAsync");
         code.ShouldNotContain("deduplicatedExecutionThrew");
+    }
+
+    [Fact]
+    public void a_write_aggregate_of_the_aggregate_itself_rides_the_transaction()
+    {
+        // GH-5205. The workflow applies the Fisher transaction itself, and nothing else on the chain names Fisher
+        var code = sourceFor<AdjustFisherLedgerItself>();
+
+        code.ShouldContain($"{nameof(IFisherDeduplicator.QueueClaim)}(documentSession");
+        code.ShouldNotContain("ReleaseAsync");
+    }
+
+    [Fact]
+    public async Task a_replay_on_a_write_aggregate_of_the_aggregate_itself_is_discarded()
+    {
+        var ledgerId = Guid.NewGuid();
+        var store = _host.Services.GetRequiredService<IDocumentStore>();
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.StartStream<FisherLedger>(ledgerId, new FisherLedgerOpened());
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var options = new DeliveryOptions { DeduplicationId = "adjust-" + ledgerId };
+        await _host.SendMessageAndWaitAsync(new AdjustFisherLedgerItself(ledgerId, 5), options);
+        await _host.SendMessageAndWaitAsync(new AdjustFisherLedgerItself(ledgerId, 7), options);
+
+        await using var query = store.QuerySession();
+        var events = await query.Events.FetchStreamAsync(ledgerId, token: TestContext.Current.CancellationToken);
+        events.Select(x => x.Data).OfType<FisherLedgerAdjusted>().ShouldHaveSingleItem().Amount.ShouldBe(5);
     }
 
     [Fact]
@@ -453,4 +485,30 @@ public static class FisherRacingHandler
         // than hanging the suite.
         await _bothArrived.Task.WaitAsync(30.Seconds());
     }
+}
+
+public record FisherLedgerOpened;
+
+public record FisherLedgerAdjusted(int Amount);
+
+public class FisherLedger
+{
+    public Guid Id { get; set; }
+    public int Balance { get; set; }
+
+    public void Apply(FisherLedgerOpened _)
+    {
+    }
+
+    public void Apply(FisherLedgerAdjusted e) => Balance += e.Amount;
+}
+
+public record AdjustFisherLedgerItself(Guid FisherLedgerId, int Amount);
+
+/// <summary>GH-5205. The aggregate itself rather than its IEventStream, so nothing in the signature names Fisher.</summary>
+public static class AdjustFisherLedgerItselfHandler
+{
+    [Deduplicated]
+    public static Events Handle(AdjustFisherLedgerItself command, [WriteAggregate] FisherLedger ledger)
+        => [new FisherLedgerAdjusted(command.Amount)];
 }

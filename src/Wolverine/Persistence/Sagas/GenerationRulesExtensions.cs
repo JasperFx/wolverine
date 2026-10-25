@@ -1,6 +1,7 @@
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
@@ -218,7 +219,20 @@ public static class GenerationRulesExtensions
         if (rules.Properties.TryGetValue(PersistenceKey, out var raw) && raw is List<IPersistenceFrameProvider>)
         {
             // GH-4717: same reason as SelectTransactionOwner above.
-            return rules.OrderedPersistenceProviders().ProvidersClaiming(chain, container).FirstOrDefault() ?? _nullo;
+            var ordered = rules.OrderedPersistenceProviders();
+            var claimant = ordered.ProvidersClaiming(chain, container).FirstOrDefault();
+            if (claimant != null) return claimant;
+
+            // GH-5205: CanApply deliberately ignores the aggregate handler workflow, which applies its store's
+            // transaction itself (GH-3893), as [DcbModel]/[BoundaryModel] do. A [WriteAggregate] that binds the
+            // aggregate rather than IEventStream<T>, or a boundary model, then leaves nothing for CanApply to see, and
+            // deduplication, asking here after the workflow has run, would miss the transaction the chain commits
+            // through. Consulted only when nothing claimed the chain.
+            //
+            // Answered with the REGISTERED provider of that store: the attribute names a new instance whether or not
+            // the store is integrated with Wolverine, and an unintegrated one has no deduplicator to resolve
+            var applied = AggregateHandling.TransactionOwner(chain)?.GetType();
+            return applied == null ? _nullo : ordered.FirstOrDefault(x => x.GetType() == applied) ?? _nullo;
         }
 
         return _nullo;

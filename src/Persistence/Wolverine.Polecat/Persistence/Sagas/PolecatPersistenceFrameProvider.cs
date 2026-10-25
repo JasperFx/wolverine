@@ -71,7 +71,7 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         // entirely: every replay runs. Ask for the commit frame itself, which is the thing the claim has to
         // ride. See the Marten twin and deduplication_without_a_commit_keeps_the_release.
         if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
-        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return false;
+        if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
 
         // Conservative on a tenancy this cannot read: an unknown cardinality falls back to
         // claim-and-release, which is correct everywhere, rather than assuming the message store shares
@@ -93,7 +93,8 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
                 requirement.Window),
             CommitRaceWrapper = new RefuseDuplicateClaimAtCommitFrame(
                 PolecatDeduplicationFailures.Classifier,
-                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement))
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement)),
+            Commit = commit
         };
 
         return true;

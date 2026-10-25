@@ -45,4 +45,17 @@ public sealed class TransactionalDeduplication
     /// wrap; every relational provider needs one.
     /// </summary>
     public Frame? CommitRaceWrapper { get; init; }
+
+    /// <summary>
+    /// GH-5206. The frame that commits the transaction the claim rides, or null when the provider does not say. Lets an
+    /// HTTP chain tell a failure before the commit, which a concurrent request with the same id may have caused by
+    /// committing first, from one in or after it.
+    /// </summary>
+    public Frame? Commit { get; init; }
+}
+
+/// <summary>GH-5206. The transactional deduplication a chain was given, and the id it claims.</summary>
+internal record TransactionalDeduplicationTag(TransactionalDeduplication Deduplication, Variable DeduplicationId)
+{
+    public const string Key = nameof(TransactionalDeduplication);
 }

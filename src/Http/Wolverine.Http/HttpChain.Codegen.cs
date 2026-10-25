@@ -55,6 +55,7 @@ public partial class HttpChain
             // point after both. Idempotent, so a chain assembled into two GeneratedAssemblies (which
             // happens under `codegen write` -- see GH-3692) is woven once.
             this.ApplyDeduplication(assembly.Rules, _parent.Container);
+            watchForDuplicateRefusals();
             applyDeduplicatedWithResponse(assembly.Rules, _parent.Container);
 
             _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));

@@ -379,6 +379,29 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
             .ShouldBe(stringComparisonIsCaseSensitive);
     }
 
+    /// <summary>
+    /// GH-5206. An HTTP endpoint whose claim rides its own transaction looks a claim up again, without claiming it,
+    /// when a concurrent repeat fails before its commit.
+    /// </summary>
+    [Theory]
+    [InlineData(MessageDeduplicationMode.CompareByHash)]
+    [InlineData(MessageDeduplicationMode.CompareByString)]
+    public async Task a_claim_can_be_looked_up_without_taking_it(MessageDeduplicationMode mode)
+    {
+        var store = storeFor(await startHostAsync(mode));
+        var lookup = store.ShouldBeAssignableTo<IDeduplicationClaimLookup>()!;
+
+        (await lookup.IsClaimedAsync("looked-up", TestContext.Current.CancellationToken)).ShouldBeFalse();
+
+        // The lookup took nothing
+        (await store.TryClaimAsync("looked-up", anHourFromNow, TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await lookup.IsClaimedAsync("looked-up", TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await lookup.IsClaimedAsync("something-else", TestContext.Current.CancellationToken)).ShouldBeFalse();
+
+        await store.ReleaseAsync("looked-up", TestContext.Current.CancellationToken);
+        (await lookup.IsClaimedAsync("looked-up", TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
     [Fact]
     public async Task string_comparison_still_refuses_an_exact_repeat()
     {

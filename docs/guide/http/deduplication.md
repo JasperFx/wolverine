@@ -245,9 +245,12 @@ request's claim and answers from it.
   response for the same request, 422 for a different one. **Work outside the transaction runs for both**:
   a call to another service, a message sent without the outbox. Claim-and-release would have refused the
   second with 409 before it did anything. This is why the option is off by default.
-- A concurrent repeat that reaches its own answer before its commit gets that answer instead. If it reads
-  the first request's committed work and fails because of it (a validation that answers 400 "already
-  shipped", a 404, an exception), nothing is claimed and that failure goes to the client.
+- A concurrent repeat can also fail before it ever reaches its commit, because it read the first
+  request's committed work: a validation that answers 409 "already open", a 404, an exception. The claim
+  commits in the same transaction as that work, so the repeat looks the claim up again and is answered
+  from it, as above. A failure with no claim for its key goes to the client as the endpoint answered it.
+  To allow that, a request's response is held back until it commits, and only a failure before the commit
+  (an answer of 400 and up, or an exception) pays the extra read.
 - The losing request's response is cleared before it is answered, as ASP.NET Core's exception handler
   clears a response it replaces, so a header its rolled-back work set does not go out. That clears headers
   other middleware set directly on the response too; ones added through `OnStarting` are kept.

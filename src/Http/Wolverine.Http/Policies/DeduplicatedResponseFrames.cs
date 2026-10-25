@@ -740,3 +740,139 @@ internal class PrepareDeduplicatedResponseClaimFrame : SyncFrame
         yield return _httpContext;
     }
 }
+
+/// <summary>
+/// GH-5206. After <see cref="AnswerExistingDeduplicatedResponseFrame" /> found no claim: holds back this request's
+/// response until its commit, so a failure before the commit (an answer of 400 and up, or a throw) is looked up
+/// again and answered from a claim a concurrent request committed meanwhile. See
+/// <see cref="HttpHandler.WatchForDeduplicatedRefusal" />.
+/// </summary>
+internal class WatchForDeduplicatedRefusalFrame : SyncFrame
+{
+    private readonly Variable _deduplicationId;
+    private readonly Variable _fingerprint;
+    private readonly string _keyName;
+    private readonly Type? _ancillaryStoreMarker;
+    private Variable? _responses;
+    private Variable? _httpContext;
+
+    public WatchForDeduplicatedRefusalFrame(Variable deduplicationId, Variable fingerprint, string keyName,
+        Type? ancillaryStoreMarker)
+    {
+        _deduplicationId = deduplicationId;
+        _fingerprint = fingerprint;
+        _keyName = keyName;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5206: until this request commits, a failure is looked up again in case a concurrent request with its key committed first");
+        writer.Write(
+            $"{nameof(HttpHandler.WatchForDeduplicatedRefusal)}({_httpContext!.Usage}, {_responses!.Usage}, {_deduplicationId.Usage}, {_fingerprint.Usage}, {Constant.For(_keyName).Usage}, {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5206: until this request commits, a failure is looked up again in case a concurrent request with its key committed first");
+        writer.Write(
+            $"this.{nameof(HttpHandler.WatchForDeduplicatedRefusal)}({_httpContext!.FSharpUsage}, {_responses!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_fingerprint.FSharpUsage}, {Constant.For(_keyName).Usage}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+        yield return _fingerprint;
+
+        _responses = chain.FindVariable(typeof(DeduplicatedResponses));
+        yield return _responses;
+
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-5206. For a <c>[Deduplicated]</c> chain whose claim rides its own transaction, after the up-front check found the
+/// id unclaimed: holds back the response until <see cref="MarkDeduplicationCommitStartedFrame" />, so a failure before
+/// the commit is answered as a duplicate when a concurrent request with the same id committed meanwhile. See
+/// <see cref="HttpHandler.WatchForDuplicateRefusal" />.
+/// </summary>
+internal class WatchForDuplicateRefusalFrame : SyncFrame
+{
+    private readonly Variable _deduplicationId;
+    private readonly Type? _ancillaryStoreMarker;
+    private readonly int _statusCode;
+    private readonly string? _detail;
+    private Variable? _deduplicator;
+    private Variable? _httpContext;
+
+    public WatchForDuplicateRefusalFrame(Variable deduplicationId, Type? ancillaryStoreMarker, int statusCode,
+        string? detail)
+    {
+        _deduplicationId = deduplicationId;
+        _ancillaryStoreMarker = ancillaryStoreMarker;
+        _statusCode = statusCode;
+        _detail = detail;
+    }
+
+    private string detailUsage => _detail == null ? "null" : Constant.For(_detail).Usage;
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5206: until this request commits, a failure is looked up again in case a concurrent request with its id committed first");
+        writer.Write(
+            $"{nameof(HttpHandler.WatchForDuplicateRefusal)}({_httpContext!.Usage}, {_deduplicator!.Usage}, {_deduplicationId.Usage}, {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}, {_statusCode}, {detailUsage});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5206: until this request commits, a failure is looked up again in case a concurrent request with its id committed first");
+        writer.Write(
+            $"this.{nameof(HttpHandler.WatchForDuplicateRefusal)}({_httpContext!.FSharpUsage}, {_deduplicator!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)}, {_statusCode}, {detailUsage})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return _deduplicationId;
+
+        _deduplicator = chain.FindVariable(typeof(IMessageDeduplicator));
+        yield return _deduplicator;
+
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}
+
+/// <summary>
+/// GH-5206. Just before the commit a <c>[Deduplicated]</c> claim rides: from here a failure is the commit race
+/// wrapper's to answer, so <see cref="WatchForDuplicateRefusalFrame" /> lets it through.
+/// </summary>
+internal class MarkDeduplicationCommitStartedFrame : SyncFrame
+{
+    private Variable? _httpContext;
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.MarkDeduplicationCommitStarted)}({_httpContext!.Usage});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.MarkDeduplicationCommitStarted)}({_httpContext!.FSharpUsage})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+}

@@ -9,6 +9,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Polecat;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -55,7 +56,8 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
                     .IncludeType(typeof(FailingPolecatPaymentHandler))
                     .IncludeType(typeof(OptionallyKeyedPolecatHandler))
                     .IncludeType(typeof(PolecatRacingHandler))
-                    .IncludeType(typeof(ShortWindowPolecatPaymentHandler));
+                    .IncludeType(typeof(ShortWindowPolecatPaymentHandler))
+                    .IncludeType(typeof(AdjustPolecatLedgerItselfHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -100,6 +102,35 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
         chain.SourceCode.ShouldNotBeNull();
         _output.WriteLine(chain.SourceCode);
         return chain.SourceCode;
+    }
+
+    [Fact]
+    public void a_write_aggregate_of_the_aggregate_itself_rides_the_transaction()
+    {
+        // GH-5205. The workflow applies the Polecat transaction itself, and nothing else on the chain names Polecat
+        var code = sourceFor<AdjustPolecatLedgerItself>();
+
+        code.ShouldContain($"{nameof(IPolecatDeduplicator.QueueClaim)}(documentSession");
+        code.ShouldNotContain("ReleaseAsync");
+    }
+
+    [Fact]
+    public async Task a_replay_on_a_write_aggregate_of_the_aggregate_itself_is_discarded()
+    {
+        var ledgerId = Guid.NewGuid();
+        await using (var session = _host.DocumentStore().LightweightSession())
+        {
+            session.Events.StartStream<PolecatLedger>(ledgerId, new PolecatLedgerOpened());
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var options = new DeliveryOptions { DeduplicationId = "adjust-" + ledgerId };
+        await _host.SendMessageAndWaitAsync(new AdjustPolecatLedgerItself(ledgerId, 5), options);
+        await _host.SendMessageAndWaitAsync(new AdjustPolecatLedgerItself(ledgerId, 7), options);
+
+        await using var query = _host.DocumentStore().QuerySession();
+        var events = await query.Events.FetchStreamAsync(ledgerId, token: TestContext.Current.CancellationToken);
+        events.Select(x => x.Data).OfType<PolecatLedgerAdjusted>().ShouldHaveSingleItem().Amount.ShouldBe(5);
     }
 
     [Fact]
@@ -398,4 +429,30 @@ public static class PolecatRacingHandler
         // than hanging the suite.
         await _bothArrived.Task.WaitAsync(30.Seconds());
     }
+}
+
+public record PolecatLedgerOpened;
+
+public record PolecatLedgerAdjusted(int Amount);
+
+public class PolecatLedger
+{
+    public Guid Id { get; set; }
+    public int Balance { get; set; }
+
+    public void Apply(PolecatLedgerOpened _)
+    {
+    }
+
+    public void Apply(PolecatLedgerAdjusted e) => Balance += e.Amount;
+}
+
+public record AdjustPolecatLedgerItself(Guid PolecatLedgerId, int Amount);
+
+/// <summary>GH-5205. The aggregate itself rather than its IEventStream, so nothing in the signature names Polecat.</summary>
+public static class AdjustPolecatLedgerItselfHandler
+{
+    [Deduplicated]
+    public static Events Handle(AdjustPolecatLedgerItself command, [WriteAggregate] PolecatLedger ledger)
+        => [new PolecatLedgerAdjusted(command.Amount)];
 }

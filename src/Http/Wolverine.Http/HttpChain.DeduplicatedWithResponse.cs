@@ -237,6 +237,10 @@ public partial class HttpChain
         frames.Add(new AnswerExistingDeduplicatedResponseFrame(transactional.ExistingClaim, fingerprint,
             requirement.KeyName));
 
+        // GH-5206: a concurrent repeat that missed the claim above can fail over the first request's committed work
+        // before it reaches the commit; it is looked up again then
+        frames.Add(new WatchForDeduplicatedRefusalFrame(scoped, fingerprint, requirement.KeyName, marker));
+
         // After IHttpAware has set the status and Location: the claim, then the commit it rides, wrapped so a commit
         // that a concurrent repeat won is answered from the winner's claim
         Postprocessors.Insert(commit + 1, new MarkDeduplicatedResponseCommittedFrame());
