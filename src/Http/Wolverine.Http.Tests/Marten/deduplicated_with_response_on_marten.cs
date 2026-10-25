@@ -310,6 +310,27 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_concurrent_different_request_refused_by_the_first_requests_committed_work_gets_422()
+    {
+        // GH-5206. The same key with different bytes, refused over the first request's work: answered as any repeat
+        // of a key that was used for a different request is
+        var key = Guid.NewGuid().ToString();
+        var name = "different-" + key;
+
+        // The first to arrive is the one that wins, so the different request starts only once the first is in
+        var first = postAsync("/marten-deduplicated-response/accounts", new OpenDeduplicatedAccount(name), key, 201);
+        await MartenDeduplicatedAdmissionEndpoint.FirstArrival(name);
+        var different = postAsync("/marten-deduplicated-response/accounts", new OpenDeduplicatedAccount(name, true),
+            key, 422);
+
+        await Task.WhenAny(first, different);
+        MartenDeduplicatedAdmissionEndpoint.Release(name);
+        await Task.WhenAll(first, different);
+
+        MartenDeduplicatedAdmissionEndpoint.Arrivals(name).ShouldBe(2);
+    }
+
+    [Fact]
     public async Task a_refusal_with_no_claim_for_its_key_is_answered_as_the_endpoint_answered_it()
     {
         // GH-5206. The rule's own refusal still goes out when no request with this key ever succeeded
@@ -520,6 +541,34 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     }
 
     [Fact]
+    public async Task on_claim_and_release_a_write_aggregate_of_the_aggregate_itself_keeps_the_claim_over_committed_work()
+    {
+        // GH-5205. The GH-5165 commit hook is attached only when the chain's store is found, which it now is for a
+        // [WriteAggregate] that binds the aggregate rather than its IEventStream<T>
+        var counterId = Guid.NewGuid();
+        await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
+        {
+            session.Events.StartStream<DeduplicatedCounter>(counterId, new DeduplicatedCounterStarted());
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var key = Guid.NewGuid().ToString();
+        var command = new IncrementDeduplicatedCounter(counterId, FailAfterCommitListener.FailAfterCommitNote + key);
+
+        await failingPostAsync("/marten-deduplicated-response/aggregate-default", command, key);
+
+        // Kept, unanswered: the work is done, but there is no response to replay
+        (await findClaimAsync(key)).ShouldNotBeNull().Response.ShouldBeNull();
+
+        await postAsync("/marten-deduplicated-response/aggregate-default", command, key, 409);
+        MartenDeduplicatedResponseEndpoints.Runs(command.Note).ShouldBe(1);
+
+        await using var query = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        var events = await query.Events.FetchStreamAsync(counterId, token: TestContext.Current.CancellationToken);
+        events.Count(x => x.Data is DeduplicatedCounterIncremented).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task on_claim_and_release_a_failed_commit_still_releases_the_claim()
     {
         // GH-5165, the other half: a commit that fails in the database rolled the work back, so the claim goes back
@@ -675,9 +724,14 @@ public class FailAfterCommitMarker
 // commit that wrote a FailAfterCommitMarker. Store() is an upsert, so the marker shows up as updated
 public class FailAfterCommitListener : DocumentSessionListenerBase
 {
+    // GH-5205. For an endpoint that has no IDocumentSession to store a marker with: an event with this note
+    public const string FailAfterCommitNote = "fail-after-commit-";
+
     public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
-        if (commit.Inserted.Concat(commit.Updated).OfType<FailAfterCommitMarker>().Any())
+        if (commit.Inserted.Concat(commit.Updated).OfType<FailAfterCommitMarker>().Any() ||
+            commit.GetEvents().Any(x =>
+                x.Data is DeduplicatedCounterIncremented e && e.Note.StartsWith(FailAfterCommitNote)))
         {
             throw new InvalidOperationException("A session listener failed after the database commit");
         }
@@ -849,6 +903,15 @@ public static class MartenDeduplicatedResponseEndpoints
         => PostFailingCommit(request, session);
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/marten-deduplicated-response/aggregate-default")]
+    public static (DeduplicatedCounterAnswer, Events) PostAggregateByDefault(IncrementDeduplicatedCounter command,
+        [WriteAggregate] DeduplicatedCounter counter)
+    {
+        _runs.AddOrUpdate(command.Note, 1, (_, count) => count + 1);
+        return (new DeduplicatedCounterAnswer(counter.Count + 1), [new DeduplicatedCounterIncremented(command.Note)]);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/marten-deduplicated-response/orders-default")]
     public static DeduplicatedOrderCreated PostOrderByDefault(DeduplicatedOrder request, IDocumentSession session)
         => PostOrder(request, session);
@@ -901,6 +964,15 @@ public static class MartenDeduplicatedAdmissionEndpoint
     private static TaskCompletionSource gate(string name)
         => _gates.GetOrAdd(name, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
 
+    private static readonly ConcurrentDictionary<string, TaskCompletionSource> _firstArrivals = new();
+
+    private static TaskCompletionSource firstArrival(string name)
+        => _firstArrivals.GetOrAdd(name,
+            _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+
+    /// <summary>Completes once the first request with this name is past its claim lookup.</summary>
+    public static Task FirstArrival(string name) => firstArrival(name).Task.WaitAsync(TimeSpan.FromSeconds(10));
+
     private static TaskCompletionSource secondArrival(string name)
         => _secondArrivals.GetOrAdd(name,
             _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
@@ -918,6 +990,7 @@ public static class MartenDeduplicatedAdmissionEndpoint
     {
         if (_arrivals.AddOrUpdate(command.Name, 1, (_, count) => count + 1) == 1)
         {
+            firstArrival(command.Name).TrySetResult();
             await Task.WhenAny(secondArrival(command.Name).Task, Task.Delay(TimeSpan.FromSeconds(10)));
             return;
         }
