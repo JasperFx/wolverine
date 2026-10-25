@@ -65,4 +65,17 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
         var delta = await table.FindDeltaAsync(theConnection, TestContext.Current.CancellationToken);
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
+
+    [Fact]
+    public async Task the_dead_letter_history_table_is_stable()
+    {
+        await theConnection.ResetSchemaAsync("dlq_history", ct: TestContext.Current.CancellationToken);
+
+        // GH-5209
+        var table = new DeadLetterHistoryTable("dlq_history");
+        await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
+
+        var delta = await table.FindDeltaAsync(theConnection, TestContext.Current.CancellationToken);
+        delta.Difference.ShouldBe(SchemaPatchDifference.None);
+    }
 }
