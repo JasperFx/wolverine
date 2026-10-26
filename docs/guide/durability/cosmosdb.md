@@ -295,6 +295,17 @@ CosmosDB rejects the write with a `412 Precondition Failed` and Wolverine raises
 Without this, two messages for one saga id arriving at the same time on two nodes would both read the same
 revision and the slower write would silently overwrite the faster one.
 
+Starting a saga is protected the same way. A new saga has no `ETag` to compare against, so Wolverine writes it
+with a conditional create instead of an upsert. If a saga with that id already exists, CosmosDB rejects the
+create with a `409 Conflict` and Wolverine raises a `SagaConcurrencyException`, so a duplicate start message can
+no longer overwrite a saga that is already running. That covers both a message that only starts a saga and a
+`StartOrHandle` message whose load found nothing because another node was starting the same saga at the same
+moment. With a retry policy, the retry finds the saga the other message created and handles it as an existing
+saga. Marten, Azure Blob Storage and Amazon S3 reject a duplicate start the same way.
+
+`Insert<T>` return values, `Storage.Store()`/`Storage.Insert()` storage actions and `CosmosDbOps.Store()` are
+explicit "write this document" side effects rather than saga starts, so they remain upserts.
+
 Because a concurrency violation just means "you read a stale copy, go read it again", the usual response is to
 retry the message — the retry re-reads the saga and re-applies the change against the current state:
 
