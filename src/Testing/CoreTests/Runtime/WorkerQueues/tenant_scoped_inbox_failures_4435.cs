@@ -172,6 +172,14 @@ internal class CapturedLogs : ILoggerProvider, ILogger
         get { lock (_warnings) return _warnings.ToArray(); }
     }
 
+    private readonly List<(string Message, Exception? Exception)> _warningExceptions = new();
+
+    /// <summary>GH-5218. Each Warning with the exception it was logged with.</summary>
+    public IReadOnlyList<(string Message, Exception? Exception)> WarningExceptions
+    {
+        get { lock (_warningExceptions) return _warningExceptions.ToArray(); }
+    }
+
     public ILogger CreateLogger(string categoryName) => this;
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -192,6 +200,11 @@ internal class CapturedLogs : ILoggerProvider, ILogger
 
         var message = formatter(state, exception);
         lock (target) target.Add(message);
+
+        if (logLevel == LogLevel.Warning)
+        {
+            lock (_warningExceptions) _warningExceptions.Add((message, exception));
+        }
     }
 
     public void Dispose()

@@ -195,7 +195,22 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     async Task IMessageInbox.StoreIncomingAsync(Envelope envelope)
     {
-        var database = await GetDatabaseAsync(envelope.TenantId);
+        IMessageStore database;
+        try
+        {
+            database = await resolveForInboxWriteAsync(envelope.TenantId);
+        }
+        catch (Exception e)
+        {
+            // GH-5218. The batch overload has treated an unresolvable tenant as tenant-scoped since GH-4435,
+            // but this overload resolved OUTSIDE its tenant handling, so the raw resolution failure missed
+            // DurableReceiver's IncludesMainStore check and paused the listener for every tenant. The batch
+            // receive path falls back to this overload too, so it was reachable from both.
+            //
+            // The default tenant always resolves to Main without touching the tenant source, so anything
+            // that throws here is scoped to this one tenant.
+            throw new TenantedInboxWriteException([envelope], false, [e]);
+        }
 
         // The main store's failures propagate untouched: the receiver pauses for inbox recovery on
         // those, which is the behavior this path has always had.
@@ -255,6 +270,58 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return brake;
     }
 
+    // GH-5218. The GH-4659 brake above is keyed on the RESOLVED store, so it can never engage for a tenant
+    // that does not resolve at all -- and resolution can be the expensive part (Source.FindAsync may call a
+    // secrets service or open a connection, and MigrateAsync certainly does). A deferred envelope for such
+    // a tenant comes straight back from the broker, so hold resolution attempts for that tenant id for one
+    // cycle after a failure, letting exactly one probe through per cycle, the same way the store brake does.
+    private ImHashMap<string, TenantWriteBrake> _resolutionBrakes = ImHashMap<string, TenantWriteBrake>.Empty;
+
+    private TenantWriteBrake resolutionBrakeFor(string tenantId)
+    {
+        if (_resolutionBrakes.TryFind(tenantId, out var brake))
+        {
+            return brake;
+        }
+
+        brake = new TenantWriteBrake(_runtime.DurabilitySettings.TenantWriteBrakeCycle);
+        _resolutionBrakes = _resolutionBrakes.AddOrUpdate(tenantId, brake);
+
+        return brake;
+    }
+
+    /// <summary>
+    /// GH-5218. Resolve the store for an incoming write, refusing for free while this tenant id is in the
+    /// cool-down that follows a failed resolution. A store that is already cached never touches the brake.
+    /// </summary>
+    private async ValueTask<IMessageStore> resolveForInboxWriteAsync(string? tenantId)
+    {
+        // The fast paths in GetDatabaseAsync never throw: the default tenant and the cached stores
+        if (tenantId.IsDefaultTenant() || tenantId!.EqualsIgnoreCase(TransportConstants.Default) ||
+            tenantId!.EqualsIgnoreCase(StorageConstants.Main) || _byTenant.TryFind(tenantId!, out _))
+        {
+            return await GetDatabaseAsync(tenantId);
+        }
+
+        var brake = resolutionBrakeFor(tenantId!);
+        if (!brake.TryEnter())
+        {
+            throw new TenantDatabaseBrakedException(tenantId);
+        }
+
+        try
+        {
+            var store = await GetDatabaseAsync(tenantId);
+            brake.Release();
+            return store;
+        }
+        catch (Exception)
+        {
+            brake.Trip();
+            throw;
+        }
+    }
+
     async Task IMessageInbox.StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
         // GH-4435. Group by the RESOLVED store rather than by tenant id. Many tenant ids map to one
@@ -270,7 +337,15 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
             try
             {
-                store = await GetDatabaseAsync(byTenant.Key);
+                store = await resolveForInboxWriteAsync(byTenant.Key);
+            }
+            catch (TenantDatabaseBrakedException e)
+            {
+                // GH-5218. Held back without calling the tenant source. The failure that tripped the brake
+                // was already logged below, so don't log one more Error per redelivery.
+                failures.Add(e);
+                unpersisted.AddRange(byTenant);
+                continue;
             }
             catch (Exception e)
             {
