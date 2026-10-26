@@ -28,7 +28,7 @@ public class WriteSpecsInput
     [FlagAlias("specs-namespace", true)]
     public string? SpecsNamespaceFlag { get; set; }
 
-    [Description("WolverineFx.Bobcat version for a spec project this writes (one is written when the spec directory has no .csproj); defaults to this package's own version. The csproj keeps it in the WolverineFxBobcatVersion property")]
+    [Description("WolverineFx.Bobcat version for a spec project this writes (one is written when the spec directory has no .csproj); defaults to the WolverineFx.Bobcat built alongside this package. The csproj keeps it in the WolverineFxBobcatVersion property")]
     [FlagAlias("wolverine-version", true)]
     public string? WolverineVersionFlag { get; set; }
 

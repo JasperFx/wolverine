@@ -61,11 +61,22 @@ public static class SpecProjectWriter
 {
     /// <summary>
     /// The WolverineFx.Bobcat used when neither <c>--wolverine-version</c> nor the
-    /// <c>WolverineFxBobcatVersion</c> property says otherwise: this package's own version, because
-    /// WolverineFx.Bobcat and WolverineFx.Bobcat.EventModel ship together from one Wolverine build (GH-5082).
-    /// While this lived in Bobcat it was a constant someone had to move with every pairing.
+    /// <c>WolverineFxBobcatVersion</c> property says otherwise: the version WolverineFx.Bobcat packed as in the
+    /// Wolverine build that produced this package, stamped by that build (<c>WolverineFxBobcatVersion</c>
+    /// assembly metadata).
     /// </summary>
-    public static string DefaultWolverineFxBobcatVersion => ToolVersion;
+    /// <remarks>
+    /// Both packages ship from one Wolverine build (GH-5082), but not necessarily at one version string. This
+    /// used to be <see cref="ToolVersion"/>, which was right only while both carried the same prerelease
+    /// suffix: once WolverineFx.Bobcat leaves <c>-alpha</c> and this package does not, this package's own
+    /// version names a WolverineFx.Bobcat that is never published, and the spec project fails to restore
+    /// (NU1102). GH-5222.
+    /// </remarks>
+    public static string DefaultWolverineFxBobcatVersion
+        => typeof(SpecProjectWriter).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+               .FirstOrDefault(x => x.Key == "WolverineFxBobcatVersion")?.Value is { Length: > 0 } stamped
+            ? stamped
+            : throw new InvalidOperationException("This WolverineFx.Bobcat.EventModel carries no WolverineFxBobcatVersion metadata; pass --wolverine-version.");
 
     /// <summary>The file holding <c>[assembly: EventModelName]</c>, the parallelization and the content root.</summary>
     public const string AssemblyAttributesFile = "AssemblyAttributes.cs";
@@ -88,7 +99,10 @@ public static class SpecProjectWriter
             ? stamped
             : throw new InvalidOperationException("This WolverineFx.Bobcat.EventModel carries no BobcatVersion metadata; pass --bobcat-version.");
 
-    /// <summary>This package's own version, which is WolverineFx.Bobcat's.</summary>
+    /// <summary>
+    /// This package's own version. Not necessarily WolverineFx.Bobcat's: that is
+    /// <see cref="DefaultWolverineFxBobcatVersion"/> (GH-5222).
+    /// </summary>
     public static string ToolVersion
     {
         get

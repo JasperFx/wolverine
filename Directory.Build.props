@@ -33,6 +33,12 @@
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Version>6.54.0</Version>
+        <!-- WolverineFx.Bobcat's package version, declared ONCE (GH-5222). Wolverine.Bobcat.csproj packs as it,
+             and WolverineFx.Bobcat.EventModel stamps it as WolverineFxBobcatVersion assembly metadata: the
+             WolverineFx.Bobcat a spec project written by write-specs pins by default. EventModel used to default
+             to its own version instead, which held only while both packages carried the same prerelease suffix.
+             Pinned by SpecProjectWriterTests.the_default_wolverinefx_bobcat_version_is_what_wolverinefx_bobcat_packs_as. -->
+        <WolverineFxBobcatPackageVersion>$(Version)-alpha.1</WolverineFxBobcatPackageVersion>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>

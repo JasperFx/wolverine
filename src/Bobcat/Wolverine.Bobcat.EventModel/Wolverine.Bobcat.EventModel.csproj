@@ -20,6 +20,9 @@
     <ItemGroup>
         <!-- The Bobcat a generated spec project pins by default: the one this package is built against -->
         <AssemblyMetadata Include="BobcatVersion" Value="@(PackageVersion->WithMetadataValue('Identity', 'Bobcat')->'%(Version)')" />
+        <!-- The WolverineFx.Bobcat it pins by default: the version Wolverine.Bobcat.csproj packs as, from the one
+             property both read (GH-5222). Not this package's own version, which may keep its own prerelease cadence. -->
+        <AssemblyMetadata Include="WolverineFxBobcatVersion" Value="$(WolverineFxBobcatPackageVersion)" />
     </ItemGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Wolverine.Bobcat.EventModel.Tests" />

@@ -138,9 +138,73 @@ public sealed class SpecProjectWriterTests : IDisposable
 
         SpecProjectWriter.ToolVersion.ShouldBe(informational.Split('+')[0]);
         SpecProjectWriter.ToolVersion.ShouldStartWith(assembly.GetName().Version!.ToString(3));
+    }
 
-        // GH-5082: WolverineFx.Bobcat ships from the same build, so a generated spec project pins this version of it
-        SpecProjectWriter.DefaultWolverineFxBobcatVersion.ShouldBe(SpecProjectWriter.ToolVersion);
+    [Fact]
+    public void the_default_wolverinefx_bobcat_version_is_the_stamped_one()
+    {
+        // GH-5222: stamped by the build from WolverineFx.Bobcat's own version property, not this package's version
+        var stamped = typeof(SpecProjectWriter).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(x => x.Key == "WolverineFxBobcatVersion").Value;
+
+        stamped.ShouldNotBeNullOrEmpty();
+        SpecProjectWriter.DefaultWolverineFxBobcatVersion.ShouldBe(stamped);
+    }
+
+    /// <summary>
+    /// GH-5222: the invariant itself. A spec project written with no <c>--wolverine-version</c> pins the stamped
+    /// version, so it has to be the version <c>dotnet pack</c> gives WolverineFx.Bobcat in this same tree, read off
+    /// the project's evaluated <c>PackageVersion</c> rather than off anything this package declares. While the
+    /// default was this package's own version, the two agreed only because both carried <c>-alpha.1</c>.
+    /// </summary>
+    [Fact]
+    public async Task the_default_wolverinefx_bobcat_version_is_what_wolverinefx_bobcat_packs_as()
+    {
+        var project = Path.Combine(repositoryRoot(), "src", "Bobcat", "Wolverine.Bobcat", "Wolverine.Bobcat.csproj");
+        File.Exists(project).ShouldBeTrue(project);
+
+        var info = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host ? host : "dotnet")
+        {
+            WorkingDirectory = Path.GetDirectoryName(project)!,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        foreach (var argument in new[] { "msbuild", project, "-getProperty:PackageId", "-getProperty:PackageVersion" })
+        {
+            info.ArgumentList.Add(argument);
+        }
+
+        // The test host can inherit the outer build's MSBuild location variables, which would evaluate the
+        // project with a different MSBuild than the SDK global.json selects
+        foreach (var key in info.Environment.Keys.Where(x => x.StartsWith("MSBuild", StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            info.Environment.Remove(key);
+        }
+
+        info.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+
+        using var evaluation = Process.Start(info)!;
+        var output = await evaluation.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var error = await evaluation.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        await evaluation.WaitForExitAsync(TestContext.Current.CancellationToken);
+        evaluation.ExitCode.ShouldBe(0, output + error);
+
+        var properties = JsonDocument.Parse(output).RootElement.GetProperty("Properties");
+        properties.GetProperty("PackageId").GetString().ShouldBe("WolverineFx.Bobcat");
+        var packed = properties.GetProperty("PackageVersion").GetString();
+        packed.ShouldNotBeNullOrEmpty();
+
+        SpecProjectWriter.DefaultWolverineFxBobcatVersion.ShouldBe(packed);
+    }
+
+    private static string repositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory != null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "wolverine.slnx"))) return directory.FullName;
+        }
+
+        throw new InvalidOperationException($"No wolverine.slnx above {AppContext.BaseDirectory}: this test reads WolverineFx.Bobcat's project from the source tree it was built in.");
     }
 
     [Fact]

@@ -2,8 +2,10 @@
     <PropertyGroup>
         <Description>Given/When/Then helpers for specifying Wolverine handlers and event-sourced slices with Bobcat: arrange events, act through a tracked session, and assert what was appended and cascaded, rendered as a specification.</Description>
         <PackageId>WolverineFx.Bobcat</PackageId>
-        <!-- Ships as a prerelease while the API settles: Wolverine's version, then -alpha.N -->
-        <Version>$(Version)-alpha.1</Version>
+        <!-- Ships as a prerelease while the API settles: Wolverine's version, then -alpha.N. Declared in the root
+             Directory.Build.props, because WolverineFx.Bobcat.EventModel stamps the same value as the version a
+             generated spec project pins (GH-5222). Change it there, never here. -->
+        <Version>$(WolverineFxBobcatPackageVersion)</Version>
         <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
         <!-- C# 13: the Critter Stack vocabulary moved here from Bobcat core (GH-5082) uses System.Threading.Lock -->
         <LangVersion>13</LangVersion>
