@@ -21,6 +21,7 @@ internal class AzureServiceBusSessionListener : IListener
 
     private readonly List<Task> _tasks = new();
     private readonly AzureServiceBusTransport _transport;
+    private int _disposed;
 
     public AzureServiceBusSessionListener(AzureServiceBusTransport transport, AzureServiceBusEndpoint endpoint,
         IReceiver receiver, IEnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage> mapper, ILogger logger,
@@ -45,6 +46,11 @@ internal class AzureServiceBusSessionListener : IListener
     /// </summary>
     internal int AcceptLoopCount => _tasks.Count;
 
+    /// <summary>
+    /// The accept loop tasks this listener owns. Exposed for testing.
+    /// </summary>
+    internal IReadOnlyList<Task> AcceptLoops => _tasks;
+
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
@@ -59,40 +65,84 @@ internal class AzureServiceBusSessionListener : IListener
 
     public async ValueTask DisposeAsync()
     {
-        await _cancellation.CancelAsync();
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+
+        // GH-5220: cancel AND join the accept loop before the CancellationTokenSource goes away. Disposing
+        // it while the loop was still awaiting an accept or a back off left the loop to read the disposed
+        // source on its next pass and fault with an unobserved ObjectDisposedException.
+        await stopAcceptLoopsAsync();
         _cancellation.Dispose();
-        foreach (var task in _tasks)
-            task.SafeDispose();
     }
 
     public Uri Address => _endpoint.Uri;
 
     public async ValueTask StopAsync()
     {
-        await _cancellation.CancelAsync();
+        if (Volatile.Read(ref _disposed) == 1) return;
+
+        await stopAcceptLoopsAsync();
+    }
+
+    private async Task stopAcceptLoopsAsync()
+    {
+        try
+        {
+            await _cancellation.CancelAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A concurrent DisposeAsync got there first, and it only disposes after joining the loop
+            return;
+        }
+
+        foreach (var task in _tasks)
+        {
+            try
+            {
+                await task;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected while shutting down
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Error while stopping the Azure Service Bus session listener at {Uri}",
+                    _endpoint.Uri);
+            }
+        }
     }
 
     private async Task listenForMessages()
     {
+        // GH-5220: capture the token once. _cancellation.Token throws once the source is disposed, while a
+        // captured CancellationToken stays safe to inspect.
+        var token = _cancellation.Token;
         var failedCount = 0;
 
-        while (!_cancellation.Token.IsCancellationRequested)
+        while (!token.IsCancellationRequested)
         {
             try
             {
                 await using var sessionReceiver =
-                    await _transport.AcceptNextSessionAsync(_endpoint, _cancellation.Token);
+                    await _transport.AcceptNextSessionAsync(_endpoint, token);
                 var sessionListener =
                     new SessionSpecificListener(sessionReceiver, _endpoint, _receiver, _mapper, _logger, _requeue);
-                var count = await sessionListener.ExecuteAsync(_cancellation.Token);
+                var count = await sessionListener.ExecuteAsync(token);
 
                 failedCount = 0;
 
                 if (count == 0)
                 {
                     // TODO -- make this configurable
-                    await Task.Delay(250.Milliseconds());
+                    await backOffAsync(250.Milliseconds(), token);
                 }
+            }
+            catch (Exception) when (token.IsCancellationRequested)
+            {
+                // Shutting down. Whatever the accept or receive threw on the way out -- a cancellation, or a
+                // broker timeout that landed at the same moment -- the loop is done.
+                break;
             }
             catch (ServiceBusException sbe) when (sbe.Reason == ServiceBusFailureReason.ServiceTimeout)
             {
@@ -100,11 +150,7 @@ internal class AzureServiceBusSessionListener : IListener
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                await Task.Delay(pauseTime);
-            }
-            catch (TaskCanceledException) when (_cancellation.IsCancellationRequested)
-            {
-                break;
+                await backOffAsync(pauseTime, token);
             }
             catch (Exception e)
             {
@@ -123,8 +169,24 @@ internal class AzureServiceBusSessionListener : IListener
                         _endpoint.Uri);
                 }
 
-                await Task.Delay(pauseTime);
+                await backOffAsync(pauseTime, token);
             }
+        }
+    }
+
+    /// <summary>
+    /// A back off that ends early, without throwing, when the listener shuts down. The loop guard then sees
+    /// the cancellation and exits.
+    /// </summary>
+    private static async Task backOffAsync(TimeSpan pauseTime, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(pauseTime, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down
         }
     }
 }

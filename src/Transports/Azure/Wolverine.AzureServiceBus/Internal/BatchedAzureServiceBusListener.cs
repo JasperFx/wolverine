@@ -28,6 +28,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     private readonly ISender _requeue;
     private readonly Task _task;
     private readonly IReceiver _wolverineReceiver;
+    private int _disposed;
 
     public BatchedAzureServiceBusListener(AzureServiceBusEndpoint endpoint, ILogger logger,
         IReceiver wolverineReceiver, ServiceBusReceiver receiver, IIncomingMapper<ServiceBusReceivedMessage> mapper,
@@ -101,9 +102,12 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
     public async ValueTask DisposeAsync()
     {
-        await _cancellation.CancelAsync();
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+
+        // GH-5220: the same ordering bug as the session listener. Cancel AND join the receive loop before
+        // disposing the CancellationTokenSource, or the loop reads the disposed source on its next pass.
+        await stopReceiveLoopAsync();
         _cancellation.Dispose();
-        _task.SafeDispose();
         _complete.SafeDispose();
         _defer.SafeDispose();
         _deadLetter.SafeDispose();
@@ -113,8 +117,39 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
     public async ValueTask StopAsync()
     {
-        await _cancellation.CancelAsync();
+        if (Volatile.Read(ref _disposed) == 1) return;
+
+        // Join the loop before closing the receiver it is reading from
+        await stopReceiveLoopAsync();
         await _receiver.CloseAsync();
+    }
+
+    private async Task stopReceiveLoopAsync()
+    {
+        try
+        {
+            await _cancellation.CancelAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A concurrent DisposeAsync got there first, and it only disposes after joining the loop
+            return;
+        }
+
+        try
+        {
+#pragma warning disable VSTHRD003 // this listener started the receive loop, and joining it is the whole point
+            await _task;
+#pragma warning restore VSTHRD003
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected while shutting down
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error while stopping the Azure Service Bus listener at {Uri}", _endpoint.Uri);
+        }
     }
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
@@ -244,15 +279,18 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
     private async Task listenForMessages()
     {
+        // GH-5220: capture the token once. _cancellation.Token throws once the source is disposed, while a
+        // captured CancellationToken stays safe to inspect.
+        var token = _cancellation.Token;
         var failedCount = 0;
 
-        while (!_cancellation.Token.IsCancellationRequested)
+        while (!token.IsCancellationRequested)
         {
             try
             {
                 var messages = await _receiver
                     .ReceiveMessagesAsync(_endpoint.MaximumMessagesToReceive,
-                        _endpoint.MaximumWaitTime, _cancellation.Token);
+                        _endpoint.MaximumWaitTime, token);
 
                 failedCount = 0;
 
@@ -290,12 +328,13 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(250.Milliseconds());
+                    await backOffAsync(250.Milliseconds(), token);
                 }
             }
             catch (Exception e)
             {
-                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
+                // Shutting down: whatever the receive threw on the way out ends the loop normally
+                if (token.IsCancellationRequested)
                 {
                     break;
                 }
@@ -348,8 +387,24 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                         _endpoint.Uri);
                 }
 
-                await Task.Delay(pauseTime);
+                await backOffAsync(pauseTime, token);
             }
+        }
+    }
+
+    /// <summary>
+    /// A back off that ends early, without throwing, when the listener shuts down. The loop guard then sees
+    /// the cancellation and exits.
+    /// </summary>
+    private static async Task backOffAsync(TimeSpan pauseTime, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(pauseTime, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down
         }
     }
 

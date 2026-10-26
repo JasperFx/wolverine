@@ -18,7 +18,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     public const string ProtocolName = "asb";
     public const string ResponseEndpointName = "AzureServiceBusResponses";
     public const string RetryEndpointName = "AzureServiceBusRetries";
-    private readonly Lazy<ServiceBusClient> _busClient;
+    private Lazy<ServiceBusClient> _busClient;
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
     private string? _responseNode;
 
@@ -297,6 +297,15 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     // configuration -- and throw outright on any transport that has no connection information yet.
     [IgnoreDescription]
     public ServiceBusClient BusClient => _busClient.Value;
+
+    /// <summary>
+    /// Test seam: replace the ServiceBusClient this transport uses with one supplied by the caller, so
+    /// listener lifecycle tests can drive a controllable client without a broker.
+    /// </summary>
+    internal void UseServiceBusClient(ServiceBusClient client)
+    {
+        _busClient = new Lazy<ServiceBusClient>(() => client);
+    }
 
     [IgnoreDescription]
     public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
