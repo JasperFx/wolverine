@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -98,8 +99,17 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
-        // A brand new document has no ETag to match against, so there is nothing to be optimistic about
-        return new CosmosDbUpsertFrame(saga, PartitionsById(saga.VariableType, container));
+        // A brand new saga has no ETag to match against, but it must not already exist. Without a
+        // conditional create, a second start message for the same saga id would blindly overwrite the
+        // saga that is already running
+        return new CosmosDbCreateSagaFrame(saga, PartitionsById(saga.VariableType, container));
+    }
+
+    // An Insert<T> return value is an explicit "write this entity" side effect, not a saga being
+    // started, so it stays the upsert it has always been rather than inheriting the saga create above
+    public Frame DetermineStorageInsertFrame(Variable entity, IServiceContainer container)
+    {
+        return new CosmosDbUpsertFrame(entity, PartitionsById(entity.VariableType, container));
     }
 
     public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
@@ -241,10 +251,17 @@ public static class CosmosDbStorageActionApplier
 /// <summary>
 ///     Emits the compare-and-swap plumbing that turns a 412 Precondition Failed from CosmosDB into the
 ///     <see cref="SagaConcurrencyException" /> Wolverine's saga retry machinery already understands. Shared
-///     by the saga upsert and delete frames so both report the violation identically.
+///     by the saga upsert and delete frames so both report the violation identically. The saga create frame
+///     does the same for the 409 Conflict of a saga id that already exists.
 /// </summary>
 internal static class CosmosDbConcurrency
 {
+    private const string UpdateViolation = "cannot be updated because of optimistic concurrency violations";
+    private const string UpdateComment = "The saga document was changed by another message since it was read";
+
+    private const string CreateViolation = "cannot be started because a saga with that id already exists";
+    private const string CreateComment = "Another message already started a saga with this id";
+
     public static string RequestOptions(string etagVariable)
     {
         return
@@ -259,22 +276,131 @@ internal static class CosmosDbConcurrency
 
     public static void WriteCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression)
     {
-        writer.Write(
-            $"BLOCK:catch ({typeof(CosmosException).FullNameInCode()} e) when (e.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)");
-        writer.WriteComment("The saga document was changed by another message since it was read");
-        writer.Write(
-            $"throw new {typeof(SagaConcurrencyException).FullNameInCode()}($\"Saga of type {sagaType.FullNameInCode()} and id {{{identityExpression}}} cannot be updated because of optimistic concurrency violations\", e);");
-        writer.FinishBlock();
+        writeCatchBlock(writer, sagaType, identityExpression, nameof(HttpStatusCode.PreconditionFailed),
+            UpdateComment, UpdateViolation);
     }
 
     public static void WriteFSharpCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression)
     {
+        writeFSharpCatchBlock(writer, sagaType, identityExpression, nameof(HttpStatusCode.PreconditionFailed),
+            UpdateComment, UpdateViolation);
+    }
+
+    public static void WriteConflictCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression)
+    {
+        writeCatchBlock(writer, sagaType, identityExpression, nameof(HttpStatusCode.Conflict), CreateComment,
+            CreateViolation);
+    }
+
+    public static void WriteFSharpConflictCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression)
+    {
+        writeFSharpCatchBlock(writer, sagaType, identityExpression, nameof(HttpStatusCode.Conflict), CreateComment,
+            CreateViolation);
+    }
+
+    private static void writeCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression,
+        string statusCode, string comment, string violation)
+    {
         writer.Write(
-            $"BLOCK:with :? {typeof(CosmosException).FSharpName()} as e when e.StatusCode = System.Net.HttpStatusCode.PreconditionFailed ->");
-        writer.WriteComment("The saga document was changed by another message since it was read");
+            $"BLOCK:catch ({typeof(CosmosException).FullNameInCode()} e) when (e.StatusCode == System.Net.HttpStatusCode.{statusCode})");
+        writer.WriteComment(comment);
         writer.Write(
-            $"raise ({typeof(SagaConcurrencyException).FSharpName()}(sprintf \"Saga of type {sagaType.FullNameInCode()} and id %O cannot be updated because of optimistic concurrency violations\" {identityExpression}, e))");
+            $"throw new {typeof(SagaConcurrencyException).FullNameInCode()}($\"Saga of type {sagaType.FullNameInCode()} and id {{{identityExpression}}} {violation}\", e);");
         writer.FinishBlock();
+    }
+
+    private static void writeFSharpCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression,
+        string statusCode, string comment, string violation)
+    {
+        writer.Write(
+            $"BLOCK:with :? {typeof(CosmosException).FSharpName()} as e when e.StatusCode = System.Net.HttpStatusCode.{statusCode} ->");
+        writer.WriteComment(comment);
+        writer.Write(
+            $"raise ({typeof(SagaConcurrencyException).FSharpName()}(sprintf \"Saga of type {sagaType.FullNameInCode()} and id %O {violation}\" {identityExpression}, e))");
+        writer.FinishBlock();
+    }
+}
+
+/// <summary>
+///     Writes a saga that is being started. CosmosDB's create fails with 409 Conflict when a document with the
+///     same id already exists, which surfaces as a <see cref="SagaConcurrencyException" /> instead of letting a
+///     duplicate start message overwrite a saga that is already running, the same guarantee Marten's insert and
+///     the blob stores' <c>If-None-Match: *</c> give.
+/// </summary>
+internal class CosmosDbCreateSagaFrame : AsyncFrame
+{
+    private readonly Variable _saga;
+    private readonly bool _partitionById;
+    private Variable? _cancellation;
+    private Variable? _container;
+
+    public CosmosDbCreateSagaFrame(Variable saga, bool partitionById = false)
+    {
+        _saga = saga;
+        _partitionById = partitionById;
+        uses.Add(_saga);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _container = chain.FindVariable(typeof(Container));
+        yield return _container;
+
+        if (_partitionById)
+        {
+            _cancellation = chain.FindVariable(typeof(CancellationToken));
+            yield return _cancellation;
+        }
+    }
+
+    /// <summary>
+    ///     A saga that is only ever started never reads a saga id into a local of its own, so the id is read
+    ///     back off the saga itself
+    /// </summary>
+    private string identityExpression(string sagaUsage)
+    {
+        var member = SagaChain.DetermineSagaIdMember(_saga.VariableType, _saga.VariableType);
+        return member == null ? "\"(unknown)\"" : $"{sagaUsage}.{member.Name}";
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // The partitioned write has to go through the JSON itself to stamp the partition key onto the
+        // document, so it cannot use the typed CreateItemAsync<T>. See CosmosSagaStorage (GH-3415)
+        var create = _partitionById
+            ? $"await {typeof(CosmosSagaStorage).FullNameInCode()}.{nameof(CosmosSagaStorage.CreateAsync)}({_container!.Usage}, {_saga.Usage}, {_cancellation!.Usage}).ConfigureAwait(false);"
+            : $"await {_container!.Usage}.CreateItemAsync({_saga.Usage}).ConfigureAwait(false);";
+
+        writer.Write("BLOCK:try");
+        writer.Write(create);
+        writer.FinishBlock();
+        CosmosDbConcurrency.WriteConflictCatchBlock(writer, _saga.VariableType, identityExpression(_saga.Usage));
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write("BLOCK:try");
+
+        // CreateItemAsync returns Task<ItemResponse<T>>, not Task; use let! _ = to discard the result.
+        // CosmosSagaStorage.CreateAsync returns a plain Task, which the task builder binds with do!
+        if (_partitionById)
+        {
+            writer.Write(
+                $"do! {typeof(CosmosSagaStorage).FSharpName()}.{nameof(CosmosSagaStorage.CreateAsync)}({_container!.FSharpUsage}, {_saga.FSharpUsage}, {_cancellation!.FSharpUsage})");
+        }
+        else
+        {
+            writer.Write($"let! _ = {_container!.FSharpUsage}.CreateItemAsync({_saga.FSharpUsage})");
+            writer.Write("()");
+        }
+
+        writer.FinishBlock();
+        CosmosDbConcurrency.WriteFSharpConflictCatchBlock(writer, _saga.VariableType,
+            identityExpression(_saga.FSharpUsage));
+
+        Next?.GenerateFSharpCode(method, writer);
     }
 }
 

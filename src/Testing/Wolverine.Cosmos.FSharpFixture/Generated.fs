@@ -26,6 +26,9 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
 
             // Enlist in CosmosDB outbox transaction
             context.EnlistInOutbox(Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context))
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             let sagaId = if isNull continueThing.SagaId then context.Envelope.SagaId else continueThing.SagaId
             if System.String.IsNullOrEmpty(sagaId) then
                 raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<WolverineCosmosFSharpSample.ThingSaga>, "SagaId"))
@@ -67,8 +70,8 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
                         // The saga document was changed by another message since it was read
                         raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be updated because of optimistic concurrency violations" sagaId, e))
                 
-                // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-                do! context.FlushOutgoingMessagesAsync()
+                // Flush outgoing messages after the Cosmos DB writes
+                do! Wolverine.CosmosDb.Internals.CosmosDbOutboxFlushing.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -101,8 +104,8 @@ type CreateThingHandler2004325667(container: Microsoft.Azure.Cosmos.Container, f
                 do! outgoing1.Execute(_container)
 
             
-            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            // Flush outgoing messages after the Cosmos DB writes
+            do! Wolverine.CosmosDb.Internals.CosmosDbOutboxFlushing.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -122,6 +125,9 @@ type StartThingSagaHandler963364493(container: Microsoft.Azure.Cosmos.Container)
 
             // Enlist in CosmosDB outbox transaction
             context.EnlistInOutbox(Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context))
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineCosmosFSharpSample.ThingSaga.Start(startThingSaga)
@@ -131,11 +137,15 @@ type StartThingSagaHandler963364493(container: Microsoft.Azure.Cosmos.Container)
                 System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", startThingSaga.Id.ToString()) |> ignore
                 System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             if not (outgoing1.IsCompleted()) then
-                let! _ = _container.UpsertItemAsync(outgoing1)
-                ()
+                try
+                    let! _ = _container.CreateItemAsync(outgoing1)
+                    ()
+                with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.Conflict ->
+                    // Another message already started a saga with this id
+                    raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be started because a saga with that id already exists" outgoing1.Id, e))
             
-            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            // Flush outgoing messages after the Cosmos DB writes
+            do! Wolverine.CosmosDb.Internals.CosmosDbOutboxFlushing.FlushOutgoingMessagesAsync(context)
 
         }
 

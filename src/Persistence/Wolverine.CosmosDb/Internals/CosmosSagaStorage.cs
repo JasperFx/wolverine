@@ -32,14 +32,10 @@ public static class CosmosSagaStorage
     public static async Task UpsertAsync<T>(Container container, T saga, string? etag,
         CancellationToken cancellationToken)
     {
-        var document = serialize(container, saga);
-        var id = identityOf<T>(document);
-
-        document[DocumentTypes.PartitionKeyProperty] = id;
+        using var body = partitionedBody(container, saga, out var id);
 
         var options = etag.IsEmpty() ? null : new ItemRequestOptions { IfMatchEtag = etag };
 
-        using var body = write(document);
         using var response = await container
             .UpsertItemStreamAsync(body, new PartitionKey(id), options, cancellationToken)
             .ConfigureAwait(false);
@@ -48,6 +44,36 @@ public static class CosmosSagaStorage
         // CosmosException the typed API would have raised, so that a 412 still reaches the saga frames'
         // catch block and becomes a SagaConcurrencyException
         response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    ///     Create a saga document that is being started in the partition keyed by its id. Fails with a
+    ///     <see cref="CosmosException" /> carrying 409 Conflict if a saga with that id already exists, so that a
+    ///     duplicate start cannot overwrite a running saga.
+    /// </summary>
+    public static async Task CreateAsync<T>(Container container, T saga, CancellationToken cancellationToken)
+    {
+        using var body = partitionedBody(container, saga, out var id);
+
+        using var response = await container
+            .CreateItemStreamAsync(body, new PartitionKey(id), cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        // Same as the upsert: a 409 has to reach the saga frame's catch block as a CosmosException
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    ///     The saga's JSON with <c>partitionKey</c> stamped to the document's own id
+    /// </summary>
+    private static MemoryStream partitionedBody<T>(Container container, T saga, out string id)
+    {
+        var document = serialize(container, saga);
+        id = identityOf<T>(document);
+
+        document[DocumentTypes.PartitionKeyProperty] = id;
+
+        return write(document);
     }
 
     /// <summary>
