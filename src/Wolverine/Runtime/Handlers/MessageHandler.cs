@@ -67,7 +67,31 @@ public abstract class MessageHandler : IMessageHandler
     /// is set at codegen time. No runtime <c>if/then</c> guard here — when the
     /// flag is off, this method is never called from generated handlers.
     /// </summary>
+    /// <remarks>
+    /// Retained for handler code generated before GH-5224, which calls this two-argument overload. It
+    /// reports the generated <see cref="MessageHandler"/> subclass as the handler type. Code generated
+    /// now calls <see cref="RecordCauseAndEffect(MessageContext, IWolverineObserver, string)"/> with the
+    /// user's handler type name instead.
+    /// </remarks>
     public void RecordCauseAndEffect(MessageContext context, IWolverineObserver observer)
+    {
+        RecordCauseAndEffect(context, observer, GetType().FullName ?? GetType().Name);
+    }
+
+    /// <summary>
+    /// Records cause-and-effect relationships between the incoming message type
+    /// and any outgoing messages produced during handling, attributing them to
+    /// <paramref name="handlerType"/>. Latched: each unique (incoming, outgoing,
+    /// handler) triple is only reported once to the observer.
+    /// </summary>
+    /// <param name="context">The current message context</param>
+    /// <param name="observer">The runtime's observer</param>
+    /// <param name="handlerType">
+    /// The user handler type name(s), resolved at codegen time from the chain's handler calls. This is
+    /// the same value as the <c>message.handler</c> span tag; several handler types are joined with
+    /// ", ". See GH-5224.
+    /// </param>
+    public void RecordCauseAndEffect(MessageContext context, IWolverineObserver observer, string handlerType)
     {
         // Skip the entire causation report when the incoming message itself is a
         // framework-internal type (IAgentCommand, INotToBeRouted, IInternalMessage, etc.).
@@ -75,7 +99,6 @@ public abstract class MessageHandler : IMessageHandler
         if (MessageType.IsSystemMessageType()) return;
 
         var incomingType = MessageType.FullName ?? MessageType.Name;
-        var handlerType = GetType().FullName ?? GetType().Name;
         var endpointUri = Chain?.Endpoints?.FirstOrDefault()?.Uri?.ToString();
 
         foreach (var envelope in context.Outstanding)

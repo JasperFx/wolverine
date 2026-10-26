@@ -77,6 +77,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     private bool _hasConfiguredFrames;
 
+    private string? _telemetryHandlerTypeName;
+
     public HandlerChain(Type messageType, HandlerGraph parent)
     {
         _parent = parent;
@@ -769,7 +771,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         // gating: when the flag is off the frame isn't emitted into the chain and
         // no runtime check is performed in the framework Executor / HandlerPipeline.
         IEnumerable<Frame> causation = options?.Tracking.EnableMessageCausationTracking == true
-            ? new Frame[] { new RecordMessageCausationFrame() }
+            ? new Frame[] { new RecordMessageCausationFrame(TelemetryHandlerTypeName()) }
             : Array.Empty<Frame>();
 
         // GH-3001 scope priming used to be composed here, as a frame appended after the postprocessors.
@@ -854,6 +856,26 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public override MethodCall[] HandlerCalls()
     {
         return Handlers.ToArray();
+    }
+
+    /// <summary>
+    /// The user handler type name(s) for this chain as reported to telemetry: the <c>message.handler</c>
+    /// span tag and the <c>handlerType</c> passed to <c>IWolverineObserver.MessageCausedBy</c>. Several
+    /// handler types are joined with ", ". Cached the first time it resolves to a non-empty value, which
+    /// is at policy time (TagHandlerPolicy) — before SagaChain clears its handler calls during code
+    /// generation — so both consumers always see the same string. See GH-5133 and GH-5224.
+    /// </summary>
+    internal string TelemetryHandlerTypeName()
+    {
+        if (_telemetryHandlerTypeName.IsNotEmpty()) return _telemetryHandlerTypeName;
+
+        var name = TagHandlerPolicy.HandlerTypeNameFor(HandlerCalls());
+        if (name.IsNotEmpty())
+        {
+            _telemetryHandlerTypeName = name;
+        }
+
+        return name;
     }
 
     public override string ToString()

@@ -33,7 +33,7 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
             // The actual message execution
             checkThingHandler.Handle(checkThing)
 
-            this.RecordCauseAndEffect(context, context.Runtime.Observer)
+            this.RecordCauseAndEffect(context, context.Runtime.Observer, "Wolverine.Core.FSharpContracts.CheckThingHandler")
         System.Threading.Tasks.Task.CompletedTask
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
@@ -67,7 +67,7 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
                 // Outgoing, cascaded message
                 do! context.EnqueueCascadingAsync(outgoing1)
 
-                this.RecordCauseAndEffect(context, context.Runtime.Observer)
+                this.RecordCauseAndEffect(context, context.Runtime.Observer, "Wolverine.Core.FSharpContracts.NameHandler")
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
@@ -82,16 +82,16 @@ type GateHandler1696712162() =
             System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.GateHandler") |> ignore
             System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.GateHandler") |> ignore
         let gateHandler = Wolverine.Core.FSharpContracts.GateHandler()
-        let result_of_Before1 = gateHandler.Before(gate)
+        let result_of_Before = gateHandler.Before(gate)
         // Evaluate whether or not the execution should stop based on the HandlerContinuation value
-        if result_of_Before1 = Wolverine.HandlerContinuation.Stop then
+        if result_of_Before = Wolverine.HandlerContinuation.Stop then
             ()
         else
             
             // The actual message execution
             gateHandler.Handle(gate)
 
-            this.RecordCauseAndEffect(context, context.Runtime.Observer)
+            this.RecordCauseAndEffect(context, context.Runtime.Observer, "Wolverine.Core.FSharpContracts.GateHandler")
         System.Threading.Tasks.Task.CompletedTask
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
@@ -106,6 +106,9 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
         // Application-specific Open Telemetry auditing
         if not (isNull System.Diagnostics.Activity.Current) then
             System.Diagnostics.Activity.Current.SetTag("Id", incrementCount.Id) |> ignore
+        if not (isNull System.Diagnostics.Activity.Current) then
+            System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+            System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
         let sagaId = if isNull incrementCount.Id then context.Envelope.SagaId else incrementCount.Id
         if System.String.IsNullOrEmpty(sagaId) then
             raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<Wolverine.Core.FSharpContracts.CountingSaga>, "Id"))
@@ -141,6 +144,9 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
         // Application-specific Open Telemetry auditing
         if not (isNull System.Diagnostics.Activity.Current) then
             System.Diagnostics.Activity.Current.SetTag("Id", startCount.Id) |> ignore
+        if not (isNull System.Diagnostics.Activity.Current) then
+            System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+            System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
         
         // The actual message execution
         let outgoing1 = Wolverine.Core.FSharpContracts.CountingSaga.Start(startCount)
@@ -173,7 +179,7 @@ type TickHandler1778389912() =
             // The actual message execution
             tickHandler.Handle(tick)
 
-            this.RecordCauseAndEffect(context, context.Runtime.Observer)
+            this.RecordCauseAndEffect(context, context.Runtime.Observer, "Wolverine.Core.FSharpContracts.TickHandler")
         finally
             tickMiddleware.Finally()
         System.Threading.Tasks.Task.CompletedTask
