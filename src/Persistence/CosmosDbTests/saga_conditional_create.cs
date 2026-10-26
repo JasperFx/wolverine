@@ -252,15 +252,47 @@ public class RacedSaga : Saga
 
     public async Task StartOrHandle(EnsureRaced command)
     {
-        // Only a saga that is being started is still at zero. Holding it here lets the competing message find
-        // no saga either, so both go on to create one
+        // Only a saga that is being started is still at zero. Neither starting attempt may write until both
+        // have got here, so both are guaranteed to have found no saga and both go on to create one
         if (Count == 0)
         {
             Id = command.Id;
-            await Task.Delay(500);
+            await StartRendezvous.ArriveAsync(command.Id, participants: 2, TimeSpan.FromSeconds(30));
         }
 
         Count++;
+    }
+}
+
+/// <summary>
+///     Holds each arrival for a given id until the expected number of participants have all arrived. Times out
+///     rather than hanging the suite if one of them never does.
+/// </summary>
+public static class StartRendezvous
+{
+    private static readonly ConcurrentDictionary<string, Arrivals> _arrivals = new();
+
+    public static Task ArriveAsync(string id, int participants, TimeSpan timeout)
+    {
+        var arrivals = _arrivals.GetOrAdd(id, _ => new Arrivals(participants));
+        arrivals.Arrive();
+        return arrivals.AllArrived.WaitAsync(timeout);
+    }
+
+    private class Arrivals(int participants)
+    {
+        private readonly TaskCompletionSource _allArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _count;
+
+        public Task AllArrived => _allArrived.Task;
+
+        public void Arrive()
+        {
+            if (Interlocked.Increment(ref _count) >= participants)
+            {
+                _allArrived.TrySetResult();
+            }
+        }
     }
 }
 
