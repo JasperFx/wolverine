@@ -404,12 +404,12 @@ select {owner} from owners where {owner} is not null";
                      select pg_get_expr(d.adbin, d.adrelid) into existing
                      from pg_attrdef d
                      join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-                     where d.adrelid = to_regclass('{SchemaName}.{tableName}')
+                     where d.adrelid = to_regclass('{QuotedSchemaName}.{tableName}')
                        and a.attname = '{DatabaseConstants.Timestamp}';
 
                      if existing is not null
                         and (lower(existing) like '%at time zone%' or lower(existing) like '%timezone(%'{orNotClockTimestamp}) then
-                         execute 'alter table {SchemaName}.{tableName} alter column "{DatabaseConstants.Timestamp}" set default {expected}';
+                         execute 'alter table {QuotedSchemaName}.{tableName} alter column "{DatabaseConstants.Timestamp}" set default {expected}';
                      end if;
                  end $$;
                  """)

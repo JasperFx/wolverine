@@ -70,7 +70,7 @@ public static class MessageDatabaseExtensions
 
         return string.IsNullOrEmpty(database.SchemaName)
             ? tableName
-            : $"{database.SchemaName}.{tableName}";
+            : database.DbObjectNameFor(tableName).ToString();
     }
 
     /// <summary>
@@ -84,7 +84,8 @@ public static class MessageDatabaseExtensions
         return database.Settings?.SchemaNameIsTablePrefix == true
             ? new DbObjectName(TablePrefixing.DefaultSqliteSchemaName,
                 TablePrefixing.Apply(database.SchemaName, tableName))
-            : new DbObjectName(database.SchemaName, tableName);
+            : database.Provider?.Parse(database.SchemaName, tableName)
+              ?? new DbObjectName(database.SchemaName, tableName);
     }
 }
 
