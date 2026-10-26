@@ -817,6 +817,12 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
         _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Paused));
+
+        // GH-5213. A circuit breaker can pause again before the previous pause is over -- failures still in flight
+        // when the listener stopped are reported afterwards. Left running, every earlier Restarter fires too, the
+        // restarts race in StartAsync, and all but the last set of listeners they build are never stopped: their
+        // consumers stay on the broker. The latest pause owns the restart, as in PauseForInboxRecoveryAsync.
+        _restarter?.SafeDispose();
         _restarter = new Restarter(this, pauseTime);
     }
 
