@@ -59,7 +59,7 @@ public sealed class WriteSpecsCommandTests : IDisposable
 
         var csproj = File.ReadAllText(Path.Combine(specs, "Shelter.Specs.csproj"));
         csproj.ShouldContain($"<BobcatVersion Condition=\"'$(BobcatVersion)' == ''\">{SpecProjectWriter.BobcatVersion}</BobcatVersion>");
-        csproj.ShouldContain($"<WolverineFxBobcatVersion Condition=\"'$(WolverineFxBobcatVersion)' == ''\">{SpecProjectWriter.ToolVersion}</WolverineFxBobcatVersion>");
+        csproj.ShouldContain($"<WolverineFxBobcatVersion Condition=\"'$(WolverineFxBobcatVersion)' == ''\">{SpecProjectWriter.DefaultWolverineFxBobcatVersion}</WolverineFxBobcatVersion>");
         csproj.ShouldContain(@"<ProjectReference Include=""..\Shelter\Shelter.csproj"" />");
     }
 
