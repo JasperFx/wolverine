@@ -7,12 +7,18 @@ namespace Wolverine.RDBMS.Durability;
 
 public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
 {
-    private readonly DatabaseSettings _settings;
+    private readonly string _tableName;
     private readonly NodeRecord[] _events;
 
     public PersistNodeRecord(DatabaseSettings settings, NodeRecord[] events)
+        : this(settings.TableNameFor(DatabaseConstants.NodeRecordTableName), events)
     {
-        _settings = settings;
+    }
+
+    /// <param name="tableName">The node record table, already rendered for the engine's SQL dialect</param>
+    public PersistNodeRecord(string tableName, NodeRecord[] events)
+    {
+        _tableName = tableName;
         _events = events;
     }
 
@@ -29,20 +35,9 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
 
             builder.Append("insert into ");
 
-            // GH-2940: emit the schema identifier unquoted, matching every other durability SQL
-            // builder in Wolverine.RDBMS (MessageDatabase.{Incoming,Outgoing,Scheduled,Admin,
-            // DeadLetterAdminService,ScheduledMessages}.cs all interpolate
-            // MessageDatabase.QuotedSchemaName, which is `protected virtual SchemaName` -
-            // unquoted). PersistNodeRecord was the lone hold-out using
-            // DatabaseSettings.QuotedSchemaName, which hard-codes ANSI double quotes
-            // (`"wolverine"`). PostgreSQL and SQL Server accept that, but MySQL/MariaDB under
-            // the default sql_mode reject double-quoted identifiers, so node-lifecycle
-            // persistence failed with "SQL syntax error... near
-            // '\"wolverine\".wolverine_node_records'". Unquoted matches what the rest of the
-            // provider already does (and works for every dialect with a default schema name).
-            // GH-3943: routed through DatabaseSettings.TableNameFor so SQLite, which has no schemas,
-            // gets the prefixed single identifier instead of a `schema.table` qualifier.
-            builder.Append(_settings.TableNameFor(DatabaseConstants.NodeRecordTableName));
+            // GH-2940: rendered by the caller, because MySQL rejects the ANSI-quoted schema that
+            // PostgreSQL needs for a reserved-word schema name
+            builder.Append(_tableName);
             builder.Append(" (node_number, event_name, description) values (");
             builder.AppendParameter(@event.NodeNumber);
             builder.Append(", ");

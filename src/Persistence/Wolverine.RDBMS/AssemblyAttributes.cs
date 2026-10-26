@@ -5,6 +5,7 @@ using Wolverine.Attributes;
 
 [assembly: InternalsVisibleTo("PersistenceTests")]
 [assembly: InternalsVisibleTo("SqlServerTests")]
+[assembly: InternalsVisibleTo("MySqlTests")]
 [assembly: InternalsVisibleTo("PostgresqlTests")]
 [assembly: InternalsVisibleTo("MartenTests")]
 [assembly: InternalsVisibleTo("PolecatTests")]

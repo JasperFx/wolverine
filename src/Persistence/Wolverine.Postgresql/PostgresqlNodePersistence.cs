@@ -36,10 +36,9 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         _durability = database.Durability;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         var schemaName = settings.SchemaName ?? "public";
-        _nodeTable = new DbObjectName(schemaName, NodeTableName);
-        _restrictionTable = new DbObjectName(schemaName, DatabaseConstants.AgentRestrictionsTableName);
-        _assignmentTable =
-            new DbObjectName(schemaName, NodeAssignmentsTableName);
+        _nodeTable = PostgresqlProvider.Instance.Parse(schemaName, NodeTableName);
+        _restrictionTable = PostgresqlProvider.Instance.Parse(schemaName, AgentRestrictionsTableName);
+        _assignmentTable = PostgresqlProvider.Instance.Parse(schemaName, NodeAssignmentsTableName);
 
         _lockId = schemaName.GetDeterministicHashCode();
     }
@@ -359,7 +358,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             return Task.CompletedTask;
         }
 
-        var op = new PersistNodeRecord(_settings, records);
+        var op = new PersistNodeRecord(_database.TableNameFor(NodeRecordTableName), records);
         return _database.EnqueueAsync(op);
     }
 

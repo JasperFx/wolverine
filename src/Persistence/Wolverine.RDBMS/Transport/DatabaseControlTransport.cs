@@ -151,7 +151,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
                 foreach (var envelope in envelopes)
                 {
                     builder.Append("delete from ");
-                    builder.Append(TableName.QualifiedName);
+                    builder.Append(TableName.ToString());
                     builder.Append(" where id = ");
                     builder.AppendParameter(envelope.Id);
                     builder.Append(';');
