@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using JasperFx.Core;
 using JasperFx.Core.Exceptions;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -83,9 +84,27 @@ internal class DatabaseOperationBatch : IAgentCommand
             groups[Math.Min(starts[i], commands.Count - 1)].Add(_operations[i]);
         }
 
-        await using var conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
+        DbConnection conn;
+        DbTransaction tx;
+        try
+        {
+            conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
+        }
+        catch (Exception e) when (isCancelledBy(e, cancellationToken))
+        {
+            return AgentCommands.Empty;
+        }
 
-        var tx = await conn.BeginTransactionAsync(cancellationToken);
+        await using var _ = conn;
+
+        try
+        {
+            tx = await conn.BeginTransactionAsync(cancellationToken);
+        }
+        catch (Exception e) when (isCancelledBy(e, cancellationToken))
+        {
+            return AgentCommands.Empty;
+        }
 
         DbCommand? current = null;
         try
@@ -112,6 +131,16 @@ internal class DatabaseOperationBatch : IAgentCommand
         catch (ObjectDisposedException)
         {
             // The system is shutting down, let this go.
+        }
+        catch (Exception e) when (isCancelledBy(e, cancellationToken))
+        {
+            // GH-5230: the batcher cancels its own token when it drains at shutdown. That is an
+            // orderly stop, not a database failure, so don't wrap it in DatabaseBatchCommandException
+            // or let it reach the executor, which would log it at the handler's failure level
+            runtime.LoggerFactory.CreateLogger<DatabaseOperationBatch>().LogDebug(e,
+                "Database operation batch was cancelled by shutdown");
+            await conn.CloseAsync();
+            return AgentCommands.Empty;
         }
         catch (Exception e)
         {
@@ -141,6 +170,12 @@ internal class DatabaseOperationBatch : IAgentCommand
                 // Don't let an exception get out of there. 
             }
         }
+    }
+
+    private static bool isCancelledBy(Exception e, CancellationToken token)
+    {
+        return token.IsCancellationRequested &&
+               (e is OperationCanceledException || e.InnerException is OperationCanceledException);
     }
 
     private AgentCommands postProcessingCommands()
