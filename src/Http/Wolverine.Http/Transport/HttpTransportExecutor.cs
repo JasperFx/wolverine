@@ -127,7 +127,22 @@ internal class HttpTransportExecutor
 
         envelope.Destination = $"http://localhost{httpContext.Request.Path}".ToUri();
         envelope.DoNotCascadeResponse = true;
-        envelope.Serializer = _runtime.Options.FindSerializer(envelope.ContentType!);
+
+        // GH-5238. A content type with no registered serializer used to throw out of FindSerializer() and
+        // answer 500. It is a request this node can't decode, so say so.
+        var serializer = envelope.ContentType.IsEmpty()
+            ? _runtime.Options.DefaultSerializer
+            : _runtime.Options.TryFindSerializer(envelope.ContentType);
+
+        if (serializer == null)
+        {
+            _logger.LogWarning("Rejected an envelope with unknown content type {ContentType} in Http Transport InvokeAsync()",
+                envelope.ContentType);
+            return Results.Problem($"No serializer is registered for content type '{envelope.ContentType}'",
+                statusCode: 415);
+        }
+
+        envelope.Serializer = serializer;
 
         var deserializeResult = await _runtime.Pipeline.TryDeserializeEnvelope(envelope);
 
