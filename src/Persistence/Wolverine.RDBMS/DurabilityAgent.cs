@@ -189,7 +189,25 @@ internal class DurabilityAgent : IAgent
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _runningBlock.Complete();
-        _metricsRegistration?.Dispose();
+
+        // GH-5235. The sweep may already be fetching this database's counts; wait for that
+        // query rather than let it run on against a store that is about to go away
+        if (_metricsRegistration is IAsyncDisposable registration)
+        {
+            try
+            {
+                await registration.DisposeAsync().AsTask().WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // The registration is already out of the sweep; only the wait was cut short
+            }
+        }
+        else
+        {
+            _metricsRegistration?.Dispose();
+        }
+
         _metrics.SafeDispose();
 
         if (_scheduledJobTimer != null)

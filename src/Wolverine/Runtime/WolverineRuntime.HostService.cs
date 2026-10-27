@@ -702,6 +702,10 @@ public partial class WolverineRuntime
     {
         await _agentCancellation.CancelAsync();
 
+        // GH-5235. Stop the metrics sweep and wait out any query it has in flight before
+        // anything below can dispose a store or the data source behind it
+        await PersistenceMetricsSweeper.StopAsync(this);
+
         // Latch health checks ASAP
         DisableHealthChecks();
 
