@@ -39,6 +39,11 @@ This exposes two Minimal API endpoints:
 | `/_wolverine/batch/{queue}` | Receives batches of envelopes (default sending mode) |
 | `/_wolverine/invoke` | Receives a single envelope for inline invocation |
 
+A sending endpoint aimed at `/_wolverine/invoke` works in any endpoint mode. In the default buffered mode (or
+durable mode), Wolverine still batches outgoing messages, but posts each envelope of a batch to the `/invoke`
+route on its own because that route only accepts a single envelope. Use `.SendInline()` if you would rather
+skip the batching altogether.
+
 ### Sending Application
 
 In the application that sends messages, configure publishing rules to target the receiver's URL:
