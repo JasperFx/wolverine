@@ -193,7 +193,7 @@ while inline endpoints — and Azure Service Bus itself, on TTL or
 max-delivery — use the native
 [`$DeadLetterQueue` sub-queue](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues)
 of the source entity. Either way, those messages are only visible through Azure tooling. Tools that
-manage Wolverine's *durable* dead letters (for example [CritterWatch](https://github.com/JasperFx/CritterWatch))
+manage Wolverine's *durable* dead letters (for example [CritterWatch](https://critterwatch.jasperfx.net))
 can't see or replay them.
 
 `EnableDeadLetterQueueRecovery()` starts a background listener that drains **both** kinds of source —

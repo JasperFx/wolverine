@@ -61,7 +61,7 @@ It is exposed two ways:
 
 - `Endpoint.DeadLetterStorage` on the endpoint model.
 - `EndpointDescriptor.DeadLetterStorage` on the diagnostic descriptor surface that monitoring tools
-  (for example [CritterWatch](https://github.com/JasperFx/CritterWatch)) read.
+  (for example [CritterWatch](https://critterwatch.jasperfx.net)) read.
 
 This lets a monitor detect endpoints that dead-letter **natively without recovery** (`Native`) and
 recommend enabling recovery so those dead letters become visible and replayable in the durable store.

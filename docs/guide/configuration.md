@@ -214,6 +214,6 @@ builder.Services.AddWolverine(opts =>
 ```
 
 The tags are surfaced on `ServiceCapabilities.Tags`, the diagnostic snapshot Wolverine exposes for monitoring tools.
-[CritterWatch](https://github.com/JasperFx/CritterWatch) consumes them to let you group and filter related services on
+[CritterWatch](https://critterwatch.jasperfx.net) consumes them to let you group and filter related services on
 its dashboard by your own labels. They are distinct from any per-endpoint tagging — this is a single, service-wide set
 of labels.

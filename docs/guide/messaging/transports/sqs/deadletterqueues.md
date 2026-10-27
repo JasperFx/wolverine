@@ -95,7 +95,7 @@ This would force Wolverine to use any persistent envelope storage for dead lette
 
 By default an Amazon SQS dead letter queue is just another SQS queue — its messages are only visible
 through the AWS console or SDK, and tools that manage Wolverine's *durable* dead letters (for example
-[CritterWatch](https://github.com/JasperFx/CritterWatch)) can't see or replay them.
+[CritterWatch](https://critterwatch.jasperfx.net)) can't see or replay them.
 
 `EnableDeadLetterQueueRecovery()` starts a background listener that drains the native SQS dead letter
 queue(s) and copies each message into Wolverine's durable dead letter storage (the

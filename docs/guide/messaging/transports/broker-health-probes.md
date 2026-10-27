@@ -4,7 +4,7 @@ Wolverine exposes an optional, transport-implemented contract for monitoring the
 underlying broker connection. It is intentionally distinct from the existing
 `WolverineTransportHealthCheck` (which feeds the ASP.NET Core health-check
 pipeline) -- the broker probe is meant for interactive monitoring layers like
-[CritterWatch](https://github.com/JasperFx/critterwatch) that want to render
+[CritterWatch](https://critterwatch.jasperfx.net) that want to render
 broker connectivity at a glance.
 
 ## The contract

@@ -2,7 +2,7 @@
 
 Wolverine can periodically emit a `WolverineHeartbeat` message from each running
 node so that external monitoring tools (for example
-[CritterWatch](https://github.com/JasperFx/CritterWatch)) can detect when a node
+[CritterWatch](https://critterwatch.jasperfx.net)) can detect when a node
 goes dark. Heartbeats are off by default and are opted-in through
 `EnableHeartbeats`.
 
