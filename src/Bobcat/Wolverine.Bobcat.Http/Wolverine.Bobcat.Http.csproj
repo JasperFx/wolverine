@@ -2,6 +2,9 @@
     <PropertyGroup>
         <Description>Wolverine.HTTP acts for WolverineFx.Bobcat specifications through Alba: WhenPosted, WhenPut, WhenPatched and WhenDeleted with the route resolved from the request type, a template or a route name; WhenReading GET acts that make a Query slice; any 2xx accepted, Scenario overrides, typed responses.</Description>
         <PackageId>WolverineFx.Bobcat.Http</PackageId>
+        <!-- Stays a prerelease while Alba 9 is one: a stable package cannot depend on Alba 9.0.0-rc.2 (NU5104).
+             Drop this override, so it packs at $(Version) like WolverineFx.Bobcat, once Alba 9.0.0 ships (GH-5222). -->
+        <Version>$(Version)-alpha.1</Version>
         <!-- Alba 9 targets net10.0+ only -->
         <TargetFrameworks>net10.0</TargetFrameworks>
         <!-- Test-time library: exempt from the AOT compliance the shipping runtime packages carry -->
