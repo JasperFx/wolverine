@@ -475,6 +475,32 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             return;
         }
 
+        // GH-5217. Serialized through the same semaphore as PauseForInboxRecoveryAsync and
+        // MarkAsTooBusyAndStopReceivingAsync, with the same re-check once it is held. StartAsync is reached from the
+        // circuit breaker Restarter, InboxHealthRestarter, back pressure, agent-restriction resume and the control
+        // endpoint. Without the lock, two overlapping starts both got past the Accepting check above, both built a
+        // full listener set, and the second replaced Listener -- leaving the first set's broker consumers attached
+        // to the queue with nothing that would ever stop them. No caller holds _semaphore when it calls this, and
+        // nothing under startAsync() calls back into this agent's locked methods.
+        await _semaphore.WaitAsync();
+        try
+        {
+            if (Status == ListeningStatus.Accepting)
+            {
+                return;
+            }
+
+            await startAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    private async ValueTask startAsync()
+    {
+
         if (_runtime.DurabilitySettings.Mode == DurabilityMode.Balanced
             && _runtime.Restrictions.FindPausedAgentUris().Any(u => u == Uri))
         {

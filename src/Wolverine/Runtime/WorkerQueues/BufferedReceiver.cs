@@ -37,8 +37,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly IIncomingIdempotencyGuard? _idempotency;
     private bool _latched;
 
-    // Set once DrainAsync has completed the receiving block, which from then on drops anything posted to it
-    private bool _drained;
+    // Set as DrainAsync (or Dispose) completes the receiving block, which from then on drops anything posted to it.
+    // Volatile because broker deliveries read it on the listener's threads (GH-5217)
+    private volatile bool _drained;
 
     // F3. Built on first use, by the first batch to reach its terminal here
     private readonly object _batchMembersLock = new();
@@ -305,6 +306,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         // execute function is still on the call stack.
         var waitForCompletion = _latched;
         _latched = true;
+
+        // GH-5217. Raised BEFORE the block is completed, not after the wait below. Anything posted from here on is
+        // dropped by the block, so the ReceivedAsync paths have to see the flag and defer instead of acking for the
+        // whole of the wait, not only once it is over.
+        _drained = true;
         _receivingBlock.Complete();
 
         if (waitForCompletion)
@@ -319,8 +325,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 _logger.LogDebug(e, "Error waiting for in-flight message processing to complete at {Uri}", Uri);
             }
         }
-
-        _drained = true;
 
         await _completeBlock.DrainAsync().ConfigureAwait(false);
         await _deferBlock.DrainAsync().ConfigureAwait(false);
@@ -398,6 +402,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         foreach (var envelope in messages)
         {
             envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
+
+            // GH-5217. Checked per envelope: a drain can land part way through a batch
+            if (_drained)
+            {
+                await deferAfterDrainAsync(envelope).ConfigureAwait(false);
+                continue;
+            }
+
             if (!envelope.IsExpired() && !isDuplicate(envelope))
             {
                 await EnqueueAsync(envelope).ConfigureAwait(false);
@@ -413,6 +425,12 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     {
         var now = DateTimeOffset.UtcNow;
         envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
+
+        if (_drained)
+        {
+            await deferAfterDrainAsync(envelope).ConfigureAwait(false);
+            return;
+        }
 
         if (envelope.IsExpired())
         {
@@ -443,6 +461,30 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     }
 
     /// <summary>
+    /// GH-5217. A drained receiving block drops whatever is posted to it, and the ReceivedAsync paths ack every
+    /// delivery right after posting it -- so a broker delivery that reached this receiver after its drain used to be
+    /// acked and lost: no handler, no dead letter, no log line. Hand it back to the broker instead, exactly as
+    /// <see cref="executeAsync"/> does for a delivery it meets while latched. A delivery should not be able to get
+    /// here at all -- the listener feeding this receiver is stopped before the drain -- so one that does means a
+    /// consumer was leaked somewhere, and that is worth a warning.
+    /// </summary>
+    private async ValueTask deferAfterDrainAsync(Envelope envelope)
+    {
+        try
+        {
+            _logger.LogWarning(
+                "Envelope {EnvelopeId} ({MessageType}) was delivered to the drained receiver for {Uri} and is being deferred back to the broker. This usually means a listener or consumer for this endpoint was left running after it should have been stopped",
+                envelope.Id, envelope.MessageType, Uri);
+        }
+        catch
+        {
+            // Never let a logging failure turn into an ack or a lost message
+        }
+
+        await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// GH-3710. Claim this broker delivery for the in-memory idempotency guard, answering true when it is a
     /// redelivery of something already handled (or in flight) within the window. Always false when the
     /// endpoint did not opt in.
@@ -460,6 +502,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public void Dispose()
     {
+        _drained = true;
         _receivingBlock.Complete();
         _completeBlock.Dispose();
         _deferBlock.Dispose();
