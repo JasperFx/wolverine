@@ -57,7 +57,7 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IW
         var client = HttpTransportClientResolution.ClientFor(clientFactory, uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(batch.Messages));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeBatchContentType);
-        var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        using var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
         // Throw on a non-success status so the durable sender treats it as a failure and requeues,
         // rather than acknowledging success and deleting the outgoing envelope (#3173).
         response.EnsureSuccessStatusCode();
@@ -68,7 +68,7 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IW
         var client = HttpTransportClientResolution.ClientFor(clientFactory, uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
-        var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        using var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
         response.EnsureSuccessStatusCode();
     }
 
@@ -77,7 +77,7 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IW
         var client = HttpTransportClientResolution.ClientFor(clientFactory, uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
-        var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        using var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
         var body = await response.Content.ReadAsByteArrayAsync();
         return new InlineHttpReply((int)response.StatusCode, body);
     }
@@ -90,7 +90,7 @@ public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFa
         var client = HttpTransportClientResolution.ClientFor(clientFactory, uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(batch.Messages));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeBatchContentType);
-        var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        using var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
         // Throw on a non-success status so the durable sender treats it as a failure and requeues
         // rather than deleting the outgoing envelope (#3173).
         response.EnsureSuccessStatusCode();
@@ -102,7 +102,10 @@ public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFa
         var ce = new CloudEventsEnvelope(envelope);
         var content = new StringContent(JsonSerializer.Serialize(ce, options));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.CloudEventsContentType);
-        await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        using var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        // GH-5237. A rejected send has to fail, or the per-envelope /invoke path of a durable endpoint deletes
+        // the outgoing envelope as if it were delivered (the same loss #3173 fixed for batches)
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task<InlineHttpReply> InvokeAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
@@ -112,7 +115,7 @@ public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFa
         var client = HttpTransportClientResolution.ClientFor(clientFactory, uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
-        var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
+        using var response = await client.PostAsync(HttpTransportClientResolution.AddressFor(client, uri), content);
         var body = await response.Content.ReadAsByteArrayAsync();
         return new InlineHttpReply((int)response.StatusCode, body);
     }
