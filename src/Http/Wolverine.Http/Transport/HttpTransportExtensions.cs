@@ -30,6 +30,19 @@ public static class HttpTransportExtensions
     }
     
     /// <summary>
+    /// Register Wolverine's HTTP transport so that http and https URIs resolve anywhere Wolverine takes a
+    /// <see cref="Uri"/>: ListenForMessagesFrom(), PublishMessage().To(), or a destination resolved at runtime
+    /// with EndpointFor() or ToDestination(). ToHttpEndpoint() registers the transport on its own, so this is
+    /// only needed when nothing in the application calls it.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public static HttpTransport UseHttpTransport(this WolverineOptions options)
+    {
+        return options.Transports.GetOrCreate<HttpTransport>();
+    }
+
+    /// <summary>
     /// Publish message(s) to the specified http endpoint
     /// </summary>
     /// <param name="publishing"></param>
