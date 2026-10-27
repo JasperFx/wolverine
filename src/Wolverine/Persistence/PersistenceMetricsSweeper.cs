@@ -27,10 +27,21 @@ public class PersistenceMetricsSweeper
         return _perRuntime.GetValue(runtime, r => new PersistenceMetricsSweeper(r));
     }
 
+    /// <summary>
+    /// Stop the sweeper for this runtime, if one was ever started, and wait for any metrics query
+    /// it has in flight. Runtime shutdown calls this before the message stores (and the data
+    /// sources behind them) can be disposed (GH-5235).
+    /// </summary>
+    internal static Task StopAsync(IWolverineRuntime runtime)
+    {
+        return _perRuntime.TryGetValue(runtime, out var sweeper) ? sweeper.StopAsync() : Task.CompletedTask;
+    }
+
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger<PersistenceMetricsSweeper> _logger;
     private readonly ConcurrentDictionary<Uri, Registration> _registrations = new();
     private readonly object _startLock = new();
+    private readonly CancellationTokenSource _stopping;
     private Task? _loop;
 
     // Connection-budget state (#3397). Only ever touched from the single sweep loop, so a plain
@@ -42,6 +53,7 @@ public class PersistenceMetricsSweeper
     {
         _runtime = runtime;
         _logger = runtime.LoggerFactory.CreateLogger<PersistenceMetricsSweeper>();
+        _stopping = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation);
     }
 
     private sealed class ServerBudgetState
@@ -61,8 +73,42 @@ public class PersistenceMetricsSweeper
     // that replaced it for the same database.
     private sealed class Registration(IMessageStore store, PersistenceMetrics metrics)
     {
+        private bool _removed;
+        private Task? _inFlight;
+
         public IMessageStore Store { get; } = store;
         public PersistenceMetrics Metrics { get; } = metrics;
+
+        /// <summary>
+        /// Claim the next fetch for this registration. A pass works from a snapshot of the
+        /// registration set, so it can still hold a registration whose agent has already stopped
+        /// (GH-5235). Returns null if this registration is removed, and then the store must not be
+        /// touched again.
+        /// </summary>
+        public TaskCompletionSource? TryBeginFetch()
+        {
+            lock (this)
+            {
+                if (_removed) return null;
+
+                var fetch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _inFlight = fetch.Task;
+                return fetch;
+            }
+        }
+
+        /// <summary>
+        /// Take this registration out of any later fetch. Returns the fetch already in flight,
+        /// if there is one, so that the caller can wait for it before the store goes away.
+        /// </summary>
+        public Task Remove()
+        {
+            lock (this)
+            {
+                _removed = true;
+                return _inFlight ?? Task.CompletedTask;
+            }
+        }
     }
 
     /// <summary>
@@ -87,7 +133,31 @@ public class PersistenceMetricsSweeper
 
         lock (_startLock)
         {
-            _loop ??= Task.Run(() => sweepAsync(_runtime.Cancellation), _runtime.Cancellation);
+            _loop ??= Task.Run(() => sweepAsync(_stopping.Token), _stopping.Token);
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        Task? loop;
+        lock (_startLock)
+        {
+            // Latch the loop so that a late Register() during shutdown can't start a new one
+            _loop ??= Task.CompletedTask;
+            loop = _loop;
+        }
+
+        await _stopping.CancelAsync().ConfigureAwait(false);
+
+        try
+        {
+            // FetchCountsAsync() takes no cancellation, so cancelling only stops the *next* query.
+            // Waiting here is what keeps one already running from outliving the store.
+            await loop.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Task.Run cancelled before the loop ever started
         }
     }
 
@@ -140,21 +210,33 @@ public class PersistenceMetricsSweeper
             var passStart = Stopwatch.GetTimestamp();
             for (var i = 0; i < pass.Length; i++)
             {
+                cancellation.ThrowIfCancellationRequested();
+
                 var registration = pass[i];
-                try
+
+                // Null if this database's agent stopped after the snapshot was taken
+                var fetch = registration.TryBeginFetch();
+                if (fetch != null)
                 {
-                    var counts = await registration.Store.Admin.FetchCountsAsync().ConfigureAwait(false);
-                    registration.Metrics.Counts = counts;
-                    _runtime.Observer.PersistedCounts(registration.Store.Uri, counts);
-                }
-                catch (OperationCanceledException)
-                {
-                    // shutting down; the loop condition handles it
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "Error trying to update the metrics on envelope storage for {Store}",
-                        registration.Store.Uri);
+                    try
+                    {
+                        var counts = await registration.Store.Admin.FetchCountsAsync().ConfigureAwait(false);
+                        registration.Metrics.Counts = counts;
+                        _runtime.Observer.PersistedCounts(registration.Store.Uri, counts);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // shutting down; the loop condition handles it
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, "Error trying to update the metrics on envelope storage for {Store}",
+                            registration.Store.Uri);
+                    }
+                    finally
+                    {
+                        fetch.TrySetResult();
+                    }
                 }
 
                 var remaining = spacing * (i + 1) - Stopwatch.GetElapsedTime(passStart);
@@ -305,7 +387,7 @@ public class PersistenceMetricsSweeper
             : (null, ConnectionBudgetSource.Unknown);
     }
 
-    private sealed class Unregistration : IDisposable
+    private sealed class Unregistration : IDisposable, IAsyncDisposable
     {
         private readonly PersistenceMetricsSweeper _parent;
         private readonly Uri _uri;
@@ -320,12 +402,29 @@ public class PersistenceMetricsSweeper
 
         public void Dispose()
         {
+            // Sync callers only leave the sweep; DisposeAsync() is the one that waits
+            _ = remove();
+        }
+
+        /// <summary>
+        /// Remove the registration and wait for any fetch against its store that is already
+        /// running, so that the caller can safely let the store go afterward (GH-5235).
+        /// </summary>
+        public async ValueTask DisposeAsync()
+        {
+            await remove().ConfigureAwait(false);
+        }
+
+        private Task remove()
+        {
             // Remove only if this exact registration is still the live one. A blind
             // remove-by-URI would silently evict a newer agent's registration for the same
             // database when a stopping agent's Dispose interleaves after the replacement
             // registers — and that database would then go unpolled until the next restart.
             _parent._registrations.TryRemove(
                 new KeyValuePair<Uri, Registration>(_uri, _registration));
+
+            return _registration.Remove();
         }
     }
 }
