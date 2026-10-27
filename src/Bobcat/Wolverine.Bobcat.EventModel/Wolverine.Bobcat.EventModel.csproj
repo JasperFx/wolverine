@@ -2,8 +2,6 @@
     <PropertyGroup>
         <Description>Writes WolverineFx.Bobcat specifications, and the spec project around them, from an eventmodelers.ai board export: one specification per example on the board, bound to its Event Model slice. The write-specs command, next to Wolverine's scaffold.</Description>
         <PackageId>WolverineFx.Bobcat.EventModel</PackageId>
-        <!-- Ships as a prerelease while the API settles, like WolverineFx.Bobcat: Wolverine's version, then -alpha.N -->
-        <Version>$(Version)-alpha.1</Version>
         <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
         <LangVersion>13</LangVersion>
         <!-- Design-time tooling: exempt from the AOT compliance the shipping runtime packages carry -->

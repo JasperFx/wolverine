@@ -131,8 +131,8 @@ public sealed class SpecProjectWriterTests : IDisposable
     [Fact]
     public void the_tool_version_is_the_assemblys_own()
     {
-        // The package version, prerelease suffix included: a 1.0.0-alpha.1 tool pins its spec
-        // project to 1.0.0-alpha.1, because no 1.0.0 exists yet to restore.
+        // The package version, prerelease suffix included when it has one: a 6.54.0-alpha.1 tool pinned its
+        // spec project to 6.54.0-alpha.1, because no 6.54.0 of the package existed to restore.
         var assembly = typeof(SpecProjectWriter).Assembly;
         var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
 

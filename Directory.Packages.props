@@ -60,16 +60,16 @@
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
          and honest retry reporting. Referenced ONLY by the build project. -->
-    <PackageVersion Include="Bobcat.Supervisor" Version="1.0.0-rc.4" />
+    <PackageVersion Include="Bobcat.Supervisor" Version="1.0.0" />
     <!-- Bobcat itself, for the leadership-election compliance specifications in Wolverine.ComplianceTests and
          for WolverineFx.Bobcat / WolverineFx.Bobcat.Http, their tests and the samples that dogfood them (GH-4833).
          Everything that takes Bobcat is on one version; the 0.60.4 hold for WolverineFx.Bobcat ended with
          1.0.0-rc.1, which fixed JasperFx/bobcat#672. -->
-    <PackageVersion Include="Bobcat" Version="1.0.0-rc.4" />
-    <PackageVersion Include="Bobcat.Xunit" Version="1.0.0-rc.4" />
-    <PackageVersion Include="Bobcat.Generators" Version="1.0.0-rc.4" />
+    <PackageVersion Include="Bobcat" Version="1.0.0" />
+    <PackageVersion Include="Bobcat.Xunit" Version="1.0.0" />
+    <PackageVersion Include="Bobcat.Generators" Version="1.0.0" />
     <!-- The eventmodelers.ai board reader WolverineFx.Bobcat.EventModel's spec writer reads with (GH-5082) -->
-    <PackageVersion Include="Bobcat.EventModel" Version="1.0.0-rc.4" />
+    <PackageVersion Include="Bobcat.EventModel" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="JasperFx" Version="2.96.0" />

@@ -38,7 +38,8 @@
              WolverineFx.Bobcat a spec project written by write-specs pins by default. EventModel used to default
              to its own version instead, which held only while both packages carried the same prerelease suffix.
              Pinned by SpecProjectWriterTests.the_default_wolverinefx_bobcat_version_is_what_wolverinefx_bobcat_packs_as. -->
-        <WolverineFxBobcatPackageVersion>$(Version)-alpha.1</WolverineFxBobcatPackageVersion>
+        <!-- Stable from 6.55.0, on Bobcat 1.0.0: the -alpha.1 suffix is gone, for all three WolverineFx.Bobcat* packages. -->
+        <WolverineFxBobcatPackageVersion>$(Version)</WolverineFxBobcatPackageVersion>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
