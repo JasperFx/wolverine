@@ -1358,20 +1358,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         if (e is TenantedInboxWriteException { IncludesMainStore: false } tenanted)
         {
+            // GH-5218. Name the tenant(s): "one or more tenant databases" alone left an operator unable to
+            // tell which tenant was stranded without decoding the exception.
             _logger.LogWarning(e,
-                "Inbox write failed for {Count} envelope(s) against one or more tenant databases at {Uri}. The listener keeps running; those envelopes are deferred back to the broker",
-                tenanted.Unpersisted.Count, Uri);
+                "Inbox write failed for {Count} envelope(s) against the message store(s) for tenant(s) {TenantIds} at {Uri}. The listener keeps running; those envelopes are deferred back to the broker",
+                tenanted.Unpersisted.Count, string.Join(", ", tenanted.TenantIds), Uri);
             return;
         }
 
-        SignalInboxUnavailable();
+        SignalInboxUnavailable(e);
     }
 
-    internal void SignalInboxUnavailable()
+    internal void SignalInboxUnavailable(Exception? cause = null)
     {
         if (Interlocked.CompareExchange(ref _inboxUnavailableSignaled, 1, 0) != 0) return;
 
-        _logger.LogWarning("Inbox database unavailable for {Uri}. Signaling listener to pause.", Uri);
+        // GH-5218. Carry the exception that caused the pause. Without it, the log said the inbox was
+        // unavailable and nothing else -- not which store, not which tenant, not why.
+        _logger.LogWarning(cause, "Inbox database unavailable for {Uri}. Signaling listener to pause.", Uri);
 
         // Fire-and-forget via Task.Run to avoid deadlock:
         // We're on a RetryBlock thread; PauseForInboxRecoveryAsync drains that same RetryBlock.

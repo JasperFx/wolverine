@@ -14,7 +14,7 @@ public class TenantDatabaseBrakedException : Exception
 {
     public TenantDatabaseBrakedException(string? tenantId)
         : base(
-            $"The message store for tenant '{tenantId}' refused a recent write and is in its retry cool-down, so this write was not attempted. See DurabilitySettings.TenantWriteBrakeCycle.")
+            $"The message store for tenant '{tenantId}' refused a recent write (or could not be resolved) and is in its retry cool-down, so this write was not attempted. See DurabilitySettings.TenantWriteBrakeCycle.")
     {
         TenantId = tenantId;
     }
