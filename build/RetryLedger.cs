@@ -51,11 +51,15 @@ partial class Build
         ? name
         : "local";
 
-    void recordLedger(string projectName, string framework, SupervisorResults results)
+    /// <param name="job">
+    /// The job the entry is filed under, when it is not <see cref="ledgerJobName"/>: LocalGate files
+    /// each unit under its own name, so units running at once never write one file.
+    /// </param>
+    void recordLedger(string projectName, string framework, SupervisorResults results, string job = null)
     {
         var entry = new LedgerEntry
         {
-            Job = ledgerJobName,
+            Job = job ?? ledgerJobName,
             Project = projectName,
             Framework = framework,
             Tests = results.Tests.Count,

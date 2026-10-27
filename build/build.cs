@@ -23,8 +23,18 @@ partial class Build : NukeBuild
 
     public static int Main () => Execute<Build>(x => x.Test);
 
-    [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
-    readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
+    [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server, and LocalGate)", Name = "Configuration")]
+    readonly Configuration ConfigurationParameter;
+
+    /// <summary>
+    /// --configuration when given; otherwise Debug on a developer machine and Release on a server, except
+    /// that LocalGate and LocalGateSuites build Release the way CI does, for every target they run
+    /// (GH-5125).
+    /// </summary>
+    Configuration Configuration => ConfigurationParameter ??
+        (IsLocalBuild && !InvokedTargets.Any(x => x.Name is nameof(LocalGate) or nameof(LocalGateSuites))
+            ? Configuration.Debug
+            : Configuration.Release);
     
     [Solution(GenerateProjects = true)]
     readonly Solution Solution;
@@ -65,8 +75,12 @@ partial class Build : NukeBuild
     // VerifyTrackedSessionTimeouts rides along for the same reason and at the same cost (~1s for 345
     // budgets): a tracked-session budget longer than the job cap turns every hang under it into a job
     // cancellation with discarded logs instead of a test failure with a tracking dump. GH-4100.
+    //
+    // VerifyLocalGateCoverage too: a test project that is in neither LocalGate's table nor its
+    // NotGated list, or a stale build/gates.json, is reported on every push. GH-5125.
     Target CI => _ => _
-        .DependsOn(VerifyCITargetCoverage, VerifyTrackedSessionTimeouts, CoreTests, CIMessageRouting);
+        .DependsOn(VerifyCITargetCoverage, VerifyTrackedSessionTimeouts, VerifyLocalGateCoverage, CoreTests,
+            CIMessageRouting);
 
     Target Test => _ => _
         .DependsOn(CoreTests, TestExtensions, Commands, PolicyTests, HttpTests);

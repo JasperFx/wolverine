@@ -1596,6 +1596,9 @@ partial class Build
     // This target REWRITES the working tree. On a red run the regenerated files are left in place on
     // purpose so the diff can be read; `git checkout -- .` puts them back.
     Target CICodegenDrift => _ => _
+        // Under LocalGate (GH-5125) the two codegen gates run in one tree: CICodegenTest wipes
+        // ConsoleApp's generated code, and this regenerates it, so this goes second.
+        .After(CICodegenTest)
         .Executes(() =>
         {
             // ConsoleApp configures RabbitMQ, and DeepMiddlewareUsage configures Marten against
@@ -1702,6 +1705,10 @@ partial class Build
     // Like the drift gate, this REWRITES the working tree by design. CI checkouts are disposable;
     // locally, `git checkout -- .` puts the generated tree back.
     Target CICodegenTest => _ => _
+        // Under LocalGate (GH-5125) the two codegen gates run last, after the other gates that are not
+        // test hosts, and this one before CICodegenDrift.
+        .After(CICommandLineSmoke, CIAotSmoke, BobcatSamples)
+        .ProceedAfterFailure()
         .Executes(() =>
         {
             // ConsoleApp configures RabbitMQ. `codegen test` compiles the handler graph without starting
