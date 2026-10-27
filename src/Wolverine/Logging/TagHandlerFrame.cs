@@ -21,16 +21,32 @@ internal class TagHandlerPolicy : IHandlerPolicy
             // several handler types (the obsolete ClassicCombineIntoOneLogicalHandler mode) is tagged with
             // all of them. Captured here, at policy time, because SagaChain clears its handler calls while
             // it generates code.
-            var handlerTypes = chain.HandlerCalls()
-                .Select(x => x.HandlerType)
-                .Distinct()
-                .Select(x => x.FullNameInCode())
-                .ToArray();
+            //
+            // GH-5224. The name is resolved (and cached) through HandlerChain.TelemetryHandlerTypeName() so
+            // that RecordMessageCausationFrame reports exactly the same string to
+            // IWolverineObserver.MessageCausedBy as this frame stamps on the message.handler tag.
+            var handlerTypeName = chain.TelemetryHandlerTypeName();
 
-            if (handlerTypes.Length == 0) continue;
+            if (handlerTypeName.IsEmpty()) continue;
 
-            chain.Middleware.Add(new TagHandlerFrame(handlerTypes.Join(", ")));
+            chain.Middleware.Add(new TagHandlerFrame(handlerTypeName));
         }
+    }
+
+    /// <summary>
+    /// The one place the handler type name used for telemetry is built: the distinct handler types of
+    /// the supplied handler calls, by full name in code, joined with ", ". Shared by the
+    /// <c>message.handler</c> span tag (<see cref="TagHandlerFrame"/>) and the <c>handlerType</c>
+    /// reported to <see cref="Wolverine.Runtime.Agents.IWolverineObserver.MessageCausedBy"/> (RecordMessageCausationFrame) so
+    /// the two cannot drift. Returns an empty string when there are no handler calls.
+    /// </summary>
+    internal static string HandlerTypeNameFor(IEnumerable<MethodCall> handlerCalls)
+    {
+        return handlerCalls
+            .Select(x => x.HandlerType)
+            .Distinct()
+            .Select(x => x.FullNameInCode())
+            .Join(", ");
     }
 }
 
