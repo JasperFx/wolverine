@@ -17,6 +17,10 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     private readonly KafkaTopicGroup _endpoint;
     private readonly IConsumer<string, byte[]> _consumer;
     private CancellationTokenSource _cancellation = new();
+
+    // Captured once: DeferAsync() can run after _cancellation is disposed, and a token taken from a disposed
+    // source throws. The captured token still reports the cancellation that always precedes the dispose.
+    private readonly CancellationToken _stopping;
     // GH-3236: the consume loop now runs on the shared BackgroundReceiveLoop (backoff on Consume errors + heartbeat
     // + fault detection). Offset flush + consumer close still happen in StopAsync/Dispose after the loop has fully
     // exited, so consumer access stays single-threaded (GH-3150).
@@ -64,6 +68,7 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
         Config = config;
         _receiver = receiver;
+        _stopping = _cancellation.Token;
         _committer = new KafkaOffsetCommitter(consumer, config, endpoint.CommitMode, endpoint.CommitBatchCount,
             endpoint.CommitBatchInterval, logger);
 
@@ -222,7 +227,8 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
     public ValueTask DeferAsync(Envelope envelope)
     {
-        return _receiver.ReceivedAsync(this, envelope);
+        // Really just a retry, but never inline: see KafkaDeferredRedelivery (GH-5236)
+        return KafkaDeferredRedelivery.DeferAsync(this, _receiver, envelope, _stopping, _logger);
     }
 
     public async ValueTask DisposeAsync()
