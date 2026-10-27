@@ -55,6 +55,16 @@ public class HttpEndpoint : Endpoint, IInlineRequestReplyEndpoint
     public string OutboundUri { get; set; } = string.Empty;
 
     /// <summary>
+    /// GH-5231. True when <see cref="OutboundUri"/> addresses the single-envelope <c>/invoke</c> route that
+    /// <c>MapWolverineHttpTransportEndpoints()</c> maps, rather than the <c>/batch/{queue}</c> route. That route
+    /// returns a 415 for the batch content type, so a non-inline endpoint aimed at it has to send each
+    /// envelope of a batch on its own.
+    /// </summary>
+    internal bool TargetsInvokeRoute =>
+        Uri.TryCreate(OutboundUri, UriKind.Absolute, out var outbound) &&
+        outbound.AbsolutePath.TrimEnd('/').EndsWith("/invoke", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// GH-4530. "IWolverineHttpTransportClient is not registered in the service container" named neither the
     /// destination nor the fix, and the interface name is not something the user ever typed -- so they could
     /// not even grep their own code for it. Name the destination, the AddHttpClient call keyed on it, and

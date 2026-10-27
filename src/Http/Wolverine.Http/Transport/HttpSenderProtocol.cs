@@ -23,7 +23,21 @@ internal class HttpSenderProtocol : ISenderProtocol
 
         try
         {
-            await client.SendBatchAsync(_endpoint.OutboundUri, batch);
+            if (_endpoint.TargetsInvokeRoute)
+            {
+                // GH-5231. The /invoke route takes exactly one envelope and answers a batch with a 415, so a
+                // buffered or durable endpoint aimed at it posts its batch one envelope at a time instead of
+                // retrying the same 415 forever. A failure part way through fails the whole batch, so the
+                // envelopes already delivered may be delivered again -- at least once, never lost.
+                foreach (var envelope in batch.Messages)
+                {
+                    await client.SendAsync(_endpoint.OutboundUri, envelope, _endpoint.SerializerOptions);
+                }
+            }
+            else
+            {
+                await client.SendBatchAsync(_endpoint.OutboundUri, batch);
+            }
         }
         catch (Exception e)
         {
