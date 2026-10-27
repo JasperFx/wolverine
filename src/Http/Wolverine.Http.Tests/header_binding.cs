@@ -1,4 +1,5 @@
 ﻿using Alba;
+using Microsoft.Extensions.Primitives;
 using Shouldly;
 using WolverineWebApi;
 
@@ -18,6 +19,18 @@ public class header_binding : IntegrationContext
             x.WithRequestHeader("x-wolverine", "one");
             x.Get.Url("/headers/simple");
             x.ContentShouldBe("one");
+        });
+    }
+
+    [Fact]
+    public async Task read_single_header_that_is_sent_more_than_once()
+    {
+        // Matches ASP.NET Core, which joins the values of a repeated header with a comma
+        await Scenario(x =>
+        {
+            x.ConfigureHttpContext(c => c.Request.Headers["x-wolverine"] = new StringValues(["one", "two"]));
+            x.Get.Url("/headers/simple");
+            x.ContentShouldBe("one,two");
         });
     }
 

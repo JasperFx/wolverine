@@ -140,7 +140,8 @@ public abstract partial class HttpHandler
 
     public static string? ReadSingleHeaderValue(HttpContext context, string headerKey)
     {
-        return context.Request.Headers[headerKey].SingleOrDefault();
+        // A header sent more than once binds as its comma-joined values, as in ASP.NET Core, instead of throwing
+        return (string?)context.Request.Headers[headerKey];
     }
 
     public static string[] ReadManyHeaderValues(HttpContext context, string headerKey)
