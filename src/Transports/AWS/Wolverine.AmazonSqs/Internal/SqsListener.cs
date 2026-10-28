@@ -40,8 +40,17 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     // was only ever set once, on the receive. Null unless the endpoint opts in.
     private readonly SqsVisibilityHeartbeat? _heartbeat;
 
+    // Gives a message that arrives without a Wolverine id of its own the id of its broker identity, so the
+    // durable inbox recognizes a redelivery of it
+    private readonly SqsMessageIdentity _identity;
+
+    /// <param name="broker">
+    /// The protocol of the transport this listener's endpoint was configured on. A tenant's listener consumes
+    /// through the tenant's own child transport, which does not carry the name of a named broker.
+    /// </param>
+    /// <param name="tenantId">The tenant whose own account this listener consumes, or null for the default one</param>
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
-        IReceiver receiver)
+        IReceiver receiver, string? broker = null, string? tenantId = null)
     {
         if (transport.Client == null)
         {
@@ -49,6 +58,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         }
 
         _mapper = queue.BuildMapper(runtime);
+        _identity = new SqsMessageIdentity(broker ?? transport.Protocol, tenantId, queue.QueueName);
 
         _drainTimeout = runtime.DurabilitySettings.DrainTimeout;
 
@@ -198,7 +208,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
                 {
                     if (_reassembler.TryAccept(message, header, out var body, out var fragments))
                     {
-                        envelopes.Add(buildEnvelope(fragments, body));
+                        envelopes.Add(buildEnvelope(fragments, body, header));
                     }
 
                     continue;
@@ -509,7 +519,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
-        return buildEnvelope([message], message.Body);
+        return buildEnvelope([message], message.Body, null);
     }
 
     /// <summary>
@@ -532,9 +542,10 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     /// Build one envelope from the message(s) that carried it. A fragmented message hands over every
     /// SQS message in the set plus the reassembled body; everything else is a set of one.
     /// </summary>
-    private AmazonSqsEnvelope buildEnvelope(Message[] messages, string body)
+    private AmazonSqsEnvelope buildEnvelope(Message[] messages, string body, SqsFragmentHeader? fragments)
     {
         var envelope = new AmazonSqsEnvelope(messages);
+        var provisionalId = envelope.Id;
 
         // SQS only returns MessageAttributes when they were explicitly requested, and
         // brokers/SDKs may hand back a null collection when a message carries none (as is
@@ -542,6 +553,12 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // Guarantee a non-null dictionary so ISqsEnvelopeMapper implementations can read freely.
         var attributes = messages[0].MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
         _mapper.ReadEnvelopeData(envelope, body, attributes);
+
+        // After the mapper, so an id the message carried, or one a custom mapper assigned, still wins. For every
+        // endpoint mode, not only Durable: Envelope.Id is also the key of the transactional idempotency check
+        // (IdempotencyStyle) on Inline and Buffered endpoints, and one SHA-1 of a short name costs nothing beside
+        // the HTTP round trip that received the message.
+        _identity.AssignIdIfMissing(envelope, provisionalId, fragments);
 
         // GH-4012 item 4. Read AFTER the mapper, so a custom ISqsEnvelopeMapper cannot accidentally clear
         // it -- this is Wolverine's own bookkeeping rather than user-mapped data. A fragmented message is

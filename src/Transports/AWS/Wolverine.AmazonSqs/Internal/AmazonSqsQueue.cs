@@ -726,7 +726,8 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
                 }
 
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
-                compound.Inner.Add(new SqsListener(runtime, tenantQueue, tenant.Transport, tenantReceiver));
+                compound.Inner.Add(new SqsListener(runtime, tenantQueue, tenant.Transport, tenantReceiver,
+                    _parent.Protocol, tenant.TenantId));
             }
 
             return compound;
