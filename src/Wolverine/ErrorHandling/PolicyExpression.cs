@@ -370,7 +370,8 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
         for (var i = 0; i < delays.Length; i++)
         {
-            _rule.AddSlot(new ScheduledRetryContinuation(delays[i]));
+            var slot = _rule.AddSlot(new ScheduledRetryContinuation(delays[i]));
+            _slots.Add(slot);
         }
 
         _rule.InfiniteSource = new ScheduledRetryContinuation(delays.Last());

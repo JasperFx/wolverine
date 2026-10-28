@@ -382,6 +382,31 @@ public class FailureRuleCollectionTests
         composite.Inner[1].ShouldBeOfType<RequeueContinuation>();
 
     }
+
+    [Fact]
+    public void schedule_indefinite_retries_and_pause()
+    {
+        theHandlers.OnException<BadImageFormatException>()
+            .ScheduleRetryIndefinitely(1.Minutes(), 5.Minutes())
+            .AndPauseProcessing(10.Minutes());
+
+        theEnvelope.Attempts = 1;
+        var composite = theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<CompositeContinuation>();
+
+        composite.Inner[0].ShouldBeOfType<PauseListenerContinuation>()
+            .PauseTime.ShouldBe(10.Minutes());
+        composite.Inner[1].ShouldBeOfType<ScheduledRetryContinuation>()
+            .Delay.ShouldBe(1.Minutes());
+
+        theEnvelope.Attempts = 2;
+        composite = theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<CompositeContinuation>();
+
+        composite.Inner[0].ShouldBeOfType<PauseListenerContinuation>();
+        composite.Inner[1].ShouldBeOfType<ScheduledRetryContinuation>()
+            .Delay.ShouldBe(5.Minutes());
+    }
 }
 
 public class CodeException : Exception
