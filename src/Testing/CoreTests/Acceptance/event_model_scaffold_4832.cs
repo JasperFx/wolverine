@@ -233,17 +233,19 @@ public class event_model_scaffold_4832
             declared(m => m.View<AppointmentBoard>().From<AppointmentConfirmed>().From<AppointmentReminderScheduled>()),
             findSource: type => $"Domain/{type.Name}.cs");
 
+        // GH-5255. The scaffold renders through SourceWriter, so it writes the platform's line endings
         var insert = result.Files.Single(x => x.InsertInto == nameof(AppointmentBoard));
-        insert.Code.ShouldContain("""
+        var code = insert.Code.ReplaceLineEndings("\n");
+        code.ShouldContain("""
                                   public static AppointmentBoard Create(AppointmentConfirmed e)
                                   {
                                       // TODO: build the view from AppointmentConfirmed, the first event it sees
                                       throw new NotImplementedException("TODO: AppointmentBoard from AppointmentConfirmed");
                                   }
                                   """.ReplaceLineEndings("\n"));
-        insert.Code.ShouldNotContain("Apply(AppointmentConfirmed e)");
-        insert.Code.ShouldContain("public AppointmentBoard Apply(AppointmentReminderScheduled e)");
-        insert.Code.ShouldContain("return this;");
+        code.ShouldNotContain("Apply(AppointmentConfirmed e)");
+        code.ShouldContain("public AppointmentBoard Apply(AppointmentReminderScheduled e)");
+        code.ShouldContain("return this;");
         insert.Usings.ShouldContain("System");
     }
 
@@ -461,7 +463,7 @@ public class event_model_scaffold_4832
             declared(m => m.Command<ReserveSeat>().TriggeredBy(TriggerKind.MessageHandler)
                 .DeciderModel<SeatAvailability>().Emits<SeatReserved>()),
             findSource: type => $"Domain/{type.Name}.cs");
-        var code = result.Files.Single(x => x.InsertInto is null).Code;
+        var code = result.Files.Single(x => x.InsertInto is null).Code.ReplaceLineEndings("\n");
 
         code.ShouldContain("""
                                public static EventTagQuery Load(ReserveSeat command)
@@ -578,7 +580,7 @@ public class event_model_scaffold_4832
         var result = plan(declared(m => m.Slice("AcceptHomeCheckAssignment").TriggeredBy(TriggerKind.MessageHandler)
             .Command<AcceptHomeCheckAssignment>().Against<HomeCheck>().Against<VolunteerApplication>()
             .Emits<HomeCheckAssignmentAcceptedEvent>()));
-        var code = result.Files.Single().Code;
+        var code = result.Files.Single().Code.ReplaceLineEndings("\n");
 
         // The command is just `command`, and a signature this long puts each parameter on its own line.
         // A parameter still past 120 columns puts its attribute on the line above, and so then does every
