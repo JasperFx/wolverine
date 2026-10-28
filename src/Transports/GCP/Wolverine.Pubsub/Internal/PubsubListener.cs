@@ -45,6 +45,12 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     private readonly IPubsubEnvelopeMapper _mapper;
 
     /// <summary>
+    /// The full resource name of the subscription this listener pulls from, <c>projects/{project}/subscriptions/{id}</c>,
+    /// which a message without a Wolverine id is identified by. See <see cref="PubsubMessageIdentity" />.
+    /// </summary>
+    private readonly string _subscription;
+
+    /// <summary>
     /// GH-4066. Warns when a delivery is held longer than the ack extension budget, at which point Pub/Sub
     /// begins redelivering it into a second, concurrent execution.
     /// </summary>
@@ -70,6 +76,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         _receiver = receiver;
         _runtime = runtime;
         _clients = clients;
+        _subscription = ListeningSubscriptionName.ToString();
         _logger = runtime.LoggerFactory.CreateLogger<PubsubListener>();
         _ackExtensionWatchdog = new AckExtensionWatchdog(_endpoint.Uri, _endpoint.Client.MaxTotalAckExtension, _logger);
 
@@ -492,9 +499,17 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             return EnvelopeSerializer.ReadMany(message.Data.ToByteArray()).ToArray();
         }
 
-        var envelope = new Envelope();
-        _mapper.MapIncomingToEnvelope(envelope, message);
-        return [envelope];
+        return [readEnvelope(message)];
+    }
+
+    /// <summary>
+    /// The envelope of a delivery that is not a Wolverine batch. A message from a publisher other than Wolverine gets
+    /// the id of its Pub/Sub message on this subscription, the same id a push delivery of it would get, so that a
+    /// redelivery is recognized by the durable inbox.
+    /// </summary>
+    private Envelope readEnvelope(PubsubMessage message)
+    {
+        return PubsubMessageIdentity.ReadEnvelope(_mapper, message, _subscription);
     }
 
     private async Task<bool> processMessageAsync(PubsubMessage message)
@@ -513,9 +528,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
         try
         {
-            var envelope = new Envelope();
-
-            _mapper.MapIncomingToEnvelope(envelope, message);
+            var envelope = readEnvelope(message);
 
             await _receiver.ReceivedAsync(this, [envelope]);
 
