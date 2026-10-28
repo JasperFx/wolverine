@@ -64,6 +64,8 @@ partial class Build
     ];
 
     Target CompileBobcatSamples => _ => _
+        // So one red step under LocalGate (GH-5125) does not skip the gates after it.
+        .ProceedAfterFailure()
         .Executes(() =>
         {
             var regressions = new List<string>();
@@ -99,6 +101,8 @@ partial class Build
         });
 
     Target TestBobcatSamples => _ => _
+        // So one red step under LocalGate (GH-5125) does not skip the gates after it.
+        .ProceedAfterFailure()
         .DependsOn(CompileBobcatSamples)
         .Executes(() =>
         {
@@ -139,6 +143,8 @@ partial class Build
     // No services at all - a SQLite file is the whole store, which is the argument for Fisher as the inner-loop
     // store, and a sample whose point is "the same handlers run on two stores" is only proved by running both.
     Target TestBobcatSamplesOnFisher => _ => _
+        // So one red step under LocalGate (GH-5125) does not skip the gates after it.
+        .ProceedAfterFailure()
         .DependsOn(CompileBobcatSamples)
         .After(TestBobcatSamples)
         .Executes(() =>

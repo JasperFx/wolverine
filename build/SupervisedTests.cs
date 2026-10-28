@@ -135,63 +135,12 @@ partial class Build
         Log.Information("=== {Project} ({Framework}): supervised run, {Workers} worker(s){Retry} ===",
             projectName, framework, workers, DisableTestRetry ? ", retries OFF" : "");
 
-        var factory = new MtpWorkerFactory(executable)
-        {
-            ConnectionStrings = laneConnectionStrings(workers, postgresDatabasePerLane, sqlServerDatabasePerLane),
-            // A wedged worker's state stops existing the moment it is killed (GH-4100): this
-            // hook gets the live pid first, and the dumpasync capture is the diagnosis. Only
-            // ever invoked for a live process that refused to exit — a healthy worker never
-            // pays for it. The budget covers dotnet-dump collect + analyze.
-            OnBeforeKill = captureBeforeKill,
-            BeforeKillTimeout = TimeSpan.FromMinutes(10)
-        };
+        var factory = workerFactoryFor(executable,
+            laneConnectionStrings(workers, postgresDatabasePerLane, sqlServerDatabasePerLane));
 
-        var supervisor = new Supervisor(factory)
-        {
-            MaxParallelWorkers = workers,
-            TestFilter = shardFilter is null ? NotFlaky : t => NotFlaky(t) && shardFilter(t),
-            RetryBudget = DisableTestRetry
-                ? RetryBudget.None
-                : new RetryBudget { MaxAttemptsPerTest = 3, MaxRetriesPerRun = MaxRetriesPerRun },
-            // The policy below only ever asks for fresh-process retries, so idle lanes are
-            // released before they run: without this, workers+1 test hosts sit resident at once,
-            // which OOM-killed 16GB GitHub runners twice — both times during a retry.
-            ReleaseIdleLanes = true,
-            Log = message => Log.Information("  {Message}", message),
-
-            // The observability the retired shell watchdog (build/ci-memory-sampler.sh,
-            // GH-4083/GH-4089) approximated from outside the process, now the supervisor's own
-            // facts (Bobcat 0.8.0, JasperFx/bobcat#145-#150). All report-only — none of these
-            // ever fails or kills anything:
-            // - a TEST in flight past five minutes is named immediately. Five minutes is the
-            //   watchdog's own calibration ("a healthy suite is never idle for five minutes"),
-            //   and per-test in-flight time replaces both its idle heuristic and the per-target
-            //   deadline table that heavy suites kept having to opt out of.
-            // - a one-line progress heartbeat every 30s, so a wedged run's log shows where it
-            //   stopped and how far it got — the summary a capped job never reaches.
-            // - worker RSS sampled on the watchdog's own 15s cadence, attributed per test
-            //   (GH-4089: a GREEN CIMarten grew its host 375MB -> 9334MB and nothing could say
-            //   which tests grew it).
-            StallThreshold = TimeSpan.FromMinutes(5),
-            HeartbeatInterval = TimeSpan.FromSeconds(30),
-            ResourceSampleInterval = TimeSpan.FromSeconds(15),
-
-            // The previous main run's per-test durations, when a CI step (or a developer) has
-            // fetched them into previous-durations/ — longest-processing-time lane balancing
-            // instead of count balancing. Null degrades to exactly today's behavior. See
-            // build/TestDurations.cs for the whole loop.
-            KnownTestDurations = knownDurationsFor(projectName, framework),
-
-            // GH-5019: announce the run to a Bobcat monitor (`bobcat ui`, or the one a Stoat plan
-            // gates on) when one answers at BOBCAT_MONITOR_URL (default http://localhost:5525). The
-            // supervisor owns the run bracket and forwards every test's start and verdict, stalls,
-            // retries and heartbeats, and the run carries BOBCAT_RUN_TAG, so a plan gate sees the
-            // run it is waiting for. With no monitor listening -- every CI runner -- the probe costs
-            // one refused local connection and nothing is published. BOBCAT_MONITOR=0 turns it off.
-            PublishToMonitor = true
-        };
-
-        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
+        var supervisor = new Supervisor(factory) { MaxParallelWorkers = workers };
+        configureSupervisor(supervisor, projectName, framework, shardFilter,
+            message => Log.Information("  {Message}", message));
 
         // Only under Actions: locally the run finishes and prints its summary, and `dotnet run --
         // --output Detailed` is the per-test view. In CI the summary is exactly what a wedged job
@@ -207,6 +156,76 @@ partial class Build
         var results = supervisor.Run().GetAwaiter().GetResult();
 
         return report(projectName, framework, results, shardFilter is not null);
+    }
+
+    /// <summary>
+    /// The suite's MTP host, each lane handed its own connection strings when it needs them. Shared by
+    /// the CI targets (<see cref="runSupervised"/>) and every unit of <c>LocalGate</c>.
+    /// </summary>
+    static MtpWorkerFactory workerFactoryFor(string executable, WorkerConnectionStrings connectionStrings,
+        IReadOnlyDictionary<string, string> environment = null)
+        => new(executable, environment)
+        {
+            ConnectionStrings = connectionStrings,
+            // A wedged worker's state stops existing the moment it is killed (GH-4100): this
+            // hook gets the live pid first, and the dumpasync capture is the diagnosis. Only
+            // ever invoked for a live process that refused to exit — a healthy worker never
+            // pays for it. The budget covers dotnet-dump collect + analyze.
+            OnBeforeKill = captureBeforeKill,
+            BeforeKillTimeout = TimeSpan.FromMinutes(10)
+        };
+
+    /// <summary>
+    /// Everything a suite's supervisor is told beyond its worker count: the Flaky exclusion and shard
+    /// filter, the retry budget and policy, stall and resource reporting, known durations and
+    /// publishing to a monitor. Shared by the CI targets and every unit of <c>LocalGate</c>, so a unit
+    /// of the gate is configured exactly as its CI target is.
+    /// </summary>
+    void configureSupervisor(Supervisor supervisor, string projectName, string framework,
+        Func<WorkerTest, bool> shardFilter, Action<string> log)
+    {
+        supervisor.TestFilter = shardFilter is null ? NotFlaky : t => NotFlaky(t) && shardFilter(t);
+        supervisor.RetryBudget = DisableTestRetry
+            ? RetryBudget.None
+            : new RetryBudget { MaxAttemptsPerTest = 3, MaxRetriesPerRun = MaxRetriesPerRun };
+        // The policy below only ever asks for fresh-process retries, so idle lanes are
+        // released before they run: without this, workers+1 test hosts sit resident at once,
+        // which OOM-killed 16GB GitHub runners twice — both times during a retry.
+        supervisor.ReleaseIdleLanes = true;
+        supervisor.Log = log;
+
+        // The observability the retired shell watchdog (build/ci-memory-sampler.sh,
+        // GH-4083/GH-4089) approximated from outside the process, now the supervisor's own
+        // facts (Bobcat 0.8.0, JasperFx/bobcat#145-#150). All report-only — none of these
+        // ever fails or kills anything:
+        // - a TEST in flight past five minutes is named immediately. Five minutes is the
+        //   watchdog's own calibration ("a healthy suite is never idle for five minutes"),
+        //   and per-test in-flight time replaces both its idle heuristic and the per-target
+        //   deadline table that heavy suites kept having to opt out of.
+        // - a one-line progress heartbeat every 30s, so a wedged run's log shows where it
+        //   stopped and how far it got — the summary a capped job never reaches.
+        // - worker RSS sampled on the watchdog's own 15s cadence, attributed per test
+        //   (GH-4089: a GREEN CIMarten grew its host 375MB -> 9334MB and nothing could say
+        //   which tests grew it).
+        supervisor.StallThreshold = TimeSpan.FromMinutes(5);
+        supervisor.HeartbeatInterval = TimeSpan.FromSeconds(30);
+        supervisor.ResourceSampleInterval = TimeSpan.FromSeconds(15);
+
+        // The previous main run's per-test durations, when a CI step (or a developer) has
+        // fetched them into previous-durations/ — longest-processing-time lane balancing
+        // instead of count balancing. Null degrades to exactly today's behavior. See
+        // build/TestDurations.cs for the whole loop.
+        supervisor.KnownTestDurations = knownDurationsFor(projectName, framework);
+
+        // GH-5019: announce the run to a Bobcat monitor (`bobcat ui`, or the one a Stoat plan
+        // gates on) when one answers at BOBCAT_MONITOR_URL (default http://localhost:5525). The
+        // supervisor owns the run bracket and forwards every test's start and verdict, stalls,
+        // retries and heartbeats, and the run carries BOBCAT_RUN_TAG, so a plan gate sees the
+        // run it is waiting for. With no monitor listening -- every CI runner -- the probe costs
+        // one refused local connection and nothing is published. BOBCAT_MONITOR=0 turns it off.
+        supervisor.PublishToMonitor = true;
+
+        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
     }
 
     /// <summary>

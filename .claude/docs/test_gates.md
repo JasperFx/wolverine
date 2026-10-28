@@ -24,6 +24,52 @@ BOBCAT_RUN_TAG={plan}/{node} ./build.sh <Target> --framework net9.0
   gate matches it literally. Do not invent a tag, shorten it or add a timestamp; use the one the plan
   gave the agent (`{plan}/{nodeId}`).
 
+## LocalGate: every suite at once (GH-5125)
+
+`./build.sh LocalGate` runs what the CI workflows run (tests.yml, dotnet.yml, http.yml, fsharp.yml,
+command-line.yml, bobcat-samples.yml) on one box through Bobcat's Gate. It is the command a plan's
+"green before push" step runs:
+
+```bash
+stoat gate run {plan}/{node}                        # from the worktree; the node's step is ./build.sh LocalGate
+./build.sh LocalGate                                # by hand: the suites, then the extras
+./build.sh LocalGateSuites                          # the suites alone
+./build.sh LocalGateSuites --gate-only Marten Http  # only suites whose project name contains one of these
+./build.sh LocalGate --framework all                # every framework each suite declares (EF Core 9 and 10)
+```
+
+- **Release**, as in CI, for every target it runs, unless `--configuration` is given.
+- **Build once.** It starts (or reuses) every docker-compose service the selected suites need, builds
+  them while the containers boot (one `dotnet build` per framework over a generated solution in
+  `artifacts/local-gate/`), then waits for the services' readiness probes.
+- **One unit per test project.** The CI shards of a project (CIMarten / CIMartenDistribution /
+  CIMartenTenancy, the SQL Server, Polecat, ASB and AWS shards) are one unit here. Each unit's
+  supervisor is configured exactly as its CI target's is (`configureSupervisor` in
+  `build/SupervisedTests.cs`), and leaves its ledger in `artifacts/test-ledger/LocalGate.*.json`.
+- **Framework.** `.nuke/parameters.json` pins `net9.0`, as in CI; a suite that does not target it runs
+  on its newest. CI's EF Core 10 job (`CIEfCoreNet10`) is only covered by `--framework all` or
+  `--framework net10.0`.
+- **Longest first, under one worker budget** (`--gate-workers`, default half the cores). Durations
+  are kept in `.bobcat/gate-durations.json` for the next run's order.
+- **Extras**, which `LocalGate` runs after the suites, one after another, as the ordinary targets
+  they are: `CICommandLineSmoke` (describe-handlers and event-model), `CIAotSmoke`, `BobcatSamples`,
+  `CICodegenTest`, then `CICodegenDrift`. The codegen pair rewrites the generated tree; drift goes last
+  and regenerates it, so a green run leaves the tree as it was. A red one leaves the regenerated files
+  for you to read (`git checkout -- .` puts them back). Every extra runs even when an earlier one is red.
+- **The list** is the table at the top of `build/LocalGate.cs`; `build/gates.json` is generated from it
+  (`./build.sh LocalGateManifest`). `VerifyLocalGateCoverage` (part of `./build.sh ci`) fails when a
+  test project in `wolverine.slnx` is in neither the table nor its `NotGated` list, or when
+  `gates.json` is stale.
+
+How the suites share the box (the tracks; a track is held by one unit at a time):
+
+| Resource | Rule |
+|---|---|
+| Postgres, SQL Server | A suite that only uses the database its connection string names gets its own, `wolverine_gate_<project>`, recreated per run and handed over as `ConnectionStrings__postgres` / `ConnectionStrings__sqlserver`; it holds no track. A suite that also creates sibling databases under fixed names (MartenTests, PostgresqlTests, PersistenceTests, the EF suites, PolecatTests) runs against the default database, as in CI, and holds the `postgresql` / `sqlserver` track. SqlServerTests keeps its four `wolverine_w*` lanes. |
+| Each broker and emulator | One track per compose service: rabbitmq, kafka, localstack, asb-emulator, pulsar, gcp-pubsub, nats, mysql, oracle, azurite, fake-gcs-server. |
+| Fixed ports, heavy emulators | `mqtt-broker-ports` (both MQTT suites host a broker on 1883/1884), `cosmos-emulator` (each Cosmos suite starts one through Testcontainers), `ravendb`. |
+| Nothing | CoreTests, SQLite, Fisher, gRPC, the extension and F# suites: the worker budget only. |
+
 ## What the run publishes
 
 Each supervised project run announces itself to a Bobcat monitor when one answers at
@@ -133,6 +179,9 @@ stops only that worktree's containers, but other worktrees may be using them.
 
 For Stoat's resource declarations (JasperFx/stoat#101):
 
+- **LocalGate already does all of this** for the whole CI set, with a finer rule for Postgres and SQL
+  Server (a database per suite where the suite allows it); see [LocalGate](#localgate-every-suite-at-once-gh-5125).
+  What follows is for scheduling separate targets yourself.
 - **Treat each Docker service as an exclusive resource for the length of a run.** The suites are
   written to own their services: schema names, queue names, exchange names and topics are hard-coded,
   and fixtures drop and recreate them. Two suites that share a service collide, even from different

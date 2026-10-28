@@ -254,3 +254,6 @@ JasperSamples
 
 # git worktrees created inside the repo
 .claude/worktrees/
+
+# LocalGate (GH-5125): Bobcat Gate unit durations, per machine
+.bobcat/
