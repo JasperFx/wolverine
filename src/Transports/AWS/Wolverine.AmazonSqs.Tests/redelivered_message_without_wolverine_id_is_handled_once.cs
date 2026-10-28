@@ -300,7 +300,7 @@ public class redelivered_message_without_wolverine_id_is_handled_once
                     }
                 }
 
-                await Task.Delay(250.Milliseconds());
+                await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
             }
 
             throw new TimeoutException($"SQS message {sqsMessageId} was not delivered {delivery} time(s)");

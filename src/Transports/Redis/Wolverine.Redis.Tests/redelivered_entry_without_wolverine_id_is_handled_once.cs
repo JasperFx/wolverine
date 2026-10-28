@@ -279,7 +279,7 @@ public class redelivered_entry_without_wolverine_id_is_handled_once
                         $"Never saw {description}. {ForeignRedisOrderPlacedHandler.Describe(Id)}");
                 }
 
-                await Task.Delay(100);
+                await Task.Delay(100, TestContext.Current.CancellationToken);
             }
         }
     }
@@ -361,7 +361,7 @@ public static class ForeignRedisOrderPlacedHandler
                 throw new TimeoutException($"Sequence {sequence} of run {runId} was never handled. {Describe(runId)}");
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
 }

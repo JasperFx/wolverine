@@ -234,7 +234,7 @@ public class redelivered_message_without_id_property_is_handled_once
                         $"Never found {description}. {ForeignPulsarOrderPlacedHandler.Describe(Id)}");
                 }
 
-                await Task.Delay(100);
+                await Task.Delay(100, TestContext.Current.CancellationToken);
             }
         }
     }
@@ -315,7 +315,7 @@ public static class ForeignPulsarOrderPlacedHandler
                 throw new TimeoutException($"Sequence {sequence} of run {runId} was never handled. {Describe(runId)}");
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
 }

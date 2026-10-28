@@ -105,7 +105,7 @@ public class redelivered_message_without_id_attribute_is_handled_once
         while (!condition())
         {
             if (DateTimeOffset.UtcNow > deadline) throw new TimeoutException(description);
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
 
@@ -187,7 +187,7 @@ public class redelivered_message_without_id_attribute_is_handled_once
                         $"The handled inbox row never appeared. {ForeignOrderPlacedHandler.Describe(Id)}");
                 }
 
-                await Task.Delay(100);
+                await Task.Delay(100, TestContext.Current.CancellationToken);
             }
         }
     }
@@ -287,7 +287,7 @@ public static class ForeignOrderPlacedHandler
                 throw new TimeoutException($"Run {runId} was never handled");
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
 }
