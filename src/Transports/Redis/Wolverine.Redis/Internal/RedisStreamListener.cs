@@ -39,6 +39,10 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     // instead of the transport's shared connection. GH-3309.
     private readonly IConnectionMultiplexer? _connection;
 
+    // Non-null on a Durable listener only: gives an entry without a Wolverine id field the id of its position in
+    // the stream, so a reclaimed or re-read entry is refused by the inbox instead of handled again
+    internal RedisStreamEntryIdentity? EntryIdentity { get; }
+
     public RedisStreamListener(RedisTransport transport, RedisStreamEndpoint endpoint,
         IWolverineRuntime runtime, IReceiver receiver, IConnectionMultiplexer? connection = null)
     {
@@ -53,6 +57,12 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         // Generate stable consumer name: service name + node number (+ machine) by default,
         // or use endpoint-level override if specified.
         _consumerName = _transport.ComputeConsumerName(_runtime, _endpoint);
+
+        // Only the durable inbox deduplicates on Envelope.Id. Every other mode hands the entry straight to its
+        // handler, where a derived id would buy nothing and cost a hash per message.
+        EntryIdentity = endpoint.Mode == EndpointMode.Durable && !string.IsNullOrEmpty(endpoint.ConsumerGroup)
+            ? RedisStreamEntryIdentity.For(transport, endpoint, connection)
+            : null;
 
         Address = endpoint.Uri;
     }
@@ -569,8 +579,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
 
             try
             {
-                var envelope = new Envelope { TopicName = _endpoint.StreamKey };
-                _endpoint.EnvelopeMapper.MapIncomingToEnvelope(envelope, streamEntry);
+                var envelope = _endpoint.EnvelopeMapper.CreateEnvelope(_endpoint.StreamKey, streamEntry, EntryIdentity);
                 envelopes.Add(envelope);
             }
             catch (Exception ex)
@@ -595,8 +604,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             // Convert Redis stream message to Wolverine envelope using mapper
             _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
 
-            var envelope = new Envelope { TopicName = _endpoint.StreamKey };
-            _endpoint.EnvelopeMapper.MapIncomingToEnvelope(envelope, streamEntry);
+            var envelope = _endpoint.EnvelopeMapper.CreateEnvelope(_endpoint.StreamKey, streamEntry, EntryIdentity);
 
             // GH-4329: guarded — these run per message, and the params object[] plus the boxed
             // Guid are allocated at the call site before ILogger ever checks IsEnabled
