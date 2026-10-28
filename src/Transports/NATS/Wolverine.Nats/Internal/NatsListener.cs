@@ -386,7 +386,8 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
         CancellationToken cancellation,
         bool useJetStream,
         string? subscriptionPattern = null,
-        ITenantSubjectMapper? tenantMapper = null
+        ITenantSubjectMapper? tenantMapper = null,
+        string? connectionTenantId = null
     )
     {
         INatsSubscriber subscriber;
@@ -397,7 +398,8 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
             {
                 jsMapper.ReceivesMessage(endpoint.MessageType);
             }
-            subscriber = new JetStreamSubscriber(endpoint, connection, jetStreamContext!, logger, jsMapper, subscriptionPattern);
+            subscriber = new JetStreamSubscriber(endpoint, connection, jetStreamContext!, logger, jsMapper, subscriptionPattern,
+                connectionTenantId);
         }
         else
         {

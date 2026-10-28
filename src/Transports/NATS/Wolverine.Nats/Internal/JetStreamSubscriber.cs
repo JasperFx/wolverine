@@ -20,6 +20,7 @@ internal class JetStreamSubscriber : INatsSubscriber
     private readonly JetStreamEnvelopeMapper _mapper;
     private readonly string _subscriptionPattern;
     private readonly INatsJSContext _jetStreamContext;
+    private readonly string? _connectionTenantId;
     private INatsJSConsumer? _consumer;
     private Task? _consumerTask;
 
@@ -35,15 +36,21 @@ internal class JetStreamSubscriber : INatsSubscriber
     private BatchingChannel<Envelope>? _batching;
     private Block<Envelope[]>? _batchFlush;
 
+    // Gives a message without an id of its own the id of its place in the stream, so the durable inbox sees a
+    // redelivery of it as the duplicate it is. Null for an endpoint without an inbox to deduplicate against.
+    private JetStreamMessageIdentity? _messageIdentity;
+
     public JetStreamSubscriber(
         NatsEndpoint endpoint,
         NatsConnection connection,
         INatsJSContext jetStreamContext,
         ILogger<NatsEndpoint> logger,
         JetStreamEnvelopeMapper mapper,
-        string? subscriptionPattern = null
+        string? subscriptionPattern = null,
+        string? connectionTenantId = null
     )
     {
+        _connectionTenantId = connectionTenantId;
         _endpoint = endpoint;
         _connection = connection;
         _logger = logger;
@@ -114,6 +121,12 @@ internal class JetStreamSubscriber : INatsSubscriber
                 config.Name,
                 _endpoint.Subject
             );
+        }
+
+        if (JetStreamMessageIdentity.AppliesTo(_endpoint))
+        {
+            _messageIdentity = new JetStreamMessageIdentity(_endpoint.TransportName, _connectionTenantId,
+                _endpoint.StreamName!, await readStreamCreatedAsync(cancellation), config.Name!);
         }
 
         if (_endpoint.Mode == EndpointMode.Durable && _endpoint.MaximumMessagesToReceive > 1)
@@ -195,8 +208,7 @@ internal class JetStreamSubscriber : INatsSubscriber
                             await msg.AckAsync(cancellationToken: cancellation);
                             continue;
                         }
-                        var envelope = new NatsEnvelope(null, msg);
-                        _mapper.MapIncoming(envelope, msg);
+                        var envelope = _mapper.CreateEnvelope(msg, _messageIdentity);
 
                         if (_batching != null)
                         {
@@ -236,6 +248,27 @@ internal class JetStreamSubscriber : INatsSubscriber
         var readable = subject.Replace('.', '_').Replace("*", "any").Replace(">", "all");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject)))[..8].ToLowerInvariant();
         return $"{readable}_{hash}";
+    }
+
+    /// <summary>
+    /// When the listener's stream was created, which tells it apart from an earlier stream of the same name whose
+    /// sequences overlap this one's. Null when the stream cannot be read -- a user allowed to consume but not to read
+    /// stream info -- which only leaves a stream recreated under the same name indistinguishable from its predecessor.
+    /// </summary>
+    private async Task<DateTimeOffset?> readStreamCreatedAsync(CancellationToken cancellation)
+    {
+        try
+        {
+            var stream = await _jetStreamContext.GetStreamAsync(_endpoint.StreamName!, cancellationToken: cancellation);
+            return stream.Info.Created;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            _logger.LogWarning(e,
+                "Could not read stream {Stream} for the creation time that is part of the inbox id of a message without a Wolverine id; a stream deleted and recreated under the same name will not be told apart from its predecessor",
+                _endpoint.StreamName);
+            return null;
+        }
     }
 
     /// <summary>
