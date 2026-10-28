@@ -1283,7 +1283,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (existing != null) return existing;
 
-        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name!)
+        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name!,
+            rejectUnparseableValue: _parent.RejectUnparseableHeaderValues)
         {
             Key = metadata.Name ?? parameter.Name!
         };
@@ -1301,7 +1302,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (existing != null) return existing;
 
-        var frame = new ReadHttpFrame(BindingSource.Header, property.PropertyType, property.Name)
+        var frame = new ReadHttpFrame(BindingSource.Header, property.PropertyType, property.Name,
+            rejectUnparseableValue: _parent.RejectUnparseableHeaderValues)
         {
             Key = metadata.Name ?? property.Name
         };

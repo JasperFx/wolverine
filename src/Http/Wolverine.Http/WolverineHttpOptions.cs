@@ -290,6 +290,18 @@ public class WolverineHttpOptions
     public bool RejectUnparseableQueryValues { get; set; }
 
     /// <summary>
+    /// When true, a <c>[FromHeader]</c> value that is <b>present</b> but cannot be parsed to the expected
+    /// parameter type (int, Guid, enum, etc.) short-circuits the request with a 400 Bad Request and a
+    /// ProblemDetails body naming the offending header, as ASP.NET Core minimal APIs do. That includes a
+    /// header sent more than once, whose values bind as one comma-joined string such as <c>"1,2"</c>.
+    /// A <b>missing</b> header still binds the parameter's default value in either mode, and string headers
+    /// are never rejected. Applies to header binding for endpoint and middleware method arguments and for
+    /// [AsParameters] members. Opt-in (default false) to preserve the previous lenient behavior, where an
+    /// unparseable header silently binds the parameter's default.
+    /// </summary>
+    public bool RejectUnparseableHeaderValues { get; set; }
+
+    /// <summary>
     ///     The application wide default for what status code is written when an endpoint's response body is null.
     ///     The built in default is <see cref="OnMissingResponseBody.NotFound404" />. Setting this to
     ///     <see cref="OnMissingResponseBody.NoContent204" /> only affects GET and QUERY endpoints -- a null body
