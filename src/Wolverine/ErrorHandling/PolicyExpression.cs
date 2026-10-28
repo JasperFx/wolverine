@@ -150,6 +150,9 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 {
     private readonly FailureRule _rule;
     private readonly List<FailureSlot> _slots = new();
+
+    // The rule's "every attempt after that" slot, while it belongs to the current segment of the chain
+    private FailureSlot? _infinite;
     private bool _jitterApplied;
 
     public FailureActions(IExceptionMatch match, FailureRuleCollection parent)
@@ -163,13 +166,14 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         get
         {
             _slots.Clear();
+            _infinite = null;
             return this;
         }
     }
 
     public IAdditionalActions AndPauseProcessing(TimeSpan pauseTime)
     {
-        foreach (var slot in _slots)
+        foreach (var slot in currentSlots())
         {
             slot.InsertSourceAtTop(new PauseListenerContinuation(pauseTime));
         }
@@ -224,9 +228,23 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
     public IAdditionalActions And(IContinuationSource source)
     {
-        foreach (var slot in _slots) slot.AddAdditionalSource(source);
+        foreach (var slot in currentSlots()) slot.AddAdditionalSource(source);
 
         return this;
+    }
+
+    // Additional actions apply to every attempt the last policy covers, including the open-ended ones
+    // after its listed attempts. Before that, ScheduleRetryIndefinitely(...).AndPauseProcessing(...)
+    // paused only for as many attempts as it had delays, and RequeueIndefinitely() never paused at all
+    private IEnumerable<FailureSlot> currentSlots()
+    {
+        return _infinite == null ? _slots : _slots.Append(_infinite);
+    }
+
+    private void setInfiniteSource(IContinuationSource source)
+    {
+        _rule.InfiniteSource = source;
+        _infinite = _rule.InfiniteSlot;
     }
 
     public IAdditionalActions ContinueWith(IContinuationSource source)
@@ -235,7 +253,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
         var slot = _rule.AddSlot(source);
         _slots.Add(slot);
-        _rule.InfiniteSource = source;
+        setInfiniteSource(source);
 
         return this;
     }
@@ -264,7 +282,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     
     public IAdditionalActions RequeueIndefinitely()
     {
-        _rule.InfiniteSource = RequeueContinuation.Instance;
+        setInfiniteSource(RequeueContinuation.Instance);
 
         return this;
     }
@@ -295,7 +313,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
             InvokeUsage = invokeUsage
         };
 
-        _rule.InfiniteSource = source;
+        setInfiniteSource(source);
         return this;
     }
 
@@ -374,7 +392,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
             _slots.Add(slot);
         }
 
-        _rule.InfiniteSource = new ScheduledRetryContinuation(delays.Last());
+        setInfiniteSource(new ScheduledRetryContinuation(delays.Last()));
 
         return this;
     }

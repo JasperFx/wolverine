@@ -7,6 +7,8 @@ namespace Wolverine.ErrorHandling;
 public class FailureRule : IEnumerable<FailureSlot>
 {
     private readonly List<FailureSlot> _slots = new();
+    private IContinuationSource? _infiniteSource;
+    private FailureSlot? _infiniteSlot;
 
     public FailureRule(IExceptionMatch match)
     {
@@ -16,7 +18,24 @@ public class FailureRule : IEnumerable<FailureSlot>
     public FailureSlot this[int attempt] => _slots[attempt - 1];
 
     public IExceptionMatch Match { get; }
-    internal IContinuationSource? InfiniteSource { get; set; }
+    /// <summary>
+    /// The policy for every attempt after the numbered slots. Transports read this to recognise their own
+    /// native policies, so it is always the source that was set, without any additional actions
+    /// </summary>
+    internal IContinuationSource? InfiniteSource
+    {
+        get => _infiniteSource;
+        set
+        {
+            _infiniteSource = value;
+            _infiniteSlot = value == null ? null : new FailureSlot(0, value);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="InfiniteSource"/> together with any additional actions chained onto it
+    /// </summary>
+    internal FailureSlot? InfiniteSlot => _infiniteSlot;
 
     public IEnumerator<FailureSlot> GetEnumerator()
     {
@@ -45,7 +64,7 @@ public class FailureRule : IEnumerable<FailureSlot>
                 return true;
             }
 
-            if (InfiniteSource?.Build(ex, env) is { } fromInfiniteSource)
+            if (_infiniteSlot?.Build(ex, env) is { } fromInfiniteSource)
             {
                 continuation = fromInfiniteSource;
                 return true;
@@ -103,7 +122,7 @@ public class FailureRule : IEnumerable<FailureSlot>
         if (InfiniteSource != null)
         {
             var prefix = _slots.Count > 0 ? "then repeat" : "repeat";
-            parts.Add($"{prefix}: {InfiniteSource.Description}");
+            parts.Add($"{prefix}: {_infiniteSlot!.Describe()}");
         }
 
         var actions = parts.Count > 0 ? string.Join("; ", parts) : "no action";

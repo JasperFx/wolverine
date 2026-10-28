@@ -407,6 +407,91 @@ public class FailureRuleCollectionTests
         composite.Inner[1].ShouldBeOfType<ScheduledRetryContinuation>()
             .Delay.ShouldBe(5.Minutes());
     }
+
+    // The additional actions apply to the open-ended attempts after the listed delays too, not just
+    // to as many attempts as there were delays
+    [Fact]
+    public void schedule_indefinite_retries_and_pause_keeps_pausing_after_the_listed_delays()
+    {
+        theHandlers.OnException<BadImageFormatException>()
+            .ScheduleRetryIndefinitely(1.Minutes(), 5.Minutes())
+            .AndPauseProcessing(10.Minutes());
+
+        foreach (var attempt in new[] { 3, 10 })
+        {
+            theEnvelope.Attempts = attempt;
+            var composite = theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+                .ShouldBeOfType<CompositeContinuation>();
+
+            composite.Inner[0].ShouldBeOfType<PauseListenerContinuation>()
+                .PauseTime.ShouldBe(10.Minutes());
+            composite.Inner[1].ShouldBeOfType<ScheduledRetryContinuation>()
+                .Delay.ShouldBe(5.Minutes());
+        }
+    }
+
+    [Fact]
+    public void requeue_indefinitely_and_pause()
+    {
+        theHandlers.OnException<BadImageFormatException>()
+            .RequeueIndefinitely()
+            .AndPauseProcessing(10.Minutes());
+
+        foreach (var attempt in new[] { 1, 7 })
+        {
+            theEnvelope.Attempts = attempt;
+            var composite = theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+                .ShouldBeOfType<CompositeContinuation>();
+
+            composite.Inner[0].ShouldBeOfType<PauseListenerContinuation>();
+            composite.Inner[1].ShouldBeOfType<RequeueContinuation>();
+        }
+    }
+
+    [Fact]
+    public void custom_action_indefinitely_with_an_additional_action()
+    {
+        theHandlers.OnException<BadImageFormatException>()
+            .CustomActionIndefinitely((_, _, _) => ValueTask.CompletedTask, "custom")
+            .And<MoveToErrorQueueSource>();
+
+        theEnvelope.Attempts = 4;
+        var composite = theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<CompositeContinuation>();
+
+        composite.Inner[0].ShouldBeOfType<LambdaContinuation>();
+        composite.Inner[1].ShouldBeOfType<MoveToErrorQueue>();
+    }
+
+    [Fact]
+    public void additional_actions_stay_with_their_own_segment_of_the_chain()
+    {
+        theHandlers.OnException<BadImageFormatException>()
+            .ScheduleRetry(1.Minutes()).AndPauseProcessing(5.Minutes())
+            .Then.RequeueIndefinitely();
+
+        theEnvelope.Attempts = 1;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<CompositeContinuation>()
+            .Inner[0].ShouldBeOfType<PauseListenerContinuation>();
+
+        // The pause belonged to the scheduled retry, not to the requeues that come after it
+        theEnvelope.Attempts = 2;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<RequeueContinuation>();
+    }
+
+    [Fact]
+    public void describing_an_indefinite_policy_includes_its_additional_actions()
+    {
+        theHandlers.OnException<BadImageFormatException>()
+            .RequeueIndefinitely()
+            .AndPauseProcessing(10.Minutes());
+
+        var rule = theHandlers.Failures.Single();
+        rule.ToString().ShouldContain("repeat: " + rule.InfiniteSlot!.Describe());
+        rule.InfiniteSource.ShouldBeOfType<RequeueContinuation>();
+    }
 }
 
 public class CodeException : Exception
