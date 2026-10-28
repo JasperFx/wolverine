@@ -224,13 +224,23 @@
     <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="9.0.5" />
     <PackageVersion Include="System.Net.NameResolution" Version="4.3.0" />
     <PackageVersion Include="System.Threading.Tasks.Dataflow" Version="9.0.5" />
-    <PackageVersion Include="Weasel.Core" Version="9.47.0" />
-    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="9.47.0" />
-    <PackageVersion Include="Weasel.MySql" Version="9.47.0" />
-    <PackageVersion Include="Weasel.Oracle" Version="9.47.0" />
-    <PackageVersion Include="Weasel.Postgresql" Version="9.47.0" />
-    <PackageVersion Include="Weasel.SqlServer" Version="9.47.0" />
-    <PackageVersion Include="Weasel.Sqlite" Version="9.47.0" />
+    <!-- 9.47.1 is weasel#751, and it is the fix for wolverine#5215. Wolverine keeps its envelope
+         tables in the service's own schema, and Weasel's PostgreSQL index introspection identified
+         each row's table by regclassout's rendering of it, matched against four spellings, none of
+         which quoted the SCHEMA. regclassout quotes whatever has to be quoted, so once wolverine#5216
+         quoted the schema in Wolverine's own SQL, a service whose schema was a reserved word (order,
+         user) read back no indexes at all: every declared index was Missing rather than Different,
+         the patch was a bare create index, and the second startup failed with 42P07 and took the
+         rest of the migration with it. A schema name carrying uppercase broke identically. Inert for
+         a lower-case unquoted schema, where relname and the rendering name the same table. Nothing
+         public added, removed or changed. -->
+    <PackageVersion Include="Weasel.Core" Version="9.47.1" />
+    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="9.47.1" />
+    <PackageVersion Include="Weasel.MySql" Version="9.47.1" />
+    <PackageVersion Include="Weasel.Oracle" Version="9.47.1" />
+    <PackageVersion Include="Weasel.Postgresql" Version="9.47.1" />
+    <PackageVersion Include="Weasel.SqlServer" Version="9.47.1" />
+    <PackageVersion Include="Weasel.Sqlite" Version="9.47.1" />
     <!-- The eighth Weasel package, and the only one nothing referenced directly. Marten, Polecat and
          Fisher each request the Weasel.Storage matching their own Weasel line, which trails the
          version pinned for the seven siblings — so before this pin the solution ran Weasel.Storage
@@ -238,7 +248,7 @@
          siblings whenever that line moves. Wolverine.Marten/.Polecat/.Fisher/.ClaimCheck.Marten
          reference it directly so the pin actually wins; without transitive pinning a PackageVersion
          on its own would be inert here, since nothing else references it. -->
-    <PackageVersion Include="Weasel.Storage" Version="9.47.0" />
+    <PackageVersion Include="Weasel.Storage" Version="9.47.1" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.
          Shared/base-class libraries that are referenced by test projects (notably
