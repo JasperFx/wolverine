@@ -444,7 +444,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
             if (isMultiTenanted(container, dbContextType))
             {
-                var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
+                var createContext = createTenantedDbContext(chain, container, dbContextType);
 
                 chain.Middleware.Insert(0, createContext);
                 chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbContextType, chain.Idempotency));
@@ -470,7 +470,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // This also closes the second half of GH-4611 for free: BuildAndEnrollAsync enlists the
             // MessageContext in the outbox, which is exactly what the GH-3291 branch below does for a
             // non-tenanted DbContext, and why that branch's old !isMultiTenanted guard is gone.
-            chain.Middleware.Insert(0, typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType));
+            chain.Middleware.Insert(0, createTenantedDbContext(chain, container, dbContextType));
             tenantedLightweight = true;
         }
         else if (isHttpChain(chain)
@@ -523,7 +523,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
-        if (abstractionType != null)
+        if (abstractionType != null && !isMultiTenanted(container, dbContextType))
         {
             chain.Middleware.Insert(0, new CastDbContextFrame(abstractionType, dbContextType));
         }
@@ -722,6 +722,36 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return DefaultMode;
     }
 
+    private Frame createTenantedDbContext(IChain chain, IServiceContainer container, Type dbContextType)
+    {
+        var frame = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<MethodCall>(dbContextType);
+
+        // The tenant builder owns the context. Resolving an abstraction from DI and casting it back
+        // would create a second context (the migrations/default-tenant registration), as well as a
+        // duplicate local variable. Expose the built context under every matching abstraction so
+        // code-generated handler dependencies use the same unit of work as the middleware.
+        foreach (var abstraction in chain.ServiceDependencies(container, Type.EmptyTypes)
+                     .Where(x => _abstractions.TryFind(x, out var concrete) && concrete == dbContextType)
+                     .Distinct())
+        {
+            new DbContextAbstractionVariable(frame.ReturnVariable!, abstraction);
+        }
+
+        return frame;
+    }
+
+    // Follow the parent variable if code generation renames it (e.g. a DbContext named Context).
+    // The alias creates no declaration or disposal scope of its own.
+    private class DbContextAbstractionVariable : CastVariable
+    {
+        public DbContextAbstractionVariable(Variable context, Type abstractionType) : base(context, abstractionType)
+        {
+            Creator = context.Creator;
+        }
+
+        public override string Usage => $"(({VariableType.FullNameInCode()}){Inner.Usage})";
+    }
+
     private bool isMultiTenanted(IServiceContainer container, Type dbContextType)
     {
         return container.HasRegistrationFor(typeof(IDbContextBuilder<>).MakeGenericType(dbContextType));
@@ -784,7 +814,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
             if (isMultiTenanted(container, dbType))
             {
-                var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
+                var createContext = createTenantedDbContext(chain, container, dbType);
                 chain.Middleware.Insert(0, createContext);
                 chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbType, chain.Idempotency));
                 multiTenantTransaction = true;
@@ -799,7 +829,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             // GH-4611, the storage-action counterpart of the branch in the no-entity overload above. See
             // there for why Lightweight mode has to build the DbContext through the tenant builder too.
-            chain.Middleware.Insert(0, typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType));
+            chain.Middleware.Insert(0, createTenantedDbContext(chain, container, dbType));
             tenantedLightweight = true;
         }
         else if (isHttpChain(chain) && hasDatabaseBackedMessagePersistence(container))
@@ -829,7 +859,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
-        if (abstractionType != null)
+        if (abstractionType != null && !isMultiTenanted(container, dbType))
         {
             chain.Middleware.Insert(0, new CastDbContextFrame(abstractionType, dbType));
         }
