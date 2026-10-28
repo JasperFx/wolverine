@@ -33,8 +33,8 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 /// <c>MessageContext</c>-as-transaction writes those envelopes with
 /// <c>Envelope.StoreAndForwardAsync()</c>, a second database write that the handler's own
 /// <c>SaveChangesAsync</c> knows nothing about. Enlisting the DbContext instead puts the envelope rows
-/// in the same unit of work as the entity changes. The post-SaveChanges completion for that path is
-/// <see cref="ScrapeDomainEventsAndSaveChanges" /> rather than
+/// in the same unit of work as the entity changes. That path scrapes with <see cref="ScrapeDomainEvents" />
+/// before the save and completes with <see cref="CommitTransactionOpenedByTheOutbox" /> rather than
 /// <see cref="CommitEfCoreEnvelopeTransaction" />, because a message handler's inbox bookkeeping is
 /// still owned by the pipeline.</para>
 /// </summary>
@@ -117,34 +117,29 @@ internal class EnlistDbContextInOutbox : AsyncFrame, IFlushesMessages
 }
 
 /// <summary>
-/// The post-<c>SaveChangesAsync</c> completion for a <see cref="TransactionMiddlewareMode.Lightweight" />
-/// chain whose DbContext is enlisted in the outbox. Three things in order:
-/// <list type="number">
-/// <item>run every registered <see cref="IDomainEventScraper" />. GH-4630: the scrapers only ever ran
-/// inside <c>EfCoreEnvelopeTransaction.CommitAsync</c>, <c>CommitTenantedDbContextTransaction</c> and
-/// <c>DbContextOutbox.SaveChangesAndFlushMessagesAsync</c>, none of which is on a Lightweight message
-/// handler's path -- so <c>PublishDomainEventsFromEntityFrameworkCore()</c> was inert there;</item>
-/// <item><c>SaveChangesAsync</c> again, because a durable route persists its envelope by adding an
-/// entity to the change tracker and the scrape runs AFTER the middleware's own save. This is the same
-/// GH-3744 trap <see cref="CommitTenantedDbContextTransaction" /> documents;</item>
-/// <item>commit any transaction that got opened along the way. Lightweight mode never begins one, but a
-/// DbContext WITHOUT the Wolverine envelope mappings makes
-/// <c>EfCoreEnvelopeTransaction.PersistOutgoingAsync</c> open one itself for its raw ADO write -- and
-/// nothing else in a Lightweight chain would ever commit it.</item>
-/// </list>
-/// <para>GH-4742: this frame never flushes. A chain that needs the buffered cascades sent gets
-/// <see cref="FlushOutboxAfterCommit" /> emitted immediately after it, so that a postprocessor can sit
-/// strictly between the two.</para>
+/// Runs every registered <see cref="IDomainEventScraper" /> for a <see cref="TransactionMiddlewareMode.Lightweight" />
+/// chain whose DbContext is enlisted in the outbox. GH-4630: the scrapers only ever ran inside
+/// <c>EfCoreEnvelopeTransaction.CommitAsync</c>, <c>CommitTenantedDbContextTransaction</c> and
+/// <c>DbContextOutbox.SaveChangesAndFlushMessagesAsync</c>, none of which is on a Lightweight chain's path --
+/// so <c>PublishDomainEventsFromEntityFrameworkCore()</c> was inert there.
+/// <para>
+/// GH-5262: placed immediately BEFORE the middleware's <c>SaveChangesAsync</c>. A durable route persists an
+/// event's envelope by adding an entity to the change tracker, so scraping first puts those rows in the same
+/// save -- and the same implicit transaction -- as the entity changes, exactly as a cascaded return value
+/// already is. Scraping after the save, with a second save for the envelopes, committed the entity on its
+/// own: a failed envelope write then left the entity behind with no event to show for it. Lightweight mode
+/// cannot simply wrap both saves in a transaction, because it exists to stay compatible with
+/// <c>EnableRetryOnFailure</c>.
+/// </para>
 /// </summary>
-internal class ScrapeDomainEventsAndSaveChanges : AsyncFrame
+internal class ScrapeDomainEvents : AsyncFrame
 {
     private readonly Type _dbContextType;
     private Variable _dbContext = null!;
     private Variable _context = null!;
-    private Variable _cancellation = null!;
     private Variable _scrapers = null!;
 
-    public ScrapeDomainEventsAndSaveChanges(Type dbContextType)
+    public ScrapeDomainEvents(Type dbContextType)
     {
         _dbContextType = dbContextType;
     }
@@ -152,18 +147,9 @@ internal class ScrapeDomainEventsAndSaveChanges : AsyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment(
-            "GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)");
+            "GH-4630 / GH-5262: scrape domain events before saving, so their envelopes ride the same SaveChangesAsync");
         writer.Write($"BLOCK:foreach (var scraper in {_scrapers.Usage})");
         writer.Write($"await scraper.{nameof(IDomainEventScraper.ScrapeEvents)}({_dbContext.Usage}, {_context.Usage}).ConfigureAwait(false);");
-        writer.FinishBlock();
-
-        writer.WriteComment("GH-3744: persist any envelopes the scrape just tracked");
-        writer.Write($"await {_dbContext.Usage}.SaveChangesAsync({_cancellation.Usage}).ConfigureAwait(false);");
-
-        writer.WriteComment(
-            "An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself");
-        writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction != null)");
-        writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);
@@ -179,6 +165,46 @@ internal class ScrapeDomainEventsAndSaveChanges : AsyncFrame
 
         _context = chain.FindVariable(typeof(MessageContext));
         yield return _context;
+    }
+}
+
+/// <summary>
+/// The post-<c>SaveChangesAsync</c> completion for a <see cref="TransactionMiddlewareMode.Lightweight" />
+/// chain whose DbContext is enlisted in the outbox: commit any transaction that got opened along the way.
+/// Lightweight mode never begins one, but a DbContext WITHOUT the Wolverine envelope mappings makes
+/// <c>EfCoreEnvelopeTransaction.PersistOutgoingAsync</c> open one itself for its raw ADO write -- and nothing
+/// else in a Lightweight chain would ever commit it. The domain events were already scraped by
+/// <see cref="ScrapeDomainEvents" /> before the save.
+/// <para>GH-4742: this frame never flushes. A chain that needs the buffered cascades sent gets
+/// <see cref="FlushOutboxAfterCommit" /> emitted immediately after it, so that a postprocessor can sit
+/// strictly between the two.</para>
+/// </summary>
+internal class CommitTransactionOpenedByTheOutbox : AsyncFrame
+{
+    private readonly Type _dbContextType;
+    private Variable _dbContext = null!;
+    private Variable _cancellation = null!;
+
+    public CommitTransactionOpenedByTheOutbox(Type dbContextType)
+    {
+        _dbContextType = dbContextType;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment(
+            "An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself");
+        writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction != null)");
+        writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+        writer.FinishBlock();
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _dbContext = chain.FindVariable(_dbContextType);
+        yield return _dbContext;
 
         _cancellation = chain.FindVariable(typeof(CancellationToken));
         yield return _cancellation;
