@@ -539,7 +539,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Postprocessors.Add(call);
 
         applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbContextType,
-            tenantedLightweight, lightweightEnlisted);
+            tenantedLightweight, lightweightEnlisted, call);
     }
 
     // Eager mode wraps the rest of the chain in a transaction middleware's try/catch. The commit +
@@ -573,7 +573,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     // FlushOutgoingMessages.
     private static void applyEagerCommitOrLightweightFlush(IChain chain, TransactionMiddlewareMode mode,
         bool enrolledInTransaction, bool multiTenantTransaction, Type dbContextType,
-        bool tenantedLightweight, bool lightweightEnlisted)
+        bool tenantedLightweight, bool lightweightEnlisted, Frame saveChanges)
     {
         if (enrolledInTransaction)
         {
@@ -594,8 +594,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // flush frame is IFlushesMessages rather than a plain FlushOutgoingMessages.
             //
             // GH-4630: a message handler's pipeline does its own flush, so that chain gets the scrape
-            // and the save without one. Neither shape ran the domain event scrapers before.
-            chain.Postprocessors.Add(new ScrapeDomainEventsAndSaveChanges(dbContextType));
+            // and the commit without one. Neither shape ran the domain event scrapers before.
+            scrapeDomainEventsBeforeSaving(chain, dbContextType, saveChanges);
+            chain.Postprocessors.Add(new CommitTransactionOpenedByTheOutbox(dbContextType));
             if (chain.ShouldFlushOutgoingMessages())
             {
                 chain.Postprocessors.Add(new FlushOutboxAfterCommit());
@@ -606,7 +607,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // GH-4630. No flush here: Executor/TracingExecutor call FlushOutgoingMessagesAsync() once
             // the handler returns, and adding a second trigger would either double-send or trip the
             // MultiFlushMode.OnlyOnce warning.
-            chain.Postprocessors.Add(new ScrapeDomainEventsAndSaveChanges(dbContextType));
+            scrapeDomainEventsBeforeSaving(chain, dbContextType, saveChanges);
+            chain.Postprocessors.Add(new CommitTransactionOpenedByTheOutbox(dbContextType));
         }
         else if (mode != TransactionMiddlewareMode.Eager
                  && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
@@ -615,6 +617,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             chain.Postprocessors.Add(new FlushOutgoingMessages());
 #pragma warning restore CS4014
         }
+    }
+
+    // GH-5262. See ScrapeDomainEvents: the scrape has to land in the middleware's own save, not in a second
+    // one after the entity changes have already committed.
+    private static void scrapeDomainEventsBeforeSaving(IChain chain, Type dbContextType, Frame saveChanges)
+    {
+        chain.Postprocessors.Insert(chain.Postprocessors.IndexOf(saveChanges), new ScrapeDomainEvents(dbContextType));
     }
 
     /// <summary>
@@ -876,7 +885,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         // See applyEagerCommitOrLightweightFlush + the no-entity overload above (GH-2917).
         applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbType,
-            tenantedLightweight, lightweightEnlisted);
+            tenantedLightweight, lightweightEnlisted, call);
     }
 
     /// <inheritdoc />

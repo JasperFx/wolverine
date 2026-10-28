@@ -211,12 +211,10 @@ public class efcore_ops_tests : IAsyncLifetime
     ///     grow with the row count -- not that the handler saves exactly once.
     /// </summary>
     /// <remarks>
-    ///     Two saves, not one, since GH-4630: a Lightweight message handler now enlists the DbContext in
-    ///     the outbox, and the postprocessor that scrapes domain events saves again afterwards so the
-    ///     envelope rows a cascade tracked AFTER the middleware's save are not stranded. This handler
-    ///     cascades nothing and registers no scrapers, so that second save is a no-op at the database --
-    ///     but it is still a second pass over the change tracker, which is not free with 10k entities in
-    ///     it. Worth revisiting; it is not a merge artifact, it is the shape of the two features together.
+    ///     GH-4630 briefly made this two saves: the postprocessor that scraped domain events ran after the
+    ///     middleware's save and saved again for the envelope rows it tracked -- a second pass over a change
+    ///     tracker holding 10k entities. GH-5262 moved the scrape in front of the middleware's save, so the
+    ///     one save covers the entity changes and any envelopes together, and the second one is gone.
     /// </remarks>
     [Fact]
     public async Task insert_many_of_10k_rows_does_not_save_once_per_row()
@@ -230,7 +228,7 @@ public class efcore_ops_tests : IAsyncLifetime
         finally
         {
             var saves = OpsSaveChangesRecorder.Stop();
-            saves.ShouldBe(2);
+            saves.ShouldBe(1);
         }
 
         using var scope = _lightweight.Services.CreateScope();
